@@ -3,10 +3,13 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import morgan from 'morgan';
 import path from 'path';
+import winston from './config/winston.js';
+
+winston.info('Starting DigiScript server...!');
 
 const app = express();
 
-app.use(morgan('tiny'));
+app.use(morgan('combined', {stream: winston.stream}));
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(path.resolve(), '../client/dist')));
