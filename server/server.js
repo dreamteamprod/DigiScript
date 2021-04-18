@@ -1,4 +1,4 @@
-import { Command } from 'commander/esm.mjs';
+import {Command} from 'commander/esm.mjs';
 import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
@@ -15,12 +15,13 @@ program.requiredOption('--config <value>', 'Path to server config file');
 program.parse(process.argv);
 const options = program.opts();
 
-winston.debug(`Starting with command line arguments: ${JSON.stringify(options)}`);
+winston.debug(`Starting with command line arguments: ` +
+              `${JSON.stringify(options)}`);
 winston.info('Starting DigiScript server...!');
 
 // Config parsing
-winston.debug(`Loding config file from ${options.config}`)
-let rawConfig = fs.readFileSync(options.config);
+winston.debug(`Loding config file from ${options.config}`);
+const rawConfig = fs.readFileSync(options.config);
 const config = JSON.parse(rawConfig);
 const port = config.port || 3080;
 
