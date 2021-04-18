@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon ./server.js localhost 3080",
+    "dev": "nodemon ./server.js",
     "lint": "eslint --max-warnings 0 './**/*.js'",
     "format": "eslint --fix './**/*.js'"
   },
@@ -23,6 +23,7 @@
   "dependencies": {
     "app-root-path": "^3.0.0",
     "body-parser": "^1.19.0",
+    "commander": "^7.2.0",
     "cors": "^2.8.5",
     "express": "^4.17.1",
     "http-proxy-middleware": "^1.1.2",
