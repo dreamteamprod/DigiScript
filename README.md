@@ -36,7 +36,7 @@ npm run build -- --watch
 
 ```sh
 cd server
-npm run dev
+npm run dev -- --config=config.js
 ```
 
 This will start the server using nodemon, which watches for changes to the files and hot reloads the server.
