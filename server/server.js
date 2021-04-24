@@ -33,8 +33,25 @@ const app = express();
 app.use(morgan('combined', {stream: winston.stream}));
 app.use(cors());
 app.use(bodyParser.json());
-app.use(connect());
 app.use(express.static(path.join(path.resolve(), '../client/dist')));
+const historyMiddleware = connect({
+  disableDotRule: true,
+  verbose: true,
+  logger: winston.debug,
+});
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    next();
+  } else {
+    historyMiddleware(req, res, next);
+  }
+});
+app.use(express.static(path.join(path.resolve(), '../client/dist')));
+
+app.get('/api/test', (req, res) => {
+  res.status(200);
+  res.json({'status': 'success'});
+});
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(path.resolve(), '../client/dist/index.html'));
