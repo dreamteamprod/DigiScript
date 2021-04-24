@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import morgan from 'morgan';
+import connect from 'connect-history-api-fallback';
 import path from 'path';
 import winston from './config/winston.js';
 
@@ -32,6 +33,7 @@ const app = express();
 app.use(morgan('combined', {stream: winston.stream}));
 app.use(cors());
 app.use(bodyParser.json());
+app.use(connect());
 app.use(express.static(path.join(path.resolve(), '../client/dist')));
 
 app.get('/', (req, res) => {

@@ -1,0 +1,8 @@
+$body-bg: #121212;
+
+h1 {
+    color: #42b983
+}
+
+@import 'node_modules/bootstrap/scss/bootstrap.scss';
+@import 'node_modules/bootstrap-vue/src/index.scss';
