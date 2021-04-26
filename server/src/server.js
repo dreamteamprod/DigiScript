@@ -6,7 +6,8 @@ import bodyParser from 'body-parser';
 import morgan from 'morgan';
 import connect from 'connect-history-api-fallback';
 import path from 'path';
-import winston from './config/winston.js';
+import winston from './logging/winston.js';
+import api from './api/api.js';
 
 // Command line argument parsing
 const program = new Command();
@@ -48,10 +49,7 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(path.resolve(), '../client/dist')));
 
-app.get('/api/test', (req, res) => {
-  res.status(200);
-  res.json({'status': 'success'});
-});
+app.use('/api', api);
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(path.resolve(), '../client/dist/index.html'));
