@@ -2,7 +2,7 @@ from typing import Optional, Awaitable
 
 from tornado.web import RequestHandler
 
-from route import Route
+from route import ApiRoute, ApiVersion, Route
 
 
 class BaseController(RequestHandler):
@@ -16,3 +16,11 @@ class DebugController(BaseController):
         self.set_status(200)
         self.set_header('Content-Type', 'application/json')
         self.write({'status': 'OK'})
+
+
+@ApiRoute('debug', ApiVersion.v1)
+class ApiDebugController(BaseController):
+    def get(self):
+        self.set_status(200)
+        self.set_header('Content-Type', 'application/json')
+        self.write({'status': 'OK', 'api_version': 1})

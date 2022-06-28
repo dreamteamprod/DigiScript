@@ -1,3 +1,5 @@
+from abc import ABC
+from enum import Enum
 import urllib
 
 from tornado.web import URLSpec
@@ -36,3 +38,13 @@ class Route(object):
             raise KeyError('No route by the name of `{}`'.format(_name))
         kwargs = {k: cls._url_escape(v) for k, v in kwargs.iteritems()}
         return cls._formats[_name] % kwargs
+
+
+class ApiVersion(Enum):
+    v1 = 1
+
+
+class ApiRoute(Route):
+    def __init__(self, route: str, api_version: ApiVersion, name: str = None):
+        route = f'/api/v{api_version.value}/{route}'
+        super().__init__(route, name)
