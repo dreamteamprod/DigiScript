@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
-import logging
 import tornado.ioloop
 from tornado.options import define, options, parse_command_line
 
-from server import DigiScriptServer
-
-log = logging.getLogger(__name__)
+from logger import get_logger
+from app_server import DigiScriptServer
 
 define('debug', type=bool, default=True, help='auto reload')
 define('port', type=int, default=8080, help='port to listen on')
@@ -14,11 +12,11 @@ define('port', type=int, default=8080, help='port to listen on')
 
 def main():
     tornado.options.parse_command_line()
-    app = DigiScriptServer(debug=options.debug)
+    app = DigiScriptServer.instance(debug=options.debug)
     app.listen(options.port)
-    log.info(f'Listening on port: {options.port}')
+    get_logger().info(f'Listening on port: {options.port}')
     if options.debug:
-        log.warning('Running in debug mode')
+        get_logger().warning('Running in debug mode')
     tornado.ioloop.IOLoop.current().start()
 
 
