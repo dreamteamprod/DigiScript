@@ -1,7 +1,7 @@
-import os.path
 from tornado.web import Application, StaticFileHandler
 from tornado_sqlalchemy import SQLAlchemy
 
+from env_parser import EnvParser
 from logger import get_logger
 from route import Route
 from utils import Singleton
@@ -12,14 +12,11 @@ import controllers
 @Singleton
 class DigiScriptServer(Application):
 
-    def __init__(self, debug=False, db_path=None):
-        if not db_path:
-            db_path = f'sqlite://{os.path.join(os.path.dirname(__file__), "digiscript.db")}'
-            get_logger().info(f'No db_path provided, falling back to default: {db_path}')
-        elif not os.path.exists(db_path):
-            raise FileNotFoundError(f'Could not find specified DB path: {db_path}')
+    def __init__(self, debug=False):
+        env_parser: EnvParser = EnvParser.instance()
 
-        self.db = SQLAlchemy(db_path)
+        get_logger().info(f'Using {env_parser.db_path} as DB path')
+        self.db = SQLAlchemy(env_parser.db_path)
 
         handlers = Route.routes()
         handlers.append((
