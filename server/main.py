@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
+import logging
 import tornado.ioloop
 from tornado.options import define, options, parse_command_line
 
-from logger import get_logger
+from logger import get_logger, add_logging_level
 from app_server import DigiScriptServer
+
+add_logging_level('TRACE', logging.DEBUG - 5)
 
 define('debug', type=bool, default=True, help='auto reload')
 define('port', type=int, default=8080, help='port to listen on')

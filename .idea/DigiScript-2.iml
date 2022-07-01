@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/server" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/client/node_modules" />
       <excludeFolder url="file://$MODULE_DIR$/server/static" />
+      <excludeFolder url="file://$MODULE_DIR$/.idea/dataSources" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.10 (venv3102-digiscript)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

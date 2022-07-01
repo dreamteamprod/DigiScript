@@ -3,6 +3,7 @@ from tornado_sqlalchemy import SQLAlchemy
 
 from env_parser import EnvParser
 from logger import get_logger
+from models import db, Session
 from route import Route
 from utils import Singleton
 
@@ -16,7 +17,13 @@ class DigiScriptServer(Application):
         env_parser: EnvParser = EnvParser.instance()
 
         get_logger().info(f'Using {env_parser.db_path} as DB path')
-        self.db = SQLAlchemy(env_parser.db_path)
+        self.db = db
+        self.db.create_all()
+
+        # Clear out all sessions since we are starting the app up
+        with self.db.sessionmaker() as session:
+            session.query(Session).delete()
+            session.commit()
 
         handlers = Route.routes()
         handlers.append((
