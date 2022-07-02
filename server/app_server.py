@@ -18,6 +18,8 @@ class DigiScriptServer(Application):
     def __init__(self, debug=False):
         env_parser: EnvParser = EnvParser.instance()
 
+        self.clients = []
+
         get_logger().info(f'Using {env_parser.db_path} as DB path')
         self.db = db
         self.db.create_all()

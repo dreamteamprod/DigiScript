@@ -11,8 +11,6 @@ from route import ApiRoute, ApiVersion
 @ApiRoute('ws', ApiVersion.v1)
 class WebSocketController(SessionMixin, WebSocketHandler):
 
-    clients = []
-
     def update_session(self):
         with self.make_session() as session:
             entry = session.get(Session, self.request.remote_ip)
@@ -36,7 +34,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         return super().check_origin(origin)
 
     def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:
-        self.clients.append(self)
+        self.application.clients.append(self)
 
         # TODO: This assumes only one session from a single client IP, which
         # might not be true
@@ -44,8 +42,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         get_logger().info(f'WebSocket opened from: {self.request.remote_ip}')
 
     def on_close(self) -> None:
-        if self in self.clients:
-            self.clients.remove(self)
+        if self in self.application.clients:
+            self.application.clients.remove(self)
 
         # TODO: This assumes only one session from a single client IP, which
         # might not be true
