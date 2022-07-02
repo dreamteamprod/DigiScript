@@ -7,7 +7,9 @@ from models import db, Session
 from route import Route
 from utils import Singleton
 
-import controllers
+# Controller imports (needed to trigger the decorator)
+from controllers import controllers
+from controllers import ws_controller
 
 
 @Singleton
@@ -26,11 +28,8 @@ class DigiScriptServer(Application):
             session.commit()
 
         handlers = Route.routes()
-        handlers.append((
-            r'/(.*)',
-            StaticFileHandler,
-            {'path': 'static', 'default_filename': 'index.html'},
-        ))
+        handlers.append((r'/assets/.*', controllers.StaticController))
+        handlers.append((r'/(.*)', controllers.RootController))
         super().__init__(
             handlers=handlers,
             debug=debug,

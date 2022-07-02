@@ -1,33 +1,11 @@
-from tornado.web import RequestHandler
-from tornado.websocket import WebSocketHandler
-from tornado_sqlalchemy import SessionMixin, as_future
 from typing import Optional, Awaitable, Union
+
+from tornado.websocket import WebSocketHandler
+from tornado_sqlalchemy import SessionMixin
 
 from logger import get_logger
 from models import Session
-from route import ApiRoute, ApiVersion, Route
-
-
-class BaseController(SessionMixin, RequestHandler):
-    def data_received(self, chunk: bytes) -> Optional[Awaitable[None]]:
-        raise RuntimeError(
-            f'Data streaming not supported for {self.__class__}')
-
-
-@Route('/debug')
-class DebugController(BaseController):
-    def get(self):
-        self.set_status(200)
-        self.set_header('Content-Type', 'application/json')
-        self.write({'status': 'OK'})
-
-
-@ApiRoute('debug', ApiVersion.v1)
-class ApiDebugController(BaseController):
-    def get(self):
-        self.set_status(200)
-        self.set_header('Content-Type', 'application/json')
-        self.write({'status': 'OK', 'api_version': 1})
+from route import ApiRoute, ApiVersion
 
 
 @ApiRoute('ws', ApiVersion.v1)
