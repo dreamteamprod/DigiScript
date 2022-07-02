@@ -24,6 +24,7 @@ class DigiScriptServer(Application):
 
         # Clear out all sessions since we are starting the app up
         with self.db.sessionmaker() as session:
+            get_logger().debug('Emptying out sessions table!')
             session.query(Session).delete()
             session.commit()
 
