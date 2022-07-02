@@ -31,7 +31,11 @@ class DigiScriptServer(Application):
             StaticFileHandler,
             {'path': 'static', 'default_filename': 'index.html'},
         ))
-        super().__init__(handlers=handlers, debug=debug, db=self.db, websocket_ping_interval=5)
+        super().__init__(
+            handlers=handlers,
+            debug=debug,
+            db=self.db,
+            websocket_ping_interval=5)
 
     def get_db(self) -> SQLAlchemy:
         return self.db

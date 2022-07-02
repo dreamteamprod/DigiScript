@@ -10,7 +10,8 @@ from route import ApiRoute, ApiVersion, Route
 
 class BaseController(SessionMixin, RequestHandler):
     def data_received(self, chunk: bytes) -> Optional[Awaitable[None]]:
-        raise RuntimeError(f'Data streaming not supported for {self.__class__}')
+        raise RuntimeError(
+            f'Data streaming not supported for {self.__class__}')
 
 
 @Route('/debug')
@@ -35,7 +36,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
     clients = []
 
     def data_received(self, chunk: bytes) -> Optional[Awaitable[None]]:
-        raise RuntimeError(f'Data streaming not supported for {self.__class__}')
+        raise RuntimeError(
+            f'Data streaming not supported for {self.__class__}')
 
     def check_origin(self, origin):
         if self.settings.get('debug', False):
@@ -45,7 +47,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
     def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:
         self.clients.append(self)
 
-        # TODO: This assumes only one session from a single client IP, which might not be true
+        # TODO: This assumes only one session from a single client IP, which
+        # might not be true
         with self.make_session() as session:
             session.add(Session(remote_ip=self.request.remote_ip,
                                 last_ping=self.ws_connection.last_ping,
@@ -58,7 +61,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         if self in self.clients:
             self.clients.remove(self)
 
-        # TODO: This assumes only one session from a single client IP, which might not be true
+        # TODO: This assumes only one session from a single client IP, which
+        # might not be true
         with self.make_session() as session:
             entry = session.get(Session, self.request.remote_ip)
             session.delete(entry)
@@ -66,7 +70,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
         get_logger().info(f'WebSocket closed from: {self.request.remote_ip}')
 
-    def on_message(self, message: Union[str, bytes]) -> Optional[Awaitable[None]]:
+    def on_message(self, message: Union[str, bytes]
+                   ) -> Optional[Awaitable[None]]:
         pass
 
     def update_session(self):
@@ -78,8 +83,10 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
     def on_pong(self, data: bytes) -> None:
         self.update_session()
-        get_logger().trace(f'Ping response from {self.request.remote_ip} : {data.hex()}')
+        get_logger().trace(
+            f'Ping response from {self.request.remote_ip} : {data.hex()}')
 
     def on_ping(self, data: bytes) -> None:
         self.update_session()
-        get_logger().trace(f'Ping from {self.request.remote_ip} : {data.hex()}')
+        get_logger().trace(
+            f'Ping from {self.request.remote_ip} : {data.hex()}')
