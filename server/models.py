@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Float
 from tornado_sqlalchemy import SQLAlchemy
 
-from env_parser import EnvParser
+from utils.env_parser import EnvParser
 
 env: EnvParser = EnvParser.instance()
 db = SQLAlchemy(env.db_path)

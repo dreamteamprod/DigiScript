@@ -3,6 +3,10 @@ import os
 from controllers.base_controller import BaseController
 from route import ApiRoute, ApiVersion, Route
 
+# Controller imports - used to trigger the decorator
+import controllers.ws_controller
+import controllers.api.settings
+
 
 class RootController(BaseController):
     def get(self, path):

@@ -3,7 +3,7 @@ from typing import Optional, Awaitable, Union
 from tornado.websocket import WebSocketHandler
 from tornado_sqlalchemy import SessionMixin
 
-from logger import get_logger
+from utils.logger import get_logger
 from models import Session
 from route import ApiRoute, ApiVersion
 

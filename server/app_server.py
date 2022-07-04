@@ -1,23 +1,24 @@
-from tornado.web import Application, StaticFileHandler
+from tornado.web import Application
 from tornado_sqlalchemy import SQLAlchemy
 
-from env_parser import EnvParser
-from logger import get_logger
+from utils.env_parser import EnvParser
+from utils.logger import get_logger
 from models import db, Session
 from route import Route
-from utils import Singleton
+from settings import Settings
+from utils.singleton import Singleton
 
 # Controller imports (needed to trigger the decorator)
 from controllers import controllers
-from controllers import ws_controller
 
 
 @Singleton
 class DigiScriptServer(Application):
 
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, settings_path=None):
         env_parser: EnvParser = EnvParser.instance()
 
+        self.digi_settings = Settings(settings_path)
         self.clients = []
 
         get_logger().info(f'Using {env_parser.db_path} as DB path')

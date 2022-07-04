@@ -1,11 +1,8 @@
 import logging
 
-logger = logging.getLogger('DigiScript')
-logger.setLevel(logging.DEBUG)
-
 
 def get_logger():
-    return logger
+    return logging.getLogger('DigiScript')
 
 
 def add_logging_level(level_name, level_num, method_name=None):
