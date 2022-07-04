@@ -16,6 +16,11 @@ const routes = [
     component: () => import(/* webpackChunkName: "about" */ '../views/AboutView.vue'),
   },
   {
+    path: '/config',
+    name: 'config',
+    component: () => import(/* webpackChunkName: "config" */ '../views/ConfigView.vue'),
+  },
+  {
     path: '*',
     name: '404',
     component: () => import(/* webpackChunkName: "about" */ '../views/404View.vue'),

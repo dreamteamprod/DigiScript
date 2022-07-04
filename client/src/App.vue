@@ -15,6 +15,25 @@
   </div>
 </template>
 
+<script>
+import { mapMutations } from 'vuex';
+
+export default {
+  methods: {
+    ...mapMutations(['UPDATE_SETTINGS']),
+  },
+  async mounted() {
+    const response = await fetch(`${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/v1/settings`);
+    if (response.ok) {
+      const settings = await response.json();
+      this.UPDATE_SETTINGS(settings);
+    } else {
+      console.error('Unable to fetch settings');
+    }
+  },
+};
+</script>
+
 <style>
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;

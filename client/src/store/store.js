@@ -10,6 +10,9 @@ export default new Vuex.Store({
       message: '',
       reconnectError: false,
     },
+    system: {
+      settings: {},
+    },
   },
   mutations: {
     SOCKET_ONOPEN(state, event) {
@@ -32,6 +35,9 @@ export default new Vuex.Store({
     },
     SOCKET_RECONNECT_ERROR(state) {
       state.socket.reconnectError = true;
+    },
+    UPDATE_SETTINGS(state, settings) {
+      state.system.settings = settings;
     },
   },
   actions: {},

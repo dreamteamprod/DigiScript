@@ -23,6 +23,24 @@ class StaticController(BaseController):
             self.write(file.read())
 
 
+class ApiFallback(BaseController):
+    def get(self):
+        self.set_status(404)
+        self.write({'message': '404 not found'})
+
+    def post(self):
+        self.set_status(404)
+        self.write({'message': '404 not found'})
+
+    def patch(self):
+        self.set_status(404)
+        self.write({'message': '404 not found'})
+
+    def delete(self):
+        self.set_status(404)
+        self.write({'message': '404 not found'})
+
+
 @Route('/debug')
 class DebugController(BaseController):
     def get(self):

@@ -33,6 +33,7 @@ class DigiScriptServer(Application):
 
         handlers = Route.routes()
         handlers.append((r'/assets/.*', controllers.StaticController))
+        handlers.append((r'/api/.*', controllers.ApiFallback))
         handlers.append((r'/(.*)', controllers.RootController))
         super().__init__(
             handlers=handlers,
