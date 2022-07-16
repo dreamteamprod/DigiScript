@@ -31,3 +31,12 @@ This starts the web server listening on port 8080
 cd server
 ./main.py
 ```
+
+### Running using docker
+
+This will start DigiScript running, and map port 8080 locally to 8080 on the container
+
+```shell
+docker build -t digiscript:latest .
+docker run -p 8080:8080 digiscript:latest
+```
