@@ -1,6 +1,6 @@
 import os
 
-from controllers.base_controller import BaseController
+from controllers.base_controller import BaseController, BaseAPIController
 from route import ApiRoute, ApiVersion, Route
 
 # Controller imports - used to trigger the decorator
@@ -23,7 +23,7 @@ class StaticController(BaseController):
             self.write(file.read())
 
 
-class ApiFallback(BaseController):
+class ApiFallback(BaseAPIController):
     def get(self):
         self.set_status(404)
         self.write({'message': '404 not found'})
@@ -50,7 +50,7 @@ class DebugController(BaseController):
 
 
 @ApiRoute('debug', ApiVersion.v1)
-class ApiDebugController(BaseController):
+class ApiDebugController(BaseAPIController):
     def get(self):
         self.set_status(200)
         self.set_header('Content-Type', 'application/json')

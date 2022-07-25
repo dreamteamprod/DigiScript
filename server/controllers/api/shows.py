@@ -1,9 +1,9 @@
-from controllers.base_controller import BaseController
+from controllers.base_controller import BaseAPIController
 from route import ApiRoute, ApiVersion
 
 
 @ApiRoute('show', ApiVersion.v1)
-class ShowController(BaseController):
+class ShowController(BaseAPIController):
     def get(self):
         """
         Get a show

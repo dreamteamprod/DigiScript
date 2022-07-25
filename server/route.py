@@ -4,6 +4,9 @@ import urllib
 
 from tornado.web import URLSpec
 import tornado.escape
+from tornado.websocket import WebSocketHandler
+
+from controllers.base_controller import BaseAPIController
 
 
 class Route(object):
@@ -48,3 +51,9 @@ class ApiRoute(Route):
     def __init__(self, route: str, api_version: ApiVersion, name: str = None):
         route = f'/api/v{api_version.value}/{route}'
         super().__init__(route, name)
+
+    def __call__(self, controller):
+        if not issubclass(controller, (BaseAPIController, WebSocketHandler)):
+            raise RuntimeError(f'Controller class {controller.__name__} is not an '
+                               f'instance of BaseAPIController or WebSocketHandler')
+        super().__call__(controller)
