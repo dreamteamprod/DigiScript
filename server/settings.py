@@ -11,8 +11,10 @@ class Settings:
         if settings_path:
             self.settings_path = settings_path
         else:
-            self.settings_path = os.path.join(os.path.dirname(__file__), "digiscript.json")
-            get_logger().info(f'No settings path provided, using {self.settings_path}')
+            self.settings_path = os.path.join(
+                os.path.dirname(__file__), "digiscript.json")
+            get_logger().info(
+                f'No settings path provided, using {self.settings_path}')
         self.settings = {}
         self._load()
 

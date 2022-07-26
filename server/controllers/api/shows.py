@@ -34,7 +34,7 @@ class ShowController(BaseAPIController):
             start_date = parser.parse(start_date)
             if not start_date:
                 raise Exception
-        except:
+        except BaseException:
             self.set_status(400)
             self.write({'message': 'Unable to parse start date value'})
             return
@@ -49,7 +49,7 @@ class ShowController(BaseAPIController):
             end_date = parser.parse(end_date)
             if not end_date:
                 raise Exception
-        except:
+        except BaseException:
             self.set_status(400)
             self.write({'message': 'Unable to parse end date value'})
             return

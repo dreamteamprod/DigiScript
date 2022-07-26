@@ -12,7 +12,11 @@ get_logger().setLevel(logging.DEBUG)
 
 define('debug', type=bool, default=True, help='auto reload')
 define('port', type=int, default=8080, help='port to listen on')
-define('settings_path', type=str, default=None, help='Path to settings JSON file')
+define(
+    'settings_path',
+    type=str,
+    default=None,
+    help='Path to settings JSON file')
 
 
 def main():

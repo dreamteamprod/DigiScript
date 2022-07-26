@@ -54,6 +54,7 @@ class ApiRoute(Route):
 
     def __call__(self, controller):
         if not issubclass(controller, (BaseAPIController, WebSocketHandler)):
-            raise RuntimeError(f'Controller class {controller.__name__} is not an '
-                               f'instance of BaseAPIController or WebSocketHandler')
+            raise RuntimeError(
+                f'Controller class {controller.__name__} is not an '
+                f'instance of BaseAPIController or WebSocketHandler')
         super().__call__(controller)
