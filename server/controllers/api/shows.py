@@ -10,12 +10,6 @@ from utils.logger import get_logger
 
 @ApiRoute('show', ApiVersion.v1)
 class ShowController(BaseAPIController):
-    def get(self):
-        """
-        Get a show
-        """
-        pass
-
     def post(self):
         """
         Create a new show
@@ -69,15 +63,3 @@ class ShowController(BaseAPIController):
 
         self.set_status(200)
         self.write({'message': 'Successfully created show'})
-
-    def patch(self):
-        """
-        Update a show
-        """
-        pass
-
-    def delete(self):
-        """
-        Delete a show
-        """
-        pass
