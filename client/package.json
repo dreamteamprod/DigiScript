@@ -13,6 +13,8 @@
     "vue": "^2.7.0",
     "vue-native-websocket": "^2.0.15",
     "vue-router": "^3.5.1",
+    "vue-toast-notification": "^0.6.3",
+    "vuelidate": "^0.7.7",
     "vuex": "^3.6.2"
   },
   "devDependencies": {
@@ -26,7 +28,13 @@
     "eslint": "^8.19.0",
     "eslint-plugin-import": "^2.25.3",
     "eslint-plugin-vue": "^9.1.1",
-    "eslint-plugin-vuejs-accessibility": "^1.1.0"
+    "eslint-plugin-vuejs-accessibility": "^1.1.0",
+    "webpack": "^5.74.0"
+  },
+  "overrides": {
+    "bootstrap-vue": {
+      "vue": "$vue"
+    }
   },
   "eslintConfig": {
     "root": true,
@@ -42,6 +50,9 @@
     },
     "rules": {
       "no-unused-vars": "off"
+    },
+    "globals": {
+      "utils": true
     }
   },
   "browserslist": [

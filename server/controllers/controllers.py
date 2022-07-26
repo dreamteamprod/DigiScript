@@ -6,6 +6,7 @@ from route import ApiRoute, ApiVersion, Route
 # Controller imports - used to trigger the decorator
 import controllers.ws_controller
 import controllers.api.settings
+import controllers.api.shows
 
 
 class RootController(BaseController):
