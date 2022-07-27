@@ -1,8 +1,24 @@
-from sqlalchemy import Column, String, Float, Integer, Date, DateTime
+import datetime
+import json
+from sqlalchemy import Column, String, Float, Integer, Date, DateTime, inspect
 from tornado_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
+
+def to_json(model: db.Model) -> dict:
+    ret = {}
+    for col in inspect(model).mapper.column_attrs:
+        key = col.key
+        val = getattr(model, col.key)
+
+        if isinstance(val, (datetime.date, datetime.datetime)):
+            val = val.isoformat()
+
+        # Go to and from json here to make sure it is serializable
+        ret[key] = json.loads(json.dumps(val))
+
+    return ret
 
 
 class Session(db.Model):

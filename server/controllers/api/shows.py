@@ -3,7 +3,7 @@ from dateutil import parser
 from tornado import escape
 
 from controllers.base_controller import BaseAPIController
-from models import Show
+from models import Show, to_json
 from route import ApiRoute, ApiVersion
 from utils.logger import get_logger
 
@@ -63,3 +63,16 @@ class ShowController(BaseAPIController):
 
         self.set_status(200)
         self.write({'message': 'Successfully created show'})
+
+
+@ApiRoute('shows', ApiVersion.v1)
+class ShowsController(BaseAPIController):
+
+    def get(self):
+        shows = []
+        with self.make_session() as session:
+            shows = session.query(Show).all()
+            shows = [to_json(s) for s in shows]
+
+        self.set_status(200)
+        self.write({'shows': shows})
