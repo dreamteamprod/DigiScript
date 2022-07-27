@@ -6,13 +6,11 @@ from utils.logger import get_logger
 from models import db, Session
 from route import Route
 from settings import Settings
-from utils.singleton import Singleton
 
 # Controller imports (needed to trigger the decorator)
 from controllers import controllers
 
 
-@Singleton
 class DigiScriptServer(Application):
 
     def __init__(self, debug=False, settings_path=None):
@@ -23,6 +21,7 @@ class DigiScriptServer(Application):
 
         get_logger().info(f'Using {env_parser.db_path} as DB path')
         self.db = db
+        self.db.configure(url=env_parser.db_path)
         self.db.create_all()
 
         # Clear out all sessions since we are starting the app up

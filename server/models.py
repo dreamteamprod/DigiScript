@@ -1,10 +1,8 @@
 from sqlalchemy import Column, String, Float, Integer, Date, DateTime
 from tornado_sqlalchemy import SQLAlchemy
 
-from utils.env_parser import EnvParser
+db = SQLAlchemy()
 
-env: EnvParser = EnvParser.instance()
-db = SQLAlchemy(env.db_path)
 
 
 class Session(db.Model):
