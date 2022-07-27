@@ -9,8 +9,7 @@ import store from '@/store/store';
 import App from './App.vue';
 import router from './router';
 
-import 'bootstrap/dist/css/bootstrap.css';
-import 'bootstrap-vue/dist/bootstrap-vue.css';
+import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';
 
 Vue.use(BootstrapVue);
