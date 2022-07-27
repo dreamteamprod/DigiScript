@@ -12,6 +12,7 @@ export default new Vuex.Store({
     },
     system: {
       settings: {},
+      availableShows: [],
     },
   },
   mutations: {
@@ -38,6 +39,9 @@ export default new Vuex.Store({
     },
     UPDATE_SETTINGS(state, settings) {
       state.system.settings = settings;
+    },
+    UPDATE_SHOWS(state, shows) {
+      state.system.availableShows = shows;
     },
   },
   actions: {},

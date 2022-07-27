@@ -15,7 +15,11 @@
           </b-td>
           <b-td>
             <b-button-group>
-              <b-button variant="outline-success">Load Show</b-button>
+              <b-button variant="outline-success"
+                        v-b-modal.show-load
+                        :disabled="this.$store.state.system.availableShows.length === 0">
+                Load Show
+              </b-button>
               <b-button variant="outline-success" v-b-modal.show-config>Setup New Show</b-button>
             </b-button-group>
           </b-td>
@@ -65,21 +69,55 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal id="show-load" title="Load Show" ref="load-modal" size="lg">
+      <div class="overflow-auto">
+        <b-table
+          id="shows-table"
+          :items="this.$store.state.system.availableShows"
+          :fields="fields"
+          :per-page="perPage"
+          :current-page="currentPage"
+          small
+        >
+          <template #cell(btn)="data">
+            <b-button variant="primary">Load Show</b-button>
+          </template>
+        </b-table>
+        <b-pagination
+          v-model="currentPage"
+          :total-rows="this.$store.state.system.availableShows.length"
+          :per-page="perPage"
+          aria-controls="shows-table"
+          class="justify-content-center"
+        ></b-pagination>
+      </div>
+    </b-modal>
   </div>
 </template>
 
 <script>
 import { required, maxLength } from 'vuelidate/lib/validators';
+import { mapMutations } from 'vuex';
 
 export default {
   name: 'ConfigView',
   data() {
     return {
+      perPage: 5,
+      currentPage: 1,
       formState: {
         name: null,
         start: null,
         end: null,
       },
+      fields: [
+        { key: 'id', label: 'ID' },
+        'name',
+        'start_date',
+        'end_date',
+        'created_at',
+        { key: 'btn', label: '' },
+      ],
     };
   },
   validations: {
@@ -96,7 +134,19 @@ export default {
       },
     },
   },
+  async mounted() {
+    await this.getAvailableShows();
+  },
   methods: {
+    async getAvailableShows() {
+      const response = await fetch(`${utils.makeURL('/api/v1/shows')}`);
+      if (response.ok) {
+        const shows = await response.json();
+        this.UPDATE_SHOWS(shows.shows);
+      } else {
+        console.error('Unable to get available shows');
+      }
+    },
     validateState(name) {
       const { $dirty, $error } = this.$v.formState[name];
       return $dirty ? !$error : null;
@@ -128,6 +178,7 @@ export default {
       });
       if (response.ok) {
         const settings = await response.json();
+        await this.getAvailableShows();
         this.$toast.success('Created new show!');
         this.resetForm();
       } else {
@@ -136,6 +187,7 @@ export default {
         event.preventDefault();
       }
     },
+    ...mapMutations(['UPDATE_SHOWS']),
   },
 };
 </script>
