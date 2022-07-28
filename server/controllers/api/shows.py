@@ -64,6 +64,23 @@ class ShowController(BaseAPIController):
         self.set_status(200)
         self.write({'message': 'Successfully created show'})
 
+    def get(self):
+        show_id = self.get_query_argument('show_id', None)
+        show = None
+
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    show = to_json(show)
+
+        if show:
+            self.set_status(200)
+            self.write(show)
+        else:
+            self.set_status(404)
+            self.write({'message': '404 show not found'})
+
 
 @ApiRoute('shows', ApiVersion.v1)
 class ShowsController(BaseAPIController):

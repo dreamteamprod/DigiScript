@@ -14,6 +14,7 @@ export default new Vuex.Store({
       settings: {},
       availableShows: [],
     },
+    currentShow: null,
   },
   mutations: {
     SOCKET_ONOPEN(state, event) {
@@ -29,6 +30,13 @@ export default new Vuex.Store({
     // default handler called for all methods
     SOCKET_ONMESSAGE(state, message) {
       state.socket.message = message;
+      switch (message.OP) {
+        case 'SETTINGS_CHANGED':
+          state.system.settings = message.DATA;
+          break;
+        default:
+          console.error(`Unknown OP received from websocket: ${message.OP}`);
+      }
     },
     // mutations for reconnect methods
     SOCKET_RECONNECT(state, count) {
@@ -43,6 +51,26 @@ export default new Vuex.Store({
     UPDATE_SHOWS(state, shows) {
       state.system.availableShows = shows;
     },
+    SET_CURRENT_SHOW(state, show) {
+      state.currentShow = show;
+    },
   },
-  actions: {},
+  actions: {
+    async SETTINGS_CHANGED(context) {
+      if (context.state.system.settings.current_show) {
+        const currShow = context.state.system.settings.current_show;
+        if (!context.state.currentShow || context.state.currentShow.id !== currShow) {
+          const response = await fetch(`${utils.makeURL('/api/v1/show')}?${$.param({
+            show_id: currShow,
+          })}`);
+          if (response.ok) {
+            const show = await response.json();
+            context.commit('SET_CURRENT_SHOW', show);
+          } else {
+            console.error('Unable to set current show');
+          }
+        }
+      }
+    },
+  },
 });

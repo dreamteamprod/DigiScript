@@ -11,6 +11,7 @@
     "bootstrap-vue": "^2.22.0",
     "bootswatch": "^4.6.2",
     "core-js": "^3.8.3",
+    "jquery": "^3.6.0",
     "vue": "^2.7.0",
     "vue-native-websocket": "^2.0.15",
     "vue-router": "^3.5.1",
@@ -57,7 +58,9 @@
       "vue/no-unused-vars": "off"
     },
     "globals": {
-      "utils": true
+      "utils": true,
+      "$": true,
+      "jQuery": true
     }
   },
   "browserslist": [

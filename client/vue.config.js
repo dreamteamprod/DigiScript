@@ -18,6 +18,10 @@ module.exports = defineConfig({
       new webpack.ProvidePlugin({
         utils: 'utils',
       }),
+      new webpack.ProvidePlugin({
+        $: 'jquery',
+        jQuery: 'jquery',
+      }),
     ],
   },
 });

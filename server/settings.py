@@ -29,11 +29,10 @@ class Settings:
                 json.dump(self.settings, fp)
             get_logger().info(f'Saved settings to {self.settings_path}')
 
-    async def _save(self):
-        async with self.lock:
-            with open(self.settings_path, 'w') as fp:
-                json.dump(self.settings, fp)
-            get_logger().info(f'Saved settings to {self.settings_path}')
+    def _save(self):
+        with open(self.settings_path, 'w') as fp:
+            json.dump(self.settings, fp)
+        get_logger().info(f'Saved settings to {self.settings_path}')
 
     def _create_defaults(self):
         get_logger().warning('Creating default settings')
@@ -48,7 +47,7 @@ class Settings:
     async def set(self, key, item):
         async with self.lock:
             self.settings[key] = item
-            await self._save()
+            self._save()
 
     async def as_json(self):
         async with self.lock:

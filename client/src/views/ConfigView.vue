@@ -8,8 +8,8 @@
             <b>Current Show</b>
           </b-td>
           <b-td>
-            <p v-if="this.$store.state.system.settings['current_show'] != null">
-              {{ this.$store.state.system.settings['current_show'] }}
+            <p v-if="currentShowLoaded">
+              {{ this.$store.state.currentShow['name'] }}
             </p>
             <b v-else>No show loaded</b>
           </b-td>
@@ -80,7 +80,7 @@
           small
         >
           <template #cell(btn)="data">
-            <b-button variant="primary">Load Show</b-button>
+            <b-button variant="primary" @click="loadShow(data.item)">Load Show</b-button>
           </template>
         </b-table>
         <b-pagination
@@ -187,7 +187,31 @@ export default {
         event.preventDefault();
       }
     },
+    async loadShow(show) {
+      const response = await fetch(`${utils.makeURL('/api/v1/settings')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          current_show: show.id,
+        }),
+      });
+      if (response.ok) {
+        this.$toast.success('Loaded show!');
+        this.$bvModal.hide('show-load');
+      } else {
+        this.$toast.error('Unable to load show');
+        console.error('Unable to load show');
+      }
+    },
     ...mapMutations(['UPDATE_SHOWS']),
+  },
+  computed: {
+    currentShowLoaded() {
+      return (this.$store.state.system.settings.current_show != null
+        && this.$store.state.currentShow != null);
+    },
   },
 };
 </script>

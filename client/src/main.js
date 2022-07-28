@@ -27,6 +27,31 @@ Vue.use(VueNativeSock, `ws://${window.location.hostname}:${window.location.port}
   reconnectionDelay: 3000,
   format: 'json',
   store,
+  passToStoreHandler(eventName, event, next) {
+    // Ignore anything that doesn't start with SOCKET_ as per
+    // https://www.npmjs.com/package/vue-native-websocket
+    if (!eventName.startsWith('SOCKET_')) {
+      return;
+    }
+    // Custom message handling here
+    if (this.format === 'json' && event.data) {
+      const msg = JSON.parse(event.data);
+      // If the message contains an OP key, then this is going to be something we care about
+      if (msg.OP) {
+        // Always call the commit function here, as we care about it
+        // eslint-disable-next-line
+        this.store['commit'](eventName.toUpperCase(), msg);
+        if (msg.ACTION) {
+          // If we have an action, then call the corresponding action too, this means a single
+          // WS message can do two things (commit a mutation, AND perform an action)
+          // eslint-disable-next-line
+          this.store['dispatch']([msg.namespace || '', msg.ACTION].filter((e) => !!e).join('/'), msg);
+        }
+        return;
+      }
+    }
+    next(eventName, event);
+  },
 });
 
 Vue.config.productionTip = false;
