@@ -8,6 +8,9 @@
       <b-collapse id="nav-collapse" is-nav>
         <b-navbar-nav>
           <b-nav-item to="/config">System Config</b-nav-item>
+          <b-nav-item to="/show-config" v-if="this.$store.state.currentShow != null">
+            Show Config
+          </b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
           <b-nav-item to="/about">About</b-nav-item>
