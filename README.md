@@ -1,12 +1,17 @@
 # DigiScript
 
-A digital script project for queueing theatrical shows
+A digital script project for cueing theatrical shows
 
 ## Getting started
 
+### Requirements
+
+* Node v16.15.x (npm 8.11.x)
+* Python 3.10.x
+
 ### Client
 
-This installs and builds the client side files (nvm recommended)
+This installs and builds the client side files ([nvm](https://github.com/nvm-sh/nvm) recommended)
 
 ```shell
 cd client
@@ -16,7 +21,7 @@ npm run build
 
 ### Server
 
-This installs the Python requirements needed to run the server (pyenv recommended)
+This installs the Python requirements needed to run the server ([pyenv](https://github.com/pyenv/pyenv) recommended)
 
 ```shell
 cd server
