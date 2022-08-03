@@ -1,9 +1,9 @@
 from tornado import escape
 
 from controllers.ws_controller import WebSocketController
-from settings import Settings
+from utils.settings import Settings
 from controllers.base_controller import BaseAPIController
-from route import ApiRoute, ApiVersion
+from utils.route import ApiRoute, ApiVersion
 from utils.logger import get_logger
 
 

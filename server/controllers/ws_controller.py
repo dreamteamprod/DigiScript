@@ -4,8 +4,8 @@ from tornado.websocket import WebSocketHandler
 from tornado_sqlalchemy import SessionMixin
 
 from utils.logger import get_logger
-from models import Session
-from route import ApiRoute, ApiVersion
+from models.models import Session
+from utils.route import ApiRoute, ApiVersion
 
 
 @ApiRoute('ws', ApiVersion.v1)

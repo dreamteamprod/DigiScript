@@ -1,10 +1,9 @@
 import os
 
 from controllers.base_controller import BaseController, BaseAPIController
-from route import ApiRoute, ApiVersion, Route
+from utils.route import ApiRoute, ApiVersion, Route
 
 # Controller imports - used to trigger the decorator
-import controllers.ws_controller
 import controllers.api.settings
 import controllers.api.shows
 

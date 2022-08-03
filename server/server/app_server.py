@@ -3,9 +3,9 @@ from tornado_sqlalchemy import SQLAlchemy
 
 from utils.env_parser import EnvParser
 from utils.logger import get_logger
-from models import db, Session
-from route import Route
-from settings import Settings
+from models.models import db, Session
+from utils.route import Route
+from utils.settings import Settings
 
 # Controller imports (needed to trigger the decorator)
 from controllers import controllers

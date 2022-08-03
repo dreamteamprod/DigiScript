@@ -3,8 +3,8 @@ from dateutil import parser
 from tornado import escape
 
 from controllers.base_controller import BaseAPIController
-from models import Show, to_json
-from route import ApiRoute, ApiVersion
+from models.models import Show, to_json
+from utils.route import ApiRoute, ApiVersion
 from utils.logger import get_logger
 
 

@@ -5,7 +5,7 @@ import tornado.ioloop
 from tornado.options import define, options
 
 from utils.logger import get_logger, add_logging_level
-from app_server import DigiScriptServer
+from server.app_server import DigiScriptServer
 
 add_logging_level('TRACE', logging.DEBUG - 5)
 get_logger().setLevel(logging.DEBUG)
