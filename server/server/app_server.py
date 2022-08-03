@@ -31,6 +31,7 @@ class DigiScriptServer(Application):
             session.commit()
 
         handlers = Route.routes()
+        handlers.append(('/favicon.ico', controllers.StaticController))
         handlers.append((r'/assets/.*', controllers.StaticController))
         handlers.append((r'/api/.*', controllers.ApiFallback))
         handlers.append((r'/(.*)', controllers.RootController))

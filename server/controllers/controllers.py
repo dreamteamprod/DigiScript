@@ -1,4 +1,5 @@
 import os
+from tornado.escape import url_unescape
 
 from controllers.base_controller import BaseController, BaseAPIController
 from utils.route import ApiRoute, ApiVersion, Route
@@ -10,17 +11,22 @@ import controllers.api.shows
 
 class RootController(BaseController):
     def get(self, path):
-        file_path = os.path.abspath(os.path.dirname(__file__)) + "/../public/"
-        with open(file_path + "index.html", 'r') as file:
+        file_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "public")
+        with open(os.path.join(file_path, "index.html"), 'r') as file:
             self.write(file.read())
 
 
 class StaticController(BaseController):
     def get(self):
         self.set_header('Content-Type', '')
-        file_path = os.path.abspath(os.path.dirname(__file__)) + "/../static/"
-        with open(file_path + self.request.uri, 'r') as file:
-            self.write(file.read())
+        full_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "static",
+                                 url_unescape(self.request.uri).strip(os.path.sep))
+        try:
+            with open(full_path, 'r') as file:
+                self.write(file.read())
+        except UnicodeDecodeError:
+            with open(full_path, 'rb') as file:
+                self.write(file.read())
 
 
 class ApiFallback(BaseAPIController):
