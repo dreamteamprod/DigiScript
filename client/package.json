@@ -10,7 +10,7 @@
     "bootstrap": "^4.6.2",
     "bootstrap-vue": "^2.22.0",
     "bootswatch": "^4.6.2",
-    "core-js": "^3.8.3",
+    "core-js": "^3.24.1",
     "jquery": "^3.6.0",
     "vue": "^2.7.0",
     "vue-native-websocket": "^2.0.15",
