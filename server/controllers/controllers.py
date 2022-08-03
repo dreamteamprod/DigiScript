@@ -13,7 +13,11 @@ import controllers.api.shows
 
 class RootController(BaseController):
     def get(self, path):
-        file_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "public")
+        file_path = os.path.join(
+            os.path.abspath(
+                os.path.dirname(__file__)),
+            "..",
+            "public")
         with open(os.path.join(file_path, "index.html"), 'r') as file:
             self.write(file.read())
 
@@ -21,8 +25,11 @@ class RootController(BaseController):
 class StaticController(BaseController):
     def get(self):
         self.set_header('Content-Type', '')
-        full_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "static",
-                                 url_unescape(self.request.uri).strip(os.path.sep))
+        full_path = os.path.join(
+            os.path.abspath(
+                os.path.dirname(__file__)), "..", "static", url_unescape(
+                self.request.uri).strip(
+                os.path.sep))
         try:
             with open(full_path, 'r') as file:
                 self.write(file.read())

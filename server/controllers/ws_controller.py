@@ -57,7 +57,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
     def on_message(self, message: Union[str, bytes]
                    ) -> Optional[Awaitable[None]]:
-        get_logger().debug(f'WebSocket received data from {self.request.remote_ip}: {message}')
+        get_logger().debug(
+            f'WebSocket received data from {self.request.remote_ip}: {message}')
 
     def on_pong(self, data: bytes) -> None:
         self.update_session()
