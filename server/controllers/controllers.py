@@ -5,8 +5,10 @@ from controllers.base_controller import BaseController, BaseAPIController
 from utils.route import ApiRoute, ApiVersion, Route
 
 # Controller imports - used to trigger the decorator
+# pylint: disable=unused-import
 import controllers.api.settings
 import controllers.api.shows
+# pylint: enable=unused-import
 
 
 class RootController(BaseController):

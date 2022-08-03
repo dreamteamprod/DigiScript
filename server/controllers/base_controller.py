@@ -11,18 +11,7 @@ class BaseController(SessionMixin, RequestHandler):
 
 
 class BaseAPIController(BaseController):
-    def get(self):
-        self.set_status(501)
-        self.write({'message': '501 not implemented'})
 
-    def post(self):
-        self.set_status(501)
-        self.write({'message': '501 not implemented'})
-
-    def patch(self):
-        self.set_status(501)
-        self.write({'message': '501 not implemented'})
-
-    def delete(self):
-        self.set_status(501)
-        self.write({'message': '501 not implemented'})
+    def _unimplemented_method(self, *args: str, **kwargs: str) -> None:
+        self.set_status(405)
+        self.write({'message': '405 not allowed'})
