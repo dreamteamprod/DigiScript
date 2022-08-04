@@ -1,6 +1,6 @@
 <template>
   <div class="home">
-    <b>DigiScript</b>
+    <h1>DigiScript</h1>
   </div>
 </template>
 
