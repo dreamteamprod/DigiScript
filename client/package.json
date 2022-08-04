@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "ci-lint": "vue-cli-service lint --no-fix"
   },
   "dependencies": {
     "bootstrap": "^4.6.2",
