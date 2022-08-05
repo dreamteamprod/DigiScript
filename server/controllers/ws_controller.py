@@ -1,14 +1,14 @@
 import json
 from typing import Optional, Awaitable, Union
 
+from uuid import uuid4
+from tornado import gen
 from tornado.websocket import WebSocketHandler
 from tornado_sqlalchemy import SessionMixin
 
 from utils.logger import get_logger
 from models.models import Session
 from utils.route import ApiRoute, ApiVersion
-
-from uuid import uuid4
 
 
 @ApiRoute('ws', ApiVersion.v1)
@@ -37,13 +37,15 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             return True
         return super().check_origin(origin)
 
-    async def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:
+    @gen.coroutine
+    def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:
         self.__setattr__('internal_id', str(uuid4()))
         self.application.clients.append(self)
 
         self.update_session()
         get_logger().info(f'WebSocket opened from: {self.request.remote_ip}')
-        await self.write_message({
+
+        yield self.write_message({
             'OP': 'SET_UUID',
             'DATA': self.__getattribute__('internal_id')
         })
@@ -66,8 +68,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             f'WebSocket received data from {self.request.remote_ip}: {message}')
 
         message = json.loads(message)
-        op = message['OP']
-        if op == 'SET_UUID':
+        ws_op = message['OP']
+        if ws_op == 'SET_UUID':
             with self.make_session() as session:
                 entry = session.get(Session, self.__getattribute__('internal_id'))
                 if entry:
@@ -76,7 +78,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             self.__setattr__('internal_id', message['DATA'])
             self.update_session()
         else:
-            get_logger().warning(f'Unknown OP {op} received from '
+            get_logger().warning(f'Unknown OP {ws_op} received from '
                                  f'WebSocket connection {self.request.remote_ip}')
 
     def on_pong(self, data: bytes) -> None:

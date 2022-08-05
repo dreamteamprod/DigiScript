@@ -1,2 +1,5 @@
 [MASTER]
 init-hook="from pylint.config import find_pylintrc; import os, sys; sys.path.append(os.path.dirname(find_pylintrc()))"
+
+[MESSAGES CONTROL]
+disable=logging-fstring-interpolation,missing-module-docstring,missing-class-docstring,missing-function-docstring
