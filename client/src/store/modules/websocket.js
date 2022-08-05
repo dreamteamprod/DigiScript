@@ -23,7 +23,14 @@ export default {
       state.message = message;
       switch (message.OP) {
         case 'SET_UUID':
-          state.internalUUID = message.DATA;
+          if (state.internalUUID != null) {
+            Vue.prototype.$socket.sendObj({
+              OP: 'SET_UUID',
+              DATA: state.internalUUID,
+            });
+          } else {
+            state.internalUUID = message.DATA;
+          }
           break;
         case 'SETTINGS_CHANGED':
           state.system.settings = message.DATA;
