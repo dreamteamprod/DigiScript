@@ -24,6 +24,19 @@
             </b-button-group>
           </b-td>
         </b-tr>
+        <b-tr>
+          <b-td>
+            <b>Connected Clients</b>
+          </b-td>
+          <b-td>
+            {{ connectedClients.length }}
+          </b-td>
+          <b-td>
+            <b-button variant="outline-success" v-b-modal.connected-clients>
+              View Clients
+            </b-button>
+          </b-td>
+        </b-tr>
       </b-tbody>
     </b-table-simple>
     <b-modal id="show-config" title="Setup New Show" ref="modal" @show="resetForm"
@@ -74,9 +87,9 @@
         <b-table
           id="shows-table"
           :items="this.$store.state.system.availableShows"
-          :fields="fields"
+          :fields="showFields"
           :per-page="perPage"
-          :current-page="currentPage"
+          :current-page="currentPageShows"
           small
         >
           <template #cell(btn)="data">
@@ -84,13 +97,34 @@
           </template>
         </b-table>
         <b-pagination
-          v-model="currentPage"
+          v-model="currentPageShows"
           :total-rows="this.$store.state.system.availableShows.length"
           :per-page="perPage"
           aria-controls="shows-table"
           class="justify-content-center"
         ></b-pagination>
       </div>
+    </b-modal>
+    <b-modal
+      id="connected-clients"
+      title="Connected Clients"
+      ref="connected-clients-modal"
+      size="lg">
+      <b-table
+        id="shows-table"
+        :items="connectedClients"
+        :fields="clientFields"
+        :per-page="perPage"
+        :current-page="currentPageClients"
+        small
+      />
+      <b-pagination
+        v-model="currentPageClients"
+        :total-rows="connectedClients.length"
+        :per-page="perPage"
+        aria-controls="shows-table"
+        class="justify-content-center"
+      ></b-pagination>
     </b-modal>
   </div>
 </template>
@@ -104,19 +138,27 @@ export default {
   data() {
     return {
       perPage: 5,
-      currentPage: 1,
+      currentPageShows: 1,
       formState: {
         name: null,
         start: null,
         end: null,
       },
-      fields: [
+      showFields: [
         { key: 'id', label: 'ID' },
         'name',
         'start_date',
         'end_date',
         'created_at',
         { key: 'btn', label: '' },
+      ],
+      connectedClients: [],
+      currentPageClients: 1,
+      clientFields: [
+        { key: 'internal_id', label: 'UUID' },
+        { key: 'remote_ip', label: 'IP' },
+        'last_ping',
+        'last_pong',
       ],
     };
   },
@@ -136,6 +178,7 @@ export default {
   },
   async mounted() {
     await this.getAvailableShows();
+    await this.getConnectedClients();
   },
   methods: {
     async getAvailableShows() {
@@ -146,6 +189,16 @@ export default {
       } else {
         console.error('Unable to get available shows');
       }
+    },
+    async getConnectedClients() {
+      const response = await fetch(`${utils.makeURL('/api/v1/ws/sessions')}`);
+      if (response.ok) {
+        const sessions = await response.json();
+        this.connectedClients = sessions.sessions;
+      } else {
+        console.error('Unable to get available shows');
+      }
+      setTimeout(this.getConnectedClients, 1000);
     },
     validateState(name) {
       const { $dirty, $error } = this.$v.formState[name];
