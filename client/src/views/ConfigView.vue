@@ -160,6 +160,7 @@ export default {
         'last_ping',
         'last_pong',
       ],
+      clientTimeout: null,
     };
   },
   validations: {
@@ -180,6 +181,9 @@ export default {
     await this.getAvailableShows();
     await this.getConnectedClients();
   },
+  destroyed() {
+    clearTimeout(this.clientTimeout);
+  },
   methods: {
     async getAvailableShows() {
       const response = await fetch(`${utils.makeURL('/api/v1/shows')}`);
@@ -198,7 +202,7 @@ export default {
       } else {
         console.error('Unable to get available shows');
       }
-      setTimeout(this.getConnectedClients, 1000);
+      this.clientTimeout = setTimeout(this.getConnectedClients, 1000);
     },
     validateState(name) {
       const { $dirty, $error } = this.$v.formState[name];
