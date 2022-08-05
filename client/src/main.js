@@ -23,8 +23,6 @@ Vue.use(ToastPlugin, {
 
 Vue.use(VueNativeSock, `ws://${window.location.hostname}:${window.location.port}/api/v1/ws`, {
   reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 3000,
   format: 'json',
   store,
   passToStoreHandler(eventName, event, next) {

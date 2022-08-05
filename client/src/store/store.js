@@ -9,6 +9,7 @@ export default new Vuex.Store({
       isConnected: false,
       message: '',
       reconnectError: false,
+      internalUUID: null,
     },
     system: {
       settings: {},
@@ -31,6 +32,9 @@ export default new Vuex.Store({
     SOCKET_ONMESSAGE(state, message) {
       state.socket.message = message;
       switch (message.OP) {
+        case 'SET_UUID':
+          state.socket.internalUUID = message.DATA;
+          break;
         case 'SETTINGS_CHANGED':
           state.system.settings = message.DATA;
           break;

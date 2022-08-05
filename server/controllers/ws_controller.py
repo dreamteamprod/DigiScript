@@ -7,19 +7,22 @@ from utils.logger import get_logger
 from models.models import Session
 from utils.route import ApiRoute, ApiVersion
 
+from uuid import uuid4
+
 
 @ApiRoute('ws', ApiVersion.v1)
 class WebSocketController(SessionMixin, WebSocketHandler):
 
     def update_session(self):
         with self.make_session() as session:
-            entry = session.get(Session, self.request.remote_ip)
+            entry = session.get(Session, self.__getattribute__('internal_id'))
             if entry:
                 entry.last_ping = self.ws_connection.last_ping
                 entry.last_pong = self.ws_connection.last_pong
                 session.commit()
             else:
-                session.add(Session(remote_ip=self.request.remote_ip,
+                session.add(Session(internal_id=self.__getattribute__('internal_id'),
+                                    remote_ip=self.request.remote_ip,
                                     last_ping=self.ws_connection.last_ping,
                                     last_pong=self.ws_connection.last_pong))
                 session.commit()
@@ -33,22 +36,23 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             return True
         return super().check_origin(origin)
 
-    def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:
+    async def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:
+        self.__setattr__('internal_id', str(uuid4()))
         self.application.clients.append(self)
 
-        # TODO: This assumes only one session from a single client IP, which
-        # might not be true
         self.update_session()
         get_logger().info(f'WebSocket opened from: {self.request.remote_ip}')
+        await self.write_message({
+            'OP': 'SET_UUID',
+            'DATA': self.__getattribute__('internal_id')
+        })
 
     def on_close(self) -> None:
         if self in self.application.clients:
             self.application.clients.remove(self)
 
-        # TODO: This assumes only one session from a single client IP, which
-        # might not be true
         with self.make_session() as session:
-            entry = session.get(Session, self.request.remote_ip)
+            entry = session.get(Session, self.__getattribute__('internal_id'))
             if entry:
                 session.delete(entry)
                 session.commit()
