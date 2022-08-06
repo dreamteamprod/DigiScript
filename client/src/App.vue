@@ -23,15 +23,13 @@ import { mapMutations, mapActions } from 'vuex';
 
 export default {
   methods: {
-    ...mapMutations(['UPDATE_SETTINGS']),
-    ...mapActions(['SETTINGS_CHANGED']),
+    ...mapActions(['UPDATE_SETTINGS']),
   },
   async mounted() {
     const response = await fetch(`${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/v1/settings`);
     if (response.ok) {
       const settings = await response.json();
-      this.UPDATE_SETTINGS(settings);
-      await this.SETTINGS_CHANGED();
+      await this.UPDATE_SETTINGS(settings);
     } else {
       console.error('Unable to fetch settings');
     }

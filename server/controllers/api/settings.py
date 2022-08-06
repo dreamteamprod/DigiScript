@@ -29,7 +29,7 @@ class SettingsController(BaseAPIController):
             await client.write_message({
                 'OP': 'SETTINGS_CHANGED',
                 'DATA': settings_json,
-                'ACTION': 'SETTINGS_CHANGED'
+                'ACTION': 'WS_SETTINGS_CHANGED'
             })
 
         self.set_status(200)

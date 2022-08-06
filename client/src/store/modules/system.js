@@ -12,6 +12,10 @@ export default {
     },
   },
   actions: {
+    async UPDATE_SETTINGS(context, payload) {
+      context.commit('UPDATE_SETTINGS', payload);
+      await context.dispatch('SETTINGS_CHANGED');
+    },
     async SETTINGS_CHANGED(context) {
       if (context.state.settings.current_show) {
         const currShow = context.state.settings.current_show;

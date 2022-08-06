@@ -33,7 +33,6 @@ export default {
           }
           break;
         case 'SETTINGS_CHANGED':
-          state.system.settings = message.DATA;
           break;
         default:
           console.error(`Unknown OP received from websocket: ${message.OP}`);
@@ -45,6 +44,11 @@ export default {
     },
     SOCKET_RECONNECT_ERROR(state) {
       state.reconnectError = true;
+    },
+  },
+  actions: {
+    async WS_SETTINGS_CHANGED(context, payload) {
+      await context.dispatch('UPDATE_SETTINGS', payload.DATA);
     },
   },
 };
