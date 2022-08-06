@@ -28,7 +28,7 @@ export default {
   methods: {
     ...mapActions(['UPDATE_SETTINGS']),
   },
-  async mounted() {
+  async created() {
     const response = await fetch(`${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/v1/settings`);
     if (response.ok) {
       const settings = await response.json();

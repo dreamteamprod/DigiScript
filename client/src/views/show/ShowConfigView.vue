@@ -25,7 +25,7 @@
             </b-button>
           </b-button-group>
         </b-col>
-        <b-col>
+        <b-col cols="8">
           <router-view/>
         </b-col>
       </b-row>

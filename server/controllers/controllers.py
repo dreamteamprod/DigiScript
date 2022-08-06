@@ -7,7 +7,8 @@ from utils.route import ApiRoute, ApiVersion, Route
 # Controller imports - used to trigger the decorator
 # pylint: disable=unused-import
 import controllers.api.settings
-import controllers.api.shows
+import controllers.api.show.cast
+import controllers.api.show.shows
 import controllers.api.websocket
 # pylint: enable=unused-import
 

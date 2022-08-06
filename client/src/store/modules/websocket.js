@@ -34,6 +34,8 @@ export default {
           break;
         case 'SETTINGS_CHANGED':
           break;
+        case 'GET_CAST_LIST':
+          break;
         default:
           console.error(`Unknown OP received from websocket: ${message.OP}`);
       }
