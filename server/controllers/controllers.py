@@ -8,6 +8,7 @@ from utils.route import ApiRoute, ApiVersion, Route
 # pylint: disable=unused-import
 import controllers.api.settings
 import controllers.api.show.cast
+import controllers.api.show.characters
 import controllers.api.show.shows
 import controllers.api.websocket
 # pylint: enable=unused-import

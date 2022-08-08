@@ -3,11 +3,15 @@ import Vue from 'vue';
 export default {
   state: {
     castList: [],
+    characterList: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
       state.castList = castList;
     },
+    SET_CHARACTER_LIST(state, characterList) {
+      state.characterList = characterList;
+    }
   },
   actions: {
     async GET_CAST_LIST(context) {
@@ -75,10 +79,25 @@ export default {
         Vue.$toast.error('Unable to edit cast member');
       }
     },
+    async GET_CHARACTER_LIST(context) {
+
+    },
+    async ADD_CHARACTER(context, character) {
+
+    },
+    async DELETE_CHARACTER(context, characterID) {
+
+    },
+    async UPDATE_CHARACTER(context, character) {
+
+    },
   },
   getters: {
     CAST_LIST(state) {
       return state.castList;
     },
+    CHARACTER_LIS(state) {
+      return state.characterList;
+    }
   },
 };
