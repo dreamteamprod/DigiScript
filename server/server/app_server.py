@@ -1,6 +1,7 @@
 from tornado.web import Application
 from tornado_sqlalchemy import SQLAlchemy
 
+from controllers.ws_controller import WebSocketController
 from utils.env_parser import EnvParser
 from utils.logger import get_logger
 from models.models import db, Session
@@ -43,3 +44,12 @@ class DigiScriptServer(Application):
 
     def get_db(self) -> SQLAlchemy:
         return self.db
+
+    async def ws_send_to_all(self, op: str, action: str, data: dict):
+        client: WebSocketController
+        for client in self.clients:
+            await client.write_message({
+                'OP': op,
+                'DATA': data,
+                'ACTION': action
+            })
