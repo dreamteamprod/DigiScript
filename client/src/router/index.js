@@ -13,17 +13,49 @@ const routes = [
   {
     path: '/about',
     name: 'about',
-    component: () => import(/* webpackChunkName: "about" */ '../views/AboutView.vue'),
+    component: () => import('../views/AboutView.vue'),
   },
   {
     path: '/config',
     name: 'config',
-    component: () => import(/* webpackChunkName: "config" */ '../views/ConfigView.vue'),
+    component: () => import('../views/ConfigView.vue'),
+  },
+  {
+    path: '/show-config',
+    name: 'show-config',
+    component: () => import(/* webpackChunkName: "show-config" */ '../views/show/ShowConfigView.vue'),
+    children: [
+      {
+        name: 'show-config-cast',
+        path: 'cast',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCast.vue'),
+      },
+      {
+        name: 'show-config-characters',
+        path: 'characters',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCharacters.vue'),
+      },
+      {
+        name: 'show-config-acts',
+        path: 'acts',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigActs.vue'),
+      },
+      {
+        name: 'show-config-scenes',
+        path: 'scenes',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigScenes.vue'),
+      },
+      {
+        name: 'show-config-script',
+        path: 'script',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigScript.vue'),
+      },
+    ],
   },
   {
     path: '*',
     name: '404',
-    component: () => import(/* webpackChunkName: "about" */ '../views/404View.vue'),
+    component: () => import('../views/404View.vue'),
   },
 ];
 
