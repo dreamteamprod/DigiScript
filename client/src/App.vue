@@ -17,7 +17,12 @@
         </b-navbar-nav>
       </b-collapse>
     </b-navbar>
-    <router-view/>
+    <template>
+      <router-view v-if="loaded"/>
+      <div class="text-center center-spinner" v-else>
+        <b-spinner style="width: 10rem; height: 10rem;" variant="info"></b-spinner>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -25,6 +30,11 @@
 import { mapMutations, mapActions } from 'vuex';
 
 export default {
+  data() {
+    return {
+      loaded: false,
+    };
+  },
   methods: {
     ...mapActions(['UPDATE_SETTINGS']),
   },
@@ -36,6 +46,7 @@ export default {
     } else {
       console.error('Unable to fetch settings');
     }
+    this.loaded = true;
   },
 };
 </script>
@@ -60,5 +71,13 @@ nav a {
 
 nav a.router-link-exact-active {
   color: #42b983;
+}
+
+div.center-spinner {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  -webkit-transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%);
 }
 </style>
