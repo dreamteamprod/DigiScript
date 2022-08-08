@@ -1,6 +1,5 @@
 from tornado import escape
 
-from controllers.ws_controller import WebSocketController
 from utils.settings import Settings
 from controllers.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
@@ -24,13 +23,10 @@ class SettingsController(BaseAPIController):
             await settings.set(k, v)
 
         settings_json = await settings.as_json()
-        client: WebSocketController
-        for client in self.application.clients:
-            await client.write_message({
-                'OP': 'SETTINGS_CHANGED',
-                'DATA': settings_json,
-                'ACTION': 'WS_SETTINGS_CHANGED'
-            })
+        await self.application.ws_send_to_all(
+            'SETTINGS_CHANGED',
+            'WS_SETTINGS_CHANGED',
+            settings_json)
 
         self.set_status(200)
         self.write({'message': 'Settings updated'})

@@ -1,7 +1,6 @@
 from tornado import escape
 
 from controllers.base_controller import BaseAPIController
-from controllers.ws_controller import WebSocketController
 from models.models import Cast, Show, to_json
 from utils.route import ApiRoute, ApiVersion
 
@@ -53,13 +52,7 @@ class CastController(BaseAPIController):
                     self.set_status(200)
                     await self.finish({'message': 'Successfully added cast member'})
 
-                    client: WebSocketController
-                    for client in self.application.clients:
-                        await client.write_message({
-                            'OP': 'GET_CAST_LIST',
-                            'DATA': {},
-                            'ACTION': 'GET_CAST_LIST'
-                        })
+                    await self.application.ws_send_to_all('GET_CAST_LIST', 'GET_CAST_LIST', {})
                 else:
                     self.set_status(404)
                     await self.finish({'message': '404 show not found'})
@@ -102,13 +95,7 @@ class CastController(BaseAPIController):
                         self.set_status(200)
                         await self.finish({'message': 'Successfully updated cast member'})
 
-                        client: WebSocketController
-                        for client in self.application.clients:
-                            await client.write_message({
-                                'OP': 'GET_CAST_LIST',
-                                'DATA': {},
-                                'ACTION': 'GET_CAST_LIST'
-                            })
+                        await self.application.ws_send_to_all('GET_CAST_LIST', 'GET_CAST_LIST', {})
                     else:
                         self.set_status(404)
                         await self.finish({'message': '404 cast member not found'})
@@ -142,13 +129,7 @@ class CastController(BaseAPIController):
                         self.set_status(200)
                         await self.finish({'message': 'Successfully deleted cast member'})
 
-                        client: WebSocketController
-                        for client in self.application.clients:
-                            await client.write_message({
-                                'OP': 'GET_CAST_LIST',
-                                'DATA': {},
-                                'ACTION': 'GET_CAST_LIST'
-                            })
+                        await self.application.ws_send_to_all('GET_CAST_LIST', 'GET_CAST_LIST', {})
                     else:
                         self.set_status(404)
                         await self.finish({'message': '404 cast member not found'})

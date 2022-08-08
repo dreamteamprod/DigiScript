@@ -9,6 +9,7 @@ from utils.settings import Settings
 
 # Controller imports (needed to trigger the decorator)
 from controllers import controllers
+from controllers.ws_controller import WebSocketController
 
 
 class DigiScriptServer(Application):
@@ -43,3 +44,12 @@ class DigiScriptServer(Application):
 
     def get_db(self) -> SQLAlchemy:
         return self.db
+
+    async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):
+        client: WebSocketController
+        for client in self.clients:
+            await client.write_message({
+                'OP': ws_op,
+                'DATA': ws_data,
+                'ACTION': ws_action
+            })
