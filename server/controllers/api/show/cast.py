@@ -1,7 +1,6 @@
 from tornado import escape
 
 from controllers.base_controller import BaseAPIController
-from controllers.ws_controller import WebSocketController
 from models.models import Cast, Show, to_json
 from utils.route import ApiRoute, ApiVersion
 
