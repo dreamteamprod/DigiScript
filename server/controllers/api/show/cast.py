@@ -88,16 +88,14 @@ class CastController(BaseAPIController):
                             self.set_status(400)
                             await self.finish({'message': 'First name missing'})
                             return
-                        else:
-                            entry.first_name = first_name
+                        entry.first_name = first_name
 
                         last_name = data.get('lastName', None)
                         if not last_name:
                             self.set_status(400)
                             await self.finish({'message': 'Last name missing'})
                             return
-                        else:
-                            entry.last_name = last_name
+                        entry.last_name = last_name
 
                         session.commit()
 
