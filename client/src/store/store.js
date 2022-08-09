@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
+import createPersistedState from 'vuex-persistedstate';
 
 import websocket from './modules/websocket';
 import system from './modules/system';
@@ -22,4 +23,11 @@ export default new Vuex.Store({
     system,
     show,
   },
+  plugins: [
+    createPersistedState({
+      storage: window.sessionStorage,
+      key: 'digiscript',
+      paths: ['websocket.internalUUID'],
+    }),
+  ],
 });
