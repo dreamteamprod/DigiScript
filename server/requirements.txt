@@ -3,3 +3,4 @@ tornado-sqlalchemy==0.7.0
 datetime==4.5
 python-dateutil==2.8.2
 pylint-ignore==2022.1025
+marshmallow-sqlalchemy==0.28.1
