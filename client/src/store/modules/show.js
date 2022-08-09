@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import * as $ from 'jquery';
 
 import { makeURL } from '@/js/utils';
 
