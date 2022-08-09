@@ -2,6 +2,8 @@ public/
 static/
 digiscript.sqlite
 digiscript.json
+conf/digiscript.sqlite
+conf/digiscript.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

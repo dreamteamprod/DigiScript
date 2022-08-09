@@ -14,4 +14,4 @@ class EnvParser(object):
     def _parse_env(self):
         self.db_path = os.getenv(
             'DIGI_DB_PATH',
-            f'sqlite:///{os.path.join(os.path.dirname(__file__), "../digiscript.sqlite")}')
+            f'sqlite:///{os.path.join(os.path.dirname(__file__), "../conf/digiscript.sqlite")}')
