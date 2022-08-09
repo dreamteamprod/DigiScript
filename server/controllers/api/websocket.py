@@ -1,5 +1,6 @@
 from controllers.base_controller import BaseAPIController
-from models.models import Session, to_json
+from models.models import Session
+from models.schemas import SessionSchema
 from utils.route import ApiRoute, ApiVersion
 
 
@@ -7,9 +8,10 @@ from utils.route import ApiRoute, ApiVersion
 class WebsocketSessionsController(BaseAPIController):
 
     def get(self):
+        session_scheme = SessionSchema()
         with self.make_session() as session:
             sessions = session.query(Session).all()
-            sessions = [to_json(s) for s in sessions]
+            sessions = [session_scheme.dump(s) for s in sessions]
 
         self.set_status(200)
         self.write({'sessions': sessions})

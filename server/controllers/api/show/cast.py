@@ -1,7 +1,8 @@
 from tornado import escape
 
 from controllers.base_controller import BaseAPIController
-from models.models import Cast, Show, to_json
+from models.models import Cast, Show
+from models.schemas import CastSchema
 from utils.route import ApiRoute, ApiVersion
 
 
@@ -10,13 +11,14 @@ class CastController(BaseAPIController):
 
     def get(self):
         show_id = self.get_query_argument('show_id', None)
+        cast_schema = CastSchema()
         cast = []
 
         if show_id:
             with self.make_session() as session:
                 show = session.query(Show).get(show_id)
                 if show:
-                    cast = [to_json(c) for c in show.cast_list]
+                    cast = [cast_schema.dump(c) for c in show.cast_list]
                     self.set_status(200)
                     self.finish({'cast': cast})
                 else:
