@@ -54,7 +54,7 @@ class Cast(db.Model):
     last_name = Column(String)
 
     # Relationships
-    character_list = relationship('Character')
+    character_list = relationship('Character', back_populates='cast_member')
 
 
 class Character(db.Model):
@@ -65,3 +65,5 @@ class Character(db.Model):
     played_by = Column(Integer, ForeignKey('cast.id'))
     name = Column(String)
     description = Column(String)
+
+    cast_member = relationship("Cast", back_populates='character_list')

@@ -36,6 +36,8 @@ export default {
           break;
         case 'GET_CAST_LIST':
           break;
+        case 'NOOP':
+          break;
         default:
           console.error(`Unknown OP received from websocket: ${message.OP}`);
       }

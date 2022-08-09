@@ -11,7 +11,7 @@ export default {
     },
     SET_CHARACTER_LIST(state, characterList) {
       state.characterList = characterList;
-    }
+    },
   },
   actions: {
     async GET_CAST_LIST(context) {
@@ -80,24 +80,77 @@ export default {
       }
     },
     async GET_CHARACTER_LIST(context) {
-
+      const response = await fetch(`${utils.makeURL('/api/v1/show/character')}?${$.param({
+        show_id: context.rootState.currentShow.id,
+      })}`);
+      if (response.ok) {
+        const characters = await response.json();
+        context.commit('SET_CHARACTER_LIST', characters.characters);
+      } else {
+        console.error('Unable to get characters list');
+      }
     },
     async ADD_CHARACTER(context, character) {
-
+      const response = await fetch(`${utils.makeURL('/api/v1/show/character')}?${$.param({
+        show_id: context.rootState.currentShow.id,
+      })}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(character),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CHARACTER_LIST');
+        Vue.$toast.success('Added new character!');
+      } else {
+        console.error('Unable to add new character');
+        Vue.$toast.error('Unable to add new character');
+      }
     },
     async DELETE_CHARACTER(context, characterID) {
-
+      const response = await fetch(`${utils.makeURL('/api/v1/show/character')}?${$.param({
+        show_id: context.rootState.currentShow.id,
+      })}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: characterID }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CHARACTER_LIST');
+        Vue.$toast.success('Deleted character!');
+      } else {
+        console.error('Unable to delete character');
+        Vue.$toast.error('Unable to delete character');
+      }
     },
     async UPDATE_CHARACTER(context, character) {
-
+      const response = await fetch(`${utils.makeURL('/api/v1/show/character')}?${$.param({
+        show_id: context.rootState.currentShow.id,
+      })}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(character),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CHARACTER_LIST');
+        Vue.$toast.success('Updated character!');
+      } else {
+        console.error('Unable to edit character');
+        Vue.$toast.error('Unable to edit character');
+      }
     },
   },
   getters: {
     CAST_LIST(state) {
       return state.castList;
     },
-    CHARACTER_LIS(state) {
+    CHARACTER_LIST(state) {
       return state.characterList;
-    }
+    },
   },
 };
