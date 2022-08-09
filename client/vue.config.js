@@ -9,14 +9,6 @@ module.exports = defineConfig({
   outputDir: '../server/static/',
   assetsDir: './assets',
   indexPath: '../public/index.html',
-  configureWebpack: {
-    plugins: [
-      new webpack.ProvidePlugin({
-        $: 'jquery',
-        jQuery: 'jquery',
-      }),
-    ],
-  },
   chainWebpack: (config) => {
     config.module
       .rule('vue')

@@ -1,3 +1,5 @@
+import * as $ from 'jquery';
+
 import { makeURL } from '@/js/utils';
 
 export default {
