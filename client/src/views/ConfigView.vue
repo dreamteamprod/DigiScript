@@ -133,6 +133,8 @@
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapMutations } from 'vuex';
 
+import { makeURL } from '@/js/utils';
+
 export default {
   name: 'ConfigView',
   data() {
@@ -186,7 +188,7 @@ export default {
   },
   methods: {
     async getAvailableShows() {
-      const response = await fetch(`${utils.makeURL('/api/v1/shows')}`);
+      const response = await fetch(`${makeURL('/api/v1/shows')}`);
       if (response.ok) {
         const shows = await response.json();
         this.UPDATE_SHOWS(shows.shows);
@@ -195,7 +197,7 @@ export default {
       }
     },
     async getConnectedClients() {
-      const response = await fetch(`${utils.makeURL('/api/v1/ws/sessions')}`);
+      const response = await fetch(`${makeURL('/api/v1/ws/sessions')}`);
       if (response.ok) {
         const sessions = await response.json();
         this.connectedClients = sessions.sessions;
@@ -226,7 +228,7 @@ export default {
         return;
       }
 
-      const response = await fetch(`${utils.makeURL('/api/v1/show')}`, {
+      const response = await fetch(`${makeURL('/api/v1/show')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -245,7 +247,7 @@ export default {
       }
     },
     async loadShow(show) {
-      const response = await fetch(`${utils.makeURL('/api/v1/settings')}`, {
+      const response = await fetch(`${makeURL('/api/v1/settings')}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
