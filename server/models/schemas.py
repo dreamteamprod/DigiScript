@@ -1,13 +1,18 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from marshmallow_sqlalchemy.fields import Nested
 
-from models.models import Show, Cast, Character
+from models.models import Show, Cast, Character, Session
+
+
+class SessionSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Session
+        load_instance = True
 
 
 class ShowSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Show
-        include_relationships = True
         load_instance = True
 
 

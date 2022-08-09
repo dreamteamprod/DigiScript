@@ -3,7 +3,8 @@ from dateutil import parser
 from tornado import escape
 
 from controllers.base_controller import BaseAPIController
-from models.models import Show, to_json
+from models.models import Show
+from models.schemas import ShowSchema
 from utils.route import ApiRoute, ApiVersion
 from utils.logger import get_logger
 
@@ -66,13 +67,14 @@ class ShowController(BaseAPIController):
 
     def get(self):
         show_id = self.get_query_argument('show_id', None)
+        show_schema = ShowSchema()
         show = None
 
         if show_id:
             with self.make_session() as session:
                 show = session.query(Show).get(show_id)
                 if show:
-                    show = to_json(show)
+                    show = show_schema.dump(show)
 
         if show:
             self.set_status(200)
@@ -87,9 +89,10 @@ class ShowsController(BaseAPIController):
 
     def get(self):
         shows = []
+        show_schema = ShowSchema()
         with self.make_session() as session:
             shows = session.query(Show).all()
-            shows = [to_json(s) for s in shows]
+            shows = [show_schema.dump(s) for s in shows]
 
         self.set_status(200)
         self.write({'shows': shows})
