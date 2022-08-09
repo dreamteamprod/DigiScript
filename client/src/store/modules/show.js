@@ -1,5 +1,7 @@
 import Vue from 'vue';
 
+import { makeURL } from '@/js/utils';
+
 export default {
   state: {
     castList: [],
@@ -15,7 +17,7 @@ export default {
   },
   actions: {
     async GET_CAST_LIST(context) {
-      const response = await fetch(`${utils.makeURL('/api/v1/show/cast')}?${$.param({
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${$.param({
         show_id: context.rootState.currentShow.id,
       })}`);
       if (response.ok) {
@@ -26,7 +28,7 @@ export default {
       }
     },
     async ADD_CAST_MEMBER(context, castMember) {
-      const response = await fetch(`${utils.makeURL('/api/v1/show/cast')}?${$.param({
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${$.param({
         show_id: context.rootState.currentShow.id,
       })}`, {
         method: 'POST',
@@ -44,7 +46,7 @@ export default {
       }
     },
     async DELETE_CAST_MEMBER(context, castID) {
-      const response = await fetch(`${utils.makeURL('/api/v1/show/cast')}?${$.param({
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${$.param({
         show_id: context.rootState.currentShow.id,
       })}`, {
         method: 'DELETE',
@@ -62,7 +64,7 @@ export default {
       }
     },
     async UPDATE_CAST_MEMBER(context, castMember) {
-      const response = await fetch(`${utils.makeURL('/api/v1/show/cast')}?${$.param({
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${$.param({
         show_id: context.rootState.currentShow.id,
       })}`, {
         method: 'PATCH',
@@ -80,7 +82,7 @@ export default {
       }
     },
     async GET_CHARACTER_LIST(context) {
-      const response = await fetch(`${utils.makeURL('/api/v1/show/character')}?${$.param({
+      const response = await fetch(`${makeURL('/api/v1/show/character')}?${$.param({
         show_id: context.rootState.currentShow.id,
       })}`);
       if (response.ok) {
@@ -91,7 +93,7 @@ export default {
       }
     },
     async ADD_CHARACTER(context, character) {
-      const response = await fetch(`${utils.makeURL('/api/v1/show/character')}?${$.param({
+      const response = await fetch(`${makeURL('/api/v1/show/character')}?${$.param({
         show_id: context.rootState.currentShow.id,
       })}`, {
         method: 'POST',
@@ -109,7 +111,7 @@ export default {
       }
     },
     async DELETE_CHARACTER(context, characterID) {
-      const response = await fetch(`${utils.makeURL('/api/v1/show/character')}?${$.param({
+      const response = await fetch(`${makeURL('/api/v1/show/character')}?${$.param({
         show_id: context.rootState.currentShow.id,
       })}`, {
         method: 'DELETE',
@@ -127,7 +129,7 @@ export default {
       }
     },
     async UPDATE_CHARACTER(context, character) {
-      const response = await fetch(`${utils.makeURL('/api/v1/show/character')}?${$.param({
+      const response = await fetch(`${makeURL('/api/v1/show/character')}?${$.param({
         show_id: context.rootState.currentShow.id,
       })}`, {
         method: 'PATCH',

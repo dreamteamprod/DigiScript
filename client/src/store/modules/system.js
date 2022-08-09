@@ -1,3 +1,5 @@
+import { makeURL } from '@/js/utils';
+
 export default {
   state: {
     settings: {},
@@ -20,7 +22,7 @@ export default {
       if (context.state.settings.current_show) {
         const currShow = context.state.settings.current_show;
         if (!context.state.currentShow || context.state.currentShow.id !== currShow) {
-          const response = await fetch(`${utils.makeURL('/api/v1/show')}?${$.param({
+          const response = await fetch(`${makeURL('/api/v1/show')}?${$.param({
             show_id: currShow,
           })}`);
           if (response.ok) {
