@@ -58,11 +58,6 @@
     "rules": {
       "no-unused-vars": "off",
       "vue/no-unused-vars": "off"
-    },
-    "globals": {
-      "utils": true,
-      "$": true,
-      "jQuery": true
     }
   },
   "browserslist": [
