@@ -43,7 +43,7 @@ This will start DigiScript running, and map port 8080 locally to 8080 on the con
 
 ```shell
 docker build -t digiscript:latest .
-docker run -p 8080:8080 digiscript:latest
+docker-compose up -d
 ```
 
 ## Development Guide
