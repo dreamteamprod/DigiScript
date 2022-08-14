@@ -65,7 +65,7 @@
           </b-form-input>
           <b-form-invalid-feedback
             id="start-feedback"
-          >This is a required field.
+          >This is a required field and must be before or the same as the end date.
           </b-form-invalid-feedback>
         </b-form-group>
 
@@ -77,7 +77,7 @@
           </b-form-input>
           <b-form-invalid-feedback
             id="end-feedback"
-          >This is a required field.
+          >This is a required field and must be after or the same as the start date.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
@@ -173,9 +173,13 @@ export default {
       },
       start: {
         required,
+        beforeEnd: (value, vm) => (value == null && vm.end != null ? false
+          : new Date(value) <= new Date(vm.end)),
       },
       end: {
         required,
+        afterStart: (value, vm) => (value == null && vm.start != null ? false
+          : new Date(value) >= new Date(vm.start)),
       },
     },
   },

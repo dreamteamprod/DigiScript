@@ -55,6 +55,11 @@ class ShowController(BaseAPIController):
             self.write({'message': 'Unable to parse end date value'})
             return
 
+        if start_date > end_date or end_date < start_date:
+            self.set_status(400)
+            self.write({'message': 'Start date must be before or the same as the end date'})
+            return
+
         with self.make_session() as session:
             session.add(Show(name=show_name,
                              start_date=start_date,
