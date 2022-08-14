@@ -30,4 +30,10 @@ module.exports = defineConfig({
         return options;
       });
   },
+  pages: {
+    index: {
+      entry: 'src/main.js',
+      title: 'DigiScript',
+    },
+  },
 });
