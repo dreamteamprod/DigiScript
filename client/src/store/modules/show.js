@@ -18,9 +18,7 @@ export default {
   },
   actions: {
     async GET_CAST_LIST(context) {
-      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${$.param({
-        show_id: context.rootState.currentShow.id,
-      })}`);
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}`);
       if (response.ok) {
         const cast = await response.json();
         context.commit('SET_CAST_LIST', cast.cast);
@@ -29,9 +27,7 @@ export default {
       }
     },
     async ADD_CAST_MEMBER(context, castMember) {
-      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${$.param({
-        show_id: context.rootState.currentShow.id,
-      })}`, {
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -47,9 +43,7 @@ export default {
       }
     },
     async DELETE_CAST_MEMBER(context, castID) {
-      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${$.param({
-        show_id: context.rootState.currentShow.id,
-      })}`, {
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -65,9 +59,7 @@ export default {
       }
     },
     async UPDATE_CAST_MEMBER(context, castMember) {
-      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${$.param({
-        show_id: context.rootState.currentShow.id,
-      })}`, {
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -83,9 +75,7 @@ export default {
       }
     },
     async GET_CHARACTER_LIST(context) {
-      const response = await fetch(`${makeURL('/api/v1/show/character')}?${$.param({
-        show_id: context.rootState.currentShow.id,
-      })}`);
+      const response = await fetch(`${makeURL('/api/v1/show/character')}`);
       if (response.ok) {
         const characters = await response.json();
         context.commit('SET_CHARACTER_LIST', characters.characters);
@@ -94,9 +84,7 @@ export default {
       }
     },
     async ADD_CHARACTER(context, character) {
-      const response = await fetch(`${makeURL('/api/v1/show/character')}?${$.param({
-        show_id: context.rootState.currentShow.id,
-      })}`, {
+      const response = await fetch(`${makeURL('/api/v1/show/character')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,9 +100,7 @@ export default {
       }
     },
     async DELETE_CHARACTER(context, characterID) {
-      const response = await fetch(`${makeURL('/api/v1/show/character')}?${$.param({
-        show_id: context.rootState.currentShow.id,
-      })}`, {
+      const response = await fetch(`${makeURL('/api/v1/show/character')}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -130,9 +116,7 @@ export default {
       }
     },
     async UPDATE_CHARACTER(context, character) {
-      const response = await fetch(`${makeURL('/api/v1/show/character')}?${$.param({
-        show_id: context.rootState.currentShow.id,
-      })}`, {
+      const response = await fetch(`${makeURL('/api/v1/show/character')}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

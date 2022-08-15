@@ -24,9 +24,7 @@ export default {
       if (context.state.settings.current_show) {
         const currShow = context.state.settings.current_show;
         if (!context.state.currentShow || context.state.currentShow.id !== currShow) {
-          const response = await fetch(`${makeURL('/api/v1/show')}?${$.param({
-            show_id: currShow,
-          })}`);
+          const response = await fetch(`${makeURL('/api/v1/show')}`);
           if (response.ok) {
             const show = await response.json();
             context.commit('SET_CURRENT_SHOW', show);
