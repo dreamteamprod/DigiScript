@@ -7,6 +7,7 @@ export default {
   state: {
     castList: [],
     characterList: [],
+    actList: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -14,6 +15,9 @@ export default {
     },
     SET_CHARACTER_LIST(state, characterList) {
       state.characterList = characterList;
+    },
+    SET_ACT_LIST(state, actList) {
+      state.actList = actList;
     },
   },
   actions: {
@@ -131,6 +135,63 @@ export default {
         Vue.$toast.error('Unable to edit character');
       }
     },
+    async GET_ACT_LIST(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/act')}`);
+      if (response.ok) {
+        const acts = await response.json();
+        context.commit('SET_ACT_LIST', acts.acts);
+      } else {
+        console.error('Unable to get acts list');
+      }
+    },
+    async ADD_ACT(context, act) {
+      const response = await fetch(`${makeURL('/api/v1/show/act')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(act),
+      });
+      if (response.ok) {
+        context.dispatch('GET_ACT_LIST');
+        Vue.$toast.success('Added new act!');
+      } else {
+        console.error('Unable to add new act');
+        Vue.$toast.error('Unable to add new act');
+      }
+    },
+    async DELETE_ACT(context, actID) {
+      const response = await fetch(`${makeURL('/api/v1/show/act')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: actID }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_ACT_LIST');
+        Vue.$toast.success('Deleted act!');
+      } else {
+        console.error('Unable to delete act');
+        Vue.$toast.error('Unable to delete act');
+      }
+    },
+    async UPDATE_ACT(context, act) {
+      const response = await fetch(`${makeURL('/api/v1/show/act')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(act),
+      });
+      if (response.ok) {
+        context.dispatch('GET_ACT_LIST');
+        Vue.$toast.success('Updated act!');
+      } else {
+        console.error('Unable to edit act');
+        Vue.$toast.error('Unable to edit act');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -139,5 +200,9 @@ export default {
     CHARACTER_LIST(state) {
       return state.characterList;
     },
-  },
+    ACT_LIST(state) {
+      return state.actList;
+    },
+  }
+  ,
 };
