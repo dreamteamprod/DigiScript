@@ -10,7 +10,14 @@ from utils.route import ApiRoute, ApiVersion
 class CharacterController(BaseAPIController):
 
     def get(self):
-        show_id = self.get_query_argument('show_id', None)
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
         character_schema = CharacterSchema()
 
         if show_id:
@@ -28,7 +35,14 @@ class CharacterController(BaseAPIController):
             self.write({'message': '404 show not found'})
 
     async def post(self):
-        show_id = self.get_query_argument('show_id', None)
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
         if show_id:
             with self.make_session() as session:
                 show: Show = session.query(Show).get(show_id)
@@ -66,7 +80,14 @@ class CharacterController(BaseAPIController):
             await self.finish({'message': '404 show not found'})
 
     async def patch(self):
-        show_id = self.get_query_argument('show_id', None)
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
         if show_id:
             with self.make_session() as session:
                 show: Show = session.query(Show).get(show_id)
@@ -118,7 +139,14 @@ class CharacterController(BaseAPIController):
             await self.finish({'message': '404 show not found'})
 
     async def delete(self):
-        show_id = self.get_query_argument('show_id', None)
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
         if show_id:
             with self.make_session() as session:
                 show: Show = session.query(Show).get(show_id)

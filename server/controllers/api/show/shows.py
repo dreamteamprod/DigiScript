@@ -71,7 +71,14 @@ class ShowController(BaseAPIController):
         self.write({'message': 'Successfully created show'})
 
     def get(self):
-        show_id = self.get_query_argument('show_id', None)
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
         show_schema = ShowSchema()
         show = None
 
