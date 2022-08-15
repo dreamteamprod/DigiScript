@@ -3,7 +3,6 @@ from tornado import escape
 from controllers.base_controller import BaseAPIController
 from models.models import Show, Act
 from models.schemas import ActSchema
-from utils.logger import get_logger
 from utils.route import ApiRoute, ApiVersion
 
 
