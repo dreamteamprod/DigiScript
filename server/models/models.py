@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from tornado_sqlalchemy import SQLAlchemy
 
@@ -26,6 +26,7 @@ class Show(db.Model):
     # Relationships
     cast_list = relationship("Cast")
     character_list = relationship('Character')
+    act_list = relationship('Act')
 
 
 class Cast(db.Model):
@@ -50,3 +51,12 @@ class Character(db.Model):
     description = Column(String)
 
     cast_member = relationship("Cast", back_populates='character_list')
+
+
+class Act(db.Model):
+    __tablename__ = 'act'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey('shows.id'))
+    name = Column(String)
+    interval_after = Column(Boolean)

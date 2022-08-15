@@ -1,7 +1,7 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from marshmallow_sqlalchemy.fields import Nested
 
-from models.models import Show, Cast, Character, Session
+from models.models import Show, Cast, Character, Session, Act
 
 
 class SessionSchema(SQLAlchemyAutoSchema):
@@ -32,3 +32,9 @@ class CharacterSchema(SQLAlchemyAutoSchema):
         load_instance = True
 
     cast_member = Nested(CastSchema, many=False, exclude=('character_list',))
+
+
+class ActSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Act
+        load_instance = True
