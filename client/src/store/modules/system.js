@@ -1,5 +1,3 @@
-import * as $ from 'jquery';
-
 import { makeURL } from '@/js/utils';
 
 export default {
@@ -16,6 +14,15 @@ export default {
     },
   },
   actions: {
+    async GET_SETTINGS(context) {
+      const response = await fetch(makeURL('/api/v1/settings'));
+      if (response.ok) {
+        const settings = await response.json();
+        await context.dispatch('UPDATE_SETTINGS', settings);
+      } else {
+        console.error('Unable to fetch settings');
+      }
+    },
     async UPDATE_SETTINGS(context, payload) {
       context.commit('UPDATE_SETTINGS', payload);
       await context.dispatch('SETTINGS_CHANGED');

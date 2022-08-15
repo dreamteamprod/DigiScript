@@ -50,6 +50,12 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             'DATA': self.__getattribute__('internal_id')
         })
 
+        yield self.write_message({
+            'OP': 'NOOP',
+            'DATA': {},
+            'ACTION': 'GET_SETTINGS'
+        })
+
     def on_close(self) -> None:
         if self in self.application.clients:
             self.application.clients.remove(self)
