@@ -56,6 +56,29 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal id="edit-act" title="Edit Act" ref="edit-act" size="md"
+             @hidden="resetEditForm" @ok="onSubmitEdit">
+      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-act-form">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+          <b-form-input
+            id="name-input"
+            name="name-input"
+            v-model="$v.editFormState.name.$model"
+            :state="validateEditState('name')"
+            aria-describedby="name-feedback"
+          ></b-form-input>
+          <b-form-invalid-feedback
+            id="name-feedback"
+          >This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group id="interval-input-group" label="Interval After" label-for="interval-input">
+          <b-form-checkbox id="interval-input" name="interval-input"
+                           v-model="editFormState.interval_after">
+          </b-form-checkbox>
+        </b-form-group>
+      </b-form>
+    </b-modal>
   </b-container>
 </template>
 
@@ -79,10 +102,21 @@ export default {
         name: '',
         interval_after: false,
       },
+      editFormState: {
+        id: null,
+        showID: null,
+        name: '',
+        interval_after: false,
+      },
     };
   },
   validations: {
     newFormState: {
+      name: {
+        required,
+      },
+    },
+    editFormState: {
       name: {
         required,
       },
@@ -113,6 +147,47 @@ export default {
       } else {
         await this.ADD_ACT(this.newFormState);
         this.resetNewForm();
+      }
+    },
+    openEditForm(act) {
+      if (act != null) {
+        this.editFormState.id = act.item.id;
+        this.editFormState.showID = act.item.show_id;
+        this.editFormState.name = act.item.name;
+        this.editFormState.interval_after = act.item.interval_after;
+        this.$bvModal.show('edit-act');
+      }
+    },
+    resetEditForm() {
+      this.editFormState = {
+        id: null,
+        showID: null,
+        name: '',
+        interval_after: false,
+      };
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    async onSubmitEdit(event) {
+      this.$v.editFormState.$touch();
+      if (this.$v.editFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.UPDATE_ACT(this.editFormState);
+        this.resetEditForm();
+      }
+    },
+    validateEditState(name) {
+      const { $dirty, $error } = this.$v.editFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async deleteAct(act) {
+      const msg = `Are you sure you want to delete ${act.item.name}?`;
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        await this.DELETE_ACT(act.item.id);
       }
     },
     ...mapActions(['GET_ACT_LIST', 'ADD_ACT', 'DELETE_ACT', 'UPDATE_ACT']),
