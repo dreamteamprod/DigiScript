@@ -36,16 +36,10 @@ export default {
     };
   },
   methods: {
-    ...mapActions(['UPDATE_SETTINGS']),
+    ...mapActions(['GET_SETTINGS']),
   },
   async created() {
-    const response = await fetch(`${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/v1/settings`);
-    if (response.ok) {
-      const settings = await response.json();
-      await this.UPDATE_SETTINGS(settings);
-    } else {
-      console.error('Unable to fetch settings');
-    }
+    await this.GET_SETTINGS();
     this.loaded = true;
   },
 };
