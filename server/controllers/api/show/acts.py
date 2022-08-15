@@ -7,7 +7,7 @@ from utils.route import ApiRoute, ApiVersion
 
 
 @ApiRoute('show/act', ApiVersion.v1)
-class CharacterController(BaseAPIController):
+class ActController(BaseAPIController):
 
     def get(self):
         current_show = self.get_current_show()
