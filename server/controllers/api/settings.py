@@ -1,7 +1,7 @@
 from tornado import escape
 
 from utils.settings import Settings
-from controllers.base_controller import BaseAPIController
+from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
 from utils.logger import get_logger
 
