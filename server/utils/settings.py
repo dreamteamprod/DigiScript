@@ -8,11 +8,11 @@ from utils.logger import get_logger
 class Settings:
     def __init__(self, settings_path=None):
         self.lock = Lock()
+        self._base_path = os.path.join(os.path.dirname(__file__), '..', 'conf')
         if settings_path:
             self.settings_path = settings_path
         else:
-            self.settings_path = os.path.join(
-                os.path.dirname(__file__), "../conf/digiscript.json")
+            self.settings_path = os.path.join(self._base_path, 'digiscript.json')
             get_logger().info(
                 f'No settings path provided, using {self.settings_path}')
         self.settings = {}
@@ -26,7 +26,7 @@ class Settings:
         else:
             self._create_defaults()
             with open(self.settings_path, 'w') as fp:
-                json.dump(self.settings, fp)
+                json.dump(self.settings, fp, indent=4)
             get_logger().info(f'Saved settings to {self.settings_path}')
 
     def _save(self):
@@ -37,7 +37,10 @@ class Settings:
     def _create_defaults(self):
         get_logger().warning('Creating default settings')
         self.settings = {
-            'current_show': None
+            'current_show': None,
+            'log_path': os.path.join(self._base_path, 'digiscript.log'),
+            'max_log_mb': 100,
+            'log_backups': 5
         }
 
     async def get(self, key, default=None):
