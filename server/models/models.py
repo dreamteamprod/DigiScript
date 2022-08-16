@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from tornado_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
@@ -27,6 +27,7 @@ class Show(db.Model):
     cast_list = relationship("Cast")
     character_list = relationship('Character')
     act_list = relationship('Act')
+    scene_list = relationship('Scene')
 
 
 class Cast(db.Model):
@@ -60,3 +61,19 @@ class Act(db.Model):
     show_id = Column(Integer, ForeignKey('shows.id'))
     name = Column(String)
     interval_after = Column(Boolean)
+
+    scene_list = relationship('Scene', back_populates='act')
+
+
+class Scene(db.Model):
+    __tablename__ = 'scene'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey('shows.id'))
+    act_id = Column(Integer, ForeignKey('act.id'))
+    name = Column(String)
+    next_scene_id = Column(Integer, ForeignKey('scene.id'))
+
+    act = relationship('Act', uselist=False, back_populates='scene_list')
+    next_scene = relationship('Scene', uselist=False, remote_side=[id],
+                              backref=backref('previous_scene', uselist=False))
