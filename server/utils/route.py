@@ -1,4 +1,3 @@
-from abc import ABC
 from enum import Enum
 import urllib
 
@@ -6,7 +5,7 @@ from tornado.web import URLSpec
 import tornado.escape
 from tornado.websocket import WebSocketHandler
 
-from controllers.base_controller import BaseAPIController
+from utils.base_controller import BaseAPIController
 
 
 class Route(object):

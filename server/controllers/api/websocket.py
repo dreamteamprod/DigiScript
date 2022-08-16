@@ -1,6 +1,6 @@
-from controllers.base_controller import BaseAPIController
 from models.models import Session
 from models.schemas import SessionSchema
+from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
 
 

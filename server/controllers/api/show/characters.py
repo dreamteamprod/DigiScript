@@ -1,8 +1,8 @@
 from tornado import escape
 
-from controllers.base_controller import BaseAPIController
 from models.models import Show, Character, Cast
 from models.schemas import CharacterSchema
+from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
 
 

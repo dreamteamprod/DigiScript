@@ -1,18 +1,24 @@
+import importlib
 import os
+
 from tornado.escape import url_unescape
 
-from controllers.base_controller import BaseController, BaseAPIController
+from utils.base_controller import BaseController, BaseAPIController
+from utils.logger import get_logger
 from utils.route import ApiRoute, ApiVersion, Route
+from utils.pkg_utils import find_end_modules
 
-# Controller imports - used to trigger the decorator
-# pylint: disable=unused-import
-import controllers.api.settings
-import controllers.api.show.acts
-import controllers.api.show.cast
-import controllers.api.show.characters
-import controllers.api.show.shows
-import controllers.api.websocket
-# pylint: enable=unused-import
+
+IMPORTED_CONTROLLERS = {}
+
+
+def import_all_controllers():
+    controllers = find_end_modules('.', prefix='controllers')
+    for controller in controllers:
+        if controller != __name__:
+            get_logger().debug(f'Importing controller module {controller}')
+            mod = importlib.import_module(controller)
+            IMPORTED_CONTROLLERS[controller] = mod
 
 
 class RootController(BaseController):
@@ -65,7 +71,10 @@ class DebugController(BaseController):
     def get(self):
         self.set_status(200)
         self.set_header('Content-Type', 'application/json')
-        self.write({'status': 'OK'})
+        self.write({
+            'status': 'OK',
+            'imported_controllers': list(IMPORTED_CONTROLLERS)
+        })
 
 
 @ApiRoute('debug', ApiVersion.v1)

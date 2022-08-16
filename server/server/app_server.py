@@ -7,7 +7,6 @@ from models.models import db, Session
 from utils.route import Route
 from utils.settings import Settings
 
-# Controller imports (needed to trigger the decorator)
 from controllers import controllers
 from controllers.ws_controller import WebSocketController
 
@@ -24,6 +23,9 @@ class DigiScriptServer(Application):
         backups = self.digi_settings.settings.get('log_backups', 5)
         if log_path:
             configure_file_logging(log_path, file_size, backups)
+
+        # Controller imports (needed to trigger the decorator)
+        controllers.import_all_controllers()
 
         self.clients = []
 
