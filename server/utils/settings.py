@@ -31,7 +31,7 @@ class Settings:
 
     def _save(self):
         with open(self.settings_path, 'w') as fp:
-            json.dump(self.settings, fp)
+            json.dump(self.settings, fp, indent=4)
         get_logger().info(f'Saved settings to {self.settings_path}')
 
     def _create_defaults(self):
