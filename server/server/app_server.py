@@ -1,6 +1,3 @@
-import logging
-
-from tornado.log import LogFormatter
 from tornado.web import Application
 from tornado_sqlalchemy import SQLAlchemy
 
