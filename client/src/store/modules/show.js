@@ -19,6 +19,11 @@ export default {
     SET_ACT_LIST(state, actList) {
       state.actList = actList;
     },
+    CLEAR_CURRENT_SHOW(state) {
+      state.castList = [];
+      state.characterList = [];
+      state.actList = [];
+    },
   },
   actions: {
     async GET_CAST_LIST(context) {

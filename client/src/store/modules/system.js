@@ -39,6 +39,9 @@ export default {
             console.error('Unable to set current show');
           }
         }
+      } else {
+        context.commit('SET_CURRENT_SHOW', null);
+        context.commit('CLEAR_CURRENT_SHOW');
       }
     },
   },
