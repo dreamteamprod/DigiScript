@@ -32,12 +32,12 @@ class DigiScriptServer(Application):
         self.clients: List[WebSocketController] = []
 
         get_logger().info(f'Using {env_parser.db_path} as DB path')
-        self.db: SQLAlchemy = db
-        self.db.configure(url=env_parser.db_path)
-        self.db.create_all()
+        self._db: SQLAlchemy = db
+        self._db.configure(url=env_parser.db_path)
+        self._db.create_all()
 
         # Clear out all sessions since we are starting the app up
-        with self.db.sessionmaker() as session:
+        with self._db.sessionmaker() as session:
             get_logger().debug('Emptying out sessions table!')
             session.query(Session).delete()
             session.commit()
@@ -50,11 +50,11 @@ class DigiScriptServer(Application):
         super().__init__(
             handlers=handlers,
             debug=debug,
-            db=self.db,
+            db=self._db,
             websocket_ping_interval=5)
 
     def get_db(self) -> SQLAlchemy:
-        return self.db
+        return self._db
 
     async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):
         for client in self.clients:
