@@ -1,6 +1,6 @@
+from pkgutil import iter_modules
 import sys
 from setuptools import find_packages
-from pkgutil import iter_modules
 
 
 def find_modules(path, prefix=None):
@@ -8,7 +8,7 @@ def find_modules(path, prefix=None):
     for pkg in find_packages(path):
         modules.add(pkg)
         pkgpath = path + '/' + pkg.replace('.', '/')
-        if sys.version_info.major == 2 or (sys.version_info.major == 3 and sys.version_info.minor < 6):
+        if sys.version_info.major == 3 and sys.version_info.minor < 6:
             for _, name, ispkg in iter_modules([pkgpath]):
                 if not ispkg:
                     modules.add(pkg + '.' + name)
@@ -19,14 +19,13 @@ def find_modules(path, prefix=None):
 
     if not prefix:
         return modules
-    else:
-        return [x for x in modules if x.startswith(prefix)]
+    return [x for x in modules if x.startswith(prefix)]
 
 
 def find_end_modules(path, prefix=None):
     modules = find_modules(path, prefix)
     end_modules = []
     for module in modules:
-        if not any([x for x in modules if x != module and x.startswith(module)]):
+        if not any(x for x in modules if x != module and x.startswith(module)):
             end_modules.append(module)
     return end_modules

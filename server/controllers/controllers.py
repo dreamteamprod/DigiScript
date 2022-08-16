@@ -73,7 +73,7 @@ class DebugController(BaseController):
         self.set_header('Content-Type', 'application/json')
         self.write({
             'status': 'OK',
-            'imported_controllers': [x for x in IMPORTED_CONTROLLERS.keys()]
+            'imported_controllers': list(IMPORTED_CONTROLLERS)
         })
 
 
