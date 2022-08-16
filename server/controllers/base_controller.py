@@ -27,9 +27,10 @@ class BaseController(SessionMixin, RequestHandler):
         show_schema = ShowSchema()
         with self.make_session() as session:
             current_show = await self.application.digi_settings.get('current_show')
-            show = session.query(Show).get(current_show)
-            if show:
-                self.current_show = show_schema.dump(show)
+            if current_show:
+                show = session.query(Show).get(current_show)
+                if show:
+                    self.current_show = show_schema.dump(show)
         return
 
     def get_current_show(self) -> Optional[dict]:
