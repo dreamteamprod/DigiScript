@@ -1,8 +1,26 @@
 import logging
+from logging.handlers import RotatingFileHandler
+
+
+from tornado.log import LogFormatter
+
+logger = logging.getLogger('DigiScript')
 
 
 def get_logger():
-    return logging.getLogger('DigiScript')
+    return logger
+
+
+def configure_file_logging(log_path, max_size_mb=100, log_backups=5):
+    size_bytes = max_size_mb*1024*1024
+    fh = RotatingFileHandler(log_path,
+                             maxBytes=size_bytes,
+                             backupCount=log_backups)
+    fh.setFormatter(LogFormatter(color=False))
+    get_logger().addHandler(fh)
+    logging.getLogger('tornado.access').addHandler(fh)
+    logging.getLogger('tornado.application').addHandler(fh)
+    logging.getLogger('tornado.general').addHandler(fh)
 
 
 def add_logging_level(level_name, level_num, method_name=None):

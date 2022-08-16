@@ -1,8 +1,11 @@
+import logging
+
+from tornado.log import LogFormatter
 from tornado.web import Application
 from tornado_sqlalchemy import SQLAlchemy
 
 from utils.env_parser import EnvParser
-from utils.logger import get_logger
+from utils.logger import get_logger, configure_file_logging
 from models.models import db, Session
 from utils.route import Route
 from utils.settings import Settings
@@ -18,6 +21,13 @@ class DigiScriptServer(Application):
         env_parser: EnvParser = EnvParser.instance()
 
         self.digi_settings = Settings(settings_path)
+
+        log_path = self.digi_settings.settings.get('log_path', None)
+        file_size = self.digi_settings.settings.get('max_log_mb', 100)
+        backups = self.digi_settings.settings.get('log_backups', 5)
+        if log_path:
+            configure_file_logging(log_path, file_size, backups)
+
         self.clients = []
 
         get_logger().info(f'Using {env_parser.db_path} as DB path')
