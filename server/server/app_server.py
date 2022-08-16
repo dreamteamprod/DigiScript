@@ -18,7 +18,7 @@ class DigiScriptServer(Application):
     def __init__(self, debug=False, settings_path=None):
         env_parser: EnvParser = EnvParser.instance()
 
-        self.digi_settings: Settings = Settings(settings_path)
+        self.digi_settings: Settings = Settings(self, settings_path)
 
         log_path = self.digi_settings.settings.get('log_path', None)
         file_size = self.digi_settings.settings.get('max_log_mb', 100)
