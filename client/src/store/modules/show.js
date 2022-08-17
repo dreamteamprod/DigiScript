@@ -201,6 +201,22 @@ export default {
         Vue.$toast.error('Unable to edit act');
       }
     },
+    async SET_ACT_FIRST_SCENE(context, act) {
+      const response = await fetch(`${makeURL('/api/v1/show/act/first_scene')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(act),
+      });
+      if (response.ok) {
+        context.dispatch('GET_ACT_LIST');
+        Vue.$toast.success('Updated act!');
+      } else {
+        console.error('Unable to edit act');
+        Vue.$toast.error('Unable to edit act');
+      }
+    },
     async GET_SCENE_LIST(context) {
       const response = await fetch(`${makeURL('/api/v1/show/scene')}`);
       if (response.ok) {

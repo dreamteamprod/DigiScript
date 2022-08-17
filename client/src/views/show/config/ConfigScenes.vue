@@ -1,7 +1,7 @@
 <template>
-  <b-container>
+  <b-container class="mx-0" fluid>
     <b-row>
-      <b-col>
+      <b-col cols="8">
         <b-table id="scene-table" :items="this.SCENE_LIST" :fields="sceneFields" show-empty>
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-scene>
@@ -42,6 +42,23 @@
           aria-controls="cast-table"
           class="justify-content-center"
         ></b-pagination>
+      </b-col>
+      <b-col cols="4">
+        <b-table id="first-scenes-table" :items="ACT_LIST" :fields="firstSceneFields" show-empty>
+          <template #cell(first_scene)="data">
+            <p v-if="data.item.first_scene">
+              {{ data.item.first_scene.name }}
+            </p>
+            <p v-else>N/A</p>
+          </template>
+          <template #cell(btn)="data">
+            <b-button-group>
+              <b-button variant="success" @click="openFirstSceneEdit(data)">
+                Set
+              </b-button>
+            </b-button-group>
+          </template>
+        </b-table>
       </b-col>
     </b-row>
     <b-modal id="new-scene" title="Add New Scene" ref="new-scene" size="md"
@@ -104,6 +121,20 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal id="set-first-scene" title="Set First Scene" ref="set-first-scene" size="md"
+             @hidden="resetFirstSceneForm" @ok="onSubmitFirstScene">
+      <b-form @submit.stop.prevent="onSubmitFirstScene" ref="set-first-scene-form">
+        <b-form-group
+          id="first-scene-input-group"
+          :label="firstSceneModalLabel"
+          label-for="first-scene-input">
+          <b-form-select
+            id="first-scene-input"
+            :options="actScenes[firstSceneFormState.act_id]"
+            v-model="firstSceneFormState.scene_id"/>
+        </b-form-group>
+      </b-form>
+    </b-modal>
   </b-container>
 </template>
 
@@ -131,6 +162,15 @@ export default {
         next_scene_id: null,
         previous_scene_id: null,
       },
+      firstSceneFields: [
+        'name',
+        { key: 'first_scene', label: 'First Scene' },
+        { key: 'btn', label: '' },
+      ],
+      firstSceneFormState: {
+        act_id: null,
+        scene_id: null,
+      },
     };
   },
   validations: {
@@ -152,6 +192,7 @@ export default {
           : value !== vm.next_scene_id),
       },
     },
+    firstSceneFormState: {},
   },
   async mounted() {
     await this.GET_SCENE_LIST();
@@ -190,7 +231,33 @@ export default {
         await this.DELETE_SCENE(act.item.id);
       }
     },
-    ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'ADD_SCENE', 'DELETE_SCENE']),
+    resetFirstSceneForm() {
+      this.firstSceneFormState = {
+        act_id: null,
+        scene_id: null,
+      };
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    openFirstSceneEdit(act) {
+      if (act != null) {
+        this.firstSceneFormState.act_id = act.item.id;
+        this.$bvModal.show('set-first-scene');
+      }
+    },
+    async onSubmitFirstScene(event) {
+      this.$v.firstSceneFormState.$touch();
+      if (this.$v.firstSceneFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.SET_ACT_FIRST_SCENE(this.firstSceneFormState);
+        this.resetFirstSceneForm();
+      }
+    },
+    ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'ADD_SCENE', 'DELETE_SCENE',
+      'SET_ACT_FIRST_SCENE']),
   },
   computed: {
     ...mapGetters(['SCENE_LIST', 'ACT_LIST']),
@@ -217,6 +284,26 @@ export default {
           text: `${scene.act.name}: ${scene.name}`,
         })),
       ];
+    },
+    actScenes() {
+      const ret = {};
+      this.ACT_LIST.forEach((act) => {
+        ret[act.id] = [{
+          value: null,
+          text: 'None',
+          disabled: false,
+        }, ...act.scene_list.map((scene) => ({
+          value: scene.id,
+          text: `${scene.act.name}: ${scene.name}`,
+        }))];
+      });
+      return ret;
+    },
+    firstSceneModalLabel() {
+      if (this.firstSceneFormState.act_id == null) {
+        return '';
+      }
+      return `${this.ACT_LIST.find((act) => (act.id === this.firstSceneFormState.act_id)).name} First Scene`;
     },
   },
 };

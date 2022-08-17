@@ -168,3 +168,55 @@ class ActController(BaseAPIController):
         else:
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
+
+
+@ApiRoute('show/act/first_scene', ApiVersion.v1)
+class FirstSceneController(BaseAPIController):
+
+    async def post(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    data = escape.json_decode(self.request.body)
+
+                    act_id: int = data.get('act_id', None)
+                    if not act_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Act ID missing'})
+                        return
+
+                    scene_id: int = data.get('scene_id', None)
+                    if not scene_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Scene ID missing'})
+                        return
+
+                    act: Act = session.query(Act).get(act_id)
+                    if not act:
+                        self.set_status(404)
+                        await self.finish({'message': 'Act not found'})
+                        return
+
+                    act.first_scene_id = scene_id
+                    session.commit()
+
+                    self.set_status(200)
+                    await self.finish({'message': 'Successfully set first scene'})
+
+                    await self.application.ws_send_to_all('NOOP', 'GET_ACT_LIST', {})
+
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            await self.finish({'message': '404 show not found'})

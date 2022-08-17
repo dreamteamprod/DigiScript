@@ -61,8 +61,9 @@ class Act(db.Model):
     show_id = Column(Integer, ForeignKey('shows.id'))
     name = Column(String)
     interval_after = Column(Boolean)
+    first_scene_id = Column(Integer, ForeignKey('scene.id'))
 
-    scene_list = relationship('Scene', back_populates='act')
+    first_scene = relationship('Scene', uselist=False, foreign_keys=[first_scene_id])
 
 
 class Scene(db.Model):
@@ -74,6 +75,6 @@ class Scene(db.Model):
     name = Column(String)
     next_scene_id = Column(Integer, ForeignKey('scene.id'))
 
-    act = relationship('Act', uselist=False, back_populates='scene_list')
+    act = relationship('Act', uselist=False, backref='scene_list', foreign_keys=[act_id])
     next_scene = relationship('Scene', uselist=False, remote_side=[id],
                               backref=backref('previous_scene', uselist=False))

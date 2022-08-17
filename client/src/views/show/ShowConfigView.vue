@@ -1,9 +1,9 @@
 <template>
   <div class="show">
     <h1>{{ this.$store.state.currentShow["name"] }}</h1>
-    <b-container class="mx-0">
+    <b-container class="mx-0" fluid>
       <b-row>
-        <b-col cols="4">
+        <b-col cols="2">
           <b-button-group vertical>
             <b-button
               replace :to="{'name': 'show-config-cast'}"
@@ -25,7 +25,7 @@
             </b-button>
           </b-button-group>
         </b-col>
-        <b-col cols="8">
+        <b-col cols="10">
           <router-view/>
         </b-col>
       </b-row>
