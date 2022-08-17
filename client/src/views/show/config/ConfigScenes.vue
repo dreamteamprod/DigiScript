@@ -72,7 +72,10 @@
           >This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="next-scene-input-group" label="Next Scene" label-for="next-scene-input">
+        <b-form-group
+          id="next-scene-input-group"
+          label="Next Scene"
+          label-for="next-scene-input">
           <b-form-select
             id="next-scene-input"
             :options="nextSceneOptions"
@@ -180,7 +183,14 @@ export default {
         this.resetNewForm();
       }
     },
-    ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'ADD_SCENE']),
+    async deleteAct(act) {
+      const msg = `Are you sure you want to delete ${act.item.name}?`;
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        await this.DELETE_SCENE(act.item.id);
+      }
+    },
+    ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'ADD_SCENE', 'DELETE_SCENE']),
   },
   computed: {
     ...mapGetters(['SCENE_LIST', 'ACT_LIST']),
