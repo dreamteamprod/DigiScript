@@ -236,6 +236,7 @@ export default {
       });
       if (response.ok) {
         context.dispatch('GET_SCENE_LIST');
+        context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Added new scene!');
       } else {
         console.error('Unable to add new scene');
@@ -252,6 +253,7 @@ export default {
       });
       if (response.ok) {
         context.dispatch('GET_SCENE_LIST');
+        context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Deleted scene!');
       } else {
         console.error('Unable to delete scene');
@@ -268,6 +270,7 @@ export default {
       });
       if (response.ok) {
         context.dispatch('GET_SCENE_LIST');
+        context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Updated scene!');
       } else {
         console.error('Unable to edit scene');
