@@ -61,7 +61,10 @@ class ActController(BaseAPIController):
                         await self.finish({'message': 'Interval after missing'})
                         return
 
-                    session.add(Act(show_id=show.id, name=name, interval_after=interval_after))
+                    previous_act_id: int = data.get('previous_act_id', None)
+
+                    session.add(Act(show_id=show.id, name=name, interval_after=interval_after,
+                                    previous_act_id=previous_act_id))
                     session.commit()
 
                     self.set_status(200)
@@ -111,6 +114,9 @@ class ActController(BaseAPIController):
                             await self.finish({'message': 'Interval after missing'})
                             return
                         entry.interval_after = interval_after
+
+                        previous_act_id: int = data.get('previous_act_id', None)
+                        entry.previous_act_id = previous_act_id
 
                         session.commit()
 

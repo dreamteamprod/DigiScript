@@ -62,8 +62,11 @@ class Act(db.Model):
     name = Column(String)
     interval_after = Column(Boolean)
     first_scene_id = Column(Integer, ForeignKey('scene.id'))
+    previous_act_id = Column(Integer, ForeignKey('act.id'))
 
     first_scene = relationship('Scene', uselist=False, foreign_keys=[first_scene_id])
+    previous_act = relationship('Act', uselist=False, remote_side=[id],
+                                backref=backref('next_act', uselist=False))
 
 
 class Scene(db.Model):
