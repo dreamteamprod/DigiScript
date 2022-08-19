@@ -90,21 +90,6 @@
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="next-scene-input-group"
-          label="Next Scene"
-          label-for="next-scene-input">
-          <b-form-select
-            id="next-scene-input"
-            :options="nextSceneOptions"
-            v-model="$v.newFormState.next_scene_id.$model"
-            :state="validateNewState('next_scene_id')"
-            aria-describedby="next-scene-feedback"/>
-          <b-form-invalid-feedback
-            id="next-scene-feedback"
-          >Cannot be the same as previous scene.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
           id="previous-scene-input-group"
           label="Previous Scene"
           label-for="previous-scene-input">
@@ -112,12 +97,7 @@
             id="previous-scene-input"
             :options="previousSceneOptions"
             v-model="$v.newFormState.previous_scene_id.$model"
-            :state="validateNewState('previous_scene_id')"
             aria-describedby="previous-scene-feedback"/>
-          <b-form-invalid-feedback
-            id="previous-scene-feedback"
-          >Cannot be the same as next scene.
-          </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
     </b-modal>
@@ -159,7 +139,6 @@ export default {
       newFormState: {
         name: '',
         act_id: null,
-        next_scene_id: null,
         previous_scene_id: null,
       },
       firstSceneFields: [
@@ -181,15 +160,8 @@ export default {
       act_id: {
         notNullAndGreaterThanZero: (value) => (value != null && value > 0),
       },
-      next_scene_id: {
-        integer,
-        notPreviousScene: (value, vm) => (value == null || vm.previous_scene_id == null ? true
-          : value !== vm.previous_scene_id),
-      },
       previous_scene_id: {
         integer,
-        notNextScene: (value, vm) => (value == null || vm.next_scene_id == null ? true
-          : value !== vm.next_scene_id),
       },
     },
     firstSceneFormState: {},
@@ -203,7 +175,6 @@ export default {
       this.newFormState = {
         name: '',
         act_id: null,
-        next_scene_id: null,
         previous_scene_id: null,
       };
 
@@ -265,15 +236,6 @@ export default {
       return [
         { value: null, text: 'Please select an option', disabled: true },
         ...this.ACT_LIST.map((act) => ({ value: act.id, text: act.name })),
-      ];
-    },
-    nextSceneOptions() {
-      return [
-        { value: null, text: 'None', disabled: false },
-        ...this.SCENE_LIST.filter((scene) => (scene.previous_scene == null), this).map((scene) => ({
-          value: scene.id,
-          text: `${scene.act.name}: ${scene.name}`,
-        })),
       ];
     },
     previousSceneOptions() {

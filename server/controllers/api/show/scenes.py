@@ -61,26 +61,14 @@ class SceneController(BaseAPIController):
                         await self.finish({'message': 'Name missing'})
                         return
 
-                    next_scene_id = data.get('next_scene', None)
+                    previous_scene_id = data.get('previous_scene_id', None)
 
                     new_scene = Scene(
                         show_id=show_id,
                         act_id=act_id,
                         name=name,
-                        next_scene_id=next_scene_id)
+                        previous_scene_id=previous_scene_id)
                     session.add(new_scene)
-
-                    previous_scene_id = data.get('previous_scene_id', None)
-
-                    if previous_scene_id:
-                        previous_scene: Scene = session.query(Scene).get(previous_scene_id)
-                        if not previous_scene:
-                            self.set_status(404)
-                            await self.finish({'message': 'Previous scene not found'})
-                            return
-                        session.flush()
-                        previous_scene.next_scene_id = new_scene.id
-
                     session.commit()
 
                     self.set_status(200)
@@ -134,4 +122,3 @@ class SceneController(BaseAPIController):
         else:
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
-
