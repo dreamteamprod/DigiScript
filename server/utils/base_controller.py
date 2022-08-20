@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from typing import Optional, Awaitable, Any, TYPE_CHECKING
 
-from tornado import httputil
+from tornado import httputil, escape
 from tornado.web import RequestHandler
 from tornado_sqlalchemy import SessionMixin
 
 from models.models import Show
 from models.schemas import ShowSchema
+from utils.logger import get_logger
 
 if TYPE_CHECKING:
     from server.server.app_server import DigiScriptServer
@@ -46,3 +47,15 @@ class BaseAPIController(BaseController):
     def _unimplemented_method(self, *args: str, **kwargs: str) -> None:
         self.set_status(405)
         self.write({'message': '405 not allowed'})
+
+    def on_finish(self):
+        if self.request.body:
+            try:
+                get_logger().debug(f'{self.request.method} '
+                                   f'{self.request.path} '
+                                   f'{escape.json_decode(self.request.body)}')
+            except BaseException:
+                get_logger().debug(f'{self.request.method} '
+                                   f'{self.request.path} '
+                                   f'{self.request.body}')
+        super().on_finish()
