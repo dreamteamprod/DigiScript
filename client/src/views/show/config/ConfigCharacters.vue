@@ -1,8 +1,11 @@
 <template>
-  <b-container>
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
-        <b-table id="cast-table" :items="this.CHARACTER_LIST" :fields="characterFields" show-empty>
+        <b-table
+          id="character-table"
+          :items="this.CHARACTER_LIST"
+          :fields="characterFields" show-empty>
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-character>
               New Character

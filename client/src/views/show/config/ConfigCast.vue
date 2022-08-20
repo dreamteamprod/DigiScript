@@ -1,5 +1,5 @@
 <template>
-  <b-container>
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <b-table id="cast-table" :items="this.CAST_LIST" :fields="castFields" show-empty>
