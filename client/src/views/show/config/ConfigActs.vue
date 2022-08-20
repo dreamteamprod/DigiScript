@@ -192,7 +192,9 @@ export default {
         this.editFormState.showID = act.item.show_id;
         this.editFormState.name = act.item.name;
         this.editFormState.interval_after = act.item.interval_after;
-        this.editFormState.previous_act_id = act.item.previous_act.id;
+        if (act.item.previous_act != null) {
+          this.editFormState.previous_act_id = act.item.previous_act.id;
+        }
         this.$bvModal.show('edit-act');
       }
     },
