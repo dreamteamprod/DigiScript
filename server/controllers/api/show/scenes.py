@@ -69,7 +69,8 @@ class SceneController(BaseAPIController):
                             self.set_status(400)
                             await self.finish({'message': 'Previous scene not found'})
                             return
-                        elif previous_scene.act_id != act_id:
+
+                        if previous_scene.act_id != act_id:
                             self.set_status(400)
                             await self.finish({
                                 'message': 'Previous scene must be in the same act as new scene'
@@ -176,7 +177,9 @@ class SceneController(BaseAPIController):
                         if previous_scene_id:
                             if previous_scene_id == scene_id:
                                 self.set_status(400)
-                                await self.finish({'message': 'Previous scene cannot be current scene'})
+                                await self.finish({
+                                    'message': 'Previous scene cannot be current scene'
+                                })
                                 return
 
                             previous_scene: Scene = session.query(Scene).get(previous_scene_id)
@@ -184,7 +187,8 @@ class SceneController(BaseAPIController):
                                 self.set_status(400)
                                 await self.finish({'message': 'Previous scene not found'})
                                 return
-                            elif previous_scene.act_id != act_id:
+
+                            if previous_scene.act_id != act_id:
                                 self.set_status(400)
                                 await self.finish({
                                     'message': 'Previous scene must be in the same act as new scene'
@@ -193,7 +197,8 @@ class SceneController(BaseAPIController):
 
                             scene_indexes = [scene_id]
                             current_scene: Scene = previous_scene
-                            while current_scene is not None and current_scene.previous_scene is not None:
+                            while (current_scene is not None and
+                                   current_scene.previous_scene is not None):
                                 if current_scene.previous_scene.id in scene_indexes:
                                     self.set_status(400)
                                     await self.finish({
