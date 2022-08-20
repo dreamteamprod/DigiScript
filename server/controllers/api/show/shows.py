@@ -152,7 +152,9 @@ class ShowController(BaseAPIController):
 
                     if start_date > end_date or end_date < start_date:
                         self.set_status(400)
-                        self.write({'message': 'Start date must be before or the same as the end date'})
+                        self.write({
+                            'message': 'Start date must be before or the same as the end date'
+                        })
                         return
                     show.start_date = start_date
                     show.end_date = end_date
