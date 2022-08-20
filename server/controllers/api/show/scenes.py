@@ -63,6 +63,19 @@ class SceneController(BaseAPIController):
 
                     previous_scene_id = data.get('previous_scene_id', None)
 
+                    if previous_scene_id:
+                        previous_scene: Scene = session.query(Scene).get(previous_scene_id)
+                        if not previous_scene:
+                            self.set_status(400)
+                            await self.finish({'message': 'Previous scene not found'})
+                            return
+                        elif previous_scene.act_id != act_id:
+                            self.set_status(400)
+                            await self.finish({
+                                'message': 'Previous scene must be in the same act as new scene'
+                            })
+                            return
+
                     new_scene = Scene(
                         show_id=show_id,
                         act_id=act_id,

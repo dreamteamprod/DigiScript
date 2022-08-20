@@ -95,7 +95,7 @@
           label-for="previous-scene-input">
           <b-form-select
             id="previous-scene-input"
-            :options="previousSceneOptions"
+            :options="previousSceneOptions[$v.newFormState.act_id.$model]"
             v-model="$v.newFormState.previous_scene_id.$model"
             aria-describedby="previous-scene-feedback"/>
         </b-form-group>
@@ -239,13 +239,22 @@ export default {
       ];
     },
     previousSceneOptions() {
-      return [
-        { value: null, text: 'None', disabled: false },
-        ...this.SCENE_LIST.filter((scene) => (scene.next_scene == null), this).map((scene) => ({
-          value: scene.id,
-          text: `${scene.act.name}: ${scene.name}`,
-        })),
-      ];
+      const ret = {
+        null: [{ value: null, text: 'None', disabled: false }],
+      };
+      this.ACT_LIST.forEach((act) => {
+        ret[act.id] = [
+          {
+            value: null, text: 'None', disabled: false,
+          },
+          ...this.SCENE_LIST.filter((scene) => (
+            scene.act.id === act.id && scene.next_scene == null), this).map((scene) => ({
+            value: scene.id,
+            text: `${scene.act.name}: ${scene.name}`,
+          }))];
+      }, this);
+
+      return ret;
     },
     actScenes() {
       const ret = {};
