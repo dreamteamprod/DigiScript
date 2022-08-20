@@ -48,7 +48,7 @@ class DigiScriptServer(Application):
             if current_show:
                 show = session.query(Show).get(current_show)
                 if not show:
-                    get_logger().warn('Current show from settings not found. Resetting.')
+                    get_logger().warning('Current show from settings not found. Resetting.')
                     self.digi_settings.settings['current_show'] = None
                     self.digi_settings._save()
 

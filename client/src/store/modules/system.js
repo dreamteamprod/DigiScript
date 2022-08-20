@@ -1,4 +1,4 @@
-import router from "@/router";
+import router from '@/router';
 import { makeURL } from '@/js/utils';
 
 export default {
