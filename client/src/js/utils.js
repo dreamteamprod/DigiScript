@@ -5,3 +5,11 @@ export function baseURL() {
 export function makeURL(path) {
   return `${baseURL()}${path}`;
 }
+
+export function titleCase(str, sep = ' ') {
+  const splitStr = str.toLowerCase().split(sep);
+  for (let i = 0; i < splitStr.length; i++) {
+    splitStr[i] = splitStr[i].charAt(0).toUpperCase() + splitStr[i].substring(1);
+  }
+  return splitStr.join(' ');
+}

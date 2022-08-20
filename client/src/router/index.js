@@ -22,9 +22,13 @@ const routes = [
   },
   {
     path: '/show-config',
-    name: 'show-config',
     component: () => import(/* webpackChunkName: "show-config" */ '../views/show/ShowConfigView.vue'),
     children: [
+      {
+        name: 'show-config',
+        path: '',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigShow.vue'),
+      },
       {
         name: 'show-config-cast',
         path: 'cast',

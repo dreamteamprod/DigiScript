@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from tornado_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
@@ -22,11 +22,16 @@ class Show(db.Model):
     start_date = Column(Date())
     end_date = Column(Date())
     created_at = Column(DateTime())
+    edited_at = Column(DateTime())
+    first_act_id = Column(Integer, ForeignKey('act.id'))
 
     # Relationships
+    first_act = relationship('Act', uselist=False, foreign_keys=[first_act_id])
+
     cast_list = relationship("Cast")
     character_list = relationship('Character')
-    act_list = relationship('Act')
+    act_list = relationship('Act', primaryjoin=lambda: Show.id == Act.show_id)
+    scene_list = relationship('Scene')
 
 
 class Cast(db.Model):
@@ -60,3 +65,24 @@ class Act(db.Model):
     show_id = Column(Integer, ForeignKey('shows.id'))
     name = Column(String)
     interval_after = Column(Boolean)
+    first_scene_id = Column(Integer, ForeignKey('scene.id'))
+    previous_act_id = Column(Integer, ForeignKey('act.id'))
+
+    first_scene = relationship('Scene', uselist=False, foreign_keys=[first_scene_id])
+    previous_act = relationship('Act', uselist=False, remote_side=[id],
+                                backref=backref('next_act', uselist=False))
+
+
+class Scene(db.Model):
+    __tablename__ = 'scene'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey('shows.id'))
+    act_id = Column(Integer, ForeignKey('act.id'))
+    name = Column(String)
+    previous_scene_id = Column(Integer, ForeignKey('scene.id'))
+
+    act = relationship('Act', uselist=False, backref=backref('scene_list'),
+                       foreign_keys=[act_id])
+    previous_scene = relationship('Scene', uselist=False, remote_side=[id],
+                                  backref=backref('next_scene', uselist=False))

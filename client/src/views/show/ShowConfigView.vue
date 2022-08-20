@@ -1,10 +1,14 @@
 <template>
   <div class="show">
     <h1>{{ this.$store.state.currentShow["name"] }}</h1>
-    <b-container class="mx-0">
+    <b-container class="mx-0" fluid>
       <b-row>
-        <b-col cols="4">
+        <b-col cols="2">
           <b-button-group vertical>
+            <b-button
+              replace :to="{'name': 'show-config'}"
+              variant="outline-info" exact-active-class="active">Configure Show
+            </b-button>
             <b-button
               replace :to="{'name': 'show-config-cast'}"
               variant="outline-info" active-class="active">Configure Cast
@@ -25,7 +29,7 @@
             </b-button>
           </b-button-group>
         </b-col>
-        <b-col cols="8">
+        <b-col cols="10">
           <router-view/>
         </b-col>
       </b-row>

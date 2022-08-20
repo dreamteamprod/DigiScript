@@ -1,8 +1,8 @@
 <template>
-  <b-container>
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
-        <b-table id="cast-table" :items="this.ACT_LIST" :fields="actFields" show-empty>
+        <b-table id="acts-table" :items="this.ACT_LIST" :fields="actFields" show-empty>
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-act>
               New Act
@@ -11,6 +11,18 @@
           <template #cell(interval_after)="data">
             <b-icon-check-square-fill variant="success" v-if="data.item.interval_after"/>
             <b-icon-x-square-fill v-else variant="danger" />
+          </template>
+          <template #cell(next_act)="data">
+            <p v-if="data.item.next_act">
+              {{ data.item.next_act.name }}
+            </p>
+            <p v-else>N/A</p>
+          </template>
+          <template #cell(previous_act)="data">
+            <p v-if="data.item.previous_act">
+              {{ data.item.previous_act.name }}
+            </p>
+            <p v-else>N/A</p>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
@@ -54,6 +66,16 @@
                            v-model="newFormState.interval_after">
           </b-form-checkbox>
         </b-form-group>
+        <b-form-group
+          id="previous-act-input-group"
+          label="Previous Act"
+          label-for="previous-act-input">
+          <b-form-select
+            id="previous-act-input"
+            :options="previousActOptions"
+            v-model="newFormState.previous_act_id"
+            aria-describedby="previous-act-feedback"/>
+        </b-form-group>
       </b-form>
     </b-modal>
     <b-modal id="edit-act" title="Edit Act" ref="edit-act" size="md"
@@ -77,13 +99,28 @@
                            v-model="editFormState.interval_after">
           </b-form-checkbox>
         </b-form-group>
+        <b-form-group
+          id="previous-act-input-group"
+          label="Previous Act"
+          label-for="previous-act-input">
+          <b-form-select
+            id="previous-act-input"
+            :options="editFormActOptions"
+            v-model="$v.editFormState.previous_act_id.$model"
+            :state="validateEditState('previous_act_id')"
+            aria-describedby="previous-act-feedback"/>
+          <b-form-invalid-feedback
+            id="previous-act-feedback"
+          >This cannot form a circular dependency between acts.
+          </b-form-invalid-feedback>
+        </b-form-group>
       </b-form>
     </b-modal>
   </b-container>
 </template>
 
 <script>
-import { required } from 'vuelidate/lib/validators';
+import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 
 export default {
@@ -96,17 +133,21 @@ export default {
         { key: 'id', label: 'ID' },
         'name',
         { key: 'interval_after', label: 'Interval After' },
+        { key: 'previous_act', label: 'Previous Act' },
+        { key: 'next_act', label: 'Next Act' },
         { key: 'btn', label: '' },
       ],
       newFormState: {
         name: '',
         interval_after: false,
+        previous_act_id: null,
       },
       editFormState: {
         id: null,
         showID: null,
         name: '',
         interval_after: false,
+        previous_act_id: null,
       },
     };
   },
@@ -120,6 +161,20 @@ export default {
       name: {
         required,
       },
+      previous_act_id: {
+        integer,
+        noLoops(value) {
+          const actIndexes = [this.editFormState.id];
+          let currentAct = this.ACT_LIST.find((act) => (act.id === value));
+          while (currentAct != null && currentAct.previous_act != null) {
+            if (actIndexes.includes(currentAct.previous_act.id)) {
+              return false;
+            }
+            currentAct = currentAct.previous_act;
+          }
+          return true;
+        },
+      },
     },
   },
   async mounted() {
@@ -130,6 +185,7 @@ export default {
       this.newFormState = {
         name: '',
         interval_after: false,
+        previous_act_id: null,
       };
 
       this.$nextTick(() => {
@@ -155,6 +211,9 @@ export default {
         this.editFormState.showID = act.item.show_id;
         this.editFormState.name = act.item.name;
         this.editFormState.interval_after = act.item.interval_after;
+        if (act.item.previous_act != null) {
+          this.editFormState.previous_act_id = act.item.previous_act.id;
+        }
         this.$bvModal.show('edit-act');
       }
     },
@@ -164,6 +223,7 @@ export default {
         showID: null,
         name: '',
         interval_after: false,
+        previous_act_id: null,
       };
 
       this.$nextTick(() => {
@@ -193,6 +253,28 @@ export default {
     ...mapActions(['GET_ACT_LIST', 'ADD_ACT', 'DELETE_ACT', 'UPDATE_ACT']),
   },
   computed: {
+    previousActOptions() {
+      return [
+        { value: null, text: 'None', disabled: false },
+        ...this.ACT_LIST.filter((act) => (act.next_act == null), this).map((act) => ({
+          value: act.id,
+          text: act.name,
+        })),
+      ];
+    },
+    editFormActOptions() {
+      const ret = [];
+      ret.push(...this.previousActOptions.filter((act) => (act.value !== this.editFormState.id)));
+      if (this.editFormState.previous_act_id != null) {
+        const act = this.ACT_LIST.find((a) => (a.id === this.editFormState.previous_act_id));
+        ret.push({
+          value: this.editFormState.previous_act_id,
+          text: act.name,
+          disabled: false,
+        });
+      }
+      return ret;
+    },
     ...mapGetters(['ACT_LIST']),
   },
 };

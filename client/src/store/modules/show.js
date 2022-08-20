@@ -1,5 +1,4 @@
 import Vue from 'vue';
-import * as $ from 'jquery';
 
 import { makeURL } from '@/js/utils';
 
@@ -8,6 +7,7 @@ export default {
     castList: [],
     characterList: [],
     actList: [],
+    sceneList: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -19,10 +19,14 @@ export default {
     SET_ACT_LIST(state, actList) {
       state.actList = actList;
     },
+    SET_SCENE_LIST(state, sceneList) {
+      state.sceneList = sceneList;
+    },
     CLEAR_CURRENT_SHOW(state) {
       state.castList = [];
       state.characterList = [];
       state.actList = [];
+      state.sceneList = [];
     },
   },
   actions: {
@@ -197,6 +201,82 @@ export default {
         Vue.$toast.error('Unable to edit act');
       }
     },
+    async SET_ACT_FIRST_SCENE(context, act) {
+      const response = await fetch(`${makeURL('/api/v1/show/act/first_scene')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(act),
+      });
+      if (response.ok) {
+        context.dispatch('GET_ACT_LIST');
+        Vue.$toast.success('Updated act!');
+      } else {
+        console.error('Unable to edit act');
+        Vue.$toast.error('Unable to edit act');
+      }
+    },
+    async GET_SCENE_LIST(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/scene')}`);
+      if (response.ok) {
+        const scenes = await response.json();
+        context.commit('SET_SCENE_LIST', scenes.scenes);
+      } else {
+        console.error('Unable to get scenes list');
+      }
+    },
+    async ADD_SCENE(context, scene) {
+      const response = await fetch(`${makeURL('/api/v1/show/scene')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(scene),
+      });
+      if (response.ok) {
+        context.dispatch('GET_SCENE_LIST');
+        context.dispatch('GET_ACT_LIST');
+        Vue.$toast.success('Added new scene!');
+      } else {
+        console.error('Unable to add new scene');
+        Vue.$toast.error('Unable to add new scene');
+      }
+    },
+    async DELETE_SCENE(context, sceneID) {
+      const response = await fetch(`${makeURL('/api/v1/show/scene')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: sceneID }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_SCENE_LIST');
+        context.dispatch('GET_ACT_LIST');
+        Vue.$toast.success('Deleted scene!');
+      } else {
+        console.error('Unable to delete scene');
+        Vue.$toast.error('Unable to delete scene');
+      }
+    },
+    async UPDATE_SCENE(context, scene) {
+      const response = await fetch(`${makeURL('/api/v1/show/scene')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(scene),
+      });
+      if (response.ok) {
+        context.dispatch('GET_SCENE_LIST');
+        context.dispatch('GET_ACT_LIST');
+        Vue.$toast.success('Updated scene!');
+      } else {
+        console.error('Unable to edit scene');
+        Vue.$toast.error('Unable to edit scene');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -207,6 +287,9 @@ export default {
     },
     ACT_LIST(state) {
       return state.actList;
+    },
+    SCENE_LIST(state) {
+      return state.sceneList;
     },
   }
   ,

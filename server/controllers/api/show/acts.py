@@ -61,7 +61,10 @@ class ActController(BaseAPIController):
                         await self.finish({'message': 'Interval after missing'})
                         return
 
-                    session.add(Act(show_id=show.id, name=name, interval_after=interval_after))
+                    previous_act_id: int = data.get('previous_act_id', None)
+
+                    session.add(Act(show_id=show.id, name=name, interval_after=interval_after,
+                                    previous_act_id=previous_act_id))
                     session.commit()
 
                     self.set_status(200)
@@ -111,6 +114,34 @@ class ActController(BaseAPIController):
                             await self.finish({'message': 'Interval after missing'})
                             return
                         entry.interval_after = interval_after
+
+                        previous_act_id: int = data.get('previous_act_id', None)
+
+                        if previous_act_id:
+                            if previous_act_id == act_id:
+                                self.set_status(400)
+                                await self.finish({'message': 'Previous act cannot be current act'})
+                                return
+
+                            previous_act: Act = session.query(Act).get(previous_act_id)
+                            if not previous_act:
+                                self.set_status(400)
+                                await self.finish({'message': 'Previous act not found'})
+                                return
+
+                            act_indexes = [act_id]
+                            current_act: Act = previous_act
+                            while current_act is not None and current_act.previous_act is not None:
+                                if current_act.previous_act.id in act_indexes:
+                                    self.set_status(400)
+                                    await self.finish({
+                                        'message': 'Previous act cannot form a circular '
+                                                   'dependency between acts'
+                                    })
+                                    return
+                                current_act = current_act.previous_act
+
+                        entry.previous_act_id = previous_act_id
 
                         session.commit()
 
@@ -162,6 +193,58 @@ class ActController(BaseAPIController):
                     else:
                         self.set_status(404)
                         await self.finish({'message': '404 act not found'})
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            await self.finish({'message': '404 show not found'})
+
+
+@ApiRoute('show/act/first_scene', ApiVersion.v1)
+class FirstSceneController(BaseAPIController):
+
+    async def post(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    data = escape.json_decode(self.request.body)
+
+                    act_id: int = data.get('act_id', None)
+                    if not act_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Act ID missing'})
+                        return
+
+                    scene_id: int = data.get('scene_id', None)
+                    if not scene_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Scene ID missing'})
+                        return
+
+                    act: Act = session.query(Act).get(act_id)
+                    if not act:
+                        self.set_status(404)
+                        await self.finish({'message': 'Act not found'})
+                        return
+
+                    act.first_scene_id = scene_id
+                    session.commit()
+
+                    self.set_status(200)
+                    await self.finish({'message': 'Successfully set first scene'})
+
+                    await self.application.ws_send_to_all('NOOP', 'GET_ACT_LIST', {})
+
                 else:
                     self.set_status(404)
                     await self.finish({'message': '404 show not found'})
