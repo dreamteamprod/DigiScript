@@ -5,7 +5,7 @@ from tornado_sqlalchemy import SQLAlchemy
 
 from utils.env_parser import EnvParser
 from utils.logger import get_logger, configure_file_logging
-from models.models import db, Session
+from models.models import db, Session, Show
 from utils.route import Route
 from utils.settings import Settings
 
@@ -41,6 +41,16 @@ class DigiScriptServer(Application):
             get_logger().debug('Emptying out sessions table!')
             session.query(Session).delete()
             session.commit()
+
+        # Check the show we are expecting to be loaded exists
+        with self._db.sessionmaker() as session:
+            current_show = self.digi_settings.settings.get('current_show')
+            if current_show:
+                show = session.query(Show).get(current_show)
+                if not show:
+                    get_logger().warn('Current show from settings not found. Resetting.')
+                    self.digi_settings.settings['current_show'] = None
+                    self.digi_settings._save()
 
         handlers = Route.routes()
         handlers.append(('/favicon.ico', controllers.StaticController))
