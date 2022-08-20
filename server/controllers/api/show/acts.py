@@ -106,7 +106,7 @@ class ActController(BaseAPIController):
                             self.set_status(400)
                             await self.finish({'message': 'Name missing'})
                             return
-                        entry.first_name = name
+                        entry.name = name
 
                         interval_after: bool = data.get('interval_after', None)
                         if interval_after is None:
