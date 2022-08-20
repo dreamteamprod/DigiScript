@@ -101,6 +101,52 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal id="edit-scene" title="Edit Scene" ref="edit-scene" size="md"
+             @hidden="resetEditForm" @ok="onSubmitEdit">
+      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-act-form">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+          <b-form-input
+            id="name-input"
+            name="name-input"
+            v-model="$v.editFormState.name.$model"
+            :state="validateEditState('name')"
+            aria-describedby="name-feedback"
+          ></b-form-input>
+          <b-form-invalid-feedback
+            id="name-feedback"
+          >This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group id="act-input-group" label="Act" label-for="act-input">
+          <b-form-select
+            id="act-input"
+            :options="actOptions"
+            v-model="$v.editFormState.act_id.$model"
+            :state="validateEditState('act_id')"
+            @change="editActChanged"
+            aria-describedby="act-feedback"/>
+          <b-form-invalid-feedback
+            id="act-feedback"
+          >This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group
+          id="previous-scene-input-group"
+          label="Previous Scene"
+          label-for="previous-scene-input">
+          <b-form-select
+            id="previous-scene-input"
+            :options="editFormPrevScenes"
+            v-model="$v.editFormState.previous_scene_id.$model"
+            :state="validateEditState('previous_scene_id')"
+            aria-describedby="previous-scene-feedback"/>
+          <b-form-invalid-feedback
+            id="previous-scene-feedback"
+          >This cannot form a circular dependency between scenes.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
     <b-modal id="set-first-scene" title="Set First Scene" ref="set-first-scene" size="md"
              @hidden="resetFirstSceneForm" @ok="onSubmitFirstScene">
       <b-form @submit.stop.prevent="onSubmitFirstScene" ref="set-first-scene-form">
@@ -150,6 +196,13 @@ export default {
         act_id: null,
         scene_id: null,
       },
+      editSceneID: null,
+      editFormState: {
+        scene_id: null,
+        name: '',
+        act_id: null,
+        previous_scene_id: null,
+      },
     };
   },
   validations: {
@@ -165,6 +218,28 @@ export default {
       },
     },
     firstSceneFormState: {},
+    editFormState: {
+      name: {
+        required,
+      },
+      act_id: {
+        notNullAndGreaterThanZero: (value) => (value != null && value > 0),
+      },
+      previous_scene_id: {
+        integer,
+        noLoops(value) {
+          const sceneIndexes = [this.editFormState.scene_id];
+          let currentScene = this.SCENE_LIST.find((scene) => (scene.id === value));
+          while (currentScene != null && currentScene.previous_scene != null) {
+            if (sceneIndexes.includes(currentScene.previous_scene.id)) {
+              return false;
+            }
+            currentScene = currentScene.previous_scene;
+          }
+          return true;
+        },
+      },
+    },
   },
   async mounted() {
     await this.GET_SCENE_LIST();
@@ -227,8 +302,58 @@ export default {
         this.resetFirstSceneForm();
       }
     },
+    resetEditForm() {
+      this.editSceneID = null;
+      this.editFormState = {
+        scene_id: null,
+        name: '',
+        act_id: null,
+        previous_scene_id: null,
+      };
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    openEditForm(scene) {
+      if (scene != null) {
+        this.editSceneID = scene.item.id;
+        this.editFormState.scene_id = scene.item.id;
+        this.editFormState.name = scene.item.name;
+        if (scene.item.act != null) {
+          this.editFormState.act_id = scene.item.act.id;
+        }
+        if (scene.item.previous_scene != null) {
+          this.editFormState.previous_scene_id = scene.item.previous_scene.id;
+        }
+        this.$bvModal.show('edit-scene');
+      }
+    },
+    validateEditState(name) {
+      const { $dirty, $error } = this.$v.editFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async onSubmitEdit(event) {
+      this.$v.editFormState.$touch();
+      if (this.$v.editFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.UPDATE_SCENE(this.editFormState);
+        this.resetEditForm();
+      }
+    },
+    editActChanged(newActID) {
+      const editScene = this.SCENE_LIST.find((s) => (s.id === this.editSceneID));
+      if (newActID !== editScene.act.id) {
+        this.editFormState.previous_scene_id = null;
+      } else if (editScene.previous_scene != null) {
+        this.editFormState.previous_scene_id = editScene.previous_scene.id;
+      } else {
+        this.editFormState.previous_scene_id = null;
+      }
+    },
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'ADD_SCENE', 'DELETE_SCENE',
-      'SET_ACT_FIRST_SCENE']),
+      'SET_ACT_FIRST_SCENE', 'UPDATE_SCENE']),
   },
   computed: {
     ...mapGetters(['SCENE_LIST', 'ACT_LIST']),
@@ -275,6 +400,21 @@ export default {
         return '';
       }
       return `${this.ACT_LIST.find((act) => (act.id === this.firstSceneFormState.act_id)).name} First Scene`;
+    },
+    editFormPrevScenes() {
+      const ret = [];
+      ret.push(...this.previousSceneOptions[this.editFormState.act_id]);
+      if (this.editFormState.previous_scene_id != null) {
+        const scene = this.SCENE_LIST.find(
+          (s) => (s.id === this.editFormState.previous_scene_id),
+        );
+        ret.push({
+          value: this.editFormState.previous_scene_id,
+          text: `${scene.act.name}: ${scene.name}`,
+          disabled: false,
+        });
+      }
+      return ret;
     },
   },
 };
