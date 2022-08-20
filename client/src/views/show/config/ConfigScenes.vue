@@ -403,7 +403,9 @@ export default {
     },
     editFormPrevScenes() {
       const ret = [];
-      ret.push(...this.previousSceneOptions[this.editFormState.act_id]);
+      ret.push(...this.previousSceneOptions[this.editFormState.act_id].filter(
+        (scene) => (scene.value !== this.editFormState.scene_id),
+      ));
       if (this.editFormState.previous_scene_id != null) {
         const scene = this.SCENE_LIST.find(
           (s) => (s.id === this.editFormState.previous_scene_id),

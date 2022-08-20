@@ -106,8 +106,13 @@
           <b-form-select
             id="previous-act-input"
             :options="editFormActOptions"
-            v-model="editFormState.previous_act_id"
+            v-model="$v.editFormState.previous_act_id.$model"
+            :state="validateEditState('previous_act_id')"
             aria-describedby="previous-act-feedback"/>
+          <b-form-invalid-feedback
+            id="previous-act-feedback"
+          >This cannot form a circular dependency between acts.
+          </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
     </b-modal>
@@ -115,7 +120,7 @@
 </template>
 
 <script>
-import { required } from 'vuelidate/lib/validators';
+import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 
 export default {
@@ -128,8 +133,8 @@ export default {
         { key: 'id', label: 'ID' },
         'name',
         { key: 'interval_after', label: 'Interval After' },
-        { key: 'next_act', label: 'Next Act' },
         { key: 'previous_act', label: 'Previous Act' },
+        { key: 'next_act', label: 'Next Act' },
         { key: 'btn', label: '' },
       ],
       newFormState: {
@@ -155,6 +160,20 @@ export default {
     editFormState: {
       name: {
         required,
+      },
+      previous_act_id: {
+        integer,
+        noLoops(value) {
+          const actIndexes = [this.editFormState.id];
+          let currentAct = this.ACT_LIST.find((act) => (act.id === value));
+          while (currentAct != null && currentAct.previous_act != null) {
+            if (actIndexes.includes(currentAct.previous_act.id)) {
+              return false;
+            }
+            currentAct = currentAct.previous_act;
+          }
+          return true;
+        },
       },
     },
   },
@@ -244,14 +263,17 @@ export default {
       ];
     },
     editFormActOptions() {
-      return [
-        { value: null, text: 'None', disabled: false },
-        ...this.ACT_LIST.map((act) => ({
-          value: act.id,
+      const ret = [];
+      ret.push(...this.previousActOptions.filter((act) => (act.value !== this.editFormState.id)));
+      if (this.editFormState.previous_act_id != null) {
+        const act = this.ACT_LIST.find((a) => (a.id === this.editFormState.previous_act_id));
+        ret.push({
+          value: this.editFormState.previous_act_id,
           text: act.name,
-          disabled: act.next_act != null,
-        })),
-      ];
+          disabled: false,
+        });
+      }
+      return ret;
     },
     ...mapGetters(['ACT_LIST']),
   },

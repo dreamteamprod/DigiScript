@@ -174,6 +174,11 @@ class SceneController(BaseAPIController):
                         previous_scene_id = data.get('previous_scene_id', None)
 
                         if previous_scene_id:
+                            if previous_scene_id == scene_id:
+                                self.set_status(400)
+                                await self.finish({'message': 'Previous scene cannot be current scene'})
+                                return
+
                             previous_scene: Scene = session.query(Scene).get(previous_scene_id)
                             if not previous_scene:
                                 self.set_status(400)

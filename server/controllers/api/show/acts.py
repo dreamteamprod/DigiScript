@@ -116,6 +116,31 @@ class ActController(BaseAPIController):
                         entry.interval_after = interval_after
 
                         previous_act_id: int = data.get('previous_act_id', None)
+
+                        if previous_act_id:
+                            if previous_act_id == act_id:
+                                self.set_status(400)
+                                await self.finish({'message': 'Previous act cannot be current act'})
+                                return
+
+                            previous_act: Act = session.query(Act).get(previous_act_id)
+                            if not previous_act:
+                                self.set_status(400)
+                                await self.finish({'message': 'Previous act not found'})
+                                return
+
+                            act_indexes = [act_id]
+                            current_act: Act = previous_act
+                            while current_act is not None and current_act.previous_act is not None:
+                                if current_act.previous_act.id in act_indexes:
+                                    self.set_status(400)
+                                    await self.finish({
+                                        'message': 'Previous act cannot form a circular '
+                                                   'dependency between acts'
+                                    })
+                                    return
+                                current_act = current_act.previous_act
+
                         entry.previous_act_id = previous_act_id
 
                         session.commit()
