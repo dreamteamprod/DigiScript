@@ -1,3 +1,4 @@
+import router from "@/router";
 import { makeURL } from '@/js/utils';
 
 export default {
@@ -42,6 +43,9 @@ export default {
       } else {
         context.commit('SET_CURRENT_SHOW', null);
         context.commit('CLEAR_CURRENT_SHOW');
+        if (router.currentRoute.path !== '/') {
+          router.push('/');
+        }
       }
     },
   },
