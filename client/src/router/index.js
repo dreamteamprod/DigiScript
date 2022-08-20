@@ -50,6 +50,11 @@ const routes = [
         component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigScenes.vue'),
       },
       {
+        name: 'show-config-cues',
+        path: 'cues',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCues.vue'),
+      },
+      {
         name: 'show-config-script',
         path: 'script',
         component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigScript.vue'),
