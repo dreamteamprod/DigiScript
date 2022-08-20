@@ -22,11 +22,15 @@ class Show(db.Model):
     start_date = Column(Date())
     end_date = Column(Date())
     created_at = Column(DateTime())
+    edited_at = Column(DateTime())
+    first_act_id = Column(Integer, ForeignKey('act.id'))
 
     # Relationships
+    first_act = relationship('Act', uselist=False, foreign_keys=[first_act_id])
+
     cast_list = relationship("Cast")
     character_list = relationship('Character')
-    act_list = relationship('Act')
+    act_list = relationship('Act', primaryjoin=lambda: Show.id == Act.show_id)
     scene_list = relationship('Scene')
 
 

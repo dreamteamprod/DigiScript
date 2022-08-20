@@ -1,4 +1,4 @@
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 
 from models.models import Show, Cast, Character, Session, Act, Scene
@@ -14,6 +14,8 @@ class ShowSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Show
         load_instance = True
+
+    first_act_id = auto_field()
 
 
 class CastSchema(SQLAlchemyAutoSchema):
