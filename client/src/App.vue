@@ -59,11 +59,11 @@ export default {
   border-radius: 0.25rem;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
-  background-color: darkred;
+  background-color: #e74c3c;
 }
 
 #connection-status.healthy {
-  background-color: darkgreen;
+  background-color: #00bc8c;
 }
 </style>
 
