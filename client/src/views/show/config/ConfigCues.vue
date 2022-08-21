@@ -151,7 +151,7 @@ export default {
         prefix: '',
         description: '',
         colour: '#000000',
-      }
+      },
     };
   },
   validations: {
@@ -178,7 +178,7 @@ export default {
       colour: {
         required,
       },
-    }
+    },
   },
   async mounted() {
     await this.GET_CUE_TYPES();
