@@ -8,6 +8,7 @@ export default {
     characterList: [],
     actList: [],
     sceneList: [],
+    cueTypes: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -21,6 +22,9 @@ export default {
     },
     SET_SCENE_LIST(state, sceneList) {
       state.sceneList = sceneList;
+    },
+    SET_CUE_TYPES(state, cueTypes) {
+      state.cueTypes = cueTypes;
     },
     CLEAR_CURRENT_SHOW(state) {
       state.castList = [];
@@ -277,6 +281,63 @@ export default {
         Vue.$toast.error('Unable to edit scene');
       }
     },
+    async GET_CUE_TYPES(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`);
+      if (response.ok) {
+        const cueTypes = await response.json();
+        context.commit('SET_CUE_TYPES', cueTypes.cue_types);
+      } else {
+        console.error('Unable to get cue types');
+      }
+    },
+    async ADD_CUE_TYPE(context, cueType) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cueType),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CUE_TYPES');
+        Vue.$toast.success('Added new cue type!');
+      } else {
+        console.error('Unable to add new cue type');
+        Vue.$toast.error('Unable to add new cue type');
+      }
+    },
+    async DELETE_CUE_TYPE(context, cueTypeID) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: cueTypeID }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CUE_TYPES');
+        Vue.$toast.success('Deleted cue type!');
+      } else {
+        console.error('Unable to delete cue type');
+        Vue.$toast.error('Unable to delete cue type');
+      }
+    },
+    async UPDATE_CUE_TYPE(context, cueType) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cueType),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CUE_TYPES');
+        Vue.$toast.success('Updated cue type!');
+      } else {
+        console.error('Unable to edit cue type');
+        Vue.$toast.error('Unable to edit cue type');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -290,6 +351,9 @@ export default {
     },
     SCENE_LIST(state) {
       return state.sceneList;
+    },
+    CUE_TYPES(state) {
+      return state.cueTypes;
     },
   }
   ,

@@ -32,6 +32,7 @@ class Show(db.Model):
     character_list = relationship('Character')
     act_list = relationship('Act', primaryjoin=lambda: Show.id == Act.show_id)
     scene_list = relationship('Scene')
+    cue_type_list = relationship('CueType')
 
 
 class Cast(db.Model):
@@ -86,3 +87,14 @@ class Scene(db.Model):
                        foreign_keys=[act_id])
     previous_scene = relationship('Scene', uselist=False, remote_side=[id],
                                   backref=backref('next_scene', uselist=False))
+
+
+class CueType(db.Model):
+    __tablename__ = 'cuetypes'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey('shows.id'))
+
+    prefix = Column(String(5))
+    description = Column(String(100))
+    colour = Column(String())
