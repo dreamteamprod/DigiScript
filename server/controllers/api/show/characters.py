@@ -299,3 +299,64 @@ class CharacterGroupController(BaseAPIController):
         else:
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
+
+    async def patch(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show: Show = session.query(Show).get(show_id)
+                if show:
+                    data = escape.json_decode(self.request.body)
+
+                    character_group_id = data.get('id', None)
+                    if not character_group_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'ID missing'})
+                        return
+
+                    entry: CharacterGroup = session.get(CharacterGroup, character_group_id)
+                    if entry:
+                        name = data.get('name', None)
+                        if not name:
+                            self.set_status(400)
+                            await self.finish({'message': 'Name missing'})
+                            return
+                        entry.name = name
+
+                        entry.description = data.get('description', None)
+
+                        character_list = data.get('characters', [])
+                        character_model_list = []
+                        for character_id in character_list:
+                            character = session.query(Character).get(character_id)
+                            if not character:
+                                self.set_status(404)
+                                await self.finish({'message': f'Character {character_id} not found'})
+                                return
+                            character_model_list.append(character)
+                        entry.characters = character_model_list
+
+                        session.commit()
+
+                        self.set_status(200)
+                        await self.finish({'message': 'Successfully updated character group'})
+
+                        await self.application.ws_send_to_all(
+                            'NOOP', 'GET_CHARACTER_GROUP_LIST', {})
+                    else:
+                        self.set_status(404)
+                        await self.finish({'message': '404 character group not found'})
+                        return
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            await self.finish({'message': '404 show not found'})

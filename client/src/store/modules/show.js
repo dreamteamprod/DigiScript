@@ -188,11 +188,26 @@ export default {
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_GROUP_LIST');
-        context.dispatch('GET_CHARACTER_LIST');
         Vue.$toast.success('Deleted character group!');
       } else {
         console.error('Unable to delete character group');
         Vue.$toast.error('Unable to delete character group');
+      }
+    },
+    async UPDATE_CHARACTER_GROUP(context, characterGroup) {
+      const response = await fetch(`${makeURL('/api/v1/show/character/group')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(characterGroup),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CHARACTER_GROUP_LIST');
+        Vue.$toast.success('Updated character group!');
+      } else {
+        console.error('Unable to edit character group');
+        Vue.$toast.error('Unable to edit character group');
       }
     },
     async GET_ACT_LIST(context) {

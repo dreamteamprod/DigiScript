@@ -72,6 +72,47 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal id="edit-character-group" title="Add New Character Group" ref="edit-character"
+             size="md" @hidden="resetEditForm" @ok="onSubmitEdit">
+      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-character-form">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+          <b-form-input
+            id="name-input"
+            name="name-input"
+            v-model="$v.editFormState.name.$model"
+            :state="validateEditState('name')"
+            aria-describedby="name-feedback"
+          ></b-form-input>
+          <b-form-invalid-feedback
+            id="name-feedback"
+          >This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group id="description-input-group" label="Description"
+                      label-for="description-input">
+          <b-form-input
+            id="description-input"
+            name="description-input"
+            v-model="$v.editFormState.description.$model"
+            :state="validateEditState('description')"
+          ></b-form-input>
+        </b-form-group>
+        <b-form-group id="characters-input-group" label="Characters"
+                      label-for="characters-input">
+          <multi-select
+            id="characters-input"
+            name="characters-input"
+            v-model="tempEditCharacterList"
+            :multiple="true"
+            :options="CHARACTER_LIST"
+            track-by="id"
+            label="name"
+            @input="editSelectChanged"
+            :state="validateEditState('characters')"
+          ></multi-select>
+        </b-form-group>
+      </b-form>
+    </b-modal>
   </b-container>
 </template>
 
@@ -96,10 +137,24 @@ export default {
         description: '',
         characters: [],
       },
+      tempEditCharacterList: [],
+      editFormState: {
+        id: null,
+        name: '',
+        description: '',
+        characters: [],
+      },
     };
   },
   validations: {
     newFormState: {
+      name: {
+        required,
+      },
+      description: {},
+      characters: {},
+    },
+    editFormState: {
       name: {
         required,
       },
@@ -147,8 +202,50 @@ export default {
         await this.DELETE_CHARACTER_GROUP(characterGroup.item.id);
       }
     },
+    openEditForm(characterGroup) {
+      if (characterGroup != null) {
+        this.editFormState.id = characterGroup.item.id;
+        this.editFormState.name = characterGroup.item.name;
+        this.editFormState.description = characterGroup.item.description;
+        this.editFormState.characters = characterGroup.item.characters;
+
+        this.tempEditCharacterList.push(...this.CHARACTER_LIST.filter((character) => (
+          this.editFormState.characters.includes(character.id))));
+
+        this.$bvModal.show('edit-character-group');
+      }
+    },
+    resetEditForm() {
+      this.editFormState = {
+        id: null,
+        name: '',
+        description: '',
+        characters: [],
+      };
+      this.tempEditCharacterList = [];
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    editSelectChanged(value, id) {
+      this.$v.editFormState.characters.$model = value.map((character) => (character.id));
+    },
+    async onSubmitEdit(event) {
+      this.$v.editFormState.$touch();
+      if (this.$v.editFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.UPDATE_CHARACTER_GROUP(this.editFormState);
+        this.resetEditForm();
+      }
+    },
+    validateEditState(name) {
+      const { $dirty, $error } = this.$v.editFormState[name];
+      return $dirty ? !$error : null;
+    },
     ...mapActions(['GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'ADD_CHARACTER_GROUP',
-      'DELETE_CHARACTER_GROUP']),
+      'DELETE_CHARACTER_GROUP', 'UPDATE_CHARACTER_GROUP']),
   },
   computed: {
     ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
