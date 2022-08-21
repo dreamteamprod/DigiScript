@@ -40,6 +40,11 @@ const routes = [
         component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCharacters.vue'),
       },
       {
+        name: 'show-config-character-groups',
+        path: 'character-groups',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCharacterGroups.vue'),
+      },
+      {
         name: 'show-config-acts',
         path: 'acts',
         component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigActs.vue'),

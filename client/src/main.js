@@ -4,6 +4,7 @@ import VueNativeSock from 'vue-native-websocket';
 import { BootstrapVue, IconsPlugin } from 'bootstrap-vue';
 import Vuelidate from 'vuelidate';
 import ToastPlugin from 'vue-toast-notification';
+import Multiselect from 'vue-multiselect';
 
 import store from '@/store/store';
 import App from './App.vue';
@@ -11,9 +12,11 @@ import router from './router';
 
 import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';
+import 'vue-multiselect/dist/vue-multiselect.min.css';
 
 Vue.use(BootstrapVue);
 Vue.use(IconsPlugin);
+Vue.component('multi-select', Multiselect);
 
 Vue.use(Vuex);
 Vue.use(Vuelidate);
