@@ -289,7 +289,9 @@ class CharacterGroupController(BaseAPIController):
                         self.set_status(200)
                         await self.finish({'message': 'Successfully deleted character group'})
 
-                        await self.application.ws_send_to_all('NOOP', 'GET_CHARACTER_GROUP_LIST', {})
+                        await self.application.ws_send_to_all('NOOP',
+                                                              'GET_CHARACTER_GROUP_LIST',
+                                                              {})
                     else:
                         self.set_status(404)
                         await self.finish({'message': '404 character not found'})
@@ -338,7 +340,9 @@ class CharacterGroupController(BaseAPIController):
                             character = session.query(Character).get(character_id)
                             if not character:
                                 self.set_status(404)
-                                await self.finish({'message': f'Character {character_id} not found'})
+                                await self.finish({
+                                    'message': f'Character {character_id} not found'
+                                })
                                 return
                             character_model_list.append(character)
                         entry.characters = character_model_list
