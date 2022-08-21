@@ -156,7 +156,7 @@
           label-for="first-scene-input">
           <b-form-select
             id="first-scene-input"
-            :options="actScenes[firstSceneFormState.act_id]"
+            :options="firstSceneOptions[firstSceneFormState.act_id]"
             v-model="firstSceneFormState.scene_id"/>
         </b-form-group>
       </b-form>
@@ -290,6 +290,9 @@ export default {
     openFirstSceneEdit(act) {
       if (act != null) {
         this.firstSceneFormState.act_id = act.item.id;
+        if (act.item.first_scene != null) {
+          this.firstSceneFormState.scene_id = act.item.first_scene.id;
+        }
         this.$bvModal.show('set-first-scene');
       }
     },
@@ -389,6 +392,21 @@ export default {
           text: 'None',
           disabled: false,
         }, ...act.scene_list.map((scene) => ({
+          value: scene.id,
+          text: `${scene.act.name}: ${scene.name}`,
+        }))];
+      });
+      return ret;
+    },
+    firstSceneOptions() {
+      const ret = {};
+      this.ACT_LIST.forEach((act) => {
+        ret[act.id] = [{
+          value: null,
+          text: 'None',
+          disabled: false,
+        }, ...act.scene_list.filter((scene) => (
+          scene.previous_scene == null)).map((scene) => ({
           value: scene.id,
           text: `${scene.act.name}: ${scene.name}`,
         }))];

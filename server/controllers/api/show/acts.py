@@ -1,6 +1,6 @@
 from tornado import escape
 
-from models.models import Show, Act
+from models.models import Show, Act, Scene
 from models.schemas import ActSchema
 from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
@@ -225,11 +225,24 @@ class FirstSceneController(BaseAPIController):
                         await self.finish({'message': 'Act ID missing'})
                         return
 
-                    scene_id: int = data.get('scene_id', None)
-                    if not scene_id:
+                    if 'scene_id' not in data:
                         self.set_status(400)
                         await self.finish({'message': 'Scene ID missing'})
                         return
+
+                    scene_id: int = data.get('scene_id', None)
+                    if scene_id:
+                        scene: Scene = session.query(Scene).get(scene_id)
+                        if not scene:
+                            self.set_status(404)
+                            await self.finish({'message': '404 scene not found'})
+                            return
+                        if scene.previous_scene_id:
+                            self.set_status(400)
+                            await self.finish({
+                                'message': 'First scene cannot already have previous scene'
+                            })
+                            return
 
                     act: Act = session.query(Act).get(act_id)
                     if not act:
