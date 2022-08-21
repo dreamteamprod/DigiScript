@@ -140,7 +140,15 @@ export default {
       const { $dirty, $error } = this.$v.newFormState[name];
       return $dirty ? !$error : null;
     },
-    ...mapActions(['GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'ADD_CHARACTER_GROUP']),
+    async deleteCharacterGroup(characterGroup) {
+      const msg = `Are you sure you want to delete ${characterGroup.item.name}?`;
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        await this.DELETE_CHARACTER_GROUP(characterGroup.item.id);
+      }
+    },
+    ...mapActions(['GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'ADD_CHARACTER_GROUP',
+      'DELETE_CHARACTER_GROUP']),
   },
   computed: {
     ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
