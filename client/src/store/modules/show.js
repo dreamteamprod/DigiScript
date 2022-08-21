@@ -322,6 +322,22 @@ export default {
         Vue.$toast.error('Unable to delete cue type');
       }
     },
+    async UPDATE_CUE_TYPE(context, cueType) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cueType),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CUE_TYPES');
+        Vue.$toast.success('Updated cue type!');
+      } else {
+        console.error('Unable to edit cue type');
+        Vue.$toast.error('Unable to edit cue type');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {

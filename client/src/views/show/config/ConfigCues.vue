@@ -19,6 +19,9 @@
           </template>
           <template #cell(btn)="data">
             <b-button-group>
+              <b-button variant="warning" @click="openEditCueTypeForm(data)">
+                Edit
+              </b-button>
               <b-button variant="danger" @click="deleteCueType(data)">
                 Delete
               </b-button>
@@ -74,6 +77,52 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal id="edit-cue-type" title="Edit Cue Type" ref="edit-cue-type" size="md"
+             @hidden="resetEditCueTypeForm" @ok="onSubmitEditCueType">
+      <b-form @submit.stop.prevent="onSubmitEditCueType" ref="edit-cue-type-form">
+        <b-form-group id="prefix-input-group" label="Prefix" label-for="prefix-input">
+          <b-form-input
+            id="prefix-input"
+            name="prefix-input"
+            v-model="$v.editCueTypeFormState.prefix.$model"
+            :state="validateEditCueTypeState('prefix')"
+            aria-describedby="prefix-feedback"
+          ></b-form-input>
+          <b-form-invalid-feedback
+            id="prefix-feedback"
+          >This is a required field and must be 5 characters or less.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group id="description-input-group" label="Description"
+                      label-for="description-input">
+          <b-form-input
+            id="description-input"
+            name="description-input"
+            v-model="$v.editCueTypeFormState.description.$model"
+            :state="validateEditCueTypeState('description')"
+            aria-describedby="description-feedback"
+          ></b-form-input>
+          <b-form-invalid-feedback
+            id="description-feedback"
+          >This is a required field and must be 100 characters or less.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group id="colour-input-group" label="Colour" label-for="colour-input">
+          <b-form-input
+            id="colour-input"
+            name="colour-input"
+            type="color"
+            v-model="$v.editCueTypeFormState.colour.$model"
+            :state="validateEditCueTypeState('colour')"
+            aria-describedby="colour-feedback">
+          </b-form-input>
+          <b-form-invalid-feedback
+            id="colour-feedback"
+          >This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
   </b-container>
 </template>
 
@@ -97,6 +146,12 @@ export default {
         description: '',
         colour: '#000000',
       },
+      editCueTypeFormState: {
+        id: null,
+        prefix: '',
+        description: '',
+        colour: '#000000',
+      }
     };
   },
   validations: {
@@ -112,12 +167,24 @@ export default {
         required,
       },
     },
+    editCueTypeFormState: {
+      prefix: {
+        required,
+        maxLength: maxLength(5),
+      },
+      description: {
+        maxLength: maxLength(100),
+      },
+      colour: {
+        required,
+      },
+    }
   },
   async mounted() {
     await this.GET_CUE_TYPES();
   },
   methods: {
-    ...mapActions(['GET_CUE_TYPES', 'ADD_CUE_TYPE', 'DELETE_CUE_TYPE']),
+    ...mapActions(['GET_CUE_TYPES', 'ADD_CUE_TYPE', 'DELETE_CUE_TYPE', 'UPDATE_CUE_TYPE']),
     resetNewCueTypeForm() {
       this.newCueTypeForm = {
         prefix: '',
@@ -139,7 +206,7 @@ export default {
         event.preventDefault();
       } else {
         await this.ADD_CUE_TYPE(this.newCueTypeForm);
-        this.resetNewForm();
+        this.resetNewCueTypeForm();
       }
     },
     async deleteCueType(cueType) {
@@ -148,6 +215,40 @@ export default {
       if (action === true) {
         await this.DELETE_CUE_TYPE(cueType.item.id);
       }
+    },
+    openEditCueTypeForm(cueType) {
+      if (cueType != null) {
+        this.editCueTypeFormState.id = cueType.item.id;
+        this.editCueTypeFormState.prefix = cueType.item.prefix;
+        this.editCueTypeFormState.description = cueType.item.description;
+        this.editCueTypeFormState.colour = cueType.item.colour;
+        this.$bvModal.show('edit-cue-type');
+      }
+    },
+    resetEditCueTypeForm() {
+      this.editCueTypeFormState = {
+        id: null,
+        prefix: '',
+        description: '',
+        colour: '#000000',
+      };
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    async onSubmitEditCueType(event) {
+      this.$v.editCueTypeFormState.$touch();
+      if (this.$v.editCueTypeFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.UPDATE_CUE_TYPE(this.editCueTypeFormState);
+        this.resetEditCueTypeForm();
+      }
+    },
+    validateEditCueTypeState(name) {
+      const { $dirty, $error } = this.$v.editCueTypeFormState[name];
+      return $dirty ? !$error : null;
     },
   },
   computed: {
