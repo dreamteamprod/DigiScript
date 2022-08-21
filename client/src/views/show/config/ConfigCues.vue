@@ -17,6 +17,13 @@
               <b-icon-square-fill />
             </p>
           </template>
+          <template #cell(btn)="data">
+            <b-button-group>
+              <b-button variant="danger" @click="deleteCueType(data)">
+                Delete
+              </b-button>
+            </b-button-group>
+          </template>
         </b-table>
       </b-col>
     </b-row>
@@ -110,7 +117,7 @@ export default {
     await this.GET_CUE_TYPES();
   },
   methods: {
-    ...mapActions(['GET_CUE_TYPES', 'ADD_CUE_TYPE']),
+    ...mapActions(['GET_CUE_TYPES', 'ADD_CUE_TYPE', 'DELETE_CUE_TYPE']),
     resetNewCueTypeForm() {
       this.newCueTypeForm = {
         prefix: '',
@@ -133,6 +140,13 @@ export default {
       } else {
         await this.ADD_CUE_TYPE(this.newCueTypeForm);
         this.resetNewForm();
+      }
+    },
+    async deleteCueType(cueType) {
+      const msg = `Are you sure you want to delete ${cueType.item.prefix}?`;
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        await this.DELETE_CUE_TYPE(cueType.item.id);
       }
     },
   },

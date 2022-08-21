@@ -306,6 +306,22 @@ export default {
         Vue.$toast.error('Unable to add new cue type');
       }
     },
+    async DELETE_CUE_TYPE(context, cueTypeID) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: cueTypeID }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CUE_TYPES');
+        Vue.$toast.success('Deleted cue type!');
+      } else {
+        console.error('Unable to delete cue type');
+        Vue.$toast.error('Unable to delete cue type');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
