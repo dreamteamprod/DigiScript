@@ -1,7 +1,7 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 
-from models.models import Show, Cast, Character, Session, Act, Scene, CueType, CharacterGroup
+from models.models import Show, Cast, Character, Session, Act, Scene, CueType, CharacterGroup, ScriptRevision
 
 
 class SessionSchema(SQLAlchemyAutoSchema):
@@ -70,4 +70,10 @@ class SceneSchema(SQLAlchemyAutoSchema):
 class CueTypeSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = CueType
+        load_instance = True
+
+
+class ScriptRevisionsSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = ScriptRevision
         load_instance = True

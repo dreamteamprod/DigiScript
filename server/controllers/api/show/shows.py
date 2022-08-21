@@ -2,7 +2,7 @@ from datetime import datetime
 from dateutil import parser
 from tornado import escape
 
-from models.models import Show
+from models.models import Show, Script, ScriptRevision
 from models.schemas import ShowSchema
 from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
@@ -62,11 +62,31 @@ class ShowController(BaseAPIController):
 
         with self.make_session() as session:
             now_time = datetime.utcnow()
-            session.add(Show(name=show_name,
-                             start_date=start_date,
-                             end_date=end_date,
-                             created_at=now_time,
-                             edited_at=now_time))
+            show = Show(name=show_name,
+                        start_date=start_date,
+                        end_date=end_date,
+                        created_at=now_time,
+                        edited_at=now_time)
+            session.add(show)
+            session.flush()
+
+            # Configure the new script for this show
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            # Auto insert the first script revision
+            script_revision = ScriptRevision(script_id=script.id,
+                                             revision=1,
+                                             created_at=now_time,
+                                             edited_at=now_time,
+                                             description='Initial script revision')
+            session.add(script_revision)
+            session.flush()
+
+            # Update the script to point to the new revision
+            script.current_revision = script_revision.id
+
             session.commit()
 
         self.set_status(200)

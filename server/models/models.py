@@ -122,3 +122,63 @@ class CueType(db.Model):
     prefix = Column(String(5))
     description = Column(String(100))
     colour = Column(String())
+
+
+class Script(db.Model):
+    __tablename__ = 'script'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey('shows.id'))
+    current_revision = Column(Integer, ForeignKey('script_revisions.id'))
+
+    revisions = relationship('ScriptRevision', uselist=True,
+                             primaryjoin='ScriptRevision.script_id == Script.id')
+
+
+script_line_revision_association_table = Table(
+    'script_line_revision_association',
+    db.Model.metadata,
+    Column('script_revision_id', ForeignKey('script_revisions.id'), primary_key=True),
+    Column('script_line_id', ForeignKey('script_lines.id'), primary_key=True)
+)
+
+
+class ScriptRevision(db.Model):
+    __tablename__ = 'script_revisions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    script_id = Column(Integer, ForeignKey('script.id'))
+
+    revision = Column(Integer)
+    created_at = Column(DateTime)
+    edited_at = Column(DateTime)
+    description = Column(String)
+    previous_revision_id = Column(Integer, ForeignKey('script_revisions.id'))
+
+    lines = relationship('ScriptLine', secondary=script_line_revision_association_table,
+                         back_populates='revisions')
+
+
+class ScriptLine(db.Model):
+    __tablename__ = 'script_lines'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    act_id = Column(Integer, ForeignKey('act.id'))
+    scene_id = Column(Integer, ForeignKey('scene.id'))
+
+    revisions = relationship('ScriptRevision', secondary=script_line_revision_association_table,
+                             back_populates='lines')
+
+
+class ScriptLinePart(db.Model):
+    __tablename__ = 'script_line_parts'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    line_id = Column(Integer, ForeignKey('script_lines.id'))
+
+    character_id = Column(Integer, ForeignKey('character.id'))
+    character_group_id = Column(Integer, ForeignKey('character_group.id'))
+    line_text = Column(String)
+
+    line = relationship('ScriptLine', uselist=False, foreign_keys=[line_id],
+                        backref=backref('lines_parts', uselist=True))
