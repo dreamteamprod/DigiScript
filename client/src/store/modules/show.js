@@ -6,6 +6,7 @@ export default {
   state: {
     castList: [],
     characterList: [],
+    characterGroupList: [],
     actList: [],
     sceneList: [],
     cueTypes: [],
@@ -16,6 +17,9 @@ export default {
     },
     SET_CHARACTER_LIST(state, characterList) {
       state.characterList = characterList;
+    },
+    SET_CHARACTER_GROUP_LIST(state, characterGroupList) {
+      state.characterGroupList = characterGroupList;
     },
     SET_ACT_LIST(state, actList) {
       state.actList = actList;
@@ -146,6 +150,64 @@ export default {
       } else {
         console.error('Unable to edit character');
         Vue.$toast.error('Unable to edit character');
+      }
+    },
+    async GET_CHARACTER_GROUP_LIST(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/character/group')}`);
+      if (response.ok) {
+        const groups = await response.json();
+        context.commit('SET_CHARACTER_GROUP_LIST', groups.character_groups);
+        context.dispatch('GET_CHARACTER_LIST');
+      } else {
+        console.error('Unable to get characters list');
+      }
+    },
+    async ADD_CHARACTER_GROUP(context, act) {
+      const response = await fetch(`${makeURL('/api/v1/show/character/group')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(act),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CHARACTER_GROUP_LIST');
+        Vue.$toast.success('Added new character group!');
+      } else {
+        console.error('Unable to add new character group');
+        Vue.$toast.error('Unable to add new character group');
+      }
+    },
+    async DELETE_CHARACTER_GROUP(context, characterGroupID) {
+      const response = await fetch(`${makeURL('/api/v1/show/character/group')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: characterGroupID }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CHARACTER_GROUP_LIST');
+        Vue.$toast.success('Deleted character group!');
+      } else {
+        console.error('Unable to delete character group');
+        Vue.$toast.error('Unable to delete character group');
+      }
+    },
+    async UPDATE_CHARACTER_GROUP(context, characterGroup) {
+      const response = await fetch(`${makeURL('/api/v1/show/character/group')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(characterGroup),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CHARACTER_GROUP_LIST');
+        Vue.$toast.success('Updated character group!');
+      } else {
+        console.error('Unable to edit character group');
+        Vue.$toast.error('Unable to edit character group');
       }
     },
     async GET_ACT_LIST(context) {
@@ -345,6 +407,9 @@ export default {
     },
     CHARACTER_LIST(state) {
       return state.characterList;
+    },
+    CHARACTER_GROUP_LIST(state) {
+      return state.characterGroupList;
     },
     ACT_LIST(state) {
       return state.actList;

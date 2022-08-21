@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey, Boolean, Table
 from sqlalchemy.orm import relationship, backref
 from tornado_sqlalchemy import SQLAlchemy
 
@@ -30,6 +30,7 @@ class Show(db.Model):
 
     cast_list = relationship("Cast")
     character_list = relationship('Character')
+    character_group_list = relationship('CharacterGroup')
     act_list = relationship('Act', primaryjoin=lambda: Show.id == Act.show_id)
     scene_list = relationship('Scene')
     cue_type_list = relationship('CueType')
@@ -47,6 +48,14 @@ class Cast(db.Model):
     character_list = relationship('Character', back_populates='cast_member')
 
 
+character_group_association_table = Table(
+    "character_group_association",
+    db.Model.metadata,
+    Column('character_group_id', ForeignKey('character_group.id'), primary_key=True),
+    Column('character_id', ForeignKey('character.id'), primary_key=True)
+)
+
+
 class Character(db.Model):
     __tablename__ = 'character'
 
@@ -57,6 +66,21 @@ class Character(db.Model):
     description = Column(String)
 
     cast_member = relationship("Cast", back_populates='character_list')
+    character_groups = relationship('CharacterGroup', secondary=character_group_association_table,
+                                    back_populates='characters')
+
+
+class CharacterGroup(db.Model):
+    __tablename__ = 'character_group'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey('shows.id'))
+
+    name = Column(String)
+    description = Column(String)
+
+    characters = relationship('Character', secondary=character_group_association_table,
+                              back_populates='character_groups')
 
 
 class Act(db.Model):
