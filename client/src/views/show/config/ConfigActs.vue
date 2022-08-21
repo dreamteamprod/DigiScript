@@ -2,6 +2,7 @@
   <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
+        <h5>Act List</h5>
         <b-table id="acts-table" :items="this.ACT_LIST" :fields="actFields" show-empty>
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-act>

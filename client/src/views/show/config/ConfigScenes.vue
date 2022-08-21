@@ -2,6 +2,7 @@
   <b-container class="mx-0" fluid>
     <b-row>
       <b-col cols="8">
+        <h5>Scene List</h5>
         <b-table id="scene-table" :items="this.SCENE_LIST" :fields="sceneFields" show-empty>
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-scene>
@@ -44,6 +45,7 @@
         ></b-pagination>
       </b-col>
       <b-col cols="4">
+        <h5>Act First Scenes</h5>
         <b-table id="first-scenes-table" :items="ACT_LIST" :fields="firstSceneFields" show-empty>
           <template #cell(first_scene)="data">
             <p v-if="data.item.first_scene">
@@ -188,7 +190,7 @@ export default {
         previous_scene_id: null,
       },
       firstSceneFields: [
-        'name',
+        { key: 'name', label: 'Act' },
         { key: 'first_scene', label: 'First Scene' },
         { key: 'btn', label: '' },
       ],

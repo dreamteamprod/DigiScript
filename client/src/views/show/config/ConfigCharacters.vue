@@ -2,6 +2,7 @@
   <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
+        <h5>Character List</h5>
         <b-table
           id="character-table"
           :items="this.CHARACTER_LIST"

@@ -2,6 +2,7 @@
   <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
+        <h5>Cast List</h5>
         <b-table id="cast-table" :items="this.CAST_LIST" :fields="castFields" show-empty>
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-cast>
