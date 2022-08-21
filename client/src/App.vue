@@ -14,6 +14,10 @@
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
           <b-nav-item to="/about">About</b-nav-item>
+          <b-nav-text id="connection-status" :class="{ healthy: WEBSOCKET_HEALTHY }">
+            <template v-if="WEBSOCKET_HEALTHY">Connected</template>
+            <template v-else>Disconnected</template>
+          </b-nav-text>
         </b-navbar-nav>
       </b-collapse>
     </b-navbar>
@@ -27,7 +31,7 @@
 </template>
 
 <script>
-import { mapMutations, mapActions } from 'vuex';
+import { mapGetters, mapActions } from 'vuex';
 
 export default {
   data() {
@@ -38,12 +42,30 @@ export default {
   methods: {
     ...mapActions(['GET_SETTINGS']),
   },
+  computed: {
+    ...mapGetters(['WEBSOCKET_HEALTHY']),
+  },
   async created() {
     await this.GET_SETTINGS();
     this.loaded = true;
   },
 };
 </script>
+
+<style scoped>
+#connection-status {
+  color: white;
+  font-weight: bold;
+  border-radius: 0.25rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  background-color: darkred;
+}
+
+#connection-status.healthy {
+  background-color: darkgreen;
+}
+</style>
 
 <style>
 #app {
