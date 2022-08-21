@@ -1,3 +1,7 @@
+#nav-collapse a.router-link-active {
+  color: #00ffd0 !important;
+}
+
 @import "../../../node_modules/bootswatch/dist/darkly/variables";
 @import "~bootstrap/scss/bootstrap";
 @import "../../../node_modules/bootswatch/dist/darkly/bootswatch";
