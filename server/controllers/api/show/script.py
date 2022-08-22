@@ -1,4 +1,9 @@
-from models.models import Show, Script
+from datetime import datetime
+
+from sqlalchemy import func
+from tornado import escape
+
+from models.models import Show, Script, ScriptRevision
 from models.schemas import ScriptRevisionsSchema
 from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
@@ -27,7 +32,10 @@ class ScriptRevisionsController(BaseAPIController):
                     if script:
                         revisions = [revisions_schema.dump(c) for c in script.revisions]
                         self.set_status(200)
-                        self.finish({'revisions': revisions})
+                        self.finish({
+                            'current_revision': script.current_revision,
+                            'revisions': revisions
+                        })
                     else:
                         self.set_status(404)
                         self.finish({'message': '404 script not found'})
@@ -37,3 +45,154 @@ class ScriptRevisionsController(BaseAPIController):
         else:
             self.set_status(404)
             self.write({'message': '404 show not found'})
+
+    async def post(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    data = escape.json_decode(self.request.body)
+
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                    if not script:
+                        self.set_status(404)
+                        await self.finish({'message': '404 script not found'})
+                        return
+
+                    current_rev_id = script.current_revision
+                    if not current_rev_id:
+                        self.set_status(404)
+                        await self.finish({'message': '404 script revision not found'})
+                        return
+
+                    current_rev: ScriptRevision = session.query(ScriptRevision).get(current_rev_id)
+                    if not current_rev:
+                        self.set_status(404)
+                        await self.finish({'message': '404 script revision not found'})
+                        return
+
+                    max_rev = session.query(func.max(ScriptRevision.revision)).filter(
+                        ScriptRevision.script_id == script.id).one()[0]
+
+                    description: str = data.get('description', None)
+                    if not description:
+                        self.set_status(400)
+                        await self.finish({'message': 'Description missing'})
+                        return
+
+                    now_time = datetime.utcnow()
+                    new_rev = ScriptRevision(script_id=script.id,
+                                             revision=max_rev + 1,
+                                             created_at=now_time,
+                                             edited_at=now_time,
+                                             description=description,
+                                             previous_revision_id=current_rev.id)
+                    new_rev.lines = current_rev.lines
+                    session.add(new_rev)
+                    session.flush()
+
+                    script.current_revision = new_rev.id
+                    session.commit()
+
+                    self.set_status(200)
+                    await self.finish({'message': 'Successfully added script revision'})
+                    await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            await self.finish({'message': '404 show not found'})
+
+
+@ApiRoute('show/script/revisions/current', ApiVersion.v1)
+class ScriptCurrentRevisionController(BaseAPIController):
+    def get(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+
+        if show_id:
+            with self.make_session() as session:
+                show: Show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                    if script:
+                        self.set_status(200)
+                        self.finish({
+                            'current_revision': script.current_revision,
+                        })
+                    else:
+                        self.set_status(404)
+                        self.finish({'message': '404 script not found'})
+                else:
+                    self.set_status(404)
+                    self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            self.write({'message': '404 show not found'})
+
+    async def post(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    data = escape.json_decode(self.request.body)
+
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                    if not script:
+                        self.set_status(404)
+                        await self.finish({'message': '404 script not found'})
+                        return
+
+                    new_rev_id: int = data.get('new_rev_id', None)
+                    if not new_rev_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'New revision missing'})
+                        return
+
+                    new_rev: ScriptRevision = session.query(ScriptRevision).get(new_rev_id)
+                    if not new_rev:
+                        self.set_status(404)
+                        await self.finish({'message': 'New revision not found'})
+                        return
+
+                    if new_rev.script_id != script.id:
+                        self.set_status(400)
+                        await self.finish({'message': 'New revision is not for the current script'})
+                        return
+
+                    script.current_revision = new_rev.id
+                    session.commit()
+
+                    self.set_status(200)
+                    await self.finish({'message': 'Successfully changed script revision'})
+                    await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            await self.finish({'message': '404 show not found'})

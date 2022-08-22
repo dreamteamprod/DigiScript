@@ -77,3 +77,5 @@ class ScriptRevisionsSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = ScriptRevision
         load_instance = True
+
+    previous_revision_id = auto_field()
