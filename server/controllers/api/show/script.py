@@ -112,6 +112,71 @@ class ScriptRevisionsController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
 
+    async def delete(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show: Show = session.query(Show).get(show_id)
+                if show:
+                    data = escape.json_decode(self.request.body)
+
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                    if not script:
+                        self.set_status(404)
+                        await self.finish({'message': '404 script not found'})
+                        return
+
+                    rev_id: int = data.get('rev_id', None)
+                    if not rev_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Revision missing'})
+                        return
+
+                    rev: ScriptRevision = session.query(ScriptRevision).get(rev_id)
+                    if not rev:
+                        self.set_status(404)
+                        await self.finish({'message': 'Revision not found'})
+                        return
+
+                    if rev.script_id != script.id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Revision is not for the current script'})
+                        return
+
+                    if rev.revision == 1:
+                        self.set_status(400)
+                        await self.finish({'message': 'Cannot delete first script revision'})
+                        return
+
+                    if script.current_revision == rev.id:
+                        if rev.previous_revision_id:
+                            script.current_revision = rev.previous_revision_id
+                        else:
+                            first_rev: ScriptRevision = session.query(ScriptRevision).filter(
+                                ScriptRevision.script_id == script.id,
+                                ScriptRevision.revision == 1).one()
+                            script.current_revision = first_rev.id
+
+                    session.delete(rev)
+                    session.commit()
+
+                    self.set_status(200)
+                    await self.finish({'message': 'Successfully deleted script revision'})
+                    await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            await self.finish({'message': '404 show not found'})
+
 
 @ApiRoute('show/script/revisions/current', ApiVersion.v1)
 class ScriptCurrentRevisionController(BaseAPIController):

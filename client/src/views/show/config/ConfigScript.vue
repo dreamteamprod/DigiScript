@@ -28,6 +28,16 @@
                 </p>
                 <p v-else>N/A</p>
               </template>
+              <template #cell(btn)="data">
+                <b-button-group v-if="data.item.revision !== 1">
+                  <b-button variant="warning" @click="openEditRevForm(data)">
+                    Edit
+                  </b-button>
+                  <b-button variant="danger" @click="deleteRev(data)">
+                    Delete
+                  </b-button>
+                </b-button-group>
+              </template>
               <template #custom-foot="data">
                 <b-tr>
                   <b-td>
@@ -126,7 +136,7 @@ export default {
         event.preventDefault();
       } else {
         await this.ADD_SCRIPT_REVISION(this.newRevFormState);
-        this.resetNewForm();
+        this.resetNewRevForm();
       }
     },
     async loadRevision(revision) {
@@ -136,10 +146,24 @@ export default {
         await this.LOAD_SCRIPT_REVISION(revision.item.id);
       }
     },
-    ...mapActions(['GET_SCRIPT_REVISIONS', 'ADD_SCRIPT_REVISION', 'LOAD_SCRIPT_REVISION']),
+    openEditRevForm(revision) {
+
+    },
+    async deleteRev(revision) {
+      let msg = `Are you sure you want to delete revision ${revision.item.revision}?`;
+      if (this.CURRENT_REVISION === revision.item.id) {
+        msg = `${msg}  This will load the previous revision, or first revision if this is not available.`;
+      }
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        await this.DELETE_SCRIPT_REVISION(revision.item.id);
+      }
+    },
+    ...mapActions(['GET_SCRIPT_REVISIONS', 'ADD_SCRIPT_REVISION', 'LOAD_SCRIPT_REVISION',
+      'DELETE_SCRIPT_REVISION']),
   },
   computed: {
-    ...mapGetters(['SCRIPT_REVISIONS']),
+    ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION']),
   },
 };
 </script>

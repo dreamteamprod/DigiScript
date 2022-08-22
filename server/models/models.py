@@ -153,8 +153,9 @@ class ScriptRevision(db.Model):
     created_at = Column(DateTime)
     edited_at = Column(DateTime)
     description = Column(String)
-    previous_revision_id = Column(Integer, ForeignKey('script_revisions.id'))
+    previous_revision_id = Column(Integer, ForeignKey('script_revisions.id', ondelete='SET NULL'))
 
+    previous_revision = relationship('ScriptRevision', foreign_keys=[previous_revision_id])
     lines = relationship('ScriptLine', secondary=script_line_revision_association_table,
                          back_populates='revisions')
 
