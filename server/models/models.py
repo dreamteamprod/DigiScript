@@ -167,8 +167,15 @@ class ScriptLine(db.Model):
     act_id = Column(Integer, ForeignKey('act.id'))
     scene_id = Column(Integer, ForeignKey('scene.id'))
 
+    next_line_id = Column(Integer, ForeignKey('script_lines.id'))
+    page = Column(Integer, index=True)
+
     revisions = relationship('ScriptRevision', secondary=script_line_revision_association_table,
                              back_populates='lines')
+    next_line = relationship('ScriptLine', uselist=False, remote_side=[id],
+                             backref=backref('previous_line', uselist=False))
+    act = relationship('Act', uselist=False)
+    scene = relationship('Scene', uselist=False)
 
 
 class ScriptLinePart(db.Model):
@@ -177,9 +184,12 @@ class ScriptLinePart(db.Model):
     id = Column(Integer, primary_key=True, autoincrement=True)
     line_id = Column(Integer, ForeignKey('script_lines.id'))
 
+    part_index = Column(Integer)
     character_id = Column(Integer, ForeignKey('character.id'))
     character_group_id = Column(Integer, ForeignKey('character_group.id'))
     line_text = Column(String)
 
     line = relationship('ScriptLine', uselist=False, foreign_keys=[line_id],
-                        backref=backref('lines_parts', uselist=True))
+                        backref=backref('line_parts', uselist=True))
+    character = relationship('Character', uselist=False)
+    character_group = relationship('CharacterGroup', uselist=False)

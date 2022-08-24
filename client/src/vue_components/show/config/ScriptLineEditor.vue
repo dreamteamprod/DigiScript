@@ -1,0 +1,175 @@
+<template>
+  <b-form-row>
+    <b-col cols="2">
+      <b-form-row>
+        <b-col cols="6">
+          <b-form-group id="act-input-group" label-size="sm" label=" " label-for="act-input">
+            <b-form-select id="act-input" name="act-input" :options="actOptions"
+                           v-model="$v.state.act_id.$model"
+                           :state="validateState('act_id')"
+                           @change="stateChange"/>
+          </b-form-group>
+        </b-col>
+        <b-col cols="6">
+          <b-form-group id="scene-input-group" label-size="sm" label=" " label-for="scene-input">
+            <b-form-select id="scene-input" name="scene-input" :options="sceneOptions"
+                           v-model="$v.state.scene_id.$model"
+                           :state="validateState('scene_id')"
+                           @change="stateChange"/>
+          </b-form-group>
+        </b-col>
+      </b-form-row>
+      <b-form-row>
+        <b-col style="align-content: center">
+          <b-button-group>
+            <b-button variant="success" @click="doneEditing" :disabled="!lineValid">
+              Done
+            </b-button>
+            <b-button variant="danger">
+              Delete
+            </b-button>
+          </b-button-group>
+        </b-col>
+      </b-form-row>
+    </b-col>
+    <template v-if="state.line_parts.length > 0">
+      <script-line-part
+        v-for="(part, index) in state.line_parts"
+        :key="`line_${lineIndex}_part_${index}`"
+        v-model="$v.state.line_parts.$model[index]"
+        :characters="characters"
+        :character-groups="characterGroups"
+        :show-add-button="index === state.line_parts.length - 1"
+        :enable-add-button="state.line_parts.length < 4"
+        @input="stateChange"
+        @addLinePart="addLinePart" />
+    </template>
+    <b-col cols="10" style="text-align: right" v-else>
+      <b-button v-b-popover.hover.top="'Add line part'" @click="addLinePart">
+        <b-icon-plus-square-fill variant="success" />
+      </b-button>
+    </b-col>
+  </b-form-row>
+</template>
+
+<script>
+import { required, requiredIf } from 'vuelidate/lib/validators';
+import ScriptLinePart from '@/vue_components/show/config/ScriptLinePart.vue';
+import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+
+export default {
+  name: 'ScriptLineEditor',
+  components: { ScriptLinePart },
+  events: ['input', 'doneEditing'],
+  props: {
+    lineIndex: {
+      required: true,
+      type: Number,
+    },
+    acts: {
+      required: true,
+    },
+    scenes: {
+      required: true,
+    },
+    characters: {
+      required: true,
+    },
+    characterGroups: {
+      required: true,
+    },
+    value: {
+      required: true,
+    },
+  },
+  data() {
+    return {
+      state: this.value,
+      blankLinePartObj: {
+        id: null,
+        line_id: null,
+        part_index: null,
+        character_id: null,
+        character_group_id: null,
+        line_text: null,
+      },
+    };
+  },
+  validations: {
+    state: {
+      act_id: {
+        required,
+        notNull,
+        notNullAndGreaterThanZero,
+      },
+      scene_id: {
+        required,
+        notNull,
+        notNullAndGreaterThanZero,
+      },
+      line_parts: {
+        required,
+        $each: {
+          character_id: {
+            required: requiredIf((m) => m.character_group_id == null),
+          },
+          character_group_id: {
+            required: requiredIf((m) => m.character_id == null),
+          },
+          line_text: {
+            required,
+          },
+        },
+      },
+    },
+  },
+  created() {
+    if (this.state.line_parts.length === 0) {
+      this.addLinePart();
+    }
+  },
+  methods: {
+    validateState(name) {
+      const { $dirty, $error } = this.$v.state[name];
+      return $dirty ? !$error : null;
+    },
+    doneEditing() {
+      this.$emit('doneEditing');
+    },
+    stateChange() {
+      this.$v.state.$touch();
+      this.$emit('input', this.state);
+    },
+    addLinePart() {
+      const blankLine = JSON.parse(JSON.stringify(this.blankLinePartObj));
+      blankLine.line_id = this.state.id;
+      blankLine.part_index = this.state.line_parts.length;
+      this.state.line_parts.push(blankLine);
+      this.stateChange();
+    },
+  },
+  computed: {
+    actOptions() {
+      return [
+        { value: null, text: 'N/A', disabled: true },
+        ...this.acts.map((act) => ({ value: act.id, text: act.name })),
+      ];
+    },
+    sceneOptions() {
+      return [
+        { value: null, text: 'N/A', disabled: true },
+        ...this.scenes.filter(function (scene) {
+          return scene.act != null && scene.act.id === this.state.act_id;
+        }, this).map((scene) => ({ value: scene.id, text: scene.name })),
+      ];
+    },
+    lineValid() {
+      return !this.$v.state.$anyError;
+    },
+  },
+};
+</script>
+
+<style scoped>
+
+</style>

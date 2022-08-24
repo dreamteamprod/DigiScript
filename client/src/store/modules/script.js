@@ -6,6 +6,7 @@ export default {
   state: {
     currentRevision: null,
     revisions: [],
+    script: {},
   },
   mutations: {
     SET_REVISIONS(state, revisions) {
@@ -13,6 +14,9 @@ export default {
     },
     SET_CURRENT_REVISION(state, currentRevision) {
       state.currentRevision = currentRevision;
+    },
+    SET_SCRIPT_PAGE(state, { pageNumber, page }) {
+      Vue.set(state.script, pageNumber, page);
     },
   },
   actions: {
@@ -78,6 +82,26 @@ export default {
         Vue.$toast.error('Unable to load script revision');
       }
     },
+    async LOAD_SCRIPT_PAGE(context, page) {
+      const searchParams = new URLSearchParams({
+        page,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/script')}?${searchParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const respJson = await response.json();
+        context.commit('SET_SCRIPT_PAGE', {
+          pageNumber: respJson.page,
+          page: respJson.lines,
+        });
+      } else {
+        console.error('Unable to load script page');
+      }
+    },
   },
   getters: {
     SCRIPT_REVISIONS(state) {
@@ -85,6 +109,13 @@ export default {
     },
     CURRENT_REVISION(state) {
       return state.currentRevision;
+    },
+    GET_SCRIPT_PAGE: (state) => (page) => {
+      const pageStr = page.toString();
+      if (Object.keys(state.script).includes(page)) {
+        return state.script[pageStr];
+      }
+      return [];
     },
   },
 };

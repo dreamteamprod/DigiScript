@@ -3,8 +3,8 @@ from datetime import datetime
 from sqlalchemy import func
 from tornado import escape
 
-from models.models import Show, Script, ScriptRevision
-from models.schemas import ScriptRevisionsSchema
+from models.models import Show, Script, ScriptRevision, ScriptLine
+from models.schemas import ScriptRevisionsSchema, ScriptLineSchema
 from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
 
@@ -261,3 +261,55 @@ class ScriptCurrentRevisionController(BaseAPIController):
         else:
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
+
+
+@ApiRoute('/show/script', ApiVersion.v1)
+class ScriptController(BaseAPIController):
+
+    def get(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+
+        page = self.get_query_argument('page', None)
+        if not page:
+            self.set_status(400)
+            self.finish({'message': 'Page not given'})
+            return
+        else:
+            page = int(page)
+
+        line_schema = ScriptLineSchema()
+
+        if show_id:
+            if show_id:
+                with self.make_session() as session:
+                    show = session.query(Show).get(show_id)
+                    if show:
+                        script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                        if script.current_revision:
+                            revision: ScriptRevision = session.query(ScriptRevision).get(script.current_revision)
+                        else:
+                            self.set_status(400)
+                            self.finish({'message': 'Script does not have a current revision'})
+                            return
+                        lines = session.query(ScriptLine).filter(
+                            ScriptLine.page == page, ScriptLine.revisions.contains(revision)).all()
+                        lines = [line_schema.dump(line) for line in lines]
+
+                        self.set_status(200)
+                        self.finish({'lines': lines, 'page': page})
+                    else:
+                        self.set_status(404)
+                        self.finish({'message': '404 show not found'})
+                        return
+            else:
+                self.set_status(404)
+                self.finish({'message': '404 show not found'})
+                return

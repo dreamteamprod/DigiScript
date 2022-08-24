@@ -7,6 +7,7 @@ import websocket from './modules/websocket';
 import system from './modules/system';
 import show from './modules/show';
 import script from './modules/script';
+import scriptConfig from './modules/scriptConfig';
 
 Vue.use(Vuex);
 
@@ -56,6 +57,7 @@ export default new Vuex.Store({
     system,
     show,
     script,
+    scriptConfig,
   },
   plugins: [
     createPersistedState({

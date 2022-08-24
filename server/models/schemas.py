@@ -1,7 +1,8 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 
-from models.models import Show, Cast, Character, Session, Act, Scene, CueType, CharacterGroup, ScriptRevision
+from models.models import (Show, Cast, Character, Session, Act, Scene, CueType, CharacterGroup, ScriptRevision,
+                           ScriptLine, ScriptLinePart)
 
 
 class SessionSchema(SQLAlchemyAutoSchema):
@@ -79,3 +80,19 @@ class ScriptRevisionsSchema(SQLAlchemyAutoSchema):
         load_instance = True
 
     previous_revision_id = auto_field()
+
+
+class ScriptLineSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = ScriptLine
+        load_instance = True
+        include_fk = True
+
+    line_parts = Nested(lambda: ScriptLinePartSchema(), many=True)
+
+
+class ScriptLinePartSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = ScriptLinePart
+        load_instance = True
+        include_fk = True

@@ -55,6 +55,9 @@
               </template>
             </b-table>
           </b-tab>
+          <b-tab title="Script">
+            <script-config />
+          </b-tab>
         </b-tabs>
       </b-col>
     </b-row>
@@ -87,9 +90,11 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
+import ScriptConfig from '@/vue_components/show/config/ScriptConfig.vue';
 
 export default {
   name: 'ConfigScript',
+  components: { ScriptConfig },
   data() {
     return {
       revisionColumns: [
