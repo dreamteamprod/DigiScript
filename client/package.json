@@ -11,7 +11,7 @@
     "bootstrap": "^4.6.2",
     "bootstrap-vue": "^2.22.0",
     "bootswatch": "^4.6.2",
-    "core-js": "^3.24.1",
+    "core-js": "^3.25.0",
     "jquery": "^3.6.0",
     "vue": "^2.7.10",
     "vue-multiselect": "^2.1.6",
