@@ -96,7 +96,7 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
-import ScriptConfig from '@/vue_components/show/config/ScriptConfig.vue';
+import ScriptConfig from '@/vue_components/show/config/ScriptEditor.vue';
 
 export default {
   name: 'ConfigScript',
