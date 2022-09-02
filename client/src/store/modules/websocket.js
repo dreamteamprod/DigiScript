@@ -70,5 +70,8 @@ export default {
     WEBSOCKET_HEALTHY(state) {
       return !state.error && state.isConnected && !state.reconnectError && state.errorCount === 0;
     },
+    INTERNAL_UUID(state) {
+      return state.internalUUID;
+    },
   },
 };

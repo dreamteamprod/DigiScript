@@ -12,6 +12,7 @@ class Session(db.Model):
     remote_ip = Column(String(255))
     last_ping = Column(Float())
     last_pong = Column(Float())
+    is_editor = Column(Boolean(), default=False, index=True)
 
 
 class Show(db.Model):

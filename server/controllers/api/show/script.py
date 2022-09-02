@@ -1,12 +1,32 @@
 from datetime import datetime
+from typing import List
 
 from sqlalchemy import func
 from tornado import escape
 
-from models.models import Show, Script, ScriptRevision, ScriptLine
+from models.models import Show, Script, ScriptRevision, ScriptLine, Session
 from models.schemas import ScriptRevisionsSchema, ScriptLineSchema
 from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
+
+
+@ApiRoute('show/script/config', ApiVersion.v1)
+class ScriptStatusController(BaseAPIController):
+    def get(self):
+        with self.make_session() as session:
+            editors: List[Session] = session.query(Session).filter(Session.is_editor).all()
+            if editors:
+                current_editor = editors[0].internal_id
+            else:
+                current_editor = None
+
+            data = {
+                'canRequestEdit': len(editors) == 0,
+                'currentEditor': current_editor
+            }
+
+            self.set_status(200)
+            self.finish(data)
 
 
 @ApiRoute('show/script/revisions', ApiVersion.v1)

@@ -1,18 +1,32 @@
 <template>
   <b-container class="mx-0 px-0" fluid>
     <b-row class="script-row">
-      <b-col cols="2" style="text-align: left">
+      <b-col cols="2"></b-col>
+      <b-col cols="2" style="text-align: right">
         <b-button variant="success" @click="decrPage"
                   :disabled="currentEditPage === 1">
           Prev Page
         </b-button>
       </b-col>
-      <b-col cols="8">
+      <b-col cols="4">
         <p>Current Page: {{ currentEditPage }}</p>
       </b-col>
-      <b-col cols="2" style="text-align: right" >
+      <b-col cols="2" style="text-align: left" >
         <b-button variant="success" @click="incrPage">
           Next Page
+        </b-button>
+      </b-col>
+      <b-col cols="2">
+        <b-button v-if="INTERNAL_UUID !== CURRENT_EDITOR"
+                  variant="warning"
+                  :disabled="!CAN_REQUEST_EDIT"
+                  @click="requestEdit">
+          Begin Editing
+        </b-button>
+        <b-button v-else
+                  variant="warning"
+                  @click="stopEditing">
+          Stop Editing
         </b-button>
       </b-col>
     </b-row>
@@ -54,7 +68,8 @@
     </b-row>
     <b-row class="script-row pt-1">
       <b-col cols="10" class="ml-auto">
-        <b-button @click="addNewLine" style="float: right">
+        <b-button @click="addNewLine" style="float: right"
+                  v-show="INTERNAL_UUID === CURRENT_EDITOR">
           Add line
         </b-button>
       </b-col>
@@ -85,16 +100,31 @@ export default {
     };
   },
   async beforeMount() {
+    // Config status
+    await this.GET_SCRIPT_CONFIG_STATUS();
+    // Show details
     await this.GET_ACT_LIST();
     await this.GET_SCENE_LIST();
     await this.GET_CHARACTER_LIST();
     await this.GET_CHARACTER_GROUP_LIST();
-
+    // Initialisation of page data
     await this.LOAD_SCRIPT_PAGE(this.currentEditPage);
     await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
     this.ADD_BLANK_PAGE(this.currentEditPage);
   },
   methods: {
+    requestEdit() {
+      this.$socket.sendObj({
+        OP: 'REQUEST_SCRIPT_EDIT',
+        DATA: {},
+      });
+    },
+    stopEditing() {
+      this.$socket.sendObj({
+        OP: 'STOP_SCRIPT_EDIT',
+        DATA: {},
+      });
+    },
     decrPage() {
       if (this.currentEditPage > 1) {
         if (this.TMP_SCRIPT[this.currentEditPageKey].length === 0) {
@@ -138,13 +168,14 @@ export default {
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
-      'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE']),
+      'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS']),
   },
   computed: {
     currentEditPageKey() {
       return this.currentEditPage.toString();
     },
-    ...mapGetters(['TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
+    ...mapGetters(['TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST', 'CHARACTER_GROUP_LIST',
+      'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID']),
   },
 };
 </script>

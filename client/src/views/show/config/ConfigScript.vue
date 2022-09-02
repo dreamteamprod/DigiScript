@@ -14,7 +14,7 @@
                 <b-button-group v-else>
                   <b-button variant="warning"
                             @click="loadRevision(data)"
-                            :disabled="data.item.id === $store.state.script.currentRevision">
+                            :disabled="!canChangeRevisions || data.item.id === $store.state.script.currentRevision">
                     Load
                   </b-button>
                 </b-button-group>
@@ -30,10 +30,14 @@
               </template>
               <template #cell(btn)="data">
                 <b-button-group v-if="data.item.revision !== 1">
-                  <b-button variant="warning" @click="openEditRevForm(data)">
+                  <b-button variant="warning"
+                            :disabled="!canChangeRevisions"
+                            @click="openEditRevForm(data)">
                     Edit
                   </b-button>
-                  <b-button variant="danger" @click="deleteRev(data)">
+                  <b-button variant="danger"
+                            :disabled="!canChangeRevisions"
+                            @click="deleteRev(data)">
                     Delete
                   </b-button>
                 </b-button-group>
@@ -41,7 +45,9 @@
               <template #custom-foot="data">
                 <b-tr>
                   <b-td>
-                    <b-button variant="outline-success" v-b-modal.new-revision>
+                    <b-button variant="outline-success"
+                              :disabled="!canChangeRevisions"
+                              v-b-modal.new-revision>
                       New Revision
                     </b-button>
                   </b-td>
@@ -118,6 +124,9 @@ export default {
       },
     },
   },
+  async beforeMount() {
+    await this.GET_SCRIPT_CONFIG_STATUS();
+  },
   async mounted() {
     await this.GET_SCRIPT_REVISIONS();
   },
@@ -165,10 +174,13 @@ export default {
       }
     },
     ...mapActions(['GET_SCRIPT_REVISIONS', 'ADD_SCRIPT_REVISION', 'LOAD_SCRIPT_REVISION',
-      'DELETE_SCRIPT_REVISION']),
+      'DELETE_SCRIPT_REVISION', 'GET_SCRIPT_CONFIG_STATUS']),
   },
   computed: {
-    ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION']),
+    ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION', 'CURRENT_EDITOR', 'INTERNAL_UUID']),
+    canChangeRevisions() {
+      return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
+    },
   },
 };
 </script>
