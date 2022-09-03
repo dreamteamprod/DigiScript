@@ -29,6 +29,12 @@
                     @click="stopEditing">
             Stop Editing
           </b-button>
+          <b-button v-if="INTERNAL_UUID === CURRENT_EDITOR"
+                    variant="success"
+                    :disabled="!(scriptChanges && editPages.length === 0)"
+                    @click="saveScript">
+            Save
+          </b-button>
         </b-button-group>
       </b-col>
     </b-row>
@@ -51,7 +57,7 @@
             :character-groups="CHARACTER_GROUP_LIST"
             :value="TMP_SCRIPT[currentEditPage][index]"
             @input="lineChange(line, index)"
-            @doneEditing="doneEditing(currentEditPage, index)"
+            @doneEditing="doneEditingLine(currentEditPage, index)"
           />
           <script-line-viewer
             v-else
@@ -63,7 +69,7 @@
             :characters="CHARACTER_LIST"
             :character-groups="CHARACTER_GROUP_LIST"
             :previous-line="TMP_SCRIPT[currentEditPage][index - 1]"
-            @editLine="beginEditing(currentEditPage, index)"
+            @editLine="beginEditingLine(currentEditPage, index)"
           />
         </template>
       </b-col>
@@ -76,6 +82,12 @@
         </b-button>
       </b-col>
     </b-row>
+    <b-modal id="save-script" title="Saving Script" ref="save-script" size="md"
+             :hide-header-close="savingInProgress" :hide-footer="savingInProgress"
+             :no-close-on-backdrop="savingInProgress" :no-close-on-esc="savingInProgress">
+      <b>Saving page {{ curSavePage }} of {{ totalSavePages }}</b>
+      <b-progress :value="curSavePage" :max="totalSavePages" show-value animated />
+    </b-modal>
   </b-container>
 </template>
 
@@ -100,6 +112,9 @@ export default {
         page: null,
         line_parts: [],
       },
+      curSavePage: null,
+      totalSavePages: null,
+      savingInProgress: false,
     };
   },
   async beforeMount() {
@@ -170,22 +185,68 @@ export default {
         lineObj: line,
       });
     },
-    beginEditing(pageIndex, lineIndex) {
+    beginEditingLine(pageIndex, lineIndex) {
       const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);
       if (index === -1) {
         this.editPages.push(`page_${pageIndex}_line_${lineIndex}`);
       }
     },
-    doneEditing(pageIndex, lineIndex) {
+    doneEditingLine(pageIndex, lineIndex) {
       const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);
       if (index !== -1) {
         this.editPages.splice(index, 1);
       }
     },
+    async saveScript() {
+      if (this.scriptChanges) {
+        this.savingInProgress = true;
+        this.totalSavePages = Object.keys(this.TMP_SCRIPT).length;
+        this.curSavePage = 0;
+        this.$bvModal.show('save-script');
+        /* eslint-disable no-await-in-loop, no-restricted-syntax */
+        for (const pageNo of Object.keys(this.TMP_SCRIPT).sort()) {
+          this.curSavePage = pageNo;
+          // Check whether the page actually has any lines on it, and if not then skip
+          const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
+          if (tmpScriptPage.length !== 0) {
+            // Check the actual script to see if the page exists or not
+            const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
+            if (actualScriptPage.length === 0) {
+              // New page
+              const response = await this.SAVE_NEW_PAGE(pageNo);
+              if (response) {
+                await this.LOAD_SCRIPT_PAGE(pageNo);
+                this.ADD_BLANK_PAGE(pageNo);
+              } else {
+                this.$toast.error('Unable to save script. Please try again.')
+                break;
+              }
+            } else {
+              // Existing page, check if anything has changed before saving
+              const lineDiff = diff(actualScriptPage, tmpScriptPage);
+              if (Object.keys(lineDiff).length > 0) {
+                const response = await this.SAVE_CHANGED_PAGE(pageNo);
+                if (response) {
+                  await this.LOAD_SCRIPT_PAGE(pageNo);
+                  this.ADD_BLANK_PAGE(pageNo);
+                } else {
+                  this.$toast.error('Unable to save script. Please try again.')
+                  break;
+                }
+              }
+            }
+          }
+        }
+        /* eslint-enable no-await-in-loop, no-restricted-syntax */
+        this.savingInProgress = false;
+      } else {
+        this.$toast.warning('No changes to save!');
+      }
+    },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED']),
+      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE']),
   },
   computed: {
     currentEditPageKey() {
@@ -195,7 +256,6 @@ export default {
       let hasChanges = false;
       Object.keys(this.TMP_SCRIPT).forEach(function (pageNo) {
         const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
-        console.log(lineDiff);
         if (Object.keys(lineDiff).length > 0) {
           hasChanges = true;
         }

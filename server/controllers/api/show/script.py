@@ -4,7 +4,7 @@ from typing import List
 from sqlalchemy import func
 from tornado import escape
 
-from models.models import Show, Script, ScriptRevision, ScriptLine, Session
+from models.models import Show, Script, ScriptRevision, ScriptLine, Session, ScriptLinePart
 from models.schemas import ScriptRevisionsSchema, ScriptLineSchema
 from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
@@ -307,46 +307,160 @@ class ScriptController(BaseAPIController):
         line_schema = ScriptLineSchema()
 
         if show_id:
-            if show_id:
-                with self.make_session() as session:
-                    show = session.query(Show).get(show_id)
-                    if show:
-                        script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
 
-                        if script.current_revision:
-                            revision: ScriptRevision = session.query(ScriptRevision).get(script.current_revision)
-                        else:
-                            self.set_status(400)
-                            self.finish({'message': 'Script does not have a current revision'})
-                            return
-                        lines = session.query(ScriptLine).filter(
-                            ScriptLine.page == page, ScriptLine.revisions.contains(revision)).all()
-
-                        first_line = None
-                        for line in lines:
-                            if page == 1 and line.previous_line is None or line.previous_line.page == page - 1:
-                                if first_line:
-                                    self.set_status(400)
-                                    self.finish({'message': 'Failed to establish page line order'})
-                                else:
-                                    first_line = line
-
-                        lines = []
-                        line = first_line
-                        while line:
-                            if line.page != page:
-                                break
-                            else:
-                                lines.append(line_schema.dump(line))
-                                line = line.next_line
-
-                        self.set_status(200)
-                        self.finish({'lines': lines, 'page': page})
+                    if script.current_revision:
+                        revision: ScriptRevision = session.query(ScriptRevision).get(script.current_revision)
                     else:
-                        self.set_status(404)
-                        self.finish({'message': '404 show not found'})
+                        self.set_status(400)
+                        self.finish({'message': 'Script does not have a current revision'})
                         return
-            else:
-                self.set_status(404)
-                self.finish({'message': '404 show not found'})
-                return
+                    lines = session.query(ScriptLine).filter(
+                        ScriptLine.page == page, ScriptLine.revisions.contains(revision)).all()
+
+                    first_line = None
+                    for line in lines:
+                        if page == 1 and line.previous_line is None or line.previous_line.page == page - 1:
+                            if first_line:
+                                self.set_status(400)
+                                self.finish({'message': 'Failed to establish page line order'})
+                                return
+                            else:
+                                first_line = line
+
+                    lines = []
+                    line = first_line
+                    while line:
+                        if line.page != page:
+                            break
+                        else:
+                            lines.append(line_schema.dump(line))
+                            line = line.next_line
+
+                    self.set_status(200)
+                    self.finish({'lines': lines, 'page': page})
+                else:
+                    self.set_status(404)
+                    self.finish({'message': '404 show not found'})
+                    return
+        else:
+            self.set_status(404)
+            self.finish({'message': '404 show not found'})
+            return
+
+    async def post(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+
+        page = self.get_query_argument('page', None)
+        if not page:
+            self.set_status(400)
+            await self.finish({'message': 'Page not given'})
+            return
+        else:
+            page = int(page)
+
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                    if script.current_revision:
+                        revision: ScriptRevision = session.query(ScriptRevision).get(script.current_revision)
+                    else:
+                        self.set_status(400)
+                        await self.finish({'message': 'Script does not have a current revision'})
+                        return
+
+                    lines = escape.json_decode(self.request.body)
+
+                    previous_line = None
+                    for index, line in enumerate(lines):
+                        # Create the initial line object
+                        line_obj = ScriptLine(act_id=line['act_id'],
+                                              scene_id=line['scene_id'],
+                                              page=line['page'])
+                        line_obj.revisions.append(revision)
+                        session.add(line_obj)
+                        session.flush()
+
+                        if index == 0 and page > 1:
+                            # First line and not the first page, so need to get the last line of the previous page and
+                            # set its next line to this one
+                            prev_page_lines = session.query(ScriptLine).filter(
+                                ScriptLine.page == page - 1, ScriptLine.revisions.contains(revision)).all()
+
+                            if not prev_page_lines:
+                                self.set_status(400)
+                                await self.finish({'message': 'Previous page does not contain any lines'})
+                                return
+
+                            first_line = None
+                            for prev_line in prev_page_lines:
+                                if prev_line.previous_line is None or prev_line.previous_line.page == page - 1:
+                                    if first_line:
+                                        self.set_status(400)
+                                        await self.finish({'message': 'Failed to establish page line order for '
+                                                                      'previous page'})
+                                        return
+                                    else:
+                                        first_line = prev_line
+
+                            previous_lines = []
+                            prev_line = first_line
+                            while prev_line:
+                                if prev_line.page != page - 1:
+                                    break
+                                else:
+                                    previous_lines.append(prev_line)
+                                    prev_line = prev_line.next_line
+
+                            # TODO: this needs to set a new revision of the line
+                            # FIXME: This is throwing an exception sometimes :'( 
+                            previous_lines[-1].next_line_id = line_obj.id
+                            session.flush()
+
+                        # Set the next line reference on the previous line to this line's ID
+                        if previous_line:
+                            previous_line.next_line = line_obj
+                            session.flush()
+
+                        # Construct the line parts
+                        line_parts = []
+                        for line_part in line['line_parts']:
+                            part_obj = ScriptLinePart(line_id=line_obj.id,
+                                                      part_index=line_part['part_index'],
+                                                      character_id=line_part['character_id'],
+                                                      character_group_id=line_part['character_group_id'],
+                                                      line_text=line_part['line_text'])
+                            session.add(part_obj)
+                            line_obj.line_parts.append(part_obj)
+
+                        # Set the line parts
+                        session.flush()
+
+                        previous_line = line_obj
+
+                    # Update the revision edit time
+                    revision.edited_at = datetime.utcnow()
+
+                    # Save to the DB
+                    session.commit()
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+                    return
+        else:
+            self.set_status(404)
+            await self.finish({'message': '404 show not found'})
+            return

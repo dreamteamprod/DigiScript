@@ -63,6 +63,26 @@ export default {
       context.commit('EMPTY_SCRIPT');
       context.dispatch('ADD_BLANK_PAGE', pageNo);
     },
+    async SAVE_NEW_PAGE(context, pageNo) {
+      const searchParams = new URLSearchParams({
+        page: pageNo,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/script')}?${searchParams}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(context.getters.TMP_SCRIPT[pageNo.toString()]),
+      });
+      if (!response.ok) {
+        console.error('Failed to save new script page');
+        return false;
+      }
+      return true;
+    },
+    async SAVE_CHANGED_PAGE(context, pageNo) {
+
+    },
   },
   getters: {
     TMP_SCRIPT(state) {
