@@ -321,7 +321,24 @@ class ScriptController(BaseAPIController):
                             return
                         lines = session.query(ScriptLine).filter(
                             ScriptLine.page == page, ScriptLine.revisions.contains(revision)).all()
-                        lines = [line_schema.dump(line) for line in lines]
+
+                        first_line = None
+                        for line in lines:
+                            if page == 1 and line.previous_line is None or line.previous_line.page == page - 1:
+                                if first_line:
+                                    self.set_status(400)
+                                    self.finish({'message': 'Failed to establish page line order'})
+                                else:
+                                    first_line = line
+
+                        lines = []
+                        line = first_line
+                        while line:
+                            if line.page != page:
+                                break
+                            else:
+                                lines.append(line_schema.dump(line))
+                                line = line.next_line
 
                         self.set_status(200)
                         self.finish({'lines': lines, 'page': page})
