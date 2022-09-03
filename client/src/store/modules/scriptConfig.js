@@ -34,6 +34,9 @@ export default {
     SET_LINE(state, { pageNo, lineIndex, lineObj }) {
       Vue.set(state.tmpScript[pageNo], lineIndex, lineObj);
     },
+    EMPTY_SCRIPT(state) {
+      state.tmpScript = {};
+    }
   },
   actions: {
     REQUEST_EDIT_FAILURE(context) {
@@ -56,6 +59,10 @@ export default {
         pageContents,
       });
     },
+    RESET_TO_SAVED(context, pageNo) {
+      context.commit('EMPTY_SCRIPT');
+      context.dispatch('ADD_BLANK_PAGE', pageNo);
+    }
   },
   getters: {
     TMP_SCRIPT(state) {
