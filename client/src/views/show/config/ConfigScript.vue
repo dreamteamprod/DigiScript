@@ -14,7 +14,8 @@
                 <b-button-group v-else>
                   <b-button variant="warning"
                             @click="loadRevision(data)"
-                            :disabled="!canChangeRevisions || data.item.id === $store.state.script.currentRevision">
+                            :disabled="!canChangeRevisions ||
+                            data.item.id === $store.state.script.currentRevision">
                     Load
                   </b-button>
                 </b-button-group>

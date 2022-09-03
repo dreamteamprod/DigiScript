@@ -36,7 +36,7 @@ export default {
     },
     EMPTY_SCRIPT(state) {
       state.tmpScript = {};
-    }
+    },
   },
   actions: {
     REQUEST_EDIT_FAILURE(context) {
@@ -62,7 +62,7 @@ export default {
     RESET_TO_SAVED(context, pageNo) {
       context.commit('EMPTY_SCRIPT');
       context.dispatch('ADD_BLANK_PAGE', pageNo);
-    }
+    },
   },
   getters: {
     TMP_SCRIPT(state) {

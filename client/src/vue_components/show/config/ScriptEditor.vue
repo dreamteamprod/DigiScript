@@ -124,8 +124,8 @@ export default {
     },
     async stopEditing() {
       if (this.scriptChanges) {
-        const msg = 'Are you sure you want to stop editing the script? ' +
-          'This will cause all unsaved changes to be lost';
+        const msg = 'Are you sure you want to stop editing the script? '
+          + 'This will cause all unsaved changes to be lost';
         const action = await this.$bvModal.msgBoxConfirm(msg, {});
         if (action === false) {
           return;
@@ -153,6 +153,7 @@ export default {
       if (!Object.keys(this.TMP_SCRIPT).includes(this.currentEditPageKey)) {
         this.ADD_BLANK_PAGE(this.currentEditPage);
       }
+      // Pre-load next page
       await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
     },
     addNewLine() {
