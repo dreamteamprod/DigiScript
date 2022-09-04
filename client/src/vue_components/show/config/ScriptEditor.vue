@@ -85,8 +85,18 @@
     <b-modal id="save-script" title="Saving Script" ref="save-script" size="md"
              :hide-header-close="savingInProgress" :hide-footer="savingInProgress"
              :no-close-on-backdrop="savingInProgress" :no-close-on-esc="savingInProgress">
-      <b>Saving page {{ curSavePage }} of {{ totalSavePages }}</b>
-      <b-progress :value="curSavePage" :max="totalSavePages" show-value animated />
+      <div>
+        <b v-if="savingInProgress">Saving page {{ curSavePage }} of {{ totalSavePages }}</b>
+        <template v-else>
+          <b v-if="saveError">Could not save script changes.</b>
+          <b v-else>Finished saving script.</b>
+        </template>
+      </div>
+      <div>
+        <b-progress :value="curSavePage"
+                  :max="totalSavePages"
+                  :variant="saveProgressVariant" show-value animated />
+      </div>
     </b-modal>
   </b-container>
 </template>
@@ -115,6 +125,7 @@ export default {
       curSavePage: null,
       totalSavePages: null,
       savingInProgress: false,
+      saveError: false,
     };
   },
   async beforeMount() {
@@ -218,7 +229,8 @@ export default {
                 await this.LOAD_SCRIPT_PAGE(pageNo);
                 this.ADD_BLANK_PAGE(pageNo);
               } else {
-                this.$toast.error('Unable to save script. Please try again.')
+                this.$toast.error('Unable to save script. Please try again.');
+                this.saveError = true;
                 break;
               }
             } else {
@@ -230,7 +242,8 @@ export default {
                   await this.LOAD_SCRIPT_PAGE(pageNo);
                   this.ADD_BLANK_PAGE(pageNo);
                 } else {
-                  this.$toast.error('Unable to save script. Please try again.')
+                  this.$toast.error('Unable to save script. Please try again.');
+                  this.saveError = true;
                   break;
                 }
               }
@@ -261,6 +274,12 @@ export default {
         }
       }, this);
       return hasChanges;
+    },
+    saveProgressVariant() {
+      if (!this.savingInProgress) {
+        return this.saveError ? 'danger' : 'success';
+      }
+      return 'primary';
     },
     ...mapGetters(['TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST', 'CHARACTER_GROUP_LIST',
       'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID', 'GET_SCRIPT_PAGE']),
