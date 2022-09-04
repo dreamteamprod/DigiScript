@@ -407,7 +407,8 @@ class ScriptController(BaseAPIController):
 
                             first_line = None
                             for prev_line in prev_page_lines:
-                                if prev_line.previous_line is None or prev_line.previous_line.page == page - 1:
+                                if (prev_line.previous_line is None or
+                                        prev_line.previous_line.page == prev_line.page - 1):
                                     if first_line:
                                         self.set_status(400)
                                         await self.finish({'message': 'Failed to establish page line order for '
@@ -426,7 +427,6 @@ class ScriptController(BaseAPIController):
                                     prev_line = prev_line.next_line
 
                             # TODO: this needs to set a new revision of the line
-                            # FIXME: This is throwing an exception sometimes :'( 
                             previous_lines[-1].next_line_id = line_obj.id
                             session.flush()
 
