@@ -386,7 +386,8 @@ class ScriptController(BaseAPIController):
 
                     previous_line = None
                     for index, line in enumerate(lines):
-                        # Create the initial line object
+                        # Create the initial line object, and flush it to the database as we need the ID for further
+                        # in the loop
                         line_obj = ScriptLine(act_id=line['act_id'],
                                               scene_id=line['scene_id'],
                                               page=line['page'])
@@ -405,6 +406,7 @@ class ScriptController(BaseAPIController):
                                 await self.finish({'message': 'Previous page does not contain any lines'})
                                 return
 
+                            # Perform some iteration here to establish the first line of the script of the previous page
                             first_line = None
                             for prev_line in prev_page_lines:
                                 if (prev_line.previous_line is None or
@@ -417,6 +419,8 @@ class ScriptController(BaseAPIController):
                                     else:
                                         first_line = prev_line
 
+                            # Construct an ordered list of lines, because we need to get the last line of a page, and
+                            # right now there is no better way of doing it
                             previous_lines = []
                             prev_line = first_line
                             while prev_line:
@@ -435,8 +439,7 @@ class ScriptController(BaseAPIController):
                             previous_line.next_line = line_obj
                             session.flush()
 
-                        # Construct the line parts
-                        line_parts = []
+                        # Construct the line part objects and add these to the line itself
                         for line_part in line['line_parts']:
                             part_obj = ScriptLinePart(line_id=line_obj.id,
                                                       part_index=line_part['part_index'],
@@ -446,7 +449,8 @@ class ScriptController(BaseAPIController):
                             session.add(part_obj)
                             line_obj.line_parts.append(part_obj)
 
-                        # Set the line parts
+                        # Flush once more at the end of the loop iteration (not for luck, I promise...!) to ensure
+                        # the database is up-to-date for the next time around
                         session.flush()
 
                         previous_line = line_obj
@@ -454,7 +458,7 @@ class ScriptController(BaseAPIController):
                     # Update the revision edit time
                     revision.edited_at = datetime.utcnow()
 
-                    # Save to the DB
+                    # Save everything to the DB
                     session.commit()
                 else:
                     self.set_status(404)
