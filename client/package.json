@@ -34,7 +34,7 @@
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-vue": "^9.4.0",
     "eslint-plugin-vuejs-accessibility": "^1.2.0",
-    "node-sass": "^7.0.1",
+    "node-sass": "^7.0.3",
     "sass": "^1.54.8",
     "sass-loader": "^13.0.2",
     "webpack": "^5.74.0"
