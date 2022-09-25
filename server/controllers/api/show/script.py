@@ -182,7 +182,9 @@ class ScriptRevisionsController(BaseAPIController):
                         await self.finish({'message': 'Cannot delete first script revision'})
                         return
 
+                    changed_rev = False
                     if script.current_revision == rev.id:
+                        changed_rev = True
                         if rev.previous_revision_id:
                             script.current_revision = rev.previous_revision_id
                         else:
@@ -196,7 +198,10 @@ class ScriptRevisionsController(BaseAPIController):
 
                     self.set_status(200)
                     await self.finish({'message': 'Successfully deleted script revision'})
-                    await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
+                    if changed_rev:
+                        await self.application.ws_send_to_all('NOOP', 'SCRIPT_REVISION_CHANGED', {})
+                    else:
+                        await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
                 else:
                     self.set_status(404)
                     await self.finish({'message': '404 show not found'})
@@ -281,7 +286,7 @@ class ScriptCurrentRevisionController(BaseAPIController):
 
                     self.set_status(200)
                     await self.finish({'message': 'Successfully changed script revision'})
-                    await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
+                    await self.application.ws_send_to_all('NOOP', 'SCRIPT_REVISION_CHANGED', {})
                 else:
                     self.set_status(404)
                     await self.finish({'message': '404 show not found'})

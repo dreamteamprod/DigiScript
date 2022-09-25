@@ -82,6 +82,15 @@ export default {
         Vue.$toast.error('Unable to load script revision');
       }
     },
+    async SCRIPT_REVISION_CHANGED(context) {
+      await context.dispatch('GET_SCRIPT_REVISIONS');
+      /* eslint-disable no-await-in-loop, no-restricted-syntax */
+      for (const page of Object.keys(context.state.script)) {
+        await context.dispatch('LOAD_SCRIPT_PAGE', page);
+        await context.dispatch('ADD_BLANK_PAGE', page);
+      }
+      /* eslint-enable no-await-in-loop, no-restricted-syntax */
+    },
     async LOAD_SCRIPT_PAGE(context, page) {
       const searchParams = new URLSearchParams({
         page,
