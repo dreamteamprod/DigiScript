@@ -136,14 +136,6 @@ class Script(db.Model):
                              primaryjoin='ScriptRevision.script_id == Script.id')
 
 
-script_line_revision_association_table = Table(
-    'script_line_revision_association',
-    db.Model.metadata,
-    Column('script_revision_id', ForeignKey('script_revisions.id'), primary_key=True),
-    Column('script_line_id', ForeignKey('script_lines.id'), primary_key=True)
-)
-
-
 class ScriptRevision(db.Model):
     __tablename__ = 'script_revisions'
 
@@ -157,8 +149,6 @@ class ScriptRevision(db.Model):
     previous_revision_id = Column(Integer, ForeignKey('script_revisions.id', ondelete='SET NULL'))
 
     previous_revision = relationship('ScriptRevision', foreign_keys=[previous_revision_id])
-    lines = relationship('ScriptLine', secondary=script_line_revision_association_table,
-                         back_populates='revisions')
 
 
 class ScriptLine(db.Model):
@@ -167,16 +157,28 @@ class ScriptLine(db.Model):
     id = Column(Integer, primary_key=True, autoincrement=True)
     act_id = Column(Integer, ForeignKey('act.id'))
     scene_id = Column(Integer, ForeignKey('scene.id'))
-
-    next_line_id = Column(Integer, ForeignKey('script_lines.id'))
     page = Column(Integer, index=True)
 
-    revisions = relationship('ScriptRevision', secondary=script_line_revision_association_table,
-                             back_populates='lines')
-    next_line = relationship('ScriptLine', uselist=False, remote_side=[id],
-                             backref=backref('previous_line', uselist=False))
     act = relationship('Act', uselist=False)
     scene = relationship('Scene', uselist=False)
+
+
+class ScriptLineRevisionAssociation(db.Model):
+    __tablename__ = 'script_line_revision_association'
+
+    revision_id = Column(Integer, ForeignKey('script_revisions.id'), primary_key=True, index=True)
+    line_id = Column(Integer, ForeignKey('script_lines.id'), primary_key=True, index=True)
+
+    next_line_id = Column(Integer, ForeignKey('script_lines.id'))
+    previous_line_id = Column(Integer, ForeignKey('script_lines.id'))
+
+    revision: ScriptRevision = relationship('ScriptRevision', foreign_keys=[revision_id], uselist=False,
+                                            backref=backref('line_associations', uselist=True,
+                                                            cascade='all, delete'))
+    line: ScriptLine = relationship('ScriptLine', foreign_keys=[line_id], uselist=False,
+                                    backref=backref('revision_associations', uselist=True, viewonly=True))
+    next_line: ScriptLine = relationship('ScriptLine', foreign_keys=[next_line_id])
+    previous_line: ScriptLine = relationship('ScriptLine', foreign_keys=[previous_line_id])
 
 
 class ScriptLinePart(db.Model):

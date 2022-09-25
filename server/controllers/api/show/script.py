@@ -1,10 +1,11 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import func
 from tornado import escape
 
-from models.models import Show, Script, ScriptRevision, ScriptLine, Session, ScriptLinePart
+from models.models import (Show, Script, ScriptRevision, ScriptLine, Session, ScriptLinePart,
+                           ScriptLineRevisionAssociation)
 from models.schemas import ScriptRevisionsSchema, ScriptLineSchema
 from utils.base_controller import BaseAPIController
 from utils.route import ApiRoute, ApiVersion
@@ -115,9 +116,15 @@ class ScriptRevisionsController(BaseAPIController):
                                              edited_at=now_time,
                                              description=description,
                                              previous_revision_id=current_rev.id)
-                    new_rev.lines = current_rev.lines
                     session.add(new_rev)
                     session.flush()
+                    for line_association in current_rev.line_associations:
+                        new_rev.line_associations.append(ScriptLineRevisionAssociation(
+                            revision_id=new_rev.id,
+                            line_id=line_association.line_id,
+                            next_line_id=line_association.next_line_id,
+                            previous_line_id=line_association.previous_line_id
+                        ))
 
                     script.current_revision = new_rev.id
                     session.commit()
@@ -318,11 +325,14 @@ class ScriptController(BaseAPIController):
                         self.set_status(400)
                         self.finish({'message': 'Script does not have a current revision'})
                         return
-                    lines = session.query(ScriptLine).filter(
-                        ScriptLine.page == page, ScriptLine.revisions.contains(revision)).all()
+
+                    revision_lines: List[ScriptLineRevisionAssociation] = session.query(
+                        ScriptLineRevisionAssociation).filter(
+                        ScriptLineRevisionAssociation.revision_id == revision.id,
+                        ScriptLineRevisionAssociation.line.has(page=page)).all()
 
                     first_line = None
-                    for line in lines:
+                    for line in revision_lines:
                         if page == 1 and line.previous_line is None or line.previous_line.page == page - 1:
                             if first_line:
                                 self.set_status(400)
@@ -332,13 +342,14 @@ class ScriptController(BaseAPIController):
                                 first_line = line
 
                     lines = []
-                    line = first_line
-                    while line:
-                        if line.page != page:
+                    line_revision = first_line
+                    while line_revision:
+                        if line_revision.line.page != page:
                             break
                         else:
-                            lines.append(line_schema.dump(line))
-                            line = line.next_line
+                            lines.append(line_schema.dump(line_revision.line))
+                            line_revision = session.query(ScriptLineRevisionAssociation).get(
+                                {'revision_id': revision.id, 'line_id': line_revision.next_line_id})
 
                     self.set_status(200)
                     self.finish({'lines': lines, 'page': page})
@@ -384,22 +395,29 @@ class ScriptController(BaseAPIController):
 
                     lines = escape.json_decode(self.request.body)
 
-                    previous_line = None
+                    previous_line: Optional[ScriptLineRevisionAssociation] = None
                     for index, line in enumerate(lines):
                         # Create the initial line object, and flush it to the database as we need the ID for further
                         # in the loop
                         line_obj = ScriptLine(act_id=line['act_id'],
                                               scene_id=line['scene_id'],
                                               page=line['page'])
-                        line_obj.revisions.append(revision)
                         session.add(line_obj)
+                        session.flush()
+
+                        # Line revision object to keep track of that thing
+                        line_revision = ScriptLineRevisionAssociation(revision_id=revision.id,
+                                                                      line_id=line_obj.id)
+                        session.add(line_revision)
                         session.flush()
 
                         if index == 0 and page > 1:
                             # First line and not the first page, so need to get the last line of the previous page and
                             # set its next line to this one
-                            prev_page_lines = session.query(ScriptLine).filter(
-                                ScriptLine.page == page - 1, ScriptLine.revisions.contains(revision)).all()
+                            prev_page_lines: List[ScriptLineRevisionAssociation] = session.query(
+                                ScriptLineRevisionAssociation).filter(
+                                ScriptLineRevisionAssociation.revision_id == revision.id,
+                                ScriptLineRevisionAssociation.line.has(page=page - 1)).all()
 
                             if not prev_page_lines:
                                 self.set_status(400)
@@ -410,7 +428,7 @@ class ScriptController(BaseAPIController):
                             first_line = None
                             for prev_line in prev_page_lines:
                                 if (prev_line.previous_line is None or
-                                        prev_line.previous_line.page == prev_line.page - 1):
+                                        prev_line.previous_line.page == prev_line.line.page - 1):
                                     if first_line:
                                         self.set_status(400)
                                         await self.finish({'message': 'Failed to establish page line order for '
@@ -424,19 +442,21 @@ class ScriptController(BaseAPIController):
                             previous_lines = []
                             prev_line = first_line
                             while prev_line:
-                                if prev_line.page != page - 1:
+                                if prev_line.line.page != page - 1:
                                     break
                                 else:
                                     previous_lines.append(prev_line)
-                                    prev_line = prev_line.next_line
+                                    prev_line = session.query(ScriptLineRevisionAssociation).get(
+                                        {'revision_id': revision.id, 'line_id': prev_line.next_line_id})
 
-                            # TODO: this needs to set a new revision of the line
                             previous_lines[-1].next_line_id = line_obj.id
+                            line_revision.previous_line_id = previous_lines[-1].line_id
                             session.flush()
 
-                        # Set the next line reference on the previous line to this line's ID
+                        # Set the next and previous line reference
                         if previous_line:
                             previous_line.next_line = line_obj
+                            line_revision.previous_line = previous_line.line
                             session.flush()
 
                         # Construct the line part objects and add these to the line itself
@@ -453,7 +473,7 @@ class ScriptController(BaseAPIController):
                         # the database is up-to-date for the next time around
                         session.flush()
 
-                        previous_line = line_obj
+                        previous_line = line_revision
 
                     # Update the revision edit time
                     revision.edited_at = datetime.utcnow()

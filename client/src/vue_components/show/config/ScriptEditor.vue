@@ -118,7 +118,6 @@ export default {
         id: null,
         act_id: null,
         scene_id: null,
-        next_line_id: null,
         page: null,
         line_parts: [],
       },
