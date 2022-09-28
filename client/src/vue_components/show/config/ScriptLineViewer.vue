@@ -25,6 +25,12 @@
         {{ part.line_text }}
       </p>
     </b-col>
+    <b-col cols="1" align-self="end">
+      <b-button v-show="canEdit" variant="link" style="padding: 0"
+                @click.stop="editLine">
+        Edit
+      </b-button>
+    </b-col>
   </b-row>
 </template>
 
@@ -54,6 +60,10 @@ export default {
     },
     characterGroups: {
       required: true,
+    },
+    canEdit: {
+      required: true,
+      type: Boolean,
     },
   },
   methods: {

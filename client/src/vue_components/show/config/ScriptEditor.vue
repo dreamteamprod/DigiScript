@@ -42,6 +42,7 @@
       <b-col cols="1">Act</b-col>
       <b-col cols="1">Scene</b-col>
       <b-col>Line</b-col>
+      <b-col cols="1"></b-col>
     </b-row>
     <hr />
     <b-row class="script-row">
@@ -69,6 +70,7 @@
             :characters="CHARACTER_LIST"
             :character-groups="CHARACTER_GROUP_LIST"
             :previous-line="TMP_SCRIPT[currentEditPage][index - 1]"
+            :can-edit="canEdit"
             @editLine="beginEditingLine(currentEditPage, index)"
           />
         </template>
@@ -77,7 +79,7 @@
     <b-row class="script-row pt-1">
       <b-col cols="10" class="ml-auto">
         <b-button @click="addNewLine" style="float: right"
-                  v-show="INTERNAL_UUID === CURRENT_EDITOR">
+                  v-show="canEdit">
           Add line
         </b-button>
       </b-col>
@@ -279,6 +281,9 @@ export default {
         return this.saveError ? 'danger' : 'success';
       }
       return 'primary';
+    },
+    canEdit() {
+      return this.INTERNAL_UUID === this.CURRENT_EDITOR;
     },
     ...mapGetters(['TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST', 'CHARACTER_GROUP_LIST',
       'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID', 'GET_SCRIPT_PAGE']),
