@@ -158,6 +158,7 @@ export default {
           return;
         }
       }
+      this.editPages = [];
       this.RESET_TO_SAVED(this.currentEditPage);
       this.$socket.sendObj({
         OP: 'STOP_SCRIPT_EDIT',
