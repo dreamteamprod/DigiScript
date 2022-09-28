@@ -493,3 +493,127 @@ class ScriptController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
             return
+
+    @staticmethod
+    def _create_new_line(session, revision, line, previous_line, with_association=True):
+        # Create the line object
+        line_obj = ScriptLine(act_id=line['act_id'],
+                              scene_id=line['scene_id'],
+                              page=line['page'])
+        session.add(line_obj)
+        session.flush()
+
+        line_association = None
+        if with_association:
+            # Line revision object to keep track of that thing
+            line_association = ScriptLineRevisionAssociation(revision_id=revision.id,
+                                                             line_id=line_obj.id)
+            session.add(line_association)
+            session.flush()
+
+            # Set the next and previous line reference
+            if previous_line:
+                previous_line.next_line = line_obj
+                line_association.previous_line = previous_line.line
+                session.flush()
+
+        # Construct the line part objects and add these to the line itself
+        for line_part in line['line_parts']:
+            part_obj = ScriptLinePart(line_id=line_obj.id,
+                                      part_index=line_part['part_index'],
+                                      character_id=line_part['character_id'],
+                                      character_group_id=line_part['character_group_id'],
+                                      line_text=line_part['line_text'])
+            session.add(part_obj)
+            line_obj.line_parts.append(part_obj)
+
+        # Flush the DB to add the line parts
+        session.flush()
+
+        return line_association, line_obj
+
+    async def patch(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            await self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+
+        page = self.get_query_argument('page', None)
+        if not page:
+            self.set_status(400)
+            await self.finish({'message': 'Page not given'})
+            return
+        else:
+            page = int(page)
+
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                    if script.current_revision:
+                        revision: ScriptRevision = session.query(ScriptRevision).get(script.current_revision)
+                    else:
+                        self.set_status(400)
+                        await self.finish({'message': 'Script does not have a current revision'})
+                        return
+
+                    request_body = escape.json_decode(self.request.body)
+
+                    lines = request_body.get('page', None)
+                    if lines is None:
+                        self.set_status(400)
+                        await self.finish({'message': 'Malformed request body, could not find `page` data'})
+                        return
+
+                    status = request_body.get('status', None)
+                    if status is None:
+                        self.set_status(400)
+                        await self.finish({'message': 'Malformed request body, could not find `status` data'})
+                        return
+
+                    previous_line: Optional[ScriptLineRevisionAssociation] = None
+                    for index, line in enumerate(lines):
+                        if index in status['added']:
+                            line_association, line_object = self._create_new_line(session, revision, line,
+                                                                                  previous_line)
+                            previous_line = line_association
+                        elif index in status['deleted']:
+                            pass
+                        elif index in status['updated']:
+                            curr_association: ScriptLineRevisionAssociation = session.query(
+                                ScriptLineRevisionAssociation).get(
+                                {'revision_id': revision.id, 'line_id': line['id']})
+
+                            if not curr_association:
+                                self.set_status(500)
+                                await self.finish({'message': 'Unable to load line data'})
+                                return
+
+                            line_association, line_object = self._create_new_line(session, revision, line,
+                                                                                  previous_line,
+                                                                                  with_association=False)
+                            curr_association.line = line_object
+                            if previous_line:
+                                previous_line.next_line = line_object
+                                curr_association.previous_line = previous_line.line
+                            session.flush()
+
+                            previous_line = curr_association
+                        else:
+                            previous_line = session.query(ScriptLineRevisionAssociation).get(
+                                {'revision_id': revision.id, 'line_id': line['id']})
+
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+                    return
+        else:
+            self.set_status(404)
+            await self.finish({'message': '404 show not found'})
+            return

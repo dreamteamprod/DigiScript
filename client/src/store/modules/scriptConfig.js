@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import { makeURL } from '@/js/utils';
+import { detailedDiff } from 'deep-object-diff';
 
 export default {
   state: {
@@ -81,7 +82,32 @@ export default {
       return true;
     },
     async SAVE_CHANGED_PAGE(context, pageNo) {
-
+      const actualScriptPage = context.getters.GET_SCRIPT_PAGE(pageNo);
+      const tmpScriptPage = context.getters.TMP_SCRIPT[pageNo.toString()];
+      const deepDiff = detailedDiff(actualScriptPage, tmpScriptPage);
+      const pageStatus = {
+        added: Object.keys(deepDiff.added).map((x) => parseInt(x, 10)),
+        updated: Object.keys(deepDiff.updated).map((x) => parseInt(x, 10)),
+        deleted: Object.keys(deepDiff.deleted).map((x) => parseInt(x, 10)),
+      };
+      const searchParams = new URLSearchParams({
+        page: pageNo,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/script')}?${searchParams}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          page: context.getters.TMP_SCRIPT[pageNo.toString()],
+          status: pageStatus,
+        }),
+      });
+      if (!response.ok) {
+        console.error('Failed to edit script page');
+        return false;
+      }
+      return true;
     },
   },
   getters: {
