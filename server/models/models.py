@@ -172,11 +172,18 @@ class ScriptLineRevisionAssociation(db.Model):
     next_line_id = Column(Integer, ForeignKey('script_lines.id'))
     previous_line_id = Column(Integer, ForeignKey('script_lines.id'))
 
-    revision: ScriptRevision = relationship('ScriptRevision', foreign_keys=[revision_id], uselist=False,
-                                            backref=backref('line_associations', uselist=True,
+    revision: ScriptRevision = relationship('ScriptRevision',
+                                            foreign_keys=[revision_id],
+                                            uselist=False,
+                                            backref=backref('line_associations',
+                                                            uselist=True,
                                                             cascade='all, delete'))
-    line: ScriptLine = relationship('ScriptLine', foreign_keys=[line_id], uselist=False,
-                                    backref=backref('revision_associations', uselist=True, viewonly=True))
+    line: ScriptLine = relationship('ScriptLine',
+                                    foreign_keys=[line_id],
+                                    uselist=False,
+                                    backref=backref('revision_associations',
+                                                    uselist=True,
+                                                    viewonly=True))
     next_line: ScriptLine = relationship('ScriptLine', foreign_keys=[next_line_id])
     previous_line: ScriptLine = relationship('ScriptLine', foreign_keys=[previous_line_id])
 

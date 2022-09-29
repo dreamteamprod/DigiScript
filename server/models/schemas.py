@@ -1,8 +1,8 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 
-from models.models import (Show, Cast, Character, Session, Act, Scene, CueType, CharacterGroup, ScriptRevision,
-                           ScriptLine, ScriptLinePart)
+from models.models import (Show, Cast, Character, Session, Act, Scene, CueType, CharacterGroup,
+                           ScriptRevision, ScriptLine, ScriptLinePart)
 
 
 class SessionSchema(SQLAlchemyAutoSchema):

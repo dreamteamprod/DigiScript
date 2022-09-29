@@ -1,10 +1,9 @@
 import json
-from typing import Optional, Awaitable, Union, TYPE_CHECKING, Any
+from typing import Optional, Awaitable, Union, TYPE_CHECKING
 
 from uuid import uuid4
 
-import tornado.web
-from tornado import gen, httputil
+from tornado import gen
 from tornado.websocket import WebSocketHandler
 from tornado_sqlalchemy import SessionMixin
 
@@ -21,7 +20,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
-        self.application: DigiScriptServer = self.application
+        self.application: DigiScriptServer = self.application  # pylint: disable=used-before-assignment
 
     def update_session(self, is_editor=None):
         with self.make_session() as session:
@@ -77,7 +76,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                 notify = False
                 if entry.is_editor:
                     notify = True
-                
+
                 session.delete(entry)
                 session.commit()
 
@@ -91,7 +90,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
         get_logger().info(f'WebSocket closed from: {self.request.remote_ip}')
 
-    async def on_message(self, message: Union[str, bytes]):
+    async def on_message(self, message: Union[str, bytes]): # pylint: disable=invalid-overridden-method
         get_logger().debug(
             f'WebSocket received data from {self.request.remote_ip}: {message}')
 

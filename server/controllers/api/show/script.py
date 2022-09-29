@@ -313,8 +313,8 @@ class ScriptController(BaseAPIController):
             self.set_status(400)
             self.finish({'message': 'Page not given'})
             return
-        else:
-            page = int(page)
+
+        page = int(page)
 
         line_schema = ScriptLineSchema()
 
@@ -325,7 +325,8 @@ class ScriptController(BaseAPIController):
                     script: Script = session.query(Script).filter(Script.show_id == show.id).first()
 
                     if script.current_revision:
-                        revision: ScriptRevision = session.query(ScriptRevision).get(script.current_revision)
+                        revision: ScriptRevision = session.query(ScriptRevision).get(
+                            script.current_revision)
                     else:
                         self.set_status(400)
                         self.finish({'message': 'Script does not have a current revision'})
@@ -338,23 +339,24 @@ class ScriptController(BaseAPIController):
 
                     first_line = None
                     for line in revision_lines:
-                        if page == 1 and line.previous_line is None or line.previous_line.page == page - 1:
+                        if (page == 1 and line.previous_line is None
+                                or line.previous_line.page == page - 1):
                             if first_line:
                                 self.set_status(400)
                                 self.finish({'message': 'Failed to establish page line order'})
                                 return
-                            else:
-                                first_line = line
+
+                            first_line = line
 
                     lines = []
                     line_revision = first_line
                     while line_revision:
                         if line_revision.line.page != page:
                             break
-                        else:
-                            lines.append(line_schema.dump(line_revision.line))
-                            line_revision = session.query(ScriptLineRevisionAssociation).get(
-                                {'revision_id': revision.id, 'line_id': line_revision.next_line_id})
+
+                        lines.append(line_schema.dump(line_revision.line))
+                        line_revision = session.query(ScriptLineRevisionAssociation).get(
+                            {'revision_id': revision.id, 'line_id': line_revision.next_line_id})
 
                     self.set_status(200)
                     self.finish({'lines': lines, 'page': page})
@@ -382,8 +384,8 @@ class ScriptController(BaseAPIController):
             self.set_status(400)
             await self.finish({'message': 'Page not given'})
             return
-        else:
-            page = int(page)
+
+        page = int(page)
 
         if show_id:
             with self.make_session() as session:
@@ -392,7 +394,8 @@ class ScriptController(BaseAPIController):
                     script: Script = session.query(Script).filter(Script.show_id == show.id).first()
 
                     if script.current_revision:
-                        revision: ScriptRevision = session.query(ScriptRevision).get(script.current_revision)
+                        revision: ScriptRevision = session.query(ScriptRevision).get(
+                            script.current_revision)
                     else:
                         self.set_status(400)
                         await self.finish({'message': 'Script does not have a current revision'})
@@ -402,8 +405,8 @@ class ScriptController(BaseAPIController):
 
                     previous_line: Optional[ScriptLineRevisionAssociation] = None
                     for index, line in enumerate(lines):
-                        # Create the initial line object, and flush it to the database as we need the ID for further
-                        # in the loop
+                        # Create the initial line object, and flush it to the database as we need
+                        # the ID for further in the loop
                         line_obj = ScriptLine(act_id=line['act_id'],
                                               scene_id=line['scene_id'],
                                               page=line['page'])
@@ -417,8 +420,8 @@ class ScriptController(BaseAPIController):
                         session.flush()
 
                         if index == 0 and page > 1:
-                            # First line and not the first page, so need to get the last line of the previous page and
-                            # set its next line to this one
+                            # First line and not the first page, so need to get the last line of the
+                            # previous page and set its next line to this one
                             prev_page_lines: List[ScriptLineRevisionAssociation] = session.query(
                                 ScriptLineRevisionAssociation).filter(
                                 ScriptLineRevisionAssociation.revision_id == revision.id,
@@ -426,33 +429,40 @@ class ScriptController(BaseAPIController):
 
                             if not prev_page_lines:
                                 self.set_status(400)
-                                await self.finish({'message': 'Previous page does not contain any lines'})
+                                await self.finish({
+                                    'message': 'Previous page does not contain any lines'
+                                })
                                 return
 
-                            # Perform some iteration here to establish the first line of the script of the previous page
+                            # Perform some iteration here to establish the first line of the script
+                            # of the previous page
                             first_line = None
                             for prev_line in prev_page_lines:
                                 if (prev_line.previous_line is None or
                                         prev_line.previous_line.page == prev_line.line.page - 1):
                                     if first_line:
                                         self.set_status(400)
-                                        await self.finish({'message': 'Failed to establish page line order for '
-                                                                      'previous page'})
+                                        await self.finish({
+                                            'message': 'Failed to establish page line order for '
+                                                       'previous page'
+                                        })
                                         return
-                                    else:
-                                        first_line = prev_line
 
-                            # Construct an ordered list of lines, because we need to get the last line of a page, and
-                            # right now there is no better way of doing it
+                                    first_line = prev_line
+
+                            # Construct an ordered list of lines, because we need to get the last
+                            # line of a page, and right now there is no better way of doing it
                             previous_lines = []
                             prev_line = first_line
                             while prev_line:
                                 if prev_line.line.page != page - 1:
                                     break
-                                else:
-                                    previous_lines.append(prev_line)
-                                    prev_line = session.query(ScriptLineRevisionAssociation).get(
-                                        {'revision_id': revision.id, 'line_id': prev_line.next_line_id})
+
+                                previous_lines.append(prev_line)
+                                prev_line = session.query(ScriptLineRevisionAssociation).get({
+                                    'revision_id': revision.id,
+                                    'line_id': prev_line.next_line_id
+                                })
 
                             previous_lines[-1].next_line_id = line_obj.id
                             line_revision.previous_line_id = previous_lines[-1].line_id
@@ -469,13 +479,15 @@ class ScriptController(BaseAPIController):
                             part_obj = ScriptLinePart(line_id=line_obj.id,
                                                       part_index=line_part['part_index'],
                                                       character_id=line_part['character_id'],
-                                                      character_group_id=line_part['character_group_id'],
+                                                      character_group_id=line_part[
+                                                          'character_group_id'],
                                                       line_text=line_part['line_text'])
                             session.add(part_obj)
                             line_obj.line_parts.append(part_obj)
 
-                        # Flush once more at the end of the loop iteration (not for luck, I promise...!) to ensure
-                        # the database is up-to-date for the next time around
+                        # Flush once more at the end of the loop iteration (not for luck,
+                        # I promise...!) to ensure the database is up-to-date for the next time
+                        # around
                         session.flush()
 
                         previous_line = line_revision
@@ -547,8 +559,8 @@ class ScriptController(BaseAPIController):
             self.set_status(400)
             await self.finish({'message': 'Page not given'})
             return
-        else:
-            page = int(page)
+
+        page = int(page)
 
         if show_id:
             with self.make_session() as session:
@@ -557,7 +569,8 @@ class ScriptController(BaseAPIController):
                     script: Script = session.query(Script).filter(Script.show_id == show.id).first()
 
                     if script.current_revision:
-                        revision: ScriptRevision = session.query(ScriptRevision).get(script.current_revision)
+                        revision: ScriptRevision = session.query(ScriptRevision).get(
+                            script.current_revision)
                     else:
                         self.set_status(400)
                         await self.finish({'message': 'Script does not have a current revision'})
@@ -568,20 +581,24 @@ class ScriptController(BaseAPIController):
                     lines = request_body.get('page', None)
                     if lines is None:
                         self.set_status(400)
-                        await self.finish({'message': 'Malformed request body, could not find `page` data'})
+                        await self.finish({
+                            'message': 'Malformed request body, could not find `page` data'
+                        })
                         return
 
                     status = request_body.get('status', None)
                     if status is None:
                         self.set_status(400)
-                        await self.finish({'message': 'Malformed request body, could not find `status` data'})
+                        await self.finish({
+                            'message': 'Malformed request body, could not find `status` data'
+                        })
                         return
 
                     previous_line: Optional[ScriptLineRevisionAssociation] = None
                     for index, line in enumerate(lines):
                         if index in status['added']:
-                            line_association, line_object = self._create_new_line(session, revision, line,
-                                                                                  previous_line)
+                            line_association, line_object = self._create_new_line(
+                                session, revision, line, previous_line)
                             previous_line = line_association
                         elif index in status['deleted']:
                             pass
@@ -595,9 +612,8 @@ class ScriptController(BaseAPIController):
                                 await self.finish({'message': 'Unable to load line data'})
                                 return
 
-                            line_association, line_object = self._create_new_line(session, revision, line,
-                                                                                  previous_line,
-                                                                                  with_association=False)
+                            line_association, line_object = self._create_new_line(
+                                session, revision, line, previous_line, with_association=False)
                             curr_association.line = line_object
                             if previous_line:
                                 previous_line.next_line = line_object
