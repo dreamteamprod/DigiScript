@@ -159,6 +159,7 @@ export default {
       clientFields: [
         { key: 'internal_id', label: 'UUID' },
         { key: 'remote_ip', label: 'IP' },
+        { key: 'is_editor', label: 'Editing Script' },
         'last_ping',
         'last_pong',
       ],

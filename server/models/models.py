@@ -12,6 +12,7 @@ class Session(db.Model):
     remote_ip = Column(String(255))
     last_ping = Column(Float())
     last_pong = Column(Float())
+    is_editor = Column(Boolean(), default=False, index=True)
 
 
 class Show(db.Model):
@@ -122,3 +123,83 @@ class CueType(db.Model):
     prefix = Column(String(5))
     description = Column(String(100))
     colour = Column(String())
+
+
+class Script(db.Model):
+    __tablename__ = 'script'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey('shows.id'))
+    current_revision = Column(Integer, ForeignKey('script_revisions.id'))
+
+    revisions = relationship('ScriptRevision', uselist=True,
+                             primaryjoin='ScriptRevision.script_id == Script.id')
+
+
+class ScriptRevision(db.Model):
+    __tablename__ = 'script_revisions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    script_id = Column(Integer, ForeignKey('script.id'))
+
+    revision = Column(Integer)
+    created_at = Column(DateTime)
+    edited_at = Column(DateTime)
+    description = Column(String)
+    previous_revision_id = Column(Integer, ForeignKey('script_revisions.id', ondelete='SET NULL'))
+
+    previous_revision = relationship('ScriptRevision', foreign_keys=[previous_revision_id])
+
+
+class ScriptLine(db.Model):
+    __tablename__ = 'script_lines'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    act_id = Column(Integer, ForeignKey('act.id'))
+    scene_id = Column(Integer, ForeignKey('scene.id'))
+    page = Column(Integer, index=True)
+
+    act = relationship('Act', uselist=False)
+    scene = relationship('Scene', uselist=False)
+
+
+class ScriptLineRevisionAssociation(db.Model):
+    __tablename__ = 'script_line_revision_association'
+
+    revision_id = Column(Integer, ForeignKey('script_revisions.id'), primary_key=True, index=True)
+    line_id = Column(Integer, ForeignKey('script_lines.id'), primary_key=True, index=True)
+
+    next_line_id = Column(Integer, ForeignKey('script_lines.id'))
+    previous_line_id = Column(Integer, ForeignKey('script_lines.id'))
+
+    revision: ScriptRevision = relationship('ScriptRevision',
+                                            foreign_keys=[revision_id],
+                                            uselist=False,
+                                            backref=backref('line_associations',
+                                                            uselist=True,
+                                                            cascade='all, delete'))
+    line: ScriptLine = relationship('ScriptLine',
+                                    foreign_keys=[line_id],
+                                    uselist=False,
+                                    backref=backref('revision_associations',
+                                                    uselist=True,
+                                                    viewonly=True))
+    next_line: ScriptLine = relationship('ScriptLine', foreign_keys=[next_line_id])
+    previous_line: ScriptLine = relationship('ScriptLine', foreign_keys=[previous_line_id])
+
+
+class ScriptLinePart(db.Model):
+    __tablename__ = 'script_line_parts'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    line_id = Column(Integer, ForeignKey('script_lines.id'))
+
+    part_index = Column(Integer)
+    character_id = Column(Integer, ForeignKey('character.id'))
+    character_group_id = Column(Integer, ForeignKey('character_group.id'))
+    line_text = Column(String)
+
+    line = relationship('ScriptLine', uselist=False, foreign_keys=[line_id],
+                        backref=backref('line_parts', uselist=True))
+    character = relationship('Character', uselist=False)
+    character_group = relationship('CharacterGroup', uselist=False)
