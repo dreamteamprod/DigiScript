@@ -1,8 +1,9 @@
 from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey, Boolean, Table
 from sqlalchemy.orm import relationship, backref
-from tornado_sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy()
+from utils.database import DeleteMixin, DigiSQLAlchemy
+
+db = DigiSQLAlchemy()
 
 
 class Session(db.Model):
@@ -136,8 +137,11 @@ class Script(db.Model):
                              primaryjoin='ScriptRevision.script_id == Script.id')
 
 
-class ScriptRevision(db.Model):
+class ScriptRevision(db.Model, DeleteMixin):
     __tablename__ = 'script_revisions'
+    __mapper_args__ = {
+        'confirm_deleted_rows': False
+    }
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     script_id = Column(Integer, ForeignKey('script.id'))
@@ -149,6 +153,13 @@ class ScriptRevision(db.Model):
     previous_revision_id = Column(Integer, ForeignKey('script_revisions.id', ondelete='SET NULL'))
 
     previous_revision = relationship('ScriptRevision', foreign_keys=[previous_revision_id])
+
+    def pre_delete(self, session):
+        for line_association in self.line_associations:
+            session.delete(line_association)
+
+    def post_delete(self, session):
+        pass
 
 
 class ScriptLine(db.Model):
@@ -163,8 +174,11 @@ class ScriptLine(db.Model):
     scene = relationship('Scene', uselist=False)
 
 
-class ScriptLineRevisionAssociation(db.Model):
+class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     __tablename__ = 'script_line_revision_association'
+    __mapper_args__ = {
+        'confirm_deleted_rows': False
+    }
 
     revision_id = Column(Integer, ForeignKey('script_revisions.id'), primary_key=True, index=True)
     line_id = Column(Integer, ForeignKey('script_lines.id'), primary_key=True, index=True)
@@ -187,6 +201,13 @@ class ScriptLineRevisionAssociation(db.Model):
     next_line: ScriptLine = relationship('ScriptLine', foreign_keys=[next_line_id])
     previous_line: ScriptLine = relationship('ScriptLine', foreign_keys=[previous_line_id])
 
+    def pre_delete(self, session):
+        if len(self.line.revision_associations) == 1:
+            session.delete(self.line)
+
+    def post_delete(self, session):
+        pass
+
 
 class ScriptLinePart(db.Model):
     __tablename__ = 'script_line_parts'
@@ -200,6 +221,7 @@ class ScriptLinePart(db.Model):
     line_text = Column(String)
 
     line = relationship('ScriptLine', uselist=False, foreign_keys=[line_id],
-                        backref=backref('line_parts', uselist=True))
+                        backref=backref('line_parts', uselist=True,
+                                        cascade='all, delete'))
     character = relationship('Character', uselist=False)
     character_group = relationship('CharacterGroup', uselist=False)
