@@ -25,7 +25,7 @@ class Settings:
             get_logger().info(
                 f'No settings path provided, using {self.settings_path}')
 
-        self.DEFAULTS = {
+        self.default_settings = {
             'current_show': None,
             'log_path': os.path.join(self._base_path, 'digiscript.log'),
             'max_log_mb': 100,
@@ -82,12 +82,12 @@ class Settings:
 
     def _create_defaults(self):
         get_logger().warning('Creating default settings')
-        self.settings = self.DEFAULTS
+        self.settings = self.default_settings
 
     def _update_defaults(self):
-        for k, v in self.DEFAULTS.items():
-            if k not in self.settings:
-                self.settings[k] = v
+        for key, value in self.default_settings.items():
+            if key not in self.settings:
+                self.settings[key] = value
 
     async def get(self, key, default=None):
         async with self.lock:
