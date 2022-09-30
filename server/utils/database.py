@@ -2,7 +2,7 @@ from sqlalchemy.orm import sessionmaker
 from tornado_sqlalchemy import SQLAlchemy, SessionEx
 
 
-class DeleteMixin(object):
+class DeleteMixin:
     def pre_delete(self, session: 'DigiDBSession'):
         raise NotImplementedError
 

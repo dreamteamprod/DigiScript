@@ -2,7 +2,6 @@ from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKe
 from sqlalchemy.orm import relationship, backref
 
 from utils.database import DeleteMixin, DigiSQLAlchemy
-from utils.logger import get_logger
 
 db = DigiSQLAlchemy()
 
