@@ -23,6 +23,19 @@ def configure_file_logging(log_path, max_size_mb=100, log_backups=5):
     logging.getLogger('tornado.general').addHandler(file_handler)
 
 
+def configure_db_logging(log_level=logging.DEBUG, log_path=None, max_size_mb=100, log_backups=5):
+    size_bytes = max_size_mb*1024*1024
+    db_logger = logging.getLogger('sqlalchemy.engine')
+    db_logger.setLevel(log_level)
+    if log_path:
+        file_handler = RotatingFileHandler(log_path,
+                                           maxBytes=size_bytes,
+                                           backupCount=log_backups)
+        file_handler.setFormatter(LogFormatter(color=False))
+        db_logger.addHandler(file_handler)
+        db_logger.propagate = False
+
+
 def add_logging_level(level_name, level_num, method_name=None):
     if not method_name:
         method_name = level_name.lower()

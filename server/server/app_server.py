@@ -4,7 +4,7 @@ from tornado.web import Application
 
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
-from utils.logger import get_logger, configure_file_logging
+from utils.logger import get_logger, configure_file_logging, configure_db_logging
 from models.models import db, Session, Show
 from utils.route import Route
 from utils.settings import Settings
@@ -20,11 +20,21 @@ class DigiScriptServer(Application):
 
         self.digi_settings: Settings = Settings(self, settings_path)
 
+        # Application logging
         log_path = self.digi_settings.settings.get('log_path', None)
         file_size = self.digi_settings.settings.get('max_log_mb', 100)
         backups = self.digi_settings.settings.get('log_backups', 5)
         if log_path:
             configure_file_logging(log_path, file_size, backups)
+
+        # Database logging
+        use_db_logging = self.digi_settings.settings.get('db_log_enabled', False)
+        if use_db_logging:
+            db_log_path = self.digi_settings.settings.get('db_log_path', None)
+            db_file_size = self.digi_settings.settings.get('db_max_log_mb', 100)
+            db_backups = self.digi_settings.settings.get('db_log_backups', 5)
+            configure_db_logging(log_path=db_log_path, max_size_mb=db_file_size,
+                                 log_backups=db_backups)
 
         # Controller imports (needed to trigger the decorator)
         controllers.import_all_controllers()
