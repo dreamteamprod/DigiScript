@@ -3,10 +3,10 @@ from tornado_sqlalchemy import SQLAlchemy, SessionEx
 
 
 class DeleteMixin(object):
-    def pre_delete(self, session):
+    def pre_delete(self, session: 'DigiDBSession'):
         raise NotImplementedError
 
-    def post_delete(self, session):
+    def post_delete(self, session: 'DigiDBSession'):
         raise NotImplementedError
 
 
