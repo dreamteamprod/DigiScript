@@ -28,7 +28,12 @@ class Settings:
         self._load()
 
         self._file_watcher = IOLoopFileWatcher(self.settings_path, self.auto_reload_changes, 100)
+        self._file_watcher.add_error_callback(self.file_deleted)
         self._file_watcher.watch()
+
+    def file_deleted(self):
+        get_logger().info('Settings file deleted; recreating from in memory settings')
+        self._save()
 
     def auto_reload_changes(self):
         get_logger().info('Settings file changed; auto reloading')
