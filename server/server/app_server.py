@@ -1,8 +1,8 @@
 from typing import List
 
 from tornado.web import Application
-from tornado_sqlalchemy import SQLAlchemy
 
+from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
 from utils.logger import get_logger, configure_file_logging
 from models.models import db, Session, Show
@@ -32,7 +32,7 @@ class DigiScriptServer(Application):
         self.clients: List[WebSocketController] = []
 
         get_logger().info(f'Using {env_parser.db_path} as DB path')
-        self._db: SQLAlchemy = db
+        self._db: DigiSQLAlchemy = db
         self._db.configure(url=env_parser.db_path)
         self._db.create_all()
 
@@ -63,7 +63,7 @@ class DigiScriptServer(Application):
             db=self._db,
             websocket_ping_interval=5)
 
-    def get_db(self) -> SQLAlchemy:
+    def get_db(self) -> DigiSQLAlchemy:
         return self._db
 
     async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):

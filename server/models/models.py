@@ -1,8 +1,9 @@
 from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey, Boolean, Table
 from sqlalchemy.orm import relationship, backref
-from tornado_sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy()
+from utils.database import DigiSQLAlchemy
+
+db = DigiSQLAlchemy()
 
 
 class Session(db.Model):
