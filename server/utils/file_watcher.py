@@ -44,11 +44,11 @@ class IOLoopFileWatcher(FileWatcher):
         if not (os.path.exists(self._file_path) and os.path.isfile(self._file_path)):
             if self._error_callback is None:
                 raise IOError(f'File {self._file_path} could not be found')
-            else:
-                get_logger().warning(f'File {self._file_path} could not be found, calling error '
-                                     f'callback')
-                self.stop()
-                self._error_callback()
+
+            get_logger().warning(f'File {self._file_path} could not be found, calling error '
+                                 f'callback')
+            self.stop()
+            self._error_callback()
 
         current_file_time = os.path.getmtime(self._file_path)
         if current_file_time > self._last_fs_time and not self._paused:
