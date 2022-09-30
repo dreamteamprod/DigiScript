@@ -24,6 +24,18 @@ class Settings:
             self.settings_path = os.path.join(self._base_path, 'digiscript.json')
             get_logger().info(
                 f'No settings path provided, using {self.settings_path}')
+
+        self.default_settings = {
+            'current_show': None,
+            'log_path': os.path.join(self._base_path, 'digiscript.log'),
+            'max_log_mb': 100,
+            'log_backups': 5,
+            'db_log_enabled': False,
+            'db_log_path': os.path.join(self._base_path, 'digiscript_db.log'),
+            'db_max_log_mb': 100,
+            'db_log_backups': 5
+        }
+
         self.settings = {}
         self._load()
 
@@ -50,6 +62,7 @@ class Settings:
         if os.path.exists(self.settings_path):
             with open(self.settings_path, 'r') as fp:
                 self.settings = json.load(fp)
+            self._update_defaults()
             get_logger().info(f'Loaded settings from {self.settings_path}')
         else:
             self._create_defaults()
@@ -69,12 +82,12 @@ class Settings:
 
     def _create_defaults(self):
         get_logger().warning('Creating default settings')
-        self.settings = {
-            'current_show': None,
-            'log_path': os.path.join(self._base_path, 'digiscript.log'),
-            'max_log_mb': 100,
-            'log_backups': 5
-        }
+        self.settings = self.default_settings
+
+    def _update_defaults(self):
+        for key, value in self.default_settings.items():
+            if key not in self.settings:
+                self.settings[key] = value
 
     async def get(self, key, default=None):
         async with self.lock:
