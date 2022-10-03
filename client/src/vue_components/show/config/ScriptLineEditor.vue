@@ -78,6 +78,14 @@ export default {
     characterGroups: {
       required: true,
     },
+    previousLineFn: {
+      required: true,
+      type: Function,
+    },
+    nextLineFn: {
+      required: true,
+      type: Function,
+    },
     value: {
       required: true,
     },
@@ -93,6 +101,8 @@ export default {
         character_group_id: null,
         line_text: null,
       },
+      previousLine: null,
+      nextLine: null,
     };
   },
   validations: {
@@ -123,10 +133,15 @@ export default {
       },
     },
   },
-  created() {
+  async created() {
+    this.previousLine = await this.previousLineFn(this.lineIndex);
+    this.nextLine = await this.nextLineFn(this.lineIndex);
     if (this.state.line_parts.length === 0) {
       this.addLinePart();
     }
+  },
+  mounted() {
+    this.$v.state.$touch();
   },
   methods: {
     validateState(name) {
@@ -149,18 +164,61 @@ export default {
     },
   },
   computed: {
+    nextActs() {
+      // Start act is either the first act for the show, or the act of the previous line if there
+      // is one
+      let startAct = this.acts.find((act) => (act.previous_act == null));
+      if (this.previousLine != null) {
+        startAct = this.acts.find((act) => (act.id === this.previousLine.act_id));
+      }
+      const validActs = [];
+      let nextAct = startAct;
+      // Find all valid acts, if there is no next line then this is all acts after the start act.
+      // If there is a next line, this is all acts up to and including the act of the next line
+      while (nextAct != null) {
+        validActs.push(JSON.parse(JSON.stringify(nextAct)));
+        if (this.nextLine != null && this.nextLine.act_id === nextAct.id) {
+          break;
+        }
+        nextAct = nextAct.next_act;
+      }
+      return validActs;
+    },
     actOptions() {
       return [
         { value: null, text: 'N/A', disabled: true },
-        ...this.acts.map((act) => ({ value: act.id, text: act.name })),
+        ...this.nextActs.map((act) => ({ value: act.id, text: act.name })),
       ];
+    },
+    nextScenes() {
+      if (this.state.act_id == null) {
+        return [];
+      }
+      const scenes = this.scenes.filter((scene) => (scene.act.id === this.state.act_id));
+      // Start scene is either the first scene of the act, or the scene of the previous line if
+      // there is one
+      let startScene = scenes.find((scene) => (scene.previous_scene == null));
+      if (this.previousLine != null && this.previousLine.act_id === this.state.act_id) {
+        startScene = scenes.find((scene) => (scene.id === this.previousLine.scene_id));
+      }
+      const validScenes = [];
+      let nextScene = startScene;
+      // Find all valid scenes, if there is no next line then this is all scenes after the start
+      // scene. If there is a next line, this is all scenes up to and including the scene of the
+      // next line
+      while (nextScene != null) {
+        validScenes.push(JSON.parse(JSON.stringify(nextScene)));
+        if (this.nextLine != null && this.nextLine.scene_id === nextScene.id) {
+          break;
+        }
+        nextScene = nextScene.next_scene;
+      }
+      return validScenes;
     },
     sceneOptions() {
       return [
         { value: null, text: 'N/A', disabled: true },
-        ...this.scenes.filter(function (scene) {
-          return scene.act != null && scene.act.id === this.state.act_id;
-        }, this).map((scene) => ({ value: scene.id, text: scene.name })),
+        ...this.nextScenes.map((scene) => ({ value: scene.id, text: scene.name })),
       ];
     },
     lineValid() {

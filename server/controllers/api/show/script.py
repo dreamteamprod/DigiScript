@@ -633,3 +633,49 @@ class ScriptController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
             return
+
+
+@ApiRoute('/show/script/max_page', ApiVersion.v1)
+class ScriptMaxPageController(BaseAPIController):
+
+    def get(self):
+        current_show = self.get_current_show()
+
+        if not current_show:
+            self.set_status(400)
+            self.finish({'message': 'No show loaded'})
+            return
+
+        show_id = current_show['id']
+
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                    if script.current_revision:
+                        revision: ScriptRevision = session.query(ScriptRevision).get(
+                            script.current_revision)
+                    else:
+                        self.set_status(400)
+                        self.finish({'message': 'Script does not have a current revision'})
+                        return
+
+                    max_page = 0
+                    for line in revision.line_associations:
+                        if line.line.page > max_page:
+                            max_page = line.line.page
+
+                    self.set_status(200)
+                    self.finish({
+                        'max_page': max_page
+                    })
+                else:
+                    self.set_status(404)
+                    self.finish({'message': '404 show not found'})
+                    return
+        else:
+            self.set_status(404)
+            self.finish({'message': '404 show not found'})
+            return

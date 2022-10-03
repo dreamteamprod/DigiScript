@@ -57,6 +57,8 @@
             :characters="CHARACTER_LIST"
             :character-groups="CHARACTER_GROUP_LIST"
             :value="TMP_SCRIPT[currentEditPage][index]"
+            :previous-line-fn="getPreviousLineForIndex"
+            :next-line-fn="getNextLineForIndex"
             @input="lineChange(line, index)"
             @doneEditing="doneEditingLine(currentEditPage, index)"
           />
@@ -108,6 +110,7 @@ import { mapGetters, mapMutations, mapActions } from 'vuex';
 import { diff } from 'deep-object-diff';
 import ScriptLineEditor from '@/vue_components/show/config/ScriptLineEditor.vue';
 import ScriptLineViewer from '@/vue_components/show/config/ScriptLineViewer.vue';
+import { makeURL } from '@/js/utils';
 
 export default {
   name: 'ScriptConfig',
@@ -127,6 +130,7 @@ export default {
       totalSavePages: null,
       savingInProgress: false,
       saveError: false,
+      currentMaxPage: 1,
     };
   },
   async beforeMount() {
@@ -137,12 +141,30 @@ export default {
     await this.GET_SCENE_LIST();
     await this.GET_CHARACTER_LIST();
     await this.GET_CHARACTER_GROUP_LIST();
+
+    // Get the max page of the saved version of the script
+    await this.getMaxScriptPage();
+
     // Initialisation of page data
     await this.LOAD_SCRIPT_PAGE(this.currentEditPage);
     await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
     this.ADD_BLANK_PAGE(this.currentEditPage);
   },
   methods: {
+    async getMaxScriptPage() {
+      const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const respJson = await response.json();
+        this.currentMaxPage = respJson.max_page;
+      } else {
+        console.error('Unable to get current max page');
+      }
+    },
     requestEdit() {
       this.$socket.sendObj({
         OP: 'REQUEST_SCRIPT_EDIT',
@@ -190,6 +212,61 @@ export default {
         lineObj: this.blankLineObj,
       });
       this.editPages.push(`page_${this.currentEditPage}_line_${this.TMP_SCRIPT[this.currentEditPageKey].length - 1}`);
+    },
+    async getPreviousLineForIndex(lineIndex) {
+      if (lineIndex > 0) {
+        return this.TMP_SCRIPT[this.currentEditPage][lineIndex - 1];
+      }
+      if (this.currentEditPage > 1) {
+        let loopPageNo = this.currentEditPage - 1;
+        /* eslint-disable no-await-in-loop */
+        while (loopPageNo >= 1) {
+          let loopPage = null;
+          if (Object.keys(this.TMP_SCRIPT).includes(loopPageNo.toString())) {
+            loopPage = this.TMP_SCRIPT[loopPageNo.toString()];
+          } else {
+            await this.LOAD_SCRIPT_PAGE(loopPageNo);
+            loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+          }
+          if (loopPage.length > 0) {
+            return loopPage[loopPage.length - 1];
+          }
+          loopPageNo -= 1;
+        }
+        /* eslint-enable no-await-in-loop */
+      }
+      return null;
+    },
+    async getNextLineForIndex(lineIndex) {
+      // If there are lines after this one on the page, return the next line from the page
+      if (lineIndex < this.TMP_SCRIPT[this.currentEditPage].length - 1) {
+        return this.TMP_SCRIPT[this.currentEditPage][lineIndex + 1];
+      }
+      // See if there are any edit pages loaded which are after this page, and if so, return the
+      // first line from the first page which contains lines
+      const editPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort();
+      for (let i = 0; i < editPages.length; i++) {
+        const editPage = editPages[i];
+        if (editPage <= this.currentEditPage) {
+          break;
+        }
+        const pageContent = this.TMP_SCRIPT[editPage.toString()];
+        if (pageContent.length > 0) {
+          return pageContent[0];
+        }
+      }
+      // Edit pages do not have any lines we can use, so try loading script pages up to the max
+      // page that is saved
+      /* eslint-disable no-await-in-loop */
+      for (let i = this.currentEditPage + 1; i <= this.currentMaxPage; i++) {
+        await this.LOAD_SCRIPT_PAGE(i);
+        const loopPage = this.GET_SCRIPT_PAGE(i);
+        if (loopPage.length > 0) {
+          return loopPage[0];
+        }
+      }
+      /* eslint-enable no-await-in-loop */
+      return null;
     },
     lineChange(line, index) {
       this.SET_LINE({
@@ -257,6 +334,7 @@ export default {
       } else {
         this.$toast.warning('No changes to save!');
       }
+      await this.getMaxScriptPage();
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
