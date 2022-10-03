@@ -121,7 +121,7 @@ export default {
     },
     GET_SCRIPT_PAGE: (state) => (page) => {
       const pageStr = page.toString();
-      if (Object.keys(state.script).includes(page)) {
+      if (Object.keys(state.script).includes(pageStr)) {
         return state.script[pageStr];
       }
       return [];
