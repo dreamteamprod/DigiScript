@@ -2,12 +2,12 @@
   <b-row>
     <b-col cols="1">
       <p v-if="needsActSceneLabel" class="viewable-line">
-        {{ line.act_id }}
+        {{ actLabel }}
       </p>
     </b-col>
     <b-col cols="1">
       <p v-if="needsActSceneLabel" class="viewable-line">
-        {{ line.scene_id }}
+        {{ sceneLabel }}
       </p>
     </b-col>
     <b-col v-for="(part, index) in line.line_parts"
@@ -97,6 +97,12 @@ export default {
       }
       return !(this.previousLine.act_id === this.line.act_id
         && this.previousLine.scene_id === this.line.scene_id);
+    },
+    actLabel() {
+      return this.acts.find((act) => (act.id === this.line.act_id)).name;
+    },
+    sceneLabel() {
+      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
     },
   },
 };
