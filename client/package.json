@@ -37,7 +37,7 @@
     "eslint-plugin-vuejs-accessibility": "^1.2.0",
     "node-sass": "^7.0.3",
     "sass": "^1.55.0",
-    "sass-loader": "^13.0.2",
+    "sass-loader": "^13.1.0",
     "webpack": "^5.74.0"
   },
   "overrides": {
