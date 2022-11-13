@@ -14,7 +14,7 @@
     "core-js": "^3.25.5",
     "deep-object-diff": "^1.1.7",
     "jquery": "^3.6.1",
-    "vue": "^2.7.10",
+    "vue": "^2.7.14",
     "vue-multiselect": "^2.1.6",
     "vue-native-websocket": "^2.0.15",
     "vue-router": "^3.6.5",
