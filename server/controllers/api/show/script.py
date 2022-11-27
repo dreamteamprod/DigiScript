@@ -8,6 +8,7 @@ from models.models import (Show, Script, ScriptRevision, ScriptLine, Session, Sc
                            ScriptLineRevisionAssociation)
 from models.schemas import ScriptRevisionsSchema, ScriptLineSchema
 from utils.base_controller import BaseAPIController
+from utils.requires import requires_show
 from utils.route import ApiRoute, ApiVersion
 
 
@@ -33,13 +34,9 @@ class ScriptStatusController(BaseAPIController):
 @ApiRoute('show/script/revisions', ApiVersion.v1)
 class ScriptRevisionsController(BaseAPIController):
 
+    @requires_show
     def get(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         revisions_schema = ScriptRevisionsSchema()
@@ -67,13 +64,9 @@ class ScriptRevisionsController(BaseAPIController):
             self.set_status(404)
             self.write({'message': '404 show not found'})
 
+    @requires_show
     async def post(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -139,13 +132,9 @@ class ScriptRevisionsController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
 
+    @requires_show
     async def delete(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -212,13 +201,10 @@ class ScriptRevisionsController(BaseAPIController):
 
 @ApiRoute('show/script/revisions/current', ApiVersion.v1)
 class ScriptCurrentRevisionController(BaseAPIController):
+
+    @requires_show
     def get(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
 
@@ -243,13 +229,9 @@ class ScriptCurrentRevisionController(BaseAPIController):
             self.set_status(404)
             self.write({'message': '404 show not found'})
 
+    @requires_show
     async def post(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -298,13 +280,9 @@ class ScriptCurrentRevisionController(BaseAPIController):
 @ApiRoute('/show/script', ApiVersion.v1)
 class ScriptController(BaseAPIController):
 
+    @requires_show
     def get(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
 
@@ -369,13 +347,9 @@ class ScriptController(BaseAPIController):
             self.finish({'message': '404 show not found'})
             return
 
+    @requires_show
     async def post(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
 
@@ -544,13 +518,9 @@ class ScriptController(BaseAPIController):
 
         return line_association, line_obj
 
+    @requires_show
     async def patch(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
 
@@ -638,13 +608,9 @@ class ScriptController(BaseAPIController):
 @ApiRoute('/show/script/max_page', ApiVersion.v1)
 class ScriptMaxPageController(BaseAPIController):
 
+    @requires_show
     def get(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
 
