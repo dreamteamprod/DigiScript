@@ -3,19 +3,16 @@ from tornado import escape
 from models.models import Show, Character, Cast, CharacterGroup
 from models.schemas import CharacterSchema, CharacterGroupSchema
 from utils.base_controller import BaseAPIController
+from utils.requires import requires_show
 from utils.route import ApiRoute, ApiVersion
 
 
 @ApiRoute('show/character', ApiVersion.v1)
 class CharacterController(BaseAPIController):
 
+    @requires_show
     def get(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         character_schema = CharacterSchema()
@@ -34,13 +31,9 @@ class CharacterController(BaseAPIController):
             self.set_status(404)
             self.write({'message': '404 show not found'})
 
+    @requires_show
     async def post(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -79,13 +72,9 @@ class CharacterController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
 
+    @requires_show
     async def patch(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -138,13 +127,9 @@ class CharacterController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
 
+    @requires_show
     async def delete(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -181,13 +166,10 @@ class CharacterController(BaseAPIController):
 
 @ApiRoute('show/character/group', ApiVersion.v1)
 class CharacterGroupController(BaseAPIController):
+
+    @requires_show
     def get(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         character_group_schema = CharacterGroupSchema()
@@ -207,13 +189,9 @@ class CharacterGroupController(BaseAPIController):
             self.set_status(404)
             self.write({'message': '404 show not found'})
 
+    @requires_show
     async def post(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -260,13 +238,9 @@ class CharacterGroupController(BaseAPIController):
             self.set_status(404)
             self.write({'message': '404 show not found'})
 
+    @requires_show
     async def delete(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -302,13 +276,9 @@ class CharacterGroupController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
 
+    @requires_show
     async def patch(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:

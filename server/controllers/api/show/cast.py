@@ -3,19 +3,16 @@ from tornado import escape
 from models.models import Cast, Show
 from models.schemas import CastSchema
 from utils.base_controller import BaseAPIController
+from utils.requires import requires_show
 from utils.route import ApiRoute, ApiVersion
 
 
 @ApiRoute('show/cast', ApiVersion.v1)
 class CastController(BaseAPIController):
 
+    @requires_show
     def get(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         cast_schema = CastSchema()
@@ -34,13 +31,9 @@ class CastController(BaseAPIController):
             self.set_status(404)
             self.write({'message': '404 show not found'})
 
+    @requires_show
     async def post(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -75,13 +68,9 @@ class CastController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
 
+    @requires_show
     async def patch(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
@@ -129,13 +118,9 @@ class CastController(BaseAPIController):
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
 
+    @requires_show
     async def delete(self):
         current_show = self.get_current_show()
-
-        if not current_show:
-            self.set_status(400)
-            await self.finish({'message': 'No show loaded'})
-            return
 
         show_id = current_show['id']
         if show_id:
