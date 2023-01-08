@@ -1,6 +1,7 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 import createPersistedState from 'vuex-persistedstate';
+import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 import websocket from './modules/websocket';
@@ -27,7 +28,7 @@ export default new Vuex.Store({
         const showSettings = await response.json();
         context.commit('SET_CURRENT_SHOW', showSettings);
       } else {
-        console.error('Unable to get show details');
+        log.error('Unable to get show details');
       }
     },
     async UPDATE_SHOW(context, showDetails) {
@@ -42,7 +43,7 @@ export default new Vuex.Store({
         context.dispatch('GET_SHOW_DETAILS');
         Vue.$toast.success('Updated show!');
       } else {
-        console.error('Unable to edit show');
+        log.error('Unable to edit show');
         Vue.$toast.error('Unable to edit show');
       }
     },

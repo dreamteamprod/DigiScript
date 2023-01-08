@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 
@@ -44,7 +45,7 @@ export default {
         const cast = await response.json();
         context.commit('SET_CAST_LIST', cast.cast);
       } else {
-        console.error('Unable to get cast list');
+        log.error('Unable to get cast list');
       }
     },
     async ADD_CAST_MEMBER(context, castMember) {
@@ -59,7 +60,7 @@ export default {
         context.dispatch('GET_CAST_LIST');
         Vue.$toast.success('Added new cast member!');
       } else {
-        console.error('Unable to add new cast member');
+        log.error('Unable to add new cast member');
         Vue.$toast.error('Unable to add new cast member');
       }
     },
@@ -75,7 +76,7 @@ export default {
         context.dispatch('GET_CAST_LIST');
         Vue.$toast.success('Deleted cast member!');
       } else {
-        console.error('Unable to delete cast member');
+        log.error('Unable to delete cast member');
         Vue.$toast.error('Unable to delete cast member');
       }
     },
@@ -91,7 +92,7 @@ export default {
         context.dispatch('GET_CAST_LIST');
         Vue.$toast.success('Updated cast member!');
       } else {
-        console.error('Unable to edit cast member');
+        log.error('Unable to edit cast member');
         Vue.$toast.error('Unable to edit cast member');
       }
     },
@@ -101,7 +102,7 @@ export default {
         const characters = await response.json();
         context.commit('SET_CHARACTER_LIST', characters.characters);
       } else {
-        console.error('Unable to get characters list');
+        log.error('Unable to get characters list');
       }
     },
     async ADD_CHARACTER(context, character) {
@@ -116,7 +117,7 @@ export default {
         context.dispatch('GET_CHARACTER_LIST');
         Vue.$toast.success('Added new character!');
       } else {
-        console.error('Unable to add new character');
+        log.error('Unable to add new character');
         Vue.$toast.error('Unable to add new character');
       }
     },
@@ -132,7 +133,7 @@ export default {
         context.dispatch('GET_CHARACTER_LIST');
         Vue.$toast.success('Deleted character!');
       } else {
-        console.error('Unable to delete character');
+        log.error('Unable to delete character');
         Vue.$toast.error('Unable to delete character');
       }
     },
@@ -148,7 +149,7 @@ export default {
         context.dispatch('GET_CHARACTER_LIST');
         Vue.$toast.success('Updated character!');
       } else {
-        console.error('Unable to edit character');
+        log.error('Unable to edit character');
         Vue.$toast.error('Unable to edit character');
       }
     },
@@ -159,7 +160,7 @@ export default {
         context.commit('SET_CHARACTER_GROUP_LIST', groups.character_groups);
         context.dispatch('GET_CHARACTER_LIST');
       } else {
-        console.error('Unable to get characters list');
+        log.error('Unable to get characters list');
       }
     },
     async ADD_CHARACTER_GROUP(context, act) {
@@ -174,7 +175,7 @@ export default {
         context.dispatch('GET_CHARACTER_GROUP_LIST');
         Vue.$toast.success('Added new character group!');
       } else {
-        console.error('Unable to add new character group');
+        log.error('Unable to add new character group');
         Vue.$toast.error('Unable to add new character group');
       }
     },
@@ -190,7 +191,7 @@ export default {
         context.dispatch('GET_CHARACTER_GROUP_LIST');
         Vue.$toast.success('Deleted character group!');
       } else {
-        console.error('Unable to delete character group');
+        log.error('Unable to delete character group');
         Vue.$toast.error('Unable to delete character group');
       }
     },
@@ -206,7 +207,7 @@ export default {
         context.dispatch('GET_CHARACTER_GROUP_LIST');
         Vue.$toast.success('Updated character group!');
       } else {
-        console.error('Unable to edit character group');
+        log.error('Unable to edit character group');
         Vue.$toast.error('Unable to edit character group');
       }
     },
@@ -216,7 +217,7 @@ export default {
         const acts = await response.json();
         context.commit('SET_ACT_LIST', acts.acts);
       } else {
-        console.error('Unable to get acts list');
+        log.error('Unable to get acts list');
       }
     },
     async ADD_ACT(context, act) {
@@ -231,7 +232,7 @@ export default {
         context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Added new act!');
       } else {
-        console.error('Unable to add new act');
+        log.error('Unable to add new act');
         Vue.$toast.error('Unable to add new act');
       }
     },
@@ -247,7 +248,7 @@ export default {
         context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Deleted act!');
       } else {
-        console.error('Unable to delete act');
+        log.error('Unable to delete act');
         Vue.$toast.error('Unable to delete act');
       }
     },
@@ -263,7 +264,7 @@ export default {
         context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Updated act!');
       } else {
-        console.error('Unable to edit act');
+        log.error('Unable to edit act');
         Vue.$toast.error('Unable to edit act');
       }
     },
@@ -279,7 +280,7 @@ export default {
         context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Updated act!');
       } else {
-        console.error('Unable to edit act');
+        log.error('Unable to edit act');
         Vue.$toast.error('Unable to edit act');
       }
     },
@@ -289,7 +290,7 @@ export default {
         const scenes = await response.json();
         context.commit('SET_SCENE_LIST', scenes.scenes);
       } else {
-        console.error('Unable to get scenes list');
+        log.error('Unable to get scenes list');
       }
     },
     async ADD_SCENE(context, scene) {
@@ -305,7 +306,7 @@ export default {
         context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Added new scene!');
       } else {
-        console.error('Unable to add new scene');
+        log.error('Unable to add new scene');
         Vue.$toast.error('Unable to add new scene');
       }
     },
@@ -322,7 +323,7 @@ export default {
         context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Deleted scene!');
       } else {
-        console.error('Unable to delete scene');
+        log.error('Unable to delete scene');
         Vue.$toast.error('Unable to delete scene');
       }
     },
@@ -339,7 +340,7 @@ export default {
         context.dispatch('GET_ACT_LIST');
         Vue.$toast.success('Updated scene!');
       } else {
-        console.error('Unable to edit scene');
+        log.error('Unable to edit scene');
         Vue.$toast.error('Unable to edit scene');
       }
     },
@@ -349,7 +350,7 @@ export default {
         const cueTypes = await response.json();
         context.commit('SET_CUE_TYPES', cueTypes.cue_types);
       } else {
-        console.error('Unable to get cue types');
+        log.error('Unable to get cue types');
       }
     },
     async ADD_CUE_TYPE(context, cueType) {
@@ -364,7 +365,7 @@ export default {
         context.dispatch('GET_CUE_TYPES');
         Vue.$toast.success('Added new cue type!');
       } else {
-        console.error('Unable to add new cue type');
+        log.error('Unable to add new cue type');
         Vue.$toast.error('Unable to add new cue type');
       }
     },
@@ -380,7 +381,7 @@ export default {
         context.dispatch('GET_CUE_TYPES');
         Vue.$toast.success('Deleted cue type!');
       } else {
-        console.error('Unable to delete cue type');
+        log.error('Unable to delete cue type');
         Vue.$toast.error('Unable to delete cue type');
       }
     },
@@ -396,7 +397,7 @@ export default {
         context.dispatch('GET_CUE_TYPES');
         Vue.$toast.success('Updated cue type!');
       } else {
-        console.error('Unable to edit cue type');
+        log.error('Unable to edit cue type');
         Vue.$toast.error('Unable to edit cue type');
       }
     },
