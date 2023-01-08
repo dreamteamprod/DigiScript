@@ -108,6 +108,8 @@
 <script>
 import { mapGetters, mapMutations, mapActions } from 'vuex';
 import { diff } from 'deep-object-diff';
+import log from 'loglevel';
+
 import ScriptLineEditor from '@/vue_components/show/config/ScriptLineEditor.vue';
 import ScriptLineViewer from '@/vue_components/show/config/ScriptLineViewer.vue';
 import { makeURL } from '@/js/utils';
@@ -162,7 +164,7 @@ export default {
         const respJson = await response.json();
         this.currentMaxPage = respJson.max_page;
       } else {
-        console.error('Unable to get current max page');
+        log.error('Unable to get current max page');
       }
     },
     requestEdit() {

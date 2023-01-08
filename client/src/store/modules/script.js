@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 
@@ -27,7 +28,7 @@ export default {
         context.commit('SET_REVISIONS', revisions.revisions);
         context.commit('SET_CURRENT_REVISION', revisions.current_revision);
       } else {
-        console.error('Unable to get script revisions');
+        log.error('Unable to get script revisions');
       }
     },
     async ADD_SCRIPT_REVISION(context, scriptRevision) {
@@ -42,7 +43,7 @@ export default {
         context.dispatch('GET_SCRIPT_REVISIONS');
         Vue.$toast.success('Added new script revision!');
       } else {
-        console.error('Unable to add new script revision');
+        log.error('Unable to add new script revision');
         Vue.$toast.error('Unable to add new script revision');
       }
     },
@@ -60,7 +61,7 @@ export default {
         context.dispatch('GET_SCRIPT_REVISIONS');
         Vue.$toast.success('Deleted script revision!');
       } else {
-        console.error('Unable to delete script revision');
+        log.error('Unable to delete script revision');
         Vue.$toast.error('Unable to delete script revision');
       }
     },
@@ -78,7 +79,7 @@ export default {
         context.dispatch('GET_SCRIPT_REVISIONS');
         Vue.$toast.success('Loaded script revision!');
       } else {
-        console.error('Unable to load script revision');
+        log.error('Unable to load script revision');
         Vue.$toast.error('Unable to load script revision');
       }
     },
@@ -108,7 +109,7 @@ export default {
           page: respJson.lines,
         });
       } else {
-        console.error('Unable to load script page');
+        log.error('Unable to load script page');
       }
     },
   },

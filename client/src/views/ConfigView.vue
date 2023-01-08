@@ -132,6 +132,7 @@
 <script>
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapMutations } from 'vuex';
+import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 
@@ -198,7 +199,7 @@ export default {
         const shows = await response.json();
         this.UPDATE_SHOWS(shows.shows);
       } else {
-        console.error('Unable to get available shows');
+        log.error('Unable to get available shows');
       }
     },
     async getConnectedClients() {
@@ -207,7 +208,7 @@ export default {
         const sessions = await response.json();
         this.connectedClients = sessions.sessions;
       } else {
-        console.error('Unable to get available shows');
+        log.error('Unable to get available shows');
       }
       this.clientTimeout = setTimeout(this.getConnectedClients, 1000);
     },
@@ -247,7 +248,7 @@ export default {
         this.resetForm();
       } else {
         this.$toast.error('Unable to save show');
-        console.error('Unable to create new show');
+        log.error('Unable to create new show');
         event.preventDefault();
       }
     },
@@ -266,7 +267,7 @@ export default {
         this.$bvModal.hide('show-load');
       } else {
         this.$toast.error('Unable to load show');
-        console.error('Unable to load show');
+        log.error('Unable to load show');
       }
     },
     ...mapMutations(['UPDATE_SHOWS']),

@@ -1,6 +1,8 @@
 import Vue from 'vue';
-import { makeURL } from '@/js/utils';
 import { detailedDiff } from 'deep-object-diff';
+import log from 'loglevel';
+
+import { makeURL } from '@/js/utils';
 
 export default {
   state: {
@@ -49,7 +51,7 @@ export default {
         const status = await response.json();
         context.commit('SET_EDIT_STATUS', status);
       } else {
-        console.error('Unable to get script config status');
+        log.error('Unable to get script config status');
       }
     },
     ADD_BLANK_PAGE(context, pageNo) {
@@ -76,7 +78,7 @@ export default {
         body: JSON.stringify(context.getters.TMP_SCRIPT[pageNo.toString()]),
       });
       if (!response.ok) {
-        console.error('Failed to save new script page');
+        log.error('Failed to save new script page');
         return false;
       }
       return true;
@@ -104,7 +106,7 @@ export default {
         }),
       });
       if (!response.ok) {
-        console.error('Failed to edit script page');
+        log.error('Failed to edit script page');
         return false;
       }
       return true;

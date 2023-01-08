@@ -1,3 +1,5 @@
+import log from 'loglevel';
+
 import router from '@/router';
 import { makeURL } from '@/js/utils';
 
@@ -21,7 +23,7 @@ export default {
         const settings = await response.json();
         await context.dispatch('UPDATE_SETTINGS', settings);
       } else {
-        console.error('Unable to fetch settings');
+        log.error('Unable to fetch settings');
       }
     },
     async UPDATE_SETTINGS(context, payload) {
@@ -37,7 +39,7 @@ export default {
             const show = await response.json();
             context.commit('SET_CURRENT_SHOW', show);
           } else {
-            console.error('Unable to set current show');
+            log.error('Unable to set current show');
           }
         }
       } else {
