@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import log from 'loglevel';
 
 export default {
   state: {
@@ -47,7 +48,7 @@ export default {
         case 'NOOP':
           break;
         default:
-          console.error(`Unknown OP received from websocket: ${message.OP}`);
+          log.error(`Unknown OP received from websocket: ${message.OP}`);
       }
     },
     // mutations for reconnect methods
