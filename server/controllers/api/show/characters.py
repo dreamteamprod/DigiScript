@@ -1,7 +1,7 @@
 from tornado import escape
 
-from models.models import Show, Character, Cast, CharacterGroup
-from models.schemas import CharacterSchema, CharacterGroupSchema
+from models.show import Show, Cast, Character, CharacterGroup
+from schemas.schemas import CharacterSchema, CharacterGroupSchema
 from utils.base_controller import BaseAPIController
 from utils.requires import requires_show
 from utils.route import ApiRoute, ApiVersion

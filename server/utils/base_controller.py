@@ -6,8 +6,8 @@ from tornado import httputil, escape
 from tornado.web import RequestHandler
 from tornado_sqlalchemy import SessionMixin
 
-from models.models import Show
-from models.schemas import ShowSchema
+from models.show import Show
+from schemas.schemas import ShowSchema
 from utils.logger import get_logger
 
 if TYPE_CHECKING:

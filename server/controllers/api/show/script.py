@@ -4,9 +4,11 @@ from typing import List, Optional
 from sqlalchemy import func
 from tornado import escape
 
-from models.models import (Show, Script, ScriptRevision, ScriptLine, Session, ScriptLinePart,
-                           ScriptLineRevisionAssociation)
-from models.schemas import ScriptRevisionsSchema, ScriptLineSchema
+from models.script import (Script, ScriptRevision, ScriptLine, ScriptLineRevisionAssociation,
+                           ScriptLinePart)
+from models.show import Show
+from models.session import Session
+from schemas.schemas import ScriptRevisionsSchema, ScriptLineSchema
 from utils.base_controller import BaseAPIController
 from utils.requires import requires_show
 from utils.route import ApiRoute, ApiVersion

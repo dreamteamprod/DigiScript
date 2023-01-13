@@ -8,7 +8,7 @@ from tornado.websocket import WebSocketHandler
 from tornado_sqlalchemy import SessionMixin
 
 from utils.logger import get_logger
-from models.models import Session
+from models.session import Session
 from utils.route import ApiRoute, ApiVersion
 
 if TYPE_CHECKING:
