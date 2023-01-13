@@ -64,6 +64,11 @@ const routes = [
         path: 'script',
         component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigScript.vue'),
       },
+      {
+        name: 'show-sessions',
+        path: 'sessions',
+        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigSessions.vue'),
+      },
     ],
   },
   {

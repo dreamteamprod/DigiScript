@@ -34,6 +34,9 @@
             <b-button replace :to="{'name': 'show-config-cues'}" variant="outline-info"
                       active-class="active">Configure Cues
             </b-button>
+            <b-button replace :to="{'name': 'show-sessions'}" variant="outline-info"
+                      active-class="active">Sessions
+            </b-button>
           </b-button-group>
         </b-col>
         <b-col cols="10">
