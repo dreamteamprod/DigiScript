@@ -72,6 +72,11 @@ const routes = [
     ],
   },
   {
+    path: '/live',
+    name: 'live',
+    component: () => import('../views/show/ShowLiveView.vue'),
+  },
+  {
     path: '*',
     name: '404',
     component: () => import('../views/404View.vue'),

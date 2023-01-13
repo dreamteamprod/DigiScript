@@ -34,7 +34,7 @@
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 
-import {makeURL, msToTimer} from '@/js/utils';
+import { makeURL, msToTimer } from '@/js/utils';
 
 export default {
   name: 'ConfigSessions',

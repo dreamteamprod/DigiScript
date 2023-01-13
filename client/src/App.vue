@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <b-navbar toggleable="lg" type="dark" variant="info">
+    <b-navbar toggleable="lg" type="dark" variant="info" :sticky="true">
       <b-navbar-brand to="/">
         DigiScript
       </b-navbar-brand>
@@ -8,14 +8,19 @@
       <b-collapse id="nav-collapse" is-nav>
         <b-navbar-nav>
           <b-nav-item
+            to="/live"
+            :disabled="CURRENT_SHOW_SESSION == null">
+            Live
+          </b-nav-item>
+          <b-nav-item
             to="/config"
-            :disabled="!WEBSOCKET_HEALTHY">
+            :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null">
             System Config
           </b-nav-item>
           <b-nav-item
             to="/show-config"
             v-if="this.$store.state.currentShow != null"
-            :disabled="!WEBSOCKET_HEALTHY">
+            :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null">
             Show Config
           </b-nav-item>
         </b-navbar-nav>
@@ -47,14 +52,18 @@ export default {
     };
   },
   methods: {
-    ...mapActions(['GET_SETTINGS']),
+    ...mapActions(['GET_SETTINGS', 'GET_SHOW_SESSION_DATA']),
   },
   computed: {
-    ...mapGetters(['WEBSOCKET_HEALTHY']),
+    ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION']),
   },
   async created() {
     await this.GET_SETTINGS();
+    await this.GET_SHOW_SESSION_DATA();
     this.loaded = true;
+    if (this.CURRENT_SHOW_SESSION != null && this.$router.currentRoute.fullPath !== '/live') {
+      this.$router.push('/live');
+    }
   },
 };
 </script>

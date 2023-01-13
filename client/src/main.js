@@ -40,11 +40,15 @@ Vue.use(VueNativeSock, `ws://${window.location.hostname}:${window.location.port}
       // If the message contains an OP key, then this is going to be something we care about
       if (msg.OP) {
         // Always call the commit function here, as we care about it
-        this.store.commit(eventName.toUpperCase(), msg);
+        if (msg.OP !== 'NOOP') {
+          this.store.commit(eventName.toUpperCase(), msg);
+        }
         if (msg.ACTION) {
           // If we have an action, then call the corresponding action too, this means a single
           // WS message can do two things (commit a mutation, AND perform an action)
-          this.store.dispatch([msg.namespace || '', msg.ACTION].filter((e) => !!e).join('/'), msg);
+          if (msg.ACTION !== 'NOOP') {
+            this.store.dispatch([msg.namespace || '', msg.ACTION].filter((e) => !!e).join('/'), msg);
+          }
         }
         return;
       }
