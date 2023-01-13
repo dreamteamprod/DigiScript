@@ -14,9 +14,11 @@ class Show(db.Model):
     created_at = Column(DateTime())
     edited_at = Column(DateTime())
     first_act_id = Column(Integer, ForeignKey('act.id'))
+    current_session_id = Column(Integer, ForeignKey('showsession.id'))
 
     # Relationships
     first_act = relationship('Act', uselist=False, foreign_keys=[first_act_id])
+    current_session = relationship('ShowSession', uselist=False, foreign_keys=[current_session_id])
 
     cast_list = relationship("Cast")
     character_list = relationship('Character')
