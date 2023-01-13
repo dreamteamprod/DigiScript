@@ -5,7 +5,9 @@ from tornado.web import Application
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
 from utils.logger import get_logger, configure_file_logging, configure_db_logging
-from models.models import db, Session, Show
+from models.models import db
+from models.show import Show
+from models.session import Session
 from utils.route import Route
 from utils.settings import Settings
 

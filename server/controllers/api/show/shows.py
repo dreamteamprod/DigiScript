@@ -2,8 +2,9 @@ from datetime import datetime
 from dateutil import parser
 from tornado import escape
 
-from models.models import Show, Script, ScriptRevision
-from models.schemas import ShowSchema
+from models.script import Script, ScriptRevision
+from models.show import Show
+from schemas.schemas import ShowSchema
 from utils.base_controller import BaseAPIController
 from utils.requires import requires_show
 from utils.route import ApiRoute, ApiVersion

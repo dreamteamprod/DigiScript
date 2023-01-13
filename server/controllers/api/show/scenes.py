@@ -1,7 +1,7 @@
 from tornado import escape
 
-from models.models import Show, Scene
-from models.schemas import SceneSchema
+from models.show import Show, Scene
+from schemas.schemas import SceneSchema
 from utils.base_controller import BaseAPIController
 from utils.requires import requires_show
 from utils.route import ApiRoute, ApiVersion
