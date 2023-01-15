@@ -9,14 +9,29 @@
     </b-row>
     <b-row>
       <b-col cols="12" class="script-container" id="script-container">
-        <template v-for="page in currentLoadedPage">
-          <script-line-viewer v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-                              class="script-item"
-                              :key="`page_${page}_line_${index}`"
-                              :line-index="index" :line="line" :acts="ACT_LIST" :scenes="SCENE_LIST"
-                              :characters="CHARACTER_LIST" :character-groups="CHARACTER_GROUP_LIST"
-                              :previous-line="getPreviousLineForIndex(page, index)"
-                              @last-line-page="handleLastPageChange" />
+        <div class="text-center center-spinner" v-if="!initialLoad">
+          <b-spinner style="width: 10rem; height: 10rem;" variant="info" />
+        </div>
+        <template v-else>
+          <template v-for="page in currentLoadedPage">
+            <script-line-viewer v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+                                class="script-item"
+                                :key="`page_${page}_line_${index}`"
+                                :line-index="index" :line="line" :acts="ACT_LIST"
+                                :scenes="SCENE_LIST" :characters="CHARACTER_LIST"
+                                :character-groups="CHARACTER_GROUP_LIST"
+                                :previous-line="getPreviousLineForIndex(page, index)"
+                                @last-line-page="handleLastPageChange" />
+          </template>
+          <b-row v-show="initialLoad">
+            <b-col>
+              <b-button-group>
+                <b-button @click.stop="stopShow" variant="danger" :disabled="stoppingSession">
+                  End Show
+                </b-button>
+              </b-button-group>
+            </b-col>
+          </b-row>
         </template>
       </b-col>
     </b-row>
@@ -44,6 +59,8 @@ export default {
       scrollTimer: null,
       currentLoadedPage: 0,
       currentMaxPage: 0,
+      stoppingSession: false,
+      initialLoad: false,
     };
   },
   async mounted() {
@@ -67,6 +84,7 @@ export default {
       window.addEventListener('resize', debounce(this.computeContentSize, 100));
 
       await this.loadNextPage();
+      this.initialLoad = true;
     }
   },
   destroyed() {
@@ -153,6 +171,19 @@ export default {
         loopPageNo -= 1;
       }
       return null;
+    },
+    async stopShow() {
+      this.stoppingSession = true;
+      const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        this.$toast.success('Stopped show session');
+      } else {
+        log.error('Unable to stop show session');
+        this.$toast.error('Unable to stop show session');
+      }
+      this.stoppingSession = false;
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST']),
