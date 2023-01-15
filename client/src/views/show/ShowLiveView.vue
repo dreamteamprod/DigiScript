@@ -8,12 +8,16 @@
       </b-col>
     </b-row>
     <b-row>
-      <b-col>
-        <div class="script-container" id="script-container">
-          <p class="script-item" v-for="index in 100" :key="index">
-            Line {{ index }}
-          </p>
-        </div>
+      <b-col cols="12" class="script-container" id="script-container">
+        <template v-for="page in currentLoadedPage">
+          <script-line-viewer v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+                              class="script-item"
+                              :key="`page_${page}_line_${index}`"
+                              :line-index="index" :line="line" :acts="ACT_LIST" :scenes="SCENE_LIST"
+                              :characters="CHARACTER_LIST" :character-groups="CHARACTER_GROUP_LIST"
+                              :previous-line="getPreviousLineForIndex(page, index)"
+                              @last-line-page="handleLastPageChange" />
+        </template>
       </b-col>
     </b-row>
   </b-container>
@@ -23,16 +27,23 @@
 import { mapGetters, mapActions } from 'vuex';
 import $ from 'jquery';
 import { debounce } from 'lodash';
+import log from 'loglevel';
 
-import { msToTimer } from '@/js/utils';
+import { makeURL, msToTimer } from '@/js/utils';
+import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
 
 export default {
   name: 'ShowLiveView',
+  components: {
+    ScriptLineViewer,
+  },
   data() {
     return {
       elapsedTime: 0,
       elapsedTimer: null,
       scrollTimer: null,
+      currentLoadedPage: 0,
+      currentMaxPage: 0,
     };
   },
   async mounted() {
@@ -41,13 +52,21 @@ export default {
       this.$toast.warning('No live session started!');
       this.$router.replace('/');
     } else {
+      await this.GET_ACT_LIST();
+      await this.GET_SCENE_LIST();
+      await this.GET_CHARACTER_LIST();
+      await this.GET_CHARACTER_GROUP_LIST();
+      await this.getMaxScriptPage();
+
       this.updateElapsedTime();
       this.computeContentSize();
-      this.computeTopScriptElement();
+      this.computeScriptBoundaries();
 
       this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
-      this.scrollTimer = setInterval(this.computeTopScriptElement, 50);
+      this.scrollTimer = setInterval(this.computeScriptBoundaries, 50);
       window.addEventListener('resize', debounce(this.computeContentSize, 100));
+
+      await this.loadNextPage();
     }
   },
   destroyed() {
@@ -61,14 +80,29 @@ export default {
       const startTime = Date.parse(this.CURRENT_SHOW_SESSION.start_date_time);
       this.elapsedTime = now - startTime;
     },
-    computeTopScriptElement() {
+    computeScriptBoundaries() {
       const scriptContainer = $('#script-container');
-      const cutoff = scriptContainer.offset().top;
+      const cutoffTop = scriptContainer.offset().top;
+      const cutoffBottom = scriptContainer.offset().top + scriptContainer.height();
+      const scriptSelector = $('.script-item');
 
-      $('.script-item').each(function () {
-        if ($(this).offset().top + $(this).height() > cutoff) {
-          $('.script-item').removeClass('first-script-element');
-          $(this).addClass('first-script-element');
+      scriptSelector.each(function () {
+        if ($(this).offset().top + $(this).height() > cutoffTop) {
+          if (!$(this).attr('class').split(/\s+/).includes('first-script-element')) {
+            $('.script-item').removeClass('first-script-element');
+            $(this).addClass('first-script-element');
+          }
+          return false;
+        }
+        return true;
+      });
+
+      scriptSelector.each(function () {
+        if ($(this).offset().top >= cutoffBottom) {
+          if (!$(this).attr('class').split(/\s+/).includes('last-script-element')) {
+            $('.script-item').removeClass('last-script-element');
+            $(this).addClass('last-script-element');
+          }
           return false;
         }
         return true;
@@ -80,10 +114,52 @@ export default {
       const boxHeight = document.documentElement.clientHeight - startPos;
       scriptContainer.height(boxHeight - 10);
     },
-    ...mapActions(['GET_SHOW_SESSION_DATA']),
+    async loadNextPage() {
+      this.currentLoadedPage += 1;
+      await this.LOAD_SCRIPT_PAGE(this.currentLoadedPage);
+      console.log(`Loading page ${this.currentLoadedPage}`);
+    },
+    async getMaxScriptPage() {
+      const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const respJson = await response.json();
+        this.currentMaxPage = respJson.max_page;
+      } else {
+        log.error('Unable to get current max page');
+      }
+    },
+    async handleLastPageChange(lastPage) {
+      if ((this.currentLoadedPage === lastPage || this.currentLoadedPage - 1 === lastPage)
+        && this.currentLoadedPage < this.currentMaxPage) {
+        await this.loadNextPage();
+      }
+    },
+    getPreviousLineForIndex(pageIndex, lineIndex) {
+      if (lineIndex > 0) {
+        return this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1];
+      }
+      let loopPageNo = pageIndex - 1;
+      while (loopPageNo >= 1) {
+        let loopPage = null;
+        loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        if (loopPage.length > 0) {
+          return loopPage[loopPage.length - 1];
+        }
+        loopPageNo -= 1;
+      }
+      return null;
+    },
+    ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
+      'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST']),
   },
   computed: {
-    ...mapGetters(['CURRENT_SHOW_SESSION']),
+    ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
+      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
   },
 };
 </script>
