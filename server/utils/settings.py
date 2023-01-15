@@ -26,6 +26,7 @@ class Settings:
                 f'No settings path provided, using {self.settings_path}')
 
         self.default_settings = {
+            'debug_mode': False,
             'current_show': None,
             'log_path': os.path.join(self._base_path, 'digiscript.log'),
             'max_log_mb': 100,

@@ -51,4 +51,12 @@ export default {
       }
     },
   },
+  getters: {
+    DEBUG_MODE_ENABLED(state) {
+      if (Object.keys(state.settings).includes('debug_mode')) {
+        return state.settings.debug_mode;
+      }
+      return false;
+    },
+  },
 };

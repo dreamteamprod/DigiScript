@@ -80,10 +80,14 @@
     </b-row>
     <b-row class="script-row pt-1">
       <b-col cols="10" class="ml-auto">
-        <b-button @click="addNewLine" style="float: right"
-                  v-show="canEdit">
-          Add line
-        </b-button>
+        <b-button-group v-show="canEdit" style="float: right">
+          <b-button v-if="canGenerateDebugScript" variant="warning" v-b-modal.debug-generate>
+            Debug Script
+          </b-button>
+          <b-button @click="addNewLine">
+            Add line
+          </b-button>
+        </b-button-group>
       </b-col>
     </b-row>
     <b-modal id="save-script" title="Saving Script" ref="save-script" size="md"
@@ -102,17 +106,57 @@
                   :variant="saveProgressVariant" show-value animated />
       </div>
     </b-modal>
+    <b-modal id="debug-generate" title="Generate Debug Script" ref="debug-generate" size="md"
+             :hide-header-close="savingInProgress" :hide-footer="savingInProgress"
+             :no-close-on-backdrop="savingInProgress" :no-close-on-esc="savingInProgress"
+             @ok="generateDebugScript">
+      <b-form @submit.stop.prevent="generateDebugScript" ref="debug-script-form">
+        <b-form-group id="pages-input-group" label="Pages per Scene" label-for="pages-input"
+                      label-cols="auto">
+          <b-form-input
+            id="pages-input"
+            name="pages-input"
+            v-model="$v.debugFormState.pages.$model"
+            type="number"
+            :state="validateDebugState('pages')"
+            aria-describedby="pages-feedback"
+          ></b-form-input>
+          <b-form-invalid-feedback
+            id="pages-feedback"
+          >This is a required field, and must be greater than 0.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group id="lines-input-group" label="Lines per Page" label-for="lines-input"
+                      label-cols="auto">
+          <b-form-input
+            id="lines-input"
+            name="lines-input"
+            v-model="$v.debugFormState.linesPerPage.$model"
+            type="number"
+            :state="validateDebugState('linesPerPage')"
+            aria-describedby="lines-feedback"
+          ></b-form-input>
+          <b-form-invalid-feedback
+            id="lines-feedback"
+          >This is a required field, and must be greater than 0.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
   </b-container>
 </template>
 
 <script>
 import { mapGetters, mapMutations, mapActions } from 'vuex';
+import { required, minValue } from 'vuelidate/lib/validators';
 import { diff } from 'deep-object-diff';
 import log from 'loglevel';
+import { sample } from 'lodash';
 
 import ScriptLineEditor from '@/vue_components/show/config/ScriptLineEditor.vue';
 import ScriptLineViewer from '@/vue_components/show/config/ScriptLineViewer.vue';
-import { makeURL } from '@/js/utils';
+import { makeURL, randInt } from '@/js/utils';
+import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 
 export default {
   name: 'ScriptConfig',
@@ -133,7 +177,27 @@ export default {
       savingInProgress: false,
       saveError: false,
       currentMaxPage: 1,
+      debugFormState: {
+        pages: 1,
+        linesPerPage: 1,
+      },
     };
+  },
+  validations: {
+    debugFormState: {
+      pages: {
+        required,
+        notNull,
+        notNullAndGreaterThanZero,
+        minValue: minValue(1),
+      },
+      linesPerPage: {
+        required,
+        notNull,
+        notNullAndGreaterThanZero,
+        minValue: minValue(1),
+      },
+    },
   },
   async beforeMount() {
     // Config status
@@ -343,12 +407,86 @@ export default {
       }
       await this.getMaxScriptPage();
     },
+    validateDebugState(name) {
+      const { $dirty, $error } = this.$v.debugFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async generateDebugScript(event) {
+      this.$v.debugFormState.$touch();
+      if (this.$v.debugFormState.$anyError) {
+        event.preventDefault();
+        return;
+      }
+
+      const firstActId = this.CURRENT_SHOW.first_act_id;
+      if (firstActId == null) {
+        this.$toast.error('Unable to generate script as first act has not been set!');
+        return;
+      }
+
+      const firstAct = this.ACT_LIST.find((act) => (act.id === firstActId));
+      if (firstAct == null) {
+        log.error(`Could not find act with ID ${firstActId}`);
+        this.$toast.error('Unable to generate script!');
+        return;
+      }
+
+      if (this.CHARACTER_LIST.length === 0 && this.CHARACTER_GROUP_LIST.length === 0) {
+        this.$toast.error('Unable to generate script as no characters or '
+          + 'character groups created!');
+        return;
+      }
+
+      let currentAct = firstAct;
+      /* eslint-disable no-await-in-loop */
+      while (currentAct != null) {
+        let currentScene = currentAct.first_scene;
+        while (currentScene != null) {
+          for (let pageIter = 0; pageIter < this.debugFormState.pages; pageIter++) {
+            for (let linesIter = 0; linesIter < this.debugFormState.linesPerPage; linesIter++) {
+              this.addNewLine();
+              const scriptAtPage = this.TMP_SCRIPT[this.currentEditPageKey];
+              const line = scriptAtPage[scriptAtPage.length - 1];
+              line.act_id = currentAct.id;
+              line.scene_id = currentScene.id;
+              const totalCharacters = this.CHARACTER_GROUP_LIST.length + this.CHARACTER_LIST.length;
+              const partLength = (randInt(0, 100) % Math.min(totalCharacters, 4)) + 1;
+              for (let partIter = 0; partIter < partLength; partIter++) {
+                const characterGroup = this.CHARACTER_GROUP_LIST.length > 0 && randInt(0, 100) > 75;
+                line.line_parts.push({
+                  id: null,
+                  line_id: null,
+                  part_index: partIter,
+                  character_id: characterGroup ? null : sample(this.CHARACTER_LIST).id,
+                  character_group_id: characterGroup ? sample(this.CHARACTER_GROUP_LIST).id : null,
+                  line_text: `Act: ${currentAct.name}. Scene: ${currentScene.name}. Page: ${this.currentEditPage}. Line: ${linesIter + 1}. Part: ${partIter + 1}`,
+                });
+              }
+              this.doneEditingLine(this.currentEditPage, scriptAtPage.length - 1);
+            }
+            await this.incrPage();
+          }
+          currentScene = currentScene.next_scene;
+        }
+        /* eslint-enable no-await-in-loop */
+        if (currentAct.next_act != null) {
+          const nextActId = currentAct.next_act.id;
+          currentAct = this.ACT_LIST.find((act) => (act.id === nextActId));
+        } else {
+          currentAct = null;
+        }
+      }
+      this.decrPage();
+    },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE']),
   },
   computed: {
+    canGenerateDebugScript() {
+      return this.DEBUG_MODE_ENABLED && this.currentMaxPage === 0 && !this.scriptChanges;
+    },
     currentEditPageKey() {
       return this.currentEditPage.toString();
     },
@@ -371,8 +509,9 @@ export default {
     canEdit() {
       return this.INTERNAL_UUID === this.CURRENT_EDITOR;
     },
-    ...mapGetters(['TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST', 'CHARACTER_GROUP_LIST',
-      'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID', 'GET_SCRIPT_PAGE']),
+    ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
+      'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
+      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED']),
   },
 };
 </script>
