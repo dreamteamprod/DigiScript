@@ -295,8 +295,13 @@ export default {
         this.totalSavePages = Object.keys(this.TMP_SCRIPT).length;
         this.curSavePage = 0;
         this.$bvModal.show('save-script');
+
+        const orderedPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort(
+          (a, b) => a - b,
+        );
+
         /* eslint-disable no-await-in-loop, no-restricted-syntax */
-        for (const pageNo of Object.keys(this.TMP_SCRIPT).sort()) {
+        for (const pageNo of orderedPages) {
           this.curSavePage = pageNo;
           // Check whether the page actually has any lines on it, and if not then skip
           const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
