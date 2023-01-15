@@ -53,6 +53,9 @@ export default {
           }
           break;
         case 'STOP_SHOW':
+          if (router.currentRoute !== '/') {
+            router.push('/');
+          }
           break;
         default:
           log.error(`Unknown OP received from websocket: ${message.OP}`);
