@@ -45,7 +45,6 @@ class SessionsController(BaseAPIController):
 class SessionStartController(BaseAPIController):
     @requires_show
     async def post(self):
-        session_schema = ShowSessionSchema()
         current_show = self.get_current_show()
         show_id = current_show['id']
         if show_id:
