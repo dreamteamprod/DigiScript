@@ -34,7 +34,7 @@
                                 @last-line-page="handleLastPageChange"
                                 @first-page="handleFirstPageChange" />
           </template>
-          <b-row v-show="initialLoad">
+          <b-row v-show="initialLoad" class="script-footer">
             <b-col>
               <b-button-group>
                 <b-button @click.stop="stopShow" variant="danger" :disabled="stoppingSession">
@@ -218,5 +218,11 @@ export default {
 
   .session-header {
     border-bottom: .1rem solid #3498db;
+  }
+
+  .script-footer {
+    border-top: .1rem solid #3498db;
+    padding-top: .5rem;
+    padding-bottom: .1rem;
   }
 </style>

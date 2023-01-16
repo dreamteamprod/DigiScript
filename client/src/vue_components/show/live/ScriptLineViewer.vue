@@ -1,13 +1,13 @@
 <template>
   <b-container ref="lineContainer" class="mx-0" style="margin: 0; padding: 0" fluid>
     <b-row v-if="needsActSceneLabel">
-      <b-col cols="3" />
+      <b-col cols="3" class="cue-column" />
       <b-col cols="9">
         <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
       </b-col>
     </b-row>
     <b-row>
-      <b-col cols="3">
+      <b-col cols="3" class="cue-column">
         Cues go here!
       </b-col>
       <b-col v-for="(part, index) in line.line_parts"
@@ -132,5 +132,7 @@ export default {
 </script>
 
 <style scoped>
-
+  .cue-column {
+    border-right: .1rem solid #3498db;
+  }
 </style>
