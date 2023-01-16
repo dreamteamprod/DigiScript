@@ -30,3 +30,10 @@ labels:
 - label: "server"
   files:
     - "server/.*"
+- label: "python"
+  files:
+    - "**/*.py"
+- label: "javascript"
+  files:
+    - "**/*.js"
+    - "**/*.vue"
