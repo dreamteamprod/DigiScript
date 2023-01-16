@@ -80,7 +80,7 @@ import { mapGetters, mapMutations, mapActions } from 'vuex';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
-import ScriptLineCueEditor from '@/vue_components/show/config/ScriptLineCueEditor.vue';
+import ScriptLineCueEditor from '@/vue_components/show/config/cues/ScriptLineCueEditor.vue';
 
 export default {
   name: 'CueEditor',

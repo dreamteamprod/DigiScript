@@ -134,7 +134,7 @@
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 
-import CueEditor from '@/vue_components/show/config/CueEditor.vue';
+import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
 
 export default {
   name: 'ConfigCues',
