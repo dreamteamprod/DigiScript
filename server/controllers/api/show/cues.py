@@ -3,7 +3,7 @@ from typing import List
 
 from tornado import escape
 
-from models.cue import CueType, CueAssociation
+from models.cue import CueType, CueAssociation, Cue
 from models.script import ScriptRevision, Script
 from models.show import Show
 from schemas.schemas import CueTypeSchema, CueSchema
@@ -205,6 +205,64 @@ class CueController(BaseAPIController):
                 else:
                     self.set_status(404)
                     self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            self.write({'message': '404 show not found'})
+
+    @requires_show
+    async def post(self):
+        current_show = self.get_current_show()
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                    if script.current_revision:
+                        revision: ScriptRevision = session.query(ScriptRevision).get(
+                            script.current_revision)
+                    else:
+                        self.set_status(400)
+                        await self.finish({'message': 'Script does not have a current revision'})
+                        return
+
+                    data = escape.json_decode(self.request.body)
+
+                    cue_type_id: int = data.get('cueType', None)
+                    if not cue_type_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Cue Type missing'})
+                        return
+
+                    ident: str = data.get('ident', None)
+                    if not ident:
+                        self.set_status(400)
+                        await self.finish({'message': 'Identifier missing'})
+                        return
+
+                    line_id: int = data.get('lineId', None)
+                    if not line_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Line ID missing'})
+                        return
+
+                    cue = Cue(cue_type_id=cue_type_id, ident=ident)
+                    session.add(cue)
+                    session.flush()
+
+                    session.add(CueAssociation(revision_id=revision.id, line_id=line_id,
+                                               cue_id=cue.id))
+                    session.commit()
+
+                    self.set_status(200)
+                    await self.finish({'message': 'Successfully added cue'})
+
+                    await self.application.ws_send_to_all('NOOP', 'LOAD_CUES', {})
+
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
         else:
             self.set_status(404)
             self.write({'message': '404 show not found'})

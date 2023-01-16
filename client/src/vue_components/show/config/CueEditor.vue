@@ -29,11 +29,6 @@
                     @click="stopEditing">
             Stop Editing
           </b-button>
-          <b-button v-if="INTERNAL_UUID === CURRENT_EDITOR"
-                    variant="success"
-                    @click="saveScript">
-            Save
-          </b-button>
         </b-button-group>
       </b-col>
     </b-row>
@@ -56,6 +51,7 @@
             :previous-line="GET_SCRIPT_PAGE(currentEditPage)[index - 1]"
             :cue-types="CUE_TYPES"
             :cues="getCuesForLine(line)"
+            :can-edit="canEdit"
           />
         </template>
       </b-col>
@@ -161,9 +157,6 @@ export default {
       this.currentEditPage++;
       // Pre-load next page
       await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
-    },
-    async saveScript() {
-      console.log('Saving cues');
     },
     getCuesForLine(line) {
       if (Object.keys(this.SCRIPT_CUES).includes(line.id.toString())) {

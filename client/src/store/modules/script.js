@@ -130,6 +130,22 @@ export default {
         log.error('Unable to load cues');
       }
     },
+    async ADD_NEW_CUE(context, cue) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cue),
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        Vue.$toast.success('Added new cue!');
+      } else {
+        log.error('Unable to add new cue');
+        Vue.$toast.error('Unable to add new cue');
+      }
+    },
   },
   getters: {
     SCRIPT_REVISIONS(state) {
