@@ -8,7 +8,13 @@
     </b-row>
     <b-row>
       <b-col cols="3" class="cue-column">
-        Cues go here!
+        <b-button-group>
+          <b-button v-for="cue in cues" :key="cue.id"
+                    class="cue-button"
+                    :style="{backgroundColor: cueBackgroundColour(cue)}">
+            {{ cueLabel(cue) }}
+          </b-button>
+        </b-button-group>
       </b-col>
       <b-col v-for="(part, index) in line.line_parts"
            :key="`line_${lineIndex}_part_${index}`"
@@ -56,6 +62,12 @@ export default {
     characterGroups: {
       required: true,
     },
+    cueTypes: {
+      required: true,
+    },
+    cues: {
+      required: true,
+    },
   },
   data() {
     return {
@@ -92,6 +104,13 @@ export default {
       if (classList.includes('first-script-element')) {
         this.$emit('first-page', this.line.page);
       }
+    },
+    cueLabel(cue) {
+      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
+      return `${cueType.prefix} ${cue.ident}`;
+    },
+    cueBackgroundColour(cue) {
+      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
     },
   },
   computed: {
@@ -132,7 +151,13 @@ export default {
 </script>
 
 <style scoped>
+  .viewable-line {
+    margin: 0;
+  }
   .cue-column {
     border-right: .1rem solid #3498db;
+  }
+  .cue-button {
+    padding: .2rem;
   }
 </style>

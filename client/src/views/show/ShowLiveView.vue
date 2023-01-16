@@ -31,6 +31,8 @@
                                 :scenes="SCENE_LIST" :characters="CHARACTER_LIST"
                                 :character-groups="CHARACTER_GROUP_LIST"
                                 :previous-line="getPreviousLineForIndex(page, index)"
+                                :cue-types="CUE_TYPES"
+                                :cues="getCuesForLine(line)"
                                 @last-line-page="handleLastPageChange"
                                 @first-page="handleFirstPageChange" />
           </template>
@@ -85,6 +87,8 @@ export default {
       await this.GET_SCENE_LIST();
       await this.GET_CHARACTER_LIST();
       await this.GET_CHARACTER_GROUP_LIST();
+      await this.GET_CUE_TYPES();
+      await this.LOAD_CUES();
       await this.getMaxScriptPage();
 
       this.updateElapsedTime();
@@ -200,12 +204,18 @@ export default {
       }
       this.stoppingSession = false;
     },
+    getCuesForLine(line) {
+      if (Object.keys(this.SCRIPT_CUES).includes(line.id.toString())) {
+        return this.SCRIPT_CUES[line.id.toString()];
+      }
+      return [];
+    },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
-      'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST']),
+      'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES']),
   },
   computed: {
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
-      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW']),
+      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES']),
   },
 };
 </script>
