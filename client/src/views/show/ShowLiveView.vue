@@ -25,6 +25,7 @@
         <template v-else>
           <template v-for="page in currentLoadedPage">
             <script-line-viewer v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+                                v-show="page >= currentFirstPage - 1"
                                 class="script-item"
                                 :key="`page_${page}_line_${index}`"
                                 :line-index="index" :line="line" :acts="ACT_LIST"
@@ -96,7 +97,7 @@ export default {
       this.computeScriptBoundaries();
 
       this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
-      this.scrollTimer = setInterval(this.computeScriptBoundaries, 50);
+      this.scrollTimer = setInterval(this.computeScriptBoundaries, 25);
       window.addEventListener('resize', debounce(this.computeContentSize, 100));
 
       await this.loadNextPage();
@@ -151,7 +152,6 @@ export default {
     async loadNextPage() {
       this.currentLoadedPage += 1;
       await this.LOAD_SCRIPT_PAGE(this.currentLoadedPage);
-      console.log(`Loading page ${this.currentLoadedPage}`);
     },
     async getMaxScriptPage() {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
@@ -168,8 +168,9 @@ export default {
       }
     },
     async handleLastPageChange(lastPage) {
-      if ((this.currentLoadedPage === lastPage || this.currentLoadedPage - 1 === lastPage)
-        && this.currentLoadedPage < this.currentMaxPage) {
+      if ((this.currentLoadedPage === lastPage || this.currentLoadedPage - 2 === lastPage)
+        && this.currentLoadedPage - 2 < this.currentMaxPage) {
+        await this.loadNextPage();
         await this.loadNextPage();
       }
     },

@@ -151,9 +151,6 @@ export default {
 </script>
 
 <style scoped>
-  .viewable-line {
-    margin: 0;
-  }
   .cue-column {
     border-right: .1rem solid #3498db;
   }
