@@ -7,6 +7,7 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    versioning-strategy: widen
   - package-ecosystem: "pip"
     directory: "/server"
     schedule:
@@ -14,3 +15,4 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    versioning-strategy: widen
