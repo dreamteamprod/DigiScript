@@ -32,7 +32,7 @@
 <script>
 export default {
   name: 'ScriptLineViewer',
-  events: ['last-line-page'],
+  events: ['last-line-page', 'first-page'],
   props: {
     line: {
       required: true,
@@ -88,6 +88,9 @@ export default {
       const classList = classAttrValue.split(' ');
       if (classList.includes('last-script-element')) {
         this.$emit('last-line-page', this.line.page);
+      }
+      if (classList.includes('first-script-element')) {
+        this.$emit('first-page', this.line.page);
       }
     },
   },

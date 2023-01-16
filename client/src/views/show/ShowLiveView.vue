@@ -1,10 +1,20 @@
 <template>
   <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col>
-        <p>
+    <b-row class="session-header" style="padding-top: .1rem; padding-bottom: .1rem">
+      <b-col cols="4" style="text-align: left">
+        <b>
+          {{ CURRENT_SHOW.name }}
+        </b>
+      </b-col>
+      <b-col cols="4">
+        <b>
+          Page {{ currentFirstPage }}
+        </b>
+      </b-col>
+      <b-col cols="4" style="text-align: right">
+        <b>
           Elapsed Time: {{ msToTimer(elapsedTime) }}
-        </p>
+        </b>
       </b-col>
     </b-row>
     <b-row>
@@ -21,7 +31,8 @@
                                 :scenes="SCENE_LIST" :characters="CHARACTER_LIST"
                                 :character-groups="CHARACTER_GROUP_LIST"
                                 :previous-line="getPreviousLineForIndex(page, index)"
-                                @last-line-page="handleLastPageChange" />
+                                @last-line-page="handleLastPageChange"
+                                @first-page="handleFirstPageChange" />
           </template>
           <b-row v-show="initialLoad">
             <b-col>
@@ -61,6 +72,7 @@ export default {
       currentMaxPage: 0,
       stoppingSession: false,
       initialLoad: false,
+      currentFirstPage: 0,
     };
   },
   async mounted() {
@@ -157,6 +169,9 @@ export default {
         await this.loadNextPage();
       }
     },
+    handleFirstPageChange(firstPage) {
+      this.currentFirstPage = firstPage;
+    },
     getPreviousLineForIndex(pageIndex, lineIndex) {
       if (lineIndex > 0) {
         return this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1];
@@ -190,7 +205,7 @@ export default {
   },
   computed: {
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
-      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
+      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW']),
   },
 };
 </script>
@@ -199,5 +214,9 @@ export default {
   .script-container {
     overflow: scroll;
     width: 100vw;
+  }
+
+  .session-header {
+    border-bottom: .1rem solid #3498db;
   }
 </style>
