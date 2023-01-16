@@ -1,5 +1,5 @@
 <template>
-  <b-container ref="lineContainer" class="mx-0" style="margin: 0; padding: 0" fluid>
+  <b-container ref="lineContainer" class="mx-0" style="margin: 0; padding: 0" fluid v-once>
     <b-row v-if="needsActSceneLabel">
       <b-col cols="3" class="cue-column" />
       <b-col cols="9">

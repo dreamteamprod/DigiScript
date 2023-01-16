@@ -23,9 +23,8 @@
           <b-spinner style="width: 10rem; height: 10rem;" variant="info" />
         </div>
         <template v-else>
-          <template v-for="page in currentLoadedPage">
+          <template v-for="page in pageIter">
             <script-line-viewer v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-                                v-show="page >= currentFirstPage - 1"
                                 class="script-item"
                                 :key="`page_${page}_line_${index}`"
                                 :line-index="index" :line="line" :acts="ACT_LIST"
@@ -75,7 +74,8 @@ export default {
       currentMaxPage: 0,
       stoppingSession: false,
       initialLoad: false,
-      currentFirstPage: 0,
+      currentFirstPage: 1,
+      currentLastPage: 1,
     };
   },
   async mounted() {
@@ -168,6 +168,7 @@ export default {
       }
     },
     async handleLastPageChange(lastPage) {
+      this.currentLastPage = lastPage;
       if ((this.currentLoadedPage === lastPage || this.currentLoadedPage - 2 === lastPage)
         && this.currentLoadedPage - 2 < this.currentMaxPage) {
         await this.loadNextPage();
@@ -215,6 +216,10 @@ export default {
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES']),
   },
   computed: {
+    pageIter() {
+      return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
+        x <= this.currentLastPage + 1 && x >= this.currentFirstPage - 1));
+    },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES']),
   },
