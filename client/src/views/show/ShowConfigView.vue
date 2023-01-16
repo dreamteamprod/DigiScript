@@ -28,11 +28,11 @@
             <b-button replace :to="{'name': 'show-config-scenes'}" variant="outline-info"
                       active-class="active">Configure Scenes
             </b-button>
-            <b-button replace :to="{'name': 'show-config-cues'}" variant="outline-info"
-                      active-class="active">Configure Cues
-            </b-button>
             <b-button replace :to="{'name': 'show-config-script'}" variant="outline-info"
                       active-class="active">Configure Script
+            </b-button>
+            <b-button replace :to="{'name': 'show-config-cues'}" variant="outline-info"
+                      active-class="active">Configure Cues
             </b-button>
           </b-button-group>
         </b-col>
