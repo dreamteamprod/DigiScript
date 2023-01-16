@@ -12,7 +12,7 @@
           <b-button v-for="cue in cues" :key="cue.id"
                     class="cue-button"
                     :style="{backgroundColor: cueBackgroundColour(cue)}"
-                    :disabled="!canEdit">
+                    :disabled="!canEdit" @click.stop="openEditForm(cue)">
             {{ cueLabel(cue) }}
           </b-button>
           <b-button v-if="canEdit" class="cue-button" @click.stop="openNewForm">
@@ -65,6 +65,47 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal :id="`line_${lineIndex}_-edit-cue`" title="Edit Cue" size="md"
+             @hidden="resetEditForm" @ok="onSubmitEdit">
+      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-cue-form">
+        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
+          <b-form-select
+            id="act-input"
+            :options="cueTypeOptions"
+            v-model="$v.editFormState.cueType.$model"
+            :state="validateEditState('cueType')"
+            aria-describedby="cue-type-feedback"/>
+          <b-form-invalid-feedback
+            id="cue-type-feedback"
+          >This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
+          <b-form-input
+            id="ident-input"
+            name="ident-input"
+            v-model="$v.editFormState.ident.$model"
+            :state="validateEditState('ident')"
+            aria-describedby="ident-feedback"
+          ></b-form-input>
+          <b-form-invalid-feedback
+            id="ident-feedback"
+          >This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+      <template #modal-footer="{ ok, cancel }">
+        <b-button variant="secondary" @click="cancel()">
+          Cancel
+        </b-button>
+        <b-button variant="danger" @click.stop="deleteCue">
+          Delete
+        </b-button>
+        <b-button variant="primary" @click="ok()">
+          Save
+        </b-button>
+      </template>
+    </b-modal>
   </b-container>
 </template>
 
@@ -115,10 +156,30 @@ export default {
         ident: null,
         lineId: null,
       },
+      editFormState: {
+        cueId: null,
+        cueType: null,
+        ident: null,
+        lineId: null,
+      },
     };
   },
   validations: {
     newFormState: {
+      cueType: {
+        required,
+      },
+      ident: {
+        required,
+      },
+      lineId: {
+        required,
+      },
+    },
+    editFormState: {
+      cueId: {
+        required,
+      },
       cueType: {
         required,
       },
@@ -160,6 +221,57 @@ export default {
         this.resetNewForm();
       }
     },
+    openEditForm(cue) {
+      this.resetEditForm();
+      this.editFormState.cueId = cue.id;
+      this.editFormState.cueType = cue.cue_type_id;
+      this.editFormState.ident = cue.ident;
+      this.editFormState.lineId = this.line.id;
+      this.$bvModal.show(`line_${this.lineIndex}_-edit-cue`);
+    },
+    resetEditForm() {
+      this.editFormState = {
+        cueId: null,
+        cueType: null,
+        ident: null,
+        lineId: null,
+      };
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    validateEditState(name) {
+      const { $dirty, $error } = this.$v.editFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async onSubmitEdit(event) {
+      this.$v.editFormState.$touch();
+      if (this.$v.editFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.EDIT_CUE(this.editFormState);
+        this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
+        this.resetEditForm();
+      }
+    },
+    async deleteCue(event) {
+      this.$v.editFormState.$touch();
+      if (this.$v.editFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        const msg = 'Are you sure you want to delete this cue?';
+        const action = await this.$bvModal.msgBoxConfirm(msg, {});
+        if (action === true) {
+          await this.DELETE_CUE({
+            cueId: this.editFormState.cueId,
+            lineId: this.editFormState.lineId,
+          });
+          this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
+          this.resetEditForm();
+        }
+      }
+    },
     cueLabel(cue) {
       const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
       return `${cueType.prefix} ${cue.ident}`;
@@ -167,7 +279,7 @@ export default {
     cueBackgroundColour(cue) {
       return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
     },
-    ...mapActions(['ADD_NEW_CUE']),
+    ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE']),
   },
   computed: {
     cueTypeOptions() {

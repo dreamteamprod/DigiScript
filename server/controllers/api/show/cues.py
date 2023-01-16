@@ -266,3 +266,148 @@ class CueController(BaseAPIController):
         else:
             self.set_status(404)
             self.write({'message': '404 show not found'})
+
+    @requires_show
+    async def patch(self):
+        current_show = self.get_current_show()
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                    if script.current_revision:
+                        revision: ScriptRevision = session.query(ScriptRevision).get(
+                            script.current_revision)
+                    else:
+                        self.set_status(400)
+                        await self.finish({'message': 'Script does not have a current revision'})
+                        return
+
+                    data = escape.json_decode(self.request.body)
+
+                    cue_id: int = data.get('cueId')
+                    if not cue_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Cue ID missing'})
+                        return
+
+                    cue_type_id: int = data.get('cueType', None)
+                    if not cue_type_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Cue Type missing'})
+                        return
+
+                    cue_type = session.query(CueType).get(cue_type_id)
+                    if not cue_type:
+                        self.set_status(400)
+                        await self.finish({'message': 'Cue Type is not valid, or cannot be found'})
+                        return
+
+                    ident: str = data.get('ident', None)
+                    if not ident:
+                        self.set_status(400)
+                        await self.finish({'message': 'Identifier missing'})
+                        return
+
+                    line_id: int = data.get('lineId', None)
+                    if not line_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Line ID missing'})
+                        return
+
+                    cue: Cue = session.query(Cue).get(cue_id)
+                    if not cue:
+                        self.set_status(404)
+                        await self.finish({'message': '404 cue not found'})
+                        return
+
+                    current_association: CueAssociation = session.query(CueAssociation).get(
+                        {'revision_id': revision.id, 'line_id': line_id, 'cue_id': cue_id})
+
+                    if not current_association:
+                        self.set_status(400)
+                        await self.finish({'message': 'Unable to load cue line data'})
+                        return
+
+                    if len(cue.revision_associations) == 1:
+                        if cue.revision_associations[0] == current_association:
+                            cue.cue_type = cue_type
+                            cue.ident = ident
+                        else:
+                            self.set_status(400)
+                            await self.finish({'message': 'Cannot edit cue for a revision that is '
+                                                          'not loaded'})
+                            return
+                    else:
+                        new_cue = Cue(ident=ident, cue_type_id=cue_type_id)
+                        session.add(new_cue)
+                        session.flush()
+
+                        current_association.cue = new_cue
+
+                    session.commit()
+                    self.set_status(200)
+                    await self.finish({'message': 'Successfully edited cue'})
+                    await self.application.ws_send_to_all('NOOP', 'LOAD_CUES', {})
+
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            self.write({'message': '404 show not found'})
+
+    @requires_show
+    async def delete(self):
+        current_show = self.get_current_show()
+        show_id = current_show['id']
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                    if script.current_revision:
+                        revision: ScriptRevision = session.query(ScriptRevision).get(
+                            script.current_revision)
+                    else:
+                        self.set_status(400)
+                        await self.finish({'message': 'Script does not have a current revision'})
+                        return
+
+                    data = escape.json_decode(self.request.body)
+
+                    cue_id: int = data.get('cueId')
+                    if not cue_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Cue ID missing'})
+                        return
+
+                    line_id: int = data.get('lineId')
+                    if not line_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'Line ID missing'})
+                        return
+
+                    association_object = session.query(CueAssociation).get(
+                        {'revision_id': revision.id, 'line_id': line_id, 'cue_id': cue_id})
+
+                    if association_object:
+                        session.delete(association_object)
+                        session.commit()
+
+                        self.set_status(200)
+                        await self.finish({'message': 'Successfully deleted cue'})
+                        await self.application.ws_send_to_all('NOOP', 'LOAD_CUES', {})
+                    else:
+                        self.set_status(400)
+                        await self.finish({'message': 'Could not find cue association object'})
+                        return
+                else:
+                    self.set_status(404)
+                    await self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            self.write({'message': '404 show not found'})

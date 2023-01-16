@@ -146,6 +146,38 @@ export default {
         Vue.$toast.error('Unable to add new cue');
       }
     },
+    async EDIT_CUE(context, cue) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cue),
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        Vue.$toast.success('Edited cue!');
+      } else {
+        log.error('Unable to edit cue');
+        Vue.$toast.error('Unable to edit cue');
+      }
+    },
+    async DELETE_CUE(context, cue) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cue),
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        Vue.$toast.success('Deleted cue!');
+      } else {
+        log.error('Unable to delete cue');
+        Vue.$toast.error('Unable to delete cue');
+      }
+    },
   },
   getters: {
     SCRIPT_REVISIONS(state) {
