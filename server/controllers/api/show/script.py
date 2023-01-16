@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy import func
 from tornado import escape
 
+from models.cue import CueAssociation
 from models.script import (Script, ScriptRevision, ScriptLine, ScriptLineRevisionAssociation,
                            ScriptLinePart)
 from models.show import Show
@@ -119,6 +120,12 @@ class ScriptRevisionsController(BaseAPIController):
                             line_id=line_association.line_id,
                             next_line_id=line_association.next_line_id,
                             previous_line_id=line_association.previous_line_id
+                        ))
+                    for cue_association in current_rev.cue_associations:
+                        new_rev.cue_associations.append(CueAssociation(
+                            revision_id=new_rev.id,
+                            line_id=cue_association.line_id,
+                            cue_id=cue_association.cue_id
                         ))
 
                     script.current_revision = new_rev.id
