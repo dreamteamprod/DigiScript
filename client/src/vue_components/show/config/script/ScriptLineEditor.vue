@@ -54,7 +54,7 @@
 
 <script>
 import { required, requiredIf } from 'vuelidate/lib/validators';
-import ScriptLinePart from '@/vue_components/show/config/ScriptLinePart.vue';
+import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 
 export default {

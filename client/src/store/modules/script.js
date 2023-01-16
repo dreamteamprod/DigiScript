@@ -8,6 +8,7 @@ export default {
     currentRevision: null,
     revisions: [],
     script: {},
+    cues: {},
   },
   mutations: {
     SET_REVISIONS(state, revisions) {
@@ -18,6 +19,9 @@ export default {
     },
     SET_SCRIPT_PAGE(state, { pageNumber, page }) {
       Vue.set(state.script, pageNumber, page);
+    },
+    SET_CUES(state, cues) {
+      state.cues = cues;
     },
   },
   actions: {
@@ -112,6 +116,68 @@ export default {
         log.error('Unable to load script page');
       }
     },
+    async LOAD_CUES(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const respJson = await response.json();
+        context.commit('SET_CUES', respJson.cues);
+      } else {
+        log.error('Unable to load cues');
+      }
+    },
+    async ADD_NEW_CUE(context, cue) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cue),
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        Vue.$toast.success('Added new cue!');
+      } else {
+        log.error('Unable to add new cue');
+        Vue.$toast.error('Unable to add new cue');
+      }
+    },
+    async EDIT_CUE(context, cue) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cue),
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        Vue.$toast.success('Edited cue!');
+      } else {
+        log.error('Unable to edit cue');
+        Vue.$toast.error('Unable to edit cue');
+      }
+    },
+    async DELETE_CUE(context, cue) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cue),
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        Vue.$toast.success('Deleted cue!');
+      } else {
+        log.error('Unable to delete cue');
+        Vue.$toast.error('Unable to delete cue');
+      }
+    },
   },
   getters: {
     SCRIPT_REVISIONS(state) {
@@ -126,6 +192,9 @@ export default {
         return state.script[pageStr];
       }
       return [];
+    },
+    SCRIPT_CUES(state) {
+      return state.cues;
     },
   },
 };

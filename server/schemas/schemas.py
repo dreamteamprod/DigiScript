@@ -1,7 +1,7 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 
-from models.cue import CueType
+from models.cue import CueType, Cue
 from models.script import ScriptRevision, ScriptLine, ScriptLinePart
 from models.show import Show, Cast, Character, CharacterGroup, Act, Scene
 from models.session import Session
@@ -74,6 +74,13 @@ class CueTypeSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = CueType
         load_instance = True
+
+
+class CueSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Cue
+        load_instance = True
+        include_fk = True
 
 
 class ScriptRevisionsSchema(SQLAlchemyAutoSchema):

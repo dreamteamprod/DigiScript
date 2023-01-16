@@ -1,33 +1,37 @@
 <template>
   <b-container class="mx-0" fluid>
     <b-row>
-      <b-col cols="7">
-        <h5>Cues</h5>
-      </b-col>
-      <b-col cols="5">
-        <h5>Cue Types</h5>
-        <b-table id="cue-types-table" :items="this.CUE_TYPES" :fields="cueTypeFields" show-empty>
-          <template #head(btn)="data">
-            <b-button variant="outline-success" v-b-modal.new-cue-type>
-              New Cue Type
-            </b-button>
-          </template>
-          <template #cell(colour)="data">
-            <p :style="{color: data.item.colour}">
-              <b-icon-square-fill />
-            </p>
-          </template>
-          <template #cell(btn)="data">
-            <b-button-group>
-              <b-button variant="warning" @click="openEditCueTypeForm(data)">
-                Edit
-              </b-button>
-              <b-button variant="danger" @click="deleteCueType(data)">
-                Delete
-              </b-button>
-            </b-button-group>
-          </template>
-        </b-table>
+      <b-col>
+        <b-tabs content-class="mt-3">
+          <b-tab title="Cue Types" active>
+            <b-table id="cue-types-table" :items="this.CUE_TYPES"
+                     :fields="cueTypeFields" show-empty>
+              <template #head(btn)="data">
+                <b-button variant="outline-success" v-b-modal.new-cue-type>
+                  New Cue Type
+                </b-button>
+              </template>
+              <template #cell(colour)="data">
+                <p :style="{color: data.item.colour}">
+                  <b-icon-square-fill />
+                </p>
+              </template>
+              <template #cell(btn)="data">
+                <b-button-group>
+                  <b-button variant="warning" @click="openEditCueTypeForm(data)">
+                    Edit
+                  </b-button>
+                  <b-button variant="danger" @click="deleteCueType(data)">
+                    Delete
+                  </b-button>
+                </b-button-group>
+              </template>
+            </b-table>
+          </b-tab>
+          <b-tab title="Cue Configuration">
+            <cue-editor />
+          </b-tab>
+        </b-tabs>
       </b-col>
     </b-row>
     <b-modal id="new-cue-type" title="Add Cue Type" ref="new-cue-type" size="md"
@@ -130,8 +134,11 @@
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 
+import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
+
 export default {
   name: 'ConfigCues',
+  components: { CueEditor },
   data() {
     return {
       cueTypeFields: [

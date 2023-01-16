@@ -153,8 +153,8 @@ import { diff } from 'deep-object-diff';
 import log from 'loglevel';
 import { sample } from 'lodash';
 
-import ScriptLineEditor from '@/vue_components/show/config/ScriptLineEditor.vue';
-import ScriptLineViewer from '@/vue_components/show/config/ScriptLineViewer.vue';
+import ScriptLineEditor from '@/vue_components/show/config/script/ScriptLineEditor.vue';
+import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineViewer.vue';
 import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 
