@@ -58,5 +58,8 @@ export default {
       }
       return false;
     },
+    SETTINGS(state) {
+      return state.settings;
+    },
   },
 };

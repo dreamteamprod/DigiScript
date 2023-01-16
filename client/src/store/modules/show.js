@@ -11,6 +11,8 @@ export default {
     actList: [],
     sceneList: [],
     cueTypes: [],
+    sessions: [],
+    currentSession: null,
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -36,6 +38,12 @@ export default {
       state.characterList = [];
       state.actList = [];
       state.sceneList = [];
+    },
+    SET_SESSIONS_LIST(state, sessions) {
+      state.sessions = sessions;
+    },
+    SET_CURRENT_SESSION(state, session) {
+      state.currentSession = session;
     },
   },
   actions: {
@@ -401,6 +409,16 @@ export default {
         Vue.$toast.error('Unable to edit cue type');
       }
     },
+    async GET_SHOW_SESSION_DATA(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/sessions')}`);
+      if (response.ok) {
+        const sessions = await response.json();
+        context.commit('SET_SESSIONS_LIST', sessions.sessions);
+        context.commit('SET_CURRENT_SESSION', sessions.current_session);
+      } else {
+        log.error('Unable to get show sessions');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -420,6 +438,12 @@ export default {
     },
     CUE_TYPES(state) {
       return state.cueTypes;
+    },
+    SHOW_SESSIONS_LIST(state) {
+      return state.sessions;
+    },
+    CURRENT_SHOW_SESSION(state) {
+      return state.currentSession;
     },
   }
   ,

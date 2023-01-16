@@ -4,7 +4,7 @@ from marshmallow_sqlalchemy.fields import Nested
 from models.cue import CueType, Cue
 from models.script import ScriptRevision, ScriptLine, ScriptLinePart
 from models.show import Show, Cast, Character, CharacterGroup, Act, Scene
-from models.session import Session
+from models.session import Session, ShowSession
 
 
 class SessionSchema(SQLAlchemyAutoSchema):
@@ -105,3 +105,9 @@ class ScriptLinePartSchema(SQLAlchemyAutoSchema):
         model = ScriptLinePart
         load_instance = True
         include_fk = True
+
+
+class ShowSessionSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = ShowSession
+        load_instance = True

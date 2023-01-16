@@ -1,6 +1,8 @@
 import Vue from 'vue';
 import log from 'loglevel';
 
+import router from '@/router';
+
 export default {
   state: {
     isConnected: false,
@@ -45,7 +47,15 @@ export default {
           break;
         case 'GET_CAST_LIST':
           break;
-        case 'NOOP':
+        case 'START_SHOW':
+          if (router.currentRoute !== '/live') {
+            router.push('/live');
+          }
+          break;
+        case 'STOP_SHOW':
+          if (router.currentRoute !== '/') {
+            router.push('/');
+          }
           break;
         default:
           log.error(`Unknown OP received from websocket: ${message.OP}`);
