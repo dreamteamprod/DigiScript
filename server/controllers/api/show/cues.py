@@ -1,8 +1,12 @@
+import collections
+from typing import List
+
 from tornado import escape
 
-from models.cue import CueType
+from models.cue import CueType, CueAssociation
+from models.script import ScriptRevision, Script
 from models.show import Show
-from schemas.schemas import CueTypeSchema
+from schemas.schemas import CueTypeSchema, CueSchema
 from utils.base_controller import BaseAPIController
 from utils.requires import requires_show
 from utils.route import ApiRoute, ApiVersion
@@ -163,3 +167,44 @@ class CueTypesController(BaseAPIController):
         else:
             self.set_status(404)
             await self.finish({'message': '404 show not found'})
+
+
+@ApiRoute('show/cues', ApiVersion.v1)
+class CueController(BaseAPIController):
+
+    @requires_show
+    def get(self):
+        current_show = self.get_current_show()
+
+        show_id = current_show['id']
+        cue_schema = CueSchema()
+
+        if show_id:
+            with self.make_session() as session:
+                show = session.query(Show).get(show_id)
+                if show:
+                    script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                    if script.current_revision:
+                        revision: ScriptRevision = session.query(ScriptRevision).get(
+                            script.current_revision)
+                    else:
+                        self.set_status(400)
+                        self.finish({'message': 'Script does not have a current revision'})
+                        return
+
+                    revision_cues: List[CueAssociation] = session.query(
+                        CueAssociation).filter(CueAssociation.revision_id == revision.id).all()
+
+                    cues = collections.defaultdict(list)
+                    for association in revision_cues:
+                        cues[association.line_id].append(cue_schema.dump(association.cue))
+
+                    self.set_status(200)
+                    self.finish({'cues': cues})
+                else:
+                    self.set_status(404)
+                    self.finish({'message': '404 show not found'})
+        else:
+            self.set_status(404)
+            self.write({'message': '404 show not found'})
