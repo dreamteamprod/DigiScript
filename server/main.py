@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-
+import asyncio
 import logging
-import tornado.ioloop
-from tornado.options import define, options
+from tornado.options import define, options, parse_command_line
 
 from utils.logger import get_logger, add_logging_level
 from server.app_server import DigiScriptServer
@@ -19,16 +18,16 @@ define(
     help='Path to settings JSON file')
 
 
-def main():
-    tornado.options.parse_command_line()
+async def main():
+    parse_command_line()
     app = DigiScriptServer(debug=options.debug,
                            settings_path=options.settings_path)
     app.listen(options.port)
     get_logger().info(f'Listening on port: {options.port}')
     if options.debug:
         get_logger().warning('Running in debug mode')
-    tornado.ioloop.IOLoop.current().start()
+    await asyncio.Event().wait()
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
