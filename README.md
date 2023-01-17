@@ -6,10 +6,12 @@ A digital script project for cueing theatrical shows
 [![ESLint](https://github.com/dreamteamprod/DigiScript/actions/workflows/nodelint.yml/badge.svg?branch=main)](https://github.com/dreamteamprod/DigiScript/actions/workflows/nodelint.yml)
 [![Pylint](https://github.com/dreamteamprod/DigiScript/actions/workflows/pylint.yml/badge.svg?branch=main)](https://github.com/dreamteamprod/DigiScript/actions/workflows/pylint.yml)
 [![CodeQL](https://github.com/dreamteamprod/DigiScript/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/dreamteamprod/DigiScript/actions/workflows/codeql-analysis.yml)
+[![Codacy Security Scan](https://github.com/dreamteamprod/DigiScript/actions/workflows/codacy.yml/badge.svg?branch=main)](https://github.com/dreamteamprod/DigiScript/actions/workflows/codacy.yml)
 
 **Dev Status:**
 [![ESLint](https://github.com/dreamteamprod/DigiScript/actions/workflows/nodelint.yml/badge.svg?branch=dev)](https://github.com/dreamteamprod/DigiScript/actions/workflows/nodelint.yml)
 [![Pylint](https://github.com/dreamteamprod/DigiScript/actions/workflows/pylint.yml/badge.svg?branch=dev)](https://github.com/dreamteamprod/DigiScript/actions/workflows/pylint.yml)
+[![Codacy Security Scan](https://github.com/dreamteamprod/DigiScript/actions/workflows/codacy.yml/badge.svg?branch=dev)](https://github.com/dreamteamprod/DigiScript/actions/workflows/codacy.yml)
 
 ## Getting started
 
