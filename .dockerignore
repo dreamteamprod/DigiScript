@@ -1,6 +1,7 @@
 # Root
 .github
 reporting
+scripts
 
 # Client
 client/node_modules
