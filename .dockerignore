@@ -1,0 +1,11 @@
+# Root
+.github
+reporting
+
+# Client
+client/node_modules
+
+# Server
+server/conf
+server/public
+server/static
