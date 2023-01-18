@@ -356,6 +356,29 @@ class ScriptController(BaseAPIController):
             self.finish({'message': '404 show not found'})
             return
 
+    @staticmethod
+    def _validate_line(line_json):
+        if line_json['stage_direction']:
+            if len(line_json['line_parts']) > 1:
+                return False, 'Stage directions can only have 1 line part'
+            line_part = line_json['line_parts'][0]
+            if line_part['character_id'] is not None:
+                return False, 'Stage directions cannot have characters'
+            if line_part['character_group_id'] is not None:
+                return False, 'Stage directions cannot have character groups'
+            if line_part['line_text'] is None:
+                return False, 'Stage directions must contain text'
+        else:
+            for line_part in line_json['line_parts']:
+                if line_part['line_text'] is None:
+                    return False, 'Line parts must contain text'
+                if line_part['character_id'] is None and line_part['character_group_id'] is None:
+                    return False, 'Line parts must contain a character or character group'
+                if line_part['character_id'] and line_part['character_group_id']:
+                    return False, 'Line parts cannot contain both a character and character group'
+
+        return True, ''
+
     @requires_show
     async def post(self):
         current_show = self.get_current_show()
@@ -388,11 +411,20 @@ class ScriptController(BaseAPIController):
 
                     previous_line: Optional[ScriptLineRevisionAssociation] = None
                     for index, line in enumerate(lines):
+
+                        # Validate each line before we do anything with it
+                        valid_status, valid_reason = self._validate_line(line)
+                        if not valid_status:
+                            self.set_status(400)
+                            await self.finish({'message': valid_reason})
+                            return
+
                         # Create the initial line object, and flush it to the database as we need
                         # the ID for further in the loop
                         line_obj = ScriptLine(act_id=line['act_id'],
                                               scene_id=line['scene_id'],
-                                              page=line['page'])
+                                              page=line['page'],
+                                              stage_direction=line['stage_direction'])
                         session.add(line_obj)
                         session.flush()
 
@@ -494,7 +526,8 @@ class ScriptController(BaseAPIController):
         # Create the line object
         line_obj = ScriptLine(act_id=line['act_id'],
                               scene_id=line['scene_id'],
-                              page=line['page'])
+                              page=line['page'],
+                              stage_direction=line['stage_direction'])
         session.add(line_obj)
         session.flush()
 
@@ -576,12 +609,26 @@ class ScriptController(BaseAPIController):
                     previous_line: Optional[ScriptLineRevisionAssociation] = None
                     for index, line in enumerate(lines):
                         if index in status['added']:
+                            # Validate the line
+                            valid_status, valid_reason = self._validate_line(line)
+                            if not valid_status:
+                                self.set_status(400)
+                                await self.finish({'message': valid_reason})
+                                return
+
                             line_association, line_object = self._create_new_line(
                                 session, revision, line, previous_line)
                             previous_line = line_association
                         elif index in status['deleted']:
                             pass
                         elif index in status['updated']:
+                            # Validate the line
+                            valid_status, valid_reason = self._validate_line(line)
+                            if not valid_status:
+                                self.set_status(400)
+                                await self.finish({'message': valid_reason})
+                                return
+
                             curr_association: ScriptLineRevisionAssociation = session.query(
                                 ScriptLineRevisionAssociation).get(
                                 {'revision_id': revision.id, 'line_id': line['id']})

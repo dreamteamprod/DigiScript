@@ -1,5 +1,5 @@
 <template>
-  <b-row>
+  <b-row :class="{'stage-direction': line.stage_direction}">
     <b-col cols="1">
       <p v-if="needsActSceneLabel" class="viewable-line">
         {{ actLabel }}
@@ -10,21 +10,28 @@
         {{ sceneLabel }}
       </p>
     </b-col>
-    <b-col v-for="(part, index) in line.line_parts"
-           :key="`line_${lineIndex}_part_${index}`"
-           style="text-align: center">
-      <template v-if="needsHeadings[index]">
-        <b v-if="part.character_id != null">
-          {{ characters.find((char) => (char.id === part.character_id)).name }}
-        </b>
-        <b v-else>
-          {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
-        </b>
-      </template>
-      <p class="viewable-line">
-        {{ part.line_text }}
-      </p>
-    </b-col>
+    <template v-if="!line.stage_direction">
+      <b-col v-for="(part, index) in line.line_parts"
+             :key="`line_${lineIndex}_part_${index}`"
+             style="text-align: center">
+        <template v-if="needsHeadings[index]">
+          <b v-if="part.character_id != null">
+            {{ characters.find((char) => (char.id === part.character_id)).name }}
+          </b>
+          <b v-else>
+            {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+          </b>
+        </template>
+        <p class="viewable-line">
+          {{ part.line_text }}
+        </p>
+      </b-col>
+    </template>
+    <template v-else>
+      <b-col :key="`line_${lineIndex}_stage_direction`" style="text-align: center">
+        <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
+      </b-col>
+    </template>
     <b-col cols="1" align-self="end">
       <b-button v-show="canEdit" variant="link" style="padding: 0"
                 @click.stop="editLine">
@@ -111,5 +118,9 @@ export default {
 <style scoped>
 .viewable-line {
   margin: 0;
+}
+.stage-direction {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 </style>

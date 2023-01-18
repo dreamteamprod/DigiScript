@@ -59,6 +59,7 @@
             :value="TMP_SCRIPT[currentEditPage][index]"
             :previous-line-fn="getPreviousLineForIndex"
             :next-line-fn="getNextLineForIndex"
+            :is-stage-direction="line.stage_direction"
             @input="lineChange(line, index)"
             @doneEditing="doneEditingLine(currentEditPage, index)"
           />
@@ -86,6 +87,9 @@
           </b-button>
           <b-button @click="addNewLine">
             Add line
+          </b-button>
+          <b-button @click="addStageDirection">
+            Add Stage Direction
           </b-button>
         </b-button-group>
       </b-col>
@@ -170,6 +174,7 @@ export default {
         act_id: null,
         scene_id: null,
         page: null,
+        stage_direction: false,
         line_parts: [],
       },
       curSavePage: null,
@@ -276,6 +281,15 @@ export default {
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: this.blankLineObj,
+      });
+      this.editPages.push(`page_${this.currentEditPage}_line_${this.TMP_SCRIPT[this.currentEditPageKey].length - 1}`);
+    },
+    addStageDirection() {
+      const stageDirectionObject = JSON.parse(JSON.stringify(this.blankLineObj));
+      stageDirectionObject.stage_direction = true;
+      this.ADD_BLANK_LINE({
+        pageNo: this.currentEditPage,
+        lineObj: stageDirectionObject,
       });
       this.editPages.push(`page_${this.currentEditPage}_line_${this.TMP_SCRIPT[this.currentEditPageKey].length - 1}`);
     },
