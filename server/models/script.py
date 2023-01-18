@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, String
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, String, Boolean
 from sqlalchemy.orm import relationship, backref
 
 from models.models import db
@@ -48,6 +48,7 @@ class ScriptLine(db.Model):
     act_id = Column(Integer, ForeignKey('act.id'))
     scene_id = Column(Integer, ForeignKey('scene.id'))
     page = Column(Integer, index=True)
+    stage_direction = Column(Boolean)
 
     act = relationship('Act', uselist=False)
     scene = relationship('Scene', uselist=False)

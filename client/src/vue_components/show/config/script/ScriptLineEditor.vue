@@ -39,8 +39,9 @@
         v-model="$v.state.line_parts.$model[index]"
         :characters="characters"
         :character-groups="characterGroups"
-        :show-add-button="index === state.line_parts.length - 1"
-        :enable-add-button="state.line_parts.length < 4"
+        :show-add-button="index === state.line_parts.length - 1 && !isStageDirection"
+        :enable-add-button="state.line_parts.length < 4 && !isStageDirection"
+        :is-stage-direction="isStageDirection"
         @input="stateChange"
         @addLinePart="addLinePart" />
     </template>
@@ -86,6 +87,10 @@ export default {
       required: true,
       type: Function,
     },
+    isStageDirection: {
+      required: true,
+      type: Boolean,
+    },
     value: {
       required: true,
     },
@@ -121,10 +126,14 @@ export default {
         required,
         $each: {
           character_id: {
-            required: requiredIf((m) => m.character_group_id == null),
+            required: requiredIf(function (m) {
+              return this.isStageDirection === false && m.character_group_id == null;
+            }),
           },
           character_group_id: {
-            required: requiredIf((m) => m.character_id == null),
+            required: requiredIf(function (m) {
+              return this.isStageDirection === false && m.character_id == null;
+            }),
           },
           line_text: {
             required,

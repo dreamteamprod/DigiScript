@@ -6,7 +6,7 @@
         <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
       </b-col>
     </b-row>
-    <b-row>
+    <b-row :class="{'stage-direction': line.stage_direction}">
       <b-col cols="3" class="cue-column" style="text-align: right">
         <b-button-group>
           <b-button v-for="cue in cues" :key="cue.id"
@@ -20,20 +20,27 @@
           </b-button>
         </b-button-group>
       </b-col>
-      <b-col v-for="(part, index) in line.line_parts" :key="`line_${lineIndex}_part_${index}`"
-             style="text-align: center">
-        <template v-if="needsHeadings[index]">
-          <b v-if="part.character_id != null">
-            {{ characters.find((char) => (char.id === part.character_id)).name }}
-          </b>
-          <b v-else>
-            {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
-          </b>
-        </template>
-        <p class="viewable-line">
-          {{ part.line_text }}
-        </p>
-      </b-col>
+      <template v-if="line.stage_direction">
+          <b-col :key="`line_${lineIndex}_stage_direction`" style="text-align: center">
+            <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
+          </b-col>
+      </template>
+      <template v-else>
+        <b-col v-for="(part, index) in line.line_parts" :key="`line_${lineIndex}_part_${index}`"
+               style="text-align: center">
+          <template v-if="needsHeadings[index]">
+            <b v-if="part.character_id != null">
+              {{ characters.find((char) => (char.id === part.character_id)).name }}
+            </b>
+            <b v-else>
+              {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+            </b>
+          </template>
+          <p class="viewable-line">
+            {{ part.line_text }}
+          </p>
+        </b-col>
+      </template>
     </b-row>
     <b-modal :id="`line_${lineIndex}_-new-cue`" title="Add New Cue" size="md"
              @hidden="resetNewForm" @ok="onSubmitNew">
@@ -330,5 +337,9 @@ export default {
   }
   .cue-button {
     padding: .2rem;
+  }
+  .stage-direction {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
   }
 </style>
