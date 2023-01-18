@@ -1,6 +1,7 @@
 from typing import List
 
 from tornado.web import Application
+from tornado_prometheus import PrometheusMixIn
 
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
@@ -15,7 +16,7 @@ from controllers import controllers
 from controllers.ws_controller import WebSocketController
 
 
-class DigiScriptServer(Application):
+class DigiScriptServer(PrometheusMixIn, Application):
 
     def __init__(self, debug=False, settings_path=None):
         env_parser: EnvParser = EnvParser.instance()

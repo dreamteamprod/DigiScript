@@ -2,6 +2,7 @@ import importlib
 import os
 
 from tornado.escape import url_unescape
+from tornado_prometheus import MetricsHandler
 
 from utils.base_controller import BaseController, BaseAPIController
 from utils.logger import get_logger
@@ -83,3 +84,8 @@ class ApiDebugController(BaseAPIController):
         self.set_status(200)
         self.set_header('Content-Type', 'application/json')
         self.write({'status': 'OK', 'api_version': 1})
+
+
+@Route('/debug/metrics')
+class DebugMetricsController(MetricsHandler, BaseController):
+    pass
