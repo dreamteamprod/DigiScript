@@ -10,7 +10,7 @@ from models.models import db
 from models.show import Show
 from models.session import Session
 from utils.route import Route
-from utils.settings import Settings
+from server.settings import Settings
 
 from controllers import controllers
 from controllers.ws_controller import WebSocketController
@@ -24,18 +24,18 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.digi_settings: Settings = Settings(self, settings_path)
 
         # Application logging
-        log_path = self.digi_settings.settings.get('log_path', None)
-        file_size = self.digi_settings.settings.get('max_log_mb', 100)
-        backups = self.digi_settings.settings.get('log_backups', 5)
+        log_path = self.digi_settings.settings.get('log_path').get_value()
+        file_size = self.digi_settings.settings.get('max_log_mb').get_value()
+        backups = self.digi_settings.settings.get('log_backups').get_value()
         if log_path:
             configure_file_logging(log_path, file_size, backups)
 
         # Database logging
-        use_db_logging = self.digi_settings.settings.get('db_log_enabled', False)
+        use_db_logging = self.digi_settings.settings.get('db_log_enabled').get_value()
         if use_db_logging:
-            db_log_path = self.digi_settings.settings.get('db_log_path', None)
-            db_file_size = self.digi_settings.settings.get('db_max_log_mb', 100)
-            db_backups = self.digi_settings.settings.get('db_log_backups', 5)
+            db_log_path = self.digi_settings.settings.get('db_log_path').get_value()
+            db_file_size = self.digi_settings.settings.get('db_max_log_mb').get_value()
+            db_backups = self.digi_settings.settings.get('db_log_backups').get_value()
             configure_db_logging(log_path=db_log_path, max_size_mb=db_file_size,
                                  log_backups=db_backups)
 
@@ -57,12 +57,12 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         # Check the show we are expecting to be loaded exists
         with self._db.sessionmaker() as session:
-            current_show = self.digi_settings.settings.get('current_show')
+            current_show = self.digi_settings.settings.get('current_show').get_value()
             if current_show:
                 show = session.query(Show).get(current_show)
                 if not show:
                     get_logger().warning('Current show from settings not found. Resetting.')
-                    self.digi_settings.settings['current_show'] = None
+                    self.digi_settings.settings['current_show'].set_to_default()
                     self.digi_settings._save()
 
         handlers = Route.routes()

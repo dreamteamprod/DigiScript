@@ -3,7 +3,7 @@ from tornado import escape
 from utils.base_controller import BaseAPIController
 from utils.logger import get_logger
 from utils.route import ApiRoute, ApiVersion
-from utils.settings import Settings
+from server.settings import Settings
 
 
 @ApiRoute('settings', ApiVersion.v1)
