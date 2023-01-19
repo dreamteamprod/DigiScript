@@ -7,6 +7,7 @@ export default {
   state: {
     settings: {},
     availableShows: [],
+    rawSettings: {},
   },
   mutations: {
     UPDATE_SETTINGS(state, settings) {
@@ -15,10 +16,21 @@ export default {
     UPDATE_SHOWS(state, shows) {
       state.availableShows = shows;
     },
+    UPDATE_RAW_SETTINGS(state, settings) {
+      state.rawSettings = settings;
+    },
   },
   actions: {
     async GET_SETTINGS(context) {
-      const response = await fetch(makeURL('/api/v1/settings'));
+      let response = await fetch(`${makeURL('/api/v1/settings/raw')}`);
+      if (response.ok) {
+        const rawSettings = await response.json();
+        await context.commit('UPDATE_RAW_SETTINGS', rawSettings);
+      } else {
+        log.error('Unable to get system settings');
+      }
+
+      response = await fetch(makeURL('/api/v1/settings'));
       if (response.ok) {
         const settings = await response.json();
         await context.dispatch('UPDATE_SETTINGS', settings);
@@ -60,6 +72,9 @@ export default {
     },
     SETTINGS(state) {
       return state.settings;
+    },
+    RAW_SETTINGS(state) {
+      return state.rawSettings;
     },
   },
 };

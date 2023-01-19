@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 
 class SettingsObject:
     def __init__(self, key, val_type, default, can_edit=True):
+        if val_type not in [str, bool, int]:
+            raise RuntimeError(f'Invalid type {val_type} for {key}. Allowed options are: '
+                               f'[str, int, bool]')
+
         self.key = key
         self.val_type = val_type
         self.value = None
@@ -38,6 +42,14 @@ class SettingsObject:
 
     def is_loaded(self):
         return self._loaded
+
+    def as_json(self):
+        return {
+            'type': self.val_type.__name__,
+            'value': self.value,
+            'default': self.default,
+            'can_edit': self.can_edit
+        }
 
 
 class Settings:
@@ -157,4 +169,11 @@ class Settings:
             settings_json = {}
             for key, value in self.settings.items():
                 settings_json[key] = value.get_value()
+            return json.loads(json.dumps(settings_json))
+
+    async def raw_json(self):
+        async with self.lock:
+            settings_json = {}
+            for key, value in self.settings.items():
+                settings_json[key] = value.as_json()
             return json.loads(json.dumps(settings_json))

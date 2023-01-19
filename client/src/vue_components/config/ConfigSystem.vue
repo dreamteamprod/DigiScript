@@ -1,6 +1,5 @@
 <template>
   <div class="config">
-    <h1>DigiScript Config</h1>
     <b-table-simple>
       <b-tbody>
         <b-tr>
@@ -137,7 +136,7 @@ import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 
 export default {
-  name: 'ConfigView',
+  name: 'ConfigSystem',
   data() {
     return {
       perPage: 5,
@@ -280,7 +279,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-
-</style>

@@ -10,7 +10,7 @@ from models.models import db
 from models.show import Show
 from models.session import Session
 from utils.route import Route
-from server.settings import Settings
+from utils.settings import Settings
 
 from controllers import controllers
 from controllers.ws_controller import WebSocketController
