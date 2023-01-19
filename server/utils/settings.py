@@ -156,6 +156,7 @@ class Settings:
             return self.settings.get(key).get_value()
 
     async def set(self, key, item):
+        changed = False
         async with self.lock:
             if key not in self.settings:
                 get_logger().warning(f'Setting {key} found in settings file is not '
@@ -163,6 +164,12 @@ class Settings:
             else:
                 self.settings[key].set_value(item)
                 self._save()
+                changed = True
+
+        if changed:
+            settings = await self.as_json()
+            await self._application.ws_send_to_all('SETTINGS_CHANGED', 'WS_SETTINGS_CHANGED',
+                                                   settings)
 
     async def as_json(self):
         async with self.lock:
