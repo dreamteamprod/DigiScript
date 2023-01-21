@@ -118,8 +118,8 @@ class Settings:
     def _load(self, spawn_callbacks=False):
         if os.path.exists(self.settings_path):
             # Read in the settings
-            with open(self.settings_path, 'r') as fp:
-                settings = json.load(fp)
+            with open(self.settings_path, 'r', encoding='UTF-8') as file_pointer:
+                settings = json.load(file_pointer)
                 for key, value in settings.items():
                     if key not in self.settings:
                         get_logger().warning(f'Setting {key} found in settings file is not '
@@ -134,8 +134,8 @@ class Settings:
                     value.set_from_default()
                     needs_saving = True
             if needs_saving:
-                with open(self.settings_path, 'w') as fp:
-                    json.dump(self.settings, fp, indent=4)
+                with open(self.settings_path, 'w', encoding='UTF-8') as file_pointer:
+                    json.dump(self.settings, file_pointer, indent=4)
                 get_logger().info(f'Saved settings to {self.settings_path}')
 
             get_logger().info(f'Loaded settings from {self.settings_path}')
@@ -144,20 +144,20 @@ class Settings:
             for key, value in self.settings.items():
                 value.set_to_default()
 
-            with open(self.settings_path, 'w') as fp:
-                json.dump(self.settings, fp, indent=4)
+            with open(self.settings_path, 'w', encoding='UTF-8') as file_pointer:
+                json.dump(self.settings, file_pointer, indent=4)
 
             get_logger().info(f'Saved settings to {self.settings_path}')
 
     def _save(self):
         self._file_watcher.pause()
-        with open(self.settings_path, 'w') as fp:
+        with open(self.settings_path, 'w', encoding='UTF-8') as file_pointer:
             file_json = {}
             for key, value in self.settings.items():
                 file_json[key] = value.get_value()
-            json.dump(file_json, fp, indent=4)
-            fp.flush()
-            os.fsync(fp.fileno())
+            json.dump(file_json, file_pointer, indent=4)
+            file_pointer.flush()
+            os.fsync(file_pointer.fileno())
             self._file_watcher.update_m_time()
         self._file_watcher.resume()
         get_logger().info(f'Saved settings to {self.settings_path}')
