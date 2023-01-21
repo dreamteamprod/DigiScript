@@ -1,7 +1,12 @@
 import Vue from 'vue';
 import log from 'loglevel';
+import { debounce } from 'lodash';
 
 import router from '@/router';
+
+const settingsToast = debounce(() => {
+  Vue.$toast.info('Settings synced from server');
+}, 1000, { leading: true, trailing: false });
 
 export default {
   state: {
@@ -75,6 +80,7 @@ export default {
   actions: {
     async WS_SETTINGS_CHANGED(context, payload) {
       await context.dispatch('UPDATE_SETTINGS', payload.DATA);
+      settingsToast();
     },
   },
   getters: {

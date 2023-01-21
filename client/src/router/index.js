@@ -18,7 +18,7 @@ const routes = [
   {
     path: '/config',
     name: 'config',
-    component: () => import('../views/ConfigView.vue'),
+    component: () => import('../views/config/ConfigView.vue'),
   },
   {
     path: '/show-config',

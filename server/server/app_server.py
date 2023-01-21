@@ -1,5 +1,6 @@
 from typing import List
 
+from tornado.ioloop import IOLoop
 from tornado.web import Application
 from tornado_prometheus import PrometheusMixIn
 
@@ -22,22 +23,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
         env_parser: EnvParser = EnvParser.instance()
 
         self.digi_settings: Settings = Settings(self, settings_path)
-
-        # Application logging
-        log_path = self.digi_settings.settings.get('log_path', None)
-        file_size = self.digi_settings.settings.get('max_log_mb', 100)
-        backups = self.digi_settings.settings.get('log_backups', 5)
-        if log_path:
-            configure_file_logging(log_path, file_size, backups)
-
-        # Database logging
-        use_db_logging = self.digi_settings.settings.get('db_log_enabled', False)
-        if use_db_logging:
-            db_log_path = self.digi_settings.settings.get('db_log_path', None)
-            db_file_size = self.digi_settings.settings.get('db_max_log_mb', 100)
-            db_backups = self.digi_settings.settings.get('db_log_backups', 5)
-            configure_db_logging(log_path=db_log_path, max_size_mb=db_file_size,
-                                 log_backups=db_backups)
+        self.app_log_handler = None
+        self.db_file_handler = None
 
         # Controller imports (needed to trigger the decorator)
         controllers.import_all_controllers()
@@ -57,12 +44,12 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         # Check the show we are expecting to be loaded exists
         with self._db.sessionmaker() as session:
-            current_show = self.digi_settings.settings.get('current_show')
+            current_show = self.digi_settings.settings.get('current_show').get_value()
             if current_show:
                 show = session.query(Show).get(current_show)
                 if not show:
                     get_logger().warning('Current show from settings not found. Resetting.')
-                    self.digi_settings.settings['current_show'] = None
+                    self.digi_settings.settings['current_show'].set_to_default()
                     self.digi_settings._save()
 
         handlers = Route.routes()
@@ -75,6 +62,34 @@ class DigiScriptServer(PrometheusMixIn, Application):
             debug=debug,
             db=self._db,
             websocket_ping_interval=5)
+
+    async def configure_logging(self):
+        get_logger().info('Reconfiguring logging!')
+
+        # Application logging
+        log_path = await self.digi_settings.get('log_path')
+        file_size = await self.digi_settings.get('max_log_mb')
+        backups = await self.digi_settings.get('log_backups')
+        if log_path:
+            self.app_log_handler = configure_file_logging(log_path, file_size, backups,
+                                                          self.app_log_handler)
+
+        # Database logging
+        use_db_logging = await self.digi_settings.get('db_log_enabled')
+        if use_db_logging:
+            db_log_path = await self.digi_settings.get('db_log_path')
+            db_file_size = await self.digi_settings.get('db_max_log_mb')
+            db_backups = await self.digi_settings.get('db_log_backups')
+            self.db_file_handler = configure_db_logging(log_path=db_log_path,
+                                                        max_size_mb=db_file_size,
+                                                        log_backups=db_backups,
+                                                        handler=self.db_file_handler)
+
+    def regen_logging(self):
+        if not IOLoop.current():
+            get_logger().error('Unable to regenerate logging as there is no current IOLoop')
+        else:
+            IOLoop.current().add_callback(self.configure_logging)
 
     def get_db(self) -> DigiSQLAlchemy:
         return self._db

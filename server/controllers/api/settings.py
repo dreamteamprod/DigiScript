@@ -30,3 +30,11 @@ class SettingsController(BaseAPIController):
 
         self.set_status(200)
         self.write({'message': 'Settings updated'})
+
+
+@ApiRoute('settings/raw', ApiVersion.v1)
+class RawSettingsController(BaseAPIController):
+    async def get(self):
+        settings: Settings = self.application.digi_settings
+        settings_json = await settings.raw_json()
+        await self.finish(settings_json)
