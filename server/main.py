@@ -20,8 +20,11 @@ define(
 
 async def main():
     parse_command_line()
+
     app = DigiScriptServer(debug=options.debug,
                            settings_path=options.settings_path)
+    await app.configure_logging()
+
     app.listen(options.port)
     get_logger().info(f'Listening on port: {options.port}')
     if options.debug:

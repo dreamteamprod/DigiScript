@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class SettingsObject:
-    def __init__(self, key, val_type, default, can_edit=True):
+    def __init__(self, key, val_type, default, can_edit=True, callback_fn=None):
         if val_type not in [str, bool, int]:
             raise RuntimeError(f'Invalid type {val_type} for {key}. Allowed options are: '
                                f'[str, int, bool]')
@@ -24,18 +24,27 @@ class SettingsObject:
         self.value = None
         self.default = default
         self.can_edit = can_edit
+        self._callback_fn = callback_fn
         self._loaded = False
 
     def set_to_default(self):
         self.value = self.default
         self._loaded = True
 
-    def set_value(self, value):
+    def set_value(self, value, spawn_callbacks=True):
         if not isinstance(value, self.val_type):
             raise RuntimeError(f'Value for {self.key} of {value} is not of assigned '
                                f'type {self.val_type}')
-        self.value = value
+
+        changed = False
+        if value != self.value:
+            changed = True
+            self.value = value
+            if self._callback_fn and spawn_callbacks:
+                self._callback_fn()
+
         self._loaded = True
+        return changed
 
     def get_value(self):
         return self.value
@@ -68,22 +77,24 @@ class Settings:
 
         self.define('debug_mode', bool, False, True)
         self.define('current_show', int, False, False)
-        self.define('log_path', str, os.path.join(self._base_path, 'digiscript.log'), False)
-        self.define('max_log_mb', int, 100, False)
-        self.define('log_backups', int, 5, False)
-        self.define('db_log_enabled', bool, False, False)
-        self.define('db_log_path', str, os.path.join(self._base_path, 'digiscript_db.log'), False)
-        self.define('db_max_log_mb', int, 100, False)
-        self.define('db_log_backups', int, 5, False)
+        self.define('log_path', str, os.path.join(self._base_path, 'digiscript.log'), True,
+                    self._application.regen_logging)
+        self.define('max_log_mb', int, 100, True, self._application.regen_logging)
+        self.define('log_backups', int, 5, True, self._application.regen_logging)
+        self.define('db_log_enabled', bool, False, True, self._application.regen_logging)
+        self.define('db_log_path', str, os.path.join(self._base_path, 'digiscript_db.log'), True,
+                    self._application.regen_logging)
+        self.define('db_max_log_mb', int, 100, True, self._application.regen_logging)
+        self.define('db_log_backups', int, 5, True, self._application.regen_logging)
 
-        self._load()
+        self._load(spawn_callbacks=False)
 
         self._file_watcher = IOLoopFileWatcher(self.settings_path, self.auto_reload_changes, 100)
         self._file_watcher.add_error_callback(self.file_deleted)
         self._file_watcher.watch()
 
-    def define(self, key, val_type, default, can_edit):
-        self.settings[key] = SettingsObject(key, val_type, default, can_edit)
+    def define(self, key, val_type, default, can_edit, callback_fn=None):
+        self.settings[key] = SettingsObject(key, val_type, default, can_edit, callback_fn)
 
     def file_deleted(self):
         get_logger().info('Settings file deleted; recreating from in memory settings')
@@ -91,7 +102,7 @@ class Settings:
 
     def auto_reload_changes(self):
         get_logger().info('Settings file changed; auto reloading')
-        self._load()
+        self._load(spawn_callbacks=True)
 
         settings_json = {}
         for key, value in self.settings.items():
@@ -104,7 +115,7 @@ class Settings:
                 'ACTION': 'WS_SETTINGS_CHANGED'
             })
 
-    def _load(self):
+    def _load(self, spawn_callbacks=False):
         if os.path.exists(self.settings_path):
             # Read in the settings
             with open(self.settings_path, 'r') as fp:
@@ -114,7 +125,7 @@ class Settings:
                         get_logger().warning(f'Setting {key} found in settings file is not '
                                              f'defined, ignoring!')
                     else:
-                        self.settings[key].set_value(value)
+                        self.settings[key].set_value(value, spawn_callbacks)
 
             # Set any missing settings to their defaults, and save if needed
             needs_saving = False
@@ -162,11 +173,10 @@ class Settings:
                 get_logger().warning(f'Setting {key} found in settings file is not '
                                      f'defined, ignoring!')
             else:
-                self.settings[key].set_value(item)
-                self._save()
-                changed = True
+                changed = self.settings[key].set_value(item)
 
         if changed:
+            self._save()
             settings = await self.as_json()
             await self._application.ws_send_to_all('SETTINGS_CHANGED', 'WS_SETTINGS_CHANGED',
                                                    settings)
