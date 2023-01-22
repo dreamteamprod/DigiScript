@@ -135,7 +135,7 @@ class Settings:
                     needs_saving = True
             if needs_saving:
                 with open(self.settings_path, 'w', encoding='UTF-8') as file_pointer:
-                    json.dump(self.settings, file_pointer, indent=4)
+                    json.dump(self._json(), file_pointer, indent=4)
                 get_logger().info(f'Saved settings to {self.settings_path}')
 
             get_logger().info(f'Loaded settings from {self.settings_path}')
@@ -145,17 +145,14 @@ class Settings:
                 value.set_to_default()
 
             with open(self.settings_path, 'w', encoding='UTF-8') as file_pointer:
-                json.dump(self.settings, file_pointer, indent=4)
+                json.dump(self._json(), file_pointer, indent=4)
 
             get_logger().info(f'Saved settings to {self.settings_path}')
 
     def _save(self):
         self._file_watcher.pause()
         with open(self.settings_path, 'w', encoding='UTF-8') as file_pointer:
-            file_json = {}
-            for key, value in self.settings.items():
-                file_json[key] = value.get_value()
-            json.dump(file_json, file_pointer, indent=4)
+            json.dump(self._json(), file_pointer, indent=4)
             file_pointer.flush()
             os.fsync(file_pointer.fileno())
             self._file_watcher.update_m_time()
@@ -180,6 +177,12 @@ class Settings:
             settings = await self.as_json()
             await self._application.ws_send_to_all('SETTINGS_CHANGED', 'WS_SETTINGS_CHANGED',
                                                    settings)
+
+    def _json(self):
+        settings_json = {}
+        for key, value in self.settings.items():
+            settings_json[key] = value.get_value()
+        return settings_json
 
     async def as_json(self):
         async with self.lock:
