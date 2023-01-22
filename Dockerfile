@@ -8,6 +8,9 @@ RUN npm ci
 RUN npm run build
 
 FROM python:3.10-buster
+RUN apt update
+RUN apt install -y nano
+
 COPY --from=node_build /server /server
 WORKDIR /server
 RUN mkdir conf
