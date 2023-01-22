@@ -632,6 +632,7 @@ class ScriptController(BaseAPIController):
                             curr_association: ScriptLineRevisionAssociation = session.query(
                                 ScriptLineRevisionAssociation).get(
                                 {'revision_id': revision.id, 'line_id': line['id']})
+                            curr_line = curr_association.line
 
                             if not curr_association:
                                 self.set_status(500)
@@ -644,6 +645,11 @@ class ScriptController(BaseAPIController):
                             if previous_line:
                                 previous_line.next_line = line_object
                                 curr_association.previous_line = previous_line.line
+                            session.flush()
+
+                            if len(curr_line.revision_associations) == 0:
+                                session.delete(curr_line)
+
                             session.flush()
 
                             previous_line = curr_association
