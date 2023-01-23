@@ -21,6 +21,9 @@ labels:
 - label: "idea"
   files:
     - ".idea/.*"
+- label: "documentation"
+  files:
+    - "docs/.*"
 - label: "git"
   files:
     - ".gitignore"
