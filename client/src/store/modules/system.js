@@ -62,7 +62,8 @@ export default {
       } else {
         context.commit('SET_CURRENT_SHOW', null);
         context.commit('CLEAR_CURRENT_SHOW');
-        if (router.currentRoute.path !== '/') {
+        const currentPath = router.currentRoute.path;
+        if (currentPath.startsWith('/show-config') || currentPath.startsWith('/live')) {
           router.push('/');
         }
       }
