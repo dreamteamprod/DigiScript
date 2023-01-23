@@ -7,6 +7,7 @@ import { makeURL } from '@/js/utils';
 export default {
   state: {
     tmpScript: {},
+    deletedLines: {},
     editStatus: {
       canRequestEdit: false,
       currentEditor: null,
@@ -36,6 +37,23 @@ export default {
     },
     SET_LINE(state, { pageNo, lineIndex, lineObj }) {
       Vue.set(state.tmpScript[pageNo], lineIndex, lineObj);
+    },
+    DELETE_LINE(state, { pageNo, lineIndex }) {
+      const pageNoStr = pageNo.toString();
+      if (state.tmpScript[pageNoStr][lineIndex].id !== null) {
+        if (!Object.keys(state.deletedLines).includes(pageNoStr)) {
+          Vue.set(state.deletedLines, pageNoStr, []);
+        }
+        state.deletedLines[pageNoStr].push(lineIndex);
+      } else {
+        state.tmpScript[pageNoStr].splice(lineIndex, 1);
+      }
+    },
+    RESET_DELETED(state, pageNo) {
+      const pageNoStr = pageNo.toString();
+      if (Object.keys(state.deletedLines).includes(pageNoStr)) {
+        Vue.set(state.deletedLines, pageNoStr, []);
+      }
     },
     EMPTY_SCRIPT(state) {
       state.tmpScript = {};
@@ -90,7 +108,7 @@ export default {
       const pageStatus = {
         added: Object.keys(deepDiff.added).map((x) => parseInt(x, 10)),
         updated: Object.keys(deepDiff.updated).map((x) => parseInt(x, 10)),
-        deleted: Object.keys(deepDiff.deleted).map((x) => parseInt(x, 10)),
+        deleted: [...context.getters.DELETED_LINES(pageNo)],
       };
       const searchParams = new URLSearchParams({
         page: pageNo,
@@ -115,6 +133,16 @@ export default {
   getters: {
     TMP_SCRIPT(state) {
       return state.tmpScript;
+    },
+    DELETED_LINES: (state) => (page) => {
+      const pageStr = page.toString();
+      if (Object.keys(state.deletedLines).includes(pageStr)) {
+        return state.deletedLines[pageStr];
+      }
+      return [];
+    },
+    ALL_DELETED_LINES(state) {
+      return state.deletedLines;
     },
     CAN_REQUEST_EDIT(state) {
       return state.editStatus.canRequestEdit;
