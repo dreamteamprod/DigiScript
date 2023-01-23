@@ -11,7 +11,8 @@
         <b-button-group>
           <b-button v-for="cue in cues" :key="cue.id"
                     class="cue-button"
-                    :style="{backgroundColor: cueBackgroundColour(cue)}"
+                    :style="{backgroundColor: cueBackgroundColour(cue),
+                    color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
                     :disabled="!canEdit" @click.stop="openEditForm(cue)">
             {{ cueLabel(cue) }}
           </b-button>
@@ -119,6 +120,7 @@
 <script>
 import { required } from 'vuelidate/lib/validators';
 import { mapActions } from 'vuex';
+import { contrastColor } from 'contrast-color';
 
 export default {
   name: 'ScriptLineCueEditor',
@@ -199,6 +201,7 @@ export default {
     },
   },
   methods: {
+    contrastColor,
     openNewForm() {
       this.resetNewForm();
       this.newFormState.lineId = this.line.id;

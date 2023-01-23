@@ -11,7 +11,8 @@
         <b-button-group>
           <b-button v-for="cue in cues" :key="cue.id"
                     class="cue-button"
-                    :style="{backgroundColor: cueBackgroundColour(cue)}">
+                    :style="{backgroundColor: cueBackgroundColour(cue),
+                    color: contrastColor({'bgColor': cueBackgroundColour(cue)})}">
             {{ cueLabel(cue) }}
           </b-button>
         </b-button-group>
@@ -43,6 +44,8 @@
 </template>
 
 <script>
+import { contrastColor } from 'contrast-color';
+
 export default {
   name: 'ScriptLineViewer',
   events: ['last-line-page', 'first-page'],
@@ -103,6 +106,7 @@ export default {
     this.observer.disconnect();
   },
   methods: {
+    contrastColor,
     onClassChange(classAttrValue) {
       const classList = classAttrValue.split(' ');
       if (classList.includes('last-script-element')) {
