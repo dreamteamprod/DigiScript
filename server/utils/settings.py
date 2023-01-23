@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class SettingsObject:
-    def __init__(self, key, val_type, default, can_edit=True, callback_fn=None):
+    def __init__(self, key, val_type, default, can_edit=True, callback_fn=None, nullable=False):
         if val_type not in [str, bool, int]:
             raise RuntimeError(f'Invalid type {val_type} for {key}. Allowed options are: '
                                f'[str, int, bool]')
@@ -25,6 +25,7 @@ class SettingsObject:
         self.default = default
         self.can_edit = can_edit
         self._callback_fn = callback_fn
+        self._nullable = nullable
         self._loaded = False
 
     def set_to_default(self):
@@ -32,7 +33,7 @@ class SettingsObject:
         self._loaded = True
 
     def set_value(self, value, spawn_callbacks=True):
-        if not isinstance(value, self.val_type):
+        if not isinstance(value, self.val_type) and value is None and not self._nullable:
             raise RuntimeError(f'Value for {self.key} of {value} is not of assigned '
                                f'type {self.val_type}')
 
@@ -75,8 +76,8 @@ class Settings:
 
         self.settings = {}
 
+        self.define('current_show', int, None, False, nullable=True)
         self.define('debug_mode', bool, False, True)
-        self.define('current_show', int, False, False)
         self.define('log_path', str, os.path.join(self._base_path, 'digiscript.log'), True,
                     self._application.regen_logging)
         self.define('max_log_mb', int, 100, True, self._application.regen_logging)
@@ -93,8 +94,9 @@ class Settings:
         self._file_watcher.add_error_callback(self.file_deleted)
         self._file_watcher.watch()
 
-    def define(self, key, val_type, default, can_edit, callback_fn=None):
-        self.settings[key] = SettingsObject(key, val_type, default, can_edit, callback_fn)
+    def define(self, key, val_type, default, can_edit, callback_fn=None, nullable=False):
+        self.settings[key] = SettingsObject(key, val_type, default, can_edit, callback_fn,
+                                            nullable)
 
     def file_deleted(self):
         get_logger().info('Settings file deleted; recreating from in memory settings')
