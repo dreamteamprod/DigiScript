@@ -48,34 +48,37 @@
     <b-row class="script-row">
       <b-col cols="12">
         <template v-for="(line, index) in TMP_SCRIPT[currentEditPage]">
-          <script-line-editor
-            v-if="editPages.includes(`page_${currentEditPage}_line_${index}`)"
-            :key="`page_${currentEditPage}_line_${index}`"
-            :line-index="index"
-            :acts="ACT_LIST"
-            :scenes="SCENE_LIST"
-            :characters="CHARACTER_LIST"
-            :character-groups="CHARACTER_GROUP_LIST"
-            :value="TMP_SCRIPT[currentEditPage][index]"
-            :previous-line-fn="getPreviousLineForIndex"
-            :next-line-fn="getNextLineForIndex"
-            :is-stage-direction="line.stage_direction"
-            @input="lineChange(line, index)"
-            @doneEditing="doneEditingLine(currentEditPage, index)"
-          />
-          <script-line-viewer
-            v-else
-            :key="`page_${currentEditPage}_line_${index}`"
-            :line-index="index"
-            :line="TMP_SCRIPT[currentEditPage][index]"
-            :acts="ACT_LIST"
-            :scenes="SCENE_LIST"
-            :characters="CHARACTER_LIST"
-            :character-groups="CHARACTER_GROUP_LIST"
-            :previous-line="TMP_SCRIPT[currentEditPage][index - 1]"
-            :can-edit="canEdit"
-            @editLine="beginEditingLine(currentEditPage, index)"
-          />
+          <template v-if="!DELETED_LINES(currentEditPage).includes(index)">
+            <script-line-editor
+              v-if="editPages.includes(`page_${currentEditPage}_line_${index}`)"
+              :key="`page_${currentEditPage}_line_${index}`"
+              :line-index="index"
+              :acts="ACT_LIST"
+              :scenes="SCENE_LIST"
+              :characters="CHARACTER_LIST"
+              :character-groups="CHARACTER_GROUP_LIST"
+              :value="TMP_SCRIPT[currentEditPage][index]"
+              :previous-line-fn="getPreviousLineForIndex"
+              :next-line-fn="getNextLineForIndex"
+              :is-stage-direction="line.stage_direction"
+              @input="lineChange(line, index)"
+              @doneEditing="doneEditingLine(currentEditPage, index)"
+              @deleteLine="deleteLine(currentEditPage, index)"
+            />
+            <script-line-viewer
+              v-else
+              :key="`page_${currentEditPage}_line_${index}`"
+              :line-index="index"
+              :line="TMP_SCRIPT[currentEditPage][index]"
+              :acts="ACT_LIST"
+              :scenes="SCENE_LIST"
+              :characters="CHARACTER_LIST"
+              :character-groups="CHARACTER_GROUP_LIST"
+              :previous-line="TMP_SCRIPT[currentEditPage][index - 1]"
+              :can-edit="canEdit"
+              @editLine="beginEditingLine(currentEditPage, index)"
+            />
+          </template>
         </template>
       </b-col>
     </b-row>
@@ -367,6 +370,13 @@ export default {
         this.editPages.splice(index, 1);
       }
     },
+    deleteLine(pageIndex, lineIndex) {
+      this.DELETE_LINE({
+        pageNo: pageIndex,
+        lineIndex,
+      });
+      this.doneEditingLine(pageIndex, lineIndex);
+    },
     async saveScript() {
       if (this.scriptChanges) {
         this.savingInProgress = true;
@@ -392,6 +402,7 @@ export default {
               if (response) {
                 await this.LOAD_SCRIPT_PAGE(pageNo);
                 this.ADD_BLANK_PAGE(pageNo);
+                this.RESET_DELETED(pageNo);
               } else {
                 this.$toast.error('Unable to save script. Please try again.');
                 this.saveError = true;
@@ -400,11 +411,12 @@ export default {
             } else {
               // Existing page, check if anything has changed before saving
               const lineDiff = diff(actualScriptPage, tmpScriptPage);
-              if (Object.keys(lineDiff).length > 0) {
+              if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0) {
                 const response = await this.SAVE_CHANGED_PAGE(pageNo);
                 if (response) {
                   await this.LOAD_SCRIPT_PAGE(pageNo);
                   this.ADD_BLANK_PAGE(pageNo);
+                  this.RESET_DELETED(pageNo);
                 } else {
                   this.$toast.error('Unable to save script. Please try again.');
                   this.saveError = true;
@@ -492,7 +504,7 @@ export default {
       }
       this.decrPage();
     },
-    ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
+    ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE']),
@@ -508,7 +520,7 @@ export default {
       let hasChanges = false;
       Object.keys(this.TMP_SCRIPT).forEach(function (pageNo) {
         const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
-        if (Object.keys(lineDiff).length > 0) {
+        if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0) {
           hasChanges = true;
         }
       }, this);
@@ -525,7 +537,7 @@ export default {
     },
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED']),
+      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES']),
   },
 };
 </script>

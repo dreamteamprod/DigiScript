@@ -1,6 +1,9 @@
+from typing import List
+
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, String, Boolean
 from sqlalchemy.orm import relationship, backref
 
+import models.cue
 from models.models import db
 from utils.database import DeleteMixin
 
@@ -84,6 +87,13 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     def pre_delete(self, session):
         if len(self.line.revision_associations) == 1:
             session.delete(self.line)
+
+        cue_associations: List[models.cue.CueAssociation] = session.query(
+            models.cue.CueAssociation).filter(
+            models.cue.CueAssociation.revision_id == self.revision_id,
+            models.cue.CueAssociation.line_id == self.line_id).all()
+        for cue_association in cue_associations:
+            session.delete(cue_association)
 
     def post_delete(self, session):
         pass

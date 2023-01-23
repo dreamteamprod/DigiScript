@@ -620,7 +620,43 @@ class ScriptController(BaseAPIController):
                                 session, revision, line, previous_line)
                             previous_line = line_association
                         elif index in status['deleted']:
-                            pass
+                            curr_association: ScriptLineRevisionAssociation = session.query(
+                                ScriptLineRevisionAssociation).get(
+                                {'revision_id': revision.id, 'line_id': line['id']})
+
+                            # Logic for handling next/previous line associations
+                            if curr_association.next_line and curr_association.previous_line:
+                                # Next line and previous line, so need to update both
+                                next_association: ScriptLineRevisionAssociation = session.query(
+                                    ScriptLineRevisionAssociation).get(
+                                    {'revision_id': revision.id,
+                                     'line_id': curr_association.next_line.id})
+                                next_association.previous_line = curr_association.previous_line
+                                session.flush()
+
+                                prev_association: ScriptLineRevisionAssociation = session.query(
+                                    ScriptLineRevisionAssociation).get(
+                                    {'revision_id': revision.id,
+                                     'line_id': curr_association.previous_line.id})
+                                prev_association.next_line = next_association.line
+                                session.flush()
+                            elif curr_association.next_line:
+                                # No previous line, so need to update next line only
+                                next_association: ScriptLineRevisionAssociation = session.query(
+                                    ScriptLineRevisionAssociation).get(
+                                    {'revision_id': revision.id,
+                                     'line_id': curr_association.next_line.id})
+                                next_association.previous_line = None
+                                session.flush()
+                            elif curr_association.previous_line:
+                                # No next line, so need to update previous line only
+                                prev_association: ScriptLineRevisionAssociation = session.query(
+                                    ScriptLineRevisionAssociation).get(
+                                    {'revision_id': revision.id,
+                                     'line_id': curr_association.previous_line.id})
+                                prev_association.next_line = None
+                                session.flush()
+                            session.delete(curr_association)
                         elif index in status['updated']:
                             # Validate the line
                             valid_status, valid_reason = self._validate_line(line)

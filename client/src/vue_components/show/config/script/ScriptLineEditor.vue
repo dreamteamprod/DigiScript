@@ -25,7 +25,7 @@
             <b-button variant="success" @click="doneEditing" :disabled="!lineValid">
               Done
             </b-button>
-            <b-button variant="danger">
+            <b-button variant="danger" @click.stop.prevent="deleteLine">
               Delete
             </b-button>
           </b-button-group>
@@ -61,7 +61,7 @@ import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 export default {
   name: 'ScriptLineEditor',
   components: { ScriptLinePart },
-  events: ['input', 'doneEditing'],
+  events: ['input', 'doneEditing', 'deleteLine'],
   props: {
     lineIndex: {
       required: true,
@@ -170,6 +170,9 @@ export default {
       blankLine.part_index = this.state.line_parts.length;
       this.state.line_parts.push(blankLine);
       this.stateChange();
+    },
+    deleteLine() {
+      this.$emit('deleteLine');
     },
   },
   computed: {
