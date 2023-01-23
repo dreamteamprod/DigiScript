@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from server.server.app_server import DigiScriptServer
 
 
-class SettingsObject:
+class SettingsObject:  # pylint: disable=too-many-instance-attributes
     def __init__(self, key, val_type, default, can_edit=True, callback_fn=None, nullable=False):
         if val_type not in [str, bool, int]:
             raise RuntimeError(f'Invalid type {val_type} for {key}. Allowed options are: '
