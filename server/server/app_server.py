@@ -1,7 +1,8 @@
+import os
 from typing import List
 
 from tornado.ioloop import IOLoop
-from tornado.web import Application
+from tornado.web import Application, StaticFileHandler
 from tornado_prometheus import PrometheusMixIn
 
 from utils.database import DigiSQLAlchemy
@@ -52,9 +53,13 @@ class DigiScriptServer(PrometheusMixIn, Application):
                     self.digi_settings.settings['current_show'].set_to_default()
                     self.digi_settings._save()
 
+        static_files_path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                                         '..', 'static', 'assets')
+        get_logger().info(f'Using {static_files_path} as static files path')
+
         handlers = Route.routes()
         handlers.append(('/favicon.ico', controllers.StaticController))
-        handlers.append((r'/assets/.*', controllers.StaticController))
+        handlers.append((r'/assets/(.*)', StaticFileHandler, {'path': static_files_path}))
         handlers.append((r'/api/.*', controllers.ApiFallback))
         handlers.append((r'/(.*)', controllers.RootController))
         super().__init__(
