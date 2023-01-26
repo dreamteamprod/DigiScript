@@ -116,6 +116,9 @@ class SceneController(BaseAPIController):
                         elif entry.next_scene:
                             entry.next_scene.previous_scene = None
 
+                        if entry.act.first_scene_id == entry.id:
+                            entry.act.first_scene = None
+
                         session.delete(entry)
                         session.commit()
 
