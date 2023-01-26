@@ -13,7 +13,7 @@ from utils.logger import get_logger
 
 @ApiRoute('show', ApiVersion.v1)
 class ShowController(BaseAPIController):
-    def post(self):
+    async def post(self):
         """
         Create a new show
         """
@@ -90,6 +90,10 @@ class ShowController(BaseAPIController):
             script.current_revision = script_revision.id
 
             session.commit()
+
+            should_load = bool(self.get_query_argument('load', default='False'))
+            if should_load:
+                await self.application.digi_settings.set('current_show', show.id)
 
         self.set_status(200)
         self.write({'message': 'Successfully created show'})
