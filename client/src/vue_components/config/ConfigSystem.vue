@@ -80,6 +80,17 @@
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
+      <template #modal-footer="{ ok, cancel }">
+        <b-button variant="secondary" @click.stop="cancel()">
+          Cancel
+        </b-button>
+        <b-button variant="primary" @click.stop="saveAndLoad">
+          Save and Load
+        </b-button>
+        <b-button variant="primary" @click.stop="ok()">
+          Save
+        </b-button>
+      </template>
     </b-modal>
     <b-modal id="show-load" title="Load Show" ref="load-modal" size="lg">
       <div class="overflow-auto">
@@ -226,14 +237,23 @@ export default {
         this.$v.$reset();
       });
     },
+    async saveAndLoad(event) {
+      await this.saveShow(event, true);
+    },
     async onSubmit(event) {
+      await this.saveShow(event, false);
+    },
+    async saveShow(event, load) {
       this.$v.formState.$touch();
       if (this.$v.formState.$anyError) {
         event.preventDefault();
         return;
       }
 
-      const response = await fetch(`${makeURL('/api/v1/show')}`, {
+      const searchParams = new URLSearchParams({
+        load,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show')}?${searchParams}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -244,6 +264,7 @@ export default {
         const settings = await response.json();
         await this.getAvailableShows();
         this.$toast.success('Created new show!');
+        this.$bvModal.hide('show-config');
         this.resetForm();
       } else {
         this.$toast.error('Unable to save show');
