@@ -20,12 +20,18 @@ class Show(db.Model):
     first_act = relationship('Act', uselist=False, foreign_keys=[first_act_id])
     current_session = relationship('ShowSession', uselist=False, foreign_keys=[current_session_id])
 
-    cast_list = relationship("Cast")
-    character_list = relationship('Character')
-    character_group_list = relationship('CharacterGroup')
-    act_list = relationship('Act', primaryjoin=lambda: Show.id == Act.show_id)
-    scene_list = relationship('Scene')
-    cue_type_list = relationship('CueType')
+    cast_list = relationship("Cast",
+                             cascade='all, delete-orphan')
+    character_list = relationship('Character',
+                                  cascade='all, delete-orphan')
+    character_group_list = relationship('CharacterGroup',
+                                        cascade='all, delete-orphan')
+    act_list = relationship('Act', primaryjoin=lambda: Show.id == Act.show_id,
+                            cascade='all, delete-orphan')
+    scene_list = relationship('Scene',
+                              cascade='all, delete-orphan')
+    cue_type_list = relationship('CueType',
+                                 cascade='all, delete-orphan')
 
 
 class Cast(db.Model):
@@ -88,6 +94,7 @@ class Act(db.Model):
     first_scene = relationship('Scene', uselist=False, foreign_keys=[first_scene_id])
     previous_act = relationship('Act', uselist=False, remote_side=[id],
                                 backref=backref('next_act', uselist=False))
+    lines = relationship('ScriptLine', back_populates='act', cascade='all, delete-orphan')
 
 
 class Scene(db.Model):
@@ -99,7 +106,9 @@ class Scene(db.Model):
     name = Column(String)
     previous_scene_id = Column(Integer, ForeignKey('scene.id'))
 
-    act = relationship('Act', uselist=False, backref=backref('scene_list'),
+    act = relationship('Act', uselist=False,
+                       backref=backref('scene_list', cascade='all, delete-orphan'),
                        foreign_keys=[act_id])
     previous_scene = relationship('Scene', uselist=False, remote_side=[id],
                                   backref=backref('next_scene', uselist=False))
+    lines = relationship('ScriptLine', back_populates='scene', cascade='all, delete-orphan')
