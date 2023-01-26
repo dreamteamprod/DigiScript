@@ -175,6 +175,9 @@ class ActController(BaseAPIController):
                         elif entry.next_act:
                             entry.next_act.previous_act = None
 
+                        if show.first_act_id == entry.id:
+                            show.first_act = None
+
                         session.delete(entry)
                         session.commit()
 
