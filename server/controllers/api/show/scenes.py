@@ -76,6 +76,11 @@ class SceneController(BaseAPIController):
                         name=name,
                         previous_scene_id=previous_scene_id)
                     session.add(new_scene)
+                    session.flush()
+
+                    if not new_scene.act.first_scene:
+                        new_scene.act.first_scene = new_scene
+
                     session.commit()
 
                     self.set_status(200)
