@@ -16,6 +16,8 @@ class CueType(db.Model):
     description = Column(String(100))
     colour = Column(String())
 
+    cues = relationship('Cue', back_populates='cue_type', cascade='all, delete-orphan')
+
 
 class Cue(db.Model):
     __tablename__ = 'cue'
@@ -24,7 +26,8 @@ class Cue(db.Model):
     cue_type_id = Column(Integer, ForeignKey('cuetypes.id'))
     ident = Column(String())
 
-    cue_type = relationship('CueType', uselist=False, foreign_keys=[cue_type_id])
+    cue_type = relationship('CueType', uselist=False, foreign_keys=[cue_type_id],
+                            back_populates='cues')
 
 
 class CueAssociation(db.Model, DeleteMixin):
@@ -38,15 +41,15 @@ class CueAssociation(db.Model, DeleteMixin):
     cue_id = Column(Integer, ForeignKey('cue.id'), primary_key=True, index=True)
 
     revision: ScriptRevision = relationship('ScriptRevision', foreign_keys=[revision_id],
-                                            uselist=False, backref=backref('cue_associations',
-                                                                           uselist=True,
-                                                                           cascade='all, delete'))
+                                            uselist=False,
+                                            backref=backref('cue_associations', uselist=True,
+                                                            cascade='all, delete-orphan'))
     line: ScriptLine = relationship('ScriptLine', foreign_keys=[line_id], uselist=False,
                                     backref=backref('cue_associations', uselist=True,
                                                     viewonly=True))
     cue: Cue = relationship('Cue', foreign_keys=[cue_id], uselist=False,
                             backref=backref('revision_associations', uselist=True,
-                                            cascade='all, delete'))
+                                            cascade='all, delete-orphan'))
 
     def pre_delete(self, session):
         if len(self.cue.revision_associations) == 1:

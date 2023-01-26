@@ -1,9 +1,6 @@
-from typing import List
-
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, String, Boolean
 from sqlalchemy.orm import relationship, backref
 
-import models.cue
 from models.models import db
 from utils.database import DeleteMixin
 
@@ -19,7 +16,7 @@ class Script(db.Model):
                              primaryjoin='ScriptRevision.script_id == Script.id')
 
 
-class ScriptRevision(db.Model, DeleteMixin):
+class ScriptRevision(db.Model):
     __tablename__ = 'script_revisions'
     __mapper_args__ = {
         'confirm_deleted_rows': False
@@ -36,13 +33,6 @@ class ScriptRevision(db.Model, DeleteMixin):
 
     previous_revision = relationship('ScriptRevision', foreign_keys=[previous_revision_id])
 
-    def pre_delete(self, session):
-        for line_association in self.line_associations:
-            session.delete(line_association)
-
-    def post_delete(self, session):
-        pass
-
 
 class ScriptLine(db.Model):
     __tablename__ = 'script_lines'
@@ -53,8 +43,8 @@ class ScriptLine(db.Model):
     page = Column(Integer, index=True)
     stage_direction = Column(Boolean)
 
-    act = relationship('Act', uselist=False)
-    scene = relationship('Scene', uselist=False)
+    act = relationship('Act', uselist=False, back_populates='lines')
+    scene = relationship('Scene', uselist=False, back_populates='lines')
 
 
 class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
@@ -80,20 +70,13 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
                                     uselist=False,
                                     backref=backref('revision_associations',
                                                     uselist=True,
-                                                    viewonly=True))
+                                                    cascade='all, delete'))
     next_line: ScriptLine = relationship('ScriptLine', foreign_keys=[next_line_id])
     previous_line: ScriptLine = relationship('ScriptLine', foreign_keys=[previous_line_id])
 
     def pre_delete(self, session):
-        if len(self.line.revision_associations) == 1:
+        if self.line and len(self.line.revision_associations) == 1:
             session.delete(self.line)
-
-        cue_associations: List[models.cue.CueAssociation] = session.query(
-            models.cue.CueAssociation).filter(
-            models.cue.CueAssociation.revision_id == self.revision_id,
-            models.cue.CueAssociation.line_id == self.line_id).all()
-        for cue_association in cue_associations:
-            session.delete(cue_association)
 
     def post_delete(self, session):
         pass
@@ -112,6 +95,6 @@ class ScriptLinePart(db.Model):
 
     line = relationship('ScriptLine', uselist=False, foreign_keys=[line_id],
                         backref=backref('line_parts', uselist=True,
-                                        cascade='all, delete'))
+                                        cascade='all, delete-orphan'))
     character = relationship('Character', uselist=False)
     character_group = relationship('CharacterGroup', uselist=False)
