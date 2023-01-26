@@ -168,6 +168,13 @@ class ActController(BaseAPIController):
 
                     entry: Act = session.get(Act, act_id)
                     if entry:
+                        if entry.previous_act and entry.next_act:
+                            entry.next_act.previous_act = entry.previous_act
+                        elif entry.previous_act:
+                            entry.previous_act.next_act = None
+                        elif entry.next_act:
+                            entry.next_act.previous_act = None
+
                         session.delete(entry)
                         session.commit()
 
