@@ -56,8 +56,14 @@ class ActController(BaseAPIController):
 
                     previous_act_id: int = data.get('previous_act_id', None)
 
-                    session.add(Act(show_id=show.id, name=name, interval_after=interval_after,
-                                    previous_act_id=previous_act_id))
+                    new_act = Act(show_id=show.id, name=name, interval_after=interval_after,
+                                  previous_act_id=previous_act_id)
+                    session.add(new_act)
+                    session.flush()
+
+                    if not show.first_act:
+                        show.first_act = new_act
+
                     session.commit()
 
                     self.set_status(200)
