@@ -109,6 +109,13 @@ class SceneController(BaseAPIController):
 
                     entry: Scene = session.get(Scene, scene_id)
                     if entry:
+                        if entry.previous_scene and entry.next_scene:
+                            entry.next_scene.previous_scene = entry.previous_scene
+                        elif entry.previous_scene:
+                            entry.previous_scene.next_scene = None
+                        elif entry.next_scene:
+                            entry.next_scene.previous_scene = None
+
                         session.delete(entry)
                         session.commit()
 
