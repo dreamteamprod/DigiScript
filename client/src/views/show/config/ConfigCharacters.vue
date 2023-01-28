@@ -121,7 +121,6 @@ export default {
       rowsPerPage: 15,
       currentPage: 1,
       characterFields: [
-        { key: 'id', label: 'ID' },
         'name',
         'description',
         { key: 'cast_member', label: 'Played By' },
