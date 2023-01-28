@@ -3,7 +3,7 @@ from tornado import escape
 from models.show import Show, Cast, Character, CharacterGroup
 from schemas.schemas import CharacterSchema, CharacterGroupSchema
 from utils.base_controller import BaseAPIController
-from utils.requires import requires_show
+from utils.web_decorators import requires_show, no_live_session
 from utils.route import ApiRoute, ApiVersion
 
 
@@ -32,6 +32,7 @@ class CharacterController(BaseAPIController):
             self.write({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def post(self):
         current_show = self.get_current_show()
 
@@ -73,6 +74,7 @@ class CharacterController(BaseAPIController):
             await self.finish({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def patch(self):
         current_show = self.get_current_show()
 
@@ -128,6 +130,7 @@ class CharacterController(BaseAPIController):
             await self.finish({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def delete(self):
         current_show = self.get_current_show()
 
@@ -190,6 +193,7 @@ class CharacterGroupController(BaseAPIController):
             self.write({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def post(self):
         current_show = self.get_current_show()
 
@@ -239,6 +243,7 @@ class CharacterGroupController(BaseAPIController):
             self.write({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def delete(self):
         current_show = self.get_current_show()
 
@@ -277,6 +282,7 @@ class CharacterGroupController(BaseAPIController):
             await self.finish({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def patch(self):
         current_show = self.get_current_show()
 

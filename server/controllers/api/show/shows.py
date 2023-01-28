@@ -6,7 +6,7 @@ from models.script import Script, ScriptRevision
 from models.show import Show
 from schemas.schemas import ShowSchema
 from utils.base_controller import BaseAPIController
-from utils.requires import requires_show
+from utils.web_decorators import requires_show
 from utils.route import ApiRoute, ApiVersion
 from utils.logger import get_logger
 
