@@ -131,7 +131,6 @@ export default {
       rowsPerPage: 15,
       currentPage: 1,
       actFields: [
-        { key: 'id', label: 'ID' },
         'name',
         { key: 'interval_after', label: 'Interval After' },
         { key: 'previous_act', label: 'Previous Act' },

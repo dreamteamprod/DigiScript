@@ -104,7 +104,6 @@ export default {
   data() {
     return {
       castFields: [
-        { key: 'id', label: 'ID' },
         'first_name',
         'last_name',
         { key: 'btn', label: '' },
