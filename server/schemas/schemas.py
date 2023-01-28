@@ -17,6 +17,7 @@ class ShowSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Show
         load_instance = True
+        include_fk = True
 
     first_act_id = auto_field()
 
