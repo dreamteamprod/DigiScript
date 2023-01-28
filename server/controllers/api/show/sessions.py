@@ -4,7 +4,7 @@ from models.session import ShowSession
 from models.show import Show
 from schemas.schemas import ShowSessionSchema
 from utils.base_controller import BaseAPIController
-from utils.requires import requires_show
+from utils.web_decorators import requires_show
 from utils.route import ApiRoute, ApiVersion
 
 
