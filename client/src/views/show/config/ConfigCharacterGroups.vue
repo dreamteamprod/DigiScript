@@ -125,7 +125,6 @@ export default {
   data() {
     return {
       characterGroupFields: [
-        { key: 'id', label: 'ID' },
         'name',
         'description',
         'characters',

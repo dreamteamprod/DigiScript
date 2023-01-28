@@ -177,7 +177,6 @@ export default {
       rowsPerPage: 15,
       currentPage: 1,
       sceneFields: [
-        { key: 'id', label: 'ID' },
         'name',
         'act',
         { key: 'previous_scene', label: 'Previous Scene' },
