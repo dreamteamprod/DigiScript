@@ -8,7 +8,7 @@ from models.script import ScriptRevision, Script
 from models.show import Show
 from schemas.schemas import CueTypeSchema, CueSchema
 from utils.base_controller import BaseAPIController
-from utils.requires import requires_show
+from utils.web_decorators import requires_show, no_live_session
 from utils.route import ApiRoute, ApiVersion
 
 
@@ -37,6 +37,7 @@ class CueTypesController(BaseAPIController):
             self.write({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def post(self):
         current_show = self.get_current_show()
 
@@ -80,6 +81,7 @@ class CueTypesController(BaseAPIController):
             await self.finish({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def patch(self):
         current_show = self.get_current_show()
 
@@ -133,6 +135,7 @@ class CueTypesController(BaseAPIController):
             await self.finish({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def delete(self):
         current_show = self.get_current_show()
 
@@ -210,6 +213,7 @@ class CueController(BaseAPIController):
             self.write({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def post(self):
         current_show = self.get_current_show()
         show_id = current_show['id']
@@ -268,6 +272,7 @@ class CueController(BaseAPIController):
             self.write({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def patch(self):
         current_show = self.get_current_show()
         show_id = current_show['id']
@@ -360,6 +365,7 @@ class CueController(BaseAPIController):
             self.write({'message': '404 show not found'})
 
     @requires_show
+    @no_live_session
     async def delete(self):
         current_show = self.get_current_show()
         show_id = current_show['id']
