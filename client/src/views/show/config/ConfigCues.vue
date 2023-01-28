@@ -142,7 +142,6 @@ export default {
   data() {
     return {
       cueTypeFields: [
-        { key: 'id', label: 'ID' },
         'prefix',
         'description',
         'colour',
