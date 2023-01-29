@@ -49,26 +49,33 @@ export default {
   data() {
     return {
       loaded: false,
+      loadTimer: null,
     };
   },
   methods: {
-    ...mapActions(['GET_SETTINGS', 'GET_SHOW_SESSION_DATA']),
+    ...mapActions(['GET_SHOW_SESSION_DATA']),
+    async awaitWSConnect() {
+      if (this.WEBSOCKET_HEALTHY) {
+        clearTimeout(this.loadTimer);
+        if (this.SETTINGS.current_show != null) {
+          await this.GET_SHOW_SESSION_DATA();
+          this.loaded = true;
+          if (this.CURRENT_SHOW_SESSION != null && this.$router.currentRoute.fullPath !== '/live') {
+            this.$router.push('/live');
+          }
+        } else {
+          this.loaded = true;
+        }
+      } else {
+        this.loadTimer = setTimeout(this.awaitWSConnect, 150);
+      }
+    },
   },
   computed: {
     ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS']),
   },
   async created() {
-    await this.GET_SETTINGS();
-
-    if (this.SETTINGS.current_show != null) {
-      await this.GET_SHOW_SESSION_DATA();
-      this.loaded = true;
-      if (this.CURRENT_SHOW_SESSION != null && this.$router.currentRoute.fullPath !== '/live') {
-        this.$router.push('/live');
-      }
-    } else {
-      this.loaded = true;
-    }
+    await this.awaitWSConnect();
   },
 };
 </script>
