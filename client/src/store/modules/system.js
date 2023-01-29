@@ -31,8 +31,6 @@ export default {
       }
     },
     async GET_SETTINGS(context) {
-      await context.dispatch('GET_RAW_SETTINGS');
-
       const response = await fetch(makeURL('/api/v1/settings'));
       if (response.ok) {
         const settings = await response.json();
