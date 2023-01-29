@@ -1,6 +1,6 @@
 import tornado.escape
 
-from test.utils import DigiScriptTestCase
+from .test_utils import DigiScriptTestCase
 
 
 class TestDigiScriptServer(DigiScriptTestCase):

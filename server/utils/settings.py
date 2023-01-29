@@ -36,7 +36,7 @@ class SettingsObject:  # pylint: disable=too-many-instance-attributes
         if not isinstance(value, self.val_type):
             if value is None and not self._nullable:
                 raise RuntimeError(f'Value for {self.key} cannot be None (is not nullable)')
-            elif value is not None:
+            if value is not None:
                 raise TypeError(f'Value for {self.key} of {value} is not of assigned '
                                 f'type {self.val_type}')
 

@@ -1,7 +1,7 @@
 from tornado.testing import gen_test
 
-from test.utils import DigiScriptTestCase
 from utils.logger import get_logger
+from .test_utils import DigiScriptTestCase
 
 
 class TestSettings(DigiScriptTestCase):
