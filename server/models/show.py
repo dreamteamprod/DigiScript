@@ -108,7 +108,7 @@ class Scene(db.Model):
 
     act = relationship('Act', uselist=False,
                        backref=backref('scene_list', cascade='all, delete-orphan'),
-                       foreign_keys=[act_id])
+                       foreign_keys=[act_id], post_update=True)
     previous_scene = relationship('Scene', uselist=False, remote_side=[id],
                                   backref=backref('next_scene', uselist=False))
     lines = relationship('ScriptLine', back_populates='scene', cascade='all, delete-orphan')
