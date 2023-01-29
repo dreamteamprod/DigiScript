@@ -67,12 +67,21 @@ class Settings:
         self._application = application
         self.lock = Lock()
         self._base_path = os.path.join(os.path.dirname(__file__), '..', 'conf')
+
+        if not os.path.exists(self._base_path):
+            get_logger().info(f'Creating base path {self._base_path}')
+            os.makedirs(self._base_path)
+
         if settings_path:
             self.settings_path = settings_path
         else:
             self.settings_path = os.path.join(self._base_path, 'digiscript.json')
             get_logger().info(
                 f'No settings path provided, using {self.settings_path}')
+
+        if not os.path.exists(os.path.dirname(self.settings_path)):
+            get_logger().info(f'Creating settings path {os.path.dirname(self.settings_path)}')
+            os.makedirs(os.path.dirname(self.settings_path))
 
         self.settings = {}
 
