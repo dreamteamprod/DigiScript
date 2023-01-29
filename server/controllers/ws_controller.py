@@ -12,7 +12,7 @@ from models.session import Session
 from utils.route import ApiRoute, ApiVersion
 
 if TYPE_CHECKING:
-    from server.server.app_server import DigiScriptServer
+    from digi_server.app_server import DigiScriptServer
 
 
 @ApiRoute('ws', ApiVersion.v1)

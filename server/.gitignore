@@ -37,6 +37,9 @@ pip-delete-this-directory.txt
 .cache
 nosetests.xml
 coverage.xml
+junit
+test/conf
+test/.pytest_cache
 
 # Translations
 *.mo
