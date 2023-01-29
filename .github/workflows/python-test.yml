@@ -1,5 +1,8 @@
 name: Python Unit Tests
 on: [push, pull_request]
+permissions:
+  checks: write
+  pull-requests: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,8 +26,8 @@ jobs:
       - name: Run tests
         run: |
           python -m pytest --junitxml=junit/test-results.xml
-      - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v3
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          report_paths: '**/server/junit/*.xml'
+          junit_files: '**/server/junit/*.xml'
