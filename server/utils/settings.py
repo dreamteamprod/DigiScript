@@ -10,7 +10,7 @@ from utils.logger import get_logger
 from utils.file_watcher import IOLoopFileWatcher
 
 if TYPE_CHECKING:
-    from server.server.app_server import DigiScriptServer
+    from digi_server.app_server import DigiScriptServer
 
 
 class SettingsObject:  # pylint: disable=too-many-instance-attributes
