@@ -11,7 +11,7 @@ from schemas.schemas import ShowSchema
 from utils.logger import get_logger
 
 if TYPE_CHECKING:
-    from server.server.app_server import DigiScriptServer
+    from digi_server.app_server import DigiScriptServer
 
 
 class BaseController(SessionMixin, RequestHandler):

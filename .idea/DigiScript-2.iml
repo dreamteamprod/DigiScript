@@ -9,6 +9,9 @@
       <excludeFolder url="file://$MODULE_DIR$/.idea/dataSources" />
       <excludeFolder url="file://$MODULE_DIR$/server/public" />
       <excludeFolder url="file://$MODULE_DIR$/server/conf" />
+      <excludeFolder url="file://$MODULE_DIR$/server/test/conf" />
+      <excludeFolder url="file://$MODULE_DIR$/server/test/.pytest_cache" />
+      <excludeFolder url="file://$MODULE_DIR$/server/junit" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.10 (venv3102-digiscript)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
