@@ -122,77 +122,73 @@ class ShowController(BaseAPIController):
     @requires_show
     async def patch(self):
         current_show = self.get_current_show()
-
         show_id = current_show['id']
-        if show_id:
-            with self.make_session() as session:
-                show: Show = session.query(Show).get(show_id)
-                if show:
-                    data = escape.json_decode(self.request.body)
 
-                    # Name
-                    show_name = data.get('name', None)
-                    if not show_name:
-                        self.set_status(400)
-                        self.write({'message': 'Show name missing'})
-                        return
-                    show.name = show_name
+        with self.make_session() as session:
+            show: Show = session.query(Show).get(show_id)
+            if show:
+                data = escape.json_decode(self.request.body)
 
-                    # Start date
-                    start_date = data.get('start_date', None)
+                # Name
+                show_name = data.get('name', None)
+                if not show_name:
+                    self.set_status(400)
+                    self.write({'message': 'Show name missing'})
+                    return
+                show.name = show_name
+
+                # Start date
+                start_date = data.get('start_date', None)
+                if not start_date:
+                    self.set_status(400)
+                    self.write({'message': 'Start date missing'})
+                    return
+                try:
+                    start_date = parser.parse(start_date)
                     if not start_date:
-                        self.set_status(400)
-                        self.write({'message': 'Start date missing'})
-                        return
-                    try:
-                        start_date = parser.parse(start_date)
-                        if not start_date:
-                            raise Exception
-                    except BaseException:
-                        self.set_status(400)
-                        self.write({'message': 'Unable to parse start date value'})
-                        return
+                        raise Exception
+                except BaseException:
+                    self.set_status(400)
+                    self.write({'message': 'Unable to parse start date value'})
+                    return
 
-                    # End date
-                    end_date = data.get('end_date', None)
+                # End date
+                end_date = data.get('end_date', None)
+                if not end_date:
+                    self.set_status(400)
+                    self.write({'message': 'End date missing'})
+                    return
+                try:
+                    end_date = parser.parse(end_date)
                     if not end_date:
-                        self.set_status(400)
-                        self.write({'message': 'End date missing'})
-                        return
-                    try:
-                        end_date = parser.parse(end_date)
-                        if not end_date:
-                            raise Exception
-                    except BaseException:
-                        self.set_status(400)
-                        self.write({'message': 'Unable to parse end date value'})
-                        return
+                        raise Exception
+                except BaseException:
+                    self.set_status(400)
+                    self.write({'message': 'Unable to parse end date value'})
+                    return
 
-                    if start_date > end_date or end_date < start_date:
-                        self.set_status(400)
-                        self.write({
-                            'message': 'Start date must be before or the same as the end date'
-                        })
-                        return
-                    show.start_date = start_date
-                    show.end_date = end_date
+                if start_date > end_date or end_date < start_date:
+                    self.set_status(400)
+                    self.write({
+                        'message': 'Start date must be before or the same as the end date'
+                    })
+                    return
+                show.start_date = start_date
+                show.end_date = end_date
 
-                    # First act
-                    show.first_act_id = data.get('first_act_id', None)
+                # First act
+                show.first_act_id = data.get('first_act_id', None)
 
-                    show.edited_at = datetime.utcnow()
-                    session.commit()
+                show.edited_at = datetime.utcnow()
+                session.commit()
 
-                    self.set_status(200)
-                    await self.finish({'message': 'Successfully updated act'})
+                self.set_status(200)
+                await self.finish({'message': 'Successfully updated act'})
 
-                    await self.application.ws_send_to_all('NOOP', 'GET_SHOW_DETAILS', {})
-                else:
-                    self.set_status(404)
-                    await self.finish({'message': '404 show not found'})
-        else:
-            self.set_status(404)
-            await self.finish({'message': '404 show not found'})
+                await self.application.ws_send_to_all('NOOP', 'GET_SHOW_DETAILS', {})
+            else:
+                self.set_status(404)
+                await self.finish({'message': '404 show not found'})
 
 
 @ApiRoute('shows', ApiVersion.v1)
