@@ -26,13 +26,6 @@ export default {
     ADD_BLANK_LINE(state, { pageNo, lineObj }) {
       const line = JSON.parse(JSON.stringify(lineObj));
       line.page = pageNo;
-      if (state.tmpScript[pageNo].length > 0) {
-        const previousLine = state.tmpScript[pageNo][state.tmpScript[pageNo].length - 1];
-        if (previousLine != null) {
-          line.act_id = previousLine.act_id;
-          line.scene_id = previousLine.scene_id;
-        }
-      }
       state.tmpScript[pageNo].push(line);
     },
     SET_LINE(state, { pageNo, lineIndex, lineObj }) {
