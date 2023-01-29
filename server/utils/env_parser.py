@@ -1,5 +1,3 @@
-import os
-
 from utils.singleton import Singleton
 
 
@@ -7,11 +5,7 @@ from utils.singleton import Singleton
 class EnvParser(object):
 
     def __init__(self):
-        self.db_path = None
-
         self._parse_env()
 
     def _parse_env(self):
-        self.db_path = os.getenv(
-            'DIGI_DB_PATH',
-            f'sqlite:///{os.path.join(os.path.dirname(__file__), "../conf/digiscript.sqlite")}')
+        pass

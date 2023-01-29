@@ -17,3 +17,6 @@ disable=
     too-many-locals,
     too-many-nested-blocks,
     too-many-arguments
+
+[FORMAT]
+max-line-length=120
