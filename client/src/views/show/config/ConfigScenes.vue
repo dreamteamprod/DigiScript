@@ -3,7 +3,7 @@
     <b-row>
       <b-col cols="8">
         <h5>Scene List</h5>
-        <b-table id="scene-table" :items="this.SCENE_LIST" :fields="sceneFields" show-empty>
+        <b-table id="scene-table" :items="sceneTableItems" :fields="sceneFields" show-empty>
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-scene>
               New Scene
@@ -360,7 +360,43 @@ export default {
       'SET_ACT_FIRST_SCENE', 'UPDATE_SCENE']),
   },
   computed: {
-    ...mapGetters(['SCENE_LIST', 'ACT_LIST']),
+    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW']),
+    sceneTableItems() {
+      // Get ordering of Acts
+      const acts = [];
+      if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
+        let act = this.ACT_LIST.find((a) => (a.id === this.CURRENT_SHOW.first_act_id));
+        while (act != null) {
+          // eslint-disable-next-line no-loop-func
+          acts.push(this.ACT_LIST.find((a) => (a.id === act.id)).id);
+          act = act.next_act;
+        }
+      }
+      this.ACT_LIST.forEach((act) => {
+        if (!acts.includes(act.id)) {
+          acts.push(act.id);
+        }
+      });
+      const ret = [];
+      acts.forEach((actId) => {
+        const act = this.ACT_LIST.find((a) => (a.id === actId));
+        if (act.first_scene != null) {
+          let scene = this.SCENE_LIST.find((s) => (s.id === act.first_scene.id));
+          while (scene != null) {
+            // eslint-disable-next-line no-loop-func
+            ret.push(this.SCENE_LIST.find((s) => (s.id === scene.id)));
+            scene = scene.next_scene;
+          }
+        }
+        const sceneIds = ret.map((s) => (s.id));
+        this.SCENE_LIST.filter((s) => (s.act.id === actId)).forEach((scene) => {
+          if (!sceneIds.includes(scene.id)) {
+            ret.push(scene);
+          }
+        });
+      });
+      return ret;
+    },
     actOptions() {
       return [
         { value: null, text: 'Please select an option', disabled: true },
