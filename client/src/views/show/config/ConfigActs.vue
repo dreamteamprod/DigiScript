@@ -3,7 +3,7 @@
     <b-row>
       <b-col>
         <h5>Act List</h5>
-        <b-table id="acts-table" :items="this.ACT_LIST" :fields="actFields" show-empty>
+        <b-table id="acts-table" :items="actTableItems" :fields="actFields" show-empty>
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-act>
               New Act
@@ -253,6 +253,24 @@ export default {
     ...mapActions(['GET_ACT_LIST', 'ADD_ACT', 'DELETE_ACT', 'UPDATE_ACT']),
   },
   computed: {
+    actTableItems() {
+      const ret = [];
+      if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
+        let act = this.ACT_LIST.find((a) => (a.id === this.CURRENT_SHOW.first_act_id));
+        while (act != null) {
+          // eslint-disable-next-line no-loop-func
+          ret.push(this.ACT_LIST.find((a) => (a.id === act.id)));
+          act = act.next_act;
+        }
+      }
+      const actIds = ret.map((x) => (x.id));
+      this.ACT_LIST.forEach((act) => {
+        if (!actIds.includes(act.id)) {
+          ret.push(act);
+        }
+      });
+      return ret;
+    },
     previousActOptions() {
       return [
         { value: null, text: 'None', disabled: false },
@@ -275,7 +293,7 @@ export default {
       }
       return ret;
     },
-    ...mapGetters(['ACT_LIST']),
+    ...mapGetters(['ACT_LIST', 'CURRENT_SHOW']),
   },
 };
 </script>
