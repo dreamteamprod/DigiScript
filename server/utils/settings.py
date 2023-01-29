@@ -33,9 +33,12 @@ class SettingsObject:  # pylint: disable=too-many-instance-attributes
         self._loaded = True
 
     def set_value(self, value, spawn_callbacks=True):
-        if not isinstance(value, self.val_type) and value is None and not self._nullable:
-            raise RuntimeError(f'Value for {self.key} of {value} is not of assigned '
-                               f'type {self.val_type}')
+        if not isinstance(value, self.val_type):
+            if value is None and not self._nullable:
+                raise RuntimeError(f'Value for {self.key} cannot be None (is not nullable)')
+            if value is not None:
+                raise TypeError(f'Value for {self.key} of {value} is not of assigned '
+                                f'type {self.val_type}')
 
         changed = False
         if value != self.value:
@@ -172,6 +175,8 @@ class Settings:
 
     async def get(self, key):
         async with self.lock:
+            if key not in self.settings:
+                raise KeyError(f'{key} is not a valid setting')
             return self.settings.get(key).get_value()
 
     async def set(self, key, item):
