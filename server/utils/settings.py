@@ -76,6 +76,8 @@ class Settings:
 
         self.settings = {}
 
+        db_default = f'sqlite:///{os.path.join(os.path.dirname(__file__), "../conf/digiscript.sqlite")}'
+        self.define('db_path', str, db_default, False, nullable=False)
         self.define('current_show', int, None, False, nullable=True)
         self.define('debug_mode', bool, False, True)
         self.define('log_path', str, os.path.join(self._base_path, 'digiscript.log'), True,
@@ -133,7 +135,7 @@ class Settings:
             needs_saving = False
             for key, value in self.settings.items():
                 if not value.is_loaded():
-                    value.set_from_default()
+                    value.set_to_default()
                     needs_saving = True
             if needs_saving:
                 with open(self.settings_path, 'w', encoding='UTF-8') as file_pointer:

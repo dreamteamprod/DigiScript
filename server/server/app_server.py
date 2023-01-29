@@ -21,7 +21,7 @@ from controllers.ws_controller import WebSocketController
 class DigiScriptServer(PrometheusMixIn, Application):
 
     def __init__(self, debug=False, settings_path=None):
-        env_parser: EnvParser = EnvParser.instance()
+        self.env_parser: EnvParser = EnvParser.instance()
 
         self.digi_settings: Settings = Settings(self, settings_path)
         self.app_log_handler = None
@@ -32,9 +32,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         self.clients: List[WebSocketController] = []
 
-        get_logger().info(f'Using {env_parser.db_path} as DB path')
+        db_path = self.digi_settings.settings.get('db_path').get_value()
+        get_logger().info(f'Using {db_path} as DB path')
         self._db: DigiSQLAlchemy = db
-        self._db.configure(url=env_parser.db_path)
+        self._db.configure(url=db_path)
         self._db.create_all()
 
         # Clear out all sessions since we are starting the app up
