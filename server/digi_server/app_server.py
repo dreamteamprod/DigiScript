@@ -5,23 +5,22 @@ from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado_prometheus import PrometheusMixIn
 
-from utils.database import DigiSQLAlchemy
-from utils.env_parser import EnvParser
-from utils.logger import get_logger, configure_file_logging, configure_db_logging
+from controllers import controllers
+from controllers.ws_controller import WebSocketController
 from models.models import db
 from models.show import Show
 from models.session import Session
+from utils.database import DigiSQLAlchemy
+from utils.env_parser import EnvParser
+from utils.logger import get_logger, configure_file_logging, configure_db_logging
 from utils.route import Route
 from utils.settings import Settings
-
-from controllers import controllers
-from controllers.ws_controller import WebSocketController
 
 
 class DigiScriptServer(PrometheusMixIn, Application):
 
     def __init__(self, debug=False, settings_path=None):
-        env_parser: EnvParser = EnvParser.instance()
+        env_parser: EnvParser = EnvParser.instance()  # pylint: disable=no-member
 
         self.digi_settings: Settings = Settings(self, settings_path)
         self.app_log_handler = None
