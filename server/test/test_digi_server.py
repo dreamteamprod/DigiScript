@@ -1,17 +1,9 @@
-import os
-
 import tornado.escape
-from tornado.testing import AsyncHTTPTestCase
 
-from digi_server.app_server import DigiScriptServer
+from .test_utils import DigiScriptTestCase
 
 
-class TestDigiScriptServer(AsyncHTTPTestCase):
-    def get_app(self):
-        base_path = os.path.join(os.path.dirname(__file__), 'conf')
-        settings_path = os.path.join(base_path, 'digiscript.json')
-        return DigiScriptServer(settings_path=settings_path)
-
+class TestDigiScriptServer(DigiScriptTestCase):
     def test_debug(self):
         response = self.fetch('/debug')
         response_body = tornado.escape.json_decode(response.body)
