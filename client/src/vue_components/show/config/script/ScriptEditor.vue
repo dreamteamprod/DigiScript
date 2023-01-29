@@ -280,21 +280,33 @@ export default {
       // Pre-load next page
       await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
     },
-    addNewLine() {
+    async addNewLine() {
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: this.blankLineObj,
       });
-      this.editPages.push(`page_${this.currentEditPage}_line_${this.TMP_SCRIPT[this.currentEditPageKey].length - 1}`);
+      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
+      const prevLine = await this.getPreviousLineForIndex(lineIndex);
+      if (prevLine != null) {
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+      }
     },
-    addStageDirection() {
+    async addStageDirection() {
       const stageDirectionObject = JSON.parse(JSON.stringify(this.blankLineObj));
       stageDirectionObject.stage_direction = true;
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: stageDirectionObject,
       });
-      this.editPages.push(`page_${this.currentEditPage}_line_${this.TMP_SCRIPT[this.currentEditPageKey].length - 1}`);
+      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
+      const prevLine = await this.getPreviousLineForIndex(lineIndex);
+      if (prevLine != null) {
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+      }
     },
     async getPreviousLineForIndex(lineIndex) {
       if (lineIndex > 0) {
