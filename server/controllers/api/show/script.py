@@ -696,6 +696,9 @@ class ScriptMaxPageController(BaseAPIController):
                     func.max(ScriptLine.page)).where(
                     ScriptLine.id.in_(line_ids)).first()[0]
 
+                if max_page is None:
+                    max_page = 0
+
                 self.set_status(200)
                 self.finish({
                     'max_page': max_page
