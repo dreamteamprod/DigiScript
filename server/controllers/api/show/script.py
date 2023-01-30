@@ -689,10 +689,12 @@ class ScriptMaxPageController(BaseAPIController):
                     self.finish({'message': 'Script does not have a current revision'})
                     return
 
-                max_page = 0
-                for line in revision.line_associations:
-                    if line.line.page > max_page:
-                        max_page = line.line.page
+                line_ids = session.query(ScriptLineRevisionAssociation).with_entities(
+                    ScriptLineRevisionAssociation.line_id).filter(
+                    ScriptLineRevisionAssociation.revision_id == revision.id)
+                max_page = session.query(ScriptLine).with_entities(
+                    func.max(ScriptLine.page)).where(
+                    ScriptLine.id.in_(line_ids)).first()[0]
 
                 self.set_status(200)
                 self.finish({
