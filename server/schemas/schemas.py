@@ -5,12 +5,20 @@ from models.cue import CueType, Cue
 from models.script import ScriptRevision, ScriptLine, ScriptLinePart
 from models.show import Show, Cast, Character, CharacterGroup, Act, Scene
 from models.session import Session, ShowSession
+from models.user import User
 
 
 class SessionSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Session
         load_instance = True
+
+
+class UserSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = User
+        load_instance = True
+        include_fk = True
 
 
 class ShowSchema(SQLAlchemyAutoSchema):
