@@ -4,6 +4,7 @@ import createPersistedState from 'vuex-persistedstate';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
+import user from '@/store/modules/user';
 import websocket from './modules/websocket';
 import system from './modules/system';
 import show from './modules/show';
@@ -59,6 +60,7 @@ export default new Vuex.Store({
     show,
     script,
     scriptConfig,
+    user,
   },
   plugins: [
     createPersistedState({
