@@ -19,6 +19,7 @@ class UserSchema(SQLAlchemyAutoSchema):
         model = User
         load_instance = True
         include_fk = True
+        exclude = ('password',)
 
 
 class ShowSchema(SQLAlchemyAutoSchema):
