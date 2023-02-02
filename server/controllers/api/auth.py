@@ -45,18 +45,17 @@ class UserCreateController(BaseAPIController):
 
         with self.make_session() as session:
             if show_id:
-                if not session.query(Show).get(show_id):
+                show = session.query(Show).get(show_id)
+                if not show:
                     self.set_status(400)
                     await self.finish({'message': 'Show not found'})
                     return
 
-                conflict_user = session.query(User).filter(
-                    User.show_id == show_id, User.username == username).first()
-
-                if conflict_user:
-                    self.set_status(400)
-                    await self.finish({'message': 'Username already taken for this show'})
-                    return
+            conflict_user = session.query(User).filter(User.username == username).first()
+            if conflict_user:
+                self.set_status(400)
+                await self.finish({'message': 'Username already taken'})
+                return
 
             hashed_password = await IOLoop.current().run_in_executor(
                 None, bcrypt.hashpw, escape.utf8(password), bcrypt.gensalt())
