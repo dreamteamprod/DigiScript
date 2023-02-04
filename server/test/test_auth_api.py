@@ -90,3 +90,60 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertEqual(400, response.code)
         self.assertTrue('message' in response_body)
         self.assertEqual('Show not found', response_body['message'])
+
+    def test_login_success(self):
+        self.fetch('/api/v1/auth/create', method='POST',
+                   body=escape.json_encode({
+                       'username': 'foobar',
+                       'password': 'password',
+                       'is_admin': True,
+                       'show_id': None
+                   }))
+
+        response = self.fetch('/api/v1/auth/login', method='POST',
+                              body=escape.json_encode({
+                                  'username': 'foobar',
+                                  'password': 'password'
+                              }))
+        response_body = escape.json_decode(response.body)
+        self.assertEqual(200, response.code)
+        self.assertTrue('message' in response_body)
+        self.assertEqual('Successful log in', response_body['message'])
+
+    def test_login_invalid_password(self):
+        self.fetch('/api/v1/auth/create', method='POST',
+                   body=escape.json_encode({
+                       'username': 'foobar',
+                       'password': 'password',
+                       'is_admin': True,
+                       'show_id': None
+                   }))
+
+        response = self.fetch('/api/v1/auth/login', method='POST',
+                              body=escape.json_encode({
+                                  'username': 'foobar',
+                                  'password': 'wrongpassword'
+                              }))
+        response_body = escape.json_decode(response.body)
+        self.assertEqual(401, response.code)
+        self.assertTrue('message' in response_body)
+        self.assertEqual('Invalid username/password', response_body['message'])
+
+    def test_login_invalid_username(self):
+        self.fetch('/api/v1/auth/create', method='POST',
+                   body=escape.json_encode({
+                       'username': 'foobar',
+                       'password': 'password',
+                       'is_admin': True,
+                       'show_id': None
+                   }))
+
+        response = self.fetch('/api/v1/auth/login', method='POST',
+                              body=escape.json_encode({
+                                  'username': 'wrongusername',
+                                  'password': 'password'
+                              }))
+        response_body = escape.json_decode(response.body)
+        self.assertEqual(401, response.code)
+        self.assertTrue('message' in response_body)
+        self.assertEqual('Invalid username/password', response_body['message'])

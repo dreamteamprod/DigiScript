@@ -77,6 +77,11 @@ const routes = [
     component: () => import('../views/show/ShowLiveView.vue'),
   },
   {
+    path: '/login',
+    name: 'live',
+    component: () => import('@/views/LoginView.vue'),
+  },
+  {
     path: '*',
     name: '404',
     component: () => import('../views/404View.vue'),
