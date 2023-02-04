@@ -12,6 +12,7 @@ from digi_server.settings import Settings
 from models.models import db
 from models.show import Show
 from models.session import Session
+from models.user import User
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
 from utils.web.route import Route
@@ -98,6 +99,18 @@ class DigiScriptServer(PrometheusMixIn, Application):
             get_logger().error('Unable to regenerate logging as there is no current IOLoop')
         else:
             IOLoop.current().add_callback(self.configure_logging)
+
+    def validate_has_admin(self):
+        if not IOLoop.current():
+            get_logger().error('Unable to validate admin user as there is no current IOLoop')
+        else:
+            IOLoop.current().add_callback(self._validate_has_admin)
+
+    async def _validate_has_admin(self):
+        with self.get_db().sessionmaker() as session:
+            any_admin = session.query(User).filter(User.is_admin).first()
+            has_admin = any_admin is not None
+            await self.digi_settings.set('has_admin_user', has_admin)
 
     def get_db(self) -> DigiSQLAlchemy:
         return self._db

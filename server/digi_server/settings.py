@@ -89,7 +89,8 @@ class Settings:
         self.settings = {}
 
         db_default = f'sqlite:///{os.path.join(os.path.dirname(__file__), "../conf/digiscript.sqlite")}'
-        self.define('has_admin_user', bool, False, False, nullable=False)
+        self.define('has_admin_user', bool, False, False, nullable=False,
+                    callback_fn=self._application.validate_has_admin)
         self.define('db_path', str, db_default, False, nullable=False)
         self.define('current_show', int, None, False, nullable=True)
         self.define('debug_mode', bool, False, True)
