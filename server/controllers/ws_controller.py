@@ -22,20 +22,20 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         super().__init__(application, request, **kwargs)
         self.application: DigiScriptServer = self.application  # pylint: disable=used-before-assignment
 
-    def update_session(self, is_editor=None):
+    def update_session(self, is_editor=None, user_id=None):
         with self.make_session() as session:
             entry = session.get(Session, self.__getattribute__('internal_id'))
             if entry:
                 entry.last_ping = self.ws_connection.last_ping
                 entry.last_pong = self.ws_connection.last_pong
-                if is_editor is not None:
-                    entry.is_editor = is_editor
                 session.commit()
             else:
                 session.add(Session(internal_id=self.__getattribute__('internal_id'),
                                     remote_ip=self.request.remote_ip,
                                     last_ping=self.ws_connection.last_ping,
-                                    last_pong=self.ws_connection.last_pong))
+                                    last_pong=self.ws_connection.last_pong,
+                                    user_id=user_id,
+                                    is_editor=is_editor))
                 session.commit()
 
     def data_received(self, chunk: bytes) -> Optional[Awaitable[None]]:
@@ -104,8 +104,12 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                     is_editor = entry.is_editor
                     session.delete(entry)
                     session.commit()
+
                 self.__setattr__('internal_id', message['DATA'])
-                self.update_session(is_editor=is_editor)
+                user_id = self.get_secure_cookie('digiscript_user_id')
+                if user_id is not None:
+                    user_id = int(user_id)
+                self.update_session(is_editor=is_editor, user_id=user_id)
             elif ws_op == 'REQUEST_SCRIPT_EDIT':
                 editors = session.query(Session).filter(Session.is_editor).all()
                 if len(editors) == 0:

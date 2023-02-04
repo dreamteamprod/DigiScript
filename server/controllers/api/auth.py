@@ -2,6 +2,7 @@ import bcrypt
 from tornado import escape, web
 from tornado.ioloop import IOLoop
 
+from models.session import Session
 from models.show import Show
 from models.user import User
 from utils.base_controller import BaseAPIController
@@ -120,6 +121,13 @@ class LoginHandler(BaseAPIController):
             )
 
             if password_equal:
+                session_id = data.get('session_id', '')
+                if session_id:
+                    ws_session: Session = session.query(Session).get(session_id)
+                    if ws_session:
+                        ws_session.user = user
+                        session.commit()
+
                 self.set_secure_cookie('digiscript_user_id', str(user.id))
                 self.set_status(200)
                 await self.finish({'message': 'Successful log in'})
@@ -132,7 +140,17 @@ class LoginHandler(BaseAPIController):
 class LogoutHandler(BaseAPIController):
     @web.authenticated
     async def post(self):
+        data = escape.json_decode(self.request.body)
+
         if self.current_user:
+            session_id = data.get('session_id', '')
+            if session_id:
+                with self.make_session() as session:
+                    ws_session: Session = session.query(Session).get(session_id)
+                    if ws_session:
+                        ws_session.user = None
+                        session.commit()
+
             self.clear_cookie('digiscript_user_id')
             self.set_status(200)
             await self.finish({'message': 'Successfully logged out'})
