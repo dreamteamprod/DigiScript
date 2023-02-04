@@ -34,7 +34,11 @@ export default {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(user),
+        body: JSON.stringify({
+          username: user.username,
+          password: user.password,
+          session_id: context.rootGetters.INTERNAL_UUID,
+        }),
       });
       if (response.ok) {
         context.dispatch('GET_CURRENT_USER');
@@ -52,6 +56,9 @@ export default {
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          session_id: context.rootGetters.INTERNAL_UUID,
+        }),
       });
       if (response.ok) {
         await context.commit('SET_CURRENT_USER', null);
