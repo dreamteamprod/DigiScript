@@ -66,7 +66,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
             handlers=handlers,
             debug=debug,
             db=self._db,
-            websocket_ping_interval=5)
+            websocket_ping_interval=5,
+            cookie_secret='DigiScriptSuperSecretValue123!',
+            login_url='/login',
+        )
 
     async def configure_logging(self):
         get_logger().info('Reconfiguring logging!')

@@ -26,7 +26,16 @@
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
           <b-nav-item to="/about">About</b-nav-item>
-          <b-nav-text id="connection-status" :class="{ healthy: WEBSOCKET_HEALTHY }">
+          <b-nav-item to="/login" v-if="CURRENT_USER == null">Login</b-nav-item>
+          <b-nav-item-dropdown v-else>
+            <template #button-content>
+              <em>{{ CURRENT_USER.username }}</em>
+            </template>
+            <b-dropdown-item-button @click.stop.prevent="USER_LOGOUT">
+              Sign Out
+            </b-dropdown-item-button>
+          </b-nav-item-dropdown>
+          <b-nav-text id="connection-status" :class="{ healthy: WEBSOCKET_HEALTHY }" right>
             <template v-if="WEBSOCKET_HEALTHY">Connected</template>
             <template v-else>Disconnected</template>
           </b-nav-text>
@@ -58,6 +67,8 @@
 </template>
 
 <script>
+import { getCookie } from '@/js/utils';
+
 import { mapGetters, mapActions } from 'vuex';
 import CreateUser from '@/vue_components/user/CreateUser.vue';
 
@@ -70,10 +81,14 @@ export default {
     };
   },
   methods: {
-    ...mapActions(['GET_SHOW_SESSION_DATA']),
+    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_CURRENT_USER', 'USER_LOGOUT']),
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer);
+        if (getCookie('digiscript_user_id') != null) {
+          await this.GET_CURRENT_USER();
+        }
+
         if (this.SETTINGS.current_show != null) {
           await this.GET_SHOW_SESSION_DATA();
           this.loaded = true;
@@ -89,7 +104,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS']),
+    ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS', 'CURRENT_USER']),
   },
   async created() {
     this.$router.beforeEach(async (to, from, next) => {

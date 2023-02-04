@@ -7,7 +7,8 @@ from tornado.web import RequestHandler
 from tornado_sqlalchemy import SessionMixin
 
 from models.show import Show
-from schemas.schemas import ShowSchema
+from models.user import User
+from schemas.schemas import ShowSchema, UserSchema
 from digi_server.logger import get_logger
 
 if TYPE_CHECKING:
@@ -26,7 +27,16 @@ class BaseController(SessionMixin, RequestHandler):
 
     async def prepare(self) -> Optional[Awaitable[None]]:  # pylint: disable=invalid-overridden-method
         show_schema = ShowSchema()
+        user_schema = UserSchema()
         with self.make_session() as session:
+            user_id = self.get_secure_cookie('digiscript_user_id')
+            if user_id:
+                user = session.query(User).get(int(user_id))
+                if user:
+                    self.current_user = user_schema.dump(user)
+                else:
+                    self.clear_cookie('digiscript_user_id')
+
             current_show = await self.application.digi_settings.get('current_show')
             if current_show:
                 show = session.query(Show).get(current_show)

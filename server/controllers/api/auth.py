@@ -1,5 +1,5 @@
 import bcrypt
-from tornado import escape
+from tornado import escape, web
 from tornado.ioloop import IOLoop
 
 from models.show import Show
@@ -73,3 +73,77 @@ class UserCreateController(BaseAPIController):
 
             self.set_status(200)
             await self.finish({'message': 'Successfully created user'})
+
+
+@ApiRoute('auth/login', ApiVersion.V1)
+class LoginHandler(BaseAPIController):
+    async def post(self):
+        data = escape.json_decode(self.request.body)
+
+        username = data.get('username', '')
+        if not username:
+            self.set_status(400)
+            await self.finish({'message': 'Username missing'})
+            return
+
+        password = data.get('password', '')
+        if not password:
+            self.set_status(400)
+            await self.finish({'message': 'Password missing'})
+            return
+
+        with self.make_session() as session:
+            user = session.query(User).filter(User.username == username).first()
+            if not user:
+                self.set_status(401)
+                await self.finish({'message': 'Invalid username/password'})
+                return
+
+            if not user.is_admin:
+                if not self.get_current_show():
+                    self.set_status(403)
+                    await self.finish({
+                        'message': 'Non admin user cannot log in without a loaded show'
+                    })
+                    return
+
+                if user.show_id != self.get_current_show()['id']:
+                    self.set_status(403)
+                    await self.finish({'message': 'Loaded show does not match user'})
+                    return
+
+            password_equal = await IOLoop.current().run_in_executor(
+                None,
+                bcrypt.checkpw,
+                escape.utf8(password),
+                escape.utf8(user.password),
+            )
+
+            if password_equal:
+                self.set_secure_cookie('digiscript_user_id', str(user.id))
+                self.set_status(200)
+                await self.finish({'message': 'Successful log in'})
+            else:
+                self.set_status(401)
+                await self.finish({'message': 'Invalid username/password'})
+
+
+@ApiRoute('auth/logout', ApiVersion.V1)
+class LogoutHandler(BaseAPIController):
+    @web.authenticated
+    async def post(self):
+        if self.current_user:
+            self.clear_cookie('digiscript_user_id')
+            self.set_status(200)
+            await self.finish({'message': 'Successfully logged out'})
+        else:
+            self.set_status(401)
+            await self.finish({'message': 'No user logged in'})
+
+
+@ApiRoute('/auth', ApiVersion.V1)
+class AuthHandler(BaseAPIController):
+    @web.authenticated
+    def get(self):
+        self.set_status(200)
+        self.finish(self.current_user)
