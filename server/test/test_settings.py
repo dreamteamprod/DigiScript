@@ -1,6 +1,6 @@
 from tornado.testing import gen_test
 
-from utils.logger import get_logger
+from digi_server.logger import get_logger
 from .test_utils import DigiScriptTestCase
 
 

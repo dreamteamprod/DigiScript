@@ -5,10 +5,10 @@ from tornado import escape
 from models.script import Script, ScriptRevision
 from models.show import Show
 from schemas.schemas import ShowSchema
-from utils.base_controller import BaseAPIController
-from utils.web_decorators import requires_show
-from utils.route import ApiRoute, ApiVersion
-from utils.logger import get_logger
+from utils.web.base_controller import BaseAPIController
+from utils.web.web_decorators import requires_show
+from utils.web.route import ApiRoute, ApiVersion
+from digi_server.logger import get_logger
 
 
 @ApiRoute('show', ApiVersion.v1)

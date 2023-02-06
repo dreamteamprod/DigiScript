@@ -2,7 +2,7 @@ import os.path
 
 from tornado.ioloop import IOLoop, PeriodicCallback
 
-from utils.logger import get_logger
+from digi_server.logger import get_logger
 
 
 class FileWatcher:

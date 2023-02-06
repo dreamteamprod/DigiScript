@@ -12,9 +12,9 @@ from models.show import Show
 from models.session import Session
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
-from utils.logger import get_logger, configure_file_logging, configure_db_logging
-from utils.route import Route
-from utils.settings import Settings
+from digi_server.logger import get_logger, configure_file_logging, configure_db_logging
+from utils.web.route import Route
+from digi_server.settings import Settings
 
 
 class DigiScriptServer(PrometheusMixIn, Application):

@@ -1,10 +1,10 @@
 from tornado import escape
 
-from utils.base_controller import BaseAPIController
-from utils.logger import get_logger
-from utils.route import ApiRoute, ApiVersion
-from utils.settings import Settings
-from utils.web_decorators import no_live_session
+from utils.web.base_controller import BaseAPIController
+from digi_server.logger import get_logger
+from utils.web.route import ApiRoute, ApiVersion
+from digi_server.settings import Settings
+from utils.web.web_decorators import no_live_session
 
 
 @ApiRoute('settings', ApiVersion.v1)

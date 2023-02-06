@@ -4,9 +4,9 @@ import os
 from tornado.escape import url_unescape
 from tornado_prometheus import MetricsHandler
 
-from utils.base_controller import BaseController, BaseAPIController
-from utils.logger import get_logger
-from utils.route import ApiRoute, ApiVersion, Route
+from utils.web.base_controller import BaseController, BaseAPIController
+from digi_server.logger import get_logger
+from utils.web.route import ApiRoute, ApiVersion, Route
 from utils.pkg_utils import find_end_modules
 
 

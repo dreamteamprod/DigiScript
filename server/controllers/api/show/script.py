@@ -10,9 +10,9 @@ from models.script import (Script, ScriptRevision, ScriptLine, ScriptLineRevisio
 from models.show import Show
 from models.session import Session
 from schemas.schemas import ScriptRevisionsSchema, ScriptLineSchema
-from utils.base_controller import BaseAPIController
-from utils.web_decorators import requires_show, no_live_session
-from utils.route import ApiRoute, ApiVersion
+from utils.web.base_controller import BaseAPIController
+from utils.web.web_decorators import requires_show, no_live_session
+from utils.web.route import ApiRoute, ApiVersion
 
 
 @ApiRoute('show/script/config', ApiVersion.v1)

@@ -7,9 +7,9 @@ from models.cue import CueType, CueAssociation, Cue
 from models.script import ScriptRevision, Script
 from models.show import Show
 from schemas.schemas import CueTypeSchema, CueSchema
-from utils.base_controller import BaseAPIController
-from utils.web_decorators import requires_show, no_live_session
-from utils.route import ApiRoute, ApiVersion
+from utils.web.base_controller import BaseAPIController
+from utils.web.web_decorators import requires_show, no_live_session
+from utils.web.route import ApiRoute, ApiVersion
 
 
 @ApiRoute('show/cues/types', ApiVersion.v1)

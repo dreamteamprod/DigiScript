@@ -7,9 +7,9 @@ from tornado import gen
 from tornado.websocket import WebSocketHandler
 from tornado_sqlalchemy import SessionMixin
 
-from utils.logger import get_logger
+from digi_server.logger import get_logger
 from models.session import Session
-from utils.route import ApiRoute, ApiVersion
+from utils.web.route import ApiRoute, ApiVersion
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer

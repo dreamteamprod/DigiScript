@@ -2,9 +2,9 @@ from tornado import escape
 
 from models.show import Show, Scene
 from schemas.schemas import SceneSchema
-from utils.base_controller import BaseAPIController
-from utils.web_decorators import requires_show, no_live_session
-from utils.route import ApiRoute, ApiVersion
+from utils.web.base_controller import BaseAPIController
+from utils.web.web_decorators import requires_show, no_live_session
+from utils.web.route import ApiRoute, ApiVersion
 
 
 @ApiRoute('show/scene', ApiVersion.v1)

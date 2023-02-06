@@ -3,9 +3,9 @@ from datetime import datetime
 from models.session import ShowSession
 from models.show import Show
 from schemas.schemas import ShowSessionSchema
-from utils.base_controller import BaseAPIController
-from utils.web_decorators import requires_show
-from utils.route import ApiRoute, ApiVersion
+from utils.web.base_controller import BaseAPIController
+from utils.web.web_decorators import requires_show
+from utils.web.route import ApiRoute, ApiVersion
 
 
 @ApiRoute('show/sessions', ApiVersion.v1)
