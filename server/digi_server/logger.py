@@ -54,18 +54,15 @@ def add_logging_level(level_name, level_num, method_name=None):
         method_name = level_name.lower()
 
     if hasattr(logging, level_name):
-        raise AttributeError(
-            '{} already defined in logging module'.format(level_name))
+        raise AttributeError(f'{level_name} already defined in logging module')
     if hasattr(logging, method_name):
-        raise AttributeError(
-            '{} already defined in logging module'.format(method_name))
+        raise AttributeError(f'{method_name} already defined in logging module')
     if hasattr(logging.getLoggerClass(), method_name):
-        raise AttributeError(
-            '{} already defined in logger class'.format(method_name))
+        raise AttributeError(f'{method_name} already defined in logger class')
 
     def log_for_level(self, message, *args, **kwargs):
         if self.isEnabledFor(level_num):
-            self._log(level_num, message, args, **kwargs)
+            self._log(level_num, message, args, **kwargs)  # pylint: disable=protected-access
 
     def log_to_root(message, *args, **kwargs):
         logging.log(level_num, message, *args, **kwargs)

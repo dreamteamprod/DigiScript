@@ -3,12 +3,12 @@ from datetime import datetime
 from models.session import ShowSession
 from models.show import Show
 from schemas.schemas import ShowSessionSchema
-from utils.base_controller import BaseAPIController
-from utils.web_decorators import requires_show
-from utils.route import ApiRoute, ApiVersion
+from utils.web.base_controller import BaseAPIController
+from utils.web.web_decorators import requires_show
+from utils.web.route import ApiRoute, ApiVersion
 
 
-@ApiRoute('show/sessions', ApiVersion.v1)
+@ApiRoute('show/sessions', ApiVersion.V1)
 class SessionsController(BaseAPIController):
 
     @requires_show
@@ -36,7 +36,7 @@ class SessionsController(BaseAPIController):
                 self.finish({'message': '404 show not found'})
 
 
-@ApiRoute('show/sessions/start', ApiVersion.v1)
+@ApiRoute('show/sessions/start', ApiVersion.V1)
 class SessionStartController(BaseAPIController):
     @requires_show
     async def post(self):
@@ -71,7 +71,7 @@ class SessionStartController(BaseAPIController):
                 await self.finish({'message': '404 show not found'})
 
 
-@ApiRoute('show/sessions/stop', ApiVersion.v1)
+@ApiRoute('show/sessions/stop', ApiVersion.V1)
 class SessionStopController(BaseAPIController):
     @requires_show
     async def post(self):

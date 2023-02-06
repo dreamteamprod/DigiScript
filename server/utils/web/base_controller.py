@@ -8,7 +8,7 @@ from tornado_sqlalchemy import SessionMixin
 
 from models.show import Show
 from schemas.schemas import ShowSchema
-from utils.logger import get_logger
+from digi_server.logger import get_logger
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer

@@ -5,13 +5,13 @@ from tornado import escape
 from models.script import Script, ScriptRevision
 from models.show import Show
 from schemas.schemas import ShowSchema
-from utils.base_controller import BaseAPIController
-from utils.web_decorators import requires_show
-from utils.route import ApiRoute, ApiVersion
-from utils.logger import get_logger
+from utils.web.base_controller import BaseAPIController
+from utils.web.web_decorators import requires_show
+from utils.web.route import ApiRoute, ApiVersion
+from digi_server.logger import get_logger
 
 
-@ApiRoute('show', ApiVersion.v1)
+@ApiRoute('show', ApiVersion.V1)
 class ShowController(BaseAPIController):
     async def post(self):
         """
@@ -191,7 +191,7 @@ class ShowController(BaseAPIController):
                 await self.finish({'message': '404 show not found'})
 
 
-@ApiRoute('shows', ApiVersion.v1)
+@ApiRoute('shows', ApiVersion.V1)
 class ShowsController(BaseAPIController):
 
     def get(self):
