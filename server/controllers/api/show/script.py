@@ -15,7 +15,7 @@ from utils.web.web_decorators import requires_show, no_live_session
 from utils.web.route import ApiRoute, ApiVersion
 
 
-@ApiRoute('show/script/config', ApiVersion.v1)
+@ApiRoute('show/script/config', ApiVersion.V1)
 class ScriptStatusController(BaseAPIController):
     def get(self):
         with self.make_session() as session:
@@ -34,7 +34,7 @@ class ScriptStatusController(BaseAPIController):
             self.finish(data)
 
 
-@ApiRoute('show/script/revisions', ApiVersion.v1)
+@ApiRoute('show/script/revisions', ApiVersion.V1)
 class ScriptRevisionsController(BaseAPIController):
 
     @requires_show
@@ -197,7 +197,7 @@ class ScriptRevisionsController(BaseAPIController):
                 await self.finish({'message': '404 show not found'})
 
 
-@ApiRoute('show/script/revisions/current', ApiVersion.v1)
+@ApiRoute('show/script/revisions/current', ApiVersion.V1)
 class ScriptCurrentRevisionController(BaseAPIController):
 
     @requires_show
@@ -267,7 +267,7 @@ class ScriptCurrentRevisionController(BaseAPIController):
                 await self.finish({'message': '404 show not found'})
 
 
-@ApiRoute('/show/script', ApiVersion.v1)
+@ApiRoute('/show/script', ApiVersion.V1)
 class ScriptController(BaseAPIController):
 
     @requires_show
@@ -668,7 +668,7 @@ class ScriptController(BaseAPIController):
                 return
 
 
-@ApiRoute('/show/script/max_page', ApiVersion.v1)
+@ApiRoute('/show/script/max_page', ApiVersion.V1)
 class ScriptMaxPageController(BaseAPIController):
 
     @requires_show

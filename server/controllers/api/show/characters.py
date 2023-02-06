@@ -7,7 +7,7 @@ from utils.web.web_decorators import requires_show, no_live_session
 from utils.web.route import ApiRoute, ApiVersion
 
 
-@ApiRoute('show/character', ApiVersion.v1)
+@ApiRoute('show/character', ApiVersion.V1)
 class CharacterController(BaseAPIController):
 
     @requires_show
@@ -150,7 +150,7 @@ class CharacterController(BaseAPIController):
                 await self.finish({'message': '404 show not found'})
 
 
-@ApiRoute('show/character/group', ApiVersion.v1)
+@ApiRoute('show/character/group', ApiVersion.V1)
 class CharacterGroupController(BaseAPIController):
 
     @requires_show

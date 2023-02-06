@@ -7,7 +7,7 @@ from utils.web.web_decorators import requires_show, no_live_session
 from utils.web.route import ApiRoute, ApiVersion
 
 
-@ApiRoute('show/act', ApiVersion.v1)
+@ApiRoute('show/act', ApiVersion.V1)
 class ActController(BaseAPIController):
 
     @requires_show
@@ -188,7 +188,7 @@ class ActController(BaseAPIController):
                 await self.finish({'message': '404 show not found'})
 
 
-@ApiRoute('show/act/first_scene', ApiVersion.v1)
+@ApiRoute('show/act/first_scene', ApiVersion.V1)
 class FirstSceneController(BaseAPIController):
 
     @requires_show

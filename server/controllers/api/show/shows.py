@@ -11,7 +11,7 @@ from utils.web.route import ApiRoute, ApiVersion
 from digi_server.logger import get_logger
 
 
-@ApiRoute('show', ApiVersion.v1)
+@ApiRoute('show', ApiVersion.V1)
 class ShowController(BaseAPIController):
     async def post(self):
         """
@@ -191,7 +191,7 @@ class ShowController(BaseAPIController):
                 await self.finish({'message': '404 show not found'})
 
 
-@ApiRoute('shows', ApiVersion.v1)
+@ApiRoute('shows', ApiVersion.V1)
 class ShowsController(BaseAPIController):
 
     def get(self):

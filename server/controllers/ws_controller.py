@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
-@ApiRoute('ws', ApiVersion.v1)
+@ApiRoute('ws', ApiVersion.V1)
 class WebSocketController(SessionMixin, WebSocketHandler):
 
     def __init__(self, application, request, **kwargs):
