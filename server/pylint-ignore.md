@@ -23,116 +23,10 @@ The recommended approach to using `pylint-ignore` is:
 
 # Overview
 
- - [E0401: import-error (1x)](#e0401-import-error)
- - [E0611: no-name-in-module (1x)](#e0611-no-name-in-module)
- - [E1101: no-member (3x)](#e1101-no-member)
- - [W0212: protected-access (1x)](#w0212-protected-access)
  - [W0613: unused-argument (1x)](#w0613-unused-argument)
  - [W1514: unspecified-encoding (2x)](#w1514-unspecified-encoding)
- - [C0103: invalid-name (3x)](#c0103-invalid-name)
- - [C0209: consider-using-f-string (4x)](#c0209-consider-using-f-string)
- - [C0412: ungrouped-imports (2x)](#c0412-ungrouped-imports)
- - [R0205: useless-object-inheritance (2x)](#r0205-useless-object-inheritance)
-
-
-# E0401: import-error
-
-## File main.py - Line 7 - E0401 (import-error)
-
-- `message: Unable to import 'server.app_server'`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-   5: 
-   6: from utils.logger import get_logger, add_logging_level
->  7: from server.app_server import DigiScriptServer
-   8: 
-   9: add_logging_level('TRACE', logging.DEBUG - 5)
-```
-
-
-# E0611: no-name-in-module
-
-## File main.py - Line 7 - E0611 (no-name-in-module)
-
-- `message: No name 'app_server' in module 'server'`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-   5: 
-   6: from utils.logger import get_logger, add_logging_level
->  7: from server.app_server import DigiScriptServer
-   8: 
-   9: add_logging_level('TRACE', logging.DEBUG - 5)
-```
-
-
-# E1101: no-member
-
-## File server/app_server.py - Line 24 - E1101 (no-member)
-
-- `message: Class 'EnvParser' has no 'instance' member`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  22: 
-  23:     def __init__(self, debug=False, settings_path=None):
-> 24:         env_parser: EnvParser = EnvParser.instance()
-  25: 
-  26:         self.digi_settings: Settings = Settings(self, settings_path)
-```
-
-
-## File utils/route.py - Line 35 - E1101 (no-member)
-
-- `message: Module 'urllib' has no 'quote' member`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  33:     @staticmethod
-  34:     def _url_escape(v):
-> 35:         return urllib.quote(tornado.escape.utf8(v), '')
-  36: 
-  37:     @classmethod
-```
-
-
-## File utils/route.py - Line 41 - E1101 (no-member)
-
-- `message: Instance of 'dict' has no 'iteritems' member`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  38:     def make(cls, _name, **kwargs):
-  ...
-  39:         if _name not in cls._formats:
-  40:             raise KeyError('No route by the name of `{}`'.format(_name))
-> 41:         kwargs = {k: cls._url_escape(v) for k, v in kwargs.iteritems()}
-  42:         return cls._formats[_name] % kwargs
-  43:
-```
-
-
-# W0212: protected-access
-
-## File utils/logger.py - Line 68 - W0212 (protected-access)
-
-- `message: Access to a protected member _log of a client class`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  66:     def log_for_level(self, message, *args, **kwargs):
-  67:         if self.isEnabledFor(level_num):
-> 68:             self._log(level_num, message, args, **kwargs)
-  69: 
-  70:     def log_to_root(message, *args, **kwargs):
-```
+ - [C0103: invalid-name (1x)](#c0103-invalid-name)
+ - [R0205: useless-object-inheritance (1x)](#r0205-useless-object-inheritance)
 
 
 # W0613: unused-argument
@@ -190,184 +84,37 @@ The recommended approach to using `pylint-ignore` is:
 
 # C0103: invalid-name
 
-## File controllers/api/settings.py - Line 22 - C0103 (invalid-name)
+## File controllers/api/settings.py - Line 24 - C0103 (invalid-name)
 
 - `message: Variable name "v" doesn't conform to snake_case naming style`
 - `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
 - `date   : 2023-01-25T18:15:14`
 
 ```
-  10: class SettingsController(BaseAPIController):
+  11: class SettingsController(BaseAPIController):
   ...
-  20:         get_logger().debug(f'New settings data patched: {data}')
-  21: 
-> 22:         for k, v in data.items():
-  23:             await settings.set(k, v)
-  24:
-```
-
-
-## File utils/route.py - Line 34 - C0103 (invalid-name)
-
-- `message: Argument name "v" doesn't conform to snake_case naming style`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  11: class Route(object):
-  ...
-  32: 
-  33:     @staticmethod
-> 34:     def _url_escape(v):
-  35:         return urllib.quote(tornado.escape.utf8(v), '')
-  36:
-```
-
-
-## File utils/route.py - Line 46 - C0103 (invalid-name)
-
-- `message: Class constant name "v1" doesn't conform to UPPER_CASE naming style`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  44: 
-  45: class ApiVersion(Enum):
-> 46:     v1 = 1
-  47: 
-  48:
-```
-
-
-# C0209: consider-using-f-string
-
-## File utils/route.py - Line 40 - C0209 (consider-using-f-string)
-
-- `message: Formatting a regular string which could be a f-string`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  38:     def make(cls, _name, **kwargs):
-  39:         if _name not in cls._formats:
-> 40:             raise KeyError('No route by the name of `{}`'.format(_name))
-  41:         kwargs = {k: cls._url_escape(v) for k, v in kwargs.iteritems()}
-  42:         return cls._formats[_name] % kwargs
-```
-
-
-## File utils/logger.py - Line 58 - C0209 (consider-using-f-string)
-
-- `message: Formatting a regular string which could be a f-string`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  52: def add_logging_level(level_name, level_num, method_name=None):
-  ...
-  56:     if hasattr(logging, level_name):
-  57:         raise AttributeError(
-> 58:             '{} already defined in logging module'.format(level_name))
-  59:     if hasattr(logging, method_name):
-  60:         raise AttributeError(
-```
-
-
-## File utils/logger.py - Line 61 - C0209 (consider-using-f-string)
-
-- `message: Formatting a regular string which could be a f-string`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  52: def add_logging_level(level_name, level_num, method_name=None):
-  ...
-  59:     if hasattr(logging, method_name):
-  60:         raise AttributeError(
-> 61:             '{} already defined in logging module'.format(method_name))
-  62:     if hasattr(logging.getLoggerClass(), method_name):
-  63:         raise AttributeError(
-```
-
-
-## File utils/logger.py - Line 64 - C0209 (consider-using-f-string)
-
-- `message: Formatting a regular string which could be a f-string`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  52: def add_logging_level(level_name, level_num, method_name=None):
-  ...
-  62:     if hasattr(logging.getLoggerClass(), method_name):
-  63:         raise AttributeError(
-> 64:             '{} already defined in logger class'.format(method_name))
-  65: 
-  66:     def log_for_level(self, message, *args, **kwargs):
-```
-
-
-# C0412: ungrouped-imports
-
-## File controllers/ws_controller.py - Line 12 - C0412 (ungrouped-imports)
-
-- `message: Imports from package utils are not grouped`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  10: from utils.logger import get_logger
-  11: from models.session import Session
-> 12: from utils.route import ApiRoute, ApiVersion
-  13: 
-  14: if TYPE_CHECKING:
-```
-
-
-## File server/app_server.py - Line 14 - C0412 (ungrouped-imports)
-
-- `message: Imports from package utils are not grouped`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-  12: from models.show import Show
-  13: from models.session import Session
-> 14: from utils.route import Route
-  15: from utils.settings import Settings
-  16:
+  22:         get_logger().debug(f'New settings data patched: {data}')
+  23: 
+> 24:         for k, v in data.items():
+  25:             await settings.set(k, v)
+  26:
 ```
 
 
 # R0205: useless-object-inheritance
 
-## File utils/env_parser.py - Line 7 - R0205 (useless-object-inheritance)
+## File utils/env_parser.py - Line 5 - R0205 (useless-object-inheritance)
 
 - `message: Class 'EnvParser' inherits from object, can be safely removed from bases in python3`
 - `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
 - `date   : 2023-01-25T18:15:14`
 
 ```
-   5: 
-   6: @Singleton
->  7: class EnvParser(object):
-   8: 
-   9:     def __init__(self):
-```
-
-
-## File utils/route.py - Line 11 - R0205 (useless-object-inheritance)
-
-- `message: Class 'Route' inherits from object, can be safely removed from bases in python3`
-- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
-- `date   : 2023-01-25T18:15:14`
-
-```
-   9: 
-  10: 
-> 11: class Route(object):
-  12:     """Decorator for assigning routes to Controllers"""
-  13:
+  3: 
+  4: @Singleton
+> 5: class EnvParser(object):
+  6: 
+  7:     def __init__(self):
 ```
 
 
