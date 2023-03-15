@@ -45,7 +45,7 @@
     "node-sass": "7.0.3",
     "sass": "1.57.1",
     "sass-loader": "13.2.0",
-    "webpack": "5.75.0"
+    "webpack": "5.76.0"
   },
   "overrides": {
     "bootstrap-vue": {
