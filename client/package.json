@@ -38,7 +38,7 @@
     "@vue/cli-plugin-router": "5.0.8",
     "@vue/cli-service": "5.0.8",
     "@vue/eslint-config-airbnb": "6.0.0",
-    "eslint": "8.33.0",
+    "eslint": "8.37.0",
     "eslint-plugin-import": "2.27.5",
     "eslint-plugin-vue": "9.9.0",
     "eslint-plugin-vuejs-accessibility": "1.2.0",
