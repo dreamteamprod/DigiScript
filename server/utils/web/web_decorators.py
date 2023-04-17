@@ -19,6 +19,17 @@ def requires_show(
     return wrapper
 
 
+def require_admin(
+        method: Callable[..., Optional[Awaitable[None]]]
+) -> Callable[..., Optional[Awaitable[None]]]:
+    @functools.wraps(method)
+    def wrapper(self: BaseController, *args, **kwargs):
+        if not self.current_user or not self.current_user['is_admin']:
+            raise HTTPError(401, log_message='Not admin user')
+        return method(self, *args, **kwargs)
+    return wrapper
+
+
 def no_live_session(
         method: Callable[..., Optional[Awaitable[None]]]
 ) -> Callable[..., Optional[Awaitable[None]]]:

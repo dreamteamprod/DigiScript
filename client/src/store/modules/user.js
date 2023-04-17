@@ -6,13 +6,35 @@ import { makeURL } from '@/js/utils';
 export default {
   state: {
     currentUser: null,
+    showUsers: [],
   },
   mutations: {
     SET_CURRENT_USER(state, user) {
       state.currentUser = user;
     },
+    SET_SHOW_USERS(state, users) {
+      state.showUsers = users;
+    },
   },
   actions: {
+    async GET_USERS(context) {
+      if (context.getters.CURRENT_USER == null || !context.getters.CURRENT_USER.is_admin) {
+        return;
+      }
+      const response = await fetch(`${makeURL('/api/v1/auth/users')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const users = await response.json();
+        await context.commit('SET_SHOW_USERS', users.users);
+      } else {
+        log.error('Unable to get users');
+        Vue.$toast.error('Unable to fetch users!');
+      }
+    },
     async CREATE_USER(context, user) {
       const response = await fetch(`${makeURL('/api/v1/auth/create')}`, {
         method: 'POST',
@@ -81,6 +103,9 @@ export default {
   getters: {
     CURRENT_USER(state) {
       return state.currentUser;
+    },
+    SHOW_USERS(state) {
+      return state.showUsers;
     },
   },
 };

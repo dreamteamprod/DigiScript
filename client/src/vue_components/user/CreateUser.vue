@@ -76,6 +76,11 @@ export default {
       type: Boolean,
       default: false,
     },
+    show_id: {
+      type: Number,
+      required: false,
+      default: null,
+    },
   },
   data() {
     return {
@@ -83,7 +88,7 @@ export default {
         username: this.is_first_admin ? 'admin' : '',
         password: '',
         confirmPassword: '',
-        show_id: null,
+        show_id: this.show_id,
         is_admin: this.is_first_admin,
       },
     };
@@ -114,6 +119,7 @@ export default {
         event.preventDefault();
       } else {
         await this.CREATE_USER(this.state);
+        this.$emit('created_user');
       }
     },
     ...mapActions(['CREATE_USER']),

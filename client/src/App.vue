@@ -13,6 +13,7 @@
             Live
           </b-nav-item>
           <b-nav-item
+            v-if="CURRENT_USER != null && CURRENT_USER.is_admin"
             to="/config"
             :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null">
             System Config

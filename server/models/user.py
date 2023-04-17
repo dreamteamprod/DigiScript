@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, Column, String, ForeignKey, Boolean
+from sqlalchemy import Integer, Column, String, ForeignKey, Boolean, DateTime
 
 from models.models import db
 
@@ -11,3 +11,4 @@ class User(db.Model):
     password = Column(String())
     show_id = Column(Integer(), ForeignKey('shows.id'), index=True)
     is_admin = Column(Boolean())
+    last_login = Column(DateTime())

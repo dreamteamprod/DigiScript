@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import bcrypt
 from tornado import escape, web
 from tornado.ioloop import IOLoop
@@ -5,8 +7,10 @@ from tornado.ioloop import IOLoop
 from models.session import Session
 from models.show import Show
 from models.user import User
+from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
+from utils.web.web_decorators import require_admin, requires_show
 
 
 @ApiRoute('auth/create', ApiVersion.V1)
@@ -73,6 +77,7 @@ class UserCreateController(BaseAPIController):
                 await self.application.digi_settings.set('has_admin_user', True)
 
             self.set_status(200)
+            await self.application.ws_send_to_all('NOOP', 'GET_USERS', {})
             await self.finish({'message': 'Successfully created user'})
 
 
@@ -126,7 +131,8 @@ class LoginHandler(BaseAPIController):
                     ws_session: Session = session.query(Session).get(session_id)
                     if ws_session:
                         ws_session.user = user
-                        session.commit()
+                user.last_login = datetime.utcnow()
+                session.commit()
 
                 self.set_secure_cookie('digiscript_user_id', str(user.id))
                 self.set_status(200)
@@ -157,6 +163,20 @@ class LogoutHandler(BaseAPIController):
         else:
             self.set_status(401)
             await self.finish({'message': 'No user logged in'})
+
+
+@ApiRoute('auth/users', ApiVersion.V1)
+class UsersHandler(BaseAPIController):
+    @web.authenticated
+    @require_admin
+    @requires_show
+    def get(self):
+        user_schema = UserSchema()
+        with self.make_session() as session:
+            users = session.query(User).filter(
+                (User.show_id == self.get_current_show()['id']) | (User.is_admin)).all()
+            self.set_status(200)
+            self.finish({'users': [user_schema.dump(u) for u in users]})
 
 
 @ApiRoute('/auth', ApiVersion.V1)
