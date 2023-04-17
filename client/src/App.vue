@@ -112,6 +112,8 @@ export default {
       if (!this.SETTINGS.has_admin_user) {
         this.$toast.error('Please create an admin user before continuing');
         next(false);
+      } else if (to.fullPath === '/config' && (this.CURRENT_USER == null || !this.CURRENT_USER.is_admin)) {
+        next(false);
       } else {
         next();
       }
