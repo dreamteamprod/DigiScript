@@ -9,10 +9,13 @@ from controllers import controllers
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger, configure_file_logging, configure_db_logging
 from digi_server.settings import Settings
+from models.cue import CueType
 from models.models import db
+from models.script import Script
 from models.show import Show
 from models.session import Session
 from models.user import User
+from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
 from utils.web.route import Route
@@ -36,6 +39,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
         get_logger().info(f'Using {db_path} as DB path')
         self._db: DigiSQLAlchemy = db
         self._db.configure(url=db_path)
+
+        self.rbac = RBACController(self)
+        self._configure_rbac()
+
         self._db.create_all()
 
         # Clear out all sessions since we are starting the app up
@@ -72,7 +79,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
             login_url='/login',
         )
 
-    async def configure_logging(self):
+    async def configure(self):
+        await self._configure_logging()
+
+    async def _configure_logging(self):
         get_logger().info('Reconfiguring logging!')
 
         # Application logging
@@ -94,11 +104,16 @@ class DigiScriptServer(PrometheusMixIn, Application):
                                                         log_backups=db_backups,
                                                         handler=self.db_file_handler)
 
+    def _configure_rbac(self):
+        self.rbac.add_mapping(User, Show)
+        self.rbac.add_mapping(User, CueType)
+        self.rbac.add_mapping(User, Script)
+
     def regen_logging(self):
         if not IOLoop.current():
             get_logger().error('Unable to regenerate logging as there is no current IOLoop')
         else:
-            IOLoop.current().add_callback(self.configure_logging)
+            IOLoop.current().add_callback(self._configure_logging)
 
     def validate_has_admin(self):
         if not IOLoop.current():

@@ -78,7 +78,7 @@ const routes = [
   },
   {
     path: '/login',
-    name: 'live',
+    name: 'login',
     component: () => import('@/views/LoginView.vue'),
   },
   {
