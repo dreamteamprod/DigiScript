@@ -25,6 +25,7 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    versioning-strategy: increase
     target-branch: dev
   - package-ecosystem: "github-actions"
     directory: "/.github"
@@ -33,4 +34,5 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    versioning-strategy: increase
     target-branch: dev
