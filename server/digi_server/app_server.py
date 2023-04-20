@@ -7,14 +7,14 @@ from tornado_prometheus import PrometheusMixIn
 
 from controllers import controllers
 from controllers.ws_controller import WebSocketController
+from digi_server.logger import get_logger, configure_file_logging, configure_db_logging
+from digi_server.settings import Settings
 from models.models import db
 from models.show import Show
 from models.session import Session
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
-from utils.logger import get_logger, configure_file_logging, configure_db_logging
-from utils.route import Route
-from utils.settings import Settings
+from utils.web.route import Route
 
 
 class DigiScriptServer(PrometheusMixIn, Application):

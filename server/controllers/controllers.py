@@ -4,10 +4,10 @@ import os
 from tornado.escape import url_unescape
 from tornado_prometheus import MetricsHandler
 
-from utils.base_controller import BaseController, BaseAPIController
-from utils.logger import get_logger
-from utils.route import ApiRoute, ApiVersion, Route
+from digi_server.logger import get_logger
 from utils.pkg_utils import find_end_modules
+from utils.web.base_controller import BaseController, BaseAPIController
+from utils.web.route import ApiRoute, ApiVersion, Route
 
 
 IMPORTED_CONTROLLERS = {}
@@ -78,7 +78,7 @@ class DebugController(BaseController):
         })
 
 
-@ApiRoute('debug', ApiVersion.v1)
+@ApiRoute('debug', ApiVersion.V1)
 class ApiDebugController(BaseAPIController):
     def get(self):
         self.set_status(200)

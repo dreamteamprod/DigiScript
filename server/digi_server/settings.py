@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from tornado.locks import Lock
 
-from utils.logger import get_logger
+from digi_server.logger import get_logger
 from utils.file_watcher import IOLoopFileWatcher
 
 if TYPE_CHECKING:

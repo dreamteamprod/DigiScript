@@ -1,13 +1,13 @@
 from tornado import escape
 
-from utils.base_controller import BaseAPIController
-from utils.logger import get_logger
-from utils.route import ApiRoute, ApiVersion
-from utils.settings import Settings
-from utils.web_decorators import no_live_session
+from digi_server.logger import get_logger
+from digi_server.settings import Settings
+from utils.web.base_controller import BaseAPIController
+from utils.web.route import ApiRoute, ApiVersion
+from utils.web.web_decorators import no_live_session
 
 
-@ApiRoute('settings', ApiVersion.v1)
+@ApiRoute('settings', ApiVersion.V1)
 class SettingsController(BaseAPIController):
     async def get(self):
         settings: Settings = self.application.digi_settings
@@ -34,7 +34,7 @@ class SettingsController(BaseAPIController):
         self.write({'message': 'Settings updated'})
 
 
-@ApiRoute('settings/raw', ApiVersion.v1)
+@ApiRoute('settings/raw', ApiVersion.V1)
 class RawSettingsController(BaseAPIController):
     async def get(self):
         settings: Settings = self.application.digi_settings

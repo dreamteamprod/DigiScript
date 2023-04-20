@@ -3,7 +3,7 @@ from typing import Callable, Optional, Awaitable
 
 from tornado.web import HTTPError
 
-from utils.base_controller import BaseController
+from utils.web.base_controller import BaseController
 
 
 def requires_show(

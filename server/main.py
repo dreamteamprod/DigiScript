@@ -3,7 +3,7 @@ import asyncio
 import logging
 from tornado.options import define, options, parse_command_line
 
-from utils.logger import get_logger, add_logging_level
+from digi_server.logger import get_logger, add_logging_level
 from digi_server.app_server import DigiScriptServer
 
 add_logging_level('TRACE', logging.DEBUG - 5)

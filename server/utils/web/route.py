@@ -1,14 +1,14 @@
 from enum import Enum
-import urllib
+import urllib.parse
 
 from tornado.web import URLSpec
 import tornado.escape
 from tornado.websocket import WebSocketHandler
 
-from utils.base_controller import BaseAPIController
+from utils.web.base_controller import BaseAPIController
 
 
-class Route(object):
+class Route:
     """Decorator for assigning routes to Controllers"""
 
     _routes = []
@@ -31,19 +31,19 @@ class Route(object):
         return cls._routes
 
     @staticmethod
-    def _url_escape(v):
-        return urllib.quote(tornado.escape.utf8(v), '')
+    def _url_escape(url):
+        return urllib.parse.quote(tornado.escape.utf8(url), '')
 
     @classmethod
     def make(cls, _name, **kwargs):
         if _name not in cls._formats:
-            raise KeyError('No route by the name of `{}`'.format(_name))
-        kwargs = {k: cls._url_escape(v) for k, v in kwargs.iteritems()}
+            raise KeyError(f'No route by the name of `{_name}`')
+        kwargs = {k: cls._url_escape(v) for k, v in kwargs.items()}
         return cls._formats[_name] % kwargs
 
 
 class ApiVersion(Enum):
-    v1 = 1
+    V1 = 1
 
 
 class ApiRoute(Route):
