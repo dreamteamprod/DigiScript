@@ -165,6 +165,21 @@ class LogoutHandler(BaseAPIController):
             await self.finish({'message': 'No user logged in'})
 
 
+@ApiRoute('auth/validate', ApiVersion.V1)
+class AuthValidationHandler(BaseAPIController):
+    @web.authenticated
+    async def get(self):
+        if self.current_user['is_admin']:
+            self.set_status(200)
+            await self.finish({'message': 'OK'})
+        elif self.current_show and self.current_user['show_id'] == self.current_show['id']:
+            self.set_status(200)
+            await self.finish({'message': 'OK'})
+        else:
+            self.set_status(401)
+            self.write({'message': 'Not Authenticated'})
+
+
 @ApiRoute('auth/users', ApiVersion.V1)
 class UsersHandler(BaseAPIController):
     @web.authenticated

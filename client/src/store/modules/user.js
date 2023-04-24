@@ -18,7 +18,8 @@ export default {
   },
   actions: {
     async GET_USERS(context) {
-      if (context.getters.CURRENT_USER == null || !context.getters.CURRENT_USER.is_admin) {
+      if (context.getters.CURRENT_USER == null || !context.getters.CURRENT_USER.is_admin
+        || context.rootGetters.CURRENT_SHOW == null) {
         return;
       }
       const response = await fetch(`${makeURL('/api/v1/auth/users')}`, {

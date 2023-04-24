@@ -121,11 +121,20 @@ class DigiScriptServer(PrometheusMixIn, Application):
         else:
             IOLoop.current().add_callback(self._validate_has_admin)
 
+    def show_changed(self):
+        if not IOLoop.current():
+            get_logger().error('Unable to initiate show change as there is no current IOLoop')
+        else:
+            IOLoop.current().add_callback(self._show_changed)
+
     async def _validate_has_admin(self):
         with self.get_db().sessionmaker() as session:
             any_admin = session.query(User).filter(User.is_admin).first()
             has_admin = any_admin is not None
             await self.digi_settings.set('has_admin_user', has_admin)
+
+    async def _show_changed(self):
+        await self.ws_send_to_all('NOOP', 'SHOW_CHANGED', {})
 
     def get_db(self) -> DigiSQLAlchemy:
         return self._db

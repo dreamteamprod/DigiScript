@@ -48,6 +48,15 @@ export default new Vuex.Store({
         Vue.$toast.error('Unable to edit show');
       }
     },
+    async SHOW_CHANGED(context) {
+      if (context.rootGetters.CURRENT_USER != null) {
+        const response = await fetch(`${makeURL('/api/v1/auth/validate')}`);
+        if (response.status === 401) {
+          await context.dispatch('USER_LOGOUT');
+        }
+      }
+      window.location.reload();
+    },
   },
   getters: {
     CURRENT_SHOW(state) {
