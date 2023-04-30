@@ -2,6 +2,7 @@ import Vue from 'vue';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
+import router from '@/router';
 
 export default {
   state: {
@@ -86,6 +87,7 @@ export default {
       if (response.ok) {
         await context.commit('SET_CURRENT_USER', null);
         Vue.$toast.success('Successfully logged out!');
+        router.push('/');
       } else {
         log.error('Unable to log out');
         Vue.$toast.error('Unable to log out!');

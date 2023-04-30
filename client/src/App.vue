@@ -13,14 +13,14 @@
             Live
           </b-nav-item>
           <b-nav-item
-            v-if="CURRENT_USER != null && CURRENT_USER.is_admin"
+            v-if="isAdminUser"
             to="/config"
             :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null">
             System Config
           </b-nav-item>
           <b-nav-item
             to="/show-config"
-            v-if="this.$store.state.currentShow != null"
+            v-if="this.$store.state.currentShow != null && isAdminUser"
             :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null">
             Show Config
           </b-nav-item>
@@ -105,6 +105,9 @@ export default {
     },
   },
   computed: {
+    isAdminUser() {
+      return this.CURRENT_USER != null && this.CURRENT_USER.is_admin;
+    },
     ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS', 'CURRENT_USER']),
   },
   async created() {
