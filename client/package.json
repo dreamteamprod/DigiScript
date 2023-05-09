@@ -31,7 +31,7 @@
     "vuex-persistedstate": "3.2.1"
   },
   "devDependencies": {
-    "@babel/core": "7.21.4",
+    "@babel/core": "7.21.8",
     "@babel/eslint-parser": "7.21.3",
     "@vue/cli-plugin-babel": "5.0.8",
     "@vue/cli-plugin-eslint": "5.0.8",
