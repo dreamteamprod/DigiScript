@@ -40,7 +40,7 @@
     "@vue/eslint-config-airbnb": "6.0.0",
     "eslint": "8.39.0",
     "eslint-plugin-import": "2.27.5",
-    "eslint-plugin-vue": "9.11.0",
+    "eslint-plugin-vue": "9.11.1",
     "eslint-plugin-vuejs-accessibility": "1.2.0",
     "node-sass": "7.0.3",
     "sass": "1.62.1",
