@@ -1,19 +1,54 @@
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
+from typing import Optional
+
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field, SQLAlchemySchema
 from marshmallow_sqlalchemy.fields import Nested
 
 from models.cue import CueType, Cue
-from models.script import ScriptRevision, ScriptLine, ScriptLinePart
+from models.models import db
+from models.script import ScriptRevision, ScriptLine, ScriptLinePart, Script
 from models.show import Show, Cast, Character, CharacterGroup, Act, Scene
 from models.session import Session, ShowSession
 from models.user import User
 
 
+class SchemaRegistry:
+    def __init__(self):
+        self._forward_registry = {}
+        self._backward_registry = {}
+
+    def set(self, k, v):
+        self._forward_registry[k] = v
+        self._backward_registry[v] = k
+
+    def get_schema_by_model(self, k) -> Optional[SQLAlchemySchema]:
+        return self._backward_registry.get(k, None)
+
+    def get_model_by_schema(self, k) -> db.Model:
+        return self._forward_registry.get(k, None)
+
+
+registry = SchemaRegistry()
+
+
+def get_registry():
+    return registry
+
+
+def schema(cls):
+    meta_cls = getattr(cls, "Meta", None)
+    if hasattr(meta_cls, "model"):
+        get_registry().set(cls, meta_cls.model)
+    return cls
+
+
+@schema
 class SessionSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Session
         load_instance = True
 
 
+@schema
 class UserSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = User
@@ -22,6 +57,7 @@ class UserSchema(SQLAlchemyAutoSchema):
         exclude = ('password',)
 
 
+@schema
 class ShowSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Show
@@ -31,6 +67,7 @@ class ShowSchema(SQLAlchemyAutoSchema):
     first_act_id = auto_field()
 
 
+@schema
 class CastSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Cast
@@ -40,6 +77,7 @@ class CastSchema(SQLAlchemyAutoSchema):
     character_list = Nested(lambda: CharacterSchema, many=True, exclude=('cast_member',))
 
 
+@schema
 class CharacterSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Character
@@ -49,6 +87,7 @@ class CharacterSchema(SQLAlchemyAutoSchema):
     cast_member = Nested(CastSchema, many=False, exclude=('character_list',))
 
 
+@schema
 class CharacterGroupSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = CharacterGroup
@@ -56,6 +95,7 @@ class CharacterGroupSchema(SQLAlchemyAutoSchema):
         load_instance = True
 
 
+@schema
 class ActSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Act
@@ -70,6 +110,7 @@ class ActSchema(SQLAlchemyAutoSchema):
                           exclude=('next_act', 'scene_list', 'first_scene'))
 
 
+@schema
 class SceneSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Scene
@@ -80,12 +121,14 @@ class SceneSchema(SQLAlchemyAutoSchema):
     previous_scene = Nested(lambda: SceneSchema(), many=False, exclude=('next_scene',))
 
 
+@schema
 class CueTypeSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = CueType
         load_instance = True
 
 
+@schema
 class CueSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Cue
@@ -93,6 +136,14 @@ class CueSchema(SQLAlchemyAutoSchema):
         include_fk = True
 
 
+@schema
+class ScriptSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Script
+        load_instance = True
+
+
+@schema
 class ScriptRevisionsSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = ScriptRevision
@@ -101,6 +152,7 @@ class ScriptRevisionsSchema(SQLAlchemyAutoSchema):
     previous_revision_id = auto_field()
 
 
+@schema
 class ScriptLineSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = ScriptLine
@@ -110,6 +162,7 @@ class ScriptLineSchema(SQLAlchemyAutoSchema):
     line_parts = Nested(lambda: ScriptLinePartSchema(), many=True)
 
 
+@schema
 class ScriptLinePartSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = ScriptLinePart
@@ -117,6 +170,7 @@ class ScriptLinePartSchema(SQLAlchemyAutoSchema):
         include_fk = True
 
 
+@schema
 class ShowSessionSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = ShowSession

@@ -1,3 +1,5 @@
+import functools
+
 from sqlalchemy.orm import sessionmaker
 from tornado_sqlalchemy import SQLAlchemy, SessionEx
 
@@ -30,3 +32,10 @@ class DigiSQLAlchemy(SQLAlchemy):
     def configure(self, url=None, binds=None, session_options=None, engine_options=None):
         super().configure(url, binds, session_options, engine_options)
         self.sessionmaker = sessionmaker(class_=DigiDBSession, db=self, **(session_options or {}))
+
+    @functools.lru_cache
+    def _get_mapper_for_table(self, tablename):
+        for mapper in self.Model.registry.mappers:
+            if mapper.mapped_table.fullname == tablename:
+                return mapper.entity
+        return None

@@ -3,11 +3,13 @@ from __future__ import annotations
 from typing import Optional, Awaitable, Any, TYPE_CHECKING
 
 from tornado import httputil, escape
-from tornado.web import RequestHandler
+from tornado.web import RequestHandler, HTTPError
 from tornado_sqlalchemy import SessionMixin
 
+from models.models import db
 from models.show import Show
 from models.user import User
+from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
 from digi_server.logger import get_logger
 
@@ -43,6 +45,18 @@ class BaseController(SessionMixin, RequestHandler):
                 if show:
                     self.current_show = show_schema.dump(show)
         return
+
+    def requires_role(self, resource: db.Model, role: Role):
+        if not self.current_user:
+            raise HTTPError(401, log_message='Not logged in')
+        if self.current_user['is_admin']:
+            return
+        with self.make_session() as session:
+            user = session.query(User).get(self.current_user['id'])
+            if not user:
+                raise HTTPError(500)
+            if not self.application.rbac.has_role(user, resource, role):
+                raise HTTPError(403, log_message='Not authorised')
 
     def get_current_show(self) -> Optional[dict]:
         return self.current_show

@@ -1,18 +1,24 @@
-from typing import Optional, Dict
+import functools
+from collections import defaultdict
+from copy import deepcopy
+from typing import Optional, List, TYPE_CHECKING
 
-from sqlalchemy import inspect, Column, ForeignKey, Integer, TypeDecorator
+from anytree import Node
+from sqlalchemy import inspect, Column, ForeignKey, Integer, TypeDecorator, Table
 
 from digi_server.logger import get_logger
 from models.models import db
+from models.show import Show
+from rbac.exceptions import RBACException
 from rbac.role import Role
+from utils import tree
 from utils.database import DigiSQLAlchemy
+
+if TYPE_CHECKING:
+    from digi_server.app_server import DigiScriptServer
 
 
 logger = get_logger()
-
-
-class RBACException(Exception):
-    pass
 
 
 class RoleCol(TypeDecorator):
@@ -22,7 +28,7 @@ class RoleCol(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if not isinstance(value, Role):
             raise Exception(f'RoleCol data type is incorrect. Got {type(value)} but should be Role')
-        return value.value
+        return value.value if value is not None else None
 
     def process_result_value(self, value, dialect):
         return Role(value)
@@ -30,9 +36,12 @@ class RoleCol(TypeDecorator):
 
 class RBACDatabase:
 
-    def __init__(self, _db: DigiSQLAlchemy):
+    def __init__(self, _db: DigiSQLAlchemy, app: 'DigiScriptServer'):
         self._db: DigiSQLAlchemy = _db
+        self._app = app
         self._mappings = {}
+        self._show_inspect = inspect(Show)
+        self._resource_mappings = defaultdict(list)
 
     def add_mapping(self, actor: type, resource: type) -> None:
         if not isinstance(actor, type):
@@ -42,7 +51,16 @@ class RBACDatabase:
 
         actor_inspect = inspect(actor)
         resource_inspect = inspect(resource)
+
+        if not self._has_link_to_show(actor_inspect.mapped_table):
+            raise RBACException('actor class does not have a reference back to Show table')
+
+        if not self._has_link_to_show(resource_inspect.mapped_table):
+            raise RBACException('resource class does not have a reference back to Show table')
+
         table_name = f'rbac_{actor_inspect.mapped_table.fullname}_{resource_inspect.mapped_table.fullname}'
+        if table_name in self._mappings:
+            raise RBACException(f'RBAC mapping {table_name} already exists')
 
         actor_columns = {
             f'{actor_inspect.mapped_table.fullname}_{col.key}': Column(col.type, ForeignKey(
@@ -64,6 +82,7 @@ class RBACDatabase:
 
         rbac_class = type(table_name, (db.Model,), attr_dict)
         self._mappings[table_name] = rbac_class
+        self._resource_mappings[actor_inspect.mapped_table.fullname].append(resource)
         logger.info(f'Created RBAC mapping {table_name}')
 
     def _validate_mapping(self, actor: db.Model, resource: db.Model) -> str:
@@ -105,7 +124,7 @@ class RBACDatabase:
                 rbac_assignment.rbac_permissions |= role
             else:
                 rbac_assignment = self._mappings[table_name](**cols)
-                rbac_assignment.rbac_permissions |= role
+                rbac_assignment.rbac_permissions = role
                 session.add(rbac_assignment)
             session.commit()
 
@@ -120,7 +139,7 @@ class RBACDatabase:
             rbac_assignment.rbac_permissions &= ~role
             session.commit()
 
-    def has_role(self, actor: db.Model, resource: db.Model, role: Role):
+    def has_role(self, actor: db.Model, resource: db.Model, role: Role) -> bool:
         table_name = self._validate_mapping(actor, resource)
         cols = self._get_mapping_columns(actor, resource)
         with self._db.sessionmaker() as session:
@@ -129,7 +148,109 @@ class RBACDatabase:
                 return False
             return role in rbac_assignment.rbac_permissions
 
-    def get_roles(self, actor: db.Model) -> Optional[Dict]:
-        if not isinstance(actor, db.Model):
-            raise RBACException('actor must be class instance, not object')
+    def get_roles(self, actor: db.Model, resource: db.Model) -> Role:
+        table_name = self._validate_mapping(actor, resource)
+        cols = self._get_mapping_columns(actor, resource)
+        with self._db.sessionmaker() as session:
+            rbac_assignment = session.query(self._mappings[table_name]).get(cols)
+            if not rbac_assignment:
+                return Role(0)
+            return rbac_assignment.rbac_permissions
+
+    @functools.lru_cache()
+    def _has_link_to_show(self, table: Table):
+        return self.__has_link_to_show(table)
+
+    def __has_link_to_show(self, table: Table, checked_tables=None):
+        if checked_tables is None:
+            checked_tables = []
+        if table.fullname == self._show_inspect.mapped_table.fullname:
+            return True
+        if table.foreign_key_constraints and table.fullname not in checked_tables:
+            checked_tables.append(table.fullname)
+            return any([self.__has_link_to_show(fkc.referred_table, checked_tables)
+                        for fkc in table.foreign_key_constraints])
+        return False
+
+    @functools.lru_cache()
+    def _get_link_to_show(self, table: Table):
+        if not self._has_link_to_show(table):
+            return None
+
+        root = Node(table.fullname, table=table)
+        self.__get_link_to_show(table, root)
+        return tree.flatten(root, attr='table')
+
+    def __get_link_to_show(self, table: Table, root: Node, checked_tables=None):
+        if checked_tables is None:
+            checked_tables = []
+        if table.fullname == self._show_inspect.mapped_table.fullname:
+            if table.fullname in checked_tables:
+                checked_tables.remove(table.fullname)
+            return
+        if table.foreign_key_constraints:
+            for fkc in table.foreign_key_constraints:
+                if fkc.referred_table.fullname in checked_tables:
+                    continue
+                checked_tables.append(fkc.referred_table.fullname)
+                if fkc.referred_table.fullname == table.fullname:
+                    continue
+                if self._has_link_to_show(fkc.referred_table):
+                    self.__get_link_to_show(
+                        fkc.referred_table,
+                        Node(fkc.referred_table.fullname, table=fkc.referred_table, parent=root),
+                        checked_tables
+                    )
+
+    def get_resources_for_actor(self, actor: db.Model) -> Optional[List[db.Model]]:
+        if not isinstance(actor, type):
+            raise RBACException('actor must be class object, not instance')
+        actor_inspect = inspect(actor)
+        if actor_inspect.mapped_table.fullname in self._resource_mappings:
+            return self._resource_mappings[actor_inspect.mapped_table.fullname]
         return None
+
+    def get_objects_for_resource(self, resource: db.Model) -> Optional[List[db.Model]]:
+        if not isinstance(resource, type):
+            raise RBACException('resource must be class object, not instance')
+
+        current_show = self._app.digi_settings.settings.get('current_show').get_value()
+        if not current_show:
+            return []
+
+        resource_inspect = inspect(resource)
+        show_paths = self._get_link_to_show(resource_inspect.mapped_table)
+        if show_paths is None:
+            return []
+
+        final_results = set()
+        with self._db.sessionmaker() as session:
+            if not show_paths:
+                previous_entities = [session.get(Show, current_show)]
+                return previous_entities
+
+            for _show_path in show_paths:
+                show_path = deepcopy(_show_path)
+                show_path.reverse()
+                previous_entities = [session.get(Show, current_show)]
+                if not len(show_path):
+                    return previous_entities
+                valid = True
+                for table in show_path[1:]:
+                    if not previous_entities:
+                        valid = False
+                        break
+                    results = []
+                    for prev_entity in previous_entities:
+                        previous_inspect = inspect(prev_entity)
+                        cols = {}
+                        for fk in table.foreign_keys:
+                            if fk.constraint.referred_table.fullname == previous_inspect.mapper.mapped_table.fullname:
+                                cols[fk.parent.key] = getattr(prev_entity, fk.column.key)
+                        if cols:
+                            c = self._db._get_mapper_for_table(table.fullname)
+                            results.extend(session.query(c).filter_by(**cols).all())
+                    previous_entities = results
+                if valid:
+                    final_results.update(previous_entities)
+            return list(final_results)

@@ -105,9 +105,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
                                                         handler=self.db_file_handler)
 
     def _configure_rbac(self):
-        self.rbac.add_mapping(User, Show)
-        self.rbac.add_mapping(User, CueType)
-        self.rbac.add_mapping(User, Script)
+        self.rbac.add_mapping(User, Show, [Show.id, Show.name])
+        self.rbac.add_mapping(User, CueType, [CueType.id, CueType.prefix])
+        self.rbac.add_mapping(User, Script, [Script.id])
 
     def regen_logging(self):
         if not IOLoop.current():

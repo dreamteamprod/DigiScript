@@ -10,8 +10,9 @@
           </template>
           <template #cell(btn)="data">
             <b-button-group>
-              <b-button variant="danger" @click="deleteUser(data)" :disabled="true">
-                Delete
+              <b-button variant="warning" :disabled="data.item.is_admin"
+                        @click.stop="setEditUser(data.item.id)" v-b-modal.user-rbac>
+                RBAC
               </b-button>
             </b-button-group>
           </template>
@@ -25,6 +26,9 @@
         v-on:created_user="resetNewForm"
       />
     </b-modal>
+    <b-modal id="user-rbac" title="User RBAC Config" ref="user-rbac" size="xl" hide-footer>
+      <config-rbac :user_id="editUser" />
+    </b-modal>
   </b-container>
 </template>
 
@@ -32,10 +36,11 @@
 import { mapActions, mapGetters } from 'vuex';
 
 import CreateUser from '@/vue_components/user/CreateUser.vue';
+import ConfigRbac from '@/vue_components/user/ConfigRbac.vue';
 
 export default {
   name: 'ConfigUsers',
-  components: { CreateUser },
+  components: { CreateUser, ConfigRbac },
   data() {
     return {
       userFields: [
@@ -44,6 +49,7 @@ export default {
         'is_admin',
         { key: 'btn', label: '' },
       ],
+      editUser: null,
     };
   },
   async mounted() {
@@ -53,8 +59,8 @@ export default {
     resetNewForm() {
       this.$bvModal.hide('new-user');
     },
-    async deleteUser() {
-      console.log('Delete');
+    setEditUser(userId) {
+      this.editUser = userId;
     },
     ...mapActions(['GET_USERS']),
   },
