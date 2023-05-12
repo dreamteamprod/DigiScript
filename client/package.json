@@ -18,7 +18,7 @@
     "contrast-color": "1.0.1",
     "core-js": "3.30.2",
     "deep-object-diff": "1.1.9",
-    "jquery": "3.6.4",
+    "jquery": "3.7.0",
     "lodash": "4.17.21",
     "loglevel": "1.8.1",
     "vue": "2.7.14",
