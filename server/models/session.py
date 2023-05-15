@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Float, Boolean, Integer, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from models.models import db
 
@@ -12,6 +12,10 @@ class Session(db.Model):
     last_ping = Column(Float())
     last_pong = Column(Float())
     is_editor = Column(Boolean(), default=False, index=True)
+    user_id = Column(Integer, ForeignKey('user.id'), index=True)
+
+    user = relationship('User', uselist=False,
+                        backref=backref('sessions', uselist=True))
 
 
 class ShowSession(db.Model):

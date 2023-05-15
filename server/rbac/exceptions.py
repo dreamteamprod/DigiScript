@@ -1,0 +1,2 @@
+class RBACException(Exception):
+    pass

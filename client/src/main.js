@@ -59,6 +59,11 @@ Vue.use(VueNativeSock, `ws://${window.location.hostname}:${window.location.port}
 
 Vue.config.productionTip = false;
 
+Vue.filter('capitalize', (value) => {
+  if (!value) return '';
+  return value.toString().split(' ').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+});
+
 new Vue({
   router,
   store,

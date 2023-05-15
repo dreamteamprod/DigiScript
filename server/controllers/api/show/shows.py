@@ -1,18 +1,22 @@
 from datetime import datetime
 from dateutil import parser
-from tornado import escape
+from tornado import escape, web
 
 from models.script import Script, ScriptRevision
 from models.show import Show
+from rbac.role import Role
 from schemas.schemas import ShowSchema
 from utils.web.base_controller import BaseAPIController
-from utils.web.web_decorators import requires_show
+from utils.web.web_decorators import requires_show, require_admin
 from utils.web.route import ApiRoute, ApiVersion
 from digi_server.logger import get_logger
 
 
 @ApiRoute('show', ApiVersion.V1)
 class ShowController(BaseAPIController):
+
+    @web.authenticated
+    @require_admin
     async def post(self):
         """
         Create a new show
@@ -127,6 +131,7 @@ class ShowController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 # Name

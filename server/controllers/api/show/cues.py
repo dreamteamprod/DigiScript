@@ -6,6 +6,7 @@ from tornado import escape
 from models.cue import CueType, CueAssociation, Cue
 from models.script import ScriptRevision, Script
 from models.show import Show
+from rbac.role import Role
 from schemas.schemas import CueTypeSchema, CueSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.web_decorators import requires_show, no_live_session
@@ -40,6 +41,7 @@ class CueTypesController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 prefix: str = data.get('prefix', None)
@@ -80,6 +82,7 @@ class CueTypesController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 cue_type_id = data.get('id', None)
@@ -130,6 +133,7 @@ class CueTypesController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 cue_type_id = data.get('id', None)
@@ -217,6 +221,13 @@ class CueController(BaseAPIController):
                     await self.finish({'message': 'Cue Type missing'})
                     return
 
+                cue_type = session.query(CueType).get(cue_type_id)
+                if not cue_type:
+                    self.set_status(400)
+                    await self.finish({'message': 'Cue Type is not valid, or cannot be found'})
+                    return
+                self.requires_role(cue_type, Role.WRITE)
+
                 ident: str = data.get('ident', None)
                 if not ident:
                     self.set_status(400)
@@ -284,6 +295,7 @@ class CueController(BaseAPIController):
                     self.set_status(400)
                     await self.finish({'message': 'Cue Type is not valid, or cannot be found'})
                     return
+                self.requires_role(cue_type, Role.WRITE)
 
                 ident: str = data.get('ident', None)
                 if not ident:
@@ -362,6 +374,10 @@ class CueController(BaseAPIController):
                     self.set_status(400)
                     await self.finish({'message': 'Cue ID missing'})
                     return
+
+                cue = session.query(Cue).get(cue_id)
+                cue_type = session.query(CueType).get(cue.cue_type_id)
+                self.requires_role(cue_type, Role.WRITE)
 
                 line_id: int = data.get('lineId')
                 if not line_id:

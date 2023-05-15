@@ -4,6 +4,7 @@ import createPersistedState from 'vuex-persistedstate';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
+import user from '@/store/modules/user';
 import websocket from './modules/websocket';
 import system from './modules/system';
 import show from './modules/show';
@@ -47,6 +48,15 @@ export default new Vuex.Store({
         Vue.$toast.error('Unable to edit show');
       }
     },
+    async SHOW_CHANGED(context) {
+      if (context.rootGetters.CURRENT_USER != null) {
+        const response = await fetch(`${makeURL('/api/v1/auth/validate')}`);
+        if (response.status === 401) {
+          await context.dispatch('USER_LOGOUT');
+        }
+      }
+      window.location.reload();
+    },
   },
   getters: {
     CURRENT_SHOW(state) {
@@ -59,6 +69,7 @@ export default new Vuex.Store({
     show,
     script,
     scriptConfig,
+    user,
   },
   plugins: [
     createPersistedState({
