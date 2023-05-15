@@ -9,6 +9,7 @@ from models.script import (Script, ScriptRevision, ScriptLine, ScriptLineRevisio
                            ScriptLinePart)
 from models.show import Show
 from models.session import Session
+from rbac.role import Role
 from schemas.schemas import ScriptRevisionsSchema, ScriptLineSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.web_decorators import requires_show, no_live_session
@@ -78,6 +79,7 @@ class ScriptRevisionsController(BaseAPIController):
                     self.set_status(404)
                     await self.finish({'message': '404 script not found'})
                     return
+                self.requires_role(script, Role.WRITE)
 
                 current_rev_id = script.current_revision
                 if not current_rev_id:
@@ -149,6 +151,7 @@ class ScriptRevisionsController(BaseAPIController):
                     self.set_status(404)
                     await self.finish({'message': '404 script not found'})
                     return
+                self.requires_role(script, Role.WRITE)
 
                 rev_id: int = data.get('rev_id', None)
                 if not rev_id:
@@ -231,6 +234,7 @@ class ScriptCurrentRevisionController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 script: Script = session.query(Script).filter(Script.show_id == show.id).first()
@@ -372,6 +376,7 @@ class ScriptController(BaseAPIController):
             show = session.query(Show).get(show_id)
             if show:
                 script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                self.requires_role(script, Role.WRITE)
 
                 if script.current_revision:
                     revision: ScriptRevision = session.query(ScriptRevision).get(
@@ -548,6 +553,7 @@ class ScriptController(BaseAPIController):
             show = session.query(Show).get(show_id)
             if show:
                 script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                self.requires_role(script, Role.WRITE)
 
                 if script.current_revision:
                     revision: ScriptRevision = session.query(ScriptRevision).get(

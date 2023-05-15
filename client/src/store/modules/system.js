@@ -8,6 +8,7 @@ export default {
     settings: {},
     availableShows: [],
     rawSettings: {},
+    rbacRoles: [],
   },
   mutations: {
     UPDATE_SETTINGS(state, settings) {
@@ -18,6 +19,9 @@ export default {
     },
     UPDATE_RAW_SETTINGS(state, settings) {
       state.rawSettings = settings;
+    },
+    UPDATE_RBAC_ROLES(state, rbac) {
+      state.rbacRoles = rbac;
     },
   },
   actions: {
@@ -66,6 +70,15 @@ export default {
         }
       }
     },
+    async GET_RBAC_ROLES(context) {
+      const response = await fetch(makeURL('/api/v1/rbac/roles'));
+      if (response.ok) {
+        const rbac = await response.json();
+        await context.commit('UPDATE_RBAC_ROLES', rbac.roles);
+      } else {
+        log.error('Unable to fetch RBAC roles');
+      }
+    },
   },
   getters: {
     DEBUG_MODE_ENABLED(state) {
@@ -79,6 +92,9 @@ export default {
     },
     RAW_SETTINGS(state) {
       return state.rawSettings;
+    },
+    RBAC_ROLES(state) {
+      return state.rbacRoles;
     },
   },
 };

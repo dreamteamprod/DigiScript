@@ -1,6 +1,7 @@
 from tornado import escape
 
 from models.show import Show, Cast
+from rbac.role import Role
 from schemas.schemas import CastSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.web_decorators import requires_show, no_live_session
@@ -35,6 +36,7 @@ class CastController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 first_name = data.get('firstName', None)
@@ -69,6 +71,7 @@ class CastController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 cast_id = data.get('id', None)
@@ -116,6 +119,7 @@ class CastController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 cast_id = data.get('id', None)

@@ -23,7 +23,7 @@ async def main():
 
     app = DigiScriptServer(debug=options.debug,
                            settings_path=options.settings_path)
-    await app.configure_logging()
+    await app.configure()
 
     app.listen(options.port)
     get_logger().info(f'Listening on port: {options.port}')
