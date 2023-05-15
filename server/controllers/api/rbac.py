@@ -25,8 +25,8 @@ class RBACUsersHandler(BaseAPIController):
     async def get(self):
         resources = self.application.rbac.get_resources_for_actor(User)
         res = []
-        for r in resources:
-            r_inspect = inspect(r)
+        for resource in resources:
+            r_inspect = inspect(resource)
             res.append(r_inspect.mapped_table.fullname)
         self.set_status(200)
         await self.finish({'resources': res})
@@ -44,7 +44,7 @@ class RBACObjectsHandler(BaseAPIController):
             await self.finish({'message': 'resource query parameter not fulfilled'})
             return
 
-        mapper = self.application.get_db()._get_mapper_for_table(resource)
+        mapper = self.application.get_db().get_mapper_for_table(resource)
         if not mapper:
             self.set_status(404)
             await self.finish({'message': 'object not found'})
@@ -75,7 +75,7 @@ class RBACObjectsHandler(BaseAPIController):
 
 
 @ApiRoute('rbac/user/roles', ApiVersion.V1)
-class RBACRolesHandler(BaseAPIController):
+class RBACUserRolesHandler(BaseAPIController):
 
     @web.authenticated
     async def get(self):
@@ -122,7 +122,7 @@ class RBACRolesGrantHandler(BaseAPIController):
             await self.finish({'message': 'role body parameter not fulfilled'})
             return
 
-        mapper = self.application.get_db()._get_mapper_for_table(resource)
+        mapper = self.application.get_db().get_mapper_for_table(resource)
         if not mapper:
             self.set_status(404)
             await self.finish({'message': 'resource not found'})
@@ -182,7 +182,7 @@ class RBACRolesRevokeHandler(BaseAPIController):
             await self.finish({'message': 'role body parameter not fulfilled'})
             return
 
-        mapper = self.application.get_db()._get_mapper_for_table(resource)
+        mapper = self.application.get_db().get_mapper_for_table(resource)
         if not mapper:
             self.set_status(404)
             await self.finish({'message': 'resource not found'})

@@ -34,7 +34,7 @@ class DigiSQLAlchemy(SQLAlchemy):
         self.sessionmaker = sessionmaker(class_=DigiDBSession, db=self, **(session_options or {}))
 
     @functools.lru_cache
-    def _get_mapper_for_table(self, tablename):
+    def get_mapper_for_table(self, tablename):
         for mapper in self.Model.registry.mappers:
             if mapper.mapped_table.fullname == tablename:
                 return mapper.entity

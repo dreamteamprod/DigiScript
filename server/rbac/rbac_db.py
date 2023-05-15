@@ -30,8 +30,32 @@ class RoleCol(TypeDecorator):
             raise Exception(f'RoleCol data type is incorrect. Got {type(value)} but should be Role')
         return value.value if value is not None else None
 
+    def process_literal_param(self, value, dialect):
+        if not isinstance(value, Role):
+            raise Exception(f'RoleCol data type is incorrect. Got {type(value)} but should be Role')
+        return value.value if value is not None else None
+
+    @property
+    def python_type(self):
+        return Role
+
     def process_result_value(self, value, dialect):
         return Role(value)
+
+
+def _get_mapping_columns(actor: db.Model, resource: db.Model) -> dict:
+    actor_inspect = inspect(actor)
+    resource_inspect = inspect(resource)
+    cols = {}
+    cols.update({
+        f'{actor_inspect.mapper.mapped_table.fullname}_{col.key}': getattr(actor, col.key) for col in
+        actor_inspect.mapper.primary_key
+    })
+    cols.update({
+        f'{resource_inspect.mapper.mapped_table.fullname}_{col.key}': getattr(resource, col.key) for col in
+        resource_inspect.mapper.primary_key
+    })
+    return cols
 
 
 class RBACDatabase:
@@ -100,23 +124,9 @@ class RBACDatabase:
 
         return table_name
 
-    def _get_mapping_columns(self, actor: db.Model, resource: db.Model) -> dict:
-        actor_inspect = inspect(actor)
-        resource_inspect = inspect(resource)
-        cols = {}
-        cols.update({
-            f'{actor_inspect.mapper.mapped_table.fullname}_{col.key}': getattr(actor, col.key) for col in
-            actor_inspect.mapper.primary_key
-        })
-        cols.update({
-            f'{resource_inspect.mapper.mapped_table.fullname}_{col.key}': getattr(resource, col.key) for col in
-            resource_inspect.mapper.primary_key
-        })
-        return cols
-
     def give_role(self, actor: db.Model, resource: db.Model, role: Role) -> None:
         table_name = self._validate_mapping(actor, resource)
-        cols = self._get_mapping_columns(actor, resource)
+        cols = _get_mapping_columns(actor, resource)
 
         with self._db.sessionmaker() as session:
             rbac_assignment = session.query(self._mappings[table_name]).get(cols)
@@ -130,7 +140,7 @@ class RBACDatabase:
 
     def revoke_role(self, actor: db.Model, resource: db.Model, role: Role) -> None:
         table_name = self._validate_mapping(actor, resource)
-        cols = self._get_mapping_columns(actor, resource)
+        cols = _get_mapping_columns(actor, resource)
 
         with self._db.sessionmaker() as session:
             rbac_assignment = session.query(self._mappings[table_name]).get(cols)
@@ -141,7 +151,7 @@ class RBACDatabase:
 
     def has_role(self, actor: db.Model, resource: db.Model, role: Role) -> bool:
         table_name = self._validate_mapping(actor, resource)
-        cols = self._get_mapping_columns(actor, resource)
+        cols = _get_mapping_columns(actor, resource)
         with self._db.sessionmaker() as session:
             rbac_assignment = session.query(self._mappings[table_name]).get(cols)
             if not rbac_assignment:
@@ -150,7 +160,7 @@ class RBACDatabase:
 
     def get_roles(self, actor: db.Model, resource: db.Model) -> Role:
         table_name = self._validate_mapping(actor, resource)
-        cols = self._get_mapping_columns(actor, resource)
+        cols = _get_mapping_columns(actor, resource)
         with self._db.sessionmaker() as session:
             rbac_assignment = session.query(self._mappings[table_name]).get(cols)
             if not rbac_assignment:
@@ -177,8 +187,8 @@ class RBACDatabase:
             return True
         if table.foreign_key_constraints and table.fullname not in checked_tables:
             checked_tables.append(table.fullname)
-            return any([self.__has_link_to_show(fkc.referred_table, checked_tables)
-                        for fkc in table.foreign_key_constraints])
+            return any(self.__has_link_to_show(fkc.referred_table, checked_tables)
+                       for fkc in table.foreign_key_constraints)
         return False
 
     @functools.lru_cache()
@@ -242,7 +252,7 @@ class RBACDatabase:
                 show_path = deepcopy(_show_path)
                 show_path.reverse()
                 previous_entities = [session.get(Show, current_show)]
-                if not len(show_path):
+                if not show_path:
                     return previous_entities
                 valid = True
                 for table in show_path[1:]:
@@ -253,12 +263,14 @@ class RBACDatabase:
                     for prev_entity in previous_entities:
                         previous_inspect = inspect(prev_entity)
                         cols = {}
-                        for fk in table.foreign_keys:
-                            if fk.constraint.referred_table.fullname == previous_inspect.mapper.mapped_table.fullname:
-                                cols[fk.parent.key] = getattr(prev_entity, fk.column.key)
+                        for foreign_key in table.foreign_keys:
+                            fk_table = foreign_key.constraint.referred_table
+                            if fk_table.fullname == previous_inspect.mapper.mapped_table.fullname:
+                                cols[foreign_key.parent.key] = getattr(prev_entity, foreign_key.column.key)
                         if cols:
-                            c = self._db._get_mapper_for_table(table.fullname)
-                            results.extend(session.query(c).filter_by(**cols).all())
+                            results.extend(session.query(
+                                self._db.get_mapper_for_table(table.fullname)).
+                                           filter_by(**cols).all())
                     previous_entities = results
                 if valid:
                     final_results.update(previous_entities)

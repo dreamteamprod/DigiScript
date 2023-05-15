@@ -30,6 +30,7 @@ class DigiScriptTestCase(AsyncHTTPTestCase):
 
     def tearDown(self):
         os.remove(self.settings_path)
+        # pylint: disable=consider-using-dict-items,protected-access
         for rbac_table in self._app.rbac._rbac_db._mappings:
             table = self._app.rbac._rbac_db._mappings[rbac_table]
             table_inspect = inspect(table)
