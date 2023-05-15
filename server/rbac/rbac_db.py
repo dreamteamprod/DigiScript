@@ -1,7 +1,7 @@
 import functools
 from collections import defaultdict
 from copy import deepcopy
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING, Dict
 
 from anytree import Node
 from sqlalchemy import inspect, Column, ForeignKey, Integer, TypeDecorator, Table
@@ -156,6 +156,15 @@ class RBACDatabase:
             if not rbac_assignment:
                 return Role(0)
             return rbac_assignment.rbac_permissions
+
+    def get_all_roles(self, actor: db.Model) -> Dict:
+        roles = defaultdict(list)
+        resources = self.get_resources_for_actor(actor.__class__)
+        for resource in resources:
+            resource_inspect = inspect(resource)
+            for rbac_object in self.get_objects_for_resource(resource):
+                roles[resource_inspect.mapped_table.fullname].append([rbac_object, self.get_roles(actor, rbac_object)])
+        return roles
 
     @functools.lru_cache()
     def _has_link_to_show(self, table: Table):

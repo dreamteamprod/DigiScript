@@ -35,6 +35,9 @@ class RBACController:
     def revoke_role(self, actor: db.Model, resource: db.Model, role: Role) -> None:
         self._rbac_db.revoke_role(actor, resource, role)
 
+    def get_all_roles(self, actor: db.Model) -> List:
+        return self._rbac_db.get_all_roles(actor)
+
     def get_roles(self, actor: db.Model, resource: db.Model) -> Role:
         return self._rbac_db.get_roles(actor, resource)
 

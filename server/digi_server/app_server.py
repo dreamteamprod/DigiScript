@@ -139,6 +139,14 @@ class DigiScriptServer(PrometheusMixIn, Application):
     def get_db(self) -> DigiSQLAlchemy:
         return self._db
 
+    def get_all_ws(self, user_id) -> List[WebSocketController]:
+        sockets = []
+        for client in self.clients:
+            c_user_id = client.get_secure_cookie('digiscript_user_id')
+            if c_user_id is not None and int(c_user_id) == user_id:
+                sockets.append(client)
+        return sockets
+
     async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):
         for client in self.clients:
             await client.write_message({

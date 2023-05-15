@@ -7,6 +7,7 @@ import router from '@/router';
 export default {
   state: {
     currentUser: null,
+    currentRbac: null,
     showUsers: [],
   },
   mutations: {
@@ -15,6 +16,9 @@ export default {
     },
     SET_SHOW_USERS(state, users) {
       state.showUsers = users;
+    },
+    SET_CURRENT_RBAC(state, rbac) {
+      state.currentRbac = rbac;
     },
   },
   actions: {
@@ -65,7 +69,9 @@ export default {
         }),
       });
       if (response.ok) {
+        context.dispatch('GET_RBAC_ROLES');
         context.dispatch('GET_CURRENT_USER');
+        context.dispatch('GET_CURRENT_RBAC');
         Vue.$toast.success('Successfully logged in!');
         return true;
       }
@@ -102,6 +108,15 @@ export default {
         log.error('Unable to get current user');
       }
     },
+    async GET_CURRENT_RBAC(context) {
+      const response = await fetch(`${makeURL('/api/v1/rbac/user/roles')}`);
+      if (response.ok) {
+        const rbac = await response.json();
+        await context.commit('SET_CURRENT_RBAC', rbac.roles);
+      } else {
+        log.error('Unable to get current user\'s RBAC roles');
+      }
+    },
   },
   getters: {
     CURRENT_USER(state) {
@@ -109,6 +124,9 @@ export default {
     },
     SHOW_USERS(state) {
       return state.showUsers;
+    },
+    CURRENT_USER_RBAC(state) {
+      return state.currentRbac;
     },
   },
 };

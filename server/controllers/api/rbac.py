@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from sqlalchemy import inspect
 from tornado import web, escape
 
@@ -11,8 +13,6 @@ from utils.web.web_decorators import require_admin
 
 @ApiRoute('rbac/roles', ApiVersion.V1)
 class RBACRolesHandler(BaseAPIController):
-    @web.authenticated
-    @require_admin
     async def get(self):
         self.set_status(200)
         await self.finish({'roles': [{'key': role.name, 'value': role.value} for role in Role]})
@@ -74,6 +74,25 @@ class RBACObjectsHandler(BaseAPIController):
                 })
 
 
+@ApiRoute('rbac/user/roles', ApiVersion.V1)
+class RBACRolesHandler(BaseAPIController):
+
+    @web.authenticated
+    async def get(self):
+        with self.make_session() as session:
+            res = defaultdict(list)
+            user = session.query(User).get(self.current_user['id'])
+            roles = self.application.rbac.get_all_roles(user)
+            for resource in roles:
+                for role in roles[resource]:
+                    res[resource].append([
+                        get_registry().get_schema_by_model(role[0].__class__)().dump(role[0]),
+                        role[1].value
+                    ])
+            self.set_status(200)
+            await self.finish({'roles': res})
+
+
 @ApiRoute('rbac/user/roles/grant', ApiVersion.V1)
 class RBACRolesGrantHandler(BaseAPIController):
 
@@ -126,6 +145,12 @@ class RBACRolesGrantHandler(BaseAPIController):
                 await self.finish({'message': 'object not found'})
                 return
             self.application.rbac.give_role(user, rbac_object, Role(role))
+            for socket in self.application.get_all_ws(user.id):
+                await socket.write_message({
+                    'OP': 'NOOP',
+                    'DATA': {},
+                    'ACTION': 'GET_CURRENT_RBAC'
+                })
 
 
 @ApiRoute('rbac/user/roles/revoke', ApiVersion.V1)
@@ -180,3 +205,9 @@ class RBACRolesRevokeHandler(BaseAPIController):
                 await self.finish({'message': 'object not found'})
                 return
             self.application.rbac.revoke_role(user, rbac_object, Role(role))
+            for socket in self.application.get_all_ws(user.id):
+                await socket.write_message({
+                    'OP': 'NOOP',
+                    'DATA': {},
+                    'ACTION': 'GET_CURRENT_RBAC'
+                })

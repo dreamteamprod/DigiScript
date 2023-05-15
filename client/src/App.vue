@@ -20,7 +20,7 @@
           </b-nav-item>
           <b-nav-item
             to="/show-config"
-            v-if="this.$store.state.currentShow != null && isAdminUser"
+            v-if="this.$store.state.currentShow != null && (isAdminUser || isShowEditor)"
             :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null">
             Show Config
           </b-nav-item>
@@ -82,12 +82,15 @@ export default {
     };
   },
   methods: {
-    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_CURRENT_USER', 'USER_LOGOUT']),
+    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_CURRENT_USER', 'USER_LOGOUT', 'GET_RBAC_ROLES',
+      'GET_CURRENT_RBAC']),
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer);
+        await this.GET_RBAC_ROLES();
         if (getCookie('digiscript_user_id') != null) {
           await this.GET_CURRENT_USER();
+          await this.GET_CURRENT_RBAC();
         }
 
         if (this.SETTINGS.current_show != null) {
@@ -108,7 +111,19 @@ export default {
     isAdminUser() {
       return this.CURRENT_USER != null && this.CURRENT_USER.is_admin;
     },
-    ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS', 'CURRENT_USER']),
+    isShowEditor() {
+      if (this.RBAC_ROLES.length === 0) {
+        return false;
+      }
+      if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
+        return false;
+      }
+      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
+      // eslint-disable-next-line no-bitwise
+      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+    },
+    ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS', 'CURRENT_USER',
+      'RBAC_ROLES', 'CURRENT_USER_RBAC']),
   },
   async created() {
     this.$router.beforeEach(async (to, from, next) => {
