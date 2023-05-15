@@ -2,6 +2,7 @@ from datetime import datetime
 
 from models.session import ShowSession
 from models.show import Show
+from rbac.role import Role
 from schemas.schemas import ShowSessionSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.web_decorators import requires_show
@@ -46,6 +47,7 @@ class SessionStartController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.EXECUTE)
                 if show.current_session_id:
                     self.set_status(409)
                     await self.finish({'message': '409 session already active'})
@@ -81,6 +83,7 @@ class SessionStopController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.EXECUTE)
                 if not show.current_session_id:
                     self.set_status(409)
                     await self.finish({'message': '409 no active session'})

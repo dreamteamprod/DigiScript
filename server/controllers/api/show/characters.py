@@ -1,6 +1,7 @@
 from tornado import escape
 
 from models.show import Show, Cast, Character, CharacterGroup
+from rbac.role import Role
 from schemas.schemas import CharacterSchema, CharacterGroupSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.web_decorators import requires_show, no_live_session
@@ -35,6 +36,7 @@ class CharacterController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 name = data.get('name', None)
@@ -73,6 +75,7 @@ class CharacterController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 character_id = data.get('id', None)
@@ -125,6 +128,7 @@ class CharacterController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 character_id = data.get('id', None)
@@ -179,6 +183,7 @@ class CharacterGroupController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 name = data.get('name', None)
@@ -224,6 +229,7 @@ class CharacterGroupController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 character_group_id = data.get('id', None)
@@ -259,6 +265,7 @@ class CharacterGroupController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 character_group_id = data.get('id', None)

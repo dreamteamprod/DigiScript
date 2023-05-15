@@ -9,9 +9,13 @@ from controllers import controllers
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger, configure_file_logging, configure_db_logging
 from digi_server.settings import Settings
+from models.cue import CueType
 from models.models import db
+from models.script import Script
 from models.show import Show
 from models.session import Session
+from models.user import User
+from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
 from utils.web.route import Route
@@ -35,6 +39,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
         get_logger().info(f'Using {db_path} as DB path')
         self._db: DigiSQLAlchemy = db
         self._db.configure(url=db_path)
+
+        self.rbac = RBACController(self)
+        self._configure_rbac()
+
         self._db.create_all()
 
         # Clear out all sessions since we are starting the app up
@@ -66,9 +74,15 @@ class DigiScriptServer(PrometheusMixIn, Application):
             handlers=handlers,
             debug=debug,
             db=self._db,
-            websocket_ping_interval=5)
+            websocket_ping_interval=5,
+            cookie_secret='DigiScriptSuperSecretValue123!',
+            login_url='/login',
+        )
 
-    async def configure_logging(self):
+    async def configure(self):
+        await self._configure_logging()
+
+    async def _configure_logging(self):
         get_logger().info('Reconfiguring logging!')
 
         # Application logging
@@ -90,14 +104,48 @@ class DigiScriptServer(PrometheusMixIn, Application):
                                                         log_backups=db_backups,
                                                         handler=self.db_file_handler)
 
+    def _configure_rbac(self):
+        self.rbac.add_mapping(User, Show, [Show.id, Show.name])
+        self.rbac.add_mapping(User, CueType, [CueType.id, CueType.prefix])
+        self.rbac.add_mapping(User, Script, [Script.id])
+
     def regen_logging(self):
         if not IOLoop.current():
             get_logger().error('Unable to regenerate logging as there is no current IOLoop')
         else:
-            IOLoop.current().add_callback(self.configure_logging)
+            IOLoop.current().add_callback(self._configure_logging)
+
+    def validate_has_admin(self):
+        if not IOLoop.current():
+            get_logger().error('Unable to validate admin user as there is no current IOLoop')
+        else:
+            IOLoop.current().add_callback(self._validate_has_admin)
+
+    def show_changed(self):
+        if not IOLoop.current():
+            get_logger().error('Unable to initiate show change as there is no current IOLoop')
+        else:
+            IOLoop.current().add_callback(self._show_changed)
+
+    async def _validate_has_admin(self):
+        with self.get_db().sessionmaker() as session:
+            any_admin = session.query(User).filter(User.is_admin).first()
+            has_admin = any_admin is not None
+            await self.digi_settings.set('has_admin_user', has_admin)
+
+    async def _show_changed(self):
+        await self.ws_send_to_all('NOOP', 'SHOW_CHANGED', {})
 
     def get_db(self) -> DigiSQLAlchemy:
         return self._db
+
+    def get_all_ws(self, user_id) -> List[WebSocketController]:
+        sockets = []
+        for client in self.clients:
+            c_user_id = client.get_secure_cookie('digiscript_user_id')
+            if c_user_id is not None and int(c_user_id) == user_id:
+                sockets.append(client)
+        return sockets
 
     async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):
         for client in self.clients:

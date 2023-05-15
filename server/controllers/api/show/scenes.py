@@ -1,6 +1,7 @@
 from tornado import escape
 
 from models.show import Show, Scene
+from rbac.role import Role
 from schemas.schemas import SceneSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.web_decorators import requires_show, no_live_session
@@ -35,6 +36,7 @@ class SceneController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 act_id: int = data.get('act_id', None)
@@ -96,6 +98,7 @@ class SceneController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 scene_id = data.get('id', None)
@@ -139,6 +142,7 @@ class SceneController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
+                self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 scene_id = data.get('scene_id', None)

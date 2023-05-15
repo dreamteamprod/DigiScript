@@ -1,10 +1,10 @@
-from tornado import escape
+from tornado import escape, web
 
 from digi_server.logger import get_logger
 from digi_server.settings import Settings
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import no_live_session
+from utils.web.web_decorators import no_live_session, require_admin
 
 
 @ApiRoute('settings', ApiVersion.V1)
@@ -14,6 +14,8 @@ class SettingsController(BaseAPIController):
         settings_json = await settings.as_json()
         await self.finish(settings_json)
 
+    @web.authenticated
+    @require_admin
     @no_live_session
     async def patch(self):
         settings: Settings = self.application.digi_settings
