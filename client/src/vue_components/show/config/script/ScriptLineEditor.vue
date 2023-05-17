@@ -172,6 +172,15 @@ export default {
       blankLine.line_id = this.state.id;
       blankLine.part_index = this.state.line_parts.length;
       this.state.line_parts.push(blankLine);
+      const newPartIndex = this.state.line_parts.length - 1;
+      if (this.previousLine != null && this.previousLine.line_parts.length >= newPartIndex + 1) {
+        const previousPart = this.previousLine.line_parts[newPartIndex];
+        if (previousPart.character_id != null) {
+          this.state.line_parts[newPartIndex].character_id = previousPart.character_id;
+        } else if (previousPart.character_group_id != null) {
+          this.state.line_parts[newPartIndex].character_group_id = previousPart.character_group_id;
+        }
+      }
       this.stateChange();
     },
     deleteLine() {
