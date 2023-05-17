@@ -164,6 +164,10 @@ export default {
 <style scoped>
   .cue-column {
     border-right: .1rem solid #3498db;
+    margin-top: -1rem;
+    margin-bottom: -1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
   }
   .cue-button {
     padding: .2rem;
