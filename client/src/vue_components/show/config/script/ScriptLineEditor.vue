@@ -42,6 +42,7 @@
         :show-add-button="index === state.line_parts.length - 1 && !isStageDirection"
         :enable-add-button="state.line_parts.length < 4 && !isStageDirection"
         :is-stage-direction="isStageDirection"
+        :line-parts="state.line_parts"
         @input="stateChange"
         @addLinePart="addLinePart" />
     </template>
@@ -104,7 +105,7 @@ export default {
         part_index: null,
         character_id: null,
         character_group_id: null,
-        line_text: null,
+        line_text: '',
       },
       previousLine: null,
       nextLine: null,
@@ -136,7 +137,9 @@ export default {
             }),
           },
           line_text: {
-            required,
+            required: requiredIf(function () {
+              return this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== '');
+            }),
           },
         },
       },

@@ -74,6 +74,10 @@ export default {
       required: true,
       type: Boolean,
     },
+    lineParts: {
+      required: true,
+      type: Array,
+    },
     value: {
       required: true,
     },
@@ -91,7 +95,9 @@ export default {
         }),
       },
       line_text: {
-        required,
+        required: requiredIf(function () {
+          return this.lineParts.length <= 1 || !this.lineParts.some((x) => x.line_text !== '');
+        }),
       },
     },
   },
