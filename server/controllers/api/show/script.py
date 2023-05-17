@@ -350,7 +350,11 @@ class ScriptController(BaseAPIController):
         else:
             for line_part in line_json['line_parts']:
                 if line_part['line_text'] is None:
-                    return False, 'Line parts must contain text'
+                    if len(line_json['line_parts']) == 1:
+                        return False, 'Line parts must contain text'
+                    if not any(lp['line_text'] is not None for lp in line_json['line_parts']):
+                        return False, ('At least one line part in a multi part line must '
+                                       'contain text')
                 if line_part['character_id'] is None and line_part['character_group_id'] is None:
                     return False, 'Line parts must contain a character or character group'
                 if line_part['character_id'] and line_part['character_group_id']:
