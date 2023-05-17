@@ -398,6 +398,7 @@ class ScriptController(BaseAPIController):
                     # Validate each line before we do anything with it
                     valid_status, valid_reason = self._validate_line(line)
                     if not valid_status:
+                        session.rollback()
                         self.set_status(400)
                         await self.finish({'message': valid_reason})
                         return
@@ -426,6 +427,7 @@ class ScriptController(BaseAPIController):
                             ScriptLineRevisionAssociation.line.has(page=page - 1)).all()
 
                         if not prev_page_lines:
+                            session.rollback()
                             self.set_status(400)
                             await self.finish({
                                 'message': 'Previous page does not contain any lines'
@@ -439,6 +441,7 @@ class ScriptController(BaseAPIController):
                             if (prev_line.previous_line is None or
                                     prev_line.previous_line.page == prev_line.line.page - 1):
                                 if first_line:
+                                    session.rollback()
                                     self.set_status(400)
                                     await self.finish({
                                         'message': 'Failed to establish page line order for '
@@ -591,6 +594,7 @@ class ScriptController(BaseAPIController):
                         # Validate the line
                         valid_status, valid_reason = self._validate_line(line)
                         if not valid_status:
+                            session.rollback()
                             self.set_status(400)
                             await self.finish({'message': valid_reason})
                             return
@@ -640,6 +644,7 @@ class ScriptController(BaseAPIController):
                         # Validate the line
                         valid_status, valid_reason = self._validate_line(line)
                         if not valid_status:
+                            session.rollback()
                             self.set_status(400)
                             await self.finish({'message': valid_reason})
                             return
@@ -650,6 +655,7 @@ class ScriptController(BaseAPIController):
                         curr_line = curr_association.line
 
                         if not curr_association:
+                            session.rollback()
                             self.set_status(500)
                             await self.finish({'message': 'Unable to load line data'})
                             return
