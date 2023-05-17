@@ -1,7 +1,11 @@
 <template>
-  <b-container class="mx-0 px-0" fluid>
+  <b-container v-show="loaded" class="mx-0 px-0" fluid>
     <b-row class="script-row">
-      <b-col cols="2"></b-col>
+      <b-col cols="2">
+        <b-button variant="success" v-b-modal.go-to-page>
+          Go to Page
+        </b-button>
+      </b-col>
       <b-col cols="2" style="text-align: right">
         <b-button variant="success" @click="decrPage"
                   :disabled="currentEditPage === 1">
@@ -113,6 +117,25 @@
                   :variant="saveProgressVariant" show-value animated />
       </div>
     </b-modal>
+    <b-modal id="go-to-page" title="Go to Page" ref="go-to-page" size="sm" @ok="goToPage"
+             :hide-header-close="changingPage" :hide-footer="changingPage"
+             :no-close-on-backdrop="changingPage" :no-close-on-esc="changingPage">
+      <b-form>
+        <b-form-group id="page-input-group" label="Page" label-for="page-input" label-cols="auto">
+          <b-form-input
+            id="page-input"
+            name="page-input"
+            v-model="$v.pageInputFormState.pageNo.$model"
+            type="number"
+            :state="validatePageState('pageNo')"
+            aria-describedby="page-feedback" />
+          <b-form-invalid-feedback
+            id="page-feedback"
+          >This is a required field, and must be greater than 0.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
     <b-modal id="debug-generate" title="Generate Debug Script" ref="debug-generate" size="md"
              :hide-header-close="savingInProgress" :hide-footer="savingInProgress"
              :no-close-on-backdrop="savingInProgress" :no-close-on-esc="savingInProgress"
@@ -189,6 +212,11 @@ export default {
         pages: 1,
         linesPerPage: 1,
       },
+      pageInputFormState: {
+        pageNo: 1,
+      },
+      changingPage: false,
+      loaded: false,
     };
   },
   validations: {
@@ -200,6 +228,14 @@ export default {
         minValue: minValue(1),
       },
       linesPerPage: {
+        required,
+        notNull,
+        notNullAndGreaterThanZero,
+        minValue: minValue(1),
+      },
+    },
+    pageInputFormState: {
+      pageNo: {
         required,
         notNull,
         notNullAndGreaterThanZero,
@@ -220,9 +256,14 @@ export default {
     await this.getMaxScriptPage();
 
     // Initialisation of page data
-    await this.LOAD_SCRIPT_PAGE(this.currentEditPage);
-    await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
-    this.ADD_BLANK_PAGE(this.currentEditPage);
+    const storedPage = localStorage.getItem('scriptEditPage');
+    if (storedPage != null) {
+      this.currentEditPage = parseInt(storedPage, 10);
+    }
+    await this.goToPageInner(this.currentEditPage);
+  },
+  mounted() {
+    this.loaded = true;
   },
   methods: {
     async getMaxScriptPage() {
@@ -516,6 +557,26 @@ export default {
       }
       this.decrPage();
     },
+    validatePageState(name) {
+      const { $dirty, $error } = this.$v.pageInputFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async goToPage() {
+      this.changingPage = true;
+      await this.goToPageInner(this.pageInputFormState.pageNo);
+      this.changingPage = false;
+    },
+    async goToPageInner(pageNo) {
+      if (pageNo > 1) {
+        await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1);
+      }
+      await this.LOAD_SCRIPT_PAGE(pageNo);
+      this.currentEditPage = pageNo;
+      if (!Object.keys(this.TMP_SCRIPT).includes(this.currentEditPageKey)) {
+        this.ADD_BLANK_PAGE(this.currentEditPage);
+      }
+      await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
+    },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
@@ -550,6 +611,11 @@ export default {
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
       'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES']),
+  },
+  watch: {
+    currentEditPage(val) {
+      localStorage.setItem('scriptEditPage', val);
+    },
   },
 };
 </script>
