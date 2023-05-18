@@ -436,6 +436,16 @@ export default {
     SCENE_LIST(state) {
       return state.sceneList;
     },
+    SCENE_DICT(state) {
+      return Object.fromEntries(state.sceneList.map((scene) => [scene.id, scene]));
+    },
+    SCENE_BY_ID: (state, getters) => (sceneId) => {
+      const sceneStr = sceneId.toString();
+      if (Object.keys(getters.SCENE_DICT).includes(sceneStr)) {
+        return getters.SCENE_DICT[sceneStr];
+      }
+      return null;
+    },
     CUE_TYPES(state) {
       return state.cueTypes;
     },

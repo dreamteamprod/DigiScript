@@ -360,7 +360,7 @@ export default {
       'SET_ACT_FIRST_SCENE', 'UPDATE_SCENE']),
   },
   computed: {
-    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW']),
+    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID']),
     sceneTableItems() {
       // Get ordering of Acts
       const acts = [];
@@ -421,20 +421,6 @@ export default {
 
       return ret;
     },
-    actScenes() {
-      const ret = {};
-      this.ACT_LIST.forEach((act) => {
-        ret[act.id] = [{
-          value: null,
-          text: 'None',
-          disabled: false,
-        }, ...act.scene_list.map((scene) => ({
-          value: scene.id,
-          text: `${scene.act.name}: ${scene.name}`,
-        }))];
-      });
-      return ret;
-    },
     firstSceneOptions() {
       const ret = {};
       this.ACT_LIST.forEach((act) => {
@@ -443,11 +429,12 @@ export default {
           text: 'None',
           disabled: false,
         }, ...act.scene_list.filter((scene) => (
-          scene.previous_scene == null)).map((scene) => ({
-          value: scene.id,
-          text: `${scene.act.name}: ${scene.name}`,
+          this.SCENE_BY_ID(scene) != null
+          && this.SCENE_BY_ID(scene).previous_scene == null), this).map((scene) => ({
+          value: scene,
+          text: `${act.name}: ${this.SCENE_BY_ID(scene).name}`,
         }))];
-      });
+      }, this);
       return ret;
     },
     firstSceneModalLabel() {
