@@ -49,7 +49,7 @@
         <b-table id="first-scenes-table" :items="ACT_LIST" :fields="firstSceneFields" show-empty>
           <template #cell(first_scene)="data">
             <p v-if="data.item.first_scene">
-              {{ data.item.first_scene.name }}
+              {{ SCENE_BY_ID(data.item.first_scene).name }}
             </p>
             <p v-else>N/A</p>
           </template>
@@ -292,7 +292,7 @@ export default {
       if (act != null) {
         this.firstSceneFormState.act_id = act.item.id;
         if (act.item.first_scene != null) {
-          this.firstSceneFormState.scene_id = act.item.first_scene.id;
+          this.firstSceneFormState.scene_id = act.item.first_scene;
         }
         this.$bvModal.show('set-first-scene');
       }
@@ -381,7 +381,7 @@ export default {
       acts.forEach((actId) => {
         const act = this.ACT_LIST.find((a) => (a.id === actId));
         if (act.first_scene != null) {
-          let scene = this.SCENE_LIST.find((s) => (s.id === act.first_scene.id));
+          let scene = this.SCENE_LIST.find((s) => (s.id === act.first_scene));
           while (scene != null) {
             // eslint-disable-next-line no-loop-func
             ret.push(this.SCENE_LIST.find((s) => (s.id === scene.id)));

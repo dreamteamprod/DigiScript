@@ -102,7 +102,6 @@ class ActSchema(SQLAlchemyAutoSchema):
         include_relationships = True
         load_instance = True
 
-    first_scene = Nested(lambda: SceneSchema, many=False, exclue=('act',))
     next_act = Nested(lambda: ActSchema(), many=False,
                       exclude=('previous_act', 'scene_list', 'first_scene'))
     previous_act = Nested(lambda: ActSchema(), many=False,
