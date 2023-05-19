@@ -1,3 +1,5 @@
+from typing import List
+
 from tornado import escape
 
 from models.show import Show, Act, Scene
@@ -20,7 +22,8 @@ class ActController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                acts = [act_schema.dump(c) for c in show.act_list]
+                acts: List[Act] = session.query(Act).filter(Act.show_id == show.id).all()
+                acts = [act_schema.dump(c) for c in acts]
                 self.set_status(200)
                 self.finish({'acts': acts})
             else:

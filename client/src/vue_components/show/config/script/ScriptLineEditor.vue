@@ -55,6 +55,7 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
@@ -191,6 +192,7 @@ export default {
     },
   },
   computed: {
+    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID']),
     nextActs() {
       // Start act is either the first act for the show, or the act of the previous line if there
       // is one
@@ -207,7 +209,7 @@ export default {
         if (this.nextLine != null && this.nextLine.act_id === nextAct.id) {
           break;
         }
-        nextAct = nextAct.next_act;
+        nextAct = this.ACT_BY_ID(nextAct.next_act);
       }
       return validActs;
     },
@@ -221,7 +223,7 @@ export default {
       if (this.state.act_id == null) {
         return [];
       }
-      const scenes = this.scenes.filter((scene) => (scene.act.id === this.state.act_id));
+      const scenes = this.scenes.filter((scene) => (scene.act === this.state.act_id));
       // Start scene is either the first scene of the act, or the scene of the previous line if
       // there is one
       let startScene = scenes.find((scene) => (scene.previous_scene == null));
@@ -238,7 +240,7 @@ export default {
         if (this.nextLine != null && this.nextLine.scene_id === nextScene.id) {
           break;
         }
-        nextScene = nextScene.next_scene;
+        nextScene = this.SCENE_BY_ID(nextScene.next_scene);
       }
       return validScenes;
     },

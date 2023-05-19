@@ -10,17 +10,17 @@
             </b-button>
           </template>
           <template #cell(act)="data">
-            {{ data.item.act.name }}
+            {{ ACT_BY_ID(data.item.act).name }}
           </template>
           <template #cell(next_scene)="data">
             <p v-if="data.item.next_scene">
-              {{ data.item.next_scene.name }}
+              {{ SCENE_BY_ID(data.item.next_scene).name }}
             </p>
             <p v-else>N/A</p>
           </template>
           <template #cell(previous_scene)="data">
             <p v-if="data.item.previous_scene">
-              {{ data.item.previous_scene.name }}
+              {{ SCENE_BY_ID(data.item.previous_scene).name }}
             </p>
             <p v-else>N/A</p>
           </template>
@@ -49,7 +49,7 @@
         <b-table id="first-scenes-table" :items="ACT_LIST" :fields="firstSceneFields" show-empty>
           <template #cell(first_scene)="data">
             <p v-if="data.item.first_scene">
-              {{ data.item.first_scene.name }}
+              {{ SCENE_BY_ID(data.item.first_scene).name }}
             </p>
             <p v-else>N/A</p>
           </template>
@@ -230,12 +230,12 @@ export default {
         integer,
         noLoops(value) {
           const sceneIndexes = [this.editFormState.scene_id];
-          let currentScene = this.SCENE_LIST.find((scene) => (scene.id === value));
+          let currentScene = this.SCENE_BY_ID(value);
           while (currentScene != null && currentScene.previous_scene != null) {
-            if (sceneIndexes.includes(currentScene.previous_scene.id)) {
+            if (sceneIndexes.includes(currentScene.previous_scene)) {
               return false;
             }
-            currentScene = currentScene.previous_scene;
+            currentScene = this.SCENE_BY_ID(currentScene.previous_scene);
           }
           return true;
         },
@@ -292,7 +292,7 @@ export default {
       if (act != null) {
         this.firstSceneFormState.act_id = act.item.id;
         if (act.item.first_scene != null) {
-          this.firstSceneFormState.scene_id = act.item.first_scene.id;
+          this.firstSceneFormState.scene_id = act.item.first_scene;
         }
         this.$bvModal.show('set-first-scene');
       }
@@ -325,10 +325,10 @@ export default {
         this.editFormState.scene_id = scene.item.id;
         this.editFormState.name = scene.item.name;
         if (scene.item.act != null) {
-          this.editFormState.act_id = scene.item.act.id;
+          this.editFormState.act_id = scene.item.act;
         }
         if (scene.item.previous_scene != null) {
-          this.editFormState.previous_scene_id = scene.item.previous_scene.id;
+          this.editFormState.previous_scene_id = scene.item.previous_scene;
         }
         this.$bvModal.show('edit-scene');
       }
@@ -348,10 +348,10 @@ export default {
     },
     editActChanged(newActID) {
       const editScene = this.SCENE_LIST.find((s) => (s.id === this.editSceneID));
-      if (newActID !== editScene.act.id) {
+      if (newActID !== editScene.act) {
         this.editFormState.previous_scene_id = null;
       } else if (editScene.previous_scene != null) {
-        this.editFormState.previous_scene_id = editScene.previous_scene.id;
+        this.editFormState.previous_scene_id = editScene.previous_scene;
       } else {
         this.editFormState.previous_scene_id = null;
       }
@@ -360,16 +360,16 @@ export default {
       'SET_ACT_FIRST_SCENE', 'UPDATE_SCENE']),
   },
   computed: {
-    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW']),
+    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID', 'ACT_BY_ID']),
     sceneTableItems() {
       // Get ordering of Acts
       const acts = [];
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
-        let act = this.ACT_LIST.find((a) => (a.id === this.CURRENT_SHOW.first_act_id));
+        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
         while (act != null) {
           // eslint-disable-next-line no-loop-func
-          acts.push(this.ACT_LIST.find((a) => (a.id === act.id)).id);
-          act = act.next_act;
+          acts.push(act.id);
+          act = this.ACT_BY_ID(act.next_act);
         }
       }
       this.ACT_LIST.forEach((act) => {
@@ -381,15 +381,15 @@ export default {
       acts.forEach((actId) => {
         const act = this.ACT_LIST.find((a) => (a.id === actId));
         if (act.first_scene != null) {
-          let scene = this.SCENE_LIST.find((s) => (s.id === act.first_scene.id));
+          let scene = this.SCENE_BY_ID(act.first_scene);
           while (scene != null) {
             // eslint-disable-next-line no-loop-func
-            ret.push(this.SCENE_LIST.find((s) => (s.id === scene.id)));
-            scene = scene.next_scene;
+            ret.push(this.SCENE_BY_ID(scene.id));
+            scene = this.SCENE_BY_ID(scene.next_scene);
           }
         }
         const sceneIds = ret.map((s) => (s.id));
-        this.SCENE_LIST.filter((s) => (s.act.id === actId)).forEach((scene) => {
+        this.SCENE_LIST.filter((s) => (s.act === actId)).forEach((scene) => {
           if (!sceneIds.includes(scene.id)) {
             ret.push(scene);
           }
@@ -413,26 +413,13 @@ export default {
             value: null, text: 'None', disabled: false,
           },
           ...this.SCENE_LIST.filter((scene) => (
-            scene.act.id === act.id && scene.next_scene == null), this).map((scene) => ({
+            scene.act === act.id && scene.next_scene == null
+            && this.ACT_BY_ID(scene.act) != null), this).map((scene) => ({
             value: scene.id,
-            text: `${scene.act.name}: ${scene.name}`,
+            text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
           }))];
       }, this);
 
-      return ret;
-    },
-    actScenes() {
-      const ret = {};
-      this.ACT_LIST.forEach((act) => {
-        ret[act.id] = [{
-          value: null,
-          text: 'None',
-          disabled: false,
-        }, ...act.scene_list.map((scene) => ({
-          value: scene.id,
-          text: `${scene.act.name}: ${scene.name}`,
-        }))];
-      });
       return ret;
     },
     firstSceneOptions() {
@@ -443,11 +430,12 @@ export default {
           text: 'None',
           disabled: false,
         }, ...act.scene_list.filter((scene) => (
-          scene.previous_scene == null)).map((scene) => ({
-          value: scene.id,
-          text: `${scene.act.name}: ${scene.name}`,
+          this.SCENE_BY_ID(scene) != null
+          && this.SCENE_BY_ID(scene).previous_scene == null), this).map((scene) => ({
+          value: scene,
+          text: `${act.name}: ${this.SCENE_BY_ID(scene).name}`,
         }))];
-      });
+      }, this);
       return ret;
     },
     firstSceneModalLabel() {
@@ -467,7 +455,7 @@ export default {
         );
         ret.push({
           value: this.editFormState.previous_scene_id,
-          text: `${scene.act.name}: ${scene.name}`,
+          text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
           disabled: false,
         });
       }
