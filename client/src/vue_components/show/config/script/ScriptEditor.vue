@@ -519,7 +519,7 @@ export default {
       let currentAct = firstAct;
       /* eslint-disable no-await-in-loop */
       while (currentAct != null) {
-        let currentScene = currentAct.first_scene;
+        let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
         while (currentScene != null) {
           for (let pageIter = 0; pageIter < this.debugFormState.pages; pageIter++) {
             for (let linesIter = 0; linesIter < this.debugFormState.linesPerPage; linesIter++) {
@@ -545,12 +545,11 @@ export default {
             }
             await this.incrPage();
           }
-          currentScene = currentScene.next_scene;
+          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
         }
         /* eslint-enable no-await-in-loop */
         if (currentAct.next_act != null) {
-          const nextActId = currentAct.next_act.id;
-          currentAct = this.ACT_LIST.find((act) => (act.id === nextActId));
+          currentAct = this.ACT_BY_ID(currentAct.next_act);
         } else {
           currentAct = null;
         }
@@ -610,7 +609,7 @@ export default {
     },
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES']),
+      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID']),
   },
   watch: {
     currentEditPage(val) {
