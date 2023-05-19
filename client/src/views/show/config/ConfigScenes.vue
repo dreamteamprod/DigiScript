@@ -14,7 +14,7 @@
           </template>
           <template #cell(next_scene)="data">
             <p v-if="data.item.next_scene">
-              {{ data.item.next_scene.name }}
+              {{ SCENE_BY_ID(data.item.next_scene).name }}
             </p>
             <p v-else>N/A</p>
           </template>
@@ -381,11 +381,11 @@ export default {
       acts.forEach((actId) => {
         const act = this.ACT_LIST.find((a) => (a.id === actId));
         if (act.first_scene != null) {
-          let scene = this.SCENE_LIST.find((s) => (s.id === act.first_scene));
+          let scene = this.SCENE_BY_ID(act.first_scene);
           while (scene != null) {
             // eslint-disable-next-line no-loop-func
-            ret.push(this.SCENE_LIST.find((s) => (s.id === scene.id)));
-            scene = scene.next_scene;
+            ret.push(this.SCENE_BY_ID(scene.id));
+            scene = this.SCENE_BY_ID(scene.next_scene);
           }
         }
         const sceneIds = ret.map((s) => (s.id));

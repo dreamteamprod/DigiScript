@@ -545,7 +545,7 @@ export default {
             }
             await this.incrPage();
           }
-          currentScene = currentScene.next_scene;
+          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
         }
         /* eslint-enable no-await-in-loop */
         if (currentAct.next_act != null) {

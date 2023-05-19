@@ -55,6 +55,7 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
@@ -191,6 +192,7 @@ export default {
     },
   },
   computed: {
+    ...mapGetters(['SCENE_BY_ID']),
     nextActs() {
       // Start act is either the first act for the show, or the act of the previous line if there
       // is one
@@ -238,7 +240,7 @@ export default {
         if (this.nextLine != null && this.nextLine.scene_id === nextScene.id) {
           break;
         }
-        nextScene = nextScene.next_scene;
+        nextScene = this.SCENE_BY_ID(nextScene.next_scene);
       }
       return validScenes;
     },
