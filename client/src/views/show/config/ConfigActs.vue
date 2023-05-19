@@ -21,7 +21,7 @@
           </template>
           <template #cell(previous_act)="data">
             <p v-if="data.item.previous_act">
-              {{ data.item.previous_act.name }}
+              {{ ACT_BY_ID(data.item.previous_act).name }}
             </p>
             <p v-else>N/A</p>
           </template>
@@ -165,12 +165,12 @@ export default {
         integer,
         noLoops(value) {
           const actIndexes = [this.editFormState.id];
-          let currentAct = this.ACT_LIST.find((act) => (act.id === value));
+          let currentAct = this.ACT_BY_ID(value);
           while (currentAct != null && currentAct.previous_act != null) {
-            if (actIndexes.includes(currentAct.previous_act.id)) {
+            if (actIndexes.includes(currentAct.previous_act)) {
               return false;
             }
-            currentAct = currentAct.previous_act;
+            currentAct = this.ACT_BY_ID(currentAct.previous_act);
           }
           return true;
         },
@@ -212,7 +212,7 @@ export default {
         this.editFormState.name = act.item.name;
         this.editFormState.interval_after = act.item.interval_after;
         if (act.item.previous_act != null) {
-          this.editFormState.previous_act_id = act.item.previous_act.id;
+          this.editFormState.previous_act_id = act.item.previous_act;
         }
         this.$bvModal.show('edit-act');
       }
