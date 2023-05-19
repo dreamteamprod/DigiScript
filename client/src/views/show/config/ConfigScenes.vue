@@ -10,7 +10,7 @@
             </b-button>
           </template>
           <template #cell(act)="data">
-            {{ data.item.act.name }}
+            {{ ACT_BY_ID(data.item.act).name }}
           </template>
           <template #cell(next_scene)="data">
             <p v-if="data.item.next_scene">
@@ -325,7 +325,7 @@ export default {
         this.editFormState.scene_id = scene.item.id;
         this.editFormState.name = scene.item.name;
         if (scene.item.act != null) {
-          this.editFormState.act_id = scene.item.act.id;
+          this.editFormState.act_id = scene.item.act;
         }
         if (scene.item.previous_scene != null) {
           this.editFormState.previous_scene_id = scene.item.previous_scene.id;
@@ -348,7 +348,7 @@ export default {
     },
     editActChanged(newActID) {
       const editScene = this.SCENE_LIST.find((s) => (s.id === this.editSceneID));
-      if (newActID !== editScene.act.id) {
+      if (newActID !== editScene.act) {
         this.editFormState.previous_scene_id = null;
       } else if (editScene.previous_scene != null) {
         this.editFormState.previous_scene_id = editScene.previous_scene.id;
@@ -360,7 +360,7 @@ export default {
       'SET_ACT_FIRST_SCENE', 'UPDATE_SCENE']),
   },
   computed: {
-    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID']),
+    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID', 'ACT_BY_ID']),
     sceneTableItems() {
       // Get ordering of Acts
       const acts = [];
@@ -389,7 +389,7 @@ export default {
           }
         }
         const sceneIds = ret.map((s) => (s.id));
-        this.SCENE_LIST.filter((s) => (s.act.id === actId)).forEach((scene) => {
+        this.SCENE_LIST.filter((s) => (s.act === actId)).forEach((scene) => {
           if (!sceneIds.includes(scene.id)) {
             ret.push(scene);
           }
@@ -413,9 +413,10 @@ export default {
             value: null, text: 'None', disabled: false,
           },
           ...this.SCENE_LIST.filter((scene) => (
-            scene.act.id === act.id && scene.next_scene == null), this).map((scene) => ({
+            scene.act === act.id && scene.next_scene == null
+            && this.ACT_BY_ID(scene.act) != null), this).map((scene) => ({
             value: scene.id,
-            text: `${scene.act.name}: ${scene.name}`,
+            text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
           }))];
       }, this);
 
@@ -454,7 +455,7 @@ export default {
         );
         ret.push({
           value: this.editFormState.previous_scene_id,
-          text: `${scene.act.name}: ${scene.name}`,
+          text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
           disabled: false,
         });
       }

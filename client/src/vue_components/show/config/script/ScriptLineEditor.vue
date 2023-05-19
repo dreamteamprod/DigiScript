@@ -221,7 +221,7 @@ export default {
       if (this.state.act_id == null) {
         return [];
       }
-      const scenes = this.scenes.filter((scene) => (scene.act.id === this.state.act_id));
+      const scenes = this.scenes.filter((scene) => (scene.act === this.state.act_id));
       // Start scene is either the first scene of the act, or the scene of the previous line if
       // there is one
       let startScene = scenes.find((scene) => (scene.previous_scene == null));

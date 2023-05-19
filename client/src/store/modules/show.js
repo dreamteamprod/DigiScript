@@ -433,6 +433,16 @@ export default {
     ACT_LIST(state) {
       return state.actList;
     },
+    ACT_DICT(state) {
+      return Object.fromEntries(state.actList.map((act) => [act.id, act]));
+    },
+    ACT_BY_ID: (state, getters) => (actId) => {
+      const actStr = actId.toString();
+      if (Object.keys(getters.ACT_DICT).includes(actStr)) {
+        return getters.ACT_DICT[actStr];
+      }
+      return null;
+    },
     SCENE_LIST(state) {
       return state.sceneList;
     },
