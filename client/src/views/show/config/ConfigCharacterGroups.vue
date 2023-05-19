@@ -3,8 +3,14 @@
     <b-row>
       <b-col>
         <h5>Character Groups</h5>
-        <b-table id="character-group-table" :items="CHARACTER_GROUP_LIST"
-                 :fields="characterGroupFields" show-empty>
+        <b-table
+          id="character-group-table"
+          :items="CHARACTER_GROUP_LIST"
+          :fields="characterGroupFields"
+          :per-page="rowsPerPage"
+          :current-page="currentPage"
+          show-empty
+        >
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-character-group>
               New Character Group
@@ -29,6 +35,14 @@
             </b-button-group>
           </template>
         </b-table>
+        <b-pagination
+          v-show="this.CHARACTER_GROUP_LIST.length > rowsPerPage"
+          v-model="currentPage"
+          :total-rows="this.CHARACTER_GROUP_LIST.length"
+          :per-page="rowsPerPage"
+          aria-controls="character-group-table"
+          class="justify-content-center"
+        />
       </b-col>
     </b-row>
     <b-modal id="new-character-group" title="Add New Character Group" ref="new-character" size="md"
@@ -130,6 +144,8 @@ export default {
         'characters',
         { key: 'btn', label: '' },
       ],
+      rowsPerPage: 15,
+      currentPage: 1,
       tempCharacterList: [],
       newFormState: {
         name: '',

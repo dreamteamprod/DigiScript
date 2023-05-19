@@ -4,8 +4,14 @@
       <b-col>
         <b-tabs content-class="mt-3">
           <b-tab title="Cue Types" active>
-            <b-table id="cue-types-table" :items="this.CUE_TYPES"
-                     :fields="cueTypeFields" show-empty>
+            <b-table
+              id="cue-types-table"
+              :items="this.CUE_TYPES"
+              :fields="cueTypeFields"
+              :per-page="rowsPerPage"
+              :current-page="currentPage"
+              show-empty
+            >
               <template #head(btn)="data">
                 <b-button variant="outline-success" v-b-modal.new-cue-type>
                   New Cue Type
@@ -27,6 +33,14 @@
                 </b-button-group>
               </template>
             </b-table>
+            <b-pagination
+              v-show="this.CUE_TYPES.length > rowsPerPage"
+              v-model="currentPage"
+              :total-rows="this.CUE_TYPES.length"
+              :per-page="rowsPerPage"
+              aria-controls="cue-types-table"
+              class="justify-content-center"
+            />
           </b-tab>
           <b-tab title="Cue Configuration">
             <cue-editor />
@@ -147,6 +161,8 @@ export default {
         'colour',
         { key: 'btn', label: '' },
       ],
+      rowsPerPage: 15,
+      currentPage: 1,
       newCueTypeForm: {
         prefix: '',
         description: '',

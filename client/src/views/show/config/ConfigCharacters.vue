@@ -6,7 +6,11 @@
         <b-table
           id="character-table"
           :items="this.CHARACTER_LIST"
-          :fields="characterFields" show-empty>
+          :fields="characterFields"
+          :per-page="rowsPerPage"
+          :current-page="currentPage"
+          show-empty
+        >
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-character>
               New Character
@@ -36,9 +40,9 @@
           v-model="currentPage"
           :total-rows="this.CHARACTER_LIST.length"
           :per-page="rowsPerPage"
-          aria-controls="cast-table"
+          aria-controls="character-table"
           class="justify-content-center"
-        ></b-pagination>
+        />
       </b-col>
     </b-row>
     <b-modal id="new-character" title="Add New Character" ref="new-character" size="md"

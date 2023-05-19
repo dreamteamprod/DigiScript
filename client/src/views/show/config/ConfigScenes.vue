@@ -3,7 +3,14 @@
     <b-row>
       <b-col cols="8">
         <h5>Scene List</h5>
-        <b-table id="scene-table" :items="sceneTableItems" :fields="sceneFields" show-empty>
+        <b-table
+          id="scene-table"
+          :items="sceneTableItems"
+          :fields="sceneFields"
+          :per-page="rowsPerPage"
+          :current-page="currentPage"
+          show-empty
+        >
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-scene>
               New Scene
@@ -36,13 +43,13 @@
           </template>
         </b-table>
         <b-pagination
-          v-show="this.SCENE_LIST.length > rowsPerPage"
+          v-show="this.sceneTableItems.length > rowsPerPage"
           v-model="currentPage"
-          :total-rows="this.SCENE_LIST.length"
+          :total-rows="this.sceneTableItems.length"
           :per-page="rowsPerPage"
-          aria-controls="cast-table"
+          aria-controls="scene-table"
           class="justify-content-center"
-        ></b-pagination>
+        />
       </b-col>
       <b-col cols="4">
         <h5>Act First Scenes</h5>
