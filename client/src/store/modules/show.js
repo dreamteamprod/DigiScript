@@ -433,8 +433,34 @@ export default {
     ACT_LIST(state) {
       return state.actList;
     },
+    ACT_DICT(state) {
+      return Object.fromEntries(state.actList.map((act) => [act.id, act]));
+    },
+    ACT_BY_ID: (state, getters) => (actId) => {
+      if (actId == null) {
+        return null;
+      }
+      const actStr = actId.toString();
+      if (Object.keys(getters.ACT_DICT).includes(actStr)) {
+        return getters.ACT_DICT[actStr];
+      }
+      return null;
+    },
     SCENE_LIST(state) {
       return state.sceneList;
+    },
+    SCENE_DICT(state) {
+      return Object.fromEntries(state.sceneList.map((scene) => [scene.id, scene]));
+    },
+    SCENE_BY_ID: (state, getters) => (sceneId) => {
+      if (sceneId == null) {
+        return null;
+      }
+      const sceneStr = sceneId.toString();
+      if (Object.keys(getters.SCENE_DICT).includes(sceneStr)) {
+        return getters.SCENE_DICT[sceneStr];
+      }
+      return null;
     },
     CUE_TYPES(state) {
       return state.cueTypes;
