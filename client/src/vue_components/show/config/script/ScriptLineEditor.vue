@@ -192,7 +192,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENE_BY_ID']),
+    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID']),
     nextActs() {
       // Start act is either the first act for the show, or the act of the previous line if there
       // is one
@@ -209,7 +209,7 @@ export default {
         if (this.nextLine != null && this.nextLine.act_id === nextAct.id) {
           break;
         }
-        nextAct = nextAct.next_act;
+        nextAct = this.ACT_BY_ID(nextAct.next_act);
       }
       return validActs;
     },

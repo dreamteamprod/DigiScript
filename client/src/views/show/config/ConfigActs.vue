@@ -15,7 +15,7 @@
           </template>
           <template #cell(next_act)="data">
             <p v-if="data.item.next_act">
-              {{ data.item.next_act.name }}
+              {{ ACT_BY_ID(data.item.next_act).name }}
             </p>
             <p v-else>N/A</p>
           </template>
@@ -256,11 +256,11 @@ export default {
     actTableItems() {
       const ret = [];
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
-        let act = this.ACT_LIST.find((a) => (a.id === this.CURRENT_SHOW.first_act_id));
+        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
         while (act != null) {
           // eslint-disable-next-line no-loop-func
-          ret.push(this.ACT_LIST.find((a) => (a.id === act.id)));
-          act = act.next_act;
+          ret.push(this.ACT_BY_ID(act.id));
+          act = this.ACT_BY_ID(act.next_act);
         }
       }
       const actIds = ret.map((x) => (x.id));
@@ -293,7 +293,7 @@ export default {
       }
       return ret;
     },
-    ...mapGetters(['ACT_LIST', 'CURRENT_SHOW']),
+    ...mapGetters(['ACT_LIST', 'CURRENT_SHOW', 'ACT_BY_ID']),
   },
 };
 </script>

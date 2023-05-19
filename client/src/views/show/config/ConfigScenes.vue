@@ -365,11 +365,11 @@ export default {
       // Get ordering of Acts
       const acts = [];
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
-        let act = this.ACT_LIST.find((a) => (a.id === this.CURRENT_SHOW.first_act_id));
+        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
         while (act != null) {
           // eslint-disable-next-line no-loop-func
-          acts.push(this.ACT_LIST.find((a) => (a.id === act.id)).id);
-          act = act.next_act;
+          acts.push(act.id);
+          act = this.ACT_BY_ID(act.next_act);
         }
       }
       this.ACT_LIST.forEach((act) => {

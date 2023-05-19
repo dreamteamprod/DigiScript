@@ -549,8 +549,7 @@ export default {
         }
         /* eslint-enable no-await-in-loop */
         if (currentAct.next_act != null) {
-          const nextActId = currentAct.next_act.id;
-          currentAct = this.ACT_LIST.find((act) => (act.id === nextActId));
+          currentAct = this.ACT_BY_ID(currentAct.next_act);
         } else {
           currentAct = null;
         }
@@ -610,7 +609,7 @@ export default {
     },
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID']),
+      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID']),
   },
   watch: {
     currentEditPage(val) {
