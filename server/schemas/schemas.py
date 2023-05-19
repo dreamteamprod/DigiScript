@@ -115,8 +115,6 @@ class SceneSchema(SQLAlchemyAutoSchema):
         include_relationships = True
         load_instance = True
 
-    previous_scene = Nested(lambda: SceneSchema(), many=False, exclude=('next_scene',))
-
 
 @schema
 class CueTypeSchema(SQLAlchemyAutoSchema):

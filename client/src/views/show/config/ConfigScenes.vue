@@ -20,7 +20,7 @@
           </template>
           <template #cell(previous_scene)="data">
             <p v-if="data.item.previous_scene">
-              {{ data.item.previous_scene.name }}
+              {{ SCENE_BY_ID(data.item.previous_scene).name }}
             </p>
             <p v-else>N/A</p>
           </template>
@@ -230,12 +230,12 @@ export default {
         integer,
         noLoops(value) {
           const sceneIndexes = [this.editFormState.scene_id];
-          let currentScene = this.SCENE_LIST.find((scene) => (scene.id === value));
+          let currentScene = this.SCENE_BY_ID(value);
           while (currentScene != null && currentScene.previous_scene != null) {
-            if (sceneIndexes.includes(currentScene.previous_scene.id)) {
+            if (sceneIndexes.includes(currentScene.previous_scene)) {
               return false;
             }
-            currentScene = currentScene.previous_scene;
+            currentScene = this.SCENE_BY_ID(currentScene.previous_scene);
           }
           return true;
         },
@@ -328,7 +328,7 @@ export default {
           this.editFormState.act_id = scene.item.act;
         }
         if (scene.item.previous_scene != null) {
-          this.editFormState.previous_scene_id = scene.item.previous_scene.id;
+          this.editFormState.previous_scene_id = scene.item.previous_scene;
         }
         this.$bvModal.show('edit-scene');
       }
@@ -351,7 +351,7 @@ export default {
       if (newActID !== editScene.act) {
         this.editFormState.previous_scene_id = null;
       } else if (editScene.previous_scene != null) {
-        this.editFormState.previous_scene_id = editScene.previous_scene.id;
+        this.editFormState.previous_scene_id = editScene.previous_scene;
       } else {
         this.editFormState.previous_scene_id = null;
       }
