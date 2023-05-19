@@ -76,6 +76,7 @@ export default {
       initialLoad: false,
       currentFirstPage: 1,
       currentLastPage: 1,
+      pageBatchSize: 3,
     };
   },
   async mounted() {
@@ -132,16 +133,28 @@ export default {
         return true;
       });
 
+      let assignedLastScript = false;
+      let lastObject = null;
       scriptSelector.each(function () {
+        if (lastObject == null) {
+          lastObject = this;
+        } else if ($(this).offset().top > $(lastObject).offset().top) {
+          lastObject = this;
+        }
         if ($(this).offset().top >= cutoffBottom) {
           if (!$(this).attr('class').split(/\s+/).includes('last-script-element')) {
             $('.script-item').removeClass('last-script-element');
             $(this).addClass('last-script-element');
           }
+          assignedLastScript = true;
           return false;
         }
         return true;
       });
+      if (!assignedLastScript) {
+        $('.script-item').removeClass('last-script-element');
+        $(lastObject).addClass('last-script-element');
+      }
     },
     computeContentSize() {
       const scriptContainer = $('#script-container');
@@ -169,10 +182,14 @@ export default {
     },
     async handleLastPageChange(lastPage) {
       this.currentLastPage = lastPage;
-      if ((this.currentLoadedPage === lastPage || this.currentLoadedPage - 2 === lastPage)
-        && this.currentLoadedPage - 2 < this.currentMaxPage) {
-        await this.loadNextPage();
-        await this.loadNextPage();
+      if ((this.currentLoadedPage === lastPage
+          || this.currentLoadedPage - this.pageBatchSize === lastPage)
+        && this.currentLoadedPage - this.pageBatchSize < this.currentMaxPage) {
+        /* eslint-disable no-await-in-loop */
+        for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
+          await this.loadNextPage();
+        }
+        /* eslint-enable no-await-in-loop */
       }
     },
     handleFirstPageChange(firstPage) {
