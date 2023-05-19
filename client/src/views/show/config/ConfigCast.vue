@@ -3,7 +3,14 @@
     <b-row>
       <b-col>
         <h5>Cast List</h5>
-        <b-table id="cast-table" :items="this.CAST_LIST" :fields="castFields" show-empty>
+        <b-table
+          id="cast-table"
+          :items="this.CAST_LIST"
+          :fields="castFields"
+          :per-page="rowsPerPage"
+          :current-page="currentPage"
+          show-empty
+        >
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-cast>
               New Cast Member
@@ -27,7 +34,7 @@
           :per-page="rowsPerPage"
           aria-controls="cast-table"
           class="justify-content-center"
-        ></b-pagination>
+        />
       </b-col>
     </b-row>
     <b-modal id="new-cast" title="Add New Cast Member" ref="new-cast" size="sm" @show="resetNewForm"

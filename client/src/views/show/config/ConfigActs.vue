@@ -3,7 +3,14 @@
     <b-row>
       <b-col>
         <h5>Act List</h5>
-        <b-table id="acts-table" :items="actTableItems" :fields="actFields" show-empty>
+        <b-table
+          id="acts-table"
+          :items="actTableItems"
+          :fields="actFields"
+          :per-page="rowsPerPage"
+          :current-page="currentPage"
+          show-empty
+        >
           <template #head(btn)="data">
             <b-button variant="outline-success" v-b-modal.new-act>
               New Act
@@ -37,13 +44,13 @@
           </template>
         </b-table>
         <b-pagination
-          v-show="this.ACT_LIST.length > rowsPerPage"
+          v-show="this.actTableItems.length > rowsPerPage"
           v-model="currentPage"
-          :total-rows="this.ACT_LIST.length"
+          :total-rows="this.actTableItems.length"
           :per-page="rowsPerPage"
-          aria-controls="cast-table"
+          aria-controls="acts-table"
           class="justify-content-center"
-        ></b-pagination>
+        />
       </b-col>
     </b-row>
     <b-modal id="new-act" title="Add New Act" ref="new-act" size="md"
