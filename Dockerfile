@@ -7,7 +7,7 @@ WORKDIR /client
 RUN npm ci
 RUN npm run build
 
-FROM python:3.10-buster
+FROM python:3.11-buster
 RUN apt update
 RUN apt install -y nano
 
