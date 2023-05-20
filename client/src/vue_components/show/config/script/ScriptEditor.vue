@@ -217,6 +217,7 @@ export default {
       },
       changingPage: false,
       loaded: false,
+      latestAddedLine: null,
     };
   },
   validations: {
@@ -327,7 +328,9 @@ export default {
         lineObj: this.blankLineObj,
       });
       const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
-      this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
+      const lineIdent = `page_${this.currentEditPage}_line_${lineIndex}`;
+      this.editPages.push(lineIdent);
+      this.latestAddedLine = lineIdent;
       const prevLine = await this.getPreviousLineForIndex(lineIndex);
       if (prevLine != null) {
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
@@ -418,12 +421,19 @@ export default {
       }
     },
     doneEditingLine(pageIndex, lineIndex) {
-      const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);
+      const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
+      const index = this.editPages.indexOf(lineIdent);
       if (index !== -1) {
         this.editPages.splice(index, 1);
       }
+      if (this.latestAddedLine === lineIdent) {
+        this.addNewLine();
+      }
     },
     deleteLine(pageIndex, lineIndex) {
+      if (this.latestAddedLine === `page_${pageIndex}_line_${lineIndex}`) {
+        this.latestAddedLine = null;
+      }
       this.DELETE_LINE({
         pageNo: pageIndex,
         lineIndex,
