@@ -37,6 +37,7 @@
         v-for="(part, index) in state.line_parts"
         :key="`line_${lineIndex}_part_${index}`"
         v-model="$v.state.line_parts.$model[index]"
+        :focusInput="index === 0"
         :characters="characters"
         :character-groups="characterGroups"
         :show-add-button="index === state.line_parts.length - 1 && !isStageDirection"
