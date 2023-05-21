@@ -304,7 +304,7 @@ export default {
         DATA: {},
       });
     },
-    decrPage() {
+    async decrPage() {
       if (this.currentEditPage > 1) {
         if (!Object.keys(this.TMP_SCRIPT).includes((this.currentEditPage - 1).toString())) {
           this.ADD_BLANK_PAGE(this.currentEditPage - 1);
@@ -313,6 +313,9 @@ export default {
           this.REMOVE_PAGE(this.currentEditPage);
         }
         this.currentEditPage--;
+
+        // Pre-load previous page
+        await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
       }
     },
     async incrPage() {
