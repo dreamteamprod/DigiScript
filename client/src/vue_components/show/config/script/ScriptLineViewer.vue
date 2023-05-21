@@ -53,6 +53,10 @@ export default {
       required: true,
       type: Number,
     },
+    page: {
+      required: true,
+      type: Array,
+    },
     previousLine: {
       required: true,
     },
@@ -80,13 +84,23 @@ export default {
   },
   computed: {
     needsHeadings() {
+      let { previousLine } = this;
+      let previousLineIndex = this.lineIndex - 1;
+      while (previousLine != null && previousLine.stage_direction === true) {
+        if (previousLineIndex === 0) {
+          break;
+        }
+        previousLineIndex -= 1;
+        previousLine = this.page[previousLineIndex];
+      }
+
       const ret = [];
       this.line.line_parts.forEach(function (part) {
-        if (this.previousLine == null
-          || this.previousLine.line_parts.length !== this.line.line_parts.length) {
+        if (previousLine == null
+          || previousLine.line_parts.length !== this.line.line_parts.length) {
           ret.push(true);
         } else {
-          const matchingIndex = this.previousLine.line_parts.find((prevPart) => (
+          const matchingIndex = previousLine.line_parts.find((prevPart) => (
             prevPart.part_index === part.part_index));
           if (matchingIndex == null) {
             ret.push(true);

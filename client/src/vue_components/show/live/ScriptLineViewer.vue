@@ -44,6 +44,7 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
 import { contrastColor } from 'contrast-color';
 
 export default {
@@ -123,16 +124,35 @@ export default {
     cueBackgroundColour(cue) {
       return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
     },
+    getPreviousLineForIndex(pageIndex, lineIndex) {
+      if (lineIndex > 0) {
+        return [lineIndex - 1, this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1]];
+      }
+      let loopPageNo = pageIndex - 1;
+      while (loopPageNo >= 1) {
+        const loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        if (loopPage.length > 0) {
+          return [loopPage.length - 1, loopPage[loopPage.length - 1]];
+        }
+        loopPageNo -= 1;
+      }
+      return [null, null];
+    },
   },
   computed: {
     needsHeadings() {
+      let { previousLine, lineIndex } = this;
+      while (previousLine != null && previousLine.stage_direction === true) {
+        [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
+      }
+
       const ret = [];
       this.line.line_parts.forEach(function (part) {
-        if (this.previousLine == null
-          || this.previousLine.line_parts.length !== this.line.line_parts.length) {
+        if (previousLine == null
+          || previousLine.line_parts.length !== this.line.line_parts.length) {
           ret.push(true);
         } else {
-          const matchingIndex = this.previousLine.line_parts.find((prevPart) => (
+          const matchingIndex = previousLine.line_parts.find((prevPart) => (
             prevPart.part_index === part.part_index));
           if (matchingIndex == null) {
             ret.push(true);
@@ -157,6 +177,7 @@ export default {
     sceneLabel() {
       return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
     },
+    ...mapGetters(['GET_SCRIPT_PAGE']),
   },
 };
 </script>

@@ -74,6 +74,7 @@
               :key="`page_${currentEditPage}_line_${index}`"
               :line-index="index"
               :line="TMP_SCRIPT[currentEditPage][index]"
+              :page="TMP_SCRIPT[currentEditPage]"
               :acts="ACT_LIST"
               :scenes="SCENE_LIST"
               :characters="CHARACTER_LIST"
