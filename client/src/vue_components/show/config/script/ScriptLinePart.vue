@@ -37,7 +37,7 @@
     <b-form-row>
       <b-col style="display: inline-flex">
         <b-form-input v-model="$v.state.line_text.$model" @change="stateChange"
-                      :state="validateState('line_text')"/>
+                      :state="validateState('line_text')" ref="partInput"/>
         <b-button v-if="showAddButton && !isStageDirection"
                   :disabled="!enableAddButton"
                   style="margin-left: 0.5em; float: right"
@@ -56,6 +56,10 @@ export default {
   name: 'ScriptLinePart',
   events: ['input', 'addLinePart'],
   props: {
+    focusInput: {
+      required: true,
+      type: Boolean,
+    },
     characters: {
       required: true,
     },
@@ -108,6 +112,9 @@ export default {
   },
   mounted() {
     this.$v.state.$touch();
+    if (this.focusInput) {
+      this.$refs.partInput.focus();
+    }
   },
   methods: {
     validateState(name) {
