@@ -6,7 +6,10 @@
         <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
       </b-col>
     </b-row>
-    <b-row :class="{'stage-direction': line.stage_direction}">
+    <b-row :class="{
+      'stage-direction': line.stage_direction,
+      'heading-padding': !line.stage_direction && needsHeadings.every((x) => (x === true))
+    }">
       <b-col cols="3" class="cue-column">
         <b-button-group>
           <b-button v-for="cue in cues" :key="cue.id"
@@ -196,5 +199,8 @@ export default {
   .stage-direction {
     margin-top: 1rem;
     margin-bottom: 1rem;
+  }
+  .heading-padding {
+    margin-top: .5rem;
   }
 </style>

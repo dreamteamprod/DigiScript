@@ -1,5 +1,8 @@
 <template>
-  <b-row :class="{'stage-direction': line.stage_direction}">
+  <b-row :class="{
+    'stage-direction': line.stage_direction,
+    'heading-padding': !line.stage_direction && needsHeadings.every((x) => (x === true))
+  }">
     <b-col cols="1">
       <p v-if="needsActSceneLabel" class="viewable-line">
         {{ actLabel }}
@@ -15,11 +18,13 @@
              :key="`line_${lineIndex}_part_${index}`"
              style="text-align: center">
         <template v-if="needsHeadings[index]">
-          <b v-if="part.character_id != null">
-            {{ characters.find((char) => (char.id === part.character_id)).name }}
-          </b>
-          <b v-else>
-            {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+          <b>
+            <template v-if="part.character_id != null">
+              {{ characters.find((char) => (char.id === part.character_id)).name }}
+            </template>
+            <template v-else>
+              {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+            </template>
           </b>
         </template>
         <p class="viewable-line">
@@ -136,5 +141,8 @@ export default {
 .stage-direction {
   margin-top: 1rem;
   margin-bottom: 1rem;
+}
+.heading-padding {
+  margin-top: .5rem;
 }
 </style>
