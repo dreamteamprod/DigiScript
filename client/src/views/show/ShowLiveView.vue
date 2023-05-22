@@ -77,6 +77,7 @@ export default {
       currentFirstPage: 1,
       currentLastPage: 1,
       pageBatchSize: 3,
+      startTime: null,
     };
   },
   async mounted() {
@@ -97,6 +98,7 @@ export default {
       this.computeContentSize();
       this.computeScriptBoundaries();
 
+      this.startTime = this.createDateAsUTC(new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T')));
       this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
       this.scrollTimer = setInterval(this.computeScriptBoundaries, 25);
       window.addEventListener('resize', debounce(this.computeContentSize, 100));
@@ -111,10 +113,20 @@ export default {
   },
   methods: {
     msToTimer,
+    createDateAsUTC(date) {
+      return new Date(Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        date.getHours(),
+        date.getMinutes(),
+        date.getSeconds(),
+      ));
+    },
     updateElapsedTime() {
-      const now = new Date().getTime();
-      const startTime = Date.parse(this.CURRENT_SHOW_SESSION.start_date_time);
-      this.elapsedTime = now - startTime;
+      if (this.startTime != null) {
+        this.elapsedTime = Date.now() - this.startTime;
+      }
     },
     computeScriptBoundaries() {
       const scriptContainer = $('#script-container');
