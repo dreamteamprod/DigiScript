@@ -121,7 +121,7 @@
           },
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "sum by(handler) (tornado_http_requests_total)",
+          "expr": "sum by(handler) (tornado_http_requests_total{handler!=\"DebugMetricsController\"})",
           "format": "time_series",
           "hide": false,
           "instant": true,
