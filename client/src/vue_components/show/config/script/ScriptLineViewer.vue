@@ -16,7 +16,7 @@
     <template v-if="!line.stage_direction">
       <b-col v-for="(part, index) in line.line_parts"
              :key="`line_${lineIndex}_part_${index}`"
-             style="text-align: center">
+             style="text-align: center" class="align-self-end">
         <template v-if="needsHeadings[index]">
           <b>
             <template v-if="part.character_id != null">
