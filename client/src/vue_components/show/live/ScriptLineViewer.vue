@@ -28,7 +28,7 @@
       <template v-else>
         <b-col v-for="(part, index) in line.line_parts"
              :key="`line_${lineIndex}_part_${index}`"
-             style="text-align: center">
+             style="text-align: center" class="align-self-end">
             <template v-if="needsHeadings[index]">
               <b v-if="part.character_id != null">
                 {{ characters.find((char) => (char.id === part.character_id)).name }}
