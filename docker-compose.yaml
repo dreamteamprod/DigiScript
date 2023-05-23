@@ -24,6 +24,8 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
     ports:
       - 9090:9090
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     links:
       - cadvisor:cadvisor
     depends_on:
