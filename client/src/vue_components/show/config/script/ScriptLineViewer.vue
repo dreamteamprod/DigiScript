@@ -1,7 +1,7 @@
 <template>
   <b-row :class="{
     'stage-direction': line.stage_direction,
-    'heading-padding': !line.stage_direction && needsHeadings.every((x) => (x === true))
+    'heading-padding': !line.stage_direction && needsHeadingsAll
   }">
     <b-col cols="1">
       <p v-if="needsActSceneLabel" class="viewable-line">
@@ -14,22 +14,36 @@
       </p>
     </b-col>
     <template v-if="!line.stage_direction">
-      <b-col v-for="(part, index) in line.line_parts"
-             :key="`line_${lineIndex}_part_${index}`"
-             style="text-align: center" class="align-self-end">
-        <template v-if="needsHeadings[index]">
-          <b>
-            <template v-if="part.character_id != null">
-              {{ characters.find((char) => (char.id === part.character_id)).name }}
+      <b-col>
+        <b-row v-if="needsHeadingsAny">
+          <b-col
+            v-for="(part, index) in line.line_parts"
+            :key="`heading_${lineIndex}_part_${index}`"
+            style="text-align: center"
+          >
+            <template v-if="needsHeadings[index]">
+              <b>
+                <template v-if="part.character_id != null">
+                  {{ characters.find((char) => (char.id === part.character_id)).name }}
+                </template>
+                <template v-else>
+                  {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+                </template>
+              </b>
             </template>
-            <template v-else>
-              {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
-            </template>
-          </b>
-        </template>
-        <p class="viewable-line">
-          {{ part.line_text }}
-        </p>
+          </b-col>
+        </b-row>
+        <b-row>
+          <b-col
+            v-for="(part, index) in line.line_parts"
+            :key="`line_${lineIndex}_part_${index}`"
+            style="text-align: center"
+          >
+            <p class="viewable-line">
+              {{ part.line_text }}
+            </p>
+          </b-col>
+        </b-row>
       </b-col>
     </template>
     <template v-else>
@@ -116,6 +130,12 @@ export default {
         }
       }, this);
       return ret;
+    },
+    needsHeadingsAny() {
+      return this.needsHeadings.some((x) => (x === true));
+    },
+    needsHeadingsAll() {
+      return this.needsHeadings.every((x) => (x === true));
     },
     needsActSceneLabel() {
       if (this.previousLine == null) {
