@@ -1,21 +1,33 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
         <b-tabs content-class="mt-3">
-          <b-tab title="Revisions" active>
-            <b-table id="revisions-table" :items="SCRIPT_REVISIONS"
-                     :fields="revisionColumns" show-empty>
+          <b-tab
+            title="Revisions"
+            active
+          >
+            <b-table
+              id="revisions-table"
+              :items="SCRIPT_REVISIONS"
+              :fields="revisionColumns"
+              show-empty
+            >
               <template #cell(current)="data">
                 <b-icon-check-square-fill
-                  variant="success"
                   v-if="data.item.id === $store.state.script.currentRevision"
+                  variant="success"
                 />
                 <b-button-group v-else>
-                  <b-button variant="warning"
-                            @click="loadRevision(data)"
-                            :disabled="!canChangeRevisions ||
-                            data.item.id === $store.state.script.currentRevision">
+                  <b-button
+                    variant="warning"
+                    :disabled="!canChangeRevisions ||
+                      data.item.id === $store.state.script.currentRevision"
+                    @click="loadRevision(data)"
+                  >
                     Load
                   </b-button>
                 </b-button-group>
@@ -27,18 +39,24 @@
                       rev.id === data.item.previous_revision_id)).revision
                   }}
                 </p>
-                <p v-else>N/A</p>
+                <p v-else>
+                  N/A
+                </p>
               </template>
               <template #cell(btn)="data">
                 <b-button-group v-if="data.item.revision !== 1">
-                  <b-button variant="warning"
-                            :disabled="!canChangeRevisions"
-                            @click="openEditRevForm(data)">
+                  <b-button
+                    variant="warning"
+                    :disabled="!canChangeRevisions"
+                    @click="openEditRevForm(data)"
+                  >
                     Edit
                   </b-button>
-                  <b-button variant="danger"
-                            :disabled="!canChangeRevisions"
-                            @click="deleteRev(data)">
+                  <b-button
+                    variant="danger"
+                    :disabled="!canChangeRevisions"
+                    @click="deleteRev(data)"
+                  >
                     Delete
                   </b-button>
                 </b-button-group>
@@ -46,18 +64,20 @@
               <template #custom-foot="data">
                 <b-tr>
                   <b-td>
-                    <b-button variant="outline-success"
-                              :disabled="!canChangeRevisions"
-                              v-b-modal.new-revision>
+                    <b-button
+                      v-b-modal.new-revision
+                      variant="outline-success"
+                      :disabled="!canChangeRevisions"
+                    >
                       New Revision
                     </b-button>
                   </b-td>
-                  <b-td></b-td>
-                  <b-td></b-td>
-                  <b-td></b-td>
-                  <b-td></b-td>
-                  <b-td></b-td>
-                  <b-td></b-td>
+                  <b-td />
+                  <b-td />
+                  <b-td />
+                  <b-td />
+                  <b-td />
+                  <b-td />
                 </b-tr>
               </template>
             </b-table>
@@ -68,25 +88,41 @@
         </b-tabs>
       </b-col>
     </b-row>
-    <b-modal id="new-revision" title="Add New Revision" ref="new-revision" size="md"
-             @show="resetNewRevForm" @hidden="resetNewRevForm" @ok="onSubmitNewRev">
+    <b-modal
+      id="new-revision"
+      ref="new-revision"
+      title="Add New Revision"
+      size="md"
+      @show="resetNewRevForm"
+      @hidden="resetNewRevForm"
+      @ok="onSubmitNewRev"
+    >
       <b-alert show>
-        <p>This will create a new revision of the script based on the current revision, and set it
-          as the new current revision.</p>
+        <p>
+          This will create a new revision of the script based on the current revision, and set it
+          as the new current revision.
+        </p>
       </b-alert>
-      <b-form @submit.stop.prevent="onSubmitNewRev" ref="new-act-form">
-        <b-form-group id="description-input-group" label="Description"
-                      label-for="description-input">
+      <b-form
+        ref="new-act-form"
+        @submit.stop.prevent="onSubmitNewRev"
+      >
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
           <b-form-input
             id="description-input"
-            name="description-input"
             v-model="$v.newRevFormState.description.$model"
+            name="description-input"
             :state="validateNewRevState('description')"
             aria-describedby="description-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="description-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>

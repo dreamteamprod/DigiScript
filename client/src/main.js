@@ -16,7 +16,7 @@ import 'vue-multiselect/dist/vue-multiselect.min.css';
 
 Vue.use(BootstrapVue);
 Vue.use(IconsPlugin);
-Vue.component('multi-select', Multiselect);
+Vue.component('MultiSelect', Multiselect);
 
 Vue.use(Vuex);
 Vue.use(Vuelidate);
@@ -58,6 +58,7 @@ Vue.use(VueNativeSock, `ws://${window.location.hostname}:${window.location.port}
 });
 
 Vue.config.productionTip = false;
+Vue.config.devtools = true;
 
 Vue.filter('capitalize', (value) => {
   if (!value) return '';

@@ -8,18 +8,25 @@
           </b-td>
           <b-td>
             <p v-if="currentShowLoaded">
-              {{ this.$store.state.currentShow['name'] }}
+              {{ $store.state.currentShow['name'] }}
             </p>
             <b v-else>No show loaded</b>
           </b-td>
           <b-td>
             <b-button-group>
-              <b-button variant="outline-success"
-                        v-b-modal.show-load
-                        :disabled="this.$store.state.system.availableShows.length === 0">
+              <b-button
+                v-b-modal.show-load
+                variant="outline-success"
+                :disabled="$store.state.system.availableShows.length === 0"
+              >
                 Load Show
               </b-button>
-              <b-button variant="outline-success" v-b-modal.show-config>Setup New Show</b-button>
+              <b-button
+                v-b-modal.show-config
+                variant="outline-success"
+              >
+                Setup New Show
+              </b-button>
             </b-button-group>
           </b-td>
         </b-tr>
@@ -31,95 +38,148 @@
             {{ connectedClients.length }}
           </b-td>
           <b-td>
-            <b-button variant="outline-success" v-b-modal.connected-clients>
+            <b-button
+              v-b-modal.connected-clients
+              variant="outline-success"
+            >
               View Clients
             </b-button>
           </b-td>
         </b-tr>
       </b-tbody>
     </b-table-simple>
-    <b-modal id="show-config" title="Setup New Show" ref="modal" @show="resetForm"
-             @hidden="resetForm" @ok="onSubmit">
-      <b-form @submit.stop.prevent="onSubmit" ref="form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="show-config"
+      ref="modal"
+      title="Setup New Show"
+      @show="resetForm"
+      @hidden="resetForm"
+      @ok="onSubmit"
+    >
+      <b-form
+        ref="form"
+        @submit.stop.prevent="onSubmit"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.formState.name.$model"
+            name="name-input"
             :state="validateState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
 
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field and must be less than 100 characters.
+          >
+            This is a required field and must be less than 100 characters.
           </b-form-invalid-feedback>
         </b-form-group>
 
-        <b-form-group id="start-input-group" label="Start Date" label-for="start-input">
-          <b-form-input id="start-input" name="start-input" type="date"
-                        v-model="$v.formState.start.$model"
-                        :state="validateState('start')"
-                        aria-describedby="start-feedback">
-          </b-form-input>
+        <b-form-group
+          id="start-input-group"
+          label="Start Date"
+          label-for="start-input"
+        >
+          <b-form-input
+            id="start-input"
+            v-model="$v.formState.start.$model"
+            name="start-input"
+            type="date"
+            :state="validateState('start')"
+            aria-describedby="start-feedback"
+          />
           <b-form-invalid-feedback
             id="start-feedback"
-          >This is a required field and must be before or the same as the end date.
+          >
+            This is a required field and must be before or the same as the end date.
           </b-form-invalid-feedback>
         </b-form-group>
 
-        <b-form-group id="end-input-group" label="End Date" label-for="end-input">
-          <b-form-input id="end-input" name="end-input" type="date"
-                        v-model="$v.formState.end.$model"
-                        :state="validateState('end')"
-                        aria-describedby="end-feedback">
-          </b-form-input>
+        <b-form-group
+          id="end-input-group"
+          label="End Date"
+          label-for="end-input"
+        >
+          <b-form-input
+            id="end-input"
+            v-model="$v.formState.end.$model"
+            name="end-input"
+            type="date"
+            :state="validateState('end')"
+            aria-describedby="end-feedback"
+          />
           <b-form-invalid-feedback
             id="end-feedback"
-          >This is a required field and must be after or the same as the start date.
+          >
+            This is a required field and must be after or the same as the start date.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
       <template #modal-footer="{ ok, cancel }">
-        <b-button variant="secondary" @click.stop="cancel()">
+        <b-button
+          variant="secondary"
+          @click.stop="cancel()"
+        >
           Cancel
         </b-button>
-        <b-button variant="primary" @click.stop="saveAndLoad">
+        <b-button
+          variant="primary"
+          @click.stop="saveAndLoad"
+        >
           Save and Load
         </b-button>
-        <b-button variant="primary" @click.stop="ok()">
+        <b-button
+          variant="primary"
+          @click.stop="ok()"
+        >
           Save
         </b-button>
       </template>
     </b-modal>
-    <b-modal id="show-load" title="Load Show" ref="load-modal" size="lg">
+    <b-modal
+      id="show-load"
+      ref="load-modal"
+      title="Load Show"
+      size="lg"
+    >
       <div class="overflow-auto">
         <b-table
           id="shows-table"
-          :items="this.$store.state.system.availableShows"
+          :items="$store.state.system.availableShows"
           :fields="showFields"
           :per-page="perPage"
           :current-page="currentPageShows"
           small
         >
           <template #cell(btn)="data">
-            <b-button variant="primary" @click="loadShow(data.item)">Load Show</b-button>
+            <b-button
+              variant="primary"
+              @click="loadShow(data.item)"
+            >
+              Load Show
+            </b-button>
           </template>
         </b-table>
         <b-pagination
           v-model="currentPageShows"
-          :total-rows="this.$store.state.system.availableShows.length"
+          :total-rows="$store.state.system.availableShows.length"
           :per-page="perPage"
           aria-controls="shows-table"
           class="justify-content-center"
-        ></b-pagination>
+        />
       </div>
     </b-modal>
     <b-modal
       id="connected-clients"
-      title="Connected Clients"
       ref="connected-clients-modal"
-      size="lg">
+      title="Connected Clients"
+      size="lg"
+    >
       <b-table
         id="shows-table"
         :items="connectedClients"
@@ -134,7 +194,7 @@
         :per-page="perPage"
         aria-controls="shows-table"
         class="justify-content-center"
-      ></b-pagination>
+      />
     </b-modal>
   </div>
 </template>

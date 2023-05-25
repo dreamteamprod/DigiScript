@@ -22,52 +22,52 @@ const routes = [
   },
   {
     path: '/show-config',
-    component: () => import(/* webpackChunkName: "show-config" */ '../views/show/ShowConfigView.vue'),
+    component: () => import('../views/show/ShowConfigView.vue'),
     children: [
       {
         name: 'show-config',
         path: '',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigShow.vue'),
+        component: () => import('../views/show/config/ConfigShow.vue'),
       },
       {
         name: 'show-config-cast',
         path: 'cast',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCast.vue'),
+        component: () => import('../views/show/config/ConfigCast.vue'),
       },
       {
         name: 'show-config-characters',
         path: 'characters',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCharacters.vue'),
+        component: () => import('../views/show/config/ConfigCharacters.vue'),
       },
       {
         name: 'show-config-character-groups',
         path: 'character-groups',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCharacterGroups.vue'),
+        component: () => import('../views/show/config/ConfigCharacterGroups.vue'),
       },
       {
         name: 'show-config-acts',
         path: 'acts',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigActs.vue'),
+        component: () => import('../views/show/config/ConfigActs.vue'),
       },
       {
         name: 'show-config-scenes',
         path: 'scenes',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigScenes.vue'),
+        component: () => import('../views/show/config/ConfigScenes.vue'),
       },
       {
         name: 'show-config-cues',
         path: 'cues',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigCues.vue'),
+        component: () => import('../views/show/config/ConfigCues.vue'),
       },
       {
         name: 'show-config-script',
         path: 'script',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigScript.vue'),
+        component: () => import('../views/show/config/ConfigScript.vue'),
       },
       {
         name: 'show-sessions',
         path: 'sessions',
-        component: () => import(/* webpackChunkName: "show-config" */ '../views/show/config/ConfigSessions.vue'),
+        component: () => import('../views/show/config/ConfigSessions.vue'),
       },
     ],
   },
@@ -79,7 +79,7 @@ const routes = [
   {
     path: '/login',
     name: 'login',
-    component: () => import('@/views/LoginView.vue'),
+    component: () => import('../views/LoginView.vue'),
   },
   {
     path: '*',
@@ -90,7 +90,7 @@ const routes = [
 
 const router = new VueRouter({
   mode: 'history',
-  base: process.env.BASE_URL,
+  base: import.meta.env.BASE_URL,
   routes,
 });
 

@@ -1,5 +1,10 @@
 <template>
-  <b-container ref="lineContainer" class="mx-0" style="margin: 0; padding: 0 0 .2rem;" fluid>
+  <b-container
+    ref="lineContainer"
+    class="mx-0"
+    style="margin: 0; padding: 0 0 .2rem;"
+    fluid
+  >
     <b-row v-if="needsActSceneLabel">
       <b-col cols="3" />
       <b-col cols="9">
@@ -7,28 +12,46 @@
       </b-col>
     </b-row>
     <b-row :class="{'stage-direction': line.stage_direction}">
-      <b-col cols="3" class="cue-column" style="text-align: right">
+      <b-col
+        cols="3"
+        class="cue-column"
+        style="text-align: right"
+      >
         <b-button-group>
-          <b-button v-for="cue in cues" :key="cue.id"
-                    class="cue-button"
-                    :style="{backgroundColor: cueBackgroundColour(cue),
-                    color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
-                    :disabled="!canEdit" @click.stop="openEditForm(cue)">
+          <b-button
+            v-for="cue in cues"
+            :key="cue.id"
+            class="cue-button"
+            :style="{backgroundColor: cueBackgroundColour(cue),
+                     color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
+            :disabled="!canEdit"
+            @click.stop="openEditForm(cue)"
+          >
             {{ cueLabel(cue) }}
           </b-button>
-          <b-button v-if="canEdit" class="cue-button" @click.stop="openNewForm">
+          <b-button
+            v-if="canEdit"
+            class="cue-button"
+            @click.stop="openNewForm"
+          >
             <b-icon-plus-square-fill variant="success" />
           </b-button>
         </b-button-group>
       </b-col>
       <template v-if="line.stage_direction">
-          <b-col :key="`line_${lineIndex}_stage_direction`" style="text-align: center">
-            <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
-          </b-col>
+        <b-col
+          :key="`line_${lineIndex}_stage_direction`"
+          style="text-align: center"
+        >
+          <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
+        </b-col>
       </template>
       <template v-else>
-        <b-col v-for="(part, index) in line.line_parts" :key="`line_${lineIndex}_part_${index}`"
-               style="text-align: center">
+        <b-col
+          v-for="(part, index) in line.line_parts"
+          :key="`line_${lineIndex}_part_${index}`"
+          style="text-align: center"
+        >
           <template v-if="needsHeadings[index]">
             <b v-if="part.character_id != null">
               {{ characters.find((char) => (char.id === part.character_id)).name }}
@@ -43,73 +66,120 @@
         </b-col>
       </template>
     </b-row>
-    <b-modal :id="`line_${lineIndex}_-new-cue`" title="Add New Cue" size="md"
-             @hidden="resetNewForm" @ok="onSubmitNew">
-      <b-form @submit.stop.prevent="onSubmitNew" ref="new-cue-form">
-        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
+    <b-modal
+      :id="`line_${lineIndex}_-new-cue`"
+      title="Add New Cue"
+      size="md"
+      @hidden="resetNewForm"
+      @ok="onSubmitNew"
+    >
+      <b-form
+        ref="new-cue-form"
+        @submit.stop.prevent="onSubmitNew"
+      >
+        <b-form-group
+          id="type-input-group"
+          label="Cue Type"
+          label-for="type-input"
+        >
           <b-form-select
             id="act-input"
-            :options="cueTypeOptions"
             v-model="$v.newFormState.cueType.$model"
+            :options="cueTypeOptions"
             :state="validateNewState('cueType')"
-            aria-describedby="cue-type-feedback"/>
+            aria-describedby="cue-type-feedback"
+          />
           <b-form-invalid-feedback
             id="cue-type-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
+        <b-form-group
+          id="ident-input-group"
+          label="Identifier"
+          label-for="ident-input"
+        >
           <b-form-input
             id="ident-input"
-            name="ident-input"
             v-model="$v.newFormState.ident.$model"
+            name="ident-input"
             :state="validateNewState('ident')"
             aria-describedby="ident-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="ident-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal :id="`line_${lineIndex}_-edit-cue`" title="Edit Cue" size="md"
-             @hidden="resetEditForm" @ok="onSubmitEdit">
-      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-cue-form">
-        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
+    <b-modal
+      :id="`line_${lineIndex}_-edit-cue`"
+      title="Edit Cue"
+      size="md"
+      @hidden="resetEditForm"
+      @ok="onSubmitEdit"
+    >
+      <b-form
+        ref="edit-cue-form"
+        @submit.stop.prevent="onSubmitEdit"
+      >
+        <b-form-group
+          id="type-input-group"
+          label="Cue Type"
+          label-for="type-input"
+        >
           <b-form-select
             id="act-input"
-            :options="cueTypeOptions"
             v-model="$v.editFormState.cueType.$model"
+            :options="cueTypeOptions"
             :state="validateEditState('cueType')"
-            aria-describedby="cue-type-feedback"/>
+            aria-describedby="cue-type-feedback"
+          />
           <b-form-invalid-feedback
             id="cue-type-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
+        <b-form-group
+          id="ident-input-group"
+          label="Identifier"
+          label-for="ident-input"
+        >
           <b-form-input
             id="ident-input"
-            name="ident-input"
             v-model="$v.editFormState.ident.$model"
+            name="ident-input"
             :state="validateEditState('ident')"
             aria-describedby="ident-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="ident-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
       <template #modal-footer="{ ok, cancel }">
-        <b-button variant="secondary" @click="cancel()">
+        <b-button
+          variant="secondary"
+          @click="cancel()"
+        >
           Cancel
         </b-button>
-        <b-button variant="danger" @click.stop="deleteCue">
+        <b-button
+          variant="danger"
+          @click.stop="deleteCue"
+        >
           Delete
         </b-button>
-        <b-button variant="primary" @click="ok()">
+        <b-button
+          variant="primary"
+          @click="ok()"
+        >
           Save
         </b-button>
       </template>

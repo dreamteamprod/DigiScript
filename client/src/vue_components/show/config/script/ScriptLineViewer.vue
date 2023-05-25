@@ -1,15 +1,23 @@
 <template>
-  <b-row :class="{
-    'stage-direction': line.stage_direction,
-    'heading-padding': !line.stage_direction && needsHeadingsAll
-  }">
+  <b-row
+    :class="{
+      'stage-direction': line.stage_direction,
+      'heading-padding': !line.stage_direction && needsHeadingsAll
+    }"
+  >
     <b-col cols="1">
-      <p v-if="needsActSceneLabel" class="viewable-line">
+      <p
+        v-if="needsActSceneLabel"
+        class="viewable-line"
+      >
         {{ actLabel }}
       </p>
     </b-col>
     <b-col cols="1">
-      <p v-if="needsActSceneLabel" class="viewable-line">
+      <p
+        v-if="needsActSceneLabel"
+        class="viewable-line"
+      >
         {{ sceneLabel }}
       </p>
     </b-col>
@@ -47,13 +55,23 @@
       </b-col>
     </template>
     <template v-else>
-      <b-col :key="`line_${lineIndex}_stage_direction`" style="text-align: center">
+      <b-col
+        :key="`line_${lineIndex}_stage_direction`"
+        style="text-align: center"
+      >
         <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
       </b-col>
     </template>
-    <b-col cols="1" align-self="end">
-      <b-button v-show="canEdit" variant="link" style="padding: 0"
-                @click.stop="editLine">
+    <b-col
+      cols="1"
+      align-self="end"
+    >
+      <b-button
+        v-show="canEdit"
+        variant="link"
+        style="padding: 0"
+        @click.stop="editLine"
+      >
         Edit
       </b-button>
     </b-col>
@@ -94,11 +112,6 @@ export default {
     canEdit: {
       required: true,
       type: Boolean,
-    },
-  },
-  methods: {
-    editLine() {
-      this.$emit('editLine');
     },
   },
   computed: {
@@ -149,6 +162,11 @@ export default {
     },
     sceneLabel() {
       return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
+    },
+  },
+  methods: {
+    editLine() {
+      this.$emit('editLine');
     },
   },
 };

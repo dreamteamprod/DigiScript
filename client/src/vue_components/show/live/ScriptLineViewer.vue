@@ -1,27 +1,47 @@
 <template>
-  <b-container ref="lineContainer" class="mx-0" style="margin: 0; padding: 0" fluid v-once>
+  <b-container
+    v-once
+    ref="lineContainer"
+    class="mx-0"
+    style="margin: 0; padding: 0"
+    fluid
+  >
     <b-row v-if="needsActSceneLabel">
-      <b-col cols="3" class="cue-column" />
+      <b-col
+        cols="3"
+        class="cue-column"
+      />
       <b-col cols="9">
         <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
       </b-col>
     </b-row>
-    <b-row :class="{
-      'stage-direction': line.stage_direction,
-      'heading-padding': !line.stage_direction && needsHeadingsAll
-    }">
-      <b-col cols="3" class="cue-column">
+    <b-row
+      :class="{
+        'stage-direction': line.stage_direction,
+        'heading-padding': !line.stage_direction && needsHeadingsAll
+      }"
+    >
+      <b-col
+        cols="3"
+        class="cue-column"
+      >
         <b-button-group>
-          <b-button v-for="cue in cues" :key="cue.id"
-                    class="cue-button"
-                    :style="{backgroundColor: cueBackgroundColour(cue),
-                    color: contrastColor({'bgColor': cueBackgroundColour(cue)})}">
+          <b-button
+            v-for="cue in cues"
+            :key="cue.id"
+            class="cue-button"
+            :style="{backgroundColor: cueBackgroundColour(cue),
+                     color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
+          >
             {{ cueLabel(cue) }}
           </b-button>
         </b-button-group>
       </b-col>
       <template v-if="line.stage_direction">
-        <b-col :key="`line_${lineIndex}_stage_direction`" style="text-align: center">
+        <b-col
+          :key="`line_${lineIndex}_stage_direction`"
+          style="text-align: center"
+        >
           <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
         </b-col>
       </template>

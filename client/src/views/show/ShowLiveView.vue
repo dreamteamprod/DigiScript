@@ -1,7 +1,16 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row class="session-header" style="padding-top: .1rem; padding-bottom: .1rem">
-      <b-col cols="4" style="text-align: left">
+  <b-container
+    class="mx-0"
+    fluid
+  >
+    <b-row
+      class="session-header"
+      style="padding-top: .1rem; padding-bottom: .1rem"
+    >
+      <b-col
+        cols="4"
+        style="text-align: left"
+      >
         <b>
           {{ CURRENT_SHOW.name }}
         </b>
@@ -11,35 +20,60 @@
           Page {{ currentFirstPage }}
         </b>
       </b-col>
-      <b-col cols="4" style="text-align: right">
+      <b-col
+        cols="4"
+        style="text-align: right"
+      >
         <b>
           Elapsed Time: {{ msToTimer(elapsedTime) }}
         </b>
       </b-col>
     </b-row>
     <b-row>
-      <b-col cols="12" class="script-container" id="script-container">
-        <div class="text-center center-spinner" v-if="!initialLoad">
-          <b-spinner style="width: 10rem; height: 10rem;" variant="info" />
+      <b-col
+        id="script-container"
+        cols="12"
+        class="script-container"
+      >
+        <div
+          v-if="!initialLoad"
+          class="text-center center-spinner"
+        >
+          <b-spinner
+            style="width: 10rem; height: 10rem;"
+            variant="info"
+          />
         </div>
         <template v-else>
           <template v-for="page in pageIter">
-            <script-line-viewer v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-                                class="script-item"
-                                :key="`page_${page}_line_${index}`"
-                                :line-index="index" :line="line" :acts="ACT_LIST"
-                                :scenes="SCENE_LIST" :characters="CHARACTER_LIST"
-                                :character-groups="CHARACTER_GROUP_LIST"
-                                :previous-line="getPreviousLineForIndex(page, index)"
-                                :cue-types="CUE_TYPES"
-                                :cues="getCuesForLine(line)"
-                                @last-line-page="handleLastPageChange"
-                                @first-page="handleFirstPageChange" />
+            <script-line-viewer
+              v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+              :key="`page_${page}_line_${index}`"
+              class="script-item"
+              :line-index="index"
+              :line="line"
+              :acts="ACT_LIST"
+              :scenes="SCENE_LIST"
+              :characters="CHARACTER_LIST"
+              :character-groups="CHARACTER_GROUP_LIST"
+              :previous-line="getPreviousLineForIndex(page, index)"
+              :cue-types="CUE_TYPES"
+              :cues="getCuesForLine(line)"
+              @last-line-page="handleLastPageChange"
+              @first-page="handleFirstPageChange"
+            />
           </template>
-          <b-row v-show="initialLoad" class="script-footer">
+          <b-row
+            v-show="initialLoad"
+            class="script-footer"
+          >
             <b-col>
               <b-button-group>
-                <b-button @click.stop="stopShow" variant="danger" :disabled="stoppingSession">
+                <b-button
+                  variant="danger"
+                  :disabled="stoppingSession"
+                  @click.stop="stopShow"
+                >
                   End Show
                 </b-button>
               </b-button-group>

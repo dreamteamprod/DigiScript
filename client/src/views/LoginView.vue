@@ -1,12 +1,21 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row style="margin-top: 1rem">
-      <b-col cols="4" offset="4">
+      <b-col
+        cols="4"
+        offset="4"
+      >
         <h3>Login to DigiScript</h3>
       </b-col>
     </b-row>
     <b-row style="margin-top: 1rem">
-      <b-col cols="4" offset="4">
+      <b-col
+        cols="4"
+        offset="4"
+      >
         <b-form>
           <b-form-group
             id="username-input-group"
@@ -15,14 +24,15 @@
           >
             <b-form-input
               id="username-input"
-              name="username-input"
               v-model="$v.state.username.$model"
+              name="username-input"
               :state="validateState('username')"
               aria-describedby="username-feedback"
-            ></b-form-input>
+            />
             <b-form-invalid-feedback
               id="username-feedback"
-            >This is a required field.
+            >
+              This is a required field.
             </b-form-invalid-feedback>
           </b-form-group>
           <b-form-group
@@ -32,18 +42,22 @@
           >
             <b-form-input
               id="password-input"
-              name="password-input"
               v-model="$v.state.password.$model"
+              name="password-input"
               :state="validateState('password')"
               aria-describedby="password-feedback"
               type="password"
-            ></b-form-input>
+            />
             <b-form-invalid-feedback
               id="password-feedback"
-            >This is a required field.
+            >
+              This is a required field.
             </b-form-invalid-feedback>
           </b-form-group>
-          <b-button @click="doLogin" :disabled="isDisabled">
+          <b-button
+            :disabled="isDisabled"
+            @click="doLogin"
+          >
             Login
           </b-button>
         </b-form>

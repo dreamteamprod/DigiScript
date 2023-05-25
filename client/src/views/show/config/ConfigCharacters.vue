@@ -1,18 +1,24 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
         <h5>Character List</h5>
         <b-table
           id="character-table"
-          :items="this.CHARACTER_LIST"
+          :items="CHARACTER_LIST"
           :fields="characterFields"
           :per-page="rowsPerPage"
           :current-page="currentPage"
           show-empty
         >
           <template #head(btn)="data">
-            <b-button variant="outline-success" v-b-modal.new-character>
+            <b-button
+              v-b-modal.new-character
+              variant="outline-success"
+            >
               New Character
             </b-button>
           </template>
@@ -21,93 +27,146 @@
               {{ data.item.cast_member.first_name }} {{ data.item.cast_member.last_name }}
             </template>
             <template v-else>
-              <b-link @click="openEditForm(data)">Set Cast Member</b-link>
+              <b-link @click="openEditForm(data)">
+                Set Cast Member
+              </b-link>
             </template>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
-              <b-button variant="warning" @click="openEditForm(data)">
+              <b-button
+                variant="warning"
+                @click="openEditForm(data)"
+              >
                 Edit
               </b-button>
-              <b-button variant="danger" @click="deleteCharacter(data)">
+              <b-button
+                variant="danger"
+                @click="deleteCharacter(data)"
+              >
                 Delete
               </b-button>
             </b-button-group>
           </template>
         </b-table>
         <b-pagination
-          v-show="this.CHARACTER_LIST.length > rowsPerPage"
+          v-show="CHARACTER_LIST.length > rowsPerPage"
           v-model="currentPage"
-          :total-rows="this.CHARACTER_LIST.length"
+          :total-rows="CHARACTER_LIST.length"
           :per-page="rowsPerPage"
           aria-controls="character-table"
           class="justify-content-center"
         />
       </b-col>
     </b-row>
-    <b-modal id="new-character" title="Add New Character" ref="new-character" size="md"
-             @show="resetNewForm" @hidden="resetNewForm" @ok="onSubmitNew">
-      <b-form @submit.stop.prevent="onSubmitNew" ref="new-character-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="new-character"
+      ref="new-character"
+      title="Add New Character"
+      size="md"
+      @show="resetNewForm"
+      @hidden="resetNewForm"
+      @ok="onSubmitNew"
+    >
+      <b-form
+        ref="new-character-form"
+        @submit.stop.prevent="onSubmitNew"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.newFormState.name.$model"
+            name="name-input"
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="description-input-group" label="Description"
-                      label-for="description-input">
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
           <b-form-input
             id="description-input"
-            name="description-input"
             v-model="$v.newFormState.description.$model"
+            name="description-input"
             :state="validateNewState('description')"
-          ></b-form-input>
+          />
         </b-form-group>
-        <b-form-group id="played-by-input-group" label="Played By" label-for="played-by-input">
+        <b-form-group
+          id="played-by-input-group"
+          label="Played By"
+          label-for="played-by-input"
+        >
           <b-form-select
-            :options="castOptions"
             v-model="$v.newFormState.played_by.$model"
-            :state="validateNewState('played_by')" />
+            :options="castOptions"
+            :state="validateNewState('played_by')"
+          />
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal id="edit-character" title="Edit Cast Member" ref="edit-character" size="md"
-             @hidden="resetEditForm" @ok="onSubmitEdit">
-      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-character-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="edit-character"
+      ref="edit-character"
+      title="Edit Cast Member"
+      size="md"
+      @hidden="resetEditForm"
+      @ok="onSubmitEdit"
+    >
+      <b-form
+        ref="edit-character-form"
+        @submit.stop.prevent="onSubmitEdit"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.editFormState.name.$model"
+            name="name-input"
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="description-input-group" label="Description"
-                      label-for="description-input">
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
           <b-form-input
             id="description-input"
-            name="description-input"
             v-model="$v.editFormState.description.$model"
+            name="description-input"
             :state="validateEditState('description')"
-          ></b-form-input>
+          />
         </b-form-group>
-        <b-form-group id="played-by-input-group" label="Played By" label-for="played-by-input">
+        <b-form-group
+          id="played-by-input-group"
+          label="Played By"
+          label-for="played-by-input"
+        >
           <b-form-select
-            :options="castOptions"
             v-model="$v.editFormState.played_by.$model"
-            :state="validateEditState('played_by')" />
+            :options="castOptions"
+            :state="validateEditState('played_by')"
+          />
         </b-form-group>
       </b-form>
     </b-modal>

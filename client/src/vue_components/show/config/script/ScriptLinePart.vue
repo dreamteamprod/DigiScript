@@ -6,15 +6,16 @@
           id="character-input-group"
           label-size="sm"
           label="Character"
-          label-for="character-input">
+          label-for="character-input"
+        >
           <b-form-select
             id="character-input"
+            v-model="$v.state.character_id.$model"
             name="character-input"
             :options="characterOptions"
-            v-model="$v.state.character_id.$model"
             :state="validateState('character_id')"
-            @change="stateChange">
-          </b-form-select>
+            @change="stateChange"
+          />
         </b-form-group>
       </b-col>
       <b-col v-show="$v.state.character_id.$model == null">
@@ -22,27 +23,35 @@
           id="character-group-input-group"
           label-size="sm"
           label="Character Group"
-          label-for="character-group-input">
+          label-for="character-group-input"
+        >
           <b-form-select
             id="character-group-input"
+            v-model="$v.state.character_group_id.$model"
             name="character-group-input"
             :options="characterGroupOptions"
-            v-model="$v.state.character_group_id.$model"
             :state="validateState('character_group_id')"
-            @change="stateChange">
-          </b-form-select>
+            @change="stateChange"
+          />
         </b-form-group>
       </b-col>
     </b-form-row>
     <b-form-row>
       <b-col style="display: inline-flex">
-        <b-form-input v-model="$v.state.line_text.$model" @change="stateChange"
-                      :state="validateState('line_text')" ref="partInput"/>
-        <b-button v-if="showAddButton && !isStageDirection"
-                  :disabled="!enableAddButton"
-                  style="margin-left: 0.5em; float: right"
-                  v-b-popover.hover.top="'Add line part'" @click="addLinePart">
-          <b-icon-plus-square-fill variant="success"/>
+        <b-form-input
+          ref="partInput"
+          v-model="$v.state.line_text.$model"
+          :state="validateState('line_text')"
+          @change="stateChange"
+        />
+        <b-button
+          v-if="showAddButton && !isStageDirection"
+          v-b-popover.hover.top="'Add line part'"
+          :disabled="!enableAddButton"
+          style="margin-left: 0.5em; float: right"
+          @click="addLinePart"
+        >
+          <b-icon-plus-square-fill variant="success" />
         </b-button>
       </b-col>
     </b-form-row>
@@ -110,6 +119,20 @@ export default {
       state: this.value,
     };
   },
+  computed: {
+    characterOptions() {
+      return [
+        { value: null, text: 'N/A' },
+        ...this.characters.map((char) => ({ value: char.id, text: char.name })),
+      ];
+    },
+    characterGroupOptions() {
+      return [
+        { value: null, text: 'N/A' },
+        ...this.characterGroups.map((char) => ({ value: char.id, text: char.name })),
+      ];
+    },
+  },
   mounted() {
     this.$v.state.$touch();
     if (this.focusInput) {
@@ -127,20 +150,6 @@ export default {
     stateChange() {
       this.$v.state.$touch();
       this.$emit('input', this.state);
-    },
-  },
-  computed: {
-    characterOptions() {
-      return [
-        { value: null, text: 'N/A' },
-        ...this.characters.map((char) => ({ value: char.id, text: char.name })),
-      ];
-    },
-    characterGroupOptions() {
-      return [
-        { value: null, text: 'N/A' },
-        ...this.characterGroups.map((char) => ({ value: char.id, text: char.name })),
-      ];
     },
   },
 };

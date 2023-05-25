@@ -8,15 +8,16 @@
     >
       <b-form-input
         id="username-input"
-        name="username-input"
         v-model="$v.state.username.$model"
+        name="username-input"
         :state="validateState('username')"
         aria-describedby="username-feedback"
         :disabled="is_first_admin"
-      ></b-form-input>
+      />
       <b-form-invalid-feedback
         id="username-feedback"
-      >This is a required field.
+      >
+        This is a required field.
       </b-form-invalid-feedback>
     </b-form-group>
     <b-form-group
@@ -27,15 +28,16 @@
     >
       <b-form-input
         id="password-input"
-        name="password-input"
         v-model="$v.state.password.$model"
+        name="password-input"
         :state="validateState('password')"
         aria-describedby="password-feedback"
         type="password"
-      ></b-form-input>
+      />
       <b-form-invalid-feedback
         id="password-feedback"
-      >This is a required field and must be at least 6 characters.
+      >
+        This is a required field and must be at least 6 characters.
       </b-form-invalid-feedback>
     </b-form-group>
     <b-form-group
@@ -46,19 +48,24 @@
     >
       <b-form-input
         id="confirm-password-input"
-        name="confirm-password-input"
         v-model="$v.state.confirmPassword.$model"
+        name="confirm-password-input"
         :state="validateState('confirmPassword')"
         aria-describedby="confirm-password-feedback"
         type="password"
-      ></b-form-input>
+      />
       <b-form-invalid-feedback
         id="confirm-password-feedback"
-      >Passwords to not match.
+      >
+        Passwords to not match.
       </b-form-invalid-feedback>
     </b-form-group>
     <b-button-group>
-      <b-button variant="success" :disabled="isDisabled" @click.stop.prevent="createUser">
+      <b-button
+        variant="success"
+        :disabled="isDisabled"
+        @click.stop.prevent="createUser"
+      >
         Save
       </b-button>
     </b-button-group>
