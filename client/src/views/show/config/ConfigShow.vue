@@ -1,8 +1,18 @@
 <template>
-  <b-container class="mx-0" fluid id="show-config">
+  <b-container
+    id="show-config"
+    class="mx-0"
+    fluid
+  >
     <b-row>
-      <b-col cols="12" class="text-right">
-        <b-button variant="warning" @click="openEditForm()">
+      <b-col
+        cols="12"
+        class="text-right"
+      >
+        <b-button
+          variant="warning"
+          @click="openEditForm()"
+        >
           Edit Show
         </b-button>
       </b-col>
@@ -10,61 +20,99 @@
     <b-row>
       <b-col>
         <b-table-simple>
-          <b-tr v-for="key in orderedKeys" :key="key">
+          <b-tr
+            v-for="key in orderedKeys"
+            :key="key"
+          >
             <b-th>{{ key }}</b-th>
             <b-td>{{ tableData[key] != null ? tableData[key] : 'N/A' }}</b-td>
           </b-tr>
         </b-table-simple>
       </b-col>
     </b-row>
-    <b-modal id="edit-show" title="Edit Show" ref="edit-show" size="md"
-             @hidden="resetEditForm" @ok="onSubmitEdit">
-      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-show-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="edit-show"
+      ref="edit-show"
+      title="Edit Show"
+      size="md"
+      @hidden="resetEditForm"
+      @ok="onSubmitEdit"
+    >
+      <b-form
+        ref="edit-show-form"
+        @submit.stop.prevent="onSubmitEdit"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.editFormState.name.$model"
+            name="name-input"
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
 
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field and must be less than 100 characters.
+          >
+            This is a required field and must be less than 100 characters.
           </b-form-invalid-feedback>
         </b-form-group>
 
-        <b-form-group id="start-input-group" label="Start Date" label-for="start-input">
-          <b-form-input id="start-input" name="start-input" type="date"
-                        v-model="$v.editFormState.start_date.$model"
-                        :state="validateEditState('start_date')"
-                        aria-describedby="start-feedback">
-          </b-form-input>
+        <b-form-group
+          id="start-input-group"
+          label="Start Date"
+          label-for="start-input"
+        >
+          <b-form-input
+            id="start-input"
+            v-model="$v.editFormState.start_date.$model"
+            name="start-input"
+            type="date"
+            :state="validateEditState('start_date')"
+            aria-describedby="start-feedback"
+          />
           <b-form-invalid-feedback
             id="start-feedback"
-          >This is a required field and must be before or the same as the end date.
+          >
+            This is a required field and must be before or the same as the end date.
           </b-form-invalid-feedback>
         </b-form-group>
 
-        <b-form-group id="end-input-group" label="End Date" label-for="end-input">
-          <b-form-input id="end-input" name="end-input" type="date"
-                        v-model="$v.editFormState.end_date.$model"
-                        :state="validateEditState('end_date')"
-                        aria-describedby="end-feedback">
-          </b-form-input>
+        <b-form-group
+          id="end-input-group"
+          label="End Date"
+          label-for="end-input"
+        >
+          <b-form-input
+            id="end-input"
+            v-model="$v.editFormState.end_date.$model"
+            name="end-input"
+            type="date"
+            :state="validateEditState('end_date')"
+            aria-describedby="end-feedback"
+          />
           <b-form-invalid-feedback
             id="end-feedback"
-          >This is a required field and must be after or the same as the start date.
+          >
+            This is a required field and must be after or the same as the start date.
           </b-form-invalid-feedback>
         </b-form-group>
 
-        <b-form-group id="act-input-group" label="Act" label-for="act-input">
+        <b-form-group
+          id="act-input-group"
+          label="Act"
+          label-for="act-input"
+        >
           <b-form-select
             id="act-input"
-            :options="actOptions"
             v-model="$v.editFormState.first_act_id.$model"
-            :state="validateEditState('first_act_id')"/>
+            :options="actOptions"
+            :state="validateEditState('first_act_id')"
+          />
         </b-form-group>
       </b-form>
     </b-modal>

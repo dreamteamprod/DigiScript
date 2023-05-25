@@ -1,35 +1,72 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
         <template v-if="loaded">
-          <b-form @submit.stop.prevent="handleSubmit" @reset.stop.prevent="resetForm"
-                  :key="`settings-${toggle}`">
+          <b-form
+            :key="`settings-${toggle}`"
+            @submit.stop.prevent="handleSubmit"
+            @reset.stop.prevent="resetForm"
+          >
             <div>
-              <b-form-group v-for="(setting, key) in RAW_SETTINGS" :key="key"
-                            :id="`${key}-input-group`" :label="key" :label-for="`${key}-input`"
-                            :label-cols="true">
-                <b-form-input v-if="setting.type !== 'bool'"
-                              :id="`${key}-input`" :name="`${key}-input`"
-                              :type="inputType(setting.type)"
-                              v-model="$v.editSettings[key].$model"
-                              :state="validateState(key)"
-                              :readonly="!setting.can_edit"
-                              :number="setting.type === 'int'" />
-                <b-form-checkbox v-else
-                                 :id="`${key}-input`" :name="`${key}-input`"
-                                 v-model="$v.editSettings[key].$model"
-                                 :disabled="!setting.can_edit" :switch="true" />
+              <b-form-group
+                v-for="(setting, key) in RAW_SETTINGS"
+                :id="`${key}-input-group`"
+                :key="key"
+                :label="key"
+                :label-for="`${key}-input`"
+                :label-cols="true"
+              >
+                <b-form-input
+                  v-if="setting.type !== 'bool'"
+                  :id="`${key}-input`"
+                  v-model="$v.editSettings[key].$model"
+                  :name="`${key}-input`"
+                  :type="inputType(setting.type)"
+                  :state="validateState(key)"
+                  :readonly="!setting.can_edit"
+                  :number="setting.type === 'int'"
+                />
+                <b-form-checkbox
+                  v-else
+                  :id="`${key}-input`"
+                  v-model="$v.editSettings[key].$model"
+                  :name="`${key}-input`"
+                  :disabled="!setting.can_edit"
+                  :switch="true"
+                />
               </b-form-group>
-              <b-button-group size="md" style="float: right">
-                <b-button type="reset" variant="danger">Reset</b-button>
-                <b-button type="submit" variant="primary">Submit</b-button>
+              <b-button-group
+                size="md"
+                style="float: right"
+              >
+                <b-button
+                  type="reset"
+                  variant="danger"
+                >
+                  Reset
+                </b-button>
+                <b-button
+                  type="submit"
+                  variant="primary"
+                >
+                  Submit
+                </b-button>
               </b-button-group>
             </div>
           </b-form>
         </template>
-        <div class="text-center center-spinner" v-else>
-          <b-spinner style="width: 10rem; height: 10rem;" variant="info" />
+        <div
+          v-else
+          class="text-center center-spinner"
+        >
+          <b-spinner
+            style="width: 10rem; height: 10rem;"
+            variant="info"
+          />
         </div>
       </b-col>
     </b-row>
@@ -52,16 +89,16 @@ export default {
       toggle: 0,
     };
   },
+  watch: {
+    RAW_SETTINGS() {
+      this.resetForm();
+    },
+  },
   mounted() {
     Object.keys(this.RAW_SETTINGS).forEach(function (x) {
       this.editSettings[x] = this.RAW_SETTINGS[x].value;
     }, this);
     this.loaded = true;
-  },
-  watch: {
-    RAW_SETTINGS() {
-      this.resetForm();
-    },
   },
   validations() {
     const editSettings = {};

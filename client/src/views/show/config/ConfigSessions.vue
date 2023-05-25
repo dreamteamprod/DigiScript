@@ -1,10 +1,17 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
         <h5>Sessions List</h5>
-        <b-table id="acts-table" :items="this.SHOW_SESSIONS_LIST" :fields="sessionFields"
-                 show-empty>
+        <b-table
+          id="acts-table"
+          :items="SHOW_SESSIONS_LIST"
+          :fields="sessionFields"
+          show-empty
+        >
           <template #cell(run_time)="data">
             <p v-if="data.item.end_date_time">
               {{ runTimeCalc(data.item.start_date_time, data.item.end_date_time) }}
@@ -16,12 +23,18 @@
     <b-row>
       <b-col>
         <b-button-group>
-          <b-button @click.stop="startSession" variant="success"
-                    :disabled="CURRENT_SHOW_SESSION !== null || startingSession">
+          <b-button
+            variant="success"
+            :disabled="CURRENT_SHOW_SESSION !== null || startingSession"
+            @click.stop="startSession"
+          >
             Start Session
           </b-button>
-          <b-button @click.stop="stopSession" variant="danger"
-                    :disabled="CURRENT_SHOW_SESSION === null || stoppingSession">
+          <b-button
+            variant="danger"
+            :disabled="CURRENT_SHOW_SESSION === null || stoppingSession"
+            @click.stop="stopSession"
+          >
             Stop Session
           </b-button>
         </b-button-group>

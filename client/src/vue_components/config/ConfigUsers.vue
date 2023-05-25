@@ -1,17 +1,32 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
-        <b-table id="cast-table" :items="this.SHOW_USERS" :fields="userFields" show-empty>
+        <b-table
+          id="cast-table"
+          :items="SHOW_USERS"
+          :fields="userFields"
+          show-empty
+        >
           <template #head(btn)="data">
-            <b-button variant="outline-success" v-b-modal.new-user>
+            <b-button
+              v-b-modal.new-user
+              variant="outline-success"
+            >
               New User
             </b-button>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
-              <b-button variant="warning" :disabled="data.item.is_admin"
-                        @click.stop="setEditUser(data.item.id)" v-b-modal.user-rbac>
+              <b-button
+                v-b-modal.user-rbac
+                variant="warning"
+                :disabled="data.item.is_admin"
+                @click.stop="setEditUser(data.item.id)"
+              >
                 RBAC
               </b-button>
             </b-button-group>
@@ -19,14 +34,26 @@
         </b-table>
       </b-col>
     </b-row>
-    <b-modal id="new-user" title="Add New User" ref="new-user" size="md" hide-footer>
+    <b-modal
+      id="new-user"
+      ref="new-user"
+      title="Add New User"
+      size="md"
+      hide-footer
+    >
       <create-user
         :is_first_admin="false"
         :show_id="CURRENT_SHOW.id"
-        v-on:created_user="resetNewForm"
+        @created_user="resetNewForm"
       />
     </b-modal>
-    <b-modal id="user-rbac" title="User RBAC Config" ref="user-rbac" size="xl" hide-footer>
+    <b-modal
+      id="user-rbac"
+      ref="user-rbac"
+      title="User RBAC Config"
+      size="xl"
+      hide-footer
+    >
       <config-rbac :user_id="editUser" />
     </b-modal>
   </b-container>

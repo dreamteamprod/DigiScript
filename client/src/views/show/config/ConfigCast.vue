@@ -1,100 +1,151 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
         <h5>Cast List</h5>
         <b-table
           id="cast-table"
-          :items="this.CAST_LIST"
+          :items="CAST_LIST"
           :fields="castFields"
           :per-page="rowsPerPage"
           :current-page="currentPage"
           show-empty
         >
           <template #head(btn)="data">
-            <b-button variant="outline-success" v-b-modal.new-cast>
+            <b-button
+              v-b-modal.new-cast
+              variant="outline-success"
+            >
               New Cast Member
             </b-button>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
-              <b-button variant="warning" @click="openEditForm(data)">
+              <b-button
+                variant="warning"
+                @click="openEditForm(data)"
+              >
                 Edit
               </b-button>
-              <b-button variant="danger" @click="deleteCastMember(data)">
+              <b-button
+                variant="danger"
+                @click="deleteCastMember(data)"
+              >
                 Delete
               </b-button>
             </b-button-group>
           </template>
         </b-table>
         <b-pagination
-          v-show="this.CAST_LIST.length > rowsPerPage"
+          v-show="CAST_LIST.length > rowsPerPage"
           v-model="currentPage"
-          :total-rows="this.CAST_LIST.length"
+          :total-rows="CAST_LIST.length"
           :per-page="rowsPerPage"
           aria-controls="cast-table"
           class="justify-content-center"
         />
       </b-col>
     </b-row>
-    <b-modal id="new-cast" title="Add New Cast Member" ref="new-cast" size="sm" @show="resetNewForm"
-             @hidden="resetNewForm" @ok="onSubmitNew">
-      <b-form @submit.stop.prevent="onSubmitNew" ref="new-cast-form">
-        <b-form-group id="first-name-input-group" label="First Name" label-for="first-name-input">
+    <b-modal
+      id="new-cast"
+      ref="new-cast"
+      title="Add New Cast Member"
+      size="sm"
+      @show="resetNewForm"
+      @hidden="resetNewForm"
+      @ok="onSubmitNew"
+    >
+      <b-form
+        ref="new-cast-form"
+        @submit.stop.prevent="onSubmitNew"
+      >
+        <b-form-group
+          id="first-name-input-group"
+          label="First Name"
+          label-for="first-name-input"
+        >
           <b-form-input
             id="first-name-input"
-            name="first-name-input"
             v-model="$v.newFormState.firstName.$model"
+            name="first-name-input"
             :state="validateNewState('firstName')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="first-name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="last-name-input-group" label="Last Name" label-for="last-name-input">
+        <b-form-group
+          id="last-name-input-group"
+          label="Last Name"
+          label-for="last-name-input"
+        >
           <b-form-input
             id="last-name-input"
-            name="last-name-input"
             v-model="$v.newFormState.lastName.$model"
+            name="last-name-input"
             :state="validateNewState('lastName')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="last-name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal id="edit-cast" title="Edit Cast Member" ref="edit-cast" size="sm"
-             @hidden="resetEditForm" @ok="onSubmitEdit">
-      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-cast-form">
-        <b-form-group id="first-name-input-group" label="First Name" label-for="first-name-input">
+    <b-modal
+      id="edit-cast"
+      ref="edit-cast"
+      title="Edit Cast Member"
+      size="sm"
+      @hidden="resetEditForm"
+      @ok="onSubmitEdit"
+    >
+      <b-form
+        ref="edit-cast-form"
+        @submit.stop.prevent="onSubmitEdit"
+      >
+        <b-form-group
+          id="first-name-input-group"
+          label="First Name"
+          label-for="first-name-input"
+        >
           <b-form-input
             id="first-name-input"
-            name="first-name-input"
             v-model="$v.editFormState.firstName.$model"
+            name="first-name-input"
             :state="validateEditState('firstName')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="first-name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="last-name-input-group" label="Last Name" label-for="last-name-input">
+        <b-form-group
+          id="last-name-input-group"
+          label="Last Name"
+          label-for="last-name-input"
+        >
           <b-form-input
             id="last-name-input"
-            name="last-name-input"
             v-model="$v.editFormState.lastName.$model"
+            name="last-name-input"
             :state="validateEditState('lastName')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="last-name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>

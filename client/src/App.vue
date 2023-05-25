@@ -1,33 +1,51 @@
 <template>
   <div id="app">
-    <b-navbar toggleable="lg" type="dark" variant="info" :sticky="true">
+    <b-navbar
+      toggleable="lg"
+      type="dark"
+      variant="info"
+      :sticky="true"
+    >
       <b-navbar-brand to="/">
         DigiScript
       </b-navbar-brand>
-      <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
-      <b-collapse id="nav-collapse" is-nav>
+      <b-navbar-toggle target="nav-collapse" />
+      <b-collapse
+        id="nav-collapse"
+        is-nav
+      >
         <b-navbar-nav>
           <b-nav-item
             to="/live"
-            :disabled="CURRENT_SHOW_SESSION == null">
+            :disabled="CURRENT_SHOW_SESSION == null"
+          >
             Live
           </b-nav-item>
           <b-nav-item
             v-if="isAdminUser"
             to="/config"
-            :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null">
+            :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null"
+          >
             System Config
           </b-nav-item>
           <b-nav-item
+            v-if="$store.state.currentShow != null && (isAdminUser || isShowEditor)"
             to="/show-config"
-            v-if="this.$store.state.currentShow != null && (isAdminUser || isShowEditor)"
-            :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null">
+            :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null"
+          >
             Show Config
           </b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
-          <b-nav-item to="/about">About</b-nav-item>
-          <b-nav-item to="/login" v-if="CURRENT_USER == null">Login</b-nav-item>
+          <b-nav-item to="/about">
+            About
+          </b-nav-item>
+          <b-nav-item
+            v-if="CURRENT_USER == null"
+            to="/login"
+          >
+            Login
+          </b-nav-item>
           <b-nav-item-dropdown v-else>
             <template #button-content>
               <em>{{ CURRENT_USER.username }}</em>
@@ -36,19 +54,36 @@
               Sign Out
             </b-dropdown-item-button>
           </b-nav-item-dropdown>
-          <b-nav-text id="connection-status" :class="{ healthy: WEBSOCKET_HEALTHY }" right>
-            <template v-if="WEBSOCKET_HEALTHY">Connected</template>
-            <template v-else>Disconnected</template>
+          <b-nav-text
+            id="connection-status"
+            :class="{ healthy: WEBSOCKET_HEALTHY }"
+            right
+          >
+            <template v-if="WEBSOCKET_HEALTHY">
+              Connected
+            </template>
+            <template v-else>
+              Disconnected
+            </template>
           </b-nav-text>
         </b-navbar-nav>
       </b-collapse>
     </b-navbar>
     <template>
-      <div class="text-center center-spinner" v-if="!loaded">
-        <b-spinner style="width: 10rem; height: 10rem;" variant="info"></b-spinner>
+      <div
+        v-if="!loaded"
+        class="text-center center-spinner"
+      >
+        <b-spinner
+          style="width: 10rem; height: 10rem;"
+          variant="info"
+        />
       </div>
-      <template  v-else-if="SETTINGS.has_admin_user === false">
-        <b-container class="mx-0" fluid>
+      <template v-else-if="SETTINGS.has_admin_user === false">
+        <b-container
+          class="mx-0"
+          fluid
+        >
           <b-row>
             <b-col>
               <h2>Welcome to DigiScript</h2>
@@ -56,13 +91,16 @@
             </b-col>
           </b-row>
           <b-row style="margin-top: 1rem">
-            <b-col cols="6" offset="3">
+            <b-col
+              cols="6"
+              offset="3"
+            >
               <create-user :is_first_admin="true" />
             </b-col>
           </b-row>
         </b-container>
       </template>
-      <router-view v-else/>
+      <router-view v-else />
     </template>
   </div>
 </template>

@@ -1,54 +1,83 @@
 <template>
-  <b-container v-show="loaded" class="mx-0 px-0" fluid>
+  <b-container
+    v-show="loaded"
+    class="mx-0 px-0"
+    fluid
+  >
     <b-row class="script-row">
       <b-col cols="2">
-        <b-button variant="success" v-b-modal.go-to-page>
+        <b-button
+          v-b-modal.go-to-page
+          variant="success"
+        >
           Go to Page
         </b-button>
       </b-col>
-      <b-col cols="2" style="text-align: right">
-        <b-button variant="success" @click="decrPage"
-                  :disabled="currentEditPage === 1">
+      <b-col
+        cols="2"
+        style="text-align: right"
+      >
+        <b-button
+          variant="success"
+          :disabled="currentEditPage === 1"
+          @click="decrPage"
+        >
           Prev Page
         </b-button>
       </b-col>
       <b-col cols="4">
         <p>Current Page: {{ currentEditPage }}</p>
       </b-col>
-      <b-col cols="2" style="text-align: left" >
-        <b-button variant="success" @click="incrPage">
+      <b-col
+        cols="2"
+        style="text-align: left"
+      >
+        <b-button
+          variant="success"
+          @click="incrPage"
+        >
           Next Page
         </b-button>
       </b-col>
       <b-col cols="2">
         <b-button-group>
-          <b-button v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-                  variant="warning"
-                  :disabled="!CAN_REQUEST_EDIT"
-                  @click="requestEdit">
+          <b-button
+            v-if="INTERNAL_UUID !== CURRENT_EDITOR"
+            variant="warning"
+            :disabled="!CAN_REQUEST_EDIT"
+            @click="requestEdit"
+          >
             Begin Editing
           </b-button>
-          <b-button v-else
-                    variant="warning"
-                    @click="stopEditing">
+          <b-button
+            v-else
+            variant="warning"
+            @click="stopEditing"
+          >
             Stop Editing
           </b-button>
-          <b-button v-if="INTERNAL_UUID === CURRENT_EDITOR"
-                    variant="success"
-                    :disabled="!(scriptChanges && editPages.length === 0)"
-                    @click="saveScript">
+          <b-button
+            v-if="INTERNAL_UUID === CURRENT_EDITOR"
+            variant="success"
+            :disabled="!(scriptChanges && editPages.length === 0)"
+            @click="saveScript"
+          >
             Save
           </b-button>
         </b-button-group>
       </b-col>
     </b-row>
     <b-row class="script-row">
-      <b-col cols="1">Act</b-col>
-      <b-col cols="1">Scene</b-col>
+      <b-col cols="1">
+        Act
+      </b-col>
+      <b-col cols="1">
+        Scene
+      </b-col>
       <b-col>Line</b-col>
-      <b-col cols="1"></b-col>
+      <b-col cols="1" />
     </b-row>
-    <hr />
+    <hr>
     <b-row class="script-row">
       <b-col cols="12">
         <template v-for="(line, index) in TMP_SCRIPT[currentEditPage]">
@@ -88,9 +117,19 @@
       </b-col>
     </b-row>
     <b-row class="script-row pt-1">
-      <b-col cols="10" class="ml-auto">
-        <b-button-group v-show="canEdit" style="float: right">
-          <b-button v-if="canGenerateDebugScript" variant="warning" v-b-modal.debug-generate>
+      <b-col
+        cols="10"
+        class="ml-auto"
+      >
+        <b-button-group
+          v-show="canEdit"
+          style="float: right"
+        >
+          <b-button
+            v-if="canGenerateDebugScript"
+            v-b-modal.debug-generate
+            variant="warning"
+          >
             Debug Script
           </b-button>
           <b-button @click="addNewLine">
@@ -102,9 +141,16 @@
         </b-button-group>
       </b-col>
     </b-row>
-    <b-modal id="save-script" title="Saving Script" ref="save-script" size="md"
-             :hide-header-close="savingInProgress" :hide-footer="savingInProgress"
-             :no-close-on-backdrop="savingInProgress" :no-close-on-esc="savingInProgress">
+    <b-modal
+      id="save-script"
+      ref="save-script"
+      title="Saving Script"
+      size="md"
+      :hide-header-close="savingInProgress"
+      :hide-footer="savingInProgress"
+      :no-close-on-backdrop="savingInProgress"
+      :no-close-on-esc="savingInProgress"
+    >
       <div>
         <b v-if="savingInProgress">Saving page {{ curSavePage }} of {{ totalSavePages }}</b>
         <template v-else>
@@ -113,63 +159,102 @@
         </template>
       </div>
       <div>
-        <b-progress :value="curSavePage"
-                  :max="totalSavePages"
-                  :variant="saveProgressVariant" show-value animated />
+        <b-progress
+          :value="curSavePage"
+          :max="totalSavePages"
+          :variant="saveProgressVariant"
+          show-value
+          animated
+        />
       </div>
     </b-modal>
-    <b-modal id="go-to-page" title="Go to Page" ref="go-to-page" size="sm" @ok="goToPage"
-             :hide-header-close="changingPage" :hide-footer="changingPage"
-             :no-close-on-backdrop="changingPage" :no-close-on-esc="changingPage">
+    <b-modal
+      id="go-to-page"
+      ref="go-to-page"
+      title="Go to Page"
+      size="sm"
+      :hide-header-close="changingPage"
+      :hide-footer="changingPage"
+      :no-close-on-backdrop="changingPage"
+      :no-close-on-esc="changingPage"
+      @ok="goToPage"
+    >
       <b-form>
-        <b-form-group id="page-input-group" label="Page" label-for="page-input" label-cols="auto">
+        <b-form-group
+          id="page-input-group"
+          label="Page"
+          label-for="page-input"
+          label-cols="auto"
+        >
           <b-form-input
             id="page-input"
-            name="page-input"
             v-model="$v.pageInputFormState.pageNo.$model"
+            name="page-input"
             type="number"
             :state="validatePageState('pageNo')"
-            aria-describedby="page-feedback" />
+            aria-describedby="page-feedback"
+          />
           <b-form-invalid-feedback
             id="page-feedback"
-          >This is a required field, and must be greater than 0.
+          >
+            This is a required field, and must be greater than 0.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal id="debug-generate" title="Generate Debug Script" ref="debug-generate" size="md"
-             :hide-header-close="savingInProgress" :hide-footer="savingInProgress"
-             :no-close-on-backdrop="savingInProgress" :no-close-on-esc="savingInProgress"
-             @ok="generateDebugScript">
-      <b-form @submit.stop.prevent="generateDebugScript" ref="debug-script-form">
-        <b-form-group id="pages-input-group" label="Pages per Scene" label-for="pages-input"
-                      label-cols="auto">
+    <b-modal
+      id="debug-generate"
+      ref="debug-generate"
+      title="Generate Debug Script"
+      size="md"
+      :hide-header-close="savingInProgress"
+      :hide-footer="savingInProgress"
+      :no-close-on-backdrop="savingInProgress"
+      :no-close-on-esc="savingInProgress"
+      @ok="generateDebugScript"
+    >
+      <b-form
+        ref="debug-script-form"
+        @submit.stop.prevent="generateDebugScript"
+      >
+        <b-form-group
+          id="pages-input-group"
+          label="Pages per Scene"
+          label-for="pages-input"
+          label-cols="auto"
+        >
           <b-form-input
             id="pages-input"
-            name="pages-input"
             v-model="$v.debugFormState.pages.$model"
+            name="pages-input"
             type="number"
             :state="validateDebugState('pages')"
             aria-describedby="pages-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="pages-feedback"
-          >This is a required field, and must be greater than 0.
+          >
+            This is a required field, and must be greater than 0.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="lines-input-group" label="Lines per Page" label-for="lines-input"
-                      label-cols="auto">
+        <b-form-group
+          id="lines-input-group"
+          label="Lines per Page"
+          label-for="lines-input"
+          label-cols="auto"
+        >
           <b-form-input
             id="lines-input"
-            name="lines-input"
             v-model="$v.debugFormState.linesPerPage.$model"
+            name="lines-input"
             type="number"
             :state="validateDebugState('linesPerPage')"
             aria-describedby="lines-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="lines-feedback"
-          >This is a required field, and must be greater than 0.
+          >
+            This is a required field, and must be greater than 0.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
