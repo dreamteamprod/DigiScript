@@ -1,42 +1,63 @@
 <template>
-  <b-container class="mx-0 px-0" fluid>
+  <b-container
+    class="mx-0 px-0"
+    fluid
+  >
     <b-row class="script-row">
-      <b-col cols="2"></b-col>
-      <b-col cols="2" style="text-align: right">
-        <b-button variant="success" @click="decrPage"
-                  :disabled="currentEditPage === 1">
+      <b-col cols="2" />
+      <b-col
+        cols="2"
+        style="text-align: right"
+      >
+        <b-button
+          variant="success"
+          :disabled="currentEditPage === 1"
+          @click="decrPage"
+        >
           Prev Page
         </b-button>
       </b-col>
       <b-col cols="4">
         <p>Current Page: {{ currentEditPage }}</p>
       </b-col>
-      <b-col cols="2" style="text-align: left" >
-        <b-button variant="success" @click="incrPage">
+      <b-col
+        cols="2"
+        style="text-align: left"
+      >
+        <b-button
+          variant="success"
+          @click="incrPage"
+        >
           Next Page
         </b-button>
       </b-col>
       <b-col cols="2">
         <b-button-group>
-          <b-button v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-                  variant="warning"
-                  :disabled="!CAN_REQUEST_EDIT"
-                  @click="requestEdit">
+          <b-button
+            v-if="INTERNAL_UUID !== CURRENT_EDITOR"
+            variant="warning"
+            :disabled="!CAN_REQUEST_EDIT"
+            @click="requestEdit"
+          >
             Begin Editing
           </b-button>
-          <b-button v-else
-                    variant="warning"
-                    @click="stopEditing">
+          <b-button
+            v-else
+            variant="warning"
+            @click="stopEditing"
+          >
             Stop Editing
           </b-button>
         </b-button-group>
       </b-col>
     </b-row>
     <b-row class="script-row">
-      <b-col cols="3">Cues</b-col>
+      <b-col cols="3">
+        Cues
+      </b-col>
       <b-col>Script</b-col>
     </b-row>
-    <hr />
+    <hr>
     <b-row class="script-row">
       <b-col cols="12">
         <template v-for="(line, index) in GET_SCRIPT_PAGE(currentEditPage)">
@@ -56,9 +77,16 @@
         </template>
       </b-col>
     </b-row>
-    <b-modal id="save-script" title="Saving Script" ref="save-script" size="md"
-             :hide-header-close="savingInProgress" :hide-footer="savingInProgress"
-             :no-close-on-backdrop="savingInProgress" :no-close-on-esc="savingInProgress">
+    <b-modal
+      id="save-script"
+      ref="save-script"
+      title="Saving Script"
+      size="md"
+      :hide-header-close="savingInProgress"
+      :hide-footer="savingInProgress"
+      :no-close-on-backdrop="savingInProgress"
+      :no-close-on-esc="savingInProgress"
+    >
       <div>
         <b v-if="savingInProgress">Saving page {{ curSavePage }} of {{ totalSavePages }}</b>
         <template v-else>
@@ -67,9 +95,13 @@
         </template>
       </div>
       <div>
-        <b-progress :value="curSavePage"
-                  :max="totalSavePages"
-                  :variant="saveProgressVariant" show-value animated />
+        <b-progress
+          :value="curSavePage"
+          :max="totalSavePages"
+          :variant="saveProgressVariant"
+          show-value
+          animated
+        />
       </div>
     </b-modal>
   </b-container>

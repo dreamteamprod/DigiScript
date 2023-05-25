@@ -1,5 +1,8 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col cols="8">
         <h5>Scene List</h5>
@@ -12,7 +15,10 @@
           show-empty
         >
           <template #head(btn)="data">
-            <b-button variant="outline-success" v-b-modal.new-scene>
+            <b-button
+              v-b-modal.new-scene
+              variant="outline-success"
+            >
               New Scene
             </b-button>
           </template>
@@ -23,29 +29,39 @@
             <p v-if="data.item.next_scene">
               {{ SCENE_BY_ID(data.item.next_scene).name }}
             </p>
-            <p v-else>N/A</p>
+            <p v-else>
+              N/A
+            </p>
           </template>
           <template #cell(previous_scene)="data">
             <p v-if="data.item.previous_scene">
               {{ SCENE_BY_ID(data.item.previous_scene).name }}
             </p>
-            <p v-else>N/A</p>
+            <p v-else>
+              N/A
+            </p>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
-              <b-button variant="warning" @click="openEditForm(data)">
+              <b-button
+                variant="warning"
+                @click="openEditForm(data)"
+              >
                 Edit
               </b-button>
-              <b-button variant="danger" @click="deleteAct(data)">
+              <b-button
+                variant="danger"
+                @click="deleteAct(data)"
+              >
                 Delete
               </b-button>
             </b-button-group>
           </template>
         </b-table>
         <b-pagination
-          v-show="this.sceneTableItems.length > rowsPerPage"
+          v-show="sceneTableItems.length > rowsPerPage"
           v-model="currentPage"
-          :total-rows="this.sceneTableItems.length"
+          :total-rows="sceneTableItems.length"
           :per-page="rowsPerPage"
           aria-controls="scene-table"
           class="justify-content-center"
@@ -53,16 +69,26 @@
       </b-col>
       <b-col cols="4">
         <h5>Act First Scenes</h5>
-        <b-table id="first-scenes-table" :items="ACT_LIST" :fields="firstSceneFields" show-empty>
+        <b-table
+          id="first-scenes-table"
+          :items="ACT_LIST"
+          :fields="firstSceneFields"
+          show-empty
+        >
           <template #cell(first_scene)="data">
             <p v-if="data.item.first_scene">
               {{ SCENE_BY_ID(data.item.first_scene).name }}
             </p>
-            <p v-else>N/A</p>
+            <p v-else>
+              N/A
+            </p>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
-              <b-button variant="success" @click="openFirstSceneEdit(data)">
+              <b-button
+                variant="success"
+                @click="openFirstSceneEdit(data)"
+              >
                 Set
               </b-button>
             </b-button-group>
@@ -70,103 +96,160 @@
         </b-table>
       </b-col>
     </b-row>
-    <b-modal id="new-scene" title="Add New Scene" ref="new-scene" size="md"
-             @show="resetNewForm" @hidden="resetNewForm" @ok="onSubmitNew">
-      <b-form @submit.stop.prevent="onSubmitNew" ref="new-scene-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="new-scene"
+      ref="new-scene"
+      title="Add New Scene"
+      size="md"
+      @show="resetNewForm"
+      @hidden="resetNewForm"
+      @ok="onSubmitNew"
+    >
+      <b-form
+        ref="new-scene-form"
+        @submit.stop.prevent="onSubmitNew"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.newFormState.name.$model"
+            name="name-input"
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="act-input-group" label="Act" label-for="act-input">
+        <b-form-group
+          id="act-input-group"
+          label="Act"
+          label-for="act-input"
+        >
           <b-form-select
             id="act-input"
-            :options="actOptions"
             v-model="$v.newFormState.act_id.$model"
+            :options="actOptions"
             :state="validateNewState('act_id')"
-            aria-describedby="act-feedback"/>
+            aria-describedby="act-feedback"
+          />
           <b-form-invalid-feedback
             id="act-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
           id="previous-scene-input-group"
           label="Previous Scene"
-          label-for="previous-scene-input">
+          label-for="previous-scene-input"
+        >
           <b-form-select
             id="previous-scene-input"
-            :options="previousSceneOptions[$v.newFormState.act_id.$model]"
             v-model="$v.newFormState.previous_scene_id.$model"
-            aria-describedby="previous-scene-feedback"/>
+            :options="previousSceneOptions[$v.newFormState.act_id.$model]"
+            aria-describedby="previous-scene-feedback"
+          />
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal id="edit-scene" title="Edit Scene" ref="edit-scene" size="md"
-             @hidden="resetEditForm" @ok="onSubmitEdit">
-      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-act-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="edit-scene"
+      ref="edit-scene"
+      title="Edit Scene"
+      size="md"
+      @hidden="resetEditForm"
+      @ok="onSubmitEdit"
+    >
+      <b-form
+        ref="edit-act-form"
+        @submit.stop.prevent="onSubmitEdit"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.editFormState.name.$model"
+            name="name-input"
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="act-input-group" label="Act" label-for="act-input">
+        <b-form-group
+          id="act-input-group"
+          label="Act"
+          label-for="act-input"
+        >
           <b-form-select
             id="act-input"
-            :options="actOptions"
             v-model="$v.editFormState.act_id.$model"
+            :options="actOptions"
             :state="validateEditState('act_id')"
+            aria-describedby="act-feedback"
             @change="editActChanged"
-            aria-describedby="act-feedback"/>
+          />
           <b-form-invalid-feedback
             id="act-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
           id="previous-scene-input-group"
           label="Previous Scene"
-          label-for="previous-scene-input">
+          label-for="previous-scene-input"
+        >
           <b-form-select
             id="previous-scene-input"
-            :options="editFormPrevScenes"
             v-model="$v.editFormState.previous_scene_id.$model"
+            :options="editFormPrevScenes"
             :state="validateEditState('previous_scene_id')"
-            aria-describedby="previous-scene-feedback"/>
+            aria-describedby="previous-scene-feedback"
+          />
           <b-form-invalid-feedback
             id="previous-scene-feedback"
-          >This cannot form a circular dependency between scenes.
+          >
+            This cannot form a circular dependency between scenes.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal id="set-first-scene" title="Set First Scene" ref="set-first-scene" size="md"
-             @hidden="resetFirstSceneForm" @ok="onSubmitFirstScene">
-      <b-form @submit.stop.prevent="onSubmitFirstScene" ref="set-first-scene-form">
+    <b-modal
+      id="set-first-scene"
+      ref="set-first-scene"
+      title="Set First Scene"
+      size="md"
+      @hidden="resetFirstSceneForm"
+      @ok="onSubmitFirstScene"
+    >
+      <b-form
+        ref="set-first-scene-form"
+        @submit.stop.prevent="onSubmitFirstScene"
+      >
         <b-form-group
           id="first-scene-input-group"
           :label="firstSceneModalLabel"
-          label-for="first-scene-input">
+          label-for="first-scene-input"
+        >
           <b-form-select
             id="first-scene-input"
+            v-model="firstSceneFormState.scene_id"
             :options="firstSceneOptions[firstSceneFormState.act_id]"
-            v-model="firstSceneFormState.scene_id"/>
+          />
         </b-form-group>
       </b-form>
     </b-modal>

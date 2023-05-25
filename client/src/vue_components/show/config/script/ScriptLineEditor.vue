@@ -3,29 +3,54 @@
     <b-col cols="2">
       <b-form-row>
         <b-col cols="6">
-          <b-form-group id="act-input-group" label-size="sm" label=" " label-for="act-input">
-            <b-form-select id="act-input" name="act-input" :options="actOptions"
-                           v-model="$v.state.act_id.$model"
-                           :state="validateState('act_id')"
-                           @change="stateChange"/>
+          <b-form-group
+            id="act-input-group"
+            label-size="sm"
+            label=" "
+            label-for="act-input"
+          >
+            <b-form-select
+              id="act-input"
+              v-model="$v.state.act_id.$model"
+              name="act-input"
+              :options="actOptions"
+              :state="validateState('act_id')"
+              @change="stateChange"
+            />
           </b-form-group>
         </b-col>
         <b-col cols="6">
-          <b-form-group id="scene-input-group" label-size="sm" label=" " label-for="scene-input">
-            <b-form-select id="scene-input" name="scene-input" :options="sceneOptions"
-                           v-model="$v.state.scene_id.$model"
-                           :state="validateState('scene_id')"
-                           @change="stateChange"/>
+          <b-form-group
+            id="scene-input-group"
+            label-size="sm"
+            label=" "
+            label-for="scene-input"
+          >
+            <b-form-select
+              id="scene-input"
+              v-model="$v.state.scene_id.$model"
+              name="scene-input"
+              :options="sceneOptions"
+              :state="validateState('scene_id')"
+              @change="stateChange"
+            />
           </b-form-group>
         </b-col>
       </b-form-row>
       <b-form-row>
         <b-col style="align-content: center">
           <b-button-group>
-            <b-button variant="success" @click="doneEditing" :disabled="!lineValid">
+            <b-button
+              variant="success"
+              :disabled="!lineValid"
+              @click="doneEditing"
+            >
               Done
             </b-button>
-            <b-button variant="danger" @click.stop.prevent="deleteLine">
+            <b-button
+              variant="danger"
+              @click.stop.prevent="deleteLine"
+            >
               Delete
             </b-button>
           </b-button-group>
@@ -37,7 +62,7 @@
         v-for="(part, index) in state.line_parts"
         :key="`line_${lineIndex}_part_${index}`"
         v-model="$v.state.line_parts.$model[index]"
-        :focusInput="index === 0"
+        :focus-input="index === 0"
         :characters="characters"
         :character-groups="characterGroups"
         :show-add-button="index === state.line_parts.length - 1 && !isStageDirection"
@@ -45,10 +70,18 @@
         :is-stage-direction="isStageDirection"
         :line-parts="state.line_parts"
         @input="stateChange"
-        @addLinePart="addLinePart" />
+        @addLinePart="addLinePart"
+      />
     </template>
-    <b-col cols="10" style="text-align: right" v-else>
-      <b-button v-b-popover.hover.top="'Add line part'" @click="addLinePart">
+    <b-col
+      v-else
+      cols="10"
+      style="text-align: right"
+    >
+      <b-button
+        v-b-popover.hover.top="'Add line part'"
+        @click="addLinePart"
+      >
         <b-icon-plus-square-fill variant="success" />
       </b-button>
     </b-col>

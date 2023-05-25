@@ -28,7 +28,7 @@ class RootController(BaseController):
             os.path.abspath(
                 os.path.dirname(__file__)),
             "..",
-            "public")
+            "static")
         with open(os.path.join(file_path, "index.html"), 'r') as file:
             self.write(file.read())
 

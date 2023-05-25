@@ -1,5 +1,8 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
         <h5>Act List</h5>
@@ -12,114 +15,179 @@
           show-empty
         >
           <template #head(btn)="data">
-            <b-button variant="outline-success" v-b-modal.new-act>
+            <b-button
+              v-b-modal.new-act
+              variant="outline-success"
+            >
               New Act
             </b-button>
           </template>
           <template #cell(interval_after)="data">
-            <b-icon-check-square-fill variant="success" v-if="data.item.interval_after"/>
-            <b-icon-x-square-fill v-else variant="danger" />
+            <b-icon-check-square-fill
+              v-if="data.item.interval_after"
+              variant="success"
+            />
+            <b-icon-x-square-fill
+              v-else
+              variant="danger"
+            />
           </template>
           <template #cell(next_act)="data">
             <p v-if="data.item.next_act">
               {{ ACT_BY_ID(data.item.next_act).name }}
             </p>
-            <p v-else>N/A</p>
+            <p v-else>
+              N/A
+            </p>
           </template>
           <template #cell(previous_act)="data">
             <p v-if="data.item.previous_act">
               {{ ACT_BY_ID(data.item.previous_act).name }}
             </p>
-            <p v-else>N/A</p>
+            <p v-else>
+              N/A
+            </p>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
-              <b-button variant="warning" @click="openEditForm(data)">
+              <b-button
+                variant="warning"
+                @click="openEditForm(data)"
+              >
                 Edit
               </b-button>
-              <b-button variant="danger" @click="deleteAct(data)">
+              <b-button
+                variant="danger"
+                @click="deleteAct(data)"
+              >
                 Delete
               </b-button>
             </b-button-group>
           </template>
         </b-table>
         <b-pagination
-          v-show="this.actTableItems.length > rowsPerPage"
+          v-show="actTableItems.length > rowsPerPage"
           v-model="currentPage"
-          :total-rows="this.actTableItems.length"
+          :total-rows="actTableItems.length"
           :per-page="rowsPerPage"
           aria-controls="acts-table"
           class="justify-content-center"
         />
       </b-col>
     </b-row>
-    <b-modal id="new-act" title="Add New Act" ref="new-act" size="md"
-             @show="resetNewForm" @hidden="resetNewForm" @ok="onSubmitNew">
-      <b-form @submit.stop.prevent="onSubmitNew" ref="new-act-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="new-act"
+      ref="new-act"
+      title="Add New Act"
+      size="md"
+      @show="resetNewForm"
+      @hidden="resetNewForm"
+      @ok="onSubmitNew"
+    >
+      <b-form
+        ref="new-act-form"
+        @submit.stop.prevent="onSubmitNew"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.newFormState.name.$model"
+            name="name-input"
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="interval-input-group" label="Interval After" label-for="interval-input">
-          <b-form-checkbox id="interval-input" name="interval-input"
-                           v-model="newFormState.interval_after">
-          </b-form-checkbox>
+        <b-form-group
+          id="interval-input-group"
+          label="Interval After"
+          label-for="interval-input"
+        >
+          <b-form-checkbox
+            id="interval-input"
+            v-model="newFormState.interval_after"
+            name="interval-input"
+          />
         </b-form-group>
         <b-form-group
           id="previous-act-input-group"
           label="Previous Act"
-          label-for="previous-act-input">
+          label-for="previous-act-input"
+        >
           <b-form-select
             id="previous-act-input"
-            :options="previousActOptions"
             v-model="newFormState.previous_act_id"
-            aria-describedby="previous-act-feedback"/>
+            :options="previousActOptions"
+            aria-describedby="previous-act-feedback"
+          />
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal id="edit-act" title="Edit Act" ref="edit-act" size="md"
-             @hidden="resetEditForm" @ok="onSubmitEdit">
-      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-act-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="edit-act"
+      ref="edit-act"
+      title="Edit Act"
+      size="md"
+      @hidden="resetEditForm"
+      @ok="onSubmitEdit"
+    >
+      <b-form
+        ref="edit-act-form"
+        @submit.stop.prevent="onSubmitEdit"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.editFormState.name.$model"
+            name="name-input"
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="interval-input-group" label="Interval After" label-for="interval-input">
-          <b-form-checkbox id="interval-input" name="interval-input"
-                           v-model="editFormState.interval_after">
-          </b-form-checkbox>
+        <b-form-group
+          id="interval-input-group"
+          label="Interval After"
+          label-for="interval-input"
+        >
+          <b-form-checkbox
+            id="interval-input"
+            v-model="editFormState.interval_after"
+            name="interval-input"
+          />
         </b-form-group>
         <b-form-group
           id="previous-act-input-group"
           label="Previous Act"
-          label-for="previous-act-input">
+          label-for="previous-act-input"
+        >
           <b-form-select
             id="previous-act-input"
-            :options="editFormActOptions"
             v-model="$v.editFormState.previous_act_id.$model"
+            :options="editFormActOptions"
             :state="validateEditState('previous_act_id')"
-            aria-describedby="previous-act-feedback"/>
+            aria-describedby="previous-act-feedback"
+          />
           <b-form-invalid-feedback
             id="previous-act-feedback"
-          >This cannot form a circular dependency between acts.
+          >
+            This cannot form a circular dependency between acts.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>

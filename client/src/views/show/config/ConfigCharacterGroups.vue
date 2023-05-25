@@ -1,5 +1,8 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
         <h5>Character Groups</h5>
@@ -12,7 +15,10 @@
           show-empty
         >
           <template #head(btn)="data">
-            <b-button variant="outline-success" v-b-modal.new-character-group>
+            <b-button
+              v-b-modal.new-character-group
+              variant="outline-success"
+            >
               New Character Group
             </b-button>
           </template>
@@ -20,110 +26,157 @@
             <div style="overflow-wrap: break-word">
               <p>
                 {{ CHARACTER_LIST.filter((c) => (
-                data.item.characters.includes(c.id))).map((c) => (c.name)).join(', ') }}
+                  data.item.characters.includes(c.id))).map((c) => (c.name)).join(', ') }}
               </p>
             </div>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
-              <b-button variant="warning" @click="openEditForm(data)">
+              <b-button
+                variant="warning"
+                @click="openEditForm(data)"
+              >
                 Edit
               </b-button>
-              <b-button variant="danger" @click="deleteCharacterGroup(data)">
+              <b-button
+                variant="danger"
+                @click="deleteCharacterGroup(data)"
+              >
                 Delete
               </b-button>
             </b-button-group>
           </template>
         </b-table>
         <b-pagination
-          v-show="this.CHARACTER_GROUP_LIST.length > rowsPerPage"
+          v-show="CHARACTER_GROUP_LIST.length > rowsPerPage"
           v-model="currentPage"
-          :total-rows="this.CHARACTER_GROUP_LIST.length"
+          :total-rows="CHARACTER_GROUP_LIST.length"
           :per-page="rowsPerPage"
           aria-controls="character-group-table"
           class="justify-content-center"
         />
       </b-col>
     </b-row>
-    <b-modal id="new-character-group" title="Add New Character Group" ref="new-character" size="md"
-             @show="resetNewForm" @hidden="resetNewForm" @ok="onSubmitNew">
-      <b-form @submit.stop.prevent="onSubmitNew" ref="new-character-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="new-character-group"
+      ref="new-character"
+      title="Add New Character Group"
+      size="md"
+      @show="resetNewForm"
+      @hidden="resetNewForm"
+      @ok="onSubmitNew"
+    >
+      <b-form
+        ref="new-character-form"
+        @submit.stop.prevent="onSubmitNew"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.newFormState.name.$model"
+            name="name-input"
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="description-input-group" label="Description"
-                      label-for="description-input">
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
           <b-form-input
             id="description-input"
-            name="description-input"
             v-model="$v.newFormState.description.$model"
+            name="description-input"
             :state="validateNewState('description')"
-          ></b-form-input>
+          />
         </b-form-group>
-        <b-form-group id="characters-input-group" label="Characters"
-                      label-for="characters-input">
+        <b-form-group
+          id="characters-input-group"
+          label="Characters"
+          label-for="characters-input"
+        >
           <multi-select
             id="characters-input"
-            name="characters-input"
             v-model="tempCharacterList"
+            name="characters-input"
             :multiple="true"
             :options="CHARACTER_LIST"
             track-by="id"
             label="name"
-            @input="newSelectChanged"
             :state="validateNewState('characters')"
-          ></multi-select>
+            @input="newSelectChanged"
+          />
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal id="edit-character-group" title="Add New Character Group" ref="edit-character"
-             size="md" @hidden="resetEditForm" @ok="onSubmitEdit">
-      <b-form @submit.stop.prevent="onSubmitEdit" ref="edit-character-form">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+    <b-modal
+      id="edit-character-group"
+      ref="edit-character"
+      title="Add New Character Group"
+      size="md"
+      @hidden="resetEditForm"
+      @ok="onSubmitEdit"
+    >
+      <b-form
+        ref="edit-character-form"
+        @submit.stop.prevent="onSubmitEdit"
+      >
+        <b-form-group
+          id="name-input-group"
+          label="Name"
+          label-for="name-input"
+        >
           <b-form-input
             id="name-input"
-            name="name-input"
             v-model="$v.editFormState.name.$model"
+            name="name-input"
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="name-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="description-input-group" label="Description"
-                      label-for="description-input">
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
           <b-form-input
             id="description-input"
-            name="description-input"
             v-model="$v.editFormState.description.$model"
+            name="description-input"
             :state="validateEditState('description')"
-          ></b-form-input>
+          />
         </b-form-group>
-        <b-form-group id="characters-input-group" label="Characters"
-                      label-for="characters-input">
+        <b-form-group
+          id="characters-input-group"
+          label="Characters"
+          label-for="characters-input"
+        >
           <multi-select
             id="characters-input"
-            name="characters-input"
             v-model="tempEditCharacterList"
+            name="characters-input"
             :multiple="true"
             :options="CHARACTER_LIST"
             track-by="id"
             label="name"
-            @input="editSelectChanged"
             :state="validateEditState('characters')"
-          ></multi-select>
+            @input="editSelectChanged"
+          />
         </b-form-group>
       </b-form>
     </b-modal>

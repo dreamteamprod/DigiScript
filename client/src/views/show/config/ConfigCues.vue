@@ -1,19 +1,28 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container
+    class="mx-0"
+    fluid
+  >
     <b-row>
       <b-col>
         <b-tabs content-class="mt-3">
-          <b-tab title="Cue Types" active>
+          <b-tab
+            title="Cue Types"
+            active
+          >
             <b-table
               id="cue-types-table"
-              :items="this.CUE_TYPES"
+              :items="CUE_TYPES"
               :fields="cueTypeFields"
               :per-page="rowsPerPage"
               :current-page="currentPage"
               show-empty
             >
               <template #head(btn)="data">
-                <b-button variant="outline-success" v-b-modal.new-cue-type>
+                <b-button
+                  v-b-modal.new-cue-type
+                  variant="outline-success"
+                >
                   New Cue Type
                 </b-button>
               </template>
@@ -24,19 +33,25 @@
               </template>
               <template #cell(btn)="data">
                 <b-button-group>
-                  <b-button variant="warning" @click="openEditCueTypeForm(data)">
+                  <b-button
+                    variant="warning"
+                    @click="openEditCueTypeForm(data)"
+                  >
                     Edit
                   </b-button>
-                  <b-button variant="danger" @click="deleteCueType(data)">
+                  <b-button
+                    variant="danger"
+                    @click="deleteCueType(data)"
+                  >
                     Delete
                   </b-button>
                 </b-button-group>
               </template>
             </b-table>
             <b-pagination
-              v-show="this.CUE_TYPES.length > rowsPerPage"
+              v-show="CUE_TYPES.length > rowsPerPage"
               v-model="currentPage"
-              :total-rows="this.CUE_TYPES.length"
+              :total-rows="CUE_TYPES.length"
               :per-page="rowsPerPage"
               aria-controls="cue-types-table"
               class="justify-content-center"
@@ -48,95 +63,141 @@
         </b-tabs>
       </b-col>
     </b-row>
-    <b-modal id="new-cue-type" title="Add Cue Type" ref="new-cue-type" size="md"
-             @show="resetNewCueTypeForm" @hidden="resetNewCueTypeForm"
-             @ok="onSubmitNewCueType">
-      <b-form @submit.stop.prevent="onSubmitNewCueType" ref="new-cue-type-form">
-        <b-form-group id="prefix-input-group" label="Prefix" label-for="prefix-input">
+    <b-modal
+      id="new-cue-type"
+      ref="new-cue-type"
+      title="Add Cue Type"
+      size="md"
+      @show="resetNewCueTypeForm"
+      @hidden="resetNewCueTypeForm"
+      @ok="onSubmitNewCueType"
+    >
+      <b-form
+        ref="new-cue-type-form"
+        @submit.stop.prevent="onSubmitNewCueType"
+      >
+        <b-form-group
+          id="prefix-input-group"
+          label="Prefix"
+          label-for="prefix-input"
+        >
           <b-form-input
             id="prefix-input"
-            name="prefix-input"
             v-model="$v.newCueTypeForm.prefix.$model"
+            name="prefix-input"
             :state="validateNewCueTypeState('prefix')"
             aria-describedby="prefix-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="prefix-feedback"
-          >This is a required field and must be 5 characters or less.
+          >
+            This is a required field and must be 5 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="description-input-group" label="Description"
-                      label-for="description-input">
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
           <b-form-input
             id="description-input"
-            name="description-input"
             v-model="$v.newCueTypeForm.description.$model"
+            name="description-input"
             :state="validateNewCueTypeState('description')"
             aria-describedby="description-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="description-feedback"
-          >This is a required field and must be 100 characters or less.
+          >
+            This is a required field and must be 100 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="colour-input-group" label="Colour" label-for="colour-input">
+        <b-form-group
+          id="colour-input-group"
+          label="Colour"
+          label-for="colour-input"
+        >
           <b-form-input
             id="colour-input"
+            v-model="$v.newCueTypeForm.colour.$model"
             name="colour-input"
             type="color"
-            v-model="$v.newCueTypeForm.colour.$model"
             :state="validateNewCueTypeState('colour')"
-            aria-describedby="colour-feedback">
-          </b-form-input>
+            aria-describedby="colour-feedback"
+          />
           <b-form-invalid-feedback
             id="colour-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal id="edit-cue-type" title="Edit Cue Type" ref="edit-cue-type" size="md"
-             @hidden="resetEditCueTypeForm" @ok="onSubmitEditCueType">
-      <b-form @submit.stop.prevent="onSubmitEditCueType" ref="edit-cue-type-form">
-        <b-form-group id="prefix-input-group" label="Prefix" label-for="prefix-input">
+    <b-modal
+      id="edit-cue-type"
+      ref="edit-cue-type"
+      title="Edit Cue Type"
+      size="md"
+      @hidden="resetEditCueTypeForm"
+      @ok="onSubmitEditCueType"
+    >
+      <b-form
+        ref="edit-cue-type-form"
+        @submit.stop.prevent="onSubmitEditCueType"
+      >
+        <b-form-group
+          id="prefix-input-group"
+          label="Prefix"
+          label-for="prefix-input"
+        >
           <b-form-input
             id="prefix-input"
-            name="prefix-input"
             v-model="$v.editCueTypeFormState.prefix.$model"
+            name="prefix-input"
             :state="validateEditCueTypeState('prefix')"
             aria-describedby="prefix-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="prefix-feedback"
-          >This is a required field and must be 5 characters or less.
+          >
+            This is a required field and must be 5 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="description-input-group" label="Description"
-                      label-for="description-input">
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
           <b-form-input
             id="description-input"
-            name="description-input"
             v-model="$v.editCueTypeFormState.description.$model"
+            name="description-input"
             :state="validateEditCueTypeState('description')"
             aria-describedby="description-feedback"
-          ></b-form-input>
+          />
           <b-form-invalid-feedback
             id="description-feedback"
-          >This is a required field and must be 100 characters or less.
+          >
+            This is a required field and must be 100 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="colour-input-group" label="Colour" label-for="colour-input">
+        <b-form-group
+          id="colour-input-group"
+          label="Colour"
+          label-for="colour-input"
+        >
           <b-form-input
             id="colour-input"
+            v-model="$v.editCueTypeFormState.colour.$model"
             name="colour-input"
             type="color"
-            v-model="$v.editCueTypeFormState.colour.$model"
             :state="validateEditCueTypeState('colour')"
-            aria-describedby="colour-feedback">
-          </b-form-input>
+            aria-describedby="colour-feedback"
+          />
           <b-form-invalid-feedback
             id="colour-feedback"
-          >This is a required field.
+          >
+            This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
