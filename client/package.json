@@ -43,7 +43,7 @@
     "eslint-plugin-vuejs-accessibility": "1.2.0",
     "node-sass": "7.0.3",
     "sass": "1.62.1",
-    "sass-loader": "13.3.0",
+    "sass-loader": "13.3.1",
     "vite": "4.3.8"
   },
   "overrides": {
