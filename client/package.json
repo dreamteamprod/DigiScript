@@ -44,7 +44,7 @@
     "node-sass": "7.0.3",
     "sass": "1.62.1",
     "sass-loader": "13.3.1",
-    "vite": "4.3.8"
+    "vite": "4.3.9"
   },
   "overrides": {
     "bootstrap-vue": {
