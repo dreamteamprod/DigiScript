@@ -50,6 +50,7 @@
             <script-line-viewer
               v-for="(line, index) in GET_SCRIPT_PAGE(page)"
               v-once
+              :id="`page_${page}_line_${index}`"
               :key="`page_${page}_line_${index}`"
               class="script-item"
               :line-index="index"
