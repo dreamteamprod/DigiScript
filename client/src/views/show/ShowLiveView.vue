@@ -165,13 +165,13 @@ export default {
     computeScriptBoundaries() {
       const scriptContainer = $('#script-container');
       const cutoffTop = scriptContainer.offset().top;
-      const cutoffBottom = scriptContainer.offset().top + scriptContainer.height();
+      const cutoffBottom = scriptContainer.offset().top + scriptContainer.outerHeight();
       const scriptSelector = $('.script-item');
 
       scriptSelector.each(function () {
-        if ($(this).offset().top + $(this).height() > cutoffTop) {
+        if ($(this).offset().top >= cutoffTop) {
           if (!$(this).attr('class').split(/\s+/).includes('first-script-element')) {
-            $('.script-item').removeClass('first-script-element');
+            scriptSelector.removeClass('first-script-element');
             $(this).addClass('first-script-element');
           }
           return false;
@@ -189,7 +189,7 @@ export default {
         }
         if ($(this).offset().top >= cutoffBottom) {
           if (!$(this).attr('class').split(/\s+/).includes('last-script-element')) {
-            $('.script-item').removeClass('last-script-element');
+            scriptSelector.removeClass('last-script-element');
             $(this).addClass('last-script-element');
           }
           assignedLastScript = true;
@@ -198,7 +198,7 @@ export default {
         return true;
       });
       if (!assignedLastScript) {
-        $('.script-item').removeClass('last-script-element');
+        scriptSelector.removeClass('last-script-element');
         $(lastObject).addClass('last-script-element');
       }
     },
@@ -290,6 +290,13 @@ export default {
 </script>
 
 <style scoped>
+  //.first-script-element {
+  //  background: #3498db;
+  //}
+  //.last-script-element {
+  //  background: #3498db;
+  //}
+
   .script-container {
      overflow: scroll;
      overflow-x: auto;
