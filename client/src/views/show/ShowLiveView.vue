@@ -291,9 +291,17 @@ export default {
 
 <style scoped>
   .script-container {
-    overflow: scroll;
-    width: 100vw;
+     overflow: scroll;
+     overflow-x: auto;
+     width: 100vw;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
+
+  .script-container::-webkit-scrollbar{
+    display: none;
+    width: 0 !important
+   }
 
   .session-header {
     border-bottom: .1rem solid #3498db;
