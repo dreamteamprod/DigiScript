@@ -297,13 +297,6 @@ export default {
 </script>
 
 <style scoped>
-  //.first-script-element {
-  //  background: #3498db;
-  //}
-  //.last-script-element {
-  //  background: #3498db;
-  //}
-
   .script-container {
      overflow: scroll;
      overflow-x: auto;
