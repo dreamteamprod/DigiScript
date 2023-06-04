@@ -2,6 +2,7 @@ import importlib
 import os
 
 from tornado.escape import url_unescape
+from tornado.web import HTTPError
 from tornado_prometheus import MetricsHandler
 
 from digi_server.logger import get_logger
@@ -29,7 +30,11 @@ class RootController(BaseController):
                 os.path.dirname(__file__)),
             "..",
             "static")
-        with open(os.path.join(file_path, "index.html"), 'r') as file:
+        full_path = os.path.join(file_path, "index.html")
+        if not os.path.isfile(full_path):
+            raise HTTPError(404)
+
+        with open(full_path, 'r') as file:
             self.write(file.read())
 
 
@@ -41,12 +46,17 @@ class StaticController(BaseController):
                 os.path.dirname(__file__)), "..", "static", url_unescape(
                 self.request.uri).strip(
                 os.path.sep))
+        if not os.path.isfile(full_path):
+            raise HTTPError(404)
+
         try:
             with open(full_path, 'r') as file:
                 self.write(file.read())
         except UnicodeDecodeError:
             with open(full_path, 'rb') as file:
                 self.write(file.read())
+        except Exception:
+            raise HTTPError(500)
 
 
 class ApiFallback(BaseAPIController):
