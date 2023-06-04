@@ -112,6 +112,8 @@ export default {
       currentLastPage: 1,
       pageBatchSize: 3,
       startTime: null,
+      previousFirstPage: 1,
+      previousLastPage: 1,
     };
   },
   async mounted() {
@@ -227,6 +229,7 @@ export default {
       }
     },
     async handleLastPageChange(lastPage) {
+      this.previousLastPage = this.currentLastPage;
       this.currentLastPage = lastPage;
       if ((this.currentLoadedPage === lastPage
           || this.currentLoadedPage - this.pageBatchSize === lastPage)
@@ -239,6 +242,7 @@ export default {
       }
     },
     handleFirstPageChange(firstPage) {
+      this.previousFirstPage = firstPage;
       this.currentFirstPage = firstPage;
     },
     getPreviousLineForIndex(pageIndex, lineIndex) {
