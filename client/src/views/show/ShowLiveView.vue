@@ -34,6 +34,7 @@
         id="script-container"
         cols="12"
         class="script-container"
+        @scroll="computeScriptBoundaries"
       >
         <div
           v-if="!initialLoad"
@@ -48,6 +49,7 @@
           <template v-for="page in pageIter">
             <script-line-viewer
               v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+              v-once
               :key="`page_${page}_line_${index}`"
               class="script-item"
               :line-index="index"
@@ -132,20 +134,19 @@ export default {
 
       this.updateElapsedTime();
       this.computeContentSize();
-      this.computeScriptBoundaries();
 
       this.startTime = this.createDateAsUTC(new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T')));
       this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
-      this.scrollTimer = setInterval(this.computeScriptBoundaries, 25);
       window.addEventListener('resize', debounce(this.computeContentSize, 100));
 
       await this.loadNextPage();
       this.initialLoad = true;
+      await this.$nextTick();
+      this.computeScriptBoundaries();
     }
   },
   destroyed() {
     clearInterval(this.elapsedTimer);
-    clearInterval(this.scrollTimer);
   },
   methods: {
     msToTimer,
@@ -211,8 +212,10 @@ export default {
       scriptContainer.height(boxHeight - 10);
     },
     async loadNextPage() {
-      this.currentLoadedPage += 1;
-      await this.LOAD_SCRIPT_PAGE(this.currentLoadedPage);
+      if (this.currentLoadedPage < this.currentMaxPage) {
+        this.currentLoadedPage += 1;
+        await this.LOAD_SCRIPT_PAGE(this.currentLoadedPage);
+      }
     },
     async getMaxScriptPage() {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
@@ -231,14 +234,13 @@ export default {
     async handleLastPageChange(lastPage) {
       this.previousLastPage = this.currentLastPage;
       this.currentLastPage = lastPage;
-      if ((this.currentLoadedPage === lastPage
-          || this.currentLoadedPage - this.pageBatchSize === lastPage)
-        && this.currentLoadedPage - this.pageBatchSize < this.currentMaxPage) {
-        /* eslint-disable no-await-in-loop */
+      const cutoffPage = this.currentLoadedPage - this.pageBatchSize;
+      if (lastPage >= cutoffPage && this.currentLoadedPage < this.currentMaxPage) {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
+          // eslint-disable-next-line no-await-in-loop
           await this.loadNextPage();
         }
-        /* eslint-enable no-await-in-loop */
+        await this.$nextTick();
       }
     },
     handleFirstPageChange(firstPage) {
