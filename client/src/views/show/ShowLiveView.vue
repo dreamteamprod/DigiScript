@@ -118,6 +118,7 @@ export default {
       startTime: null,
       previousFirstPage: 1,
       previousLastPage: 1,
+      assignedLastLine: false,
     };
   },
   async mounted() {
@@ -203,6 +204,7 @@ export default {
         }
         return true;
       });
+      this.assignedLastLine = assignedLastScript;
       if (!assignedLastScript) {
         scriptSelector.removeClass('last-script-element');
         $(lastObject).addClass('last-script-element');
@@ -243,6 +245,14 @@ export default {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
           // eslint-disable-next-line no-await-in-loop
           await this.loadNextPage();
+        }
+        this.computeScriptBoundaries();
+        while (!this.assignedLastLine && this.currentLoadedPage <= this.currentMaxPage) {
+          // eslint-disable-next-line no-await-in-loop
+          await this.loadNextPage();
+          this.computeScriptBoundaries();
+          // eslint-disable-next-line no-await-in-loop
+          await this.$nextTick();
         }
       }
       await this.$nextTick();
