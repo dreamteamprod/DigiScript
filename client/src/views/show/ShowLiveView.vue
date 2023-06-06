@@ -35,6 +35,7 @@
         cols="12"
         class="script-container"
         @scroll="computeScriptBoundaries"
+        @scrollend="computeScriptBoundaries"
       >
         <div
           v-if="!initialLoad"
@@ -123,7 +124,7 @@ export default {
     await this.GET_SHOW_SESSION_DATA();
     if (this.CURRENT_SHOW_SESSION == null) {
       this.$toast.warning('No live session started!');
-      this.$router.replace('/');
+      await this.$router.replace('/');
     } else {
       await this.GET_ACT_LIST();
       await this.GET_SCENE_LIST();
@@ -188,7 +189,8 @@ export default {
       scriptSelector.each(function () {
         if (lastObject == null) {
           lastObject = this;
-        } else if ($(this).offset().top > $(lastObject).offset().top) {
+        } else if ($(this).offset().top > $(lastObject).offset().top
+            && $(this).offset().top < cutoffBottom) {
           lastObject = this;
         }
         if ($(this).offset().top >= cutoffBottom) {
@@ -211,6 +213,7 @@ export default {
       const startPos = scriptContainer.offset().top;
       const boxHeight = document.documentElement.clientHeight - startPos;
       scriptContainer.height(boxHeight - 10);
+      this.computeScriptBoundaries();
     },
     async loadNextPage() {
       if (this.currentLoadedPage < this.currentMaxPage) {
@@ -241,8 +244,8 @@ export default {
           // eslint-disable-next-line no-await-in-loop
           await this.loadNextPage();
         }
-        await this.$nextTick();
       }
+      await this.$nextTick();
     },
     handleFirstPageChange(firstPage) {
       this.previousFirstPage = firstPage;
@@ -288,7 +291,8 @@ export default {
   computed: {
     pageIter() {
       return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
-        x <= this.currentLastPage + 1 && x >= this.currentFirstPage - 1));
+        x <= this.currentLastPage + this.pageBatchSize
+          && x >= this.currentFirstPage - this.pageBatchSize));
     },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES']),
