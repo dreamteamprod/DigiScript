@@ -58,7 +58,7 @@ Vue.use(VueNativeSock, `ws://${window.location.hostname}:${window.location.port}
 });
 
 Vue.config.productionTip = false;
-Vue.config.devtools = true;
+Vue.config.devtools = import.meta.env.MODE === 'development';
 
 Vue.filter('capitalize', (value) => {
   if (!value) return '';
