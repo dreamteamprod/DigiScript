@@ -67,9 +67,16 @@ export default {
   },
   methods: {
     async startSession() {
+      if (this.INTERNAL_UUID == null) {
+        this.$toast.error('Unable to start new show session');
+        return;
+      }
       this.startingSession = true;
       const response = await fetch(`${makeURL('/api/v1/show/sessions/start')}`, {
         method: 'POST',
+        body: JSON.stringify({
+          session_id: this.INTERNAL_UUID,
+        }),
       });
       if (response.ok) {
         this.$toast.success('Started new show session');
@@ -101,7 +108,7 @@ export default {
     ...mapActions(['GET_SHOW_SESSION_DATA']),
   },
   computed: {
-    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION']),
+    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID']),
   },
 };
 </script>

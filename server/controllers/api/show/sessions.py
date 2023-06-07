@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from models.session import ShowSession
+from tornado import escape
+
+from models.session import ShowSession, Session
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import ShowSessionSchema
@@ -52,10 +54,26 @@ class SessionStartController(BaseAPIController):
                     self.set_status(409)
                     await self.finish({'message': '409 session already active'})
                 else:
+                    data = escape.json_decode(self.request.body)
+
+                    session_id = data.get('session_id', None)
+                    if not session_id:
+                        self.set_status(400)
+                        await self.finish({'message': 'session_id missing'})
+                        return
+
+                    user_session: Session = session.query(Session).get(session_id)
+                    if not user_session:
+                        self.set_status(400)
+                        await self.finish({'message': 'Unable to find session given session_id'})
+                        return
+
                     show_session = ShowSession(
                         show_id=show_id,
                         start_date_time=datetime.utcnow(),
-                        end_date_time=None
+                        end_date_time=None,
+                        client_internal_id=user_session.internal_id,
+                        user_id=user_session.user.id
                     )
                     session.add(show_session)
                     session.flush()
