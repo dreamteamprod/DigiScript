@@ -107,7 +107,6 @@ export default {
     return {
       elapsedTime: 0,
       elapsedTimer: null,
-      scrollTimer: null,
       currentLoadedPage: 0,
       currentMaxPage: 0,
       stoppingSession: false,
