@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
@@ -13,7 +13,7 @@ from models.cue import CueType
 from models.models import db
 from models.script import Script
 from models.show import Show
-from models.session import Session
+from models.session import Session, ShowSession
 from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
@@ -60,6 +60,21 @@ class DigiScriptServer(PrometheusMixIn, Application):
                     get_logger().warning('Current show from settings not found. Resetting.')
                     self.digi_settings.settings['current_show'].set_to_default()
                     self.digi_settings._save()
+
+        # If there is a live session in progress, clean up the current client ID
+        with self._db.sessionmaker() as session:
+            current_show = self.digi_settings.settings.get('current_show').get_value()
+            if current_show:
+                show = session.query(Show).get(current_show)
+                if show and show.current_session_id:
+                    show_session: ShowSession = session.query(ShowSession).get(show.current_session_id)
+                    if show_session:
+                        show_session.last_client_internal_id = show_session.client_internal_id
+                        show_session.client_internal_id = None
+                    else:
+                        get_logger().warning('Current show session not found. Resetting.')
+                        show.current_session_id = None
+                    session.commit()
 
         static_files_path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                          '..', 'static', 'assets')
@@ -146,6 +161,12 @@ class DigiScriptServer(PrometheusMixIn, Application):
             if c_user_id is not None and int(c_user_id) == user_id:
                 sockets.append(client)
         return sockets
+
+    def get_ws(self, internal_uuid: str) -> Optional[WebSocketController]:
+        for client in self.clients:
+            if client.__getattribute__('internal_id') == internal_uuid:
+                return client
+        return None
 
     async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):
         for client in self.clients:
