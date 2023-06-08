@@ -41,11 +41,15 @@ export default {
         case 'SET_UUID':
           if (state.internalUUID != null) {
             Vue.prototype.$socket.sendObj({
-              OP: 'SET_UUID',
+              OP: 'REFRESH_CLIENT',
               DATA: state.internalUUID,
             });
           } else {
             state.internalUUID = message.DATA;
+            Vue.prototype.$socket.sendObj({
+              OP: 'NEW_CLIENT',
+              DATA: {},
+            });
           }
           break;
         case 'SETTINGS_CHANGED':
@@ -81,6 +85,11 @@ export default {
     async WS_SETTINGS_CHANGED(context, payload) {
       await context.dispatch('UPDATE_SETTINGS', payload.DATA);
       settingsToast();
+    },
+    async ELECTED_LEADER(context, payload) {
+      Vue.$toast.info('You are now leader of the script - other clients will follow your view', {
+        duration: 0,
+      });
     },
   },
   getters: {
