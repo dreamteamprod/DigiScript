@@ -22,7 +22,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         super().__init__(application, request, **kwargs)
         self.application: DigiScriptServer = self.application  # pylint: disable=used-before-assignment
 
-    def update_session(self, is_editor=None, user_id=None):
+    def update_session(self, is_editor=False, user_id=None):
         with self.make_session() as session:
             entry = session.get(Session, self.__getattribute__('internal_id'))
             if entry:
@@ -52,7 +52,11 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         self.__setattr__('internal_id', str(uuid4()))
         self.application.clients.append(self)
 
-        self.update_session()
+        user_id = self.get_secure_cookie('digiscript_user_id')
+        if user_id is not None:
+            user_id = int(user_id)
+
+        self.update_session(user_id=user_id)
         get_logger().info(f'WebSocket opened from: {self.request.remote_ip}')
 
         yield self.write_message({
