@@ -88,7 +88,7 @@ import { contrastColor } from 'contrast-color';
 
 export default {
   name: 'ScriptLineViewer',
-  events: ['last-line-page', 'first-page'],
+  events: ['last-line-change', 'first-line-change'],
   props: {
     line: {
       required: true,
@@ -150,10 +150,10 @@ export default {
     onClassChange(classAttrValue) {
       const classList = classAttrValue.split(' ');
       if (classList.includes('last-script-element')) {
-        this.$emit('last-line-page', this.line.page);
+        this.$emit('last-line-change', this.line.page, this.lineIndex);
       }
       if (classList.includes('first-script-element')) {
-        this.$emit('first-page', this.line.page);
+        this.$emit('first-line-change', this.line.page, this.lineIndex);
       }
     },
     cueLabel(cue) {

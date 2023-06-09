@@ -63,8 +63,8 @@
               :previous-line="getPreviousLineForIndex(page, index)"
               :cue-types="CUE_TYPES"
               :cues="getCuesForLine(line)"
-              @last-line-page="handleLastPageChange"
-              @first-page="handleFirstPageChange"
+              @last-line-change="handleLastLineChange"
+              @first-line-change="handleFirstLineChange"
             />
           </template>
           <b-row
@@ -118,6 +118,8 @@ export default {
       previousFirstPage: 1,
       previousLastPage: 1,
       assignedLastLine: false,
+      currentLine: null,
+      previousLine: null,
     };
   },
   async mounted() {
@@ -236,7 +238,7 @@ export default {
         log.error('Unable to get current max page');
       }
     },
-    async handleLastPageChange(lastPage) {
+    async handleLastLineChange(lastPage, lineIndex) {
       this.previousLastPage = this.currentLastPage;
       this.currentLastPage = lastPage;
       const cutoffPage = this.currentLoadedPage - this.pageBatchSize;
@@ -256,9 +258,21 @@ export default {
       }
       await this.$nextTick();
     },
-    handleFirstPageChange(firstPage) {
+    handleFirstLineChange(firstPage, lineIndex) {
       this.previousFirstPage = firstPage;
       this.currentFirstPage = firstPage;
+      this.previousLine = this.currentLine;
+      this.currentLine = `page_${firstPage}_line_${lineIndex}`;
+
+      if (this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID) {
+        this.$socket.sendObj({
+          OP: 'SCRIPT_SCROLL',
+          DATA: {
+            previous_line: this.previousLine,
+            current_line: this.currentLine,
+          },
+        });
+      }
     },
     getPreviousLineForIndex(pageIndex, lineIndex) {
       if (lineIndex > 0) {
@@ -304,7 +318,8 @@ export default {
           && x >= this.currentFirstPage - this.pageBatchSize));
     },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
-      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES']),
+      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
+      'INTERNAL_UUID']),
   },
 };
 </script>
