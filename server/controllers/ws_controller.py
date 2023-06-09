@@ -93,7 +93,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             for client in self.application.clients:
                 client.write_message({
                     'OP': 'NOOP',
-                    'ACTION:': 'GET_SCRIPT_CONFIG_STATUS',
+                    'ACTION': 'GET_SCRIPT_CONFIG_STATUS',
                     'DATA': {}
                 })
 
@@ -125,7 +125,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                             for client in self.application.clients:
                                 client.write_message({
                                     'OP': 'NOOP',
-                                    'ACTION:': 'NO_LEADER',
+                                    'ACTION': 'NO_LEADER',
                                     'DATA': {}
                                 })
 
