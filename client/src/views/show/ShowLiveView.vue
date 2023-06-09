@@ -11,8 +11,14 @@
         cols="4"
         style="text-align: left"
       >
-        <b>
-          {{ CURRENT_SHOW.name }}
+        <b v-if="isScriptFollowing">
+          {{ CURRENT_SHOW.name }} - Following
+        </b>
+        <b v-else-if="isScriptLeader">
+          {{ CURRENT_SHOW.name }} - Leading
+        </b>
+        <b v-else>
+          {{ CURRENT_SHOW.name }} - Manual
         </b>
       </b-col>
       <b-col cols="4">
@@ -62,6 +68,7 @@
               :characters="CHARACTER_LIST"
               :character-groups="CHARACTER_GROUP_LIST"
               :previous-line="getPreviousLineForIndex(page, index)"
+              :previous-line-index="getPreviousLineIndex(page, index)"
               :cue-types="CUE_TYPES"
               :cues="getCuesForLine(line)"
               @last-line-change="handleLastLineChange"
@@ -259,10 +266,10 @@ export default {
       }
       await this.$nextTick();
     },
-    handleFirstLineChange(firstPage, lineIndex) {
+    handleFirstLineChange(firstPage, lineIndex, previousLine) {
       this.previousFirstPage = firstPage;
       this.currentFirstPage = firstPage;
-      this.previousLine = this.currentLine;
+      this.previousLine = previousLine;
       this.currentLine = `page_${firstPage}_line_${lineIndex}`;
 
       if (this.isScriptLeader) {
@@ -285,6 +292,21 @@ export default {
         loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
         if (loopPage.length > 0) {
           return loopPage[loopPage.length - 1];
+        }
+        loopPageNo -= 1;
+      }
+      return null;
+    },
+    getPreviousLineIndex(pageIndex, lineIndex) {
+      if (lineIndex > 0) {
+        return lineIndex - 1;
+      }
+      let loopPageNo = pageIndex - 1;
+      while (loopPageNo >= 1) {
+        let loopPage = null;
+        loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        if (loopPage.length > 0) {
+          return loopPage.length - 1;
         }
         loopPageNo -= 1;
       }
@@ -326,7 +348,24 @@ export default {
     },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
-      'INTERNAL_UUID']),
+      'INTERNAL_UUID', 'SESSION_FOLLOW_DATA']),
+  },
+  watch: {
+    SESSION_FOLLOW_DATA() {
+      if (this.isScriptFollowing) {
+        let scrollToLine;
+        if (this.SESSION_FOLLOW_DATA.previous_line != null) {
+          scrollToLine = document.getElementById(this.SESSION_FOLLOW_DATA.previous_line);
+        } else {
+          scrollToLine = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
+        }
+        if (scrollToLine != null) {
+          scrollToLine.scrollIntoView({
+            behavior: 'smooth',
+          });
+        }
+      }
+    },
   },
 };
 </script>
