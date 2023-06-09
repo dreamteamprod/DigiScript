@@ -428,6 +428,12 @@ export default {
         duration: 0,
       });
     },
+    async NO_LEADER(context, payload) {
+      await context.dispatch('GET_SHOW_SESSION_DATA');
+      Vue.$toast.warning('There is no script leader. Please scroll your own script!', {
+        duration: 0,
+      });
+    },
     SCRIPT_SCROLL(context, payload) {
       context.commit('SET_SESSION_FOLLOW_DATA', payload.DATA);
     },
