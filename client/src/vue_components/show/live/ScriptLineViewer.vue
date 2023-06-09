@@ -150,12 +150,13 @@ export default {
   },
   methods: {
     contrastColor,
-    onClassChange(classAttrValue) {
+    onClassChange(classAttrValue, oldClassAttrValue) {
       const classList = classAttrValue.split(' ');
-      if (classList.includes('last-script-element')) {
+      const oldClassList = oldClassAttrValue.split(' ');
+      if (classList.includes('last-script-element') && !oldClassList.includes('last-script-element')) {
         this.$emit('last-line-change', this.line.page, this.lineIndex);
       }
-      if (classList.includes('first-script-element')) {
+      if (classList.includes('first-script-element') && !oldClassList.includes('first-script-element')) {
         let previousLine = null;
         if (this.previousLine != null) {
           previousLine = `page_${this.previousLine.page}_line_${this.previousLineIndex}`;
