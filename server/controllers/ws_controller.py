@@ -106,7 +106,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                         live_session: ShowSession = session.query(ShowSession).get(show.current_session_id)
                         live_session.last_client_internal_id = self.__getattribute__('internal_id')
                         session.flush()
-                        next_session: Session = session.query(Session).filter(Session.user_id == live_session.user_id).first()
+                        next_session: Session = session.query(Session).filter(
+                            Session.user_id == live_session.user_id).first()
                         if next_session:
                             next_ws = self.application.get_ws(next_session.internal_id)
                             if not next_ws:
