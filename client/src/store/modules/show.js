@@ -489,6 +489,9 @@ export default {
     CURRENT_SHOW_SESSION(state) {
       return state.currentSession;
     },
+    SESSION_FOLLOW_DATA(state) {
+      return state.sessionFollowData;
+    },
   }
   ,
 };

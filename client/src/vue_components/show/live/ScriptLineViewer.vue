@@ -100,6 +100,9 @@ export default {
     previousLine: {
       required: true,
     },
+    previousLineIndex: {
+      required: true,
+    },
     acts: {
       required: true,
     },
@@ -153,7 +156,11 @@ export default {
         this.$emit('last-line-change', this.line.page, this.lineIndex);
       }
       if (classList.includes('first-script-element')) {
-        this.$emit('first-line-change', this.line.page, this.lineIndex);
+        let previousLine = null;
+        if (this.previousLine != null) {
+          previousLine = `page_${this.previousLine.page}_line_${this.previousLineIndex}`;
+        }
+        this.$emit('first-line-change', this.line.page, this.lineIndex, previousLine);
       }
     },
     cueLabel(cue) {
