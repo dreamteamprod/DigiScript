@@ -121,7 +121,6 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                                         'latest_line_ref': live_session.latest_line_ref
                                     }
                                 })
-                                session.commit()
                         else:
                             for client in self.application.clients:
                                 client.write_message({
@@ -129,6 +128,14 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                                     'ACTION:': 'NO_LEADER',
                                     'DATA': {}
                                 })
+
+                        session.commit()
+                        for client in self.application.clients:
+                            client.write_message({
+                                'OP': 'NOOP',
+                                'ACTION': 'GET_SHOW_SESSION_DATA',
+                                'DATA': {}
+                            })
 
         get_logger().info(f'WebSocket closed from: {self.request.remote_ip}')
 
@@ -165,7 +172,11 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                                     'latest_line_ref': show_session.latest_line_ref
                                 }
                             })
-
+                            await self.application.ws_send_to_all(
+                                'NOOP',
+                                'GET_SHOW_SESSION_DATA',
+                                {}
+                            )
             elif ws_op == 'REFRESH_CLIENT':
                 new_uuid = message['DATA']
                 is_editor = False
@@ -187,7 +198,11 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                     show_session.client_internal_id = new_uuid
                     show_session.last_client_internal_id = None
                     session.commit()
-
+                    await self.application.ws_send_to_all(
+                        'NOOP',
+                        'GET_SHOW_SESSION_DATA',
+                        {}
+                    )
             elif ws_op == 'REQUEST_SCRIPT_EDIT':
                 editors = session.query(Session).filter(Session.is_editor).all()
                 if len(editors) == 0:
@@ -205,6 +220,13 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                     entry.is_editor = False
                     session.commit()
                     await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_CONFIG_STATUS', {})
+            elif ws_op == 'SCRIPT_SCROLL':
+                if show and show.current_session_id:
+                    show_session = session.query(ShowSession).get(show.current_session_id)
+                    if show_session:
+                        if show_session.client_internal_id == self.__getattribute__('internal_id'):
+                            show_session.latest_line_ref = message['DATA']['current_line']
+                            session.commit()
             else:
                 get_logger().warning(f'Unknown OP {ws_op} received from '
                                      f'WebSocket connection {self.request.remote_ip}')
