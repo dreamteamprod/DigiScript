@@ -13,6 +13,7 @@ export default {
     cueTypes: [],
     sessions: [],
     currentSession: null,
+    sessionFollowData: {},
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -44,6 +45,9 @@ export default {
     },
     SET_CURRENT_SESSION(state, session) {
       state.currentSession = session;
+    },
+    SET_SESSION_FOLLOW_DATA(state, data) {
+      state.sessionFollowData = data;
     },
   },
   actions: {
@@ -423,6 +427,9 @@ export default {
       Vue.$toast.info('You are now leader of the script - other clients will follow your view', {
         duration: 0,
       });
+    },
+    SCRIPT_SCROLL(context, payload) {
+      context.commit('SET_SESSION_FOLLOW_DATA', payload.DATA);
     },
   },
   getters: {

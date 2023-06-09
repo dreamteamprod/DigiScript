@@ -227,6 +227,11 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                         if show_session.client_internal_id == self.__getattribute__('internal_id'):
                             show_session.latest_line_ref = message['DATA']['current_line']
                             session.commit()
+                            await self.application.ws_send_to_all(
+                                'NOOP',
+                                'SCRIPT_SCROLL',
+                                message['DATA']
+                            )
             else:
                 get_logger().warning(f'Unknown OP {ws_op} received from '
                                      f'WebSocket connection {self.request.remote_ip}')
