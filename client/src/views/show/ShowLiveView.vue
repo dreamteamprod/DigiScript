@@ -34,6 +34,7 @@
         id="script-container"
         cols="12"
         class="script-container"
+        :data-following="isScriptFollowing"
         @scroll="computeScriptBoundaries"
         @scrollend="computeScriptBoundaries"
       >
@@ -264,7 +265,7 @@ export default {
       this.previousLine = this.currentLine;
       this.currentLine = `page_${firstPage}_line_${lineIndex}`;
 
-      if (this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID) {
+      if (this.isScriptLeader) {
         this.$socket.sendObj({
           OP: 'SCRIPT_SCROLL',
           DATA: {
@@ -317,6 +318,12 @@ export default {
         x <= this.currentLastPage + this.pageBatchSize
           && x >= this.currentFirstPage - this.pageBatchSize));
     },
+    isScriptFollowing() {
+      return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
+    },
+    isScriptLeader() {
+      return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
+    },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
       'INTERNAL_UUID']),
@@ -337,6 +344,10 @@ export default {
     display: none;
     width: 0 !important
    }
+
+  .script-container[data-following="true"] {
+    overflow: hidden !important;
+  }
 
   .session-header {
     border-bottom: .1rem solid #3498db;
