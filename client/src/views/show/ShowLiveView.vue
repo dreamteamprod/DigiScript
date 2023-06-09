@@ -128,6 +128,8 @@ export default {
       assignedLastLine: false,
       currentLine: null,
       previousLine: null,
+      currentMinLoadedPage: null,
+      fullLoad: false,
     };
   },
   async mounted() {
@@ -151,10 +153,45 @@ export default {
       this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
       window.addEventListener('resize', debounce(this.computeContentSize, 100));
 
-      await this.loadNextPage();
-      this.initialLoad = true;
-      await this.$nextTick();
-      this.computeScriptBoundaries();
+      if (this.isScriptFollowing || this.isScriptLeader) {
+        if (this.CURRENT_SHOW_SESSION.latest_line_ref != null) {
+          const loadCurrentPage = parseInt(this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1], 10);
+          this.currentMinLoadedPage = Math.max(0, loadCurrentPage - this.pageBatchSize - 1);
+          this.currentLoadedPage = this.currentMinLoadedPage;
+          for (let loadIndex = this.currentMinLoadedPage;
+            loadIndex < loadCurrentPage + this.pageBatchSize; loadIndex++) {
+            // eslint-disable-next-line no-await-in-loop
+            await this.loadNextPage();
+          }
+          this.currentMinLoadedPage += 1;
+          this.currentFirstPage = loadCurrentPage;
+          this.currentLastPage = loadCurrentPage;
+
+          await this.$nextTick();
+          this.initialLoad = true;
+          await this.$nextTick();
+          this.computeScriptBoundaries();
+          document.getElementById(this.CURRENT_SHOW_SESSION.latest_line_ref).scrollIntoView({
+            behavior: 'instant',
+          });
+          await this.$nextTick();
+          this.computeScriptBoundaries();
+        } else {
+          this.currentMinLoadedPage = 1;
+          await this.loadNextPage();
+          this.initialLoad = true;
+          await this.$nextTick();
+          this.computeScriptBoundaries();
+        }
+      } else {
+        this.currentMinLoadedPage = 1;
+        await this.loadNextPage();
+        this.initialLoad = true;
+        await this.$nextTick();
+        this.computeScriptBoundaries();
+      }
+
+      this.fullLoad = true;
     }
   },
   destroyed() {
@@ -266,13 +303,24 @@ export default {
       }
       await this.$nextTick();
     },
-    handleFirstLineChange(firstPage, lineIndex, previousLine) {
-      this.previousFirstPage = firstPage;
+    async handleFirstLineChange(firstPage, lineIndex, previousLine) {
+      this.previousFirstPage = this.currentFirstPage;
       this.currentFirstPage = firstPage;
       this.previousLine = previousLine;
       this.currentLine = `page_${firstPage}_line_${lineIndex}`;
 
-      if (this.isScriptLeader) {
+      const cutoffPage = firstPage - this.pageBatchSize;
+      if (this.currentMinLoadedPage > cutoffPage) {
+        for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
+          if (this.currentMinLoadedPage > 1) {
+            this.currentMinLoadedPage -= 1;
+            // eslint-disable-next-line no-await-in-loop
+            await this.LOAD_SCRIPT_PAGE(this.currentMinLoadedPage);
+          }
+        }
+      }
+
+      if (this.isScriptLeader && this.fullLoad) {
         this.$socket.sendObj({
           OP: 'SCRIPT_SCROLL',
           DATA: {
@@ -360,8 +408,10 @@ export default {
           scrollToLine = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
         }
         if (scrollToLine != null) {
+          $('.script-item').removeClass('current-line');
+          $(`#${scrollToLine.id}`).addClass('current-line');
           scrollToLine.scrollIntoView({
-            behavior: 'smooth',
+            behavior: 'instant',
           });
         }
       }
@@ -396,5 +446,9 @@ export default {
     border-top: .1rem solid #3498db;
     padding-top: .5rem;
     padding-bottom: .1rem;
+  }
+
+  .first-script-element {
+    background: #3498db;
   }
 </style>
