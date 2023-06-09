@@ -55,8 +55,8 @@ class StaticController(BaseController):
         except UnicodeDecodeError:
             with open(full_path, 'rb') as file:
                 self.write(file.read())
-        except Exception:
-            raise HTTPError(500)
+        except Exception as exc:
+            raise HTTPError(500) from exc
 
 
 class ApiFallback(BaseAPIController):
