@@ -165,3 +165,4 @@ class ShowSessionSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = ShowSession
         load_instance = True
+        include_fk = True

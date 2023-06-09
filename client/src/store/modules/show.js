@@ -419,6 +419,11 @@ export default {
         log.error('Unable to get show sessions');
       }
     },
+    async ELECTED_LEADER(context, payload) {
+      Vue.$toast.info('You are now leader of the script - other clients will follow your view', {
+        duration: 0,
+      });
+    },
   },
   getters: {
     CAST_LIST(state) {
