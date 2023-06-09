@@ -108,12 +108,12 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                         session.flush()
                         next_session: Session = session.query(Session).filter(Session.user_id == live_session.user_id).first()
                         if next_session:
-                            live_session.client_internal_id = next_session.internal_id
-                            live_session.last_client_internal_id = None
                             next_ws = self.application.get_ws(next_session.internal_id)
                             if not next_ws:
                                 get_logger().error('Unable to elect new leader of live session')
                             else:
+                                live_session.client_internal_id = next_session.internal_id
+                                live_session.last_client_internal_id = None
                                 next_ws.write_message({
                                     'OP': 'NOOP',
                                     'ACTION': 'ELECTED_LEADER',
