@@ -321,6 +321,8 @@ export default {
       }
 
       if (this.isScriptLeader && this.fullLoad) {
+        $('.script-item').removeClass('current-line');
+        $(`#${this.currentLine}`).addClass('current-line');
         this.$socket.sendObj({
           OP: 'SCRIPT_SCROLL',
           DATA: {
@@ -409,7 +411,7 @@ export default {
         }
         if (scrollToLine != null) {
           $('.script-item').removeClass('current-line');
-          $(`#${scrollToLine.id}`).addClass('current-line');
+          $(`#${this.SESSION_FOLLOW_DATA.current_line}`).addClass('current-line');
           scrollToLine.scrollIntoView({
             behavior: 'instant',
           });
@@ -448,7 +450,7 @@ export default {
     padding-bottom: .1rem;
   }
 
-  .first-script-element {
-    background: #3498db;
+  .current-line {
+    background: #3498db54;
   }
 </style>
