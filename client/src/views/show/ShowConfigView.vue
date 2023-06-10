@@ -14,7 +14,7 @@
               variant="outline-info"
               exact-active-class="active"
             >
-              Configure Show
+              Show
             </b-button>
             <b-button
               replace
@@ -22,7 +22,7 @@
               variant="outline-info"
               active-class="active"
             >
-              Configure Cast
+              Cast
             </b-button>
             <b-button
               replace
@@ -30,7 +30,7 @@
               variant="outline-info"
               active-class="active"
             >
-              Configure Characters
+              Characters
             </b-button>
             <b-button
               replace
@@ -38,7 +38,7 @@
               variant="outline-info"
               active-class="active"
             >
-              Configure Character Groups
+              Character Groups
             </b-button>
             <b-button
               replace
@@ -46,7 +46,7 @@
               variant="outline-info"
               active-class="active"
             >
-              Configure Acts
+              Acts
             </b-button>
             <b-button
               replace
@@ -54,7 +54,7 @@
               variant="outline-info"
               active-class="active"
             >
-              Configure Scenes
+              Scenes
             </b-button>
             <b-button
               replace
@@ -62,7 +62,7 @@
               variant="outline-info"
               active-class="active"
             >
-              Configure Script
+              Script
             </b-button>
             <b-button
               replace
@@ -70,7 +70,7 @@
               variant="outline-info"
               active-class="active"
             >
-              Configure Cues
+              Cues
             </b-button>
             <b-button
               replace
