@@ -2,10 +2,10 @@ from typing import List
 
 from tornado import escape
 
-from models.mics import Microphone
-from models.show import Show
+from models.mics import Microphone, MicrophoneAllocation
+from models.show import Show, Scene, Character
 from rbac.role import Role
-from schemas.schemas import MicrophoneSchema
+from schemas.schemas import MicrophoneSchema, MicrophoneAllocationSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiVersion, ApiRoute
 from utils.web.web_decorators import requires_show, no_live_session
@@ -23,11 +23,11 @@ class MicrophoneController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                scenes: List[Microphone] = session.query(Microphone).filter(
+                mics: List[Microphone] = session.query(Microphone).filter(
                     Microphone.show_id == show.id).all()
-                scenes = [mic_schema.dump(c) for c in scenes]
+                mics = [mic_schema.dump(c) for c in mics]
                 self.set_status(200)
-                self.finish({'microphones': scenes})
+                self.finish({'microphones': mics})
             else:
                 self.set_status(404)
                 self.finish({'message': '404 show not found'})
@@ -160,3 +160,86 @@ class MicrophoneController(BaseAPIController):
             else:
                 self.set_status(404)
                 await self.finish({'message': '404 microphone not found'})
+
+
+@ApiRoute('show/microphones/allocations', ApiVersion.V1)
+class MicrophoneAllocationsController(BaseAPIController):
+
+    @requires_show
+    def get(self):
+        current_show = self.get_current_show()
+        show_id = current_show['id']
+        allocation_schema = MicrophoneAllocationSchema()
+
+        with self.make_session() as session:
+            show = session.query(Show).get(show_id)
+            if show:
+                mics: List[Microphone] = session.query(Microphone).filter(
+                    Microphone.show_id == show.id).all()
+
+                allocations = {}
+                for mic in mics:
+                    allocations[mic.id] = [allocation_schema.dump(alloc) for
+                                           alloc in mic.allocations]
+
+                self.set_status(200)
+                self.finish({'allocations': allocations})
+            else:
+                self.set_status(404)
+                self.finish({'message': '404 show not found'})
+
+    @requires_show
+    @no_live_session
+    async def patch(self):
+        current_show = self.get_current_show()
+        show_id = current_show['id']
+
+        with self.make_session() as session:
+            show: Show = session.query(Show).get(show_id)
+            if show:
+                self.requires_role(show, Role.WRITE)
+                data = escape.json_decode(self.request.body)
+
+                for microphone_id in data:
+                    mic = session.query(Microphone).get(microphone_id)
+                    if not mic:
+                        self.set_status(404)
+                        await self.finish({'message': '404 microphone not found'})
+                        return
+
+                    for scene_id in data[microphone_id]:
+                        scene = session.query(Scene).get(scene_id)
+                        if not scene:
+                            self.set_status(404)
+                            await self.finish({'message': '404 scene not found'})
+                            return
+
+                        existing_allocation: MicrophoneAllocation = session.query(
+                            MicrophoneAllocation).filter(
+                            MicrophoneAllocation.scene_id == scene.id,
+                            MicrophoneAllocation.mic_id == mic.id).first()
+
+                        character_id = data[microphone_id][scene_id]
+                        if character_id:
+                            character = session.query(Character).get(character_id)
+                            if not character:
+                                self.set_status(404)
+                                await self.finish({'message': '404 character not found'})
+                                return
+
+                            if existing_allocation:
+                                existing_allocation.character_id = character.id
+                            else:
+                                session.add(MicrophoneAllocation(
+                                    mic_id=mic.id,
+                                    scene_id=scene.id,
+                                    character_id=character.id)
+                                )
+                        elif existing_allocation:
+                            session.delete(existing_allocation)
+
+                        session.flush()
+                await self.application.ws_send_to_all('NOOP', 'GET_MIC_ALLOCATIONS', {})
+            else:
+                self.set_status(404)
+                await self.finish({'message': '404 show not found'})

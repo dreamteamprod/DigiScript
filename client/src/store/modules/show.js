@@ -15,6 +15,7 @@ export default {
     currentSession: null,
     sessionFollowData: {},
     microphones: [],
+    micAllocations: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -52,6 +53,9 @@ export default {
     },
     SET_MIC_LIST(state, micList) {
       state.microphones = micList;
+    },
+    SET_MIC_ALLOCATIONS_LIST(state, micAllocations) {
+      state.micAllocations = micAllocations;
     },
   },
   actions: {
@@ -498,6 +502,31 @@ export default {
         Vue.$toast.error('Unable to edit microphone');
       }
     },
+    async GET_MIC_ALLOCATIONS(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones/allocations')}`);
+      if (response.ok) {
+        const micAllocs = await response.json();
+        context.commit('SET_MIC_ALLOCATIONS_LIST', micAllocs.allocations);
+      } else {
+        log.error('Unable to get microphone allocations');
+      }
+    },
+    async UPDATE_MIC_ALLOCATIONS(context, allocations) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones/allocations')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(allocations),
+      });
+      if (response.ok) {
+        context.dispatch('GET_MIC_ALLOCATIONS');
+        Vue.$toast.success('Updated microphone allocations!');
+      } else {
+        log.error('Unable to edit microphone allocations');
+        Vue.$toast.error('Unable to edit microphone allocations');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -505,6 +534,19 @@ export default {
     },
     CHARACTER_LIST(state) {
       return state.characterList;
+    },
+    CHARACTER_DICT(state) {
+      return Object.fromEntries(state.characterList.map((character) => [character.id, character]));
+    },
+    CHARACTER_BY_ID: (state, getters) => (characterId) => {
+      if (characterId == null) {
+        return null;
+      }
+      const characterStr = characterId.toString();
+      if (Object.keys(getters.CHARACTER_DICT).includes(characterStr)) {
+        return getters.CHARACTER_DICT[characterStr];
+      }
+      return null;
     },
     CHARACTER_GROUP_LIST(state) {
       return state.characterGroupList;
@@ -555,6 +597,9 @@ export default {
     },
     MICROPHONES(state) {
       return state.microphones;
+    },
+    MIC_ALLOCATIONS(state) {
+      return state.micAllocations;
     },
   }
   ,
