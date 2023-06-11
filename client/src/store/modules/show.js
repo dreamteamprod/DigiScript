@@ -14,6 +14,7 @@ export default {
     sessions: [],
     currentSession: null,
     sessionFollowData: {},
+    microphones: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -48,6 +49,9 @@ export default {
     },
     SET_SESSION_FOLLOW_DATA(state, data) {
       state.sessionFollowData = data;
+    },
+    SET_MIC_LIST(state, micList) {
+      state.microphones = micList;
     },
   },
   actions: {
@@ -437,6 +441,63 @@ export default {
     SCRIPT_SCROLL(context, payload) {
       context.commit('SET_SESSION_FOLLOW_DATA', payload.DATA);
     },
+    async GET_MICROPHONE_LIST(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`);
+      if (response.ok) {
+        const mics = await response.json();
+        context.commit('SET_MIC_LIST', mics.microphones);
+      } else {
+        log.error('Unable to get microphone list');
+      }
+    },
+    async ADD_MICROPHONE(context, microphone) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(microphone),
+      });
+      if (response.ok) {
+        context.dispatch('GET_MICROPHONE_LIST');
+        Vue.$toast.success('Added new microphone!');
+      } else {
+        log.error('Unable to add new microphone');
+        Vue.$toast.error('Unable to add new microphone');
+      }
+    },
+    async DELETE_MICROPHONE(context, microphoneId) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: microphoneId }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_MICROPHONE_LIST');
+        Vue.$toast.success('Deleted microphone!');
+      } else {
+        log.error('Unable to delete microphone');
+        Vue.$toast.error('Unable to delete microphone');
+      }
+    },
+    async UPDATE_MICROPHONE(context, microphone) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(microphone),
+      });
+      if (response.ok) {
+        context.dispatch('GET_MICROPHONE_LIST');
+        Vue.$toast.success('Updated microphone!');
+      } else {
+        log.error('Unable to edit microphone');
+        Vue.$toast.error('Unable to edit microphone');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -491,6 +552,9 @@ export default {
     },
     SESSION_FOLLOW_DATA(state) {
       return state.sessionFollowData;
+    },
+    MICROPHONES(state) {
+      return state.microphones;
     },
   }
   ,
