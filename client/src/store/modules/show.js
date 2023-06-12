@@ -14,6 +14,8 @@ export default {
     sessions: [],
     currentSession: null,
     sessionFollowData: {},
+    microphones: [],
+    micAllocations: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -48,6 +50,12 @@ export default {
     },
     SET_SESSION_FOLLOW_DATA(state, data) {
       state.sessionFollowData = data;
+    },
+    SET_MIC_LIST(state, micList) {
+      state.microphones = micList;
+    },
+    SET_MIC_ALLOCATIONS_LIST(state, micAllocations) {
+      state.micAllocations = micAllocations;
     },
   },
   actions: {
@@ -437,6 +445,88 @@ export default {
     SCRIPT_SCROLL(context, payload) {
       context.commit('SET_SESSION_FOLLOW_DATA', payload.DATA);
     },
+    async GET_MICROPHONE_LIST(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`);
+      if (response.ok) {
+        const mics = await response.json();
+        context.commit('SET_MIC_LIST', mics.microphones);
+      } else {
+        log.error('Unable to get microphone list');
+      }
+    },
+    async ADD_MICROPHONE(context, microphone) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(microphone),
+      });
+      if (response.ok) {
+        context.dispatch('GET_MICROPHONE_LIST');
+        Vue.$toast.success('Added new microphone!');
+      } else {
+        log.error('Unable to add new microphone');
+        Vue.$toast.error('Unable to add new microphone');
+      }
+    },
+    async DELETE_MICROPHONE(context, microphoneId) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: microphoneId }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_MICROPHONE_LIST');
+        Vue.$toast.success('Deleted microphone!');
+      } else {
+        log.error('Unable to delete microphone');
+        Vue.$toast.error('Unable to delete microphone');
+      }
+    },
+    async UPDATE_MICROPHONE(context, microphone) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(microphone),
+      });
+      if (response.ok) {
+        context.dispatch('GET_MICROPHONE_LIST');
+        Vue.$toast.success('Updated microphone!');
+      } else {
+        log.error('Unable to edit microphone');
+        Vue.$toast.error('Unable to edit microphone');
+      }
+    },
+    async GET_MIC_ALLOCATIONS(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones/allocations')}`);
+      if (response.ok) {
+        const micAllocs = await response.json();
+        context.commit('SET_MIC_ALLOCATIONS_LIST', micAllocs.allocations);
+      } else {
+        log.error('Unable to get microphone allocations');
+      }
+    },
+    async UPDATE_MIC_ALLOCATIONS(context, allocations) {
+      const response = await fetch(`${makeURL('/api/v1/show/microphones/allocations')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(allocations),
+      });
+      if (response.ok) {
+        context.dispatch('GET_MIC_ALLOCATIONS');
+        Vue.$toast.success('Updated microphone allocations!');
+      } else {
+        log.error('Unable to edit microphone allocations');
+        Vue.$toast.error('Unable to edit microphone allocations');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -444,6 +534,19 @@ export default {
     },
     CHARACTER_LIST(state) {
       return state.characterList;
+    },
+    CHARACTER_DICT(state) {
+      return Object.fromEntries(state.characterList.map((character) => [character.id, character]));
+    },
+    CHARACTER_BY_ID: (state, getters) => (characterId) => {
+      if (characterId == null) {
+        return null;
+      }
+      const characterStr = characterId.toString();
+      if (Object.keys(getters.CHARACTER_DICT).includes(characterStr)) {
+        return getters.CHARACTER_DICT[characterStr];
+      }
+      return null;
     },
     CHARACTER_GROUP_LIST(state) {
       return state.characterGroupList;
@@ -491,6 +594,12 @@ export default {
     },
     SESSION_FOLLOW_DATA(state) {
       return state.sessionFollowData;
+    },
+    MICROPHONES(state) {
+      return state.microphones;
+    },
+    MIC_ALLOCATIONS(state) {
+      return state.micAllocations;
     },
   }
   ,
