@@ -74,6 +74,14 @@
             </b-button>
             <b-button
               replace
+              :to="{'name': 'show-config-mics'}"
+              variant="outline-info"
+              active-class="active"
+            >
+              Mics
+            </b-button>
+            <b-button
+              replace
               :to="{'name': 'show-sessions'}"
               variant="outline-info"
               active-class="active"

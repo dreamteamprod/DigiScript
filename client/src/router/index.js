@@ -60,6 +60,11 @@ const routes = [
         component: () => import('../views/show/config/ConfigCues.vue'),
       },
       {
+        name: 'show-config-mics',
+        path: 'mics',
+        component: () => import('../views/show/config/ConfigMics.vue'),
+      },
+      {
         name: 'show-config-script',
         path: 'script',
         component: () => import('../views/show/config/ConfigScript.vue'),
