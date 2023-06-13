@@ -598,6 +598,19 @@ export default {
     MICROPHONES(state) {
       return state.microphones;
     },
+    MICROPHONE_DICT(state) {
+      return Object.fromEntries(state.microphones.map((mic) => [mic.id, mic]));
+    },
+    MICROPHONE_BY_ID: (state, getters) => (micId) => {
+      if (micId == null) {
+        return null;
+      }
+      const micStr = micId.toString();
+      if (Object.keys(getters.MICROPHONE_DICT).includes(micStr)) {
+        return getters.MICROPHONE_DICT[micStr];
+      }
+      return null;
+    },
     MIC_ALLOCATIONS(state) {
       return state.micAllocations;
     },
