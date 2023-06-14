@@ -98,3 +98,17 @@ class ScriptLinePart(db.Model):
                                         cascade='all, delete-orphan'))
     character = relationship('Character', uselist=False)
     character_group = relationship('CharacterGroup', uselist=False)
+
+
+class ScriptCuts(db.Model):
+    __tablename__ = 'script_line_cuts'
+
+    line_part_id = Column(Integer, ForeignKey('script_line_parts.id'), primary_key=True, index=True)
+    revision_id = Column(Integer, ForeignKey('script_revisions.id'), primary_key=True, index=True)
+
+    line_part = relationship('ScriptLinePart', uselist=False, foreign_keys=[line_part_id],
+                             backref=backref('line_part_cuts', uselist=False,
+                                             cascade='all, delete-orphan'))
+    revision = relationship('ScriptRevision', uselist=False, foreign_keys=[revision_id],
+                            backref=backref('line_part_cuts', uselist=True,
+                                            cascade='all, delete-orphan'))
