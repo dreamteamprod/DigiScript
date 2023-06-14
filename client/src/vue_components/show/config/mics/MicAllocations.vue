@@ -16,83 +16,109 @@
             v-model="selectedMic"
             name="act-input"
             :options="micOptions"
+            :disabled="!editMode"
           />
         </b-form-group>
       </b-col>
       <b-col
         cols="3"
       >
-        <b-button
-          :disabled="!needsSaving || saving"
-          variant="success"
-          @click.stop="saveAllocations"
-        >
-          Save
-        </b-button>
+        <b-button-group>
+          <b-button
+            :disabled="needsSaving || saving"
+            variant="primary"
+            @click.stop="editMode = !editMode"
+          >
+            <span v-if="editMode">
+              View
+            </span>
+            <span v-else>
+              Edit
+            </span>
+          </b-button>
+          <b-button
+            :disabled="!needsSaving || saving || editMode"
+            variant="success"
+            @click.stop="saveAllocations"
+          >
+            Save
+          </b-button>
+        </b-button-group>
       </b-col>
     </b-row>
     <b-row>
-      <b-col>
-        <b-table
-          v-if="sortedScenes.length > 0"
-          :items="tableData"
-          :fields="tableFields"
-          responsive
-          show-empty
-          sticky-header="65vh"
-        >
-          <template #thead-top="data">
-            <b-tr>
-              <b-th colspan="1">
-                <span class="sr-only">Character</span>
-              </b-th>
-              <template v-for="act in sortedActs">
-                <b-th
-                  v-if="numScenesPerAct(act.id) > 0"
-                  :key="act.id"
-                  variant="primary"
-                  :colspan="numScenesPerAct(act.id)"
-                  class="act-header"
-                >
-                  {{ act.name }}
+      <b-col id="allocations-table">
+        <template v-if="sortedScenes.length > 0">
+          <b-table
+            :items="tableData"
+            :fields="tableFields"
+            responsive
+            show-empty
+            sticky-header="65vh"
+          >
+            <template #thead-top="data">
+              <b-tr>
+                <b-th colspan="1">
+                  <span class="sr-only">Character</span>
                 </b-th>
+                <template v-for="act in sortedActs">
+                  <b-th
+                    v-if="numScenesPerAct(act.id) > 0"
+                    :key="act.id"
+                    variant="primary"
+                    :colspan="numScenesPerAct(act.id)"
+                    class="act-header"
+                  >
+                    {{ act.name }}
+                  </b-th>
+                </template>
+              </b-tr>
+            </template>
+            <template
+              v-for="scene in sortedScenes"
+              #[getHeaderName(scene.id)]="data"
+            >
+              {{ scene.name }}
+            </template>
+            <template #cell(Character)="data">
+              {{ CHARACTER_BY_ID(data.item.Character).name }}
+            </template>
+            <template
+              v-for="scene in sortedScenes"
+              #[getCellName(scene.id)]="data"
+            >
+              <template v-if="editMode">
+                <span
+                  v-if="selectedMic == null"
+                  :key="scene.id"
+                >
+                  N/A
+                </span>
+                <b-button
+                  v-else
+                  :key="scene.id"
+                  squared
+                  :disabled="micDisabledForCharacter(selectedMic, scene.id, data.item.Character)"
+                  @click.stop="toggleAllocation(selectedMic, scene.id, data.item.Character)"
+                >
+                  <b-icon-check-circle
+                    v-if="internalState[selectedMic][scene.id] === data.item.Character"
+                    variant="success"
+                  />
+                  <b-icon-x-circle v-else />
+                </b-button>
               </template>
-            </b-tr>
-          </template>
-          <template
-            v-for="scene in sortedScenes"
-            #[getHeaderName(scene.id)]="data"
-          >
-            {{ scene.name }}
-          </template>
-          <template #cell(Character)="data">
-            {{ CHARACTER_BY_ID(data.item.Character).name }}
-          </template>
-          <template
-            v-for="scene in sortedScenes"
-            #[getCellName(scene.id)]="data"
-          >
-            <span
-              v-if="selectedMic == null"
-              :key="scene.id"
-            >
-              N/A
-            </span>
-            <b-button
-              v-else
-              :key="scene.id"
-              squared
-              :disabled="micDisabledForCharacter(selectedMic, scene.id, data.item.Character)"
-              @click.stop="toggleAllocation(selectedMic, scene.id, data.item.Character)"
-            >
-              <b-icon-check-circle
-                v-if="internalState[selectedMic][scene.id] === data.item.Character"
-                variant="success"
-              />
-              <b-icon-x-circle v-else />
-            </b-button>
-          </template>
-        </b-table>
+              <template v-else>
+                <span
+                  v-if="allocationByCharacter[data.item.Character][scene.id] != null"
+                  :key="scene.id"
+                >
+                  {{ allocationByCharacter[data.item.Character][scene.id] }}
+                </span>
+              </template>
+            </template>
+          </b-table>
+        </template>
         <b v-else>Unable to get mic allocations. Ensure act and scene ordering is set.</b>
       </b-col>
     </b-row>
@@ -111,6 +137,7 @@ export default {
       internalState: {},
       loaded: false,
       saving: false,
+      editMode: true,
     };
   },
   async mounted() {
@@ -252,8 +279,26 @@ export default {
     needsSaving() {
       return Object.keys(this.changes).length > 0;
     },
+    allocationByCharacter() {
+      const charData = {};
+      this.CHARACTER_LIST.map((character) => (character.id)).forEach((characterId) => {
+        const sceneData = {};
+        this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
+          sceneData[sceneId] = null;
+        });
+        charData[characterId] = sceneData;
+      }, this);
+      Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
+        this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
+          if (this.allAllocations[micId][sceneId] != null) {
+            charData[this.allAllocations[micId][sceneId]][sceneId] = this.MICROPHONE_BY_ID(micId).name;
+          }
+        }, this);
+      }, this);
+      return charData;
+    },
     ...mapGetters(['MICROPHONES', 'CURRENT_SHOW', 'ACT_BY_ID', 'SCENE_BY_ID', 'CHARACTER_LIST',
-      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS']),
+      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID']),
   },
 };
 </script>
