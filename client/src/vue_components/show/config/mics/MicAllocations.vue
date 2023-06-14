@@ -291,7 +291,8 @@ export default {
       Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
         this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
           if (this.allAllocations[micId][sceneId] != null) {
-            charData[this.allAllocations[micId][sceneId]][sceneId] = this.MICROPHONE_BY_ID(micId).name;
+            charData[this.allAllocations[micId][sceneId]][
+              sceneId] = this.MICROPHONE_BY_ID(micId).name;
           }
         }, this);
       }, this);
