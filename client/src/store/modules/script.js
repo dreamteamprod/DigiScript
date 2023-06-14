@@ -98,6 +98,8 @@ export default {
         await context.dispatch('LOAD_SCRIPT_PAGE', page);
         await context.dispatch('ADD_BLANK_PAGE', page);
       }
+      await context.dispatch('LOAD_CUES');
+      await context.dispatch('GET_CUTS');
       /* eslint-enable no-await-in-loop, no-restricted-syntax */
     },
     async LOAD_SCRIPT_PAGE(context, page) {
