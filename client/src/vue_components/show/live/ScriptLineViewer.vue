@@ -71,7 +71,10 @@
               :key="`line_${lineIndex}_part_${index}`"
               style="text-align: center"
             >
-              <p class="viewable-line">
+              <p
+                class="viewable-line"
+                :class="{'cut-line-part': cuts.indexOf(part.id) !== -1}"
+              >
                 {{ part.line_text }}
               </p>
             </b-col>
@@ -120,6 +123,10 @@ export default {
     },
     cues: {
       required: true,
+    },
+    cuts: {
+      required: true,
+      type: Array,
     },
   },
   data() {
@@ -252,5 +259,8 @@ export default {
   }
   .heading-padding {
     margin-top: .5rem;
+  }
+  .cut-line-part {
+    text-decoration: line-through;
   }
 </style>
