@@ -12,6 +12,7 @@ export default {
       canRequestEdit: false,
       currentEditor: null,
     },
+    cutMode: false,
   },
   mutations: {
     SET_EDIT_STATUS(state, editStatus) {
@@ -51,10 +52,15 @@ export default {
     EMPTY_SCRIPT(state) {
       state.tmpScript = {};
     },
+    SET_CUT_MODE(state, cutMode) {
+      state.cutMode = cutMode;
+    },
   },
   actions: {
     REQUEST_EDIT_FAILURE(context) {
       Vue.$toast.error('Unable to edit script');
+      context.dispatch('GET_SCRIPT_CONFIG_STATUS');
+      context.commit('SET_CUT_MODE', false);
     },
     async GET_SCRIPT_CONFIG_STATUS(context) {
       const response = await fetch(`${makeURL('/api/v1/show/script/config')}`);
@@ -142,6 +148,9 @@ export default {
     },
     CURRENT_EDITOR(state) {
       return state.editStatus.currentEditor;
+    },
+    IS_CUT_MODE(state) {
+      return state.cutMode;
     },
   },
 };

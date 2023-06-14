@@ -47,9 +47,21 @@
             :key="`line_${lineIndex}_part_${index}`"
             style="text-align: center"
           >
-            <p class="viewable-line">
+            <p
+              v-if="(canEdit && !IS_CUT_MODE) || !canEdit"
+              class="viewable-line"
+              :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"
+            >
               {{ part.line_text }}
             </p>
+            <a
+              v-else
+              class="viewable-line-cut"
+              :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"
+              @click.stop="cutLinePart(index)"
+            >
+              {{ part.line_text }}
+            </a>
           </b-col>
         </b-row>
       </b-col>
@@ -67,7 +79,7 @@
       align-self="end"
     >
       <b-button
-        v-show="canEdit"
+        v-show="canEdit && !IS_CUT_MODE"
         variant="link"
         style="padding: 0"
         @click.stop="editLine"
@@ -79,9 +91,11 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
+
 export default {
   name: 'ScriptLineViewer',
-  events: ['editLine'],
+  events: ['editLine', 'cutLinePart'],
   props: {
     line: {
       required: true,
@@ -112,6 +126,10 @@ export default {
     canEdit: {
       required: true,
       type: Boolean,
+    },
+    linePartCuts: {
+      required: true,
+      type: Array,
     },
   },
   computed: {
@@ -163,10 +181,21 @@ export default {
     sceneLabel() {
       return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
     },
+    ...mapGetters(['IS_CUT_MODE']),
   },
   methods: {
     editLine() {
       this.$emit('editLine');
+    },
+    cutLinePart(partIndex) {
+      if (partIndex < this.line.line_parts.length && this.line.line_parts[partIndex] != null) {
+        const linePart = this.line.line_parts[partIndex];
+        if (linePart.id != null && linePart.line_id != null) {
+          this.$emit('cutLinePart', linePart.id);
+          return;
+        }
+      }
+      this.$toast.error('Unable to cut line part');
     },
   },
 };
@@ -176,11 +205,18 @@ export default {
 .viewable-line {
   margin: 0;
 }
+.viewable-line-cut {
+  margin: 0;
+  cursor: pointer;
+}
 .stage-direction {
   margin-top: 1rem;
   margin-bottom: 1rem;
 }
 .heading-padding {
   margin-top: .5rem;
+}
+.cut-line-part {
+  text-decoration: line-through;
 }
 </style>
