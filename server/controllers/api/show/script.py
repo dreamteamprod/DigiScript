@@ -6,11 +6,11 @@ from tornado import escape
 
 from models.cue import CueAssociation
 from models.script import (Script, ScriptRevision, ScriptLine, ScriptLineRevisionAssociation,
-                           ScriptLinePart)
+                           ScriptLinePart, ScriptCuts)
 from models.show import Show
 from models.session import Session
 from rbac.role import Role
-from schemas.schemas import ScriptRevisionsSchema, ScriptLineSchema
+from schemas.schemas import ScriptRevisionsSchema, ScriptLineSchema, ScriptCutsSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.web_decorators import requires_show, no_live_session
 from utils.web.route import ApiRoute, ApiVersion
@@ -123,6 +123,11 @@ class ScriptRevisionsController(BaseAPIController):
                         revision_id=new_rev.id,
                         line_id=cue_association.line_id,
                         cue_id=cue_association.cue_id
+                    ))
+                for cut_association in current_rev.line_part_cuts:
+                    new_rev.line_part_cuts.append(ScriptCuts(
+                        revision_id=new_rev.id,
+                        line_part_id=cut_association.line_part_id,
                     ))
 
                 script.current_revision = new_rev.id
@@ -682,6 +687,92 @@ class ScriptController(BaseAPIController):
                 self.set_status(404)
                 await self.finish({'message': '404 show not found'})
                 return
+
+
+@ApiRoute('/show/script/cuts', ApiVersion.V1)
+class ScriptCutsController(BaseAPIController):
+
+    @requires_show
+    def get(self):
+        current_show = self.get_current_show()
+        show_id = current_show['id']
+
+        with self.make_session() as session:
+            show = session.query(Show).get(show_id)
+            if show:
+                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+
+                if script.current_revision:
+                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                        script.current_revision)
+                else:
+                    self.set_status(400)
+                    self.finish({'message': 'Script does not have a current revision'})
+                    return
+
+                line_cuts = session.query(ScriptCuts).filter(
+                    ScriptCuts.revision_id == revision.id).all()
+                line_cuts = [line_cut.line_part_id for line_cut in line_cuts]
+
+                self.set_status(200)
+                self.finish({
+                    'cuts': line_cuts
+                })
+            else:
+                self.set_status(404)
+                self.finish({'message': '404 show not found'})
+                return
+
+    @requires_show
+    @no_live_session
+    def put(self):
+        current_show = self.get_current_show()
+        show_id = current_show['id']
+
+        with self.make_session() as session:
+            show = session.query(Show).get(show_id)
+            if show:
+                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                self.requires_role(script, Role.WRITE)
+
+                if script.current_revision:
+                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                        script.current_revision)
+                else:
+                    self.set_status(400)
+                    self.finish({'message': 'Script does not have a current revision'})
+                    return
+
+                request_body = escape.json_decode(self.request.body)
+
+                cuts = request_body.get('cuts', None)
+                if cuts is None:
+                    self.set_status(400)
+                    self.finish({
+                        'message': 'Malformed request body, could not find `cuts` data'
+                    })
+                    return
+
+                line_cuts: List[ScriptCuts] = session.query(ScriptCuts).filter(
+                    ScriptCuts.revision_id == revision.id).all()
+
+                # Remove any cuts not in the list
+                existing_cuts = []
+                for cut in line_cuts:
+                    if cut.line_part_id not in cuts:
+                        session.delete(cut)
+                    else:
+                        existing_cuts.append(cut.line_part_id)
+
+                # Add new cuts
+                cuts_to_add = [cut for cut in cuts if cut not in existing_cuts]
+                for cut in cuts_to_add:
+                    session.add(ScriptCuts(
+                        line_part_id=cut,
+                        revision_id=revision.id,
+                    ))
+
+                session.commit()
 
 
 @ApiRoute('/show/script/max_page', ApiVersion.V1)
