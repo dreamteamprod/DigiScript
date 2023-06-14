@@ -37,7 +37,7 @@
             </span>
           </b-button>
           <b-button
-            :disabled="!needsSaving || saving || editMode"
+            :disabled="!needsSaving || saving || !editMode"
             variant="success"
             @click.stop="saveAllocations"
           >
