@@ -192,11 +192,16 @@ export default {
       }
       return [null, null];
     },
+    isWholeLineCut(line) {
+      return line.line_parts.map((linePart) => (linePart.id))
+        .every((partId) => (this.SCRIPT_CUTS.includes(partId)), this);
+    },
   },
   computed: {
     needsHeadings() {
       let { previousLine, lineIndex } = this;
-      while (previousLine != null && previousLine.stage_direction === true) {
+      while (previousLine != null && (previousLine.stage_direction === true
+          || this.isWholeLineCut(previousLine))) {
         [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
       }
 
@@ -237,7 +242,7 @@ export default {
     sceneLabel() {
       return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
     },
-    ...mapGetters(['GET_SCRIPT_PAGE']),
+    ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS']),
   },
 };
 </script>
