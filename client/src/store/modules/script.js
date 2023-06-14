@@ -9,6 +9,7 @@ export default {
     revisions: [],
     script: {},
     cues: {},
+    cuts: [],
   },
   mutations: {
     SET_REVISIONS(state, revisions) {
@@ -22,6 +23,9 @@ export default {
     },
     SET_CUES(state, cues) {
       state.cues = cues;
+    },
+    SET_CUTS(state, cuts) {
+      state.cuts = cuts;
     },
   },
   actions: {
@@ -178,6 +182,38 @@ export default {
         Vue.$toast.error('Unable to delete cue');
       }
     },
+    async GET_CUTS(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/script/cuts')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const respJson = await response.json();
+        context.commit('SET_CUTS', respJson.cuts);
+      } else {
+        log.error('Unable to load script cuts');
+      }
+    },
+    async SAVE_SCRIPT_CUTS(context, cuts) {
+      const response = await fetch(`${makeURL('/api/v1/show/script/cuts')}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cuts,
+        }),
+      });
+      if (response.ok) {
+        await context.dispatch('GET_CUTS');
+        Vue.$toast.success('Saved script cuts!');
+      } else {
+        log.error('Unable to save script cuts');
+        Vue.$toast.error('Unable to save script cuts');
+      }
+    },
   },
   getters: {
     SCRIPT_REVISIONS(state) {
@@ -195,6 +231,9 @@ export default {
     },
     SCRIPT_CUES(state) {
       return state.cues;
+    },
+    SCRIPT_CUTS(state) {
+      return state.cuts;
     },
   },
 };

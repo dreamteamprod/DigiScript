@@ -47,7 +47,15 @@
             :disabled="!CAN_REQUEST_EDIT"
             @click="requestEdit"
           >
-            Begin Editing
+            Edit
+          </b-button>
+          <b-button
+            v-if="INTERNAL_UUID !== CURRENT_EDITOR"
+            variant="warning"
+            :disabled="!CAN_REQUEST_EDIT"
+            @click="requestCutEdit"
+          >
+            Cuts
           </b-button>
           <b-button
             v-else
@@ -59,7 +67,7 @@
           <b-button
             v-if="INTERNAL_UUID === CURRENT_EDITOR"
             variant="success"
-            :disabled="!(scriptChanges && editPages.length === 0)"
+            :disabled="!canSave"
             @click="saveScript"
           >
             Save
@@ -110,7 +118,9 @@
               :character-groups="CHARACTER_GROUP_LIST"
               :previous-line="TMP_SCRIPT[currentEditPage][index - 1]"
               :can-edit="canEdit"
+              :line-part-cuts="linePartCuts"
               @editLine="beginEditingLine(currentEditPage, index)"
+              @cutLinePart="cutLinePart"
             />
           </template>
         </template>
@@ -122,7 +132,7 @@
         class="ml-auto"
       >
         <b-button-group
-          v-show="canEdit"
+          v-show="canEdit && !IS_CUT_MODE"
           style="float: right"
         >
           <b-button
@@ -304,6 +314,7 @@ export default {
       changingPage: false,
       loaded: false,
       latestAddedLine: null,
+      linePartCuts: [],
     };
   },
   validations: {
@@ -338,6 +349,9 @@ export default {
     await this.GET_SCENE_LIST();
     await this.GET_CHARACTER_LIST();
     await this.GET_CHARACTER_GROUP_LIST();
+    // Handle script cuts
+    await this.GET_CUTS();
+    this.resetCutsToSaved();
 
     // Get the max page of the saved version of the script
     await this.getMaxScriptPage();
@@ -373,6 +387,16 @@ export default {
         DATA: {},
       });
     },
+    requestCutEdit() {
+      this.SET_CUT_MODE(true);
+      this.$socket.sendObj({
+        OP: 'REQUEST_SCRIPT_EDIT',
+        DATA: {},
+      });
+    },
+    resetCutsToSaved() {
+      this.linePartCuts = JSON.parse(JSON.stringify(this.SCRIPT_CUTS));
+    },
     async stopEditing() {
       if (this.scriptChanges) {
         const msg = 'Are you sure you want to stop editing the script? '
@@ -384,10 +408,12 @@ export default {
       }
       this.editPages = [];
       this.RESET_TO_SAVED(this.currentEditPage);
+      this.resetCutsToSaved();
       this.$socket.sendObj({
         OP: 'STOP_SCRIPT_EDIT',
         DATA: {},
       });
+      this.SET_CUT_MODE(false);
     },
     async decrPage() {
       if (this.currentEditPage > 1) {
@@ -529,42 +555,37 @@ export default {
       });
       this.doneEditingLine(pageIndex, lineIndex);
     },
+    cutLinePart(linePartId) {
+      const index = this.linePartCuts.indexOf(linePartId);
+      if (index === -1) {
+        this.linePartCuts.push(linePartId);
+      } else {
+        this.linePartCuts.splice(index, 1);
+      }
+    },
     async saveScript() {
-      if (this.scriptChanges) {
-        this.savingInProgress = true;
-        this.totalSavePages = Object.keys(this.TMP_SCRIPT).length;
-        this.curSavePage = 0;
-        this.$bvModal.show('save-script');
+      if (!this.IS_CUT_MODE) {
+        if (this.scriptChanges) {
+          this.savingInProgress = true;
+          this.totalSavePages = Object.keys(this.TMP_SCRIPT).length;
+          this.curSavePage = 0;
+          this.$bvModal.show('save-script');
 
-        const orderedPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort(
-          (a, b) => a - b,
-        );
+          const orderedPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort(
+            (a, b) => a - b,
+          );
 
-        /* eslint-disable no-await-in-loop, no-restricted-syntax */
-        for (const pageNo of orderedPages) {
-          this.curSavePage = pageNo;
-          // Check whether the page actually has any lines on it, and if not then skip
-          const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
-          if (tmpScriptPage.length !== 0) {
-            // Check the actual script to see if the page exists or not
-            const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
-            if (actualScriptPage.length === 0) {
-              // New page
-              const response = await this.SAVE_NEW_PAGE(pageNo);
-              if (response) {
-                await this.LOAD_SCRIPT_PAGE(pageNo);
-                this.ADD_BLANK_PAGE(pageNo);
-                this.RESET_DELETED(pageNo);
-              } else {
-                this.$toast.error('Unable to save script. Please try again.');
-                this.saveError = true;
-                break;
-              }
-            } else {
-              // Existing page, check if anything has changed before saving
-              const lineDiff = diff(actualScriptPage, tmpScriptPage);
-              if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0) {
-                const response = await this.SAVE_CHANGED_PAGE(pageNo);
+          /* eslint-disable no-await-in-loop, no-restricted-syntax */
+          for (const pageNo of orderedPages) {
+            this.curSavePage = pageNo;
+            // Check whether the page actually has any lines on it, and if not then skip
+            const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
+            if (tmpScriptPage.length !== 0) {
+              // Check the actual script to see if the page exists or not
+              const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
+              if (actualScriptPage.length === 0) {
+                // New page
+                const response = await this.SAVE_NEW_PAGE(pageNo);
                 if (response) {
                   await this.LOAD_SCRIPT_PAGE(pageNo);
                   this.ADD_BLANK_PAGE(pageNo);
@@ -574,16 +595,36 @@ export default {
                   this.saveError = true;
                   break;
                 }
+              } else {
+                // Existing page, check if anything has changed before saving
+                const lineDiff = diff(actualScriptPage, tmpScriptPage);
+                if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0) {
+                  const response = await this.SAVE_CHANGED_PAGE(pageNo);
+                  if (response) {
+                    await this.LOAD_SCRIPT_PAGE(pageNo);
+                    this.ADD_BLANK_PAGE(pageNo);
+                    this.RESET_DELETED(pageNo);
+                  } else {
+                    this.$toast.error('Unable to save script. Please try again.');
+                    this.saveError = true;
+                    break;
+                  }
+                }
               }
             }
           }
+          /* eslint-enable no-await-in-loop, no-restricted-syntax */
+          this.savingInProgress = false;
+        } else {
+          this.$toast.warning('No changes to save!');
         }
-        /* eslint-enable no-await-in-loop, no-restricted-syntax */
-        this.savingInProgress = false;
+        await this.getMaxScriptPage();
       } else {
-        this.$toast.warning('No changes to save!');
+        this.savingInProgress = true;
+        await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
+        this.resetCutsToSaved();
+        this.savingInProgress = false;
       }
-      await this.getMaxScriptPage();
     },
     validateDebugState(name) {
       const { $dirty, $error } = this.$v.debugFormState[name];
@@ -675,10 +716,11 @@ export default {
       }
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
     },
-    ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED']),
+    ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED',
+      'SET_CUT_MODE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE']),
+      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUTS', 'SAVE_SCRIPT_CUTS']),
   },
   computed: {
     canGenerateDebugScript() {
@@ -688,6 +730,9 @@ export default {
       return this.currentEditPage.toString();
     },
     scriptChanges() {
+      if (this.IS_CUT_MODE) {
+        return Object.keys(diff(this.SCRIPT_CUTS, this.linePartCuts)).length > 0;
+      }
       let hasChanges = false;
       Object.keys(this.TMP_SCRIPT).forEach(function (pageNo) {
         const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
@@ -706,9 +751,16 @@ export default {
     canEdit() {
       return this.INTERNAL_UUID === this.CURRENT_EDITOR;
     },
+    canSave() {
+      if (this.IS_CUT_MODE) {
+        return this.scriptChanges;
+      }
+      return (this.scriptChanges && this.editPages.length === 0);
+    },
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID']),
+      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
+      'IS_CUT_MODE', 'SCRIPT_CUTS']),
   },
   watch: {
     currentEditPage(val) {
