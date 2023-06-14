@@ -6,7 +6,7 @@ from marshmallow_sqlalchemy.fields import Nested
 from models.cue import CueType, Cue
 from models.mics import Microphone, MicrophoneAllocation
 from models.models import db
-from models.script import ScriptRevision, ScriptLine, ScriptLinePart, Script
+from models.script import ScriptRevision, ScriptLine, ScriptLinePart, Script, ScriptCuts
 from models.show import Show, Cast, Character, CharacterGroup, Act, Scene
 from models.session import Session, ShowSession
 from models.user import User
@@ -157,6 +157,14 @@ class ScriptLineSchema(SQLAlchemyAutoSchema):
 class ScriptLinePartSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = ScriptLinePart
+        load_instance = True
+        include_fk = True
+
+
+@schema
+class ScriptCutsSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = ScriptCuts
         load_instance = True
         include_fk = True
 
