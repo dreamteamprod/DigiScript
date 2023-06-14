@@ -1,6 +1,6 @@
 {
   "name": "client",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "build": "vite build",
@@ -16,7 +16,7 @@
     "bootstrap-vue": "2.23.1",
     "bootswatch": "4.6.2",
     "contrast-color": "1.0.1",
-    "core-js": "3.30.2",
+    "core-js": "3.31.0",
     "deep-object-diff": "1.1.9",
     "jquery": "3.7.0",
     "lodash": "4.17.21",
@@ -42,8 +42,8 @@
     "eslint-plugin-vue": "^9.14.1",
     "eslint-plugin-vuejs-accessibility": "1.2.0",
     "node-sass": "7.0.3",
-    "sass": "1.63.2",
-    "sass-loader": "13.3.1",
+    "sass": "1.63.4",
+    "sass-loader": "13.3.2",
     "vite": "4.3.9"
   },
   "overrides": {
