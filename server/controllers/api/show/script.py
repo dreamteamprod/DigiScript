@@ -10,7 +10,7 @@ from models.script import (Script, ScriptRevision, ScriptLine, ScriptLineRevisio
 from models.show import Show
 from models.session import Session
 from rbac.role import Role
-from schemas.schemas import ScriptRevisionsSchema, ScriptLineSchema
+from schemas.schemas import ScriptRevisionsSchema, ScriptLineSchema, ScriptCutsSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.web_decorators import requires_show, no_live_session
 from utils.web.route import ApiRoute, ApiVersion
