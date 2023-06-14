@@ -22,8 +22,11 @@ class MicrophoneAllocation(db.Model):
     character_id = Column(Integer, ForeignKey('character.id'), primary_key=True)
 
     microphone = relationship('Microphone', uselist=False,
-                              backref=backref('allocations', uselist=True))
+                              backref=backref('allocations', uselist=True,
+                                              cascade='all, delete-orphan'))
     scene = relationship('Scene', uselist=False,
-                         backref=backref('mic_allocations', uselist=True))
+                         backref=backref('mic_allocations', uselist=True,
+                                         cascade='all, delete-orphan'))
     character = relationship('Character', uselist=False,
-                             backref=backref('mic_allocations', uselist=True))
+                             backref=backref('mic_allocations', uselist=True,
+                                             cascade='all, delete-orphan'))
