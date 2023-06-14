@@ -57,6 +57,7 @@
           <template v-for="page in pageIter">
             <script-line-viewer
               v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+              v-show="!isWholeLineCut(line)"
               v-once
               :id="`page_${page}_line_${index}`"
               :key="`page_${page}_line_${index}`"
@@ -382,6 +383,10 @@ export default {
         return this.SCRIPT_CUES[line.id.toString()];
       }
       return [];
+    },
+    isWholeLineCut(line) {
+      return line.line_parts.map((linePart) => (linePart.id))
+        .every((partId) => (this.SCRIPT_CUTS.includes(partId)), this);
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
