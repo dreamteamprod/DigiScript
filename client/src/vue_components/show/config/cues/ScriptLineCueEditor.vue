@@ -24,13 +24,11 @@
             class="cue-button"
             :style="{backgroundColor: cueBackgroundColour(cue),
                      color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
-            :disabled="!canEdit"
             @click.stop="openEditForm(cue)"
           >
             {{ cueLabel(cue) }}
           </b-button>
           <b-button
-            v-if="canEdit"
             class="cue-button"
             @click.stop="openNewForm"
           >
@@ -60,7 +58,10 @@
               {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
             </b>
           </template>
-          <p class="viewable-line">
+          <p
+            class="viewable-line"
+            :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"
+          >
             {{ part.line_text }}
           </p>
         </b-col>
@@ -223,9 +224,9 @@ export default {
     cueTypes: {
       required: true,
     },
-    canEdit: {
-      type: Boolean,
+    linePartCuts: {
       required: true,
+      type: Array,
     },
   },
   data() {
@@ -414,5 +415,8 @@ export default {
   .stage-direction {
     margin-top: 1rem;
     margin-bottom: 1rem;
+  }
+  .cut-line-part {
+    text-decoration: line-through;
   }
 </style>
