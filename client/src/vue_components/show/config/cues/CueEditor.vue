@@ -31,25 +31,7 @@
           Next Page
         </b-button>
       </b-col>
-      <b-col cols="2">
-        <b-button-group>
-          <b-button
-            v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-            variant="warning"
-            :disabled="!CAN_REQUEST_EDIT"
-            @click="requestEdit"
-          >
-            Begin Editing
-          </b-button>
-          <b-button
-            v-else
-            variant="warning"
-            @click="stopEditing"
-          >
-            Stop Editing
-          </b-button>
-        </b-button-group>
-      </b-col>
+      <b-col cols="2" />
     </b-row>
     <b-row class="script-row">
       <b-col cols="3">
@@ -72,7 +54,7 @@
             :previous-line="GET_SCRIPT_PAGE(currentEditPage)[index - 1]"
             :cue-types="CUE_TYPES"
             :cues="getCuesForLine(line)"
-            :can-edit="canEdit"
+            :line-part-cuts="SCRIPT_CUTS"
           />
         </template>
       </b-col>
@@ -145,6 +127,7 @@ export default {
     await this.GET_CHARACTER_GROUP_LIST();
     await this.GET_CUE_TYPES();
     await this.LOAD_CUES();
+    await this.GET_CUTS();
 
     // Get the max page of the saved version of the script
     await this.getMaxScriptPage();
@@ -199,7 +182,8 @@ export default {
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUE_TYPES', 'LOAD_CUES']),
+      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUE_TYPES', 'LOAD_CUES',
+      'GET_CUTS']),
   },
   computed: {
     currentEditPageKey() {
@@ -211,12 +195,9 @@ export default {
       }
       return 'primary';
     },
-    canEdit() {
-      return this.INTERNAL_UUID === this.CURRENT_EDITOR;
-    },
     ...mapGetters(['CURRENT_SHOW', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'CUE_TYPES', 'SCRIPT_CUES']),
+      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'CUE_TYPES', 'SCRIPT_CUES', 'SCRIPT_CUTS']),
   },
 };
 </script>
