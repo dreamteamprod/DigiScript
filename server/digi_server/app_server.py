@@ -51,6 +51,13 @@ class DigiScriptServer(PrometheusMixIn, Application):
             session.query(Session).delete()
             session.commit()
 
+        # Check for presence of admin user, and update settings to match
+        with self._db.sessionmaker() as session:
+            any_admin = session.query(User).filter(User.is_admin).first()
+            has_admin = any_admin is not None
+            self.digi_settings.settings['has_admin_user'].set_value(has_admin, False)
+            self.digi_settings._save()
+
         # Check the show we are expecting to be loaded exists
         with self._db.sessionmaker() as session:
             current_show = self.digi_settings.settings.get('current_show').get_value()
