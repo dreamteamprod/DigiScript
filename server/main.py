@@ -29,7 +29,11 @@ async def main():
     get_logger().info(f'Listening on port: {options.port}')
     if options.debug:
         get_logger().warning('Running in debug mode')
+    await app.post_configure()
+
     await asyncio.Event().wait()
+
+    await app.shutdown()
 
 
 if __name__ == '__main__':
