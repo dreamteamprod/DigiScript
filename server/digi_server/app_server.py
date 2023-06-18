@@ -1,6 +1,9 @@
 import os
-from typing import List, Optional
+import socket
+from typing import List, Optional, Any
 
+import tornado
+from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado_prometheus import PrometheusMixIn
@@ -18,12 +21,14 @@ from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
+from digi_server.plugin_manager import PluginManager
 from utils.web.route import Route
 
 
 class DigiScriptServer(PrometheusMixIn, Application):
 
     def __init__(self, debug=False, settings_path=None):
+        self.http_server: Optional[HTTPServer] = None
         self.env_parser: EnvParser = EnvParser.instance()  # pylint: disable=no-member
 
         self.digi_settings: Settings = Settings(self, settings_path)
@@ -32,6 +37,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         # Controller imports (needed to trigger the decorator)
         controllers.import_all_controllers()
+
+        # Plugin imports (needed to trigger decorator)
+        self.plugin_manager: PluginManager = PluginManager(self)
+        self.plugin_manager.import_all_plugins()
 
         self.clients: List[WebSocketController] = []
 
@@ -101,8 +110,28 @@ class DigiScriptServer(PrometheusMixIn, Application):
             login_url='/login',
         )
 
+    def listen(self,
+               port: int,
+               address: Optional[str] = None,
+               *,
+               family: socket.AddressFamily = socket.AF_UNSPEC,
+               backlog: int = tornado.netutil._DEFAULT_BACKLOG,
+               flags: Optional[int] = None,
+               reuse_port: bool = False,
+               **kwargs: Any) -> HTTPServer:
+        self.http_server = super().listen(port, address, family=family, backlog=backlog, flags=flags,
+                                          reuse_port=reuse_port, **kwargs)
+        return self.http_server
+
     async def configure(self):
         await self._configure_logging()
+
+    async def post_configure(self):
+        await self.plugin_manager.start_default()
+
+    async def shutdown(self):
+        get_logger().warning('DigiScript shutting down - goodbye!')
+        await self.plugin_manager.shutdown()
 
     async def _configure_logging(self):
         get_logger().info('Reconfiguring logging!')
