@@ -189,7 +189,7 @@
       :no-close-on-esc="changingPage"
       @ok="goToPage"
     >
-      <b-form>
+      <b-form @submit.stop.prevent="">
         <b-form-group
           id="page-input-group"
           label="Page"
