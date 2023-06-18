@@ -4,7 +4,14 @@
     fluid
   >
     <b-row class="script-row">
-      <b-col cols="2" />
+      <b-col cols="2">
+        <b-button
+          v-b-modal.go-to-page
+          variant="success"
+        >
+          Go to Page
+        </b-button>
+      </b-col>
       <b-col
         cols="2"
         style="text-align: right"
@@ -86,6 +93,40 @@
         />
       </div>
     </b-modal>
+    <b-modal
+      id="go-to-page"
+      ref="go-to-page"
+      title="Go to Page"
+      size="sm"
+      :hide-header-close="changingPage"
+      :hide-footer="changingPage"
+      :no-close-on-backdrop="changingPage"
+      :no-close-on-esc="changingPage"
+      @ok="goToPage"
+    >
+      <b-form @submit.stop.prevent="">
+        <b-form-group
+          id="page-input-group"
+          label="Page"
+          label-for="page-input"
+          label-cols="auto"
+        >
+          <b-form-input
+            id="page-input"
+            v-model="$v.pageInputFormState.pageNo.$model"
+            name="page-input"
+            type="number"
+            :state="validatePageState('pageNo')"
+            aria-describedby="page-feedback"
+          />
+          <b-form-invalid-feedback
+            id="page-feedback"
+          >
+            This is a required field, and must be greater than 0.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
   </b-container>
 </template>
 
@@ -95,6 +136,8 @@ import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 import ScriptLineCueEditor from '@/vue_components/show/config/cues/ScriptLineCueEditor.vue';
+import { minValue, required } from 'vuelidate/lib/validators';
+import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 
 export default {
   name: 'CueEditor',
@@ -115,7 +158,21 @@ export default {
       savingInProgress: false,
       saveError: false,
       currentMaxPage: 1,
+      changingPage: false,
+      pageInputFormState: {
+        pageNo: 1,
+      },
     };
+  },
+  validations: {
+    pageInputFormState: {
+      pageNo: {
+        required,
+        notNull,
+        notNullAndGreaterThanZero,
+        minValue: minValue(1),
+      },
+    },
   },
   async beforeMount() {
     // Config status
@@ -133,8 +190,12 @@ export default {
     await this.getMaxScriptPage();
 
     // Initialisation of page data
-    await this.LOAD_SCRIPT_PAGE(this.currentEditPage);
-    await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
+    // Initialisation of page data
+    const storedPage = localStorage.getItem('cueEditPage');
+    if (storedPage != null) {
+      this.currentEditPage = parseInt(storedPage, 10);
+    }
+    await this.goToPageInner(this.currentEditPage);
   },
   methods: {
     async getMaxScriptPage() {
@@ -179,6 +240,23 @@ export default {
       }
       return [];
     },
+    validatePageState(name) {
+      const { $dirty, $error } = this.$v.pageInputFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async goToPage() {
+      this.changingPage = true;
+      await this.goToPageInner(this.pageInputFormState.pageNo);
+      this.changingPage = false;
+    },
+    async goToPageInner(pageNo) {
+      if (pageNo > 1) {
+        await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1);
+      }
+      await this.LOAD_SCRIPT_PAGE(pageNo);
+      this.currentEditPage = pageNo;
+      await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
+    },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
@@ -198,6 +276,11 @@ export default {
     ...mapGetters(['CURRENT_SHOW', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
       'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'CUE_TYPES', 'SCRIPT_CUES', 'SCRIPT_CUTS']),
+  },
+  watch: {
+    currentEditPage(val) {
+      localStorage.setItem('cueEditPage', val);
+    },
   },
 };
 </script>
