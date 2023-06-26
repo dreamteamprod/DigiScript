@@ -42,7 +42,7 @@
     "eslint-plugin-vue": "^9.14.1",
     "eslint-plugin-vuejs-accessibility": "1.2.0",
     "node-sass": "7.0.3",
-    "sass": "1.63.4",
+    "sass": "1.63.6",
     "sass-loader": "13.3.2",
     "vite": "4.3.9"
   },
