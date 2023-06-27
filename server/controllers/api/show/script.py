@@ -607,6 +607,37 @@ class ScriptController(BaseAPIController):
                         line_association, line_object = self._create_new_line(
                             session, revision, line, previous_line)
                         previous_line = line_association
+                    elif index in status['inserted']:
+                        # Validate the line
+                        valid_status, valid_reason = self._validate_line(line)
+                        if not valid_status:
+                            session.rollback()
+                            self.set_status(400)
+                            await self.finish({'message': valid_reason})
+                            return
+
+                        line_association, line_object = self._create_new_line(
+                            session, revision, line, previous_line, with_association=False)
+                        line_association = ScriptLineRevisionAssociation(
+                            revision_id=revision.id,
+                            line_id=line_object.id)
+                        line_association.previous_line = previous_line.line
+                        session.add(line_association)
+                        session.flush()
+
+                        if previous_line.next_line:
+                            next_association: ScriptLineRevisionAssociation = session.query(
+                                ScriptLineRevisionAssociation).get(
+                                {'revision_id': revision.id,
+                                 'line_id': previous_line.next_line.id})
+                            next_association.previous_line = line_object
+                            line_association.next_line = next_association.line
+
+                        previous_line.next_line = line_object
+
+                        session.flush()
+
+                        previous_line = line_association
                     elif index in status['deleted']:
                         curr_association: ScriptLineRevisionAssociation = session.query(
                             ScriptLineRevisionAssociation).get(
