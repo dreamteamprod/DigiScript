@@ -119,8 +119,10 @@
               :previous-line="TMP_SCRIPT[currentEditPage][index - 1]"
               :can-edit="canEdit"
               :line-part-cuts="linePartCuts"
+              :insert-mode="insertMode"
               @editLine="beginEditingLine(currentEditPage, index)"
               @cutLinePart="cutLinePart"
+              @insertLine="insertLineAt(currentEditPage, index)"
             />
           </template>
         </template>
@@ -315,6 +317,7 @@ export default {
       loaded: false,
       latestAddedLine: null,
       linePartCuts: [],
+      insertMode: false,
     };
   },
   validations: {
@@ -365,6 +368,18 @@ export default {
   },
   mounted() {
     this.loaded = true;
+  },
+  created() {
+    window.addEventListener('keydown', (e) => {
+      if (e.shiftKey && this.canEdit) {
+        this.insertMode = true;
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift' && this.insertMode && this.canEdit) {
+        this.insertMode = false;
+      }
+    });
   },
   methods: {
     async getMaxScriptPage() {
@@ -554,6 +569,24 @@ export default {
         lineIndex,
       });
       this.doneEditingLine(pageIndex, lineIndex);
+
+      this.editPages.forEach(function (editPage, index) {
+        const editParts = editPage.split('_');
+        const editPageIndex = parseInt(editParts[1], 10);
+        const editIndex = parseInt(editParts[3], 10);
+        if (editPageIndex === pageIndex && editIndex >= lineIndex) {
+          this.editPages[index] = `page_${editPageIndex}_line_${editIndex - 1}`;
+        }
+      }, this);
+
+      if (this.latestAddedLine != null) {
+        const editParts = this.latestAddedLine.split('_');
+        const editPageIndex = parseInt(editParts[1], 10);
+        const editIndex = parseInt(editParts[3], 10);
+        if (editPageIndex === pageIndex && editIndex >= lineIndex) {
+          this.latestAddedLine = `page_${pageIndex}_line_${editIndex - 1}`;
+        }
+      }
     },
     cutLinePart(linePartId) {
       const index = this.linePartCuts.indexOf(linePartId);
@@ -561,6 +594,35 @@ export default {
         this.linePartCuts.push(linePartId);
       } else {
         this.linePartCuts.splice(index, 1);
+      }
+    },
+    async insertLineAt(pageIndex, lineIndex) {
+      if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
+        await this.addNewLine();
+        return;
+      }
+
+      const newLineIndex = lineIndex + 1;
+      this.INSERT_BLANK_LINE({
+        pageNo: this.currentEditPage,
+        lineIndex: newLineIndex,
+        lineObj: this.blankLineObj,
+      });
+      this.editPages.forEach(function (editPage, index) {
+        const editParts = editPage.split('_');
+        const editPageIndex = parseInt(editParts[1], 10);
+        const editIndex = parseInt(editParts[3], 10);
+        if (editPageIndex === pageIndex && editIndex >= newLineIndex) {
+          this.editPages[index] = `page_${editPageIndex}_line_${editIndex + 1}`;
+        }
+      }, this);
+
+      const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
+      this.editPages.push(lineIdent);
+      const prevLine = await this.getPreviousLineForIndex(newLineIndex);
+      if (prevLine != null) {
+        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
+        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
       }
     },
     async saveScript() {
@@ -590,6 +652,7 @@ export default {
                   await this.LOAD_SCRIPT_PAGE(pageNo);
                   this.ADD_BLANK_PAGE(pageNo);
                   this.RESET_DELETED(pageNo);
+                  this.RESET_INSERTED(pageNo);
                 } else {
                   this.$toast.error('Unable to save script. Please try again.');
                   this.saveError = true;
@@ -598,12 +661,14 @@ export default {
               } else {
                 // Existing page, check if anything has changed before saving
                 const lineDiff = diff(actualScriptPage, tmpScriptPage);
-                if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0) {
+                if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
+                    || this.INSERTED_LINES(pageNo).length > 0) {
                   const response = await this.SAVE_CHANGED_PAGE(pageNo);
                   if (response) {
                     await this.LOAD_SCRIPT_PAGE(pageNo);
                     this.ADD_BLANK_PAGE(pageNo);
                     this.RESET_DELETED(pageNo);
+                    this.RESET_INSERTED(pageNo);
                   } else {
                     this.$toast.error('Unable to save script. Please try again.');
                     this.saveError = true;
@@ -717,7 +782,7 @@ export default {
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED',
-      'SET_CUT_MODE']),
+      'SET_CUT_MODE', 'INSERT_BLANK_LINE', 'RESET_INSERTED']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUTS', 'SAVE_SCRIPT_CUTS']),
@@ -736,7 +801,8 @@ export default {
       let hasChanges = false;
       Object.keys(this.TMP_SCRIPT).forEach(function (pageNo) {
         const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
-        if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0) {
+        if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
+            || this.INSERTED_LINES(pageNo).length > 0) {
           hasChanges = true;
         }
       }, this);
@@ -760,7 +826,7 @@ export default {
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
       'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
-      'IS_CUT_MODE', 'SCRIPT_CUTS']),
+      'IS_CUT_MODE', 'SCRIPT_CUTS', 'INSERTED_LINES']),
   },
   watch: {
     currentEditPage(val) {

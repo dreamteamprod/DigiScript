@@ -13,6 +13,7 @@ export default {
       currentEditor: null,
     },
     cutMode: false,
+    insertedLines: {},
   },
   mutations: {
     SET_EDIT_STATUS(state, editStatus) {
@@ -29,6 +30,27 @@ export default {
       line.page = pageNo;
       state.tmpScript[pageNo].push(line);
     },
+    INSERT_BLANK_LINE(state, { pageNo, lineIndex, lineObj }) {
+      const pageNoStr = pageNo.toString();
+
+      if (Object.keys(state.deletedLines).includes(pageNoStr)
+          && state.deletedLines[pageNoStr].includes(lineIndex)) {
+        const lineId = state.tmpScript[pageNoStr][lineIndex].id;
+        const line = JSON.parse(JSON.stringify(lineObj));
+        line.page = pageNo;
+        line.id = lineId;
+        state.tmpScript[pageNo].splice(lineIndex, 1, line);
+        state.deletedLines[pageNoStr].splice(state.deletedLines[pageNoStr].indexOf(lineIndex), 1);
+      } else {
+        const line = JSON.parse(JSON.stringify(lineObj));
+        line.page = pageNo;
+        state.tmpScript[pageNo].splice(lineIndex, 0, line);
+        if (!Object.keys(state.insertedLines).includes(pageNoStr)) {
+          Vue.set(state.insertedLines, pageNoStr, []);
+        }
+        state.insertedLines[pageNoStr].push(lineIndex);
+      }
+    },
     SET_LINE(state, { pageNo, lineIndex, lineObj }) {
       Vue.set(state.tmpScript[pageNo], lineIndex, lineObj);
     },
@@ -42,11 +64,21 @@ export default {
       } else {
         state.tmpScript[pageNoStr].splice(lineIndex, 1);
       }
+      if (Object.keys(state.insertedLines).includes(pageNoStr)
+          && state.insertedLines[pageNoStr].includes(lineIndex)) {
+        state.insertedLines[pageNoStr].splice(lineIndex, 1);
+      }
     },
     RESET_DELETED(state, pageNo) {
       const pageNoStr = pageNo.toString();
       if (Object.keys(state.deletedLines).includes(pageNoStr)) {
         Vue.set(state.deletedLines, pageNoStr, []);
+      }
+    },
+    RESET_INSERTED(state, pageNo) {
+      const pageNoStr = pageNo.toString();
+      if (Object.keys(state.insertedLines).includes(pageNoStr)) {
+        Vue.set(state.insertedLines, pageNoStr, []);
       }
     },
     EMPTY_SCRIPT(state) {
@@ -101,13 +133,29 @@ export default {
       return true;
     },
     async SAVE_CHANGED_PAGE(context, pageNo) {
-      const actualScriptPage = context.getters.GET_SCRIPT_PAGE(pageNo);
+      let actualScriptPage = context.getters.GET_SCRIPT_PAGE(pageNo);
       const tmpScriptPage = context.getters.TMP_SCRIPT[pageNo.toString()];
+
+      // Need to augment the actual script page to include the inserted pages, this is a hack,
+      // but it will allow all the other pages to show as not edited if the really haven't been
+      // changed
+      actualScriptPage = JSON.parse(JSON.stringify(actualScriptPage));
+      JSON.parse(JSON.stringify(context.getters.INSERTED_LINES(pageNo)))
+        .sort((a, b) => a - b)
+        .forEach((lineIndex) => {
+          actualScriptPage.splice(
+            lineIndex,
+            0,
+            JSON.parse(JSON.stringify(tmpScriptPage[lineIndex])),
+          );
+        });
+
       const deepDiff = detailedDiff(actualScriptPage, tmpScriptPage);
       const pageStatus = {
         added: Object.keys(deepDiff.added).map((x) => parseInt(x, 10)),
         updated: Object.keys(deepDiff.updated).map((x) => parseInt(x, 10)),
         deleted: [...context.getters.DELETED_LINES(pageNo)],
+        inserted: [...context.getters.INSERTED_LINES(pageNo)],
       };
       const searchParams = new URLSearchParams({
         page: pageNo,
@@ -151,6 +199,13 @@ export default {
     },
     IS_CUT_MODE(state) {
       return state.cutMode;
+    },
+    INSERTED_LINES: (state) => (page) => {
+      const pageStr = page.toString();
+      if (Object.keys(state.insertedLines).includes(pageStr)) {
+        return state.insertedLines[pageStr];
+      }
+      return [];
     },
   },
 };
