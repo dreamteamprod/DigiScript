@@ -671,6 +671,13 @@ class ScriptController(BaseAPIController):
                         if previous_line:
                             previous_line.next_line = line_object
                             curr_association.previous_line = previous_line.line
+
+                        if curr_association.next_line:
+                            next_association: ScriptLineRevisionAssociation = session.query(
+                                ScriptLineRevisionAssociation).get(
+                                {'revision_id': revision.id,
+                                 'line_id': curr_association.next_line.id})
+                            next_association.previous_line = line_object
                         session.flush()
 
                         if len(curr_line.revision_associations) == 0:
