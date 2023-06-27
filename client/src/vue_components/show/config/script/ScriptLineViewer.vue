@@ -84,7 +84,12 @@
         style="padding: 0"
         @click.stop="editLine"
       >
-        Edit
+        <template v-if="insertMode">
+          Insert
+        </template>
+        <template v-else>
+          Edit
+        </template>
       </b-button>
     </b-col>
   </b-row>
@@ -95,7 +100,7 @@ import { mapGetters } from 'vuex';
 
 export default {
   name: 'ScriptLineViewer',
-  events: ['editLine', 'cutLinePart'],
+  events: ['editLine', 'cutLinePart', 'insertLine'],
   props: {
     line: {
       required: true,
@@ -130,6 +135,11 @@ export default {
     linePartCuts: {
       required: true,
       type: Array,
+    },
+    insertMode: {
+      required: true,
+      type: Boolean,
+      default: false,
     },
   },
   computed: {
@@ -185,7 +195,11 @@ export default {
   },
   methods: {
     editLine() {
-      this.$emit('editLine');
+      if (this.insertMode) {
+        this.$emit('insertLine');
+      } else {
+        this.$emit('editLine');
+      }
     },
     cutLinePart(partIndex) {
       if (partIndex < this.line.line_parts.length && this.line.line_parts[partIndex] != null) {
