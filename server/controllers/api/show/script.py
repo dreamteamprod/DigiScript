@@ -593,7 +593,52 @@ class ScriptController(BaseAPIController):
                     })
                     return
 
-                previous_line: Optional[ScriptLineRevisionAssociation] = None
+                # If we are editing a page other than the first page, we need to get the previous
+                # line based on the last line from the previous page to ensure that any edits made
+                # to the first line of this page are reflected properly
+                if page > 1:
+                    if lines[0]['id'] is not None:
+                        first_line = session.query(ScriptLineRevisionAssociation).get(
+                            {'revision_id': revision.id,
+                             'line_id': lines[0]['id']})
+
+                        if not first_line:
+                            session.rollback()
+                            self.set_status(400)
+                            await self.finish({'message': 'Unable to load line data for first line'})
+                            return
+
+                        if not first_line.previous_line:
+                            session.rollback()
+                            self.set_status(400)
+                            await self.finish({
+                                'message': 'Unable to establish page line order - '
+                                           'first line on this page does not have a previous line'
+                            })
+                            return
+
+                        previous_line = session.query(ScriptLineRevisionAssociation).get(
+                            {'revision_id': revision.id,
+                             'line_id': first_line.previous_line.id})
+
+                        if not previous_line:
+                            session.rollback()
+                            self.set_status(400)
+                            await self.finish({
+                                'message': 'Unable to establish page line order - '
+                                           'could not find previous line data for first line on this '
+                                           'page'
+                            })
+                            return
+                    else:
+                        session.rollback()
+                        self.set_status(400)
+                        await self.finish({'message': 'Cannot establish line order as first line has '
+                                                      'no ID'})
+                        return
+                else:
+                    previous_line: Optional[ScriptLineRevisionAssociation] = None
+
                 for index, line in enumerate(lines):
                     if index in status['added']:
                         # Validate the line
