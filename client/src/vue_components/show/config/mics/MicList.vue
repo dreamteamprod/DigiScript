@@ -33,6 +33,14 @@
         </b-button-group>
       </template>
     </b-table>
+    <b-pagination
+      v-show="MICROPHONES.length > rowsPerPage"
+      v-model="currentPage"
+      :total-rows="MICROPHONES.length"
+      :per-page="rowsPerPage"
+      aria-controls="microphones-table"
+      class="justify-content-center"
+    />
     <b-modal
       id="new-microphone"
       ref="new-microphone"
