@@ -5,58 +5,67 @@
   >
     <b-row>
       <b-col>
-        <h5>Character List</h5>
-        <b-table
-          id="character-table"
-          :items="CHARACTER_LIST"
-          :fields="characterFields"
-          :per-page="rowsPerPage"
-          :current-page="currentPage"
-          show-empty
-        >
-          <template #head(btn)="data">
-            <b-button
-              v-b-modal.new-character
-              variant="outline-success"
+        <b-tabs content-class="mt-3">
+          <b-tab
+            title="Characters"
+            active
+          >
+            <b-table
+              id="character-table"
+              :items="CHARACTER_LIST"
+              :fields="characterFields"
+              :per-page="rowsPerPage"
+              :current-page="currentPage"
+              show-empty
             >
-              New Character
-            </b-button>
-          </template>
-          <template #cell(cast_member)="data">
-            <template v-if="data.item.cast_member">
-              {{ data.item.cast_member.first_name }} {{ data.item.cast_member.last_name }}
-            </template>
-            <template v-else>
-              <b-link @click="openEditForm(data)">
-                Set Cast Member
-              </b-link>
-            </template>
-          </template>
-          <template #cell(btn)="data">
-            <b-button-group>
-              <b-button
-                variant="warning"
-                @click="openEditForm(data)"
-              >
-                Edit
-              </b-button>
-              <b-button
-                variant="danger"
-                @click="deleteCharacter(data)"
-              >
-                Delete
-              </b-button>
-            </b-button-group>
-          </template>
-        </b-table>
-        <b-pagination
-          v-show="CHARACTER_LIST.length > rowsPerPage"
-          v-model="currentPage"
-          :total-rows="CHARACTER_LIST.length"
-          :per-page="rowsPerPage"
-          aria-controls="character-table"
-          class="justify-content-center"
-        />
+              <template #head(btn)="data">
+                <b-button
+                  v-b-modal.new-character
+                  variant="outline-success"
+                >
+                  New Character
+                </b-button>
+              </template>
+              <template #cell(cast_member)="data">
+                <template v-if="data.item.cast_member">
+                  {{ data.item.cast_member.first_name }} {{ data.item.cast_member.last_name }}
+                </template>
+                <template v-else>
+                  <b-link @click="openEditForm(data)">
+                    Set Cast Member
+                  </b-link>
+                </template>
+              </template>
+              <template #cell(btn)="data">
+                <b-button-group>
+                  <b-button
+                    variant="warning"
+                    @click="openEditForm(data)"
+                  >
+                    Edit
+                  </b-button>
+                  <b-button
+                    variant="danger"
+                    @click="deleteCharacter(data)"
+                  >
+                    Delete
+                  </b-button>
+                </b-button-group>
+              </template>
+            </b-table>
+            <b-pagination
+              v-show="CHARACTER_LIST.length > rowsPerPage"
+              v-model="currentPage"
+              :total-rows="CHARACTER_LIST.length"
+              :per-page="rowsPerPage"
+              aria-controls="character-table"
+              class="justify-content-center"
+            />
+          </b-tab>
+          <b-tab title="Line Counts">
+            <character-line-stats />
+          </b-tab>
+        </b-tabs>
       </b-col>
     </b-row>
     <b-modal
@@ -176,9 +185,11 @@
 <script>
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
+import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
 
 export default {
   name: 'ConfigCharacters',
+  components: { CharacterLineStats },
   data() {
     return {
       rowsPerPage: 15,
