@@ -1,5 +1,6 @@
 from enum import Enum
 import urllib.parse
+from functools import lru_cache
 
 from tornado.web import URLSpec
 import tornado.escape
@@ -13,11 +14,14 @@ class Route:
 
     _routes = []
     _formats = {}
+    _ignored_logging = set()
 
-    def __init__(self, route, name=None):
+    def __init__(self, route, name=None, ignore_logging=False):
         self.route = route
         self.name = name
         self._formats[name] = route
+        if ignore_logging:
+            self._ignored_logging.add(route)
 
     def __call__(self, controller):
         name = self.name or controller.__name__
@@ -29,6 +33,11 @@ class Route:
     @classmethod
     def routes(cls):
         return cls._routes
+
+    @classmethod
+    @lru_cache
+    def ignored_logging_routes(cls):
+        return cls._ignored_logging
 
     @staticmethod
     def _url_escape(url):
