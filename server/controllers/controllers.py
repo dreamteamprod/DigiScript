@@ -96,6 +96,6 @@ class ApiDebugController(BaseAPIController):
         self.write({'status': 'OK', 'api_version': 1})
 
 
-@Route('/debug/metrics')
+@Route('/debug/metrics', ignore_logging=True)
 class DebugMetricsController(MetricsHandler, BaseController):
     pass

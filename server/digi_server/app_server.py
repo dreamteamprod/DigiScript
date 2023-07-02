@@ -101,6 +101,12 @@ class DigiScriptServer(PrometheusMixIn, Application):
             login_url='/login',
         )
 
+    def log_request(self, handler):
+        ignored_routes = Route.ignored_logging_routes()
+        if handler.request.path in ignored_routes:
+            return
+        super().log_request(handler)
+
     async def configure(self):
         await self._configure_logging()
 
