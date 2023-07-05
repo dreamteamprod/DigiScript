@@ -3,6 +3,7 @@ version: '3.9'
 services:
   server:
     image: digiscript:latest
+    restart: always
     container_name: DS-Server
     environment:
       DOCKER_DEPLOYMENT: "true"
