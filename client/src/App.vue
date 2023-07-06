@@ -15,23 +15,46 @@
         is-nav
       >
         <b-navbar-nav>
-          <b-nav-item
-            to="/live"
-            :disabled="CURRENT_SHOW_SESSION == null"
-          >
-            Live
-          </b-nav-item>
+          <template v-if="$store.state.currentShow != null">
+            <b-nav-item
+              to="/live"
+              :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY"
+            >
+              Live
+            </b-nav-item>
+            <b-nav-item-dropdown
+              v-if="isShowExecutor || isAdminUser"
+              text="Live Config"
+            >
+              <b-dropdown-item-button
+                :disabled="CURRENT_SHOW_SESSION != null || !WEBSOCKET_HEALTHY || stoppingSession ||
+                  startingSession"
+                @click.stop.prevent="startShowSession"
+              >
+                Start Session
+              </b-dropdown-item-button>
+              <b-dropdown-item-button
+                :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY || stoppingSession ||
+                  startingSession"
+                @click.stop.prevent="stopShowSession"
+              >
+                Stop Session
+              </b-dropdown-item-button>
+            </b-nav-item-dropdown>
+          </template>
           <b-nav-item
             v-if="isAdminUser"
+            v-show="CURRENT_SHOW_SESSION == null"
             to="/config"
-            :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null"
+            :disabled="!WEBSOCKET_HEALTHY"
           >
             System Config
           </b-nav-item>
           <b-nav-item
             v-if="$store.state.currentShow != null && (isAdminUser || isShowEditor)"
+            v-show="CURRENT_SHOW_SESSION == null"
             to="/show-config"
-            :disabled="!WEBSOCKET_HEALTHY || CURRENT_SHOW_SESSION != null"
+            :disabled="!WEBSOCKET_HEALTHY"
           >
             Show Config
           </b-nav-item>
@@ -106,10 +129,11 @@
 </template>
 
 <script>
-import { getCookie } from '@/js/utils';
+import { getCookie, makeURL } from '@/js/utils';
 
 import { mapGetters, mapActions } from 'vuex';
 import CreateUser from '@/vue_components/user/CreateUser.vue';
+import log from 'loglevel';
 
 export default {
   components: { CreateUser },
@@ -117,6 +141,8 @@ export default {
     return {
       loaded: false,
       loadTimer: null,
+      stoppingSession: false,
+      startingSession: false,
     };
   },
   methods: {
@@ -144,6 +170,47 @@ export default {
         this.loadTimer = setTimeout(this.awaitWSConnect, 150);
       }
     },
+    async stopShowSession() {
+      this.stoppingSession = true;
+      const msg = 'Are you sure you want to stop the show?';
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
+          method: 'POST',
+        });
+        if (response.ok) {
+          this.$toast.success('Stopped show session');
+        } else {
+          log.error('Unable to stop show session');
+          this.$toast.error('Unable to stop show session');
+        }
+      }
+      this.stoppingSession = false;
+    },
+    async startShowSession() {
+      if (this.INTERNAL_UUID == null) {
+        this.$toast.error('Unable to start new show session');
+        return;
+      }
+      this.startingSession = true;
+      const msg = 'Are you sure you want to start a show?';
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        const response = await fetch(`${makeURL('/api/v1/show/sessions/start')}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            session_id: this.INTERNAL_UUID,
+          }),
+        });
+        if (response.ok) {
+          this.$toast.success('Started new show session');
+        } else {
+          log.error('Unable to start new show session');
+          this.$toast.error('Unable to start new show session');
+        }
+      }
+      this.startingSession = false;
+    },
   },
   computed: {
     isAdminUser() {
@@ -160,8 +227,19 @@ export default {
       // eslint-disable-next-line no-bitwise
       return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
     },
+    isShowExecutor() {
+      if (this.RBAC_ROLES.length === 0) {
+        return false;
+      }
+      if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
+        return false;
+      }
+      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value;
+      // eslint-disable-next-line no-bitwise
+      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+    },
     ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS', 'CURRENT_USER',
-      'RBAC_ROLES', 'CURRENT_USER_RBAC']),
+      'RBAC_ROLES', 'CURRENT_USER_RBAC', 'INTERNAL_UUID']),
   },
   async created() {
     this.$router.beforeEach(async (to, from, next) => {
