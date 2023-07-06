@@ -16,7 +16,7 @@
     "bootstrap-vue": "2.23.1",
     "bootswatch": "4.6.2",
     "contrast-color": "1.0.1",
-    "core-js": "3.31.0",
+    "core-js": "3.31.1",
     "deep-object-diff": "1.1.9",
     "jquery": "3.7.0",
     "lodash": "4.17.21",
