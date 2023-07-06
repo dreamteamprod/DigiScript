@@ -132,10 +132,12 @@ export default {
       previousLine: null,
       currentMinLoadedPage: null,
       fullLoad: false,
+      loadedSessionData: false,
     };
   },
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();
+    this.loadedSessionData = true;
     if (this.CURRENT_SHOW_SESSION == null) {
       this.$toast.warning('No live session started!');
       await this.$router.replace('/');
@@ -399,10 +401,16 @@ export default {
           && x >= this.currentFirstPage - this.pageBatchSize));
     },
     isScriptFollowing() {
-      return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
+      if (this.loadedSessionData) {
+        return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
+      }
+      return false;
     },
     isScriptLeader() {
-      return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
+      if (this.loadedSessionData) {
+        return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
+      }
+      return false;
     },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
