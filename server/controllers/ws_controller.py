@@ -1,10 +1,11 @@
 import json
-from typing import Optional, Awaitable, Union, TYPE_CHECKING
+from typing import Optional, Awaitable, Union, TYPE_CHECKING, Dict, Any
 
 from uuid import uuid4
 
 from tornado import gen
-from tornado.websocket import WebSocketHandler
+from tornado.concurrent import Future
+from tornado.websocket import WebSocketHandler, WebSocketClosedError
 from tornado_sqlalchemy import SessionMixin
 
 from digi_server.logger import get_logger
@@ -246,3 +247,15 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         self.update_session()
         get_logger().trace(
             f'Ping from {self.request.remote_ip} : {data.hex()}')
+
+    @gen.coroutine
+    def write_message(self, message: Union[bytes, str, Dict[str, Any]],
+                      binary: bool = False) -> Future[None]:
+        try:
+            return super().write_message(message, binary)
+        except WebSocketClosedError:
+            get_logger().error(f'Trying to send message to closed websocket '
+                               f'{self.__getattribute__("internal_id")} at IP address '
+                               f'{self.request.remote_ip}, closing.')
+            self.on_close()
+            return None
