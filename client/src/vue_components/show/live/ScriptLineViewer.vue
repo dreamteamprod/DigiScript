@@ -193,8 +193,8 @@ export default {
       return [null, null];
     },
     isWholeLineCut(line) {
-      return line.line_parts.map((linePart) => (linePart.id))
-        .every((partId) => (this.SCRIPT_CUTS.includes(partId)), this);
+      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
+          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
     },
   },
   computed: {
