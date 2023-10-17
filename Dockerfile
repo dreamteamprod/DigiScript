@@ -1,4 +1,4 @@
-FROM node:18.13.0-buster AS node_build
+FROM node:18.18.2-buster AS node_build
 RUN npm install npm@8 -g
 
 COPY /client /client
