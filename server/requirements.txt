@@ -1,5 +1,5 @@
 tornado==6.3.3
-tornado-sqlalchemy==0.7.0
+tornado-sqlalchemy==0.8.0
 datetime==4.9
 python-dateutil==2.8.2
 pylint-ignore==2022.1025
