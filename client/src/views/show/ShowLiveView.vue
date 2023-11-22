@@ -1,16 +1,7 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
-    <b-row
-      class="session-header"
-      style="padding-top: .1rem; padding-bottom: .1rem"
-    >
-      <b-col
-        cols="4"
-        style="text-align: left"
-      >
+  <b-container class="mx-0" fluid>
+    <b-row class="session-header" style="padding-top: .1rem; padding-bottom: .1rem">
+      <b-col cols="4" style="text-align: left">
         <b v-if="isScriptFollowing">
           {{ CURRENT_SHOW.name }} - Following
         </b>
@@ -26,68 +17,31 @@
           Page {{ currentFirstPage }}
         </b>
       </b-col>
-      <b-col
-        cols="4"
-        style="text-align: right"
-      >
+      <b-col cols="4" style="text-align: right">
         <b>
           Elapsed Time: {{ msToTimer(elapsedTime) }}
         </b>
       </b-col>
     </b-row>
     <b-row>
-      <b-col
-        id="script-container"
-        cols="12"
-        class="script-container"
-        :data-following="isScriptFollowing"
-        @scroll="computeScriptBoundaries"
-        @scrollend="computeScriptBoundaries"
-      >
-        <div
-          v-if="!initialLoad"
-          class="text-center center-spinner"
-        >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
+      <b-col id="script-container" cols="12" class="script-container" :data-following="isScriptFollowing"
+        @scroll="computeScriptBoundaries" @scrollend="computeScriptBoundaries">
+        <div v-if="!initialLoad" class="text-center center-spinner">
+          <b-spinner style="width: 10rem; height: 10rem;" variant="info" />
         </div>
         <template v-else>
           <template v-for="page in pageIter">
-            <script-line-viewer
-              v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-              v-show="!isWholeLineCut(line)"
-              v-once
-              :id="`page_${page}_line_${index}`"
-              :key="`page_${page}_line_${index}`"
-              class="script-item"
-              :line-index="index"
-              :line="line"
-              :acts="ACT_LIST"
-              :scenes="SCENE_LIST"
-              :characters="CHARACTER_LIST"
-              :character-groups="CHARACTER_GROUP_LIST"
-              :previous-line="getPreviousLineForIndex(page, index)"
-              :previous-line-index="getPreviousLineIndex(page, index)"
-              :cue-types="CUE_TYPES"
-              :cues="getCuesForLine(line)"
-              :cuts="SCRIPT_CUTS"
-              @last-line-change="handleLastLineChange"
-              @first-line-change="handleFirstLineChange"
-            />
+            <script-line-viewer v-for="(line, index) in GET_SCRIPT_PAGE(page)" v-show="!isWholeLineCut(line)" v-once
+              :id="`page_${page}_line_${index}`" :key="`page_${page}_line_${index}`" class="script-item"
+              :line-index="index" :line="line" :acts="ACT_LIST" :scenes="SCENE_LIST" :characters="CHARACTER_LIST"
+              :character-groups="CHARACTER_GROUP_LIST" :previous-line="getPreviousLineForIndex(page, index)"
+              :previous-line-index="getPreviousLineIndex(page, index)" :cue-types="CUE_TYPES" :cues="getCuesForLine(line)"
+              :cuts="SCRIPT_CUTS" @last-line-change="handleLastLineChange" @first-line-change="handleFirstLineChange" />
           </template>
-          <b-row
-            v-show="initialLoad"
-            class="script-footer"
-          >
+          <b-row v-show="initialLoad" class="script-footer">
             <b-col>
               <b-button-group>
-                <b-button
-                  variant="danger"
-                  :disabled="stoppingSession"
-                  @click.stop="stopShow"
-                >
+                <b-button variant="danger" :disabled="stoppingSession" @click.stop="stopShow">
                   End Show
                 </b-button>
               </b-button-group>
@@ -218,19 +172,19 @@ export default {
         await this.$nextTick();
         this.computeScriptBoundaries();
       }
-    
+
       if (this.isScriptLeader) {
         const vueContext = this;
-        document.addEventListener("keydown", (event) => {
-          if (event.key == "ArrowDown") {
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowDown') {
             event.preventDefault();
             vueContext.nextLineHandler();
           }
-          if (event.key == "ArrowUp") {
+          if (event.key === 'ArrowUp') {
             event.preventDefault();
             vueContext.prevLineHandler();
           }
-        })
+        });
       }
 
       this.fullLoad = true;
@@ -279,7 +233,7 @@ export default {
         if (lastObject == null) {
           lastObject = this;
         } else if ($(this).offset().top > $(lastObject).offset().top
-            && $(this).offset().top < cutoffBottom) {
+          && $(this).offset().top < cutoffBottom) {
           lastObject = this;
         }
         if ($(this).offset().top >= cutoffBottom) {
@@ -409,7 +363,7 @@ export default {
           return [pageIndex, loopLineIndex];
         }
       }
-      
+
       let loopPageNo = pageIndex + 1;
       while (loopPageNo <= this.currentMaxPage) {
         let loopPage = null;
@@ -426,7 +380,7 @@ export default {
             loopLine = this.GET_SCRIPT_PAGE(loopPageNo)[loopLineIndex];
           }
           if (loopLine != null) {
-            return [pageIndex, loopLineIndex];
+            return [loopPageNo, loopLineIndex];
           }
         }
         loopPageNo += 1;
@@ -484,7 +438,7 @@ export default {
     },
     isWholeLineCut(line) {
       return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+        || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
@@ -538,40 +492,34 @@ export default {
 </script>
 
 <style scoped>
-  .script-container {
-     overflow: scroll;
-     overflow-x: auto;
-     width: 100vw;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+.script-container {
+  overflow: scroll;
+  overflow-x: auto;
+  width: 100vw;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
-  .script-container::-webkit-scrollbar{
-    display: none;
-    width: 0 !important
-   }
+.script-container::-webkit-scrollbar {
+  display: none;
+  width: 0 !important
+}
 
-  .script-container[data-following="true"] {
-    overflow: hidden !important;
-  }
+.script-container[data-following="true"] {
+  overflow: hidden !important;
+}
 
-  .session-header {
-    border-bottom: .1rem solid #3498db;
-  }
+.session-header {
+  border-bottom: .1rem solid #3498db;
+}
 
-  .script-footer {
-    border-top: .1rem solid #3498db;
-    padding-top: .5rem;
-    padding-bottom: .1rem;
-  }
+.script-footer {
+  border-top: .1rem solid #3498db;
+  padding-top: .5rem;
+  padding-bottom: .1rem;
+}
 
-  .current-line {
-    background: #3498db54;
-  }
-  .first-script-element {
-    background: blue;
-  }
-  .last-script-element {
-    background: red;
-  }
+.current-line {
+  background: #3498db54;
+}
 </style>

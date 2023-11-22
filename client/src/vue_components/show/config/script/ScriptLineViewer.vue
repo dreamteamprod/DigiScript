@@ -30,14 +30,14 @@
             style="text-align: center"
           >
             <template v-if="needsHeadings[index]">
-              <b>
+              <p class="viewable-line">
                 <template v-if="part.character_id != null">
                   {{ characters.find((char) => (char.id === part.character_id)).name }}
                 </template>
                 <template v-else>
                   {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
                 </template>
-              </b>
+              </p>
             </template>
           </b-col>
         </b-row>
