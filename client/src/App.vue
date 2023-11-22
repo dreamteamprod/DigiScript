@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div id="app" style="background-color: black;">
     <b-navbar
       toggleable="lg"
       type="dark"

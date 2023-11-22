@@ -19,7 +19,7 @@
       <template v-for="cue in cues">
         <b-col
           cols="2"
-          class="cue-column line-part text-right"
+          class="cue-column line-part text-right font-weight-bold cue"
           :style="{color: cueBackgroundColour(cue)}"
         >
           <span>
@@ -28,7 +28,7 @@
         </b-col>
         <b-col
           cols="10"
-          class="line-part text-left"
+          class="line-part text-left font-weight-bold cue"
           :style="{color: cueBackgroundColour(cue)}"
         >
           <span>
@@ -248,6 +248,9 @@ export default {
   }
   .line-part {
     font-size: 1.5rem;
+  }
+  .cue {
+    font-size: 2rem;
   }
   .line-part-a {
     color: white;
