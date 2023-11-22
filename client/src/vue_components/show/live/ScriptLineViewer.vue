@@ -11,75 +11,64 @@
         cols="3"
         class="cue-column"
       />
-      <b-col cols="9">
-        <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
+      <b-col cols="10">
+        <h4> {{ actLabel }} - {{ sceneLabel }} </h4>
       </b-col>
     </b-row>
-    <b-row
-      :class="{
-        'stage-direction': line.stage_direction,
-        'heading-padding': !line.stage_direction && needsHeadingsAll
-      }"
-    >
-      <b-col
-        cols="3"
-        class="cue-column"
-      >
-        <b-button-group>
-          <b-button
-            v-for="cue in cues"
-            :key="cue.id"
-            class="cue-button"
-            :style="{backgroundColor: cueBackgroundColour(cue),
-                     color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
-          >
-            {{ cueLabel(cue) }}
-          </b-button>
-        </b-button-group>
-      </b-col>
+    <b-row>
+      <template v-for="cue in cues">
+        <b-col
+          cols="2"
+          class="cue-column line-part text-right"
+          :style="{color: cueBackgroundColour(cue)}"
+        >
+          <span>
+            {{ cuePrefix(cue) }}
+          </span>
+        </b-col>
+        <b-col
+          cols="10"
+          class="line-part text-left"
+          :style="{color: cueBackgroundColour(cue)}"
+        >
+          <span>
+            {{ cue.ident }}
+          </span>
+        </b-col>
+      </template>
       <template v-if="line.stage_direction">
+        <b-col cols="2" class="cue-column" />
         <b-col
           :key="`line_${lineIndex}_stage_direction`"
-          style="text-align: center"
+          class="line-part text-left"
         >
           <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
         </b-col>
       </template>
       <template v-else>
-        <b-col>
-          <b-row v-if="needsHeadingsAny">
-            <b-col
-              v-for="(part, index) in line.line_parts"
-              :key="`heading_${lineIndex}_part_${index}`"
-              style="text-align: center"
-            >
-              <template v-if="needsHeadings[index]">
-                <b>
-                  <template v-if="part.character_id != null">
-                    {{ characters.find((char) => (char.id === part.character_id)).name }}
-                  </template>
-                  <template v-else>
-                    {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
-                  </template>
-                </b>
+        <template
+          v-for="(part, index) in line.line_parts"
+          :key="`heading_${lineIndex}_part_${index}`"
+          
+        >
+          <b-col cols="2" class="cue-column line-part text-right" :class="{'cut-line-part': cuts.indexOf(part.id) !== -1, 'line-part-a': lineIndex%2==0, 'line-part-b': lineIndex%2==1}">
+            <p v-if="needsHeadings[index]">
+              <template v-if="part.character_id != null">
+                {{ characters.find((char) => (char.id === part.character_id)).name }}
               </template>
-            </b-col>
-          </b-row>
-          <b-row>
-            <b-col
-              v-for="(part, index) in line.line_parts"
-              :key="`line_${lineIndex}_part_${index}`"
-              style="text-align: center"
+              <template v-else>
+                {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+              </template>
+            </p>
+          </b-col>
+          <b-col cols="10" class="line-part text-left" :class="{'cut-line-part': cuts.indexOf(part.id) !== -1, 'line-part-a': lineIndex%2==0, 'line-part-b': lineIndex%2==1}">
+            <p
+              class="viewable-line"
             >
-              <p
-                class="viewable-line"
-                :class="{'cut-line-part': cuts.indexOf(part.id) !== -1}"
-              >
-                {{ part.line_text }}
-              </p>
-            </b-col>
-          </b-row>
-        </b-col>
+              {{ part.line_text }}
+            </p>
+          </b-col>
+        </template>
       </template>
     </b-row>
   </b-container>
@@ -171,9 +160,12 @@ export default {
         this.$emit('first-line-change', this.line.page, this.lineIndex, previousLine);
       }
     },
-    cueLabel(cue) {
+    cuePrefix(cue) {
       const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
-      return `${cueType.prefix} ${cue.ident}`;
+      return cueType.prefix;
+    },
+    cueLabel(cue) {
+      return `${this.cuePrefix(cue)} ${cue.ident}`;
     },
     cueBackgroundColour(cue) {
       return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
@@ -250,22 +242,17 @@ export default {
 <style scoped>
   .cue-column {
     border-right: .1rem solid #3498db;
-    margin-top: -1rem;
-    margin-bottom: -1rem;
-    padding-top: 1rem;
-    padding-bottom: 1rem;
-  }
-  .cue-button {
-    padding: .2rem;
-  }
-  .stage-direction {
-    margin-top: 1rem;
-    margin-bottom: 1rem;
-  }
-  .heading-padding {
-    margin-top: .5rem;
   }
   .cut-line-part {
     text-decoration: line-through;
+  }
+  .line-part {
+    font-size: 1.5rem;
+  }
+  .line-part-a {
+    color: white;
+  }
+  .line-part-b {
+    color: gray;
   }
 </style>

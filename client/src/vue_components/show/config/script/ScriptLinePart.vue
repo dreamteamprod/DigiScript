@@ -109,7 +109,7 @@ export default {
       },
       line_text: {
         required: requiredIf(function () {
-          return this.lineParts.length <= 1 || !this.lineParts.some((x) => x.line_text !== '');
+          return this.lineParts.length <= 1 || this.lineParts.any((x) => x.line_text === '');
         }),
       },
     },
