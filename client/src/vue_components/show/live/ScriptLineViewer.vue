@@ -6,13 +6,15 @@
     style="margin: 0; padding: 0"
     fluid
   >
-    <b-row v-if="needsActSceneLabel">
+    <b-row v-if="needsActSceneLabel" class="act-scene">
       <b-col
-        cols="3"
-        class="cue-column"
-      />
-      <b-col cols="10">
-        <h4> {{ actLabel }} - {{ sceneLabel }} </h4>
+        cols="2"
+        class="cue-column text-right font-weight-bold cue"
+      >
+        <span>{{ actLabel }}</span>
+      </b-col>
+      <b-col class="line-part text-left font-weight-bold cue">
+        <span>{{ sceneLabel }} </span>
       </b-col>
     </b-row>
     <b-row>
@@ -241,7 +243,6 @@ export default {
   },
 };
 </script>
-
 <style scoped>
   .cue-column {
     border-right: .1rem solid #3498db;
@@ -260,5 +261,8 @@ export default {
   }
   .line-part-b {
     color: gray;
+  }
+  .act-scene {
+    color: #f401fe;
   }
 </style>
