@@ -51,25 +51,26 @@
         <template
           v-for="(part, index) in line.line_parts"
           :key="`heading_${lineIndex}_part_${index}`"
-          
         >
-          <b-col cols="2" class="cue-column line-part text-right" :class="{'cut-line-part': cuts.indexOf(part.id) !== -1, 'line-part-a': lineIndex%2==0, 'line-part-b': lineIndex%2==1}">
-            <p v-if="needsHeadings[index]">
-              <template v-if="part.character_id != null">
-                {{ characters.find((char) => (char.id === part.character_id)).name }}
-              </template>
-              <template v-else>
-                {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
-              </template>
-            </p>
-          </b-col>
-          <b-col cols="10" class="line-part text-left" :class="{'cut-line-part': cuts.indexOf(part.id) !== -1, 'line-part-a': lineIndex%2==0, 'line-part-b': lineIndex%2==1}">
-            <p
-              class="viewable-line"
-            >
-              {{ part.line_text }}
-            </p>
-          </b-col>
+          <template v-if="characters.find((char) => (char.id === part.character_id)).name !== 'CUE' && part.line_text.replace(/\s/g, '').length !== 0">
+            <b-col cols="2" class="cue-column line-part text-right" :class="{'cut-line-part': cuts.indexOf(part.id) !== -1, 'line-part-a': lineIndex%2==0, 'line-part-b': lineIndex%2==1}">
+              <p v-if="needsHeadings[index]">
+                <template v-if="part.character_id != null">
+                  {{ characters.find((char) => (char.id === part.character_id)).name }}
+                </template>
+                <template v-else>
+                  {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+                </template>
+              </p>
+            </b-col>
+            <b-col cols="10" class="line-part text-left" :class="{'cut-line-part': cuts.indexOf(part.id) !== -1, 'line-part-a': lineIndex%2==0, 'line-part-b': lineIndex%2==1}">
+              <p
+                class="viewable-line"
+              >
+                {{ part.line_text }}
+              </p>
+            </b-col>
+          </template>
         </template>
       </template>
     </b-row>
