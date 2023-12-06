@@ -306,13 +306,16 @@ class ScriptController(BaseAPIController):
                     self.set_status(400)
                     self.finish({'message': 'Script does not have a current revision'})
                     return
-
-                revision_lines: List[ScriptLineRevisionAssociation] = session.query(
-                    ScriptLineRevisionAssociation).filter(
-                    ScriptLineRevisionAssociation.revision_id == revision.id,
-                    ScriptLineRevisionAssociation.line.has(page=page)).all()
+                try:
+                    revision_lines: List[ScriptLineRevisionAssociation] = session.query(
+                        ScriptLineRevisionAssociation).filter(
+                        ScriptLineRevisionAssociation.revision_id == revision.id,
+                        ScriptLineRevisionAssociation.line.has(page=page)).all()
+                except Exception as e:
+                    print(e)
 
                 first_line = None
+
                 for line in revision_lines:
                     if (page == 1 and line.previous_line is None
                             or line.previous_line.page == page - 1):

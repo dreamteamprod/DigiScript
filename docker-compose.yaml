@@ -14,6 +14,7 @@ services:
       - 8080:8080
     volumes:
       - dssrv:/server/conf
+      - ./server/conf/digiscript.sqlite:/server/digi_server/../conf/digiscript.sqlite
 
   prometheus:
     image: prom/prometheus
