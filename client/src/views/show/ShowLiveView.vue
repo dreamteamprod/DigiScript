@@ -77,7 +77,7 @@ export default {
       initialLoad: false,
       currentFirstPage: 1,
       currentLastPage: 1,
-      pageBatchSize: 3,
+      pageBatchSize: 100,
       startTime: null,
       previousFirstPage: 1,
       previousLastPage: 1,
@@ -437,8 +437,7 @@ export default {
       return [];
     },
     isWholeLineCut(line) {
-      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
-        || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)), this);
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
@@ -482,7 +481,7 @@ export default {
           $('.script-item').removeClass('current-line');
           $(`#${this.SESSION_FOLLOW_DATA.current_line}`).addClass('current-line');
           scrollToLine.scrollIntoView({
-            behavior: 'instant',
+            behavior: 'smooth',
           });
         }
       }
