@@ -150,6 +150,7 @@ export default {
     stateChange() {
       this.$v.state.$touch();
       this.$emit('input', this.state);
+      this.$refs.partInput.focus();
     },
   },
 };
