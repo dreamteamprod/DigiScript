@@ -7,3 +7,4 @@ marshmallow-sqlalchemy==0.30.0
 tornado-prometheus==0.1.2
 bcrypt==4.1.2
 anytree==2.12.1
+alembic==1.13.1

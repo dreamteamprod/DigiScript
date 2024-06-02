@@ -9,8 +9,8 @@ from controllers import controllers
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger, configure_file_logging, configure_db_logging
 from digi_server.settings import Settings
+from models import models
 from models.cue import CueType
-from models.models import db
 from models.script import Script
 from models.show import Show
 from models.session import Session, ShowSession
@@ -23,7 +23,7 @@ from utils.web.route import Route
 
 class DigiScriptServer(PrometheusMixIn, Application):
 
-    def __init__(self, debug=False, settings_path=None):
+    def __init__(self, debug=False, settings_path=None, skip_migrations=False):
         self.env_parser: EnvParser = EnvParser.instance()  # pylint: disable=no-member
 
         self.digi_settings: Settings = Settings(self, settings_path)
@@ -32,12 +32,22 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         # Controller imports (needed to trigger the decorator)
         controllers.import_all_controllers()
+        # Import all the models
+        models.import_all_models()
 
         self.clients: List[WebSocketController] = []
 
+        self._db: DigiSQLAlchemy = models.db
+        # Perform database migrations
+        if not skip_migrations:
+            self._db.run_migrations(self.digi_settings.settings_path)
+        else:
+            get_logger().warning('Skipping database migration migrations')
+        # And then check the database is up-to-date
+        self._db.check_migrations(self.digi_settings.settings_path)
+        # Finally, configure the database
         db_path = self.digi_settings.settings.get('db_path').get_value()
         get_logger().info(f'Using {db_path} as DB path')
-        self._db: DigiSQLAlchemy = db
         self._db.configure(url=db_path)
 
         self.rbac = RBACController(self)
