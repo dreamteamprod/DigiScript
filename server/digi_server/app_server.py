@@ -1,6 +1,8 @@
 import os
 from typing import List, Optional
 
+from alembic import command
+from alembic.config import Config
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado_prometheus import PrometheusMixIn
@@ -40,11 +42,11 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self._db: DigiSQLAlchemy = models.db
         # Perform database migrations
         if not skip_migrations:
-            self._db.run_migrations(self.digi_settings.settings_path)
+            self._run_migrations()
         else:
             get_logger().warning('Skipping database migration migrations')
         # And then check the database is up-to-date
-        self._db.check_migrations(self.digi_settings.settings_path)
+        self._check_migrations()
         # Finally, configure the database
         db_path = self.digi_settings.settings.get('db_path').get_value()
         get_logger().info(f'Using {db_path} as DB path')
@@ -116,6 +118,25 @@ class DigiScriptServer(PrometheusMixIn, Application):
         if handler.request.path in ignored_routes:
             return
         super().log_request(handler)
+
+    @property
+    def _alembic_config(self):
+        alembic_cfg_path = os.path.join(os.path.dirname(__file__), '..', 'alembic.ini')
+        alembic_cfg = Config(alembic_cfg_path)
+        # Override config options with specific ones based on this running instance
+        alembic_cfg.set_main_option('digiscript.config', self.digi_settings.settings_path)
+        alembic_cfg.set_main_option('configure_logging', 'False')
+        return alembic_cfg
+
+    def _run_migrations(self):
+        get_logger().info('Running database migrations via Alembic')
+        # Run the upgrade on the database
+        command.upgrade(self._alembic_config, 'head')
+
+    def _check_migrations(self):
+        get_logger().info('Checking database migrations via Alembic')
+        # Run the upgrade on the database
+        command.check(self._alembic_config)
 
     async def configure(self):
         await self._configure_logging()

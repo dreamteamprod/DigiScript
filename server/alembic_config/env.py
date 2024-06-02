@@ -36,16 +36,15 @@ def get_digiscript_db_url():
         abs_path = os.path.join(os.path.dirname(__file__), "..", rel_path)
     else:
         abs_path = rel_path
-    with open(abs_path, "r") as f:
-        ds_config = json.load(f)
+    with open(abs_path, "r") as config_file:
+        ds_config = json.load(config_file)
     return ds_config["db_path"]
 
 
 def include_name(name, type_, parent_names):
     if type_ == "table":
         return name in target_metadata.tables
-    else:
-        return True
+    return True
 
 
 def run_migrations_offline() -> None:
