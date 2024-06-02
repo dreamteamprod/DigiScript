@@ -25,7 +25,7 @@ from utils.web.route import Route
 
 class DigiScriptServer(PrometheusMixIn, Application):
 
-    def __init__(self, debug=False, settings_path=None, skip_migrations=False):
+    def __init__(self, debug=False, settings_path=None, skip_migrations=False, skip_migrations_check=False):
         self.env_parser: EnvParser = EnvParser.instance()  # pylint: disable=no-member
 
         self.digi_settings: Settings = Settings(self, settings_path)
@@ -44,9 +44,12 @@ class DigiScriptServer(PrometheusMixIn, Application):
         if not skip_migrations:
             self._run_migrations()
         else:
-            get_logger().warning('Skipping database migration migrations')
+            get_logger().warning('Skipping performing database migrations')
         # And then check the database is up-to-date
-        self._check_migrations()
+        if not skip_migrations_check:
+            self._check_migrations()
+        else:
+            get_logger().warning('Skipping database migrations check')
         # Finally, configure the database
         db_path = self.digi_settings.settings.get('db_path').get_value()
         get_logger().info(f'Using {db_path} as DB path')
