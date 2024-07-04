@@ -1,0 +1,2 @@
+class DatabaseUpgradeRequired(Exception):
+    pass

@@ -11,7 +11,8 @@ from models import models
 class DigiScriptTestCase(AsyncHTTPTestCase):
 
     def get_app(self):
-        return DigiScriptServer(debug=True, settings_path=self.settings_path)
+        return DigiScriptServer(debug=True, settings_path=self.settings_path,
+                                skip_migrations=True, skip_migrations_check=True)
 
     def setUp(self):
         base_path = os.path.join(os.path.dirname(__file__), 'conf')
