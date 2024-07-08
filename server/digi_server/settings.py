@@ -104,6 +104,7 @@ class Settings:
                     self._application.regen_logging)
         self.define('db_max_log_mb', int, 100, True, self._application.regen_logging)
         self.define('db_log_backups', int, 5, True, self._application.regen_logging)
+        self.define('enable_lazy_loading', bool, True, True)
 
         self._load(spawn_callbacks=False)
 
