@@ -66,6 +66,9 @@ export default {
             router.push('/');
           }
           break;
+        case 'RELOAD_CLIENT':
+          window.location.reload();
+          break;
         default:
           log.error(`Unknown OP received from websocket: ${message.OP}`);
       }

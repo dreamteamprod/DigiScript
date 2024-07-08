@@ -40,6 +40,13 @@
               >
                 Stop Session
               </b-dropdown-item-button>
+              <b-dropdown-item-btn
+                :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY || stoppingSession ||
+                  startingSession"
+                @click.stop.prevent="reloadClients"
+              >
+                Reload Clients
+              </b-dropdown-item-btn>
             </b-nav-item-dropdown>
           </template>
           <b-nav-item
@@ -210,6 +217,21 @@ export default {
         }
       }
       this.startingSession = false;
+    },
+    async reloadClients() {
+      if (this.INTERNAL_UUID == null) {
+        this.$toast.error('Unable to start new show session');
+        return;
+      }
+      this.startingSession = true;
+      const msg = 'Are you sure you want to reload all connected clients?';
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        this.$socket.sendObj({
+          OP: 'RELOAD_CLIENTS',
+          DATA: {},
+        });
+      }
     },
   },
   computed: {
