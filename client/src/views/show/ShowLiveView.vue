@@ -419,9 +419,12 @@ export default {
   },
   computed: {
     pageIter() {
-      return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
-        x <= this.currentLastPage + this.pageBatchSize
-          && x >= this.currentFirstPage - this.pageBatchSize));
+      if (this.SETTINGS.enable_live_batching) {
+        return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
+          x <= this.currentLastPage + this.pageBatchSize
+            && x >= this.currentFirstPage - this.pageBatchSize));
+      }
+      return [...Array(this.currentMaxPage).keys()];
     },
     isScriptFollowing() {
       if (this.loadedSessionData) {
