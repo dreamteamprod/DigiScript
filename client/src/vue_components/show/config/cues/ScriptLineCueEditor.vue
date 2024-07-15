@@ -30,6 +30,7 @@
           </b-button>
           <b-button
             class="cue-button"
+            :disabled="isWholeLineCut(line)"
             @click.stop="openNewForm"
           >
             <b-icon-plus-square-fill variant="success" />
@@ -364,6 +365,10 @@ export default {
     },
     cueBackgroundColour(cue) {
       return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
+    },
+    isWholeLineCut(line) {
+      return line.line_parts.every((linePart) => (this.linePartCuts.includes(linePart.id)
+          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
     },
     ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE']),
   },
