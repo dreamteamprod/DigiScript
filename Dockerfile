@@ -1,5 +1,5 @@
-FROM node:18.13.0-buster AS node_build
-RUN npm install npm@8 -g
+FROM node:22-bookworm AS node_build
+RUN npm install npm@10 -g
 
 COPY /client /client
 WORKDIR /client
@@ -7,7 +7,7 @@ RUN npm ci
 COPY /server /server
 RUN npm run build
 
-FROM python:3.10-buster
+FROM python:3.10-bookworm
 
 COPY /server/requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
