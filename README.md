@@ -15,7 +15,7 @@ A digital script project for cueing theatrical shows
 
 ### Requirements
 
-* Node v18.13.x (npm 8.11.x)
+* Node v22.x (npm 10.x)
 * Python 3.10.x
 
 ### Client
