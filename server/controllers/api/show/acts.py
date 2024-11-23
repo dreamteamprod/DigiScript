@@ -67,7 +67,7 @@ class ActController(BaseAPIController):
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully added act'})
+                await self.finish({'id': new_act.id, 'message': 'Successfully added act'})
 
                 await self.application.ws_send_to_all('NOOP', 'GET_ACT_LIST', {})
             else:

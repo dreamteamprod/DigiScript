@@ -100,7 +100,7 @@ class ShowController(BaseAPIController):
                 await self.application.digi_settings.set('current_show', show.id)
 
         self.set_status(200)
-        self.write({'message': 'Successfully created show'})
+        self.write({'id': script_revision.id, 'message': 'Successfully created show'})
 
     @requires_show
     def get(self):
