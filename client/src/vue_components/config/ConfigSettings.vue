@@ -16,10 +16,28 @@
                 v-for="(setting, key) in RAW_SETTINGS"
                 :id="`${key}-input-group`"
                 :key="key"
-                :label="key"
                 :label-for="`${key}-input`"
                 :label-cols="true"
               >
+                <template #label>
+                  <p>
+                    <template v-if="setting.display_name !== ''">
+                      {{ setting.display_name }}
+                    </template>
+                    <template v-else>
+                      {{ key }}
+                    </template>
+                    <template v-if="setting.help_text !== ''">
+                      <b-icon-question-circle-fill :id="`${key}-help-icon`" />
+                      <b-tooltip
+                        :target="`${key}-help-icon`"
+                        triggers="hover"
+                      >
+                        {{ setting.help_text }}
+                      </b-tooltip>
+                    </template>
+                  </p>
+                </template>
                 <b-form-input
                   v-if="setting.type !== 'bool'"
                   :id="`${key}-input`"
