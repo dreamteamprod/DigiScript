@@ -14,7 +14,8 @@ if TYPE_CHECKING:
 
 
 class SettingsObject:  # pylint: disable=too-many-instance-attributes
-    def __init__(self, key, val_type, default, can_edit=True, callback_fn=None, nullable=False):
+    def __init__(self, key, val_type, default, can_edit=True, callback_fn=None, nullable=False,
+                 display_name: str = "", help_text: str = ""):
         if val_type not in [str, bool, int]:
             raise RuntimeError(f'Invalid type {val_type} for {key}. Allowed options are: '
                                f'[str, int, bool]')
@@ -27,6 +28,8 @@ class SettingsObject:  # pylint: disable=too-many-instance-attributes
         self._callback_fn = callback_fn
         self._nullable = nullable
         self._loaded = False
+        self.display_name = display_name
+        self.help_text = help_text
 
     def set_to_default(self):
         self.value = self.default
@@ -61,7 +64,9 @@ class SettingsObject:  # pylint: disable=too-many-instance-attributes
             'type': self.val_type.__name__,
             'value': self.value,
             'default': self.default,
-            'can_edit': self.can_edit
+            'can_edit': self.can_edit,
+            'display_name': self.display_name,
+            'help_text': self.help_text,
         }
 
 
@@ -90,22 +95,31 @@ class Settings:
 
         db_default = f'sqlite:///{os.path.join(os.path.dirname(__file__), "../conf/digiscript.sqlite")}'
         self.define('has_admin_user', bool, False, False, nullable=False,
-                    callback_fn=self._application.validate_has_admin)
-        self.define('db_path', str, db_default, False, nullable=False)
+                    callback_fn=self._application.validate_has_admin, display_name="Has Admin User")
+        self.define('db_path', str, db_default, False, nullable=False, display_name="Database Path")
         self.define('current_show', int, None, False, nullable=True,
-                    callback_fn=self._application.show_changed)
-        self.define('debug_mode', bool, False, True)
+                    callback_fn=self._application.show_changed, display_name="Current Show ID")
+        self.define('debug_mode', bool, False, True, display_name="Enable Debug Mode")
         self.define('log_path', str, os.path.join(self._base_path, 'digiscript.log'), True,
-                    self._application.regen_logging)
-        self.define('max_log_mb', int, 100, True, self._application.regen_logging)
-        self.define('log_backups', int, 5, True, self._application.regen_logging)
-        self.define('db_log_enabled', bool, False, True, self._application.regen_logging)
+                    self._application.regen_logging, display_name="Application Log Path")
+        self.define('max_log_mb', int, 100, True, self._application.regen_logging, display_name="Max Log Size (MB)")
+        self.define('log_backups', int, 5, True, self._application.regen_logging, display_name="Log Backups")
+        self.define('db_log_enabled', bool, False, True, self._application.regen_logging,
+                    display_name="Enable Database Log")
         self.define('db_log_path', str, os.path.join(self._base_path, 'digiscript_db.log'), True,
-                    self._application.regen_logging)
-        self.define('db_max_log_mb', int, 100, True, self._application.regen_logging)
-        self.define('db_log_backups', int, 5, True, self._application.regen_logging)
-        self.define('enable_lazy_loading', bool, True, True)
-        self.define('enable_live_batching', bool, True, True)
+                    self._application.regen_logging, display_name="Database Log Path")
+        self.define('db_max_log_mb', int, 100, True, self._application.regen_logging,
+                    display_name="Max Database Log Size (MB)")
+        self.define('db_log_backups', int, 5, True, self._application.regen_logging,
+                    display_name="Database Log Backups")
+        self.define('enable_lazy_loading', bool, True, True,
+                    display_name="Enable Lazy Loading",
+                    help_text="Whether the client side should load all script pages initially when connected "
+                              "to a live show")
+        self.define('enable_live_batching', bool, True, True,
+                    display_name="Enable Live Batching",
+                    help_text="Whether the live show page should only display a subsection of the script pages "
+                              "at a time")
 
         self._load(spawn_callbacks=False)
 
@@ -113,9 +127,10 @@ class Settings:
         self._file_watcher.add_error_callback(self.file_deleted)
         self._file_watcher.watch()
 
-    def define(self, key, val_type, default, can_edit, callback_fn=None, nullable=False):
+    def define(self, key, val_type, default, can_edit, callback_fn=None, nullable=False,
+               display_name: str = "", help_text: str = ""):
         self.settings[key] = SettingsObject(key, val_type, default, can_edit, callback_fn,
-                                            nullable)
+                                            nullable, display_name, help_text)
 
     def file_deleted(self):
         get_logger().info('Settings file deleted; recreating from in memory settings')
