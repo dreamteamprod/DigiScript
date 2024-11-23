@@ -134,7 +134,7 @@ class ScriptRevisionsController(BaseAPIController):
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully added script revision'})
+                await self.finish({'id': new_rev.id, 'message': 'Successfully added script revision'})
                 await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
             else:
                 self.set_status(404)

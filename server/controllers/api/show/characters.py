@@ -57,12 +57,13 @@ class CharacterController(BaseAPIController):
                         await self.finish({'message': '404 cast member found'})
                         return
 
-                session.add(Character(show_id=show.id, name=name, description=description,
-                                      played_by=played_by))
+                new_character = Character(show_id=show.id, name=name, description=description,
+                                    played_by=played_by)
+                session.add(new_character)
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully added cast member'})
+                await self.finish({'id': new_character.id, 'message': 'Successfully added cast member'})
 
                 await self.application.ws_send_to_all('NOOP', 'GET_CHARACTER_LIST', {})
             else:
