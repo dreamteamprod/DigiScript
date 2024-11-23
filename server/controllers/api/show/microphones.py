@@ -60,14 +60,15 @@ class MicrophoneController(BaseAPIController):
 
                 description: str = data.get('description', None)
 
-                session.add(Microphone(
+                new_microphone = Microphone(
                     show_id=show_id,
                     name=name,
-                    description=description))
+                    description=description)
+                session.add(new_microphone)
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully added microphone'})
+                await self.finish({'id': new_microphone.id, 'message': 'Successfully added microphone'})
 
                 await self.application.ws_send_to_all('NOOP', 'GET_MICROPHONE_LIST', {})
             else:
