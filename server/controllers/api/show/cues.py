@@ -58,15 +58,16 @@ class CueTypesController(BaseAPIController):
                     await self.finish({'message': 'Colour missing'})
                     return
 
-                session.add(CueType(
+                new_cuetype = CueType(
                     show_id=show_id,
                     prefix=prefix,
                     description=description,
-                    colour=colour))
+                    colour=colour)
+                session.add(new_cuetype)
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully added cue type'})
+                await self.finish({'id': new_cuetype.id, 'message': 'Successfully added cue type'})
 
                 await self.application.ws_send_to_all('NOOP', 'GET_CUE_TYPES', {})
             else:

@@ -84,7 +84,7 @@ class SceneController(BaseAPIController):
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully added scene'})
+                await self.finish({'id': new_scene.id, 'message': 'Successfully added scene'})
 
                 await self.application.ws_send_to_all('NOOP', 'GET_SCENE_LIST', {})
 

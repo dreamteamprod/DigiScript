@@ -51,11 +51,12 @@ class CastController(BaseAPIController):
                     await self.finish({'message': 'Last name missing'})
                     return
 
-                session.add(Cast(show_id=show.id, first_name=first_name, last_name=last_name))
+                new_cast = Cast(show_id=show.id, first_name=first_name, last_name=last_name)
+                session.add(new_cast)
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully added cast member'})
+                await self.finish({'id': new_cast.id, 'message': 'Successfully added cast member'})
 
                 await self.application.ws_send_to_all('GET_CAST_LIST', 'GET_CAST_LIST', {})
             else:
