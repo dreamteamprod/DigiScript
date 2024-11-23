@@ -3,6 +3,9 @@ version: '3.9'
 services:
   server:
     image: digiscript:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     container_name: DS-Server
     environment:
