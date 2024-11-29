@@ -33,7 +33,7 @@
   "devDependencies": {
     "@babel/core": "7.24.9",
     "@babel/eslint-parser": "7.24.8",
-    "@babel/preset-env": "7.24.8",
+    "@babel/preset-env": "7.26.0",
     "@vitejs/plugin-vue2": "2.3.1",
     "eslint": "8.57.0",
     "eslint-config-airbnb-base": "15.0.0",
