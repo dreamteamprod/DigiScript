@@ -4,9 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile
     image: digiscript:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     restart: always
     container_name: DS-Server
     environment:
