@@ -9,7 +9,7 @@ services:
     environment:
       DOCKER_DEPLOYMENT: "true"
     ports:
-      - 8080:8080
+      - 8080:80
     volumes:
       - dssrv:/server/conf
       - ./server/conf/digiscript.sqlite:/server/digi_server/../conf/digiscript.sqlite
