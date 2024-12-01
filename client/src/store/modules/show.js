@@ -16,6 +16,7 @@ export default {
     sessionFollowData: {},
     microphones: [],
     micAllocations: [],
+    noLeaderToast: null,
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -56,6 +57,9 @@ export default {
     },
     SET_MIC_ALLOCATIONS_LIST(state, micAllocations) {
       state.micAllocations = micAllocations;
+    },
+    SET_TOAST_INSTANCE(state, toast) {
+      state.noLeaderToast = toast;
     },
   },
   actions: {
@@ -427,6 +431,11 @@ export default {
         const sessions = await response.json();
         context.commit('SET_SESSIONS_LIST', sessions.sessions);
         context.commit('SET_CURRENT_SESSION', sessions.current_session);
+        if (context.getters.NO_LEADER_TOAST
+            && context.getters.CURRENT_SHOW_SESSION.client_internal_id != null) {
+          context.getters.NO_LEADER_TOAST.dismiss();
+          context.commit('SET_TOAST_INSTANCE', null);
+        }
       } else {
         log.error('Unable to get show sessions');
       }
@@ -438,9 +447,12 @@ export default {
     },
     async NO_LEADER(context, payload) {
       await context.dispatch('GET_SHOW_SESSION_DATA');
-      Vue.$toast.warning('There is no script leader. Please scroll your own script!', {
-        duration: 0,
-      });
+      if (context.getters.NO_LEADER_TOAST == null) {
+        const instance = Vue.$toast.warning('There is no script leader. Please scroll your own script!', {
+          duration: 0,
+        });
+        context.commit('SET_TOAST_INSTANCE', instance);
+      }
     },
     SCRIPT_SCROLL(context, payload) {
       context.commit('SET_SESSION_FOLLOW_DATA', payload.DATA);
@@ -613,6 +625,9 @@ export default {
     },
     MIC_ALLOCATIONS(state) {
       return state.micAllocations;
+    },
+    NO_LEADER_TOAST(state) {
+      return state.noLeaderToast;
     },
   }
   ,

@@ -71,7 +71,12 @@
         :key="`line_${lineIndex}_stage_direction`"
         style="text-align: center"
       >
-        <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
+        <i
+          class="viewable-line"
+          style="background-color: darkslateblue"
+        >
+          {{ line.line_parts[0].line_text }}
+        </i>
       </b-col>
     </template>
     <b-col

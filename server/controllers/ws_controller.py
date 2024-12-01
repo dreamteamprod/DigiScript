@@ -234,6 +234,15 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                                 'SCRIPT_SCROLL',
                                 message['DATA']
                             )
+            elif ws_op == 'RELOAD_CLIENTS':
+                if show and show.current_session_id:
+                    show_session = session.query(ShowSession).get(show.current_session_id)
+                    if show_session and show_session.client_internal_id == self.__getattribute__('internal_id'):
+                        await self.application.ws_send_to_all(
+                            'RELOAD_CLIENT',
+                            'NOOP',
+                            {}
+                        )
             else:
                 get_logger().warning(f'Unknown OP {ws_op} received from '
                                      f'WebSocket connection {self.request.remote_ip}')

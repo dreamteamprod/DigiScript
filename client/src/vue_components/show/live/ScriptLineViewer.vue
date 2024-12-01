@@ -44,7 +44,10 @@
           :key="`line_${lineIndex}_stage_direction`"
           class="line-part text-left"
         >
-          <i class="viewable-line">{{ line.line_parts[0].line_text }}</i>
+          <i
+            class="viewable-line"
+            style="background-color: darkslateblue"
+          >{{ line.line_parts[0].line_text }}</i>
         </b-col>
       </template>
       <template v-else>

@@ -57,9 +57,8 @@ class CharacterController(BaseAPIController):
                         await self.finish({'message': '404 cast member found'})
                         return
 
-                
                 new_character = Character(show_id=show.id, name=name, description=description,
-                                      played_by=played_by)
+                                    played_by=played_by)
                 session.add(new_character)
                 session.commit()
 

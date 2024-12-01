@@ -23,68 +23,235 @@ The recommended approach to using `pylint-ignore` is:
 
 # Overview
 
- - [W0613: unused-argument (1x)](#w0613-unused-argument)
- - [W1514: unspecified-encoding (2x)](#w1514-unspecified-encoding)
+ - [E1101: no-member (8x)](#e1101-no-member)
+ - [W0613: unused-argument (2x)](#w0613-unused-argument)
+ - [W1514: unspecified-encoding (3x)](#w1514-unspecified-encoding)
  - [C0103: invalid-name (1x)](#c0103-invalid-name)
  - [R0205: useless-object-inheritance (1x)](#r0205-useless-object-inheritance)
 
 
+# E1101: no-member
+
+## File alembic_config/env.py - Line 14 - E1101 (no-member)
+
+- `message: Module 'alembic.context' has no 'config' member`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+  12: # this is the Alembic Config object, which provides
+  13: # access to the values within the .ini file in use.
+> 14: config = context.config
+  15: 
+  16: # Interpret the config file for Python logging.
+```
+
+
+## File alembic_config/env.py - Line 63 - E1101 (no-member)
+
+- `message: Module 'alembic.context' has no 'configure' member`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+  50: def run_migrations_offline() -> None:
+  ...
+  61:     """
+  62:     url = get_digiscript_db_url()
+> 63:     context.configure(
+  64:         url=url,
+  65:         target_metadata=target_metadata,
+```
+
+
+## File alembic_config/env.py - Line 72 - E1101 (no-member)
+
+- `message: Module 'alembic.context' has no 'begin_transaction' member`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+  50: def run_migrations_offline() -> None:
+  ...
+  70:     )
+  71: 
+> 72:     with context.begin_transaction():
+  73:         context.run_migrations()
+  74:
+```
+
+
+## File alembic_config/env.py - Line 73 - E1101 (no-member)
+
+- `message: Module 'alembic.context' has no 'run_migrations' member`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+  50: def run_migrations_offline() -> None:
+  ...
+  71: 
+  72:     with context.begin_transaction():
+> 73:         context.run_migrations()
+  74: 
+  75:
+```
+
+
+## File alembic_config/env.py - Line 91 - E1101 (no-member)
+
+- `message: Module 'alembic.context' has no 'configure' member`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+  76: def run_migrations_online() -> None:
+  ...
+  89: 
+  90:     with connectable.connect() as connection:
+> 91:         context.configure(
+  92:             connection=connection,
+  93:             target_metadata=target_metadata,
+```
+
+
+## File alembic_config/env.py - Line 99 - E1101 (no-member)
+
+- `message: Module 'alembic.context' has no 'begin_transaction' member`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+   76: def run_migrations_online() -> None:
+  ...
+   97:         )
+   98: 
+>  99:         with context.begin_transaction():
+  100:             context.run_migrations()
+  101:
+```
+
+
+## File alembic_config/env.py - Line 100 - E1101 (no-member)
+
+- `message: Module 'alembic.context' has no 'run_migrations' member`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+   76: def run_migrations_online() -> None:
+  ...
+   98: 
+   99:         with context.begin_transaction():
+> 100:             context.run_migrations()
+  101: 
+  102:
+```
+
+
+## File alembic_config/env.py - Line 103 - E1101 (no-member)
+
+- `message: Module 'alembic.context' has no 'is_offline_mode' member`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+  101: 
+  102: 
+> 103: if context.is_offline_mode():
+  104:     run_migrations_offline()
+  105: else:
+```
+
+
 # W0613: unused-argument
 
-## File controllers/controllers.py - Line 26 - W0613 (unused-argument)
+## File controllers/controllers.py - Line 27 - W0613 (unused-argument)
 
 - `message: Unused argument 'path'`
 - `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
 - `date   : 2023-01-25T18:15:14`
 
 ```
-  24: 
-  25: class RootController(BaseController):
-> 26:     def get(self, path):
-  27:         file_path = os.path.join(
-  28:             os.path.abspath(
+  25: 
+  26: class RootController(BaseController):
+> 27:     def get(self, path):
+  28:         file_path = os.path.join(
+  29:             os.path.abspath(
+```
+
+
+## File alembic_config/env.py - Line 44 - W0613 (unused-argument)
+
+- `message: Unused argument 'parent_names'`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+  42: 
+  43: 
+> 44: def include_name(name, type_, parent_names):
+  45:     if type_ == "table":
+  46:         return name in target_metadata.tables
 ```
 
 
 # W1514: unspecified-encoding
 
-## File controllers/controllers.py - Line 32 - W1514 (unspecified-encoding)
+## File controllers/controllers.py - Line 37 - W1514 (unspecified-encoding)
 
 - `message: Using open without explicitly specifying an encoding`
 - `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
 - `date   : 2023-01-25T18:15:14`
 
 ```
-  26:     def get(self, path):
+  27:     def get(self, path):
   ...
-  30:             "..",
-  31:             "public")
-> 32:         with open(os.path.join(file_path, "index.html"), 'r') as file:
-  33:             self.write(file.read())
-  34:
+  35:             raise HTTPError(404)
+  36: 
+> 37:         with open(full_path, 'r') as file:
+  38:             self.write(file.read())
+  39:
 ```
 
 
-## File controllers/controllers.py - Line 45 - W1514 (unspecified-encoding)
+## File alembic_config/env.py - Line 39 - W1514 (unspecified-encoding)
+
+- `message: Using open without explicitly specifying an encoding`
+- `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
+- `date   : 2024-06-02T14:57:55`
+
+```
+  33: def get_digiscript_db_url():
+  ...
+  37:     else:
+  38:         abs_path = rel_path
+> 39:     with open(abs_path, "r") as config_file:
+  40:         ds_config = json.load(config_file)
+  41:     return ds_config["db_path"]
+```
+
+
+## File controllers/controllers.py - Line 53 - W1514 (unspecified-encoding)
 
 - `message: Using open without explicitly specifying an encoding`
 - `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
 - `date   : 2023-01-25T18:15:14`
 
 ```
-  37:     def get(self):
+  42:     def get(self):
   ...
-  43:                 os.path.sep))
-  44:         try:
-> 45:             with open(full_path, 'r') as file:
-  46:                 self.write(file.read())
-  47:         except UnicodeDecodeError:
+  51: 
+  52:         try:
+> 53:             with open(full_path, 'r') as file:
+  54:                 self.write(file.read())
+  55:         except UnicodeDecodeError:
 ```
 
 
 # C0103: invalid-name
 
-## File controllers/api/settings.py - Line 24 - C0103 (invalid-name)
+## File controllers/api/settings.py - Line 26 - C0103 (invalid-name)
 
 - `message: Variable name "v" doesn't conform to snake_case naming style`
 - `author : Tim Bradgate <timbradgate@hotmail.co.uk>`
@@ -93,11 +260,11 @@ The recommended approach to using `pylint-ignore` is:
 ```
   11: class SettingsController(BaseAPIController):
   ...
-  22:         get_logger().debug(f'New settings data patched: {data}')
-  23: 
-> 24:         for k, v in data.items():
-  25:             await settings.set(k, v)
-  26:
+  24:         get_logger().debug(f'New settings data patched: {data}')
+  25: 
+> 26:         for k, v in data.items():
+  27:             await settings.set(k, v)
+  28:
 ```
 
 

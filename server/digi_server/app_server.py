@@ -1,6 +1,12 @@
 import os
+import shutil
+import time
 from typing import List, Optional
 
+import sqlalchemy
+from alembic import command, script
+from alembic.config import Config
+from alembic.runtime import migration
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado_prometheus import PrometheusMixIn
@@ -9,8 +15,8 @@ from controllers import controllers
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger, configure_file_logging, configure_db_logging
 from digi_server.settings import Settings
+from models import models
 from models.cue import CueType
-from models.models import db
 from models.script import Script
 from models.show import Show
 from models.session import Session, ShowSession
@@ -18,12 +24,13 @@ from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
+from utils.exceptions import DatabaseUpgradeRequired
 from utils.web.route import Route
 
 
 class DigiScriptServer(PrometheusMixIn, Application):
 
-    def __init__(self, debug=False, settings_path=None):
+    def __init__(self, debug=False, settings_path=None, skip_migrations=False, skip_migrations_check=False):
         self.env_parser: EnvParser = EnvParser.instance()  # pylint: disable=no-member
 
         self.digi_settings: Settings = Settings(self, settings_path)
@@ -32,12 +39,25 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         # Controller imports (needed to trigger the decorator)
         controllers.import_all_controllers()
+        # Import all the models
+        models.import_all_models()
 
         self.clients: List[WebSocketController] = []
 
+        self._db: DigiSQLAlchemy = models.db
+        # Perform database migrations
+        if not skip_migrations:
+            self._run_migrations()
+        else:
+            get_logger().warning('Skipping performing database migrations')
+            # And then check the database is up-to-date
+            if not skip_migrations_check:
+                self._check_migrations()
+            else:
+                get_logger().warning('Skipping database migrations check')
+        # Finally, configure the database
         db_path = self.digi_settings.settings.get('db_path').get_value()
         get_logger().info(f'Using {db_path} as DB path')
-        self._db: DigiSQLAlchemy = db
         self._db.configure(url=db_path)
 
         self.rbac = RBACController(self)
@@ -106,6 +126,45 @@ class DigiScriptServer(PrometheusMixIn, Application):
         if handler.request.path in ignored_routes:
             return
         super().log_request(handler)
+
+    @property
+    def _alembic_config(self):
+        alembic_cfg_path = os.path.join(os.path.dirname(__file__), '..', 'alembic.ini')
+        alembic_cfg = Config(alembic_cfg_path)
+        # Override config options with specific ones based on this running instance
+        alembic_cfg.set_main_option('digiscript.config', self.digi_settings.settings_path)
+        alembic_cfg.set_main_option('configure_logging', 'False')
+        return alembic_cfg
+
+    def _run_migrations(self):
+        try:
+            self._check_migrations()
+        except DatabaseUpgradeRequired:
+            get_logger().info('Running database migrations via Alembic')
+            # Create a copy of the database file as a backup before performing migrations
+            db_path: str = self.digi_settings.settings.get('db_path').get_value()
+            if db_path.startswith('sqlite:///'):
+                db_path = db_path.replace('sqlite:///', '')
+            if os.path.exists(db_path) and os.path.isfile(db_path):
+                get_logger().info('Creating copy of database file as backup')
+                new_file_name = f'{db_path}.{int(time.time())}'
+                shutil.copyfile(db_path, new_file_name)
+                get_logger().info(f'Created copy of database file as backup, saved to {new_file_name}')
+            else:
+                get_logger().warning('Database connection does not appear to be a file, cannot create backup!')
+            # Run the upgrade on the database
+            command.upgrade(self._alembic_config, 'head')
+        else:
+            get_logger().info('No database migrations to perform')
+
+    def _check_migrations(self):
+        get_logger().info('Checking database migrations via Alembic')
+        engine = sqlalchemy.create_engine(self.digi_settings.settings.get('db_path').get_value())
+        script_ = script.ScriptDirectory.from_config(self._alembic_config)
+        with engine.begin() as conn:
+            context = migration.MigrationContext.configure(conn)
+            if context.get_current_revision() != script_.get_current_head():
+                raise DatabaseUpgradeRequired('Migrations required on the database')
 
     async def configure(self):
         await self._configure_logging()

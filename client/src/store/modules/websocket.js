@@ -26,6 +26,9 @@ export default {
       if (state.errorCount !== 0) {
         Vue.$toast.success(`Websocket reconnected after ${state.errorCount} attempts`);
         state.errorCount = 0;
+        if (router.currentRoute !== '/') {
+          window.location.reload();
+        }
       }
     },
     SOCKET_ONCLOSE(state, event) {
@@ -65,6 +68,9 @@ export default {
           if (router.currentRoute !== '/') {
             router.push('/');
           }
+          break;
+        case 'RELOAD_CLIENT':
+          window.location.reload();
           break;
         default:
           log.error(`Unknown OP received from websocket: ${message.OP}`);

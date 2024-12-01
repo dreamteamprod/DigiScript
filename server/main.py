@@ -16,13 +16,15 @@ define(
     type=str,
     default=None,
     help='Path to settings JSON file')
+define('skip_migrations', type=bool, default=False, help='skip database migrations')
 
 
 async def main():
     parse_command_line()
 
     app = DigiScriptServer(debug=options.debug,
-                           settings_path=options.settings_path)
+                           settings_path=options.settings_path,
+                           skip_migrations=options.skip_migrations)
     await app.configure()
 
     app.listen(options.port)
