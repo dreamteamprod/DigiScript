@@ -367,8 +367,7 @@ export default {
       return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
     },
     isWholeLineCut(line) {
-      return line.line_parts.every((linePart) => (this.linePartCuts.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+      return line.line_parts.every((linePart) => (this.linePartCuts.includes(linePart.id)), this);
     },
     ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE']),
   },
