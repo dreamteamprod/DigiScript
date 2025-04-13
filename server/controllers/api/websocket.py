@@ -4,7 +4,7 @@ from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 
 
-@ApiRoute('ws/sessions', ApiVersion.V1)
+@ApiRoute("ws/sessions", ApiVersion.V1)
 class WebsocketSessionsController(BaseAPIController):
 
     def get(self):
@@ -14,4 +14,4 @@ class WebsocketSessionsController(BaseAPIController):
             sessions = [session_scheme.dump(s) for s in sessions]
 
         self.set_status(200)
-        self.write({'sessions': sessions})
+        self.write({"sessions": sessions})

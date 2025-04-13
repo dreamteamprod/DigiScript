@@ -2,49 +2,54 @@ from datetime import datetime
 
 from tornado import escape
 
-from models.session import ShowSession, Session
+from models.session import Session, ShowSession
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import ShowSessionSchema
 from utils.web.base_controller import BaseAPIController
-from utils.web.web_decorators import requires_show
 from utils.web.route import ApiRoute, ApiVersion
+from utils.web.web_decorators import requires_show
 
 
-@ApiRoute('show/sessions', ApiVersion.V1)
+@ApiRoute("show/sessions", ApiVersion.V1)
 class SessionsController(BaseAPIController):
 
     @requires_show
     def get(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
         session_schema = ShowSessionSchema()
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                sessions = session.query(ShowSession).filter(
-                    ShowSession.show_id == show.id).all()
+                sessions = (
+                    session.query(ShowSession)
+                    .filter(ShowSession.show_id == show.id)
+                    .all()
+                )
                 sessions = [session_schema.dump(s) for s in sessions]
 
                 current_session = None
                 if show.current_session_id:
-                    current_session = session.query(ShowSession).get(show.current_session_id)
+                    current_session = session.query(ShowSession).get(
+                        show.current_session_id
+                    )
                     current_session = session_schema.dump(current_session)
 
                 self.set_status(200)
-                self.finish({'sessions': sessions, 'current_session': current_session})
+                self.finish({"sessions": sessions, "current_session": current_session})
             else:
                 self.set_status(404)
-                self.finish({'message': '404 show not found'})
+                self.finish({"message": "404 show not found"})
 
 
-@ApiRoute('show/sessions/start', ApiVersion.V1)
+@ApiRoute("show/sessions/start", ApiVersion.V1)
 class SessionStartController(BaseAPIController):
     @requires_show
     async def post(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
@@ -52,20 +57,22 @@ class SessionStartController(BaseAPIController):
                 self.requires_role(show, Role.EXECUTE)
                 if show.current_session_id:
                     self.set_status(409)
-                    await self.finish({'message': '409 session already active'})
+                    await self.finish({"message": "409 session already active"})
                 else:
                     data = escape.json_decode(self.request.body)
 
-                    session_id = data.get('session_id', None)
+                    session_id = data.get("session_id", None)
                     if not session_id:
                         self.set_status(400)
-                        await self.finish({'message': 'session_id missing'})
+                        await self.finish({"message": "session_id missing"})
                         return
 
                     user_session: Session = session.query(Session).get(session_id)
                     if not user_session:
                         self.set_status(400)
-                        await self.finish({'message': 'Unable to find session given session_id'})
+                        await self.finish(
+                            {"message": "Unable to find session given session_id"}
+                        )
                         return
 
                     show_session = ShowSession(
@@ -73,7 +80,7 @@ class SessionStartController(BaseAPIController):
                         start_date_time=datetime.utcnow(),
                         end_date_time=None,
                         client_internal_id=user_session.internal_id,
-                        user_id=user_session.user.id
+                        user_id=user_session.user.id,
                     )
                     session.add(show_session)
                     session.flush()
@@ -82,21 +89,23 @@ class SessionStartController(BaseAPIController):
                     session.commit()
 
                     self.set_status(200)
-                    self.write({'message': 'Successfully started show session'})
+                    self.write({"message": "Successfully started show session"})
 
-                    await self.application.ws_send_to_all('NOOP', 'GET_SHOW_SESSION_DATA', {})
-                    await self.application.ws_send_to_all('START_SHOW', 'NOOP', {})
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_SHOW_SESSION_DATA", {}
+                    )
+                    await self.application.ws_send_to_all("START_SHOW", "NOOP", {})
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})
 
 
-@ApiRoute('show/sessions/stop', ApiVersion.V1)
+@ApiRoute("show/sessions/stop", ApiVersion.V1)
 class SessionStopController(BaseAPIController):
     @requires_show
     async def post(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
@@ -104,19 +113,22 @@ class SessionStopController(BaseAPIController):
                 self.requires_role(show, Role.EXECUTE)
                 if not show.current_session_id:
                     self.set_status(409)
-                    await self.finish({'message': '409 no active session'})
+                    await self.finish({"message": "409 no active session"})
                 else:
                     show_session: ShowSession = session.query(ShowSession).get(
-                        show.current_session_id)
+                        show.current_session_id
+                    )
                     show_session.end_date_time = datetime.utcnow()
                     show.current_session_id = None
                     session.commit()
 
                     self.set_status(200)
-                    self.write({'message': 'Successfully stopped show session'})
+                    self.write({"message": "Successfully stopped show session"})
 
-                    await self.application.ws_send_to_all('NOOP', 'GET_SHOW_SESSION_DATA', {})
-                    await self.application.ws_send_to_all('STOP_SHOW', 'NOOP', {})
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_SHOW_SESSION_DATA", {}
+                    )
+                    await self.application.ws_send_to_all("STOP_SHOW", "NOOP", {})
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})

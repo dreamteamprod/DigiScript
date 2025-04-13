@@ -5,179 +5,221 @@ from sqlalchemy import func
 from tornado import escape
 
 from models.cue import CueAssociation
-from models.script import (Script, ScriptRevision, ScriptLine, ScriptLineRevisionAssociation,
-                           ScriptLinePart, ScriptCuts, StageDirectionStyle)
-from models.show import Show
+from models.script import (
+    Script,
+    ScriptCuts,
+    ScriptLine,
+    ScriptLinePart,
+    ScriptLineRevisionAssociation,
+    ScriptRevision,
+    StageDirectionStyle,
+)
 from models.session import Session
+from models.show import Show
 from rbac.role import Role
-from schemas.schemas import ScriptRevisionsSchema, ScriptLineSchema, StageDirectionStyleSchema
+from schemas.schemas import (
+    ScriptLineSchema,
+    ScriptRevisionsSchema,
+    StageDirectionStyleSchema,
+)
 from utils.web.base_controller import BaseAPIController
-from utils.web.web_decorators import requires_show, no_live_session
 from utils.web.route import ApiRoute, ApiVersion
+from utils.web.web_decorators import no_live_session, requires_show
 
 
-@ApiRoute('show/script/config', ApiVersion.V1)
+@ApiRoute("show/script/config", ApiVersion.V1)
 class ScriptStatusController(BaseAPIController):
     def get(self):
         with self.make_session() as session:
-            editors: List[Session] = session.query(Session).filter(Session.is_editor).all()
+            editors: List[Session] = (
+                session.query(Session).filter(Session.is_editor).all()
+            )
             if editors:
                 current_editor = editors[0].internal_id
             else:
                 current_editor = None
 
             data = {
-                'canRequestEdit': len(editors) == 0,
-                'currentEditor': current_editor
+                "canRequestEdit": len(editors) == 0,
+                "currentEditor": current_editor,
             }
 
             self.set_status(200)
             self.finish(data)
 
 
-@ApiRoute('show/script/revisions', ApiVersion.V1)
+@ApiRoute("show/script/revisions", ApiVersion.V1)
 class ScriptRevisionsController(BaseAPIController):
 
     @requires_show
     def get(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
         revisions_schema = ScriptRevisionsSchema()
 
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
 
                 if script:
                     revisions = [revisions_schema.dump(c) for c in script.revisions]
                     self.set_status(200)
-                    self.finish({
-                        'current_revision': script.current_revision,
-                        'revisions': revisions
-                    })
+                    self.finish(
+                        {
+                            "current_revision": script.current_revision,
+                            "revisions": revisions,
+                        }
+                    )
                 else:
                     self.set_status(404)
-                    self.finish({'message': '404 script not found'})
+                    self.finish({"message": "404 script not found"})
             else:
                 self.set_status(404)
-                self.finish({'message': '404 show not found'})
+                self.finish({"message": "404 show not found"})
 
     @requires_show
     @no_live_session
     async def post(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
                 data = escape.json_decode(self.request.body)
 
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 if not script:
                     self.set_status(404)
-                    await self.finish({'message': '404 script not found'})
+                    await self.finish({"message": "404 script not found"})
                     return
                 self.requires_role(script, Role.WRITE)
 
                 current_rev_id = script.current_revision
                 if not current_rev_id:
                     self.set_status(404)
-                    await self.finish({'message': '404 script revision not found'})
+                    await self.finish({"message": "404 script revision not found"})
                     return
 
-                current_rev: ScriptRevision = session.query(ScriptRevision).get(current_rev_id)
+                current_rev: ScriptRevision = session.query(ScriptRevision).get(
+                    current_rev_id
+                )
                 if not current_rev:
                     self.set_status(404)
-                    await self.finish({'message': '404 script revision not found'})
+                    await self.finish({"message": "404 script revision not found"})
                     return
 
-                max_rev = session.query(func.max(ScriptRevision.revision)).filter(
-                    ScriptRevision.script_id == script.id).one()[0]
+                max_rev = (
+                    session.query(func.max(ScriptRevision.revision))
+                    .filter(ScriptRevision.script_id == script.id)
+                    .one()[0]
+                )
 
-                description: str = data.get('description', None)
+                description: str = data.get("description", None)
                 if not description:
                     self.set_status(400)
-                    await self.finish({'message': 'Description missing'})
+                    await self.finish({"message": "Description missing"})
                     return
 
                 now_time = datetime.utcnow()
-                new_rev = ScriptRevision(script_id=script.id,
-                                         revision=max_rev + 1,
-                                         created_at=now_time,
-                                         edited_at=now_time,
-                                         description=description,
-                                         previous_revision_id=current_rev.id)
+                new_rev = ScriptRevision(
+                    script_id=script.id,
+                    revision=max_rev + 1,
+                    created_at=now_time,
+                    edited_at=now_time,
+                    description=description,
+                    previous_revision_id=current_rev.id,
+                )
                 session.add(new_rev)
                 session.flush()
                 for line_association in current_rev.line_associations:
-                    new_rev.line_associations.append(ScriptLineRevisionAssociation(
-                        revision_id=new_rev.id,
-                        line_id=line_association.line_id,
-                        next_line_id=line_association.next_line_id,
-                        previous_line_id=line_association.previous_line_id
-                    ))
+                    new_rev.line_associations.append(
+                        ScriptLineRevisionAssociation(
+                            revision_id=new_rev.id,
+                            line_id=line_association.line_id,
+                            next_line_id=line_association.next_line_id,
+                            previous_line_id=line_association.previous_line_id,
+                        )
+                    )
                 for cue_association in current_rev.cue_associations:
-                    new_rev.cue_associations.append(CueAssociation(
-                        revision_id=new_rev.id,
-                        line_id=cue_association.line_id,
-                        cue_id=cue_association.cue_id
-                    ))
+                    new_rev.cue_associations.append(
+                        CueAssociation(
+                            revision_id=new_rev.id,
+                            line_id=cue_association.line_id,
+                            cue_id=cue_association.cue_id,
+                        )
+                    )
                 for cut_association in current_rev.line_part_cuts:
-                    new_rev.line_part_cuts.append(ScriptCuts(
-                        revision_id=new_rev.id,
-                        line_part_id=cut_association.line_part_id,
-                    ))
+                    new_rev.line_part_cuts.append(
+                        ScriptCuts(
+                            revision_id=new_rev.id,
+                            line_part_id=cut_association.line_part_id,
+                        )
+                    )
 
                 script.current_revision = new_rev.id
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'id': new_rev.id, 'message': 'Successfully added script revision'})
-                await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
+                await self.finish(
+                    {"id": new_rev.id, "message": "Successfully added script revision"}
+                )
+                await self.application.ws_send_to_all(
+                    "NOOP", "GET_SCRIPT_REVISIONS", {}
+                )
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})
 
     @requires_show
     @no_live_session
     async def delete(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
                 data = escape.json_decode(self.request.body)
 
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 if not script:
                     self.set_status(404)
-                    await self.finish({'message': '404 script not found'})
+                    await self.finish({"message": "404 script not found"})
                     return
                 self.requires_role(script, Role.WRITE)
 
-                rev_id: int = data.get('rev_id', None)
+                rev_id: int = data.get("rev_id", None)
                 if not rev_id:
                     self.set_status(400)
-                    await self.finish({'message': 'Revision missing'})
+                    await self.finish({"message": "Revision missing"})
                     return
 
                 rev: ScriptRevision = session.query(ScriptRevision).get(rev_id)
                 if not rev:
                     self.set_status(404)
-                    await self.finish({'message': 'Revision not found'})
+                    await self.finish({"message": "Revision not found"})
                     return
 
                 if rev.script_id != script.id:
                     self.set_status(400)
-                    await self.finish({'message': 'Revision is not for the current script'})
+                    await self.finish(
+                        {"message": "Revision is not for the current script"}
+                    )
                     return
 
                 if rev.revision == 1:
                     self.set_status(400)
-                    await self.finish({'message': 'Cannot delete first script revision'})
+                    await self.finish(
+                        {"message": "Cannot delete first script revision"}
+                    )
                     return
 
                 changed_rev = False
@@ -186,55 +228,68 @@ class ScriptRevisionsController(BaseAPIController):
                     if rev.previous_revision_id:
                         script.current_revision = rev.previous_revision_id
                     else:
-                        first_rev: ScriptRevision = session.query(ScriptRevision).filter(
-                            ScriptRevision.script_id == script.id,
-                            ScriptRevision.revision == 1).one()
+                        first_rev: ScriptRevision = (
+                            session.query(ScriptRevision)
+                            .filter(
+                                ScriptRevision.script_id == script.id,
+                                ScriptRevision.revision == 1,
+                            )
+                            .one()
+                        )
                         script.current_revision = first_rev.id
 
                 session.delete(rev)
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully deleted script revision'})
+                await self.finish({"message": "Successfully deleted script revision"})
                 if changed_rev:
-                    await self.application.ws_send_to_all('NOOP', 'SCRIPT_REVISION_CHANGED', {})
+                    await self.application.ws_send_to_all(
+                        "NOOP", "SCRIPT_REVISION_CHANGED", {}
+                    )
                 else:
-                    await self.application.ws_send_to_all('NOOP', 'GET_SCRIPT_REVISIONS', {})
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_SCRIPT_REVISIONS", {}
+                    )
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})
 
 
-@ApiRoute('show/script/revisions/current', ApiVersion.V1)
+@ApiRoute("show/script/revisions/current", ApiVersion.V1)
 class ScriptCurrentRevisionController(BaseAPIController):
 
     @requires_show
     def get(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
 
                 if script:
                     self.set_status(200)
-                    self.finish({
-                        'current_revision': script.current_revision,
-                    })
+                    self.finish(
+                        {
+                            "current_revision": script.current_revision,
+                        }
+                    )
                 else:
                     self.set_status(404)
-                    self.finish({'message': '404 script not found'})
+                    self.finish({"message": "404 script not found"})
             else:
                 self.set_status(404)
-                self.finish({'message': '404 show not found'})
+                self.finish({"message": "404 show not found"})
 
     @requires_show
     @no_live_session
     async def post(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
@@ -242,52 +297,58 @@ class ScriptCurrentRevisionController(BaseAPIController):
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 if not script:
                     self.set_status(404)
-                    await self.finish({'message': '404 script not found'})
+                    await self.finish({"message": "404 script not found"})
                     return
 
-                new_rev_id: int = data.get('new_rev_id', None)
+                new_rev_id: int = data.get("new_rev_id", None)
                 if not new_rev_id:
                     self.set_status(400)
-                    await self.finish({'message': 'New revision missing'})
+                    await self.finish({"message": "New revision missing"})
                     return
 
                 new_rev: ScriptRevision = session.query(ScriptRevision).get(new_rev_id)
                 if not new_rev:
                     self.set_status(404)
-                    await self.finish({'message': 'New revision not found'})
+                    await self.finish({"message": "New revision not found"})
                     return
 
                 if new_rev.script_id != script.id:
                     self.set_status(400)
-                    await self.finish({'message': 'New revision is not for the current script'})
+                    await self.finish(
+                        {"message": "New revision is not for the current script"}
+                    )
                     return
 
                 script.current_revision = new_rev.id
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully changed script revision'})
-                await self.application.ws_send_to_all('NOOP', 'SCRIPT_REVISION_CHANGED', {})
+                await self.finish({"message": "Successfully changed script revision"})
+                await self.application.ws_send_to_all(
+                    "NOOP", "SCRIPT_REVISION_CHANGED", {}
+                )
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})
 
 
-@ApiRoute('/show/script', ApiVersion.V1)
+@ApiRoute("/show/script", ApiVersion.V1)
 class ScriptController(BaseAPIController):
 
     @requires_show
     def get(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
-        page = self.get_query_argument('page', None)
+        page = self.get_query_argument("page", None)
         if not page:
             self.set_status(400)
-            self.finish({'message': 'Page not given'})
+            self.finish({"message": "Page not given"})
             return
 
         page = int(page)
@@ -297,28 +358,40 @@ class ScriptController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
 
                 if script.current_revision:
                     revision: ScriptRevision = session.query(ScriptRevision).get(
-                        script.current_revision)
+                        script.current_revision
+                    )
                 else:
                     self.set_status(400)
-                    self.finish({'message': 'Script does not have a current revision'})
+                    self.finish({"message": "Script does not have a current revision"})
                     return
 
-                revision_lines: List[ScriptLineRevisionAssociation] = session.query(
-                    ScriptLineRevisionAssociation).filter(
-                    ScriptLineRevisionAssociation.revision_id == revision.id,
-                    ScriptLineRevisionAssociation.line.has(page=page)).all()
+                revision_lines: List[ScriptLineRevisionAssociation] = (
+                    session.query(ScriptLineRevisionAssociation)
+                    .filter(
+                        ScriptLineRevisionAssociation.revision_id == revision.id,
+                        ScriptLineRevisionAssociation.line.has(page=page),
+                    )
+                    .all()
+                )
 
                 first_line = None
                 for line in revision_lines:
-                    if (page == 1 and line.previous_line is None
-                            or line.previous_line.page == page - 1):
+                    if (
+                        page == 1
+                        and line.previous_line is None
+                        or line.previous_line.page == page - 1
+                    ):
                         if first_line:
                             self.set_status(400)
-                            self.finish({'message': 'Failed to establish page line order'})
+                            self.finish(
+                                {"message": "Failed to establish page line order"}
+                            )
                             return
 
                         first_line = line
@@ -331,52 +404,69 @@ class ScriptController(BaseAPIController):
 
                     lines.append(line_schema.dump(line_revision.line))
                     line_revision = session.query(ScriptLineRevisionAssociation).get(
-                        {'revision_id': revision.id, 'line_id': line_revision.next_line_id})
+                        {
+                            "revision_id": revision.id,
+                            "line_id": line_revision.next_line_id,
+                        }
+                    )
 
                 self.set_status(200)
-                self.finish({'lines': lines, 'page': page})
+                self.finish({"lines": lines, "page": page})
             else:
                 self.set_status(404)
-                self.finish({'message': '404 show not found'})
+                self.finish({"message": "404 show not found"})
                 return
 
     @staticmethod
     def _validate_line(line_json):
-        if line_json['stage_direction']:
-            if len(line_json['line_parts']) > 1:
-                return False, 'Stage directions can only have 1 line part'
-            line_part = line_json['line_parts'][0]
-            if line_part['character_id'] is not None:
-                return False, 'Stage directions cannot have characters'
-            if line_part['character_group_id'] is not None:
-                return False, 'Stage directions cannot have character groups'
-            if line_part['line_text'] is None:
-                return False, 'Stage directions must contain text'
+        if line_json["stage_direction"]:
+            if len(line_json["line_parts"]) > 1:
+                return False, "Stage directions can only have 1 line part"
+            line_part = line_json["line_parts"][0]
+            if line_part["character_id"] is not None:
+                return False, "Stage directions cannot have characters"
+            if line_part["character_group_id"] is not None:
+                return False, "Stage directions cannot have character groups"
+            if line_part["line_text"] is None:
+                return False, "Stage directions must contain text"
         else:
-            for line_part in line_json['line_parts']:
-                if line_part['line_text'] is None:
-                    if len(line_json['line_parts']) == 1:
-                        return False, 'Line parts must contain text'
-                    if not any(lp['line_text'] is not None for lp in line_json['line_parts']):
-                        return False, ('At least one line part in a multi part line must '
-                                       'contain text')
-                if line_part['character_id'] is None and line_part['character_group_id'] is None:
-                    return False, 'Line parts must contain a character or character group'
-                if line_part['character_id'] and line_part['character_group_id']:
-                    return False, 'Line parts cannot contain both a character and character group'
+            for line_part in line_json["line_parts"]:
+                if line_part["line_text"] is None:
+                    if len(line_json["line_parts"]) == 1:
+                        return False, "Line parts must contain text"
+                    if not any(
+                        lp["line_text"] is not None for lp in line_json["line_parts"]
+                    ):
+                        return False, (
+                            "At least one line part in a multi part line must "
+                            "contain text"
+                        )
+                if (
+                    line_part["character_id"] is None
+                    and line_part["character_group_id"] is None
+                ):
+                    return (
+                        False,
+                        "Line parts must contain a character or character group",
+                    )
+                if line_part["character_id"] and line_part["character_group_id"]:
+                    return (
+                        False,
+                        "Line parts cannot contain both a character and character group",
+                    )
 
-        return True, ''
+        return True, ""
 
     @requires_show
     @no_live_session
     async def post(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
-        page = self.get_query_argument('page', None)
+        page = self.get_query_argument("page", None)
         if not page:
             self.set_status(400)
-            await self.finish({'message': 'Page not given'})
+            await self.finish({"message": "Page not given"})
             return
 
         page = int(page)
@@ -384,15 +474,20 @@ class ScriptController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 self.requires_role(script, Role.WRITE)
 
                 if script.current_revision:
                     revision: ScriptRevision = session.query(ScriptRevision).get(
-                        script.current_revision)
+                        script.current_revision
+                    )
                 else:
                     self.set_status(400)
-                    await self.finish({'message': 'Script does not have a current revision'})
+                    await self.finish(
+                        {"message": "Script does not have a current revision"}
+                    )
                     return
 
                 lines = escape.json_decode(self.request.body)
@@ -405,53 +500,66 @@ class ScriptController(BaseAPIController):
                     if not valid_status:
                         session.rollback()
                         self.set_status(400)
-                        await self.finish({'message': valid_reason})
+                        await self.finish({"message": valid_reason})
                         return
 
                     # Create the initial line object, and flush it to the database as we need
                     # the ID for further in the loop
-                    line_obj = ScriptLine(act_id=line['act_id'],
-                                          scene_id=line['scene_id'],
-                                          page=line['page'],
-                                          stage_direction=line['stage_direction'])
+                    line_obj = ScriptLine(
+                        act_id=line["act_id"],
+                        scene_id=line["scene_id"],
+                        page=line["page"],
+                        stage_direction=line["stage_direction"],
+                    )
                     session.add(line_obj)
                     session.flush()
 
                     # Line revision object to keep track of that thing
-                    line_revision = ScriptLineRevisionAssociation(revision_id=revision.id,
-                                                                  line_id=line_obj.id)
+                    line_revision = ScriptLineRevisionAssociation(
+                        revision_id=revision.id, line_id=line_obj.id
+                    )
                     session.add(line_revision)
                     session.flush()
 
                     if index == 0 and page > 1:
                         # First line and not the first page, so need to get the last line of the
                         # previous page and set its next line to this one
-                        prev_page_lines: List[ScriptLineRevisionAssociation] = session.query(
-                            ScriptLineRevisionAssociation).filter(
-                            ScriptLineRevisionAssociation.revision_id == revision.id,
-                            ScriptLineRevisionAssociation.line.has(page=page - 1)).all()
+                        prev_page_lines: List[ScriptLineRevisionAssociation] = (
+                            session.query(ScriptLineRevisionAssociation)
+                            .filter(
+                                ScriptLineRevisionAssociation.revision_id
+                                == revision.id,
+                                ScriptLineRevisionAssociation.line.has(page=page - 1),
+                            )
+                            .all()
+                        )
 
                         if not prev_page_lines:
                             session.rollback()
                             self.set_status(400)
-                            await self.finish({
-                                'message': 'Previous page does not contain any lines'
-                            })
+                            await self.finish(
+                                {"message": "Previous page does not contain any lines"}
+                            )
                             return
 
                         # Perform some iteration here to establish the first line of the script
                         # of the previous page
                         first_line = None
                         for prev_line in prev_page_lines:
-                            if (prev_line.previous_line is None or
-                                    prev_line.previous_line.page == prev_line.line.page - 1):
+                            if (
+                                prev_line.previous_line is None
+                                or prev_line.previous_line.page
+                                == prev_line.line.page - 1
+                            ):
                                 if first_line:
                                     session.rollback()
                                     self.set_status(400)
-                                    await self.finish({
-                                        'message': 'Failed to establish page line order for '
-                                                   'previous page'
-                                    })
+                                    await self.finish(
+                                        {
+                                            "message": "Failed to establish page line order for "
+                                            "previous page"
+                                        }
+                                    )
                                     return
 
                                 first_line = prev_line
@@ -465,10 +573,14 @@ class ScriptController(BaseAPIController):
                                 break
 
                             previous_lines.append(prev_line)
-                            prev_line = session.query(ScriptLineRevisionAssociation).get({
-                                'revision_id': revision.id,
-                                'line_id': prev_line.next_line_id
-                            })
+                            prev_line = session.query(
+                                ScriptLineRevisionAssociation
+                            ).get(
+                                {
+                                    "revision_id": revision.id,
+                                    "line_id": prev_line.next_line_id,
+                                }
+                            )
 
                         previous_lines[-1].next_line_id = line_obj.id
                         line_revision.previous_line_id = previous_lines[-1].line_id
@@ -481,13 +593,14 @@ class ScriptController(BaseAPIController):
                         session.flush()
 
                     # Construct the line part objects and add these to the line itself
-                    for line_part in line['line_parts']:
-                        part_obj = ScriptLinePart(line_id=line_obj.id,
-                                                  part_index=line_part['part_index'],
-                                                  character_id=line_part['character_id'],
-                                                  character_group_id=line_part[
-                                                      'character_group_id'],
-                                                  line_text=line_part['line_text'])
+                    for line_part in line["line_parts"]:
+                        part_obj = ScriptLinePart(
+                            line_id=line_obj.id,
+                            part_index=line_part["part_index"],
+                            character_id=line_part["character_id"],
+                            character_group_id=line_part["character_group_id"],
+                            line_text=line_part["line_text"],
+                        )
                         session.add(part_obj)
                         line_obj.line_parts.append(part_obj)
 
@@ -505,24 +618,27 @@ class ScriptController(BaseAPIController):
                 session.commit()
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})
                 return
 
     @staticmethod
     def _create_new_line(session, revision, line, previous_line, with_association=True):
         # Create the line object
-        line_obj = ScriptLine(act_id=line['act_id'],
-                              scene_id=line['scene_id'],
-                              page=line['page'],
-                              stage_direction=line['stage_direction'])
+        line_obj = ScriptLine(
+            act_id=line["act_id"],
+            scene_id=line["scene_id"],
+            page=line["page"],
+            stage_direction=line["stage_direction"],
+        )
         session.add(line_obj)
         session.flush()
 
         line_association = None
         if with_association:
             # Line revision object to keep track of that thing
-            line_association = ScriptLineRevisionAssociation(revision_id=revision.id,
-                                                             line_id=line_obj.id)
+            line_association = ScriptLineRevisionAssociation(
+                revision_id=revision.id, line_id=line_obj.id
+            )
             session.add(line_association)
             session.flush()
 
@@ -533,12 +649,14 @@ class ScriptController(BaseAPIController):
                 session.flush()
 
         # Construct the line part objects and add these to the line itself
-        for line_part in line['line_parts']:
-            part_obj = ScriptLinePart(line_id=line_obj.id,
-                                      part_index=line_part['part_index'],
-                                      character_id=line_part['character_id'],
-                                      character_group_id=line_part['character_group_id'],
-                                      line_text=line_part['line_text'])
+        for line_part in line["line_parts"]:
+            part_obj = ScriptLinePart(
+                line_id=line_obj.id,
+                part_index=line_part["part_index"],
+                character_id=line_part["character_id"],
+                character_group_id=line_part["character_group_id"],
+                line_text=line_part["line_text"],
+            )
             session.add(part_obj)
             line_obj.line_parts.append(part_obj)
 
@@ -551,12 +669,12 @@ class ScriptController(BaseAPIController):
     @no_live_session
     async def patch(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
-        page = self.get_query_argument('page', None)
+        page = self.get_query_argument("page", None)
         if not page:
             self.set_status(400)
-            await self.finish({'message': 'Page not given'})
+            await self.finish({"message": "Page not given"})
             return
 
         page = int(page)
@@ -564,117 +682,151 @@ class ScriptController(BaseAPIController):
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 self.requires_role(script, Role.WRITE)
 
                 if script.current_revision:
                     revision: ScriptRevision = session.query(ScriptRevision).get(
-                        script.current_revision)
+                        script.current_revision
+                    )
                 else:
                     self.set_status(400)
-                    await self.finish({'message': 'Script does not have a current revision'})
+                    await self.finish(
+                        {"message": "Script does not have a current revision"}
+                    )
                     return
 
                 request_body = escape.json_decode(self.request.body)
 
-                lines = request_body.get('page', None)
+                lines = request_body.get("page", None)
                 if lines is None:
                     self.set_status(400)
-                    await self.finish({
-                        'message': 'Malformed request body, could not find `page` data'
-                    })
+                    await self.finish(
+                        {
+                            "message": "Malformed request body, could not find `page` data"
+                        }
+                    )
                     return
 
-                status = request_body.get('status', None)
+                status = request_body.get("status", None)
                 if status is None:
                     self.set_status(400)
-                    await self.finish({
-                        'message': 'Malformed request body, could not find `status` data'
-                    })
+                    await self.finish(
+                        {
+                            "message": "Malformed request body, could not find `status` data"
+                        }
+                    )
                     return
 
                 # If we are editing a page other than the first page, we need to get the previous
                 # line based on the last line from the previous page to ensure that any edits made
                 # to the first line of this page are reflected properly
                 if page > 1:
-                    if lines[0]['id'] is not None:
+                    if lines[0]["id"] is not None:
                         first_line = session.query(ScriptLineRevisionAssociation).get(
-                            {'revision_id': revision.id,
-                             'line_id': lines[0]['id']})
+                            {"revision_id": revision.id, "line_id": lines[0]["id"]}
+                        )
 
                         if not first_line:
                             session.rollback()
                             self.set_status(400)
-                            await self.finish({'message': 'Unable to load line data for first line'})
+                            await self.finish(
+                                {"message": "Unable to load line data for first line"}
+                            )
                             return
 
                         if not first_line.previous_line:
                             session.rollback()
                             self.set_status(400)
-                            await self.finish({
-                                'message': 'Unable to establish page line order - '
-                                           'first line on this page does not have a previous line'
-                            })
+                            await self.finish(
+                                {
+                                    "message": "Unable to establish page line order - "
+                                    "first line on this page does not have a previous line"
+                                }
+                            )
                             return
 
-                        previous_line = session.query(ScriptLineRevisionAssociation).get(
-                            {'revision_id': revision.id,
-                             'line_id': first_line.previous_line.id})
+                        previous_line = session.query(
+                            ScriptLineRevisionAssociation
+                        ).get(
+                            {
+                                "revision_id": revision.id,
+                                "line_id": first_line.previous_line.id,
+                            }
+                        )
 
                         if not previous_line:
                             session.rollback()
                             self.set_status(400)
-                            await self.finish({
-                                'message': 'Unable to establish page line order - '
-                                           'could not find previous line data for first line on this '
-                                           'page'
-                            })
+                            await self.finish(
+                                {
+                                    "message": "Unable to establish page line order - "
+                                    "could not find previous line data for first line on this "
+                                    "page"
+                                }
+                            )
                             return
                     else:
                         session.rollback()
                         self.set_status(400)
-                        await self.finish({'message': 'Cannot establish line order as first line has '
-                                                      'no ID'})
+                        await self.finish(
+                            {
+                                "message": "Cannot establish line order as first line has "
+                                "no ID"
+                            }
+                        )
                         return
                 else:
                     previous_line: Optional[ScriptLineRevisionAssociation] = None
 
                 for index, line in enumerate(lines):
-                    if index in status['added']:
+                    if index in status["added"]:
                         # Validate the line
                         valid_status, valid_reason = self._validate_line(line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)
-                            await self.finish({'message': valid_reason})
+                            await self.finish({"message": valid_reason})
                             return
 
                         line_association, line_object = self._create_new_line(
-                            session, revision, line, previous_line)
+                            session, revision, line, previous_line
+                        )
                         previous_line = line_association
-                    elif index in status['inserted']:
+                    elif index in status["inserted"]:
                         # Validate the line
                         valid_status, valid_reason = self._validate_line(line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)
-                            await self.finish({'message': valid_reason})
+                            await self.finish({"message": valid_reason})
                             return
 
                         line_association, line_object = self._create_new_line(
-                            session, revision, line, previous_line, with_association=False)
+                            session,
+                            revision,
+                            line,
+                            previous_line,
+                            with_association=False,
+                        )
                         line_association = ScriptLineRevisionAssociation(
-                            revision_id=revision.id,
-                            line_id=line_object.id)
+                            revision_id=revision.id, line_id=line_object.id
+                        )
                         line_association.previous_line = previous_line.line
                         session.add(line_association)
                         session.flush()
 
                         if previous_line.next_line:
-                            next_association: ScriptLineRevisionAssociation = session.query(
-                                ScriptLineRevisionAssociation).get(
-                                {'revision_id': revision.id,
-                                 'line_id': previous_line.next_line.id})
+                            next_association: (
+                                ScriptLineRevisionAssociation
+                            ) = session.query(ScriptLineRevisionAssociation).get(
+                                {
+                                    "revision_id": revision.id,
+                                    "line_id": previous_line.next_line.id,
+                                }
+                            )
                             next_association.previous_line = line_object
                             line_association.next_line = next_association.line
 
@@ -683,76 +835,106 @@ class ScriptController(BaseAPIController):
                         session.flush()
 
                         previous_line = line_association
-                    elif index in status['deleted']:
+                    elif index in status["deleted"]:
                         curr_association: ScriptLineRevisionAssociation = session.query(
-                            ScriptLineRevisionAssociation).get(
-                            {'revision_id': revision.id, 'line_id': line['id']})
+                            ScriptLineRevisionAssociation
+                        ).get({"revision_id": revision.id, "line_id": line["id"]})
 
                         # Logic for handling next/previous line associations
-                        if curr_association.next_line and curr_association.previous_line:
+                        if (
+                            curr_association.next_line
+                            and curr_association.previous_line
+                        ):
                             # Next line and previous line, so need to update both
-                            next_association: ScriptLineRevisionAssociation = session.query(
-                                ScriptLineRevisionAssociation).get(
-                                {'revision_id': revision.id,
-                                 'line_id': curr_association.next_line.id})
-                            next_association.previous_line = curr_association.previous_line
+                            next_association: (
+                                ScriptLineRevisionAssociation
+                            ) = session.query(ScriptLineRevisionAssociation).get(
+                                {
+                                    "revision_id": revision.id,
+                                    "line_id": curr_association.next_line.id,
+                                }
+                            )
+                            next_association.previous_line = (
+                                curr_association.previous_line
+                            )
                             session.flush()
 
-                            prev_association: ScriptLineRevisionAssociation = session.query(
-                                ScriptLineRevisionAssociation).get(
-                                {'revision_id': revision.id,
-                                 'line_id': curr_association.previous_line.id})
+                            prev_association: (
+                                ScriptLineRevisionAssociation
+                            ) = session.query(ScriptLineRevisionAssociation).get(
+                                {
+                                    "revision_id": revision.id,
+                                    "line_id": curr_association.previous_line.id,
+                                }
+                            )
                             prev_association.next_line = next_association.line
                             session.flush()
                         elif curr_association.next_line:
                             # No previous line, so need to update next line only
-                            next_association: ScriptLineRevisionAssociation = session.query(
-                                ScriptLineRevisionAssociation).get(
-                                {'revision_id': revision.id,
-                                 'line_id': curr_association.next_line.id})
+                            next_association: (
+                                ScriptLineRevisionAssociation
+                            ) = session.query(ScriptLineRevisionAssociation).get(
+                                {
+                                    "revision_id": revision.id,
+                                    "line_id": curr_association.next_line.id,
+                                }
+                            )
                             next_association.previous_line = None
                             session.flush()
                         elif curr_association.previous_line:
                             # No next line, so need to update previous line only
-                            prev_association: ScriptLineRevisionAssociation = session.query(
-                                ScriptLineRevisionAssociation).get(
-                                {'revision_id': revision.id,
-                                 'line_id': curr_association.previous_line.id})
+                            prev_association: (
+                                ScriptLineRevisionAssociation
+                            ) = session.query(ScriptLineRevisionAssociation).get(
+                                {
+                                    "revision_id": revision.id,
+                                    "line_id": curr_association.previous_line.id,
+                                }
+                            )
                             prev_association.next_line = None
                             session.flush()
                         session.delete(curr_association)
-                    elif index in status['updated']:
+                    elif index in status["updated"]:
                         # Validate the line
                         valid_status, valid_reason = self._validate_line(line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)
-                            await self.finish({'message': valid_reason})
+                            await self.finish({"message": valid_reason})
                             return
 
                         curr_association: ScriptLineRevisionAssociation = session.query(
-                            ScriptLineRevisionAssociation).get(
-                            {'revision_id': revision.id, 'line_id': line['id']})
+                            ScriptLineRevisionAssociation
+                        ).get({"revision_id": revision.id, "line_id": line["id"]})
                         curr_line = curr_association.line
 
                         if not curr_association:
                             session.rollback()
                             self.set_status(500)
-                            await self.finish({'message': 'Unable to load line data'})
+                            await self.finish({"message": "Unable to load line data"})
                             return
 
                         line_association, line_object = self._create_new_line(
-                            session, revision, line, previous_line, with_association=False)
+                            session,
+                            revision,
+                            line,
+                            previous_line,
+                            with_association=False,
+                        )
                         curr_association.line = line_object
                         if previous_line:
                             previous_line.next_line = line_object
                             curr_association.previous_line = previous_line.line
 
                         if curr_association.next_line:
-                            next_association: ScriptLineRevisionAssociation = session.query(
-                                ScriptLineRevisionAssociation).get(
-                                {'revision_id': revision.id,
-                                 'line_id': curr_association.next_line.id})
+                            next_association: (
+                                ScriptLineRevisionAssociation
+                            ) = session.query(ScriptLineRevisionAssociation).get(
+                                {
+                                    "revision_id": revision.id,
+                                    "line_id": curr_association.next_line.id,
+                                }
+                            )
                             next_association.previous_line = line_object
                         session.flush()
 
@@ -763,81 +945,94 @@ class ScriptController(BaseAPIController):
 
                         previous_line = curr_association
                     else:
-                        previous_line = session.query(ScriptLineRevisionAssociation).get(
-                            {'revision_id': revision.id, 'line_id': line['id']})
+                        previous_line = session.query(
+                            ScriptLineRevisionAssociation
+                        ).get({"revision_id": revision.id, "line_id": line["id"]})
 
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})
                 return
 
 
-@ApiRoute('/show/script/cuts', ApiVersion.V1)
+@ApiRoute("/show/script/cuts", ApiVersion.V1)
 class ScriptCutsController(BaseAPIController):
 
     @requires_show
     def get(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
 
                 if script.current_revision:
                     revision: ScriptRevision = session.query(ScriptRevision).get(
-                        script.current_revision)
+                        script.current_revision
+                    )
                 else:
                     self.set_status(400)
-                    self.finish({'message': 'Script does not have a current revision'})
+                    self.finish({"message": "Script does not have a current revision"})
                     return
 
-                line_cuts = session.query(ScriptCuts).filter(
-                    ScriptCuts.revision_id == revision.id).all()
+                line_cuts = (
+                    session.query(ScriptCuts)
+                    .filter(ScriptCuts.revision_id == revision.id)
+                    .all()
+                )
                 line_cuts = [line_cut.line_part_id for line_cut in line_cuts]
 
                 self.set_status(200)
-                self.finish({
-                    'cuts': line_cuts
-                })
+                self.finish({"cuts": line_cuts})
             else:
                 self.set_status(404)
-                self.finish({'message': '404 show not found'})
+                self.finish({"message": "404 show not found"})
                 return
 
     @requires_show
     @no_live_session
     def put(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 self.requires_role(script, Role.WRITE)
 
                 if script.current_revision:
                     revision: ScriptRevision = session.query(ScriptRevision).get(
-                        script.current_revision)
+                        script.current_revision
+                    )
                 else:
                     self.set_status(400)
-                    self.finish({'message': 'Script does not have a current revision'})
+                    self.finish({"message": "Script does not have a current revision"})
                     return
 
                 request_body = escape.json_decode(self.request.body)
 
-                cuts = request_body.get('cuts', None)
+                cuts = request_body.get("cuts", None)
                 if cuts is None:
                     self.set_status(400)
-                    self.finish({
-                        'message': 'Malformed request body, could not find `cuts` data'
-                    })
+                    self.finish(
+                        {
+                            "message": "Malformed request body, could not find `cuts` data"
+                        }
+                    )
                     return
 
-                line_cuts: List[ScriptCuts] = session.query(ScriptCuts).filter(
-                    ScriptCuts.revision_id == revision.id).all()
+                line_cuts: List[ScriptCuts] = (
+                    session.query(ScriptCuts)
+                    .filter(ScriptCuts.revision_id == revision.id)
+                    .all()
+                )
 
                 # Remove any cuts not in the list
                 existing_cuts = []
@@ -850,115 +1045,133 @@ class ScriptCutsController(BaseAPIController):
                 # Add new cuts
                 cuts_to_add = [cut for cut in cuts if cut not in existing_cuts]
                 for cut in cuts_to_add:
-                    session.add(ScriptCuts(
-                        line_part_id=cut,
-                        revision_id=revision.id,
-                    ))
+                    session.add(
+                        ScriptCuts(
+                            line_part_id=cut,
+                            revision_id=revision.id,
+                        )
+                    )
 
                 session.commit()
 
 
-@ApiRoute('/show/script/max_page', ApiVersion.V1)
+@ApiRoute("/show/script/max_page", ApiVersion.V1)
 class ScriptMaxPageController(BaseAPIController):
 
     @requires_show
     def get(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
 
                 if script.current_revision:
                     revision: ScriptRevision = session.query(ScriptRevision).get(
-                        script.current_revision)
+                        script.current_revision
+                    )
                 else:
                     self.set_status(400)
-                    self.finish({'message': 'Script does not have a current revision'})
+                    self.finish({"message": "Script does not have a current revision"})
                     return
 
-                line_ids = session.query(ScriptLineRevisionAssociation).with_entities(
-                    ScriptLineRevisionAssociation.line_id).filter(
-                    ScriptLineRevisionAssociation.revision_id == revision.id)
-                max_page = session.query(ScriptLine).with_entities(
-                    func.max(ScriptLine.page)).where(
-                    ScriptLine.id.in_(line_ids)).first()[0]
+                line_ids = (
+                    session.query(ScriptLineRevisionAssociation)
+                    .with_entities(ScriptLineRevisionAssociation.line_id)
+                    .filter(ScriptLineRevisionAssociation.revision_id == revision.id)
+                )
+                max_page = (
+                    session.query(ScriptLine)
+                    .with_entities(func.max(ScriptLine.page))
+                    .where(ScriptLine.id.in_(line_ids))
+                    .first()[0]
+                )
 
                 if max_page is None:
                     max_page = 0
 
                 self.set_status(200)
-                self.finish({
-                    'max_page': max_page
-                })
+                self.finish({"max_page": max_page})
             else:
                 self.set_status(404)
-                self.finish({'message': '404 show not found'})
+                self.finish({"message": "404 show not found"})
                 return
 
-@ApiRoute('/show/script/stage_direction_styles', ApiVersion.V1)
+
+@ApiRoute("/show/script/stage_direction_styles", ApiVersion.V1)
 class StageDirectionStylesController(BaseAPIController):
     @requires_show
     def get(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         stage_direction_style_schema = StageDirectionStyleSchema()
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
-                stage_direction_styles = [stage_direction_style_schema.dump(style) for style in script.stage_direction_styles]
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
+                stage_direction_styles = [
+                    stage_direction_style_schema.dump(style)
+                    for style in script.stage_direction_styles
+                ]
 
                 self.set_status(200)
-                self.finish({'styles': stage_direction_styles})
+                self.finish({"styles": stage_direction_styles})
             else:
                 self.set_status(404)
-                self.finish({'message': '404 show not found'})
+                self.finish({"message": "404 show not found"})
                 return
 
     @requires_show
     @no_live_session
     async def post(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
-                description: str = data.get('description', None)
+                description: str = data.get("description", None)
                 if not description:
                     self.set_status(400)
-                    await self.finish({'message': 'Description missing'})
+                    await self.finish({"message": "Description missing"})
                     return
 
-                bold: bool = data.get('bold', False)
-                italic: bool = data.get('italic', False)
-                underline: bool = data.get('underline', False)
+                bold: bool = data.get("bold", False)
+                italic: bool = data.get("italic", False)
+                underline: bool = data.get("underline", False)
 
-                text_format: str = data.get('textFormat', None)
-                if not text_format or text_format not in ['default', 'upper', 'lower']:
+                text_format: str = data.get("textFormat", None)
+                if not text_format or text_format not in ["default", "upper", "lower"]:
                     self.set_status(400)
-                    await self.finish({'message': 'Text format missing or invalid'})
+                    await self.finish({"message": "Text format missing or invalid"})
                     return
 
-                text_colour: str = data.get('textColour', None)
+                text_colour: str = data.get("textColour", None)
                 if not text_colour:
                     self.set_status(400)
-                    await self.finish({'message': 'Text colour missing'})
+                    await self.finish({"message": "Text colour missing"})
                     return
 
-                enable_background_colour: bool = data.get('enableBackgroundColour', False)
-                background_colour: str = data.get('backgroundColour', None)
+                enable_background_colour: bool = data.get(
+                    "enableBackgroundColour", False
+                )
+                background_colour: str = data.get("backgroundColour", None)
                 if enable_background_colour and not background_colour:
                     self.set_status(400)
-                    await self.finish({'message': 'Background colour missing'})
+                    await self.finish({"message": "Background colour missing"})
                     return
 
                 new_style = StageDirectionStyle(
@@ -976,65 +1189,80 @@ class StageDirectionStylesController(BaseAPIController):
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'id': new_style.id, 'message': 'Successfully added stage direction style'})
+                await self.finish(
+                    {
+                        "id": new_style.id,
+                        "message": "Successfully added stage direction style",
+                    }
+                )
 
-                await self.application.ws_send_to_all('NOOP', 'GET_STAGE_DIRECTION_STYLES', {})
+                await self.application.ws_send_to_all(
+                    "NOOP", "GET_STAGE_DIRECTION_STYLES", {}
+                )
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})
 
     @requires_show
     @no_live_session
     async def patch(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
-                style_id = data.get('id', None)
+                style_id = data.get("id", None)
                 if not style_id:
                     self.set_status(400)
-                    await self.finish({'message': 'ID missing'})
+                    await self.finish({"message": "ID missing"})
                     return
 
-                style: StageDirectionStyle = session.query(StageDirectionStyle).get(style_id)
+                style: StageDirectionStyle = session.query(StageDirectionStyle).get(
+                    style_id
+                )
                 if not style:
                     self.set_status(404)
-                    await self.finish({'message': '404 stage direction style not found'})
+                    await self.finish(
+                        {"message": "404 stage direction style not found"}
+                    )
                     return
 
-                description: str = data.get('description', None)
+                description: str = data.get("description", None)
                 if not description:
                     self.set_status(400)
-                    await self.finish({'message': 'Description missing'})
+                    await self.finish({"message": "Description missing"})
                     return
 
-                bold: bool = data.get('bold', False)
-                italic: bool = data.get('italic', False)
-                underline: bool = data.get('underline', False)
+                bold: bool = data.get("bold", False)
+                italic: bool = data.get("italic", False)
+                underline: bool = data.get("underline", False)
 
-                text_format: str = data.get('textFormat', None)
-                if not text_format or text_format not in ['default', 'upper', 'lower']:
+                text_format: str = data.get("textFormat", None)
+                if not text_format or text_format not in ["default", "upper", "lower"]:
                     self.set_status(400)
-                    await self.finish({'message': 'Text format missing or invalid'})
+                    await self.finish({"message": "Text format missing or invalid"})
                     return
 
-                text_colour: str = data.get('textColour', None)
+                text_colour: str = data.get("textColour", None)
                 if not text_colour:
                     self.set_status(400)
-                    await self.finish({'message': 'Text colour missing'})
+                    await self.finish({"message": "Text colour missing"})
                     return
 
-                enable_background_colour: bool = data.get('enableBackgroundColour', False)
-                background_colour: str = data.get('backgroundColour', None)
+                enable_background_colour: bool = data.get(
+                    "enableBackgroundColour", False
+                )
+                background_colour: str = data.get("backgroundColour", None)
                 if enable_background_colour and not background_colour:
                     self.set_status(400)
-                    await self.finish({'message': 'Background colour missing'})
+                    await self.finish({"message": "Background colour missing"})
                     return
 
                 style.description = description
@@ -1048,30 +1276,36 @@ class StageDirectionStylesController(BaseAPIController):
                 session.commit()
 
                 self.set_status(200)
-                await self.finish({'message': 'Successfully edited stage direction style'})
+                await self.finish(
+                    {"message": "Successfully edited stage direction style"}
+                )
 
-                await self.application.ws_send_to_all('NOOP', 'GET_STAGE_DIRECTION_STYLES', {})
+                await self.application.ws_send_to_all(
+                    "NOOP", "GET_STAGE_DIRECTION_STYLES", {}
+                )
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})
 
     @requires_show
     @no_live_session
     async def delete(self):
         current_show = self.get_current_show()
-        show_id = current_show['id']
+        show_id = current_show["id"]
 
         with self.make_session() as session:
             show: Show = session.query(Show).get(show_id)
             if show:
-                script: Script = session.query(Script).filter(Script.show_id == show.id).first()
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
-                style_id = data.get('id', None)
+                style_id = data.get("id", None)
                 if not style_id:
                     self.set_status(400)
-                    await self.finish({'message': 'ID missing'})
+                    await self.finish({"message": "ID missing"})
                     return
 
                 entry: StageDirectionStyle = session.get(StageDirectionStyle, style_id)
@@ -1080,12 +1314,18 @@ class StageDirectionStylesController(BaseAPIController):
                     session.commit()
 
                     self.set_status(200)
-                    await self.finish({'message': 'Successfully deleted stage direction style'})
+                    await self.finish(
+                        {"message": "Successfully deleted stage direction style"}
+                    )
 
-                    await self.application.ws_send_to_all('NOOP', 'GET_STAGE_DIRECTION_STYLES', {})
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_STAGE_DIRECTION_STYLES", {}
+                    )
                 else:
                     self.set_status(404)
-                    await self.finish({'message': '404 stage direction style not found'})
+                    await self.finish(
+                        {"message": "404 stage direction style not found"}
+                    )
             else:
                 self.set_status(404)
-                await self.finish({'message': '404 show not found'})
+                await self.finish({"message": "404 show not found"})

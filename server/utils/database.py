@@ -1,15 +1,15 @@
 import functools
-from sqlalchemy import MetaData
 
-from sqlalchemy.orm import sessionmaker, declarative_base
-from tornado_sqlalchemy import SQLAlchemy, SessionEx, BindMeta
+from sqlalchemy import MetaData
+from sqlalchemy.orm import declarative_base, sessionmaker
+from tornado_sqlalchemy import BindMeta, SessionEx, SQLAlchemy
 
 
 class DeleteMixin:
-    def pre_delete(self, session: 'DigiDBSession'):
+    def pre_delete(self, session: "DigiDBSession"):
         raise NotImplementedError
 
-    def post_delete(self, session: 'DigiDBSession'):
+    def post_delete(self, session: "DigiDBSession"):
         raise NotImplementedError
 
 
@@ -30,9 +30,13 @@ class DigiSQLAlchemy(SQLAlchemy):
         self.sessionmaker = None
         super().__init__(url, binds, session_options, engine_options)
 
-    def configure(self, url=None, binds=None, session_options=None, engine_options=None):
+    def configure(
+        self, url=None, binds=None, session_options=None, engine_options=None
+    ):
         super().configure(url, binds, session_options, engine_options)
-        self.sessionmaker = sessionmaker(class_=DigiDBSession, db=self, **(session_options or {}))
+        self.sessionmaker = sessionmaker(
+            class_=DigiDBSession, db=self, **(session_options or {})
+        )
 
     @functools.lru_cache
     def get_mapper_for_table(self, tablename):
@@ -43,11 +47,11 @@ class DigiSQLAlchemy(SQLAlchemy):
 
     def make_declarative_base(self):
         convention = {
-            "ix": 'ix_%(column_0_label)s',
+            "ix": "ix_%(column_0_label)s",
             "uq": "uq_%(table_name)s_%(column_0_name)s",
             "ck": "ck_%(table_name)s_%(constraint_name)s",
             "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-            "pk": "pk_%(table_name)s"
+            "pk": "pk_%(table_name)s",
         }
         metadata = MetaData(naming_convention=convention)
         return declarative_base(metaclass=BindMeta, metadata=metadata)

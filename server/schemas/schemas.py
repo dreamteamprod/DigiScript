@@ -1,14 +1,21 @@
 from typing import Optional
 
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field, SQLAlchemySchema
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, SQLAlchemySchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 
-from models.cue import CueType, Cue
+from models.cue import Cue, CueType
 from models.mics import Microphone, MicrophoneAllocation
 from models.models import db
-from models.script import ScriptRevision, ScriptLine, ScriptLinePart, Script, ScriptCuts, StageDirectionStyle
-from models.show import Show, Cast, Character, CharacterGroup, Act, Scene
+from models.script import (
+    Script,
+    ScriptCuts,
+    ScriptLine,
+    ScriptLinePart,
+    ScriptRevision,
+    StageDirectionStyle,
+)
 from models.session import Session, ShowSession
+from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
 from models.user import User
 
 
@@ -55,7 +62,7 @@ class UserSchema(SQLAlchemyAutoSchema):
         model = User
         load_instance = True
         include_fk = True
-        exclude = ('password',)
+        exclude = ("password",)
 
 
 @schema
@@ -75,7 +82,9 @@ class CastSchema(SQLAlchemyAutoSchema):
         include_relationships = True
         load_instance = True
 
-    character_list = Nested(lambda: CharacterSchema, many=True, exclude=('cast_member',))
+    character_list = Nested(
+        lambda: CharacterSchema, many=True, exclude=("cast_member",)
+    )
 
 
 @schema
@@ -85,7 +94,7 @@ class CharacterSchema(SQLAlchemyAutoSchema):
         include_relationships = True
         load_instance = True
 
-    cast_member = Nested(CastSchema, many=False, exclude=('character_list',))
+    cast_member = Nested(CastSchema, many=False, exclude=("character_list",))
 
 
 @schema
