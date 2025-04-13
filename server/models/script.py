@@ -42,9 +42,11 @@ class ScriptLine(db.Model):
     scene_id = Column(Integer, ForeignKey('scene.id'))
     page = Column(Integer, index=True)
     stage_direction = Column(Boolean)
+    stage_direction_style_id = Column(Integer, ForeignKey('stage_direction_styles.id', ondelete='SET NULL'))
 
     act = relationship('Act', uselist=False, back_populates='lines')
     scene = relationship('Scene', uselist=False, back_populates='lines')
+    stage_direction_style = relationship('StageDirectionStyle', uselist=False)
 
 
 class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
@@ -112,3 +114,22 @@ class ScriptCuts(db.Model):
     revision = relationship('ScriptRevision', uselist=False, foreign_keys=[revision_id],
                             backref=backref('line_part_cuts', uselist=True,
                                             cascade='all, delete-orphan'))
+
+
+class StageDirectionStyle(db.Model):
+    __tablename__ = 'stage_direction_styles'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    script_id = Column(Integer, ForeignKey('script.id'), index=True)
+
+    description = Column(String)
+    bold = Column(Boolean)
+    italic = Column(Boolean)
+    underline = Column(Boolean)
+    text_format = Column(String)
+    text_colour = Column(String)
+    enable_background_colour = Column(Boolean)
+    background_colour = Column(String)
+
+    script=relationship('Script', uselist=False, foreign_keys=[script_id],
+                        backref=backref('stage_direction_styles', uselist=True, cascade='all, delete-orphan'))

@@ -1,7 +1,8 @@
 import functools
+from sqlalchemy import MetaData
 
-from sqlalchemy.orm import sessionmaker
-from tornado_sqlalchemy import SQLAlchemy, SessionEx
+from sqlalchemy.orm import sessionmaker, declarative_base
+from tornado_sqlalchemy import SQLAlchemy, SessionEx, BindMeta
 
 
 class DeleteMixin:
@@ -39,3 +40,14 @@ class DigiSQLAlchemy(SQLAlchemy):
             if mapper.mapped_table.fullname == tablename:
                 return mapper.entity
         return None
+
+    def make_declarative_base(self):
+        convention = {
+            "ix": 'ix_%(column_0_label)s',
+            "uq": "uq_%(table_name)s_%(column_0_name)s",
+            "ck": "ck_%(table_name)s_%(constraint_name)s",
+            "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+            "pk": "pk_%(table_name)s"
+        }
+        metadata = MetaData(naming_convention=convention)
+        return declarative_base(metaclass=BindMeta, metadata=metadata)

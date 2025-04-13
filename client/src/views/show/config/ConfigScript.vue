@@ -82,6 +82,9 @@
               </template>
             </b-table>
           </b-tab>
+          <b-tab title="Stage Direction Styles">
+            <stage-direction-configs />
+          </b-tab>
           <b-tab title="Script">
             <script-config />
           </b-tab>
@@ -134,10 +137,11 @@
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import ScriptConfig from '@/vue_components/show/config/script/ScriptEditor.vue';
+import StageDirectionStyles from '@/vue_components/show/config/script/StageDirectionStyles.vue';
 
 export default {
   name: 'ConfigScript',
-  components: { ScriptConfig },
+  components: { ScriptConfig, StageDirectionConfigs: StageDirectionStyles },
   data() {
     return {
       revisionColumns: [
