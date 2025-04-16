@@ -54,7 +54,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self._db: DigiSQLAlchemy = models.db
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
-        if db_path.startswith("sqlite:///"):
+        if db_path.startswith("sqlite://"):
             db_file_path = db_path.replace("sqlite:///", "")
         else:
             raise DatabaseTypeException("Only SQLite is supported")
