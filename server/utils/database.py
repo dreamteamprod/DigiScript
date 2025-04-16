@@ -28,6 +28,29 @@ class DigiSQLAlchemy(SQLAlchemy):
 
     def __init__(self, url=None, binds=None, session_options=None, engine_options=None):
         self.sessionmaker = None
+        # For SQLite connections, set up an event listener to enable foreign keys
+        from sqlalchemy import event
+
+        # Store the original create_engine method
+        original_create_engine = self.create_engine
+
+        # Override create_engine to add event listener for SQLite
+        def create_engine_with_fk_support(*args, **kwargs):
+            engine = original_create_engine(*args, **kwargs)
+
+            # Only add the event listener if it's a SQLite database
+            if "sqlite" in str(engine.url):
+
+                @event.listens_for(engine, "connect")
+                def set_sqlite_pragma(dbapi_connection, connection_record):
+                    cursor = dbapi_connection.cursor()
+                    cursor.execute("PRAGMA foreign_keys=ON")
+                    cursor.close()
+
+            return engine
+
+        # Replace the create_engine method
+        self.create_engine = create_engine_with_fk_support
         super().__init__(url, binds, session_options, engine_options)
 
     def configure(

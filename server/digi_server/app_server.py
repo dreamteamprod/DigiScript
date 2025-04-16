@@ -7,6 +7,7 @@ import sqlalchemy
 from alembic import command, script
 from alembic.config import Config
 from alembic.runtime import migration
+from sqlalchemy import Column, String, event
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado_prometheus import PrometheusMixIn
@@ -24,7 +25,7 @@ from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
-from utils.exceptions import DatabaseUpgradeRequired
+from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.web.route import Route
 
 
@@ -51,25 +52,53 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.clients: List[WebSocketController] = []
 
         self._db: DigiSQLAlchemy = models.db
-        # Perform database migrations
-        if not skip_migrations:
-            self._run_migrations()
+
+        db_path: str = self.digi_settings.settings.get("db_path").get_value()
+        if db_path.startswith("sqlite:///"):
+            db_file_path = db_path.replace("sqlite:///", "")
         else:
-            get_logger().warning("Skipping performing database migrations")
-            # And then check the database is up-to-date
-            if not skip_migrations_check:
-                self._check_migrations()
+            raise DatabaseTypeException("Only SQLite is supported")
+        # Database set up, if it doesn't exist then create it
+        # Otherwise attempt to upgrade it
+        if not os.path.exists(db_file_path):
+            get_logger().info("Database file does not exist, creating it")
+            get_logger().info(f"Using {db_path} as DB path")
+
+            class AlembicVersion(self._db.Model):
+                __tablename__ = "alembic_version"
+
+                version_num = Column(String(32), primary_key=True)
+
+            self._db.configure(url=db_path)
+            self.rbac = RBACController(self)
+            self._configure_rbac()
+            self._db.create_all()
+
+            script_ = script.ScriptDirectory.from_config(self._alembic_config)
+            current_migration_head = script_.get_current_head()
+            get_logger().info(
+                f"Setting current migration head revision: {current_migration_head}"
+            )
+            with self._db.sessionmaker() as session:
+                session.add(AlembicVersion(version_num=current_migration_head))
+                session.commit()
+        else:
+            # Perform database migrations
+            if not skip_migrations:
+                self._run_migrations()
             else:
-                get_logger().warning("Skipping database migrations check")
-        # Finally, configure the database
-        db_path = self.digi_settings.settings.get("db_path").get_value()
-        get_logger().info(f"Using {db_path} as DB path")
-        self._db.configure(url=db_path)
-
-        self.rbac = RBACController(self)
-        self._configure_rbac()
-
-        self._db.create_all()
+                get_logger().warning("Skipping performing database migrations")
+                # And then check the database is up-to-date
+                if not skip_migrations_check:
+                    self._check_migrations()
+                else:
+                    get_logger().warning("Skipping database migrations check")
+            # Finally, configure the database
+            get_logger().info(f"Using {db_path} as DB path")
+            self._db.configure(url=db_path)
+            self.rbac = RBACController(self)
+            self._configure_rbac()
+            self._db.create_all()
 
         # Clear out all sessions since we are starting the app up
         with self._db.sessionmaker() as session:
