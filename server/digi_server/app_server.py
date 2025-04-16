@@ -60,7 +60,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
             raise DatabaseTypeException("Only SQLite is supported")
         # Database set up, if it doesn't exist then create it
         # Otherwise attempt to upgrade it
-        if not os.path.exists(db_file_path):
+        if db_path.startswith("sqlite:///") and not os.path.exists(db_file_path):
             get_logger().info("Database file does not exist, creating it")
             get_logger().info(f"Using {db_path} as DB path")
 
