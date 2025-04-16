@@ -121,6 +121,7 @@
               :can-edit="canEdit"
               :line-part-cuts="linePartCuts"
               :insert-mode="insertMode"
+              :stage-direction-styles="STAGE_DIRECTION_STYLES"
               @editLine="beginEditingLine(currentEditPage, index)"
               @cutLinePart="cutLinePart"
               @insertLine="insertLineAt(currentEditPage, index)"

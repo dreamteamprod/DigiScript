@@ -25,7 +25,7 @@
       >
         <div>
           <h4>Example Stage Direction</h4>
-          <p
+          <i
             class="example-stage-direction"
             :style="newFormExampleCss"
           >
@@ -38,7 +38,7 @@
             <template v-else>
               {{ exampleText }}
             </template>
-          </p>
+          </i>
         </div>
         <div>
           <h4>Configuration Options</h4>
@@ -161,7 +161,7 @@
       >
         <div>
           <h4>Example Stage Direction</h4>
-          <p
+          <i
             class="example-stage-direction"
             :style="editFormExampleCss"
           >
@@ -174,7 +174,7 @@
             <template v-else>
               {{ exampleText }}
             </template>
-          </p>
+          </i>
         </div>
         <div>
           <h4>Configuration Options</h4>
@@ -289,7 +289,7 @@
       </b-modal>
     </template>
     <template #cell(example)="data">
-      <p
+      <i
         class="example-stage-direction"
         :style="exampleCss(data.item)"
       >
@@ -302,7 +302,7 @@
         <template v-else>
           {{ exampleText }}
         </template>
-      </p>
+      </i>
     </template>
     <template #cell(btn)="data">
       <b-button-group>
