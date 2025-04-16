@@ -53,7 +53,6 @@ class ScriptLine(db.Model):
 
     act = relationship("Act", uselist=False, back_populates="lines")
     scene = relationship("Scene", uselist=False, back_populates="lines")
-    stage_direction_style = relationship("StageDirectionStyle", uselist=False)
 
 
 class ScriptLineRevisionAssociation(db.Model, DeleteMixin):

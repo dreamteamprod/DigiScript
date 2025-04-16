@@ -510,6 +510,7 @@ class ScriptController(BaseAPIController):
                         scene_id=line["scene_id"],
                         page=line["page"],
                         stage_direction=line["stage_direction"],
+                        stage_direction_style_id=line["stage_direction_style_id"],
                     )
                     session.add(line_obj)
                     session.flush()
@@ -629,6 +630,7 @@ class ScriptController(BaseAPIController):
             scene_id=line["scene_id"],
             page=line["page"],
             stage_direction=line["stage_direction"],
+            stage_direction_style_id=line["stage_direction_style_id"],
         )
         session.add(line_obj)
         session.flush()

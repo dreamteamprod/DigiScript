@@ -72,6 +72,19 @@
         @input="stateChange"
         @addLinePart="addLinePart"
       />
+      <b-col
+        v-if="isStageDirection && stageDirectionStyles.length > 0"
+        cols="2"
+      >
+        <b-form-select
+          id="stage-direction-style"
+          v-model="$v.state.stage_direction_style_id.$model"
+          name="stage-direction-style"
+          :options="stageDirectionStylesOptions"
+          :state="validateState('stage_direction_style_id')"
+          @change="stateChange"
+        />
+      </b-col>
     </template>
     <b-col
       v-else
@@ -127,6 +140,9 @@ export default {
       required: true,
       type: Boolean,
     },
+    stageDirectionStyles: {
+      required: true,
+    },
     value: {
       required: true,
     },
@@ -178,6 +194,7 @@ export default {
           },
         },
       },
+      stage_direction_style_id: {},
     },
   },
   async created() {
@@ -286,6 +303,12 @@ export default {
     },
     lineValid() {
       return !this.$v.state.$anyError;
+    },
+    stageDirectionStylesOptions() {
+      return [
+        { value: null, text: 'N/A' },
+        ...this.stageDirectionStyles.map((style) => ({ value: style.id, text: style.description })),
+      ];
     },
   },
 };

@@ -102,6 +102,7 @@
               :previous-line-fn="getPreviousLineForIndex"
               :next-line-fn="getNextLineForIndex"
               :is-stage-direction="line.stage_direction"
+              :stage-direction-styles="STAGE_DIRECTION_STYLES"
               @input="lineChange(line, index)"
               @doneEditing="doneEditingLine(currentEditPage, index)"
               @deleteLine="deleteLine(currentEditPage, index)"
@@ -300,6 +301,7 @@ export default {
         page: null,
         stage_direction: false,
         line_parts: [],
+        stage_direction_style_id: null,
       },
       curSavePage: null,
       totalSavePages: null,
@@ -352,6 +354,8 @@ export default {
     await this.GET_SCENE_LIST();
     await this.GET_CHARACTER_LIST();
     await this.GET_CHARACTER_GROUP_LIST();
+    // Stage direction styles
+    await this.GET_STAGE_DIRECTION_STYLES();
     // Handle script cuts
     await this.GET_CUTS();
     this.resetCutsToSaved();
@@ -785,7 +789,7 @@ export default {
       'SET_CUT_MODE', 'INSERT_BLANK_LINE', 'RESET_INSERTED']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUTS', 'SAVE_SCRIPT_CUTS']),
+      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUTS', 'SAVE_SCRIPT_CUTS', 'GET_STAGE_DIRECTION_STYLES']),
   },
   computed: {
     canGenerateDebugScript() {
@@ -826,7 +830,7 @@ export default {
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
       'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
-      'IS_CUT_MODE', 'SCRIPT_CUTS', 'INSERTED_LINES']),
+      'IS_CUT_MODE', 'SCRIPT_CUTS', 'INSERTED_LINES', 'STAGE_DIRECTION_STYLES']),
   },
   watch: {
     currentEditPage(val) {
