@@ -10,6 +10,7 @@ export default {
     script: {},
     cues: {},
     cuts: [],
+    stageDirectionStyles: [],
   },
   mutations: {
     SET_REVISIONS(state, revisions) {
@@ -26,6 +27,9 @@ export default {
     },
     SET_CUTS(state, cuts) {
       state.cuts = cuts;
+    },
+    SET_STAGE_DIRECTION_STYLES(state, styles) {
+      state.stageDirectionStyles = styles;
     },
   },
   actions: {
@@ -216,6 +220,68 @@ export default {
         Vue.$toast.error('Unable to save script cuts');
       }
     },
+    async GET_STAGE_DIRECTION_STYLES(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const respJson = await response.json();
+        context.commit('SET_STAGE_DIRECTION_STYLES', respJson.styles);
+      } else {
+        log.error('Unable to load stage direction styles');
+      }
+    },
+    async ADD_STAGE_DIRECTION_STYLE(context, style) {
+      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(style),
+      });
+      if (response.ok) {
+        context.dispatch('GET_STAGE_DIRECTION_STYLES');
+        Vue.$toast.success('Added new stage direction style!');
+      } else {
+        log.error('Unable to add new stage direction style');
+        Vue.$toast.error('Unable to add new stage direction style');
+      }
+    },
+    async DELETE_STAGE_DIRECTION_STYLE(context, styleId) {
+      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: styleId }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_STAGE_DIRECTION_STYLES');
+        Vue.$toast.success('Deleted stage direction style!');
+      } else {
+        log.error('Unable to delete stage direction style');
+        Vue.$toast.error('Unable to delete stage direction style');
+      }
+    },
+    async UPDATE_STAGE_DIRECTION_STYLE(context, style) {
+      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(style),
+      });
+      if (response.ok) {
+        context.dispatch('GET_STAGE_DIRECTION_STYLES');
+        Vue.$toast.success('Updated stage direction style!');
+      } else {
+        log.error('Unable to edit stage direction style');
+        Vue.$toast.error('Unable to edit stage direction style');
+      }
+    },
   },
   getters: {
     SCRIPT_REVISIONS(state) {
@@ -236,6 +302,9 @@ export default {
     },
     SCRIPT_CUTS(state) {
       return state.cuts;
+    },
+    STAGE_DIRECTION_STYLES(state) {
+      return state.stageDirectionStyles;
     },
   },
 };

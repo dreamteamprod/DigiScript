@@ -44,8 +44,22 @@
         >
           <i
             class="viewable-line"
-            style="background-color: darkslateblue"
-          >{{ line.line_parts[0].line_text }}</i>
+            :style="stageDirectionStyling"
+          >
+            <template
+              v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+            >
+              {{ line.line_parts[0].line_text | uppercase }}
+            </template>
+            <template
+              v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+            >
+              {{ line.line_parts[0].line_text | lowercase }}
+            </template>
+            <template v-else>
+              {{ line.line_parts[0].line_text }}
+            </template>
+          </i>
         </b-col>
       </template>
       <template v-else>
@@ -128,6 +142,10 @@ export default {
       required: true,
     },
     cuts: {
+      required: true,
+      type: Array,
+    },
+    stageDirectionStyles: {
       required: true,
       type: Array,
     },
@@ -244,6 +262,33 @@ export default {
     },
     sceneLabel() {
       return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
+    },
+    stageDirectionStyle() {
+      const sdStyle = this.stageDirectionStyles.find(
+        (style) => (style.id === this.line.stage_direction_style_id),
+      );
+      if (this.line.stage_direction) {
+        return sdStyle;
+      }
+      return null;
+    },
+    stageDirectionStyling() {
+      if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
+        return {
+          'background-color': 'darkslateblue',
+          'font-style': 'italic',
+        };
+      }
+      const style = {
+        'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
+        'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
+        'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
+        color: this.stageDirectionStyle.text_colour,
+      };
+      if (this.stageDirectionStyle.enable_background_colour) {
+        style['background-color'] = this.stageDirectionStyle.background_colour;
+      }
+      return style;
     },
     ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS']),
   },

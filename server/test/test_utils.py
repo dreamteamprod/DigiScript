@@ -11,21 +11,23 @@ from models import models
 class DigiScriptTestCase(AsyncHTTPTestCase):
 
     def get_app(self):
-        return DigiScriptServer(debug=True, settings_path=self.settings_path,
-                                skip_migrations=True, skip_migrations_check=True)
+        return DigiScriptServer(
+            debug=True,
+            settings_path=self.settings_path,
+            skip_migrations=True,
+            skip_migrations_check=True,
+        )
 
     def setUp(self):
-        base_path = os.path.join(os.path.dirname(__file__), 'conf')
-        settings_path = os.path.join(base_path, 'digiscript.json')
+        base_path = os.path.join(os.path.dirname(__file__), "conf")
+        settings_path = os.path.join(base_path, "digiscript.json")
         self.settings_path = settings_path
 
         if not os.path.exists(os.path.dirname(self.settings_path)):
             os.makedirs(os.path.dirname(self.settings_path))
 
-        with open(self.settings_path, 'w', encoding='UTF-8') as file_pointer:
-            json.dump({
-                'db_path': 'sqlite://'
-            }, file_pointer)
+        with open(self.settings_path, "w", encoding="UTF-8") as file_pointer:
+            json.dump({"db_path": "sqlite://"}, file_pointer)
 
         super().setUp()
 

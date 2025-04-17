@@ -62,6 +62,7 @@
             :cue-types="CUE_TYPES"
             :cues="getCuesForLine(line)"
             :line-part-cuts="SCRIPT_CUTS"
+            :stage-direction-styles="STAGE_DIRECTION_STYLES"
           />
         </template>
       </b-col>
@@ -185,6 +186,7 @@ export default {
     await this.GET_CUE_TYPES();
     await this.LOAD_CUES();
     await this.GET_CUTS();
+    await this.GET_STAGE_DIRECTION_STYLES();
 
     // Get the max page of the saved version of the script
     await this.getMaxScriptPage();
@@ -261,7 +263,7 @@ export default {
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUE_TYPES', 'LOAD_CUES',
-      'GET_CUTS']),
+      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES']),
   },
   computed: {
     currentEditPageKey() {
@@ -275,7 +277,8 @@ export default {
     },
     ...mapGetters(['CURRENT_SHOW', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'CUE_TYPES', 'SCRIPT_CUES', 'SCRIPT_CUTS']),
+      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'CUE_TYPES', 'SCRIPT_CUES', 'SCRIPT_CUTS',
+      'STAGE_DIRECTION_STYLES']),
   },
   watch: {
     currentEditPage(val) {
