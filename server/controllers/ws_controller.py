@@ -21,9 +21,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
-        self.application: DigiScriptServer = (
-            self.application
-        )  # pylint: disable=used-before-assignment
+        # pylint: disable=used-before-assignment
+        self.application: DigiScriptServer = application
 
     def update_session(self, is_editor=False, user_id=None):
         with self.make_session() as session:

@@ -29,9 +29,10 @@ class BaseController(SessionMixin, RequestHandler):
         self.application: DigiScriptServer = self.application
         self.current_show: Optional[dict] = None
 
+    # pylint: disable=invalid-overridden-method
     async def prepare(
         self,
-    ) -> Optional[Awaitable[None]]:  # pylint: disable=invalid-overridden-method
+    ) -> Optional[Awaitable[None]]:
         show_schema = ShowSchema()
         user_schema = UserSchema()
         with self.make_session() as session:

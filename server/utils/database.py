@@ -1,6 +1,6 @@
 import functools
 
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 from tornado_sqlalchemy import BindMeta, SessionEx, SQLAlchemy
 
@@ -28,9 +28,6 @@ class DigiSQLAlchemy(SQLAlchemy):
 
     def __init__(self, url=None, binds=None, session_options=None, engine_options=None):
         self.sessionmaker = None
-        # For SQLite connections, set up an event listener to enable foreign keys
-        from sqlalchemy import event
-
         # Store the original create_engine method
         original_create_engine = self.create_engine
 
@@ -42,7 +39,7 @@ class DigiSQLAlchemy(SQLAlchemy):
             if "sqlite" in str(engine.url):
 
                 @event.listens_for(engine, "connect")
-                def set_sqlite_pragma(dbapi_connection, connection_record):
+                def set_sqlite_pragma(dbapi_connection, _connection_record):
                     cursor = dbapi_connection.cursor()
                     cursor.execute("PRAGMA foreign_keys=ON")
                     cursor.close()

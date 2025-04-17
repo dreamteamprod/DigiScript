@@ -31,7 +31,7 @@ class RootController(BaseController):
         if not os.path.isfile(full_path):
             raise HTTPError(404)
 
-        with open(full_path, "r") as file:
+        with open(full_path, "r", encoding="utf-8") as file:
             self.write(file.read())
 
 
@@ -48,7 +48,7 @@ class StaticController(BaseController):
             raise HTTPError(404)
 
         try:
-            with open(full_path, "r") as file:
+            with open(full_path, "r", encoding="utf-8") as file:
                 self.write(file.read())
         except UnicodeDecodeError:
             with open(full_path, "rb") as file:

@@ -7,7 +7,7 @@ import sqlalchemy
 from alembic import command, script
 from alembic.config import Config
 from alembic.runtime import migration
-from sqlalchemy import Column, String, event
+from sqlalchemy import Column, String
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado_prometheus import PrometheusMixIn
