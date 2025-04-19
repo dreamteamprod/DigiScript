@@ -2,6 +2,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import backref, relationship
 
 from models.models import db
+from registry.user_settings import UserSettingsRegistry
 from utils.database import DeleteMixin
 
 
@@ -139,6 +140,17 @@ class ScriptCuts(db.Model):
     )
 
 
+@UserSettingsRegistry.register(
+    settings_fields=[
+        "bold",
+        "italic",
+        "underline",
+        "text_format",
+        "text_colour",
+        "enable_background_colour",
+        "background_colour",
+    ]
+)
 class StageDirectionStyle(db.Model):
     __tablename__ = "stage_direction_styles"
 
