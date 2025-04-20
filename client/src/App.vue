@@ -80,6 +80,9 @@
             <template #button-content>
               <em>{{ CURRENT_USER.username }}</em>
             </template>
+            <b-dropdown-item to="/me">
+              Settings
+            </b-dropdown-item>
             <b-dropdown-item-button @click.stop.prevent="USER_LOGOUT">
               Sign Out
             </b-dropdown-item-button>
@@ -296,9 +299,6 @@ export default {
 
 <style>
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   text-align: center;
 }
 

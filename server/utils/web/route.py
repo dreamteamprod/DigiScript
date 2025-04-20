@@ -1,9 +1,9 @@
-from enum import Enum
 import urllib.parse
+from enum import Enum
 from functools import lru_cache
 
-from tornado.web import URLSpec
 import tornado.escape
+from tornado.web import URLSpec
 from tornado.websocket import WebSocketHandler
 
 from utils.web.base_controller import BaseAPIController
@@ -41,12 +41,12 @@ class Route:
 
     @staticmethod
     def _url_escape(url):
-        return urllib.parse.quote(tornado.escape.utf8(url), '')
+        return urllib.parse.quote(tornado.escape.utf8(url), "")
 
     @classmethod
     def make(cls, _name, **kwargs):
         if _name not in cls._formats:
-            raise KeyError(f'No route by the name of `{_name}`')
+            raise KeyError(f"No route by the name of `{_name}`")
         kwargs = {k: cls._url_escape(v) for k, v in kwargs.items()}
         return cls._formats[_name] % kwargs
 
@@ -63,6 +63,7 @@ class ApiRoute(Route):
     def __call__(self, controller):
         if not issubclass(controller, (BaseAPIController, WebSocketHandler)):
             raise RuntimeError(
-                f'Controller class {controller.__name__} is not an '
-                f'instance of BaseAPIController or WebSocketHandler')
+                f"Controller class {controller.__name__} is not an "
+                f"instance of BaseAPIController or WebSocketHandler"
+            )
         super().__call__(controller)

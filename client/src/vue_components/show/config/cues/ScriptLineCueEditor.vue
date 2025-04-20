@@ -44,9 +44,21 @@
         >
           <i
             class="viewable-line"
-            style="background-color: darkslateblue"
+            :style="stageDirectionStyling"
           >
-            {{ line.line_parts[0].line_text }}
+            <template
+              v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+            >
+              {{ line.line_parts[0].line_text | uppercase }}
+            </template>
+            <template
+              v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+            >
+              {{ line.line_parts[0].line_text | lowercase }}
+            </template>
+            <template v-else>
+              {{ line.line_parts[0].line_text }}
+            </template>
           </i>
         </b-col>
       </template>
@@ -234,6 +246,14 @@ export default {
       required: true,
       type: Array,
     },
+    stageDirectionStyles: {
+      required: true,
+      type: Array,
+    },
+    stageDirectionStyleOverrides: {
+      required: true,
+      type: Array,
+    },
   },
   data() {
     return {
@@ -410,6 +430,35 @@ export default {
     },
     sceneLabel() {
       return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
+    },
+    stageDirectionStyle() {
+      const sdStyle = this.stageDirectionStyles.find(
+        (style) => (style.id === this.line.stage_direction_style_id),
+      );
+      const override = this.stageDirectionStyleOverrides
+        .find((elem) => elem.settings.id === sdStyle.id);
+      if (this.line.stage_direction) {
+        return override ? override.settings : sdStyle;
+      }
+      return null;
+    },
+    stageDirectionStyling() {
+      if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
+        return {
+          'background-color': 'darkslateblue',
+          'font-style': 'italic',
+        };
+      }
+      const style = {
+        'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
+        'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
+        'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
+        color: this.stageDirectionStyle.text_colour,
+      };
+      if (this.stageDirectionStyle.enable_background_colour) {
+        style['background-color'] = this.stageDirectionStyle.background_colour;
+      }
+      return style;
     },
   },
 };

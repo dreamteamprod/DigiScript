@@ -2,10 +2,8 @@ import json
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 from models import models
 
@@ -93,7 +91,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             include_schemas=False,
             include_name=include_name,
-            render_as_batch=True
+            render_as_batch=True,
         )
 
         with context.begin_transaction():

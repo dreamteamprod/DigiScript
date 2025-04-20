@@ -6,5 +6,6 @@ pylint-ignore==2022.1025
 marshmallow-sqlalchemy==0.30.0
 tornado-prometheus==0.1.2
 bcrypt==4.3.0
-anytree==2.12.1
-alembic==1.14.0
+anytree==2.13.0
+alembic==1.15.2
+marshmallow<4

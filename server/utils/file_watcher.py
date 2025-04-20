@@ -9,7 +9,7 @@ class FileWatcher:
 
     def __init__(self, file_path, callback, poll_interval=500):
         if not os.path.isfile(file_path):
-            raise RuntimeError(f'Path {file_path} does not exist')
+            raise RuntimeError(f"Path {file_path} does not exist")
 
         self._file_path = file_path
         self._poll_interval = poll_interval
@@ -34,19 +34,22 @@ class IOLoopFileWatcher(FileWatcher):
 
     def __init__(self, file_path, callback, poll_interval=500):
         if not IOLoop.current():
-            raise RuntimeError('No IOLoop found!')
+            raise RuntimeError("No IOLoop found!")
 
         super().__init__(file_path, callback, poll_interval)
-        self._task: PeriodicCallback = PeriodicCallback(self._poll_file, self._poll_interval, 0.05)
+        self._task: PeriodicCallback = PeriodicCallback(
+            self._poll_file, self._poll_interval, 0.05
+        )
         self._error_callback = None
 
     def _poll_file(self):
         if not (os.path.exists(self._file_path) and os.path.isfile(self._file_path)):
             if self._error_callback is None:
-                raise IOError(f'File {self._file_path} could not be found')
+                raise IOError(f"File {self._file_path} could not be found")
 
-            get_logger().warning(f'File {self._file_path} could not be found, calling error '
-                                 f'callback')
+            get_logger().warning(
+                f"File {self._file_path} could not be found, calling error " f"callback"
+            )
             self.stop()
             self._error_callback()
 
@@ -57,7 +60,7 @@ class IOLoopFileWatcher(FileWatcher):
 
     def add_error_callback(self, callback):
         if not callable(callback):
-            raise ValueError('`callback` is not callable')
+            raise ValueError("`callback` is not callable")
         self._error_callback = callback
 
     def watch(self):

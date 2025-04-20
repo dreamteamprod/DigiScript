@@ -64,6 +64,14 @@ Vue.filter('capitalize', (value) => {
   if (!value) return '';
   return value.toString().split(' ').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 });
+Vue.filter('uppercase', (value) => {
+  if (!value) return '';
+  return value.toString().toUpperCase();
+});
+Vue.filter('lowercase', (value) => {
+  if (!value) return '';
+  return value.toString().toLowerCase();
+});
 
 new Vue({
   router,

@@ -8,10 +8,10 @@ IMPORTED_MODELS = {}
 
 
 def import_all_models():
-    models = find_end_modules('.', prefix='models')
+    models = find_end_modules(".", prefix="models")
     for model in models:
         if model != __name__:
-            get_logger().debug(f'Importing model module {model}')
+            get_logger().debug(f"Importing model module {model}")
             mod = importlib.import_module(model)
             IMPORTED_MODELS[model] = mod
 

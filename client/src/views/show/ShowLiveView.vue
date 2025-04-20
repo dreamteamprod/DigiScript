@@ -73,6 +73,8 @@
               :cue-types="CUE_TYPES"
               :cues="getCuesForLine(line)"
               :cuts="SCRIPT_CUTS"
+              :stage-direction-styles="STAGE_DIRECTION_STYLES"
+              :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
               @last-line-change="handleLastLineChange"
               @first-line-change="handleFirstLineChange"
             />
@@ -142,6 +144,14 @@ export default {
       this.$toast.warning('No live session started!');
       await this.$router.replace('/');
     } else {
+      // Get the current user
+      await this.GET_CURRENT_USER();
+
+      // User related stuff
+      if (this.CURRENT_USER != null) {
+        await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+      }
+
       await this.GET_ACT_LIST();
       await this.GET_SCENE_LIST();
       await this.GET_CHARACTER_LIST();
@@ -149,6 +159,7 @@ export default {
       await this.GET_CUE_TYPES();
       await this.LOAD_CUES();
       await this.GET_CUTS();
+      await this.GET_STAGE_DIRECTION_STYLES();
       await this.getMaxScriptPage();
 
       this.updateElapsedTime();
@@ -415,7 +426,7 @@ export default {
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
-      'GET_CUTS']),
+      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES']),
   },
   computed: {
     pageIter() {
@@ -440,7 +451,8 @@ export default {
     },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
-      'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS']),
+      'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
+      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
   },
   watch: {
     SESSION_FOLLOW_DATA() {

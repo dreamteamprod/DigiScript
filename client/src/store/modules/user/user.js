@@ -3,6 +3,7 @@ import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 import router from '@/router';
+import settings from './settings';
 
 export default {
   state: {
@@ -128,5 +129,8 @@ export default {
     CURRENT_USER_RBAC(state) {
       return state.currentRbac;
     },
+  },
+  modules: {
+    settings,
   },
 };

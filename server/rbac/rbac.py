@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from models.models import db
 from rbac.exceptions import RBACException
@@ -12,20 +12,22 @@ if TYPE_CHECKING:
 
 class RBACController:
 
-    def __init__(self, app: 'DigiScriptServer'):
+    def __init__(self, app: "DigiScriptServer"):
         self.app = app
         self._rbac_db = RBACDatabase(app.get_db(), app)
         self._display_fields = {}
 
-    def add_mapping(self, actor: type, resource: type, display_fields: Optional[List] = None) -> None:
+    def add_mapping(
+        self, actor: type, resource: type, display_fields: Optional[List] = None
+    ) -> None:
         if display_fields is None:
             display_fields = []
         if not get_registry().get_schema_by_model(actor):
-            raise RBACException('actor does not have a registered schema')
+            raise RBACException("actor does not have a registered schema")
         if not get_registry().get_schema_by_model(resource):
-            raise RBACException('resource does not have a registered schema')
+            raise RBACException("resource does not have a registered schema")
         if len(display_fields) > 3:
-            raise RBACException('Only 3 or fewer display fields are allowed')
+            raise RBACException("Only 3 or fewer display fields are allowed")
         self._rbac_db.add_mapping(actor, resource)
         self._display_fields[resource] = [field.key for field in display_fields]
 

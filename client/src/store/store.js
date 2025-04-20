@@ -4,7 +4,7 @@ import createPersistedState from 'vuex-persistedstate';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
-import user from '@/store/modules/user';
+import user from '@/store/modules/user/user';
 import websocket from './modules/websocket';
 import system from './modules/system';
 import show from './modules/show';
