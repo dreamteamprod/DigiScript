@@ -2,6 +2,8 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import backref, relationship
 
 from models.models import db
+from models.user import UserSettings
+from registry.user_settings import UserSettingsRegistry
 from utils.database import DeleteMixin
 
 
@@ -139,7 +141,18 @@ class ScriptCuts(db.Model):
     )
 
 
-class StageDirectionStyle(db.Model):
+@UserSettingsRegistry.register(
+    settings_fields=[
+        "bold",
+        "italic",
+        "underline",
+        "text_format",
+        "text_colour",
+        "enable_background_colour",
+        "background_colour",
+    ]
+)
+class StageDirectionStyle(db.Model, DeleteMixin):
     __tablename__ = "stage_direction_styles"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -162,3 +175,15 @@ class StageDirectionStyle(db.Model):
             "stage_direction_styles", uselist=True, cascade="all, delete-orphan"
         ),
     )
+
+    def pre_delete(self, session):
+        user_overrides = (
+            session.query(UserSettings)
+            .filter(UserSettings.settings_type == self.__tablename__)
+            .all()
+        )
+        for override in user_overrides:
+            session.delete(override)
+
+    def post_delete(self, session):
+        pass

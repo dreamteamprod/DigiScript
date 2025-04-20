@@ -80,6 +80,9 @@
             <template #button-content>
               <em>{{ CURRENT_USER.username }}</em>
             </template>
+            <b-dropdown-item to="/me">
+              Settings
+            </b-dropdown-item>
             <b-dropdown-item-button @click.stop.prevent="USER_LOGOUT">
               Sign Out
             </b-dropdown-item-button>
