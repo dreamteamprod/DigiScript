@@ -39,7 +39,6 @@ class Show(db.Model):
     )
     scene_list = relationship("Scene", cascade="all, delete-orphan")
     cue_type_list = relationship("CueType", cascade="all, delete-orphan")
-    users = relationship("User", uselist=True, cascade="all, delete-orphan")
 
 
 class Cast(db.Model):
