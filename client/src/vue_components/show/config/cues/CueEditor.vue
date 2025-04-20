@@ -63,6 +63,7 @@
             :cues="getCuesForLine(line)"
             :line-part-cuts="SCRIPT_CUTS"
             :stage-direction-styles="STAGE_DIRECTION_STYLES"
+            :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
           />
         </template>
       </b-col>
@@ -176,6 +177,8 @@ export default {
     },
   },
   async beforeMount() {
+    // Get the current user
+    await this.GET_CURRENT_USER();
     // Config status
     await this.GET_SCRIPT_CONFIG_STATUS();
     // Show details
@@ -187,6 +190,11 @@ export default {
     await this.LOAD_CUES();
     await this.GET_CUTS();
     await this.GET_STAGE_DIRECTION_STYLES();
+
+    // User related stuff
+    if (this.CURRENT_USER != null) {
+      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+    }
 
     // Get the max page of the saved version of the script
     await this.getMaxScriptPage();
@@ -263,7 +271,7 @@ export default {
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUE_TYPES', 'LOAD_CUES',
-      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES']),
+      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES', 'GET_CURRENT_USER']),
   },
   computed: {
     currentEditPageKey() {
@@ -278,7 +286,7 @@ export default {
     ...mapGetters(['CURRENT_SHOW', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
       'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'CUE_TYPES', 'SCRIPT_CUES', 'SCRIPT_CUTS',
-      'STAGE_DIRECTION_STYLES']),
+      'STAGE_DIRECTION_STYLES', 'STAGE_DIRECTION_STYLE_OVERRIDES', 'CURRENT_USER']),
   },
   watch: {
     currentEditPage(val) {
