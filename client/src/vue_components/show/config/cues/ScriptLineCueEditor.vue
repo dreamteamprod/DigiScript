@@ -250,6 +250,10 @@ export default {
       required: true,
       type: Array,
     },
+    stageDirectionStyleOverrides: {
+      required: true,
+      type: Array,
+    },
   },
   data() {
     return {
@@ -431,8 +435,10 @@ export default {
       const sdStyle = this.stageDirectionStyles.find(
         (style) => (style.id === this.line.stage_direction_style_id),
       );
+      const override = this.stageDirectionStyleOverrides
+        .find((elem) => elem.settings.id === sdStyle.id);
       if (this.line.stage_direction) {
-        return sdStyle;
+        return override ? override.settings : sdStyle;
       }
       return null;
     },
