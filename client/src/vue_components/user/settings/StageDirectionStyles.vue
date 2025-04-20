@@ -149,6 +149,124 @@
           </b-form>
         </div>
       </b-modal>
+      <b-modal
+        id="edit-override-modal"
+        ref="edit-override-modal"
+        title="Edit Override"
+        size="lg"
+        @hidden="resetEditFormState"
+        @ok="onSubmitEditOverride"
+      >
+        <div>
+          <h4>Example Stage Direction</h4>
+          <i
+            class="example-stage-direction"
+            :style="editFormExampleCss"
+          >
+            <template v-if="editStyleFormState.textFormat === 'upper'">
+              {{ exampleText | uppercase }}
+            </template>
+            <template v-else-if="editStyleFormState.textFormat === 'lower'">
+              {{ exampleText | lowercase }}
+            </template>
+            <template v-else>
+              {{ exampleText }}
+            </template>
+          </i>
+        </div>
+        <div>
+          <h4>Configuration Options</h4>
+          <b-form
+            ref="edit-config-form"
+            @ok="onSubmitEditOverride"
+          >
+            <b-form-group
+              id="styling-group"
+              label="Default Styles"
+              label-for="styling-input"
+            >
+              <b-button-group id="styling-input">
+                <b-button
+                  v-for="(btn, idx) in $v.editStyleFormState.styleOptions.$model"
+                  :key="idx"
+                  :pressed.sync="btn.state"
+                  variant="primary"
+                >
+                  {{ btn.caption }}
+                </b-button>
+              </b-button-group>
+            </b-form-group>
+            <b-form-group
+              id="text-formatting-group"
+              label="Default Text Format"
+              label-for="text-format-input"
+            >
+              <b-form-select
+                id="text-format-input"
+                v-model="$v.editStyleFormState.textFormat.$model"
+              >
+                <b-form-select-option
+                  value="default"
+                >
+                  Default
+                </b-form-select-option>
+                <b-form-select-option
+                  value="upper"
+                >
+                  Uppercase
+                </b-form-select-option>
+                <b-form-select-option
+                  value="lower"
+                >
+                  Lowercase
+                </b-form-select-option>
+              </b-form-select>
+            </b-form-group>
+            <b-form-group
+              id="text-colour-input-group"
+              label="Text Colour"
+              label-for="text-colour-input"
+            >
+              <b-form-input
+                id="text-colour-input"
+                v-model="$v.editStyleFormState.textColour.$model"
+                name="text-colour-input"
+                type="color"
+                :state="validateEditStyleState('textColour')"
+                aria-describedby="colour-feedback"
+              />
+              <b-form-invalid-feedback
+                id="colour-feedback"
+              >
+                This is a required field.
+              </b-form-invalid-feedback>
+            </b-form-group>
+            <b-form-group
+              id="background-colour-enable-group"
+              label="Background Colour"
+              label-for="background-colour-enable"
+            >
+              <b-form-checkbox
+                id="background-colour-enable"
+                v-model="$v.editStyleFormState.enableBackgroundColour.$model"
+                :switch="true"
+              />
+            </b-form-group>
+            <b-form-group
+              v-if="editStyleFormState.enableBackgroundColour"
+              id="background-colour-input-group"
+            >
+              <b-form-input
+                id="background-colour-picker"
+                v-model="$v.editStyleFormState.backgroundColour.$model"
+                name="background-colour-picker"
+                type="color"
+                :state="validateEditStyleState('textColour')"
+              />
+            </b-form-group>
+          </b-form>
+        </div>
+      </b-modal>
     </template>
     <template #cell(description)="data">
       {{ STAGE_DIRECTION_STYLES.find((elem) => elem.id === data.item.settings.id).description }}
@@ -173,7 +291,7 @@
       <b-button-group>
         <b-button
           variant="warning"
-          @click="openEditStyleOverrideForm(data)"
+          @click="openEditStyleForm(data)"
         >
           Edit
         </b-button>
@@ -223,6 +341,18 @@ export default {
         enableBackgroundColour: false,
         backgroundColour: '#000000',
       },
+      editStyleFormState: {
+        id: null,
+        styleOptions: [
+          { caption: 'Bold', state: false },
+          { caption: 'Italic', state: false },
+          { caption: 'Underline', state: false },
+        ],
+        textFormat: 'default',
+        textColour: '#FFFFFF',
+        enableBackgroundColour: false,
+        backgroundColour: '#000000',
+      },
     };
   },
   async beforeMount() {
@@ -258,6 +388,18 @@ export default {
       }
       return style;
     },
+    editFormExampleCss() {
+      const style = {
+        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state ? 'bold' : 'normal',
+        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state ? 'italic' : 'normal',
+        'text-decoration-line': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state ? 'underline' : 'none',
+        color: this.editStyleFormState.textColour,
+      };
+      if (this.editStyleFormState.enableBackgroundColour) {
+        style['background-color'] = this.editStyleFormState.backgroundColour;
+      }
+      return style;
+    },
     createPayload() {
       return {
         styleId: this.newStyleFormState.styleId,
@@ -268,6 +410,18 @@ export default {
         textColour: this.newStyleFormState.textColour,
         enableBackgroundColour: this.newStyleFormState.enableBackgroundColour,
         backgroundColour: this.newStyleFormState.backgroundColour,
+      };
+    },
+    editPayload() {
+      return {
+        id: this.editStyleFormState.id,
+        bold: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
+        italic: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
+        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state,
+        text_format: this.editStyleFormState.textFormat,
+        text_colour: this.editStyleFormState.textColour,
+        enable_background_colour: this.editStyleFormState.enableBackgroundColour,
+        background_colour: this.editStyleFormState.backgroundColour,
       };
     },
     ...mapGetters(['CURRENT_SHOW', 'STAGE_DIRECTION_STYLES', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
@@ -325,6 +479,23 @@ export default {
         this.$v.$reset();
       });
     },
+    resetEditFormState() {
+      this.editStyleFormState = {
+        id: null,
+        styleOptions: [
+          { caption: 'Bold', state: false },
+          { caption: 'Italic', state: false },
+          { caption: 'Underline', state: false },
+        ],
+        textFormat: 'default',
+        textColour: '#FFFFFF',
+        enableBackgroundColour: false,
+        backgroundColour: '#000000',
+      };
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
     async onSubmitNewOverride(event) {
       this.$v.newStyleFormState.$touch();
       if (this.$v.newStyleFormState.$anyError) {
@@ -334,8 +505,21 @@ export default {
         this.resetNewFormState();
       }
     },
+    async onSubmitEditOverride(event) {
+      this.$v.editStyleFormState.$touch();
+      if (this.$v.editStyleFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE(this.editPayload);
+        this.resetEditFormState();
+      }
+    },
     validateNewStyleState(name) {
       const { $dirty, $error } = this.$v.newStyleFormState[name];
+      return $dirty ? !$error : null;
+    },
+    validateEditStyleState(name) {
+      const { $dirty, $error } = this.$v.editStyleFormState[name];
       return $dirty ? !$error : null;
     },
     async deleteStyleOverride(style) {
@@ -345,11 +529,45 @@ export default {
         await this.DELETE_STAGE_DIRECTION_STYLE_OVERRIDE(style.item.id);
       }
     },
-    openEditStyleOverrideForm(style) {},
-    ...mapActions(['GET_SHOW_DETAILS', 'GET_STAGE_DIRECTION_STYLES', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES', 'ADD_STAGE_DIRECTION_STYLE_OVERRIDE', 'DELETE_STAGE_DIRECTION_STYLE_OVERRIDE']),
+    openEditStyleForm(style) {
+      if (style != null) {
+        const { settings } = style.item;
+        this.editStyleFormState.id = style.item.id;
+        this.editStyleFormState.styleOptions = [
+          { caption: 'Bold', state: settings.bold },
+          { caption: 'Italic', state: settings.italic },
+          { caption: 'Underline', state: settings.underline },
+        ];
+        this.editStyleFormState.textFormat = settings.text_format;
+        this.editStyleFormState.textColour = settings.text_colour;
+        this.editStyleFormState.enableBackgroundColour = settings.enable_background_colour;
+        this.editStyleFormState.backgroundColour = settings.background_colour;
+        this.$bvModal.show('edit-override-modal');
+      }
+    },
+    ...mapActions(['GET_SHOW_DETAILS', 'GET_STAGE_DIRECTION_STYLES',
+      'GET_STAGE_DIRECTION_STYLE_OVERRIDES', 'ADD_STAGE_DIRECTION_STYLE_OVERRIDE',
+      'DELETE_STAGE_DIRECTION_STYLE_OVERRIDE', 'UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE']),
   },
   validations: {
     newStyleFormState: {
+      styleOptions: {
+        required,
+      },
+      textFormat: {
+        required,
+      },
+      textColour: {
+        required,
+      },
+      enableBackgroundColour: {
+        required,
+      },
+      backgroundColour: {
+        required,
+      },
+    },
+    editStyleFormState: {
       styleOptions: {
         required,
       },

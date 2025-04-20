@@ -59,6 +59,22 @@ export default {
         Vue.$toast.error('Unable to delete stage direction style override');
       }
     },
+    async UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE(context, style) {
+      const response = await fetch(`${makeURL('/api/v1/user/settings/stage_direction_overrides')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(style),
+      });
+      if (response.ok) {
+        context.dispatch('GET_STAGE_DIRECTION_STYLE_OVERRIDES');
+        Vue.$toast.success('Updated stage direction style override!');
+      } else {
+        log.error('Unable to edit stage direction style override');
+        Vue.$toast.error('Unable to edit stage direction style override');
+      }
+    },
   },
   getters: {
     STAGE_DIRECTION_STYLE_OVERRIDES(state) {

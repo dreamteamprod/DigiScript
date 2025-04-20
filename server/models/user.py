@@ -89,5 +89,5 @@ class UserSettings(db.Model):
     @classmethod
     def get_default_settings(cls, settings_type):
         """Get default settings from registered model"""
-        model_class = UserSettingsRegistry._registry[settings_type]["model"]
+        model_class = UserSettingsRegistry.registry()[settings_type]["model"]
         return model_class.to_settings_dict()

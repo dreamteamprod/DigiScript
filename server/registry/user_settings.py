@@ -17,6 +17,10 @@ class UserSettingsRegistry:
     }
 
     @classmethod
+    def registry(cls):
+        return cls._registry
+
+    @classmethod
     def register(cls, settings_fields=None):
         def decorator(model_class):
             # Use the model's __tablename__ as the settings type identifier
@@ -48,7 +52,7 @@ class UserSettingsRegistry:
 
             # Add class method for conversion to settings
             @classmethod
-            def to_settings_dict(model_cls, instance=None):
+            def to_settings_dict(_model_cls, instance=None):
                 result = {}
 
                 # Include all fields from schema

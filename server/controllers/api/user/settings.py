@@ -82,12 +82,58 @@ class UserStageDirectionOverridesController(BaseAPIController):
             session.add(user_style)
             session.commit()
 
+            self.set_status(200)
+            await self.finish(
+                {
+                    "id": user_style.id,
+                    "message": "Successfully added stage direction style override",
+                }
+            )
+
             await self.application.ws_send_to_user(
                 self.current_user["id"],
                 "NOOP",
                 "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
                 {},
             )
+
+    @web.authenticated
+    async def patch(self):
+        data = escape.json_decode(self.request.body)
+        settings_id = data.get("id", None)
+        if not settings_id:
+            self.set_status(400)
+            await self.finish({"message": "ID missing"})
+            return
+
+        with self.make_session() as session:
+            entry: UserSettings = session.get(UserSettings, settings_id)
+            if entry:
+                if entry.user_id != self.current_user["id"]:
+                    self.set_status(403)
+                    await self.finish()
+
+                merge_settings = data.copy()
+                del merge_settings["id"]
+                entry.update_settings(merge_settings)
+                session.commit()
+
+                self.set_status(200)
+                await self.finish(
+                    {"message": "Successfully edited stage direction style override"}
+                )
+
+                await self.application.ws_send_to_user(
+                    self.current_user["id"],
+                    "NOOP",
+                    "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
+                    {},
+                )
+            else:
+                self.set_status(404)
+                await self.finish(
+                    {"message": "Stage direction style override not found"}
+                )
 
     @web.authenticated
     async def delete(self):
@@ -100,11 +146,11 @@ class UserStageDirectionOverridesController(BaseAPIController):
                 return
 
             entry: UserSettings = session.get(UserSettings, settings_id)
-            if entry.user_id != self.current_user["id"]:
-                self.set_status(403)
-                await self.finish()
-
             if entry:
+                if entry.user_id != self.current_user["id"]:
+                    self.set_status(403)
+                    await self.finish()
+
                 session.delete(entry)
                 session.commit()
 
