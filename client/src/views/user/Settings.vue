@@ -14,15 +14,21 @@
       >
         <about-user />
       </b-tab>
+      <b-tab
+        title="Stage Direction Styles"
+      >
+        <stage-direction-styles />
+      </b-tab>
     </b-tabs>
   </b-container>
 </template>
 
 <script>
+import StageDirectionStyles from '@/vue_components/user/settings/StageDirectionStyles.vue';
 import AboutUserUser from '@/vue_components/user/settings/AboutUser.vue';
 
 export default {
   name: 'UserSettings',
-  components: { AboutUser: AboutUserUser },
+  components: { AboutUser: AboutUserUser, StageDirectionStyles },
 };
 </script>

@@ -1,5 +1,7 @@
 from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 
+from models.models import db
+
 
 class UserSettingsRegistry:
     _registry = {}
@@ -136,3 +138,9 @@ class UserSettingsRegistry:
                 errors.append(f"Unknown field: {field}")
 
         return errors
+
+    @classmethod
+    def is_registered(cls, settings_type):
+        if isinstance(settings_type, db.Model):
+            settings_type = settings_type.__tablename__
+        return settings_type in cls._registry

@@ -1,6 +1,7 @@
 import datetime
 import json
 from functools import partial
+from typing import Union
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 
@@ -56,6 +57,19 @@ class UserSettings(db.Model):
         # Apply the update
         self.settings = json.dumps(merged)
         self.updated_at = datetime.datetime.now(tz=datetime.timezone.utc)
+
+    @classmethod
+    def get_by_type(cls, user_id, settings_type: Union[db.Model, str], session):
+        if issubclass(settings_type, db.Model):
+            settings_type = settings_type.__tablename__
+        if not UserSettingsRegistry.is_registered(settings_type):
+            return []
+        return (
+            session.query(UserSettings)
+            .filter_by(user_id=user_id)
+            .filter_by(settings_type=settings_type)
+            .all()
+        )
 
     @classmethod
     def create_for_user(cls, user_id, settings_type, settings_data):

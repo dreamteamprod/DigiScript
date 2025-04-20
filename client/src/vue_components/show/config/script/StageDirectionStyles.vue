@@ -513,7 +513,7 @@ export default {
         event.preventDefault();
       } else {
         await this.ADD_STAGE_DIRECTION_STYLE(this.createPayload);
-        this.resetNewCueTypeForm();
+        this.resetNewFormState();
       }
     },
     async onSubmitEditStyle(event) {
