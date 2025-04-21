@@ -9,6 +9,7 @@ from sqlalchemy import Column, ForeignKey, Integer, Table, TypeDecorator, inspec
 from digi_server.logger import get_logger
 from models.models import db
 from models.show import Show
+from models.user import User
 from rbac.exceptions import RBACException
 from rbac.role import Role
 from utils import tree
@@ -88,7 +89,7 @@ class RBACDatabase:
         actor_inspect = inspect(actor)
         resource_inspect = inspect(resource)
 
-        if not self._has_link_to_show(actor_inspect.mapped_table):
+        if actor is not User and not self._has_link_to_show(actor_inspect.mapped_table):
             raise RBACException(
                 "actor class does not have a reference back to Show table"
             )
