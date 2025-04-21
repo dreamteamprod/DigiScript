@@ -5,7 +5,6 @@ from tornado import escape, web
 from tornado.ioloop import IOLoop
 
 from models.session import Session
-from models.show import Show
 from models.user import User
 from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
