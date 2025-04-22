@@ -5,7 +5,6 @@ from tornado import escape, web
 from tornado.ioloop import IOLoop
 
 from models.session import Session
-from models.show import Show
 from models.user import User
 from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
@@ -37,27 +36,9 @@ class UserCreateController(BaseAPIController):
             )
             return
 
-        show_id = data.get("show_id", None)
         is_admin = data.get("is_admin", False)
 
-        if not show_id and not is_admin:
-            self.set_status(400)
-            await self.finish({"message": "Non admin user requires a show allocation"})
-            return
-
-        if is_admin and show_id:
-            self.set_status(400)
-            await self.finish({"message": "Admin user cannot have a show allocation"})
-            return
-
         with self.make_session() as session:
-            if show_id:
-                show = session.query(Show).get(show_id)
-                if not show:
-                    self.set_status(400)
-                    await self.finish({"message": "Show not found"})
-                    return
-
             conflict_user = (
                 session.query(User).filter(User.username == username).first()
             )
@@ -75,7 +56,6 @@ class UserCreateController(BaseAPIController):
                 User(
                     username=username,
                     password=hashed_password,
-                    show_id=show_id,
                     is_admin=is_admin,
                 )
             )
@@ -112,21 +92,6 @@ class LoginHandler(BaseAPIController):
                 self.set_status(401)
                 await self.finish({"message": "Invalid username/password"})
                 return
-
-            if not user.is_admin:
-                if not self.get_current_show():
-                    self.set_status(403)
-                    await self.finish(
-                        {
-                            "message": "Non admin user cannot log in without a loaded show"
-                        }
-                    )
-                    return
-
-                if user.show_id != self.get_current_show()["id"]:
-                    self.set_status(403)
-                    await self.finish({"message": "Loaded show does not match user"})
-                    return
 
             password_equal = await IOLoop.current().run_in_executor(
                 None,
@@ -201,20 +166,13 @@ class UsersHandler(BaseAPIController):
     def get(self):
         user_schema = UserSchema()
         with self.make_session() as session:
-            users = (
-                session.query(User)
-                .filter(
-                    (User.show_id == self.get_current_show()["id"]) | (User.is_admin)
-                )
-                .all()
-            )
+            users = session.query(User).all()
             self.set_status(200)
             self.finish({"users": [user_schema.dump(u) for u in users]})
 
 
-@ApiRoute("/auth", ApiVersion.V1)
+@ApiRoute("auth", ApiVersion.V1)
 class AuthHandler(BaseAPIController):
-    @web.authenticated
     def get(self):
         self.set_status(200)
-        self.finish(self.current_user)
+        self.finish(self.current_user if self.current_user else {})

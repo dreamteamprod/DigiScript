@@ -15,7 +15,6 @@ class User(db.Model):
     id = Column(Integer(), primary_key=True, autoincrement=True)
     username = Column(String(), index=True)
     password = Column(String())
-    show_id = Column(Integer(), ForeignKey("shows.id"), index=True)
     is_admin = Column(Boolean())
     last_login = Column(DateTime())
 

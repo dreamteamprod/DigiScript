@@ -3,6 +3,7 @@ import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 import router from '@/router';
+import { isEmpty } from 'lodash';
 import settings from './settings';
 
 export default {
@@ -94,7 +95,9 @@ export default {
       if (response.ok) {
         await context.commit('SET_CURRENT_USER', null);
         Vue.$toast.success('Successfully logged out!');
-        router.push('/');
+        if (router.currentRoute.path !== '/') {
+          router.push('/');
+        }
       } else {
         log.error('Unable to log out');
         Vue.$toast.error('Unable to log out!');
@@ -104,7 +107,8 @@ export default {
       const response = await fetch(`${makeURL('/api/v1/auth')}`);
       if (response.ok) {
         const user = await response.json();
-        await context.commit('SET_CURRENT_USER', user);
+        const userJson = isEmpty(user) ? null : user;
+        await context.commit('SET_CURRENT_USER', userJson);
       } else {
         log.error('Unable to get current user');
       }
