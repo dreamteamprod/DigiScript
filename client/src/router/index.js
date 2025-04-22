@@ -208,6 +208,7 @@ router.beforeEach(async (to, from, next) => {
 
   // Handle special case for live route
   if (to.path === '/live') {
+    await router.app.$store.dispatch('GET_SHOW_SESSION_DATA');
     const showSession = router.app.$store.getters.CURRENT_SHOW_SESSION;
     const websocketHealthy = router.app.$store.getters.WEBSOCKET_HEALTHY;
 
