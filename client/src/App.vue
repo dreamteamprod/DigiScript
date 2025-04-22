@@ -155,9 +155,13 @@ export default {
       startingSession: false,
     };
   },
+  async created() {
+    await this.GET_SETTINGS();
+    await this.awaitWSConnect();
+  },
   methods: {
     ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_CURRENT_USER', 'USER_LOGOUT', 'GET_RBAC_ROLES',
-      'GET_CURRENT_RBAC']),
+      'GET_CURRENT_RBAC', 'GET_SETTINGS']),
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer);
@@ -265,19 +269,6 @@ export default {
     },
     ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS', 'CURRENT_USER',
       'RBAC_ROLES', 'CURRENT_USER_RBAC', 'INTERNAL_UUID']),
-  },
-  async created() {
-    this.$router.beforeEach(async (to, from, next) => {
-      if (!this.SETTINGS.has_admin_user) {
-        this.$toast.error('Please create an admin user before continuing');
-        next(false);
-      } else if (to.fullPath === '/config' && (this.CURRENT_USER == null || !this.CURRENT_USER.is_admin)) {
-        next(false);
-      } else {
-        next();
-      }
-    });
-    await this.awaitWSConnect();
   },
 };
 </script>

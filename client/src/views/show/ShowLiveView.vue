@@ -140,81 +140,63 @@ export default {
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();
     this.loadedSessionData = true;
-    if (this.CURRENT_SHOW_SESSION == null) {
-      this.$toast.warning('No live session started!');
-      await this.$router.replace('/');
-    } else {
-      // Get the current user
-      await this.GET_CURRENT_USER();
+    // Get the current user
+    await this.GET_CURRENT_USER();
 
-      // User related stuff
-      if (this.CURRENT_USER != null) {
-        await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
-      }
+    // User related stuff
+    if (this.CURRENT_USER != null) {
+      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+    }
 
-      await this.GET_ACT_LIST();
-      await this.GET_SCENE_LIST();
-      await this.GET_CHARACTER_LIST();
-      await this.GET_CHARACTER_GROUP_LIST();
-      await this.GET_CUE_TYPES();
-      await this.LOAD_CUES();
-      await this.GET_CUTS();
-      await this.GET_STAGE_DIRECTION_STYLES();
-      await this.getMaxScriptPage();
+    await this.GET_ACT_LIST();
+    await this.GET_SCENE_LIST();
+    await this.GET_CHARACTER_LIST();
+    await this.GET_CHARACTER_GROUP_LIST();
+    await this.GET_CUE_TYPES();
+    await this.LOAD_CUES();
+    await this.GET_CUTS();
+    await this.GET_STAGE_DIRECTION_STYLES();
+    await this.getMaxScriptPage();
 
-      this.updateElapsedTime();
-      this.computeContentSize();
+    this.updateElapsedTime();
+    this.computeContentSize();
 
-      this.startTime = this.createDateAsUTC(new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T')));
-      this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
-      window.addEventListener('resize', debounce(this.computeContentSize, 100));
+    this.startTime = this.createDateAsUTC(new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T')));
+    this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
+    window.addEventListener('resize', debounce(this.computeContentSize, 100));
 
-      if (this.isScriptFollowing || this.isScriptLeader) {
-        if (this.CURRENT_SHOW_SESSION.latest_line_ref != null) {
-          const loadCurrentPage = parseInt(this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1], 10);
+    if (this.isScriptFollowing || this.isScriptLeader) {
+      if (this.CURRENT_SHOW_SESSION.latest_line_ref != null) {
+        const loadCurrentPage = parseInt(this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1], 10);
 
-          if (this.SETTINGS.enable_lazy_loading === false) {
-            this.currentMinLoadedPage = 1;
-            for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-              // eslint-disable-next-line no-await-in-loop
-              await this.loadNextPage();
-            }
-          } else {
-            this.currentMinLoadedPage = Math.max(0, loadCurrentPage - this.pageBatchSize - 1);
-            this.currentLoadedPage = this.currentMinLoadedPage;
-            for (let loadIndex = this.currentMinLoadedPage;
-              loadIndex < loadCurrentPage + this.pageBatchSize; loadIndex++) {
-              // eslint-disable-next-line no-await-in-loop
-              await this.loadNextPage();
-            }
-            this.currentMinLoadedPage += 1;
-          }
-
-          this.currentFirstPage = loadCurrentPage;
-          this.currentLastPage = loadCurrentPage;
-          await this.$nextTick();
-          this.initialLoad = true;
-          await this.$nextTick();
-          this.computeScriptBoundaries();
-          document.getElementById(this.CURRENT_SHOW_SESSION.latest_line_ref).scrollIntoView({
-            behavior: 'instant',
-          });
-          await this.$nextTick();
-          this.computeScriptBoundaries();
-        } else {
+        if (this.SETTINGS.enable_lazy_loading === false) {
           this.currentMinLoadedPage = 1;
-          if (this.SETTINGS.enable_lazy_loading === false) {
-            for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-              // eslint-disable-next-line no-await-in-loop
-              await this.loadNextPage();
-            }
-          } else {
+          for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
+            // eslint-disable-next-line no-await-in-loop
             await this.loadNextPage();
           }
-          this.initialLoad = true;
-          await this.$nextTick();
-          this.computeScriptBoundaries();
+        } else {
+          this.currentMinLoadedPage = Math.max(0, loadCurrentPage - this.pageBatchSize - 1);
+          this.currentLoadedPage = this.currentMinLoadedPage;
+          for (let loadIndex = this.currentMinLoadedPage;
+            loadIndex < loadCurrentPage + this.pageBatchSize; loadIndex++) {
+            // eslint-disable-next-line no-await-in-loop
+            await this.loadNextPage();
+          }
+          this.currentMinLoadedPage += 1;
         }
+
+        this.currentFirstPage = loadCurrentPage;
+        this.currentLastPage = loadCurrentPage;
+        await this.$nextTick();
+        this.initialLoad = true;
+        await this.$nextTick();
+        this.computeScriptBoundaries();
+        document.getElementById(this.CURRENT_SHOW_SESSION.latest_line_ref).scrollIntoView({
+          behavior: 'instant',
+        });
+        await this.$nextTick();
+        this.computeScriptBoundaries();
       } else {
         this.currentMinLoadedPage = 1;
         if (this.SETTINGS.enable_lazy_loading === false) {
@@ -229,9 +211,22 @@ export default {
         await this.$nextTick();
         this.computeScriptBoundaries();
       }
-
-      this.fullLoad = true;
+    } else {
+      this.currentMinLoadedPage = 1;
+      if (this.SETTINGS.enable_lazy_loading === false) {
+        for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
+          // eslint-disable-next-line no-await-in-loop
+          await this.loadNextPage();
+        }
+      } else {
+        await this.loadNextPage();
+      }
+      this.initialLoad = true;
+      await this.$nextTick();
+      this.computeScriptBoundaries();
     }
+
+    this.fullLoad = true;
   },
   destroyed() {
     clearInterval(this.elapsedTimer);

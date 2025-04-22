@@ -171,9 +171,8 @@ class UsersHandler(BaseAPIController):
             self.finish({"users": [user_schema.dump(u) for u in users]})
 
 
-@ApiRoute("/auth", ApiVersion.V1)
+@ApiRoute("auth", ApiVersion.V1)
 class AuthHandler(BaseAPIController):
-    @web.authenticated
     def get(self):
         self.set_status(200)
-        self.finish(self.current_user)
+        self.finish(self.current_user if self.current_user else {})
