@@ -48,26 +48,30 @@ class RoleCol(TypeDecorator):
         return Role(value)
 
 
-def _get_mapping_columns(actor: db.Model, resource: db.Model) -> dict:
-    actor_inspect = inspect(actor)
-    resource_inspect = inspect(resource)
+def _get_mapping_columns(
+    actor: Optional[db.Model], resource: Optional[db.Model]
+) -> dict:
     cols = {}
-    cols.update(
-        {
-            f"{actor_inspect.mapper.mapped_table.fullname}_{col.key}": getattr(
-                actor, col.key
-            )
-            for col in actor_inspect.mapper.primary_key
-        }
-    )
-    cols.update(
-        {
-            f"{resource_inspect.mapper.mapped_table.fullname}_{col.key}": getattr(
-                resource, col.key
-            )
-            for col in resource_inspect.mapper.primary_key
-        }
-    )
+    if actor:
+        actor_inspect = inspect(actor)
+        cols.update(
+            {
+                f"{actor_inspect.mapper.mapped_table.fullname}_{col.key}": getattr(
+                    actor, col.key
+                )
+                for col in actor_inspect.mapper.primary_key
+            }
+        )
+    if resource:
+        resource_inspect = inspect(resource)
+        cols.update(
+            {
+                f"{resource_inspect.mapper.mapped_table.fullname}_{col.key}": getattr(
+                    resource, col.key
+                )
+                for col in resource_inspect.mapper.primary_key
+            }
+        )
     return cols
 
 
@@ -201,6 +205,30 @@ class RBACDatabase:
                     [rbac_object, self.get_roles(actor, rbac_object)]
                 )
         return roles
+
+    def delete_actor(self, actor: db.Model) -> None:
+        actor_inspect = inspect(actor)
+        actor_cols = _get_mapping_columns(actor=actor, resource=None)
+        resource_mappings = self._resource_mappings.get(
+            actor_inspect.mapper.mapped_table.fullname, []
+        )
+        for resource in resource_mappings:
+            resource_inspect = inspect(resource)
+            table_name = (
+                f"rbac_{actor_inspect.mapper.mapped_table.fullname}_"
+                f"{resource_inspect.mapper.mapped_table.fullname}"
+            )
+            if table_name not in self._mappings:
+                RBACException("Could not get table for actor/resource")
+            with self._db.sessionmaker() as session:
+                rbac_assignments = (
+                    session.query(self._mappings[table_name])
+                    .filter_by(**actor_cols)
+                    .all()
+                )
+                for rbac_assignment in rbac_assignments:
+                    session.delete(rbac_assignment)
+                session.commit()
 
     @functools.lru_cache()
     def _has_link_to_show(self, table: Table):

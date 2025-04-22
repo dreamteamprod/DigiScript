@@ -50,10 +50,8 @@ export default new Vuex.Store({
     },
     async SHOW_CHANGED(context) {
       if (context.rootGetters.CURRENT_USER != null) {
-        const response = await fetch(`${makeURL('/api/v1/auth/validate')}`);
-        if (response.status === 401) {
-          await context.dispatch('USER_LOGOUT');
-        }
+        await context.dispatch('GET_CURRENT_USER');
+        await context.dispatch('GET_CURRENT_RBAC');
       }
       window.location.reload();
     },

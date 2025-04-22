@@ -23,7 +23,7 @@ class UserSettings(db.Model):
     __tablename__ = "user_settings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("user.id"), index=True)
+    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), index=True)
 
     settings_type = Column(String, index=True)
     settings = Column(Text)

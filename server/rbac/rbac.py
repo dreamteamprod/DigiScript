@@ -31,6 +31,9 @@ class RBACController:
         self._rbac_db.add_mapping(actor, resource)
         self._display_fields[resource] = [field.key for field in display_fields]
 
+    def delete_actor(self, actor: db.Model) -> None:
+        self._rbac_db.delete_actor(actor)
+
     def give_role(self, actor: db.Model, resource: db.Model, role: Role) -> None:
         self._rbac_db.give_role(actor, resource, role)
 
