@@ -17,6 +17,10 @@ class RBACController:
         self._rbac_db = RBACDatabase(app.get_db(), app)
         self._display_fields = {}
 
+    @property
+    def rbac_db(self):
+        return self._rbac_db
+
     def add_mapping(
         self, actor: type, resource: type, display_fields: Optional[List] = None
     ) -> None:

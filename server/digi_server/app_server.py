@@ -249,6 +249,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
             )
 
     def _configure_rbac(self):
+        self._db.register_delete_hook(self.rbac.rbac_db.check_object_deletion)
         self.rbac.add_mapping(User, Show, [Show.id, Show.name])
         self.rbac.add_mapping(User, CueType, [CueType.id, CueType.prefix])
         self.rbac.add_mapping(User, Script, [Script.id])

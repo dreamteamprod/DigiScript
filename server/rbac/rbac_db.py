@@ -1,7 +1,7 @@
 import functools
 from collections import defaultdict
 from copy import deepcopy
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from anytree import Node
 from sqlalchemy import Column, ForeignKey, Integer, Table, TypeDecorator, inspect
@@ -13,7 +13,7 @@ from models.user import User
 from rbac.exceptions import RBACException
 from rbac.role import Role
 from utils import tree
-from utils.database import DigiSQLAlchemy
+from utils.database import DigiDBSession, DigiSQLAlchemy
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
@@ -133,6 +133,35 @@ class RBACDatabase:
         self._resource_mappings[actor_inspect.mapped_table.fullname].append(resource)
         logger.info(f"Created RBAC mapping {table_name}")
 
+    @property
+    def mapped_resource_tables(self) -> List[str]:
+        mapped_tables = set()
+        for actor_table, resource_tables in self._resource_mappings.items():
+            for resource_table in resource_tables:
+                resource_inspect = inspect(resource_table)
+                mapped_tables.add(resource_inspect.mapped_table.fullname)
+        return list(mapped_tables)
+
+    @property
+    def resource_table_mappings(self) -> Dict[str, List[str]]:
+        output = defaultdict(set)
+        for actor_table, resource_tables in self._resource_mappings.items():
+            for resource_table in resource_tables:
+                resource_inspect = inspect(resource_table)
+                output[resource_inspect.mapped_table.fullname].add(actor_table)
+        real_output = {}
+        for resource_table in output:
+            real_output[resource_table] = list(output[resource_table])
+        return real_output
+
+    def check_object_deletion(self, _session: DigiDBSession, delete_object: db.Model):
+        obj_inspect = inspect(delete_object)
+        table_name = obj_inspect.mapper.mapped_table.fullname
+        if table_name in self._resource_mappings:
+            self.delete_actor(delete_object)
+        if table_name in self.mapped_resource_tables:
+            self.delete_resource(delete_object)
+
     def _validate_mapping(self, actor: db.Model, resource: db.Model) -> str:
         if not isinstance(actor, db.Model):
             raise RBACException("actor must be class instance, not object")
@@ -206,6 +235,17 @@ class RBACDatabase:
                 )
         return roles
 
+    def _delete_from_rbac_db(self, table_name: str, cols: Dict[str, Any]):
+        if table_name not in self._mappings:
+            RBACException("Could not get table for actor/resource")
+        with self._db.sessionmaker() as session:
+            rbac_assignments = (
+                session.query(self._mappings[table_name]).filter_by(**cols).all()
+            )
+            for rbac_assignment in rbac_assignments:
+                session.delete(rbac_assignment)
+            session.commit()
+
     def delete_actor(self, actor: db.Model) -> None:
         actor_inspect = inspect(actor)
         actor_cols = _get_mapping_columns(actor=actor, resource=None)
@@ -218,17 +258,19 @@ class RBACDatabase:
                 f"rbac_{actor_inspect.mapper.mapped_table.fullname}_"
                 f"{resource_inspect.mapper.mapped_table.fullname}"
             )
-            if table_name not in self._mappings:
-                RBACException("Could not get table for actor/resource")
-            with self._db.sessionmaker() as session:
-                rbac_assignments = (
-                    session.query(self._mappings[table_name])
-                    .filter_by(**actor_cols)
-                    .all()
-                )
-                for rbac_assignment in rbac_assignments:
-                    session.delete(rbac_assignment)
-                session.commit()
+            self._delete_from_rbac_db(table_name, actor_cols)
+
+    def delete_resource(self, resource: db.Model):
+        resource_inspect = inspect(resource)
+        resource_cols = _get_mapping_columns(actor=None, resource=resource)
+        actor_mappings = self.resource_table_mappings.get(
+            resource_inspect.mapper.mapped_table.fullname, []
+        )
+        for actor in actor_mappings:
+            table_name = (
+                f"rbac_{actor}_" f"{resource_inspect.mapper.mapped_table.fullname}"
+            )
+            self._delete_from_rbac_db(table_name, resource_cols)
 
     @functools.lru_cache()
     def _has_link_to_show(self, table: Table):
