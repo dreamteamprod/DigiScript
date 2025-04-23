@@ -1,4 +1,5 @@
 import functools
+from typing import Callable, List
 
 from sqlalchemy import MetaData, event
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -16,6 +17,8 @@ class DeleteMixin:
 class DigiDBSession(SessionEx):
 
     def _delete_impl(self, state, obj, head):
+        for hook in self.db.delete_hooks:
+            hook(self, obj)
         if isinstance(obj, DeleteMixin):
             obj.pre_delete(self)
             super()._delete_impl(state, obj, head)
@@ -30,6 +33,7 @@ class DigiSQLAlchemy(SQLAlchemy):
         self.sessionmaker = None
         # Store the original create_engine method
         original_create_engine = self.create_engine
+        self._delete_hooks: List[Callable] = []
 
         # Override create_engine to add event listener for SQLite
         def create_engine_with_fk_support(*args, **kwargs):
@@ -75,3 +79,11 @@ class DigiSQLAlchemy(SQLAlchemy):
         }
         metadata = MetaData(naming_convention=convention)
         return declarative_base(metaclass=BindMeta, metadata=metadata)
+
+    @property
+    def delete_hooks(self):
+        return self._delete_hooks
+
+    def register_delete_hook(self, hook: Callable):
+        if hook not in self._delete_hooks:
+            self._delete_hooks.append(hook)
