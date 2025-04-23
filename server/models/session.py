@@ -12,7 +12,7 @@ class Session(db.Model):
     last_ping = Column(Float())
     last_pong = Column(Float())
     is_editor = Column(Boolean(), default=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), index=True)
+    user_id = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"), index=True)
 
     user = relationship(
         "User", uselist=False, backref=backref("sessions", uselist=True)
@@ -27,7 +27,7 @@ class ShowSession(db.Model):
     start_date_time = Column(DateTime())
     end_date_time = Column(DateTime())
 
-    user_id = Column(Integer, ForeignKey("user.id"), index=True)
+    user_id = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"), index=True)
     client_internal_id = Column(String(255), ForeignKey("sessions.internal_id"))
     last_client_internal_id = Column(String(255))
     latest_line_ref = Column(String)

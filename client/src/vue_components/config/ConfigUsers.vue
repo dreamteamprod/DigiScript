@@ -29,6 +29,13 @@
               >
                 RBAC
               </b-button>
+              <b-button
+                variant="danger"
+                :disabled="data.item.is_admin"
+                @click.stop="deleteUser(data)"
+              >
+                Delete
+              </b-button>
             </b-button-group>
           </template>
         </b-table>
@@ -89,7 +96,14 @@ export default {
     setEditUser(userId) {
       this.editUser = userId;
     },
-    ...mapActions(['GET_USERS']),
+    async deleteUser(data) {
+      const msg = `Are you sure you want to delete ${data.item.username}?`;
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        await this.DELETE_USER(data.item.id);
+      }
+    },
+    ...mapActions(['GET_USERS', 'DELETE_USER']),
   },
   computed: {
     ...mapGetters(['SHOW_USERS', 'CURRENT_SHOW']),

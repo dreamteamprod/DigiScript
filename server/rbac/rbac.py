@@ -17,6 +17,10 @@ class RBACController:
         self._rbac_db = RBACDatabase(app.get_db(), app)
         self._display_fields = {}
 
+    @property
+    def rbac_db(self):
+        return self._rbac_db
+
     def add_mapping(
         self, actor: type, resource: type, display_fields: Optional[List] = None
     ) -> None:
@@ -30,6 +34,9 @@ class RBACController:
             raise RBACException("Only 3 or fewer display fields are allowed")
         self._rbac_db.add_mapping(actor, resource)
         self._display_fields[resource] = [field.key for field in display_fields]
+
+    def delete_actor(self, actor: db.Model) -> None:
+        self._rbac_db.delete_actor(actor)
 
     def give_role(self, actor: db.Model, resource: db.Model, role: Role) -> None:
         self._rbac_db.give_role(actor, resource, role)

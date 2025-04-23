@@ -52,10 +52,27 @@ export default {
         body: JSON.stringify(user),
       });
       if (response.ok) {
+        await context.dispatch('GET_USERS');
         Vue.$toast.success('User created!');
       } else {
         log.error('Unable to create user');
         Vue.$toast.error('Unable to create user');
+      }
+    },
+    async DELETE_USER(context, userId) {
+      const response = await fetch(`${makeURL('/api/v1/auth/delete')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: userId }),
+      });
+      if (response.ok) {
+        await context.dispatch('GET_USERS');
+        Vue.$toast.success('User deleted!');
+      } else {
+        log.error('Unable to delete user');
+        Vue.$toast.error('Unable to delete user');
       }
     },
     async USER_LOGIN(context, user) {

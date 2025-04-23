@@ -1,15 +1,16 @@
 from datetime import datetime
 
 import bcrypt
-from tornado import escape, web
+from tornado import escape, gen, web
 from tornado.ioloop import IOLoop
 
 from models.session import Session
 from models.user import User
+from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import require_admin, requires_show
+from utils.web.web_decorators import no_live_session, require_admin, requires_show
 
 
 @ApiRoute("auth/create", ApiVersion.V1)
@@ -69,6 +70,73 @@ class UserCreateController(BaseAPIController):
             await self.finish({"message": "Successfully created user"})
 
 
+@ApiRoute("auth/delete", ApiVersion.V1)
+class UserDeleteController(BaseAPIController):
+    @web.authenticated
+    @require_admin
+    @no_live_session
+    async def post(self):
+        data = escape.json_decode(self.request.body)
+        user_to_delete = data.get("id", None)
+        if not user_to_delete:
+            self.set_status(400)
+            await self.finish({"message": "Id missing"})
+            return
+
+        with self.make_session() as session:
+            user_to_delete: User = session.query(User).get(int(user_to_delete))
+            if not user_to_delete:
+                self.set_status(400)
+                await self.finish({"message": "Could not find user to delete"})
+                return
+
+            if user_to_delete.is_admin:
+                self.set_status(400)
+                await self.finish({"message": "Cannot delete admin user"})
+                return
+
+            async with NamedLockRegistry.acquire(
+                f"UserLock::{user_to_delete.username}"
+            ):
+                # First, log out all sessions for this user
+                await self.application.ws_send_to_user(
+                    user_to_delete.id, "NOOP", "USER_LOGOUT", {}
+                )
+
+                # Then really make sure we have logged out the user for all sessions (basically,
+                # wait for the websocket ops to finish)
+                session_logout_attempts = 0
+                user_sessions = (
+                    session.query(Session)
+                    .filter(Session.user_id == user_to_delete.id)
+                    .all()
+                )
+                while user_sessions and session_logout_attempts < 5:
+                    for user_session in user_sessions:
+                        ws_session = self.application.get_ws(user_session.internal_id)
+                        await ws_session.write_message(
+                            {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
+                        )
+                    await gen.sleep(0.2)
+                    user_sessions = (
+                        session.query(Session)
+                        .filter(Session.user_id == user_to_delete.id)
+                        .all()
+                    )
+                    session_logout_attempts += 1
+
+                # Delete all RBAC associations for this user
+                self.application.rbac.delete_actor(user_to_delete)
+
+                # Then we can delete the user
+                session.delete(user_to_delete)
+                session.commit()
+
+                self.set_status(200)
+                await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
+                await self.finish({"message": "Successfully deleted user"})
+
+
 @ApiRoute("auth/login", ApiVersion.V1)
 class LoginHandler(BaseAPIController):
     async def post(self):
@@ -87,34 +155,35 @@ class LoginHandler(BaseAPIController):
             return
 
         with self.make_session() as session:
-            user = session.query(User).filter(User.username == username).first()
-            if not user:
-                self.set_status(401)
-                await self.finish({"message": "Invalid username/password"})
-                return
+            async with NamedLockRegistry.acquire(f"UserLock::{username}"):
+                user = session.query(User).filter(User.username == username).first()
+                if not user:
+                    self.set_status(401)
+                    await self.finish({"message": "Invalid username/password"})
+                    return
 
-            password_equal = await IOLoop.current().run_in_executor(
-                None,
-                bcrypt.checkpw,
-                escape.utf8(password),
-                escape.utf8(user.password),
-            )
+                password_equal = await IOLoop.current().run_in_executor(
+                    None,
+                    bcrypt.checkpw,
+                    escape.utf8(password),
+                    escape.utf8(user.password),
+                )
 
-            if password_equal:
-                session_id = data.get("session_id", "")
-                if session_id:
-                    ws_session: Session = session.query(Session).get(session_id)
-                    if ws_session:
-                        ws_session.user = user
-                user.last_login = datetime.utcnow()
-                session.commit()
+                if password_equal:
+                    session_id = data.get("session_id", "")
+                    if session_id:
+                        ws_session: Session = session.query(Session).get(session_id)
+                        if ws_session:
+                            ws_session.user = user
+                    user.last_login = datetime.utcnow()
+                    session.commit()
 
-                self.set_secure_cookie("digiscript_user_id", str(user.id))
-                self.set_status(200)
-                await self.finish({"message": "Successful log in"})
-            else:
-                self.set_status(401)
-                await self.finish({"message": "Invalid username/password"})
+                    self.set_secure_cookie("digiscript_user_id", str(user.id))
+                    self.set_status(200)
+                    await self.finish({"message": "Successful log in"})
+                else:
+                    self.set_status(401)
+                    await self.finish({"message": "Invalid username/password"})
 
 
 @ApiRoute("auth/logout", ApiVersion.V1)
@@ -138,24 +207,6 @@ class LogoutHandler(BaseAPIController):
         else:
             self.set_status(401)
             await self.finish({"message": "No user logged in"})
-
-
-@ApiRoute("auth/validate", ApiVersion.V1)
-class AuthValidationHandler(BaseAPIController):
-    @web.authenticated
-    async def get(self):
-        if self.current_user["is_admin"]:
-            self.set_status(200)
-            await self.finish({"message": "OK"})
-        elif (
-            self.current_show
-            and self.current_user["show_id"] == self.current_show["id"]
-        ):
-            self.set_status(200)
-            await self.finish({"message": "OK"})
-        else:
-            self.set_status(401)
-            self.write({"message": "Not Authenticated"})
 
 
 @ApiRoute("auth/users", ApiVersion.V1)
