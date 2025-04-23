@@ -136,7 +136,7 @@ class RBACDatabase:
     @property
     def mapped_resource_tables(self) -> List[str]:
         mapped_tables = set()
-        for actor_table, resource_tables in self._resource_mappings.items():
+        for _actor_table, resource_tables in self._resource_mappings.items():
             for resource_table in resource_tables:
                 resource_inspect = inspect(resource_table)
                 mapped_tables.add(resource_inspect.mapped_table.fullname)
