@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import bcrypt
 from tornado import escape, gen, web
@@ -9,6 +9,7 @@ from models.user import User
 from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
+from utils.web.jwt_utils import create_access_token
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, require_admin, requires_show
 
@@ -178,9 +179,24 @@ class LoginHandler(BaseAPIController):
                     user.last_login = datetime.utcnow()
                     session.commit()
 
+                    # Create JWT token
+                    access_token = create_access_token(
+                        data={
+                            "user_id": user.id,
+                        },
+                        expires_delta=timedelta(minutes=120),
+                    )
+
+                    # Keep setting the cookie for backward compatibility
                     self.set_secure_cookie("digiscript_user_id", str(user.id))
                     self.set_status(200)
-                    await self.finish({"message": "Successful log in"})
+                    await self.finish(
+                        {
+                            "message": "Successful log in",
+                            "access_token": access_token,
+                            "token_type": "bearer",
+                        }
+                    )
                 else:
                     self.set_status(401)
                     await self.finish({"message": "Invalid username/password"})
@@ -207,6 +223,28 @@ class LogoutHandler(BaseAPIController):
         else:
             self.set_status(401)
             await self.finish({"message": "No user logged in"})
+
+
+@ApiRoute("auth/refresh-token", ApiVersion.V1)
+class RefreshTokenHandler(BaseAPIController):
+    @web.authenticated
+    async def post(self):
+        """Generate a new access token using the current authentication"""
+        if not self.current_user:
+            self.set_status(401)
+            await self.finish({"message": "Not authenticated"})
+            return
+
+        # Create a new JWT token with extended expiration
+        access_token = create_access_token(
+            data={
+                "user_id": self.current_user["id"],
+            },
+            expires_delta=timedelta(minutes=120),
+        )
+
+        self.set_status(200)
+        await self.finish({"access_token": access_token, "token_type": "bearer"})
 
 
 @ApiRoute("auth/users", ApiVersion.V1)

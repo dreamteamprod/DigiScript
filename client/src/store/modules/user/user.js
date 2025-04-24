@@ -11,6 +11,7 @@ export default {
     currentUser: null,
     currentRbac: null,
     showUsers: [],
+    authToken: localStorage.getItem('digiscript_auth_token') || null,
   },
   mutations: {
     SET_CURRENT_USER(state, user) {
@@ -21,6 +22,14 @@ export default {
     },
     SET_CURRENT_RBAC(state, rbac) {
       state.currentRbac = rbac;
+    },
+    SET_AUTH_TOKEN(state, token) {
+      state.authToken = token;
+      if (token) {
+        localStorage.setItem('digiscript_auth_token', token);
+      } else {
+        localStorage.removeItem('digiscript_auth_token');
+      }
     },
   },
   actions: {
@@ -88,6 +97,13 @@ export default {
         }),
       });
       if (response.ok) {
+        const data = await response.json();
+        // Store the JWT token
+        if (data.access_token) {
+          await context.commit('SET_AUTH_TOKEN', data.access_token);
+        }
+
+        // Get user data and permissions
         context.dispatch('GET_RBAC_ROLES');
         context.dispatch('GET_CURRENT_USER');
         context.dispatch('GET_CURRENT_RBAC');
@@ -110,7 +126,10 @@ export default {
         }),
       });
       if (response.ok) {
+        // Clear the token and user data
+        await context.commit('SET_AUTH_TOKEN', null);
         await context.commit('SET_CURRENT_USER', null);
+
         Vue.$toast.success('Successfully logged out!');
         if (router.currentRoute.path !== '/') {
           router.push('/');
@@ -130,6 +149,28 @@ export default {
         log.error('Unable to get current user');
       }
     },
+    async REFRESH_TOKEN(context) {
+      if (!context.getters.AUTH_TOKEN) return;
+
+      try {
+        const response = await fetch(`${makeURL('/api/v1/auth/refresh-token')}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${context.getters.AUTH_TOKEN}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          await context.commit('SET_AUTH_TOKEN', data.access_token);
+        } else {
+          await context.dispatch('USER_LOGOUT');
+        }
+      } catch (error) {
+        log.error('Token refresh failed', error);
+      }
+    },
     async GET_CURRENT_RBAC(context) {
       const response = await fetch(`${makeURL('/api/v1/rbac/user/roles')}`);
       if (response.ok) {
@@ -138,6 +179,14 @@ export default {
       } else {
         log.error('Unable to get current user\'s RBAC roles');
       }
+    },
+    SETUP_TOKEN_REFRESH(context) {
+      // Refresh token every 30 minutes if the user is logged in
+      setInterval(() => {
+        if (context.getters.AUTH_TOKEN) {
+          context.dispatch('REFRESH_TOKEN');
+        }
+      }, 1000 * 60 * 30);
     },
   },
   getters: {
@@ -149,6 +198,9 @@ export default {
     },
     CURRENT_USER_RBAC(state) {
       return state.currentRbac;
+    },
+    AUTH_TOKEN(state) {
+      return state.authToken;
     },
   },
   modules: {
