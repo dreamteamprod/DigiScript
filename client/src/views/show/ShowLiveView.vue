@@ -139,6 +139,48 @@ export default {
       debounceContentSize: debounce(this.computeContentSize, 100),
     };
   },
+  computed: {
+    pageIter() {
+      if (this.SETTINGS.enable_live_batching) {
+        return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
+          x <= this.currentLastPage + this.pageBatchSize
+            && x >= this.currentFirstPage - this.pageBatchSize));
+      }
+      return [...Array(this.currentMaxPage).keys()];
+    },
+    isScriptFollowing() {
+      if (this.loadedSessionData) {
+        return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
+      }
+      return false;
+    },
+    isScriptLeader() {
+      if (this.loadedSessionData) {
+        return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
+      }
+      return false;
+    },
+    ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
+      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
+      'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
+      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
+  },
+  watch: {
+    SESSION_FOLLOW_DATA() {
+      if (this.isScriptFollowing) {
+        const scrollToLine = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
+        if (scrollToLine != null) {
+          $('.script-item').removeClass('current-line');
+          $(`#${this.SESSION_FOLLOW_DATA.current_line}`).addClass('current-line');
+          scrollToLine.scrollIntoView({
+            behavior: 'instant',
+            block: 'start',
+          });
+          this.computeScriptBoundaries();
+        }
+      }
+    },
+  },
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();
     this.loadedSessionData = true;
@@ -261,14 +303,12 @@ export default {
     navigateTo(targetPage, targetLineOnPage, preventScroll = false) {
       // Check if the page is loaded
       if (targetPage > this.currentLoadedPage) {
-        // Can't navigate to unloaded pages
         return false;
       }
 
       // Check if the target line exists on that page
       const pageLines = this.GET_SCRIPT_PAGE(targetPage);
       if (!pageLines || targetLineOnPage >= pageLines.length) {
-        // Line doesn't exist on this page
         return false;
       }
 
@@ -326,61 +366,71 @@ export default {
 
       return true;
     },
-
-    // Method to navigate relative to current position
     navigateRelative(deltaPage, deltaLine) {
-      // Calculate new target position
-      let newPage = this.currentPage;
-      let newLineOnPage = this.currentLineOnPage + deltaLine;
+      // If no navigation needed, exit early
+      if (deltaLine === 0 && deltaPage === 0) return true;
 
-      // Handle line overflow/underflow
-      while (true) {
-        // Check for underflow
+      // Direction of navigation (positive for down/forward, negative for up/backward)
+      const direction = deltaLine > 0 ? 1 : -1;
+
+      // Start from current position
+      let newPage = this.currentPage;
+      let newLineOnPage = this.currentLineOnPage;
+
+      // Keep track of how many visible lines we've moved
+      let visibleLinesMoved = 0;
+
+      // Continue until we've moved the requested number of visible lines
+      while (visibleLinesMoved < Math.abs(deltaLine)) {
+        // Move one line in the appropriate direction
+        newLineOnPage += direction;
+
+        // Handle line overflow/underflow
         if (newLineOnPage < 0) {
-          // Move to previous page
           newPage--;
           if (newPage < 1) {
-            // Can't go before page 1
             newPage = 1;
             newLineOnPage = 0;
             break;
           } else {
-            // Go to last line of previous page
             const prevPageLines = this.GET_SCRIPT_PAGE(newPage);
-            if (!prevPageLines) break; // Page not loaded
-
+            if (!prevPageLines) break;
             newLineOnPage = prevPageLines.length - 1;
             if (newLineOnPage < 0) newLineOnPage = 0;
           }
         } else {
-          // Check for overflow
           const currentPageLines = this.GET_SCRIPT_PAGE(newPage);
-          if (!currentPageLines) break; // Page not loaded
-
+          if (!currentPageLines) break;
           if (newLineOnPage >= currentPageLines.length) {
-            // Move to next page
             newPage++;
-            // If next page isn't loaded, stay at last line of current page
             if (newPage > this.currentLoadedPage) {
               newPage = this.currentLoadedPage;
               newLineOnPage = currentPageLines.length - 1;
               break;
             } else {
-              // Go to first line of next page
               newLineOnPage = 0;
             }
-          } else {
-            // Valid line on current page
+          }
+        }
+
+        // Check if this line is visible (not cut)
+        const pageLines = this.GET_SCRIPT_PAGE(newPage);
+        if (pageLines && newLineOnPage < pageLines.length) {
+          const currentLine = pageLines[newLineOnPage];
+          if (!this.isWholeLineCut(currentLine)) {
+            visibleLinesMoved++;
+          }
+          if (visibleLinesMoved >= Math.abs(deltaLine)) {
             break;
           }
+        } else {
+          break;
         }
       }
 
       // Navigate to the calculated position
       return this.navigateTo(newPage, newLineOnPage);
     },
-
-    // Handler for keyboard navigation
     handleKeyNavigation(event) {
       // Only handle if we're the leader and not currently scrolling
       if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return;
@@ -389,13 +439,11 @@ export default {
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         event.preventDefault();
 
-        // Navigate by one line up or down
+        // Always move by 1 visible line in the appropriate direction
         const delta = event.key === 'ArrowDown' ? 1 : -1;
         this.navigateRelative(0, delta);
       }
     },
-
-    // Handler for wheel-based navigation
     handleWheelNavigation(event) {
       // Only handle if we're the leader and not currently scrolling
       if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return;
@@ -412,12 +460,11 @@ export default {
       if ((event.deltaY > 0 && !isAtBottom) || (event.deltaY < 0 && !isAtTop)) {
         event.preventDefault();
 
-        // Navigate by one line up or down based on wheel direction
+        // Always move by 1 visible line in the appropriate direction
         const delta = event.deltaY > 0 ? 1 : -1;
         this.navigateRelative(0, delta);
       }
     },
-    // Set initial position
     initializeNavigation() {
       // If we have a CURRENT_SHOW_SESSION.latest_line_ref, use that
       if (this.CURRENT_SHOW_SESSION.latest_line_ref) {
@@ -627,48 +674,6 @@ export default {
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
       'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES']),
-  },
-  computed: {
-    pageIter() {
-      if (this.SETTINGS.enable_live_batching) {
-        return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
-          x <= this.currentLastPage + this.pageBatchSize
-            && x >= this.currentFirstPage - this.pageBatchSize));
-      }
-      return [...Array(this.currentMaxPage).keys()];
-    },
-    isScriptFollowing() {
-      if (this.loadedSessionData) {
-        return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
-      }
-      return false;
-    },
-    isScriptLeader() {
-      if (this.loadedSessionData) {
-        return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
-      }
-      return false;
-    },
-    ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
-      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
-      'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
-      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
-  },
-  watch: {
-    SESSION_FOLLOW_DATA() {
-      if (this.isScriptFollowing) {
-        const scrollToLine = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
-        if (scrollToLine != null) {
-          $('.script-item').removeClass('current-line');
-          $(`#${this.SESSION_FOLLOW_DATA.current_line}`).addClass('current-line');
-          scrollToLine.scrollIntoView({
-            behavior: 'instant',
-            block: 'start',
-          });
-          this.computeScriptBoundaries();
-        }
-      }
-    },
   },
 };
 </script>
