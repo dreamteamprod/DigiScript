@@ -9,7 +9,6 @@ from models.user import User
 from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
-from utils.web.jwt_utils import create_access_token
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, require_admin, requires_show
 
@@ -181,7 +180,7 @@ class LoginHandler(BaseAPIController):
                     session.commit()
 
                     # Create JWT token
-                    access_token = create_access_token(
+                    access_token = self.application.jwt_service.create_access_token(
                         data={
                             "user_id": user.id,
                         },
@@ -243,7 +242,7 @@ class RefreshTokenHandler(BaseAPIController):
             return
 
         # Create a new JWT token with extended expiration
-        access_token = create_access_token(
+        access_token = self.application.jwt_service.create_access_token(
             data={
                 "user_id": self.current_user["id"],
             },

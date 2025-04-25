@@ -12,7 +12,6 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
-from utils.web.jwt_utils import decode_access_token, get_token_from_authorization_header
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
@@ -39,12 +38,14 @@ class BaseController(SessionMixin, RequestHandler):
 
         # Extract JWT token from header
         auth_header = self.request.headers.get("Authorization", "")
-        token = get_token_from_authorization_header(auth_header)
+        token = self.application.jwt_service.get_token_from_authorization_header(
+            auth_header
+        )
 
         with self.make_session() as session:
             # If we have a token, try to authenticate with it
             if token:
-                payload = decode_access_token(token)
+                payload = self.application.jwt_service.decode_access_token(token)
                 if payload and "user_id" in payload:
                     user = session.query(User).get(int(payload["user_id"]))
                     if user:

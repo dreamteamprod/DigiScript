@@ -1,4 +1,5 @@
 import os
+import secrets
 import shutil
 import time
 from typing import List, Optional
@@ -20,16 +21,20 @@ from models import models
 from models.cue import CueType
 from models.script import Script
 from models.session import Session, ShowSession
+from models.settings import SystemSettings
 from models.show import Show
 from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
+from utils.web.jwt_service import JWTService
 from utils.web.route import Route
 
 
-class DigiScriptServer(PrometheusMixIn, Application):
+class DigiScriptServer(
+    PrometheusMixIn, Application
+):  # pylint: disable=too-many-instance-attributes
 
     def __init__(
         self,
@@ -52,6 +57,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.clients: List[WebSocketController] = []
 
         self._db: DigiSQLAlchemy = models.db
+        self.jwt_service: JWTService = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
         if db_path.startswith("sqlite://"):
@@ -99,6 +105,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
             self.rbac = RBACController(self)
             self._configure_rbac()
             self._db.create_all()
+
+        # Configure the JWT service once we have set up the database
+        self.jwt_service = self._configure_jwt()
 
         # Clear out all sessions since we are starting the app up
         with self._db.sessionmaker() as session:
@@ -253,6 +262,26 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.rbac.add_mapping(User, Show, [Show.id, Show.name])
         self.rbac.add_mapping(User, CueType, [CueType.id, CueType.prefix])
         self.rbac.add_mapping(User, Script, [Script.id])
+
+    def _configure_jwt(self) -> JWTService:
+        get_logger().info("Configuring JWT service")
+        with self._db.sessionmaker() as session:
+            jwt_secret = (
+                session.query(SystemSettings)
+                .filter(SystemSettings.key == "jwt_secret")
+                .first()
+            )
+            if jwt_secret:
+                get_logger().info("Retrieved JWT secret from database")
+            else:
+                get_logger().info("Generating new JWT secret")
+                jwt_secret = SystemSettings(
+                    key="jwt_secret", value=secrets.token_hex(32)
+                )
+                session.add(jwt_secret)
+                session.commit()
+                get_logger().info("JWT secret generated and stored in database")
+        return JWTService(application=self)
 
     def regen_logging(self):
         if not IOLoop.current():
