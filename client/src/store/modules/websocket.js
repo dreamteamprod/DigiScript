@@ -135,7 +135,7 @@ export default {
       settingsToast();
     },
     async CHECK_WEBSOCKET_STATE(context) {
-      if (context.state.pendingAuthentication) {
+      if (context.state.pendingAuthentication && context.rootGetters.AUTH_TOKEN) {
         await context.dispatch('AUTHENTICATE_WEBSOCKET');
       }
       if (context.state.authSucceeded) {
@@ -156,7 +156,8 @@ export default {
       }
     },
     async AUTHENTICATE_WEBSOCKET(context) {
-      if (!Vue.prototype.$socket || Vue.prototype.$socket.readyState !== WebSocket.OPEN) {
+      if (!context.rootGetters.AUTH_TOKEN || !Vue.prototype.$socket
+          || Vue.prototype.$socket.readyState !== WebSocket.OPEN) {
         return;
       }
       await context.commit('SET_WS_AUTHENTICATION_IN_PROGRESS', true);
@@ -182,7 +183,8 @@ export default {
       }
     },
     async REFRESH_WEBSOCKET_TOKEN(context) {
-      if (!Vue.prototype.$socket || Vue.prototype.$socket.readyState !== WebSocket.OPEN) {
+      if (!context.rootGetters.AUTH_TOKEN || !Vue.prototype.$socket
+          || Vue.prototype.$socket.readyState !== WebSocket.OPEN) {
         return;
       }
       Vue.prototype.$socket.sendObj({

@@ -21,6 +21,7 @@ export default function setupHttpInterceptor() {
         },
       };
 
+      // Add token if it exists
       if (token) {
         newOptions.headers = {
           ...newOptions.headers,
@@ -49,8 +50,15 @@ export default function setupHttpInterceptor() {
 
               if (refreshSuccess) {
                 log.info('Token refresh successful, retrying original request');
-                // Retry the original request (cookies will be sent automatically)
-                return await originalFetch(resource, newOptions);
+                // Retry the original request with the new token
+                const retriedOptions = {
+                  ...newOptions,
+                  headers: {
+                    ...newOptions.headers,
+                    Authorization: `Bearer ${store.getters.AUTH_TOKEN}`,
+                  },
+                };
+                return await originalFetch(resource, retriedOptions);
               }
               // If refresh fails, handle unauthorized state
               log.warn('Token refresh failed, logging out');

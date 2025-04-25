@@ -11,7 +11,7 @@ export default {
     currentUser: null,
     currentRbac: null,
     showUsers: [],
-    authToken: null,
+    authToken: localStorage.getItem('digiscript_auth_token') || null,
     tokenRefreshInterval: null,
   },
   mutations: {
@@ -26,6 +26,11 @@ export default {
     },
     SET_AUTH_TOKEN(state, token) {
       state.authToken = token;
+      if (token) {
+        localStorage.setItem('digiscript_auth_token', token);
+      } else {
+        localStorage.removeItem('digiscript_auth_token');
+      }
     },
     SET_TOKEN_REFRESH_INTERVAL(state, intervalId) {
       if (state.tokenRefreshInterval) {

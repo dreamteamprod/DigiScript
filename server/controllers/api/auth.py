@@ -187,13 +187,6 @@ class LoginHandler(BaseAPIController):
                         expires_delta=timedelta(minutes=120),
                     )
 
-                    self.set_secure_cookie(
-                        "jwt_token",
-                        access_token,
-                        httponly=True,
-                        expires_days=5,  # Slightly longer than token expiry for better UX
-                    )
-
                     # Keep setting the cookie for backward compatibility
                     self.set_secure_cookie("digiscript_user_id", str(user.id))
                     self.set_status(200)
@@ -229,7 +222,6 @@ class LogoutHandler(BaseAPIController):
             if ws_controller and hasattr(ws_controller, "current_user_id"):
                 ws_controller.current_user_id = None
 
-            self.clear_cookie("jwt_token")
             # Clear cookie (for backward compatibility)
             self.clear_cookie("digiscript_user_id")
             self.set_status(200)
@@ -255,13 +247,6 @@ class RefreshTokenHandler(BaseAPIController):
                 "user_id": self.current_user["id"],
             },
             expires_delta=timedelta(minutes=120),
-        )
-
-        self.set_secure_cookie(
-            "jwt_token",
-            access_token,
-            httponly=True,
-            expires_days=5,  # Slightly longer than token expiry for better UX
         )
 
         self.set_status(200)
