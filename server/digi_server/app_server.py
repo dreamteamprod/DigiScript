@@ -105,10 +105,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
             self._db.create_all()
 
             with self._db.sessionmaker() as session:
-                import secrets
-
-                from models.settings import SystemSettings
-
                 jwt_secret = (
                     session.query(SystemSettings)
                     .filter(SystemSettings.key == "jwt_secret")
