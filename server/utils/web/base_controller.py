@@ -12,7 +12,6 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
-from utils.web.jwt_service import JWTService
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer

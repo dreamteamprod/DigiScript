@@ -11,7 +11,6 @@ from digi_server.logger import get_logger
 from models.session import Session, ShowSession
 from models.show import Show
 from models.user import User
-from utils.web.jwt_service import JWTService
 from utils.web.route import ApiRoute, ApiVersion
 
 if TYPE_CHECKING:

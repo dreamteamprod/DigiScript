@@ -9,7 +9,6 @@ from models.user import User
 from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
-from utils.web.jwt_service import JWTService
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, require_admin, requires_show
 

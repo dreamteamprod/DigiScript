@@ -2,7 +2,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 import jwt
-from tornado_sqlalchemy import SessionMixin
 
 from models.settings import SystemSettings
 
@@ -28,7 +27,7 @@ class JWTService:
         if not self.application:
             raise RuntimeError("No application or secret provided to JWT service")
 
-        with self.application._db.sessionmaker() as session:
+        with self.application.get_db().sessionmaker() as session:
             jwt_secret = (
                 session.query(SystemSettings)
                 .filter(SystemSettings.key == "jwt_secret")
