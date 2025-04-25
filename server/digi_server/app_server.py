@@ -275,7 +275,9 @@ class DigiScriptServer(
                 get_logger().info("Retrieved JWT secret from database")
             else:
                 get_logger().info("Generating new JWT secret")
-                jwt_secret = SystemSettings(key="jwt_secret", value=secrets.token_hex(32))
+                jwt_secret = SystemSettings(
+                    key="jwt_secret", value=secrets.token_hex(32)
+                )
                 session.add(jwt_secret)
                 session.commit()
                 get_logger().info("JWT secret generated and stored in database")
