@@ -23,7 +23,7 @@
       </b-col>
       <b-col cols="4">
         <b>
-          Page {{ currentFirstPage }}
+          Page {{ currentPage }}
         </b>
       </b-col>
       <b-col
@@ -352,11 +352,6 @@ export default {
       // Update line tracking for the rest of the application
       this.previousLine = this.currentLine;
       this.currentLine = targetElementId;
-
-      // Update page tracking to match
-      if (targetPage !== this.currentFirstPage) {
-        this.currentFirstPage = targetPage;
-      }
 
       // Scroll the element into view (unless prevented)
       if (!preventScroll) {
