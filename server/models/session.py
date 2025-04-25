@@ -28,7 +28,9 @@ class ShowSession(db.Model):
     end_date_time = Column(DateTime())
 
     user_id = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"), index=True)
-    client_internal_id = Column(String(255), ForeignKey("sessions.internal_id"))
+    client_internal_id = Column(
+        String(255), ForeignKey("sessions.internal_id", ondelete="SET NULL")
+    )
     last_client_internal_id = Column(String(255))
     latest_line_ref = Column(String)
 
