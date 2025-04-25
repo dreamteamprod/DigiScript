@@ -163,7 +163,9 @@ export default {
       await context.commit('CLEAR_PENDING_AUTHENTICATION');
       Vue.prototype.$socket.sendObj({
         OP: 'AUTHENTICATE',
-        DATA: {},
+        DATA: {
+          token: context.rootGetters.AUTH_TOKEN,
+        },
       });
       log.debug('Sent WebSocket authentication request');
     },
@@ -185,7 +187,9 @@ export default {
       }
       Vue.prototype.$socket.sendObj({
         OP: 'REFRESH_TOKEN',
-        DATA: {},
+        DATA: {
+          token: context.rootGetters.AUTH_TOKEN,
+        },
       });
       log.debug('Sent WebSocket token refresh');
     },

@@ -221,11 +221,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                 )
             return
         if ws_op == "REFRESH_TOKEN":
-            # Try to get token from HttpOnly cookie
-            token = self.get_secure_cookie("jwt_token")
+            token = message.get("DATA", {}).get("token")
             if token:
-                if isinstance(token, bytes):
-                    token = token.decode("utf-8")
                 success = await self.authenticate_with_token(token)
                 if success:
                     await self.write_message(

@@ -21,6 +21,13 @@ export default function setupHttpInterceptor() {
         },
       };
 
+      if (token) {
+        newOptions.headers = {
+          ...newOptions.headers,
+          Authorization: `Bearer ${token}`,
+        };
+      }
+
       // Add content-type if not already set and it's a POST request
       if ((!options.headers || !options.headers['Content-Type'])
           && (options.method === 'POST' || options.method === 'PUT')) {
