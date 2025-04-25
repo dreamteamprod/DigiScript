@@ -1,0 +1,65 @@
+name: Docker Build and Run
+on: [pull_request]
+jobs:
+  docker-build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    - name: Build Docker image
+      run: docker build -t digiscript:test .
+    - name: Run Docker container in detached mode
+      run: |
+        docker run -d --name digiscript -p 8080:8080 digiscript:test
+    - name: Wait for container ready
+      run: |
+        # Wait for up to 30 seconds for the service to start
+        timeout=30
+        counter=0
+        echo "Waiting for server to initialize..."
+        while [ $counter -lt $timeout ]
+        do
+          # Check if container is still running (it might exit on error)
+          if ! docker ps | grep -q digiscript; then
+            echo "Container exited unexpectedly"
+            docker logs digiscript
+            exit 1
+          fi
+          
+          # Try to connect to the debug endpoint
+          if curl -s --retry 0 --max-time 1 http://localhost:8080/api/v1/debug >/dev/null 2>&1; then
+            echo "Server is up and running!"
+            break
+          fi
+          
+          counter=$((counter + 1))
+          echo "Still waiting for server to initialize... ($counter/$timeout)"
+          sleep 1
+        done
+        
+        # If we've timed out and still can't connect
+        if [ $counter -eq $timeout ]; then
+          echo "Server failed to initialize within timeout period"
+          docker logs digiscript
+          docker stop digiscript
+          exit 1
+        fi
+    - name: Check debug response OK
+      run: |
+        # Make a request to the debug endpoint and check response
+        response=$(curl -s http://localhost:8080/api/v1/debug)
+        echo "Server response: $response"
+        
+        # Check for the exact JSON response pattern
+        if echo "$response" | jq -e '. | select(.status == "OK" and .api_version == 1)' > /dev/null; then
+          echo "Server health check passed! Response contains {\"status\": \"OK\", \"api_version\": 1}"
+        else
+          echo "Server health check failed! Expected {\"status\": \"OK\", \"api_version\": 1}"
+          echo "Actual response: $response"
+          docker logs digiscript
+          docker stop digiscript
+          exit 1
+        fi
+    - name: Stop the container
+      if: always()
+      run: docker stop digiscript
