@@ -168,14 +168,34 @@ export default {
   watch: {
     SESSION_FOLLOW_DATA() {
       if (this.isScriptFollowing) {
-        const scrollToLine = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
-        if (scrollToLine != null) {
+        // Get the current line element
+        const currentLineElement = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
+        if (currentLineElement != null) {
+        // Extract page and line from the ID
+          const idParts = this.SESSION_FOLLOW_DATA.current_line.split('_');
+          const page = parseInt(idParts[1], 10);
+          const line = parseInt(idParts[3], 10);
+
+          // Update the current line highlight
           $('.script-item').removeClass('current-line');
-          $(`#${this.SESSION_FOLLOW_DATA.current_line}`).addClass('current-line');
-          scrollToLine.scrollIntoView({
-            behavior: 'instant',
-            block: 'start',
-          });
+          $(currentLineElement).addClass('current-line');
+
+          // Find the context element to scroll to
+          const contextLines = 3; // Same as in navigateTo
+          const contextElement = this.findContextElement(page, line, contextLines);
+
+          // Scroll to the context element if found, otherwise the current line
+          if (contextElement) {
+            contextElement.scrollIntoView({
+              behavior: 'instant',
+              block: 'start',
+            });
+          } else {
+            currentLineElement.scrollIntoView({
+              behavior: 'instant',
+              block: 'start',
+            });
+          }
           this.computeScriptBoundaries();
         }
       }
@@ -341,10 +361,24 @@ export default {
       // Scroll the element into view (unless prevented)
       if (!preventScroll) {
         this.isScrollingProgrammatically = true;
-        targetElement.scrollIntoView({
-          behavior: 'instant',
-          block: 'start',
-        });
+        // Instead of directly scrolling to the target element,
+        // find the context element (N visible lines above) and scroll to it
+        const contextLines = 3;
+        const contextElement = this.findContextElement(targetPage, targetLineOnPage, contextLines);
+
+        if (contextElement) {
+          // Scroll to the context element instead of the target element
+          contextElement.scrollIntoView({
+            behavior: 'instant',
+            block: 'start',
+          });
+        } else {
+          // Fall back to standard scrolling if we can't find a context element
+          targetElement.scrollIntoView({
+            behavior: 'instant',
+            block: 'start',
+          });
+        }
 
         // Send update to followers
         if (this.fullLoad) {
@@ -365,6 +399,60 @@ export default {
       }
 
       return true;
+    },
+    findContextElement(targetPage, targetLineOnPage, contextLines) {
+      // Start from the target line and move backwards
+      let currentPage = targetPage;
+      let currentLine = targetLineOnPage;
+      let visibleLinesFound = 0;
+
+      while (visibleLinesFound < contextLines && currentPage >= 1) {
+        // Move to the previous line
+        currentLine--;
+
+        // If we've gone before the first line on this page, move to the previous page
+        if (currentLine < 0) {
+          currentPage--;
+          if (currentPage < 1) {
+            // We've reached the beginning of the script, return the first line
+            return document.getElementById('page_1_line_0');
+          }
+
+          // Get the lines on the previous page
+          const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
+          if (!prevPageLines || prevPageLines.length === 0) {
+            // Skip empty pages
+            // eslint-disable-next-line no-continue
+            continue;
+          }
+
+          // Move to the last line of the previous page
+          currentLine = prevPageLines.length - 1;
+        }
+
+        // Check if this line is visible (not cut)
+        const pageLines = this.GET_SCRIPT_PAGE(currentPage);
+        if (pageLines && currentLine < pageLines.length) {
+          const line = pageLines[currentLine];
+          if (!this.isWholeLineCut(line)) {
+            visibleLinesFound++;
+
+            // If we've found enough visible lines, this is our context line
+            if (visibleLinesFound >= contextLines) {
+              return document.getElementById(`page_${currentPage}_line_${currentLine}`);
+            }
+          }
+        }
+      }
+
+      // If we couldn't find enough visible lines, return the earliest visible line we found
+      if (visibleLinesFound > 0) {
+        return document.getElementById(`page_${currentPage}_line_${currentLine}`);
+      }
+
+      // If we couldn't find any visible lines above, just return null
+      // and let the main method fall back to the target line
+      return null;
     },
     navigateRelative(deltaPage, deltaLine) {
       // If no navigation needed, exit early
