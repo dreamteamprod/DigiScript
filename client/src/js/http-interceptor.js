@@ -21,7 +21,6 @@ export default function setupHttpInterceptor() {
         },
       };
 
-
       // Add content-type if not already set and it's a POST request
       if ((!options.headers || !options.headers['Content-Type'])
           && (options.method === 'POST' || options.method === 'PUT')) {
