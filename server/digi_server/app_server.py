@@ -293,6 +293,11 @@ class DigiScriptServer(PrometheusMixIn, Application):
     def get_all_ws(self, user_id: int) -> List[WebSocketController]:
         sockets = []
         for client in self.clients:
+            # First check JWT-based authentication (stored in controller property)
+            if hasattr(client, "current_user_id") and client.current_user_id == user_id:
+                sockets.append(client)
+                continue
+            # Fallback to cookie-based authentication (for backward compatibility)
             c_user_id = client.get_secure_cookie("digiscript_user_id")
             if c_user_id is not None and int(c_user_id) == user_id:
                 sockets.append(client)

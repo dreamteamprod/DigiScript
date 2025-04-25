@@ -118,6 +118,7 @@ class UserDeleteController(BaseAPIController):
                         await ws_session.write_message(
                             {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
                         )
+                        ws_session.current_user_id = None
                     await gen.sleep(0.2)
                     user_sessions = (
                         session.query(Session)
@@ -217,6 +218,12 @@ class LogoutHandler(BaseAPIController):
                         ws_session.user = None
                         session.commit()
 
+            # Update the WebSocket controller if it exists
+            ws_controller = self.application.get_ws(session_id)
+            if ws_controller and hasattr(ws_controller, "current_user_id"):
+                ws_controller.current_user_id = None
+
+            # Clear cookie (for backward compatibility)
             self.clear_cookie("digiscript_user_id")
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})

@@ -139,11 +139,10 @@
 </template>
 
 <script>
-import { getCookie, makeURL } from '@/js/utils';
-
 import { mapGetters, mapActions } from 'vuex';
-import CreateUser from '@/vue_components/user/CreateUser.vue';
 import log from 'loglevel';
+import CreateUser from '@/vue_components/user/CreateUser.vue';
+import { getCookie, makeURL } from '@/js/utils';
 
 export default {
   components: { CreateUser },
@@ -153,20 +152,60 @@ export default {
       loadTimer: null,
       stoppingSession: false,
       startingSession: false,
+      wsStateCheckInterval: null,
     };
   },
   async created() {
     await this.GET_SETTINGS();
     await this.awaitWSConnect();
+
+    // If we have a stored auth token, set up token refresh
+    if (this.AUTH_TOKEN) {
+      await this.SETUP_TOKEN_REFRESH();
+    }
+
+    // Set up an interval to check WebSocket state
+    this.wsStateCheckInterval = setInterval(() => {
+      if (this.WEBSOCKET_HEALTHY && this.WEBSOCKET_HAS_PENDING_OPERATIONS) {
+        this.CHECK_WEBSOCKET_STATE();
+      }
+    }, 500);
+  },
+  beforeDestroy() {
+    // Clean up interval
+    if (this.wsStateCheckInterval) {
+      clearInterval(this.wsStateCheckInterval);
+    }
   },
   methods: {
-    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_CURRENT_USER', 'USER_LOGOUT', 'GET_RBAC_ROLES',
-      'GET_CURRENT_RBAC', 'GET_SETTINGS']),
+    ...mapActions([
+      'GET_SHOW_SESSION_DATA',
+      'GET_CURRENT_USER',
+      'USER_LOGOUT',
+      'GET_RBAC_ROLES',
+      'GET_CURRENT_RBAC',
+      'GET_SETTINGS',
+      'SETUP_TOKEN_REFRESH',
+      'AUTHENTICATE_WEBSOCKET',
+      'CHECK_WEBSOCKET_STATE',
+    ]),
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer);
         await this.GET_RBAC_ROLES();
-        if (getCookie('digiscript_user_id') != null) {
+
+        // Check WebSocket state for any pending operations
+        if (this.WEBSOCKET_HAS_PENDING_OPERATIONS) {
+          await this.CHECK_WEBSOCKET_STATE();
+        }
+
+        // Check for authentication via token first
+        if (this.AUTH_TOKEN) {
+          // Then get user data
+          await this.GET_CURRENT_USER();
+          await this.GET_CURRENT_RBAC();
+        } else if (getCookie('digiscript_user_id') != null) {
+          // Fallback to cookie authentication
           await this.GET_CURRENT_USER();
           await this.GET_CURRENT_RBAC();
         }
@@ -189,9 +228,11 @@ export default {
       const msg = 'Are you sure you want to stop the show?';
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
+        const response = await fetch(makeURL('/api/v1/show/sessions/stop'), {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
         });
+
         if (response.ok) {
           this.$toast.success('Stopped show session');
         } else {
@@ -210,12 +251,14 @@ export default {
       const msg = 'Are you sure you want to start a show?';
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        const response = await fetch(`${makeURL('/api/v1/show/sessions/start')}`, {
+        const response = await fetch(makeURL('/api/v1/show/sessions/start'), {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             session_id: this.INTERNAL_UUID,
           }),
         });
+
         if (response.ok) {
           this.$toast.success('Started new show session');
         } else {
@@ -267,8 +310,17 @@ export default {
       // eslint-disable-next-line no-bitwise
       return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
     },
-    ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS', 'CURRENT_USER',
-      'RBAC_ROLES', 'CURRENT_USER_RBAC', 'INTERNAL_UUID']),
+    ...mapGetters([
+      'WEBSOCKET_HEALTHY',
+      'CURRENT_SHOW_SESSION',
+      'SETTINGS',
+      'CURRENT_USER',
+      'RBAC_ROLES',
+      'CURRENT_USER_RBAC',
+      'INTERNAL_UUID',
+      'AUTH_TOKEN',
+      'WEBSOCKET_HAS_PENDING_OPERATIONS',
+    ]),
   },
 };
 </script>
