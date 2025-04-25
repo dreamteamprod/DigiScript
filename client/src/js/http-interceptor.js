@@ -21,13 +21,6 @@ export default function setupHttpInterceptor() {
         },
       };
 
-      // Add token if it exists
-      if (token) {
-        newOptions.headers = {
-          ...newOptions.headers,
-          Authorization: `Bearer ${token}`,
-        };
-      }
 
       // Add content-type if not already set and it's a POST request
       if ((!options.headers || !options.headers['Content-Type'])
@@ -50,15 +43,8 @@ export default function setupHttpInterceptor() {
 
               if (refreshSuccess) {
                 log.info('Token refresh successful, retrying original request');
-                // Retry the original request with the new token
-                const retriedOptions = {
-                  ...newOptions,
-                  headers: {
-                    ...newOptions.headers,
-                    Authorization: `Bearer ${store.getters.AUTH_TOKEN}`,
-                  },
-                };
-                return await originalFetch(resource, retriedOptions);
+                // Retry the original request (cookies will be sent automatically)
+                return await originalFetch(resource, newOptions);
               }
               // If refresh fails, handle unauthorized state
               log.warn('Token refresh failed, logging out');
