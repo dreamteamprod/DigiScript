@@ -189,12 +189,12 @@ class LoginHandler(BaseAPIController):
                     )
 
                     self.set_secure_cookie(
-                        "jwt_token", 
-                        access_token, 
+                        "jwt_token",
+                        access_token,
                         httponly=True,
-                        expires_days=5  # Slightly longer than token expiry for better UX
+                        expires_days=5,  # Slightly longer than token expiry for better UX
                     )
-                    
+
                     # Keep setting the cookie for backward compatibility
                     self.set_secure_cookie("digiscript_user_id", str(user.id))
                     self.set_status(200)
@@ -257,12 +257,12 @@ class RefreshTokenHandler(BaseAPIController):
             },
             expires_delta=timedelta(minutes=120),
         )
-        
+
         self.set_secure_cookie(
-            "jwt_token", 
-            access_token, 
+            "jwt_token",
+            access_token,
             httponly=True,
-            expires_days=5  # Slightly longer than token expiry for better UX
+            expires_days=5,  # Slightly longer than token expiry for better UX
         )
 
         self.set_status(200)

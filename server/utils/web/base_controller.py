@@ -38,25 +38,25 @@ class BaseController(SessionMixin, RequestHandler):
         user_schema = UserSchema()
 
         token = self.get_secure_cookie("jwt_token")
-        
+
         # Fallback to Authorization header for backward compatibility
         if not token:
             auth_header = self.request.headers.get("Authorization", "")
             if auth_header and auth_header.startswith("Bearer "):
                 token = auth_header[7:]
-        
+
         with self.make_session() as session:
             # If we have a token, try to authenticate with it
             if token:
                 if isinstance(token, bytes):
-                    token = token.decode('utf-8')
-                    
+                    token = token.decode("utf-8")
+
                 payload = self.application.jwt_service.decode_access_token(token)
                 if payload and "user_id" in payload:
                     user = session.query(User).get(int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
-            
+
             # Fallback to cookie authentication (backwards compatibility, for now)
             if not self.current_user:
                 user_id = self.get_secure_cookie("digiscript_user_id")

@@ -101,15 +101,18 @@ class DigiScriptServer(PrometheusMixIn, Application):
             self.rbac = RBACController(self)
             self._configure_rbac()
             self._db.create_all()
-            
+
             with self._db.sessionmaker() as session:
-                from models.settings import SystemSettings
                 import secrets
-                
-                jwt_secret = session.query(SystemSettings).filter(
-                    SystemSettings.key == "jwt_secret"
-                ).first()
-                
+
+                from models.settings import SystemSettings
+
+                jwt_secret = (
+                    session.query(SystemSettings)
+                    .filter(SystemSettings.key == "jwt_secret")
+                    .first()
+                )
+
                 if not jwt_secret:
                     get_logger().info("Generating new JWT secret")
                     random_secret = secrets.token_hex(32)
