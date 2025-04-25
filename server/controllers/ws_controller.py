@@ -11,7 +11,7 @@ from digi_server.logger import get_logger
 from models.session import Session, ShowSession
 from models.show import Show
 from models.user import User
-from utils.web.jwt_utils import decode_access_token
+from utils.web.jwt_service import JWTService
 from utils.web.route import ApiRoute, ApiVersion
 
 if TYPE_CHECKING:
@@ -66,7 +66,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         # Check for token in query parameters (optional initial authentication)
         token = self.get_argument("token", None)
         if token:
-            payload = decode_access_token(token)
+            payload = self.application.jwt_service.decode_access_token(token)
             if payload and "user_id" in payload:
                 with self.make_session() as session:
                     user = session.query(User).get(int(payload["user_id"]))
@@ -172,7 +172,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
     async def authenticate_with_token(self, token):
         """Authenticate using JWT token"""
-        payload = decode_access_token(token)
+        payload = self.application.jwt_service.decode_access_token(token)
 
         if not payload or "user_id" not in payload:
             await self.write_message(

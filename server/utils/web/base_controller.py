@@ -12,7 +12,7 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
-from utils.web.jwt_utils import decode_access_token, get_token_from_authorization_header
+from utils.web.jwt_service import JWTService
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
@@ -37,20 +37,27 @@ class BaseController(SessionMixin, RequestHandler):
         show_schema = ShowSchema()
         user_schema = UserSchema()
 
-        # Extract JWT token from header
-        auth_header = self.request.headers.get("Authorization", "")
-        token = get_token_from_authorization_header(auth_header)
-
+        token = self.get_secure_cookie("jwt_token")
+        
+        # Fallback to Authorization header for backward compatibility
+        if not token:
+            auth_header = self.request.headers.get("Authorization", "")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+        
         with self.make_session() as session:
             # If we have a token, try to authenticate with it
             if token:
-                payload = decode_access_token(token)
+                if isinstance(token, bytes):
+                    token = token.decode('utf-8')
+                    
+                payload = self.application.jwt_service.decode_access_token(token)
                 if payload and "user_id" in payload:
                     user = session.query(User).get(int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
-
-            # Fallback to cookie authentication (backwards compatability, for now)
+            
+            # Fallback to cookie authentication (backwards compatibility, for now)
             if not self.current_user:
                 user_id = self.get_secure_cookie("digiscript_user_id")
                 if user_id:

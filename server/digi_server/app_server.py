@@ -26,6 +26,7 @@ from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.env_parser import EnvParser
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
+from utils.web.jwt_service import JWTService
 from utils.web.route import Route
 
 
@@ -52,6 +53,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.clients: List[WebSocketController] = []
 
         self._db: DigiSQLAlchemy = models.db
+        self.jwt_service = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
         if db_path.startswith("sqlite://"):
@@ -99,6 +101,24 @@ class DigiScriptServer(PrometheusMixIn, Application):
             self.rbac = RBACController(self)
             self._configure_rbac()
             self._db.create_all()
+            
+            with self._db.sessionmaker() as session:
+                from models.settings import SystemSettings
+                import secrets
+                
+                jwt_secret = session.query(SystemSettings).filter(
+                    SystemSettings.key == "jwt_secret"
+                ).first()
+                
+                if not jwt_secret:
+                    get_logger().info("Generating new JWT secret")
+                    random_secret = secrets.token_hex(32)
+                    jwt_secret = SystemSettings(key="jwt_secret", value=random_secret)
+                    session.add(jwt_secret)
+                    session.commit()
+                    get_logger().info("JWT secret generated and stored in database")
+
+            self.jwt_service = JWTService(application=self)
 
         # Clear out all sessions since we are starting the app up
         with self._db.sessionmaker() as session:
