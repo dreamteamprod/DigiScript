@@ -133,18 +133,18 @@
 </template>
 
 <script>
-import { mapGetters, mapMutations, mapActions } from 'vuex';
-import log from 'loglevel';
+import { mapGetters, mapMutations, mapActions } from 'vuex'
+import log from 'loglevel'
 
-import { makeURL } from '@/js/utils';
-import ScriptLineCueEditor from '@/vue_components/show/config/cues/ScriptLineCueEditor.vue';
-import { minValue, required } from 'vuelidate/lib/validators';
-import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import { makeURL } from '@/js/utils'
+import ScriptLineCueEditor from '@/vue_components/show/config/cues/ScriptLineCueEditor.vue'
+import { minValue, required } from 'vuelidate/lib/validators'
+import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators'
 
 export default {
   name: 'CueEditor',
   components: { ScriptLineCueEditor },
-  data() {
+  data () {
     return {
       currentEditPage: 1,
       editPages: [],
@@ -164,7 +164,7 @@ export default {
       pageInputFormState: {
         pageNo: 1,
       },
-    };
+    }
   },
   validations: {
     pageInputFormState: {
@@ -176,96 +176,96 @@ export default {
       },
     },
   },
-  async beforeMount() {
+  async beforeMount () {
     // Get the current user
-    await this.GET_CURRENT_USER();
+    await this.GET_CURRENT_USER()
     // Config status
-    await this.GET_SCRIPT_CONFIG_STATUS();
+    await this.GET_SCRIPT_CONFIG_STATUS()
     // Show details
-    await this.GET_ACT_LIST();
-    await this.GET_SCENE_LIST();
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CHARACTER_GROUP_LIST();
-    await this.GET_CUE_TYPES();
-    await this.LOAD_CUES();
-    await this.GET_CUTS();
-    await this.GET_STAGE_DIRECTION_STYLES();
+    await this.GET_ACT_LIST()
+    await this.GET_SCENE_LIST()
+    await this.GET_CHARACTER_LIST()
+    await this.GET_CHARACTER_GROUP_LIST()
+    await this.GET_CUE_TYPES()
+    await this.LOAD_CUES()
+    await this.GET_CUTS()
+    await this.GET_STAGE_DIRECTION_STYLES()
 
     // User related stuff
     if (this.CURRENT_USER != null) {
-      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES()
     }
 
     // Get the max page of the saved version of the script
-    await this.getMaxScriptPage();
+    await this.getMaxScriptPage()
 
     // Initialisation of page data
     // Initialisation of page data
-    const storedPage = localStorage.getItem('cueEditPage');
+    const storedPage = localStorage.getItem('cueEditPage')
     if (storedPage != null) {
-      this.currentEditPage = parseInt(storedPage, 10);
+      this.currentEditPage = parseInt(storedPage, 10)
     }
-    await this.goToPageInner(this.currentEditPage);
+    await this.goToPageInner(this.currentEditPage)
   },
   methods: {
-    async getMaxScriptPage() {
+    async getMaxScriptPage () {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-      });
+      })
       if (response.ok) {
-        const respJson = await response.json();
-        this.currentMaxPage = respJson.max_page;
+        const respJson = await response.json()
+        this.currentMaxPage = respJson.max_page
       } else {
-        log.error('Unable to get current max page');
+        log.error('Unable to get current max page')
       }
     },
-    requestEdit() {
+    requestEdit () {
       this.$socket.sendObj({
         OP: 'REQUEST_SCRIPT_EDIT',
         DATA: {},
-      });
+      })
     },
-    async stopEditing() {
+    async stopEditing () {
       this.$socket.sendObj({
         OP: 'STOP_SCRIPT_EDIT',
         DATA: {},
-      });
+      })
     },
-    decrPage() {
+    decrPage () {
       if (this.currentEditPage > 1) {
-        this.currentEditPage--;
+        this.currentEditPage--
       }
     },
-    async incrPage() {
-      this.currentEditPage++;
+    async incrPage () {
+      this.currentEditPage++
       // Pre-load next page
-      await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
+      await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1)
     },
-    getCuesForLine(line) {
+    getCuesForLine (line) {
       if (Object.keys(this.SCRIPT_CUES).includes(line.id.toString())) {
-        return this.SCRIPT_CUES[line.id.toString()];
+        return this.SCRIPT_CUES[line.id.toString()]
       }
-      return [];
+      return []
     },
-    validatePageState(name) {
-      const { $dirty, $error } = this.$v.pageInputFormState[name];
-      return $dirty ? !$error : null;
+    validatePageState (name) {
+      const { $dirty, $error } = this.$v.pageInputFormState[name]
+      return $dirty ? !$error : null
     },
-    async goToPage() {
-      this.changingPage = true;
-      await this.goToPageInner(this.pageInputFormState.pageNo);
-      this.changingPage = false;
+    async goToPage () {
+      this.changingPage = true
+      await this.goToPageInner(this.pageInputFormState.pageNo)
+      this.changingPage = false
     },
-    async goToPageInner(pageNo) {
+    async goToPageInner (pageNo) {
       if (pageNo > 1) {
-        await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1);
+        await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1)
       }
-      await this.LOAD_SCRIPT_PAGE(pageNo);
-      this.currentEditPage = pageNo;
-      await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
+      await this.LOAD_SCRIPT_PAGE(pageNo)
+      this.currentEditPage = pageNo
+      await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1)
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
@@ -274,14 +274,14 @@ export default {
       'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES', 'GET_CURRENT_USER']),
   },
   computed: {
-    currentEditPageKey() {
-      return this.currentEditPage.toString();
+    currentEditPageKey () {
+      return this.currentEditPage.toString()
     },
-    saveProgressVariant() {
+    saveProgressVariant () {
       if (!this.savingInProgress) {
-        return this.saveError ? 'danger' : 'success';
+        return this.saveError ? 'danger' : 'success'
       }
-      return 'primary';
+      return 'primary'
     },
     ...mapGetters(['CURRENT_SHOW', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
@@ -289,9 +289,9 @@ export default {
       'STAGE_DIRECTION_STYLES', 'STAGE_DIRECTION_STYLE_OVERRIDES', 'CURRENT_USER']),
   },
   watch: {
-    currentEditPage(val) {
-      localStorage.setItem('cueEditPage', val);
+    currentEditPage (val) {
+      localStorage.setItem('cueEditPage', val)
     },
   },
-};
+}
 </script>

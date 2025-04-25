@@ -1,2 +1,2 @@
-export const notNull = (value) => (value != null);
-export const notNullAndGreaterThanZero = (value) => (value != null && value > 0);
+export const notNull = (value) => (value != null)
+export const notNullAndGreaterThanZero = (value) => (value != null && value > 0)

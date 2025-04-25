@@ -200,15 +200,15 @@
 </template>
 
 <script>
-import { required, maxLength } from 'vuelidate/lib/validators';
-import { mapMutations } from 'vuex';
-import log from 'loglevel';
+import { required, maxLength } from 'vuelidate/lib/validators'
+import { mapMutations } from 'vuex'
+import log from 'loglevel'
 
-import { makeURL } from '@/js/utils';
+import { makeURL } from '@/js/utils'
 
 export default {
   name: 'ConfigSystem',
-  data() {
+  data () {
     return {
       perPage: 5,
       currentPageShows: 1,
@@ -235,7 +235,7 @@ export default {
         'last_pong',
       ],
       clientTimeout: null,
-    };
+    }
   },
   validations: {
     formState: {
@@ -245,94 +245,96 @@ export default {
       },
       start: {
         required,
-        beforeEnd: (value, vm) => (value == null && vm.end != null ? false
+        beforeEnd: (value, vm) => (value == null && vm.end != null
+          ? false
           : new Date(value) <= new Date(vm.end)),
       },
       end: {
         required,
-        afterStart: (value, vm) => (value == null && vm.start != null ? false
+        afterStart: (value, vm) => (value == null && vm.start != null
+          ? false
           : new Date(value) >= new Date(vm.start)),
       },
     },
   },
-  async mounted() {
-    await this.getAvailableShows();
-    await this.getConnectedClients();
+  async mounted () {
+    await this.getAvailableShows()
+    await this.getConnectedClients()
   },
-  destroyed() {
-    clearTimeout(this.clientTimeout);
+  destroyed () {
+    clearTimeout(this.clientTimeout)
   },
   methods: {
-    async getAvailableShows() {
-      const response = await fetch(`${makeURL('/api/v1/shows')}`);
+    async getAvailableShows () {
+      const response = await fetch(`${makeURL('/api/v1/shows')}`)
       if (response.ok) {
-        const shows = await response.json();
-        this.UPDATE_SHOWS(shows.shows);
+        const shows = await response.json()
+        this.UPDATE_SHOWS(shows.shows)
       } else {
-        log.error('Unable to get available shows');
+        log.error('Unable to get available shows')
       }
     },
-    async getConnectedClients() {
-      const response = await fetch(`${makeURL('/api/v1/ws/sessions')}`);
+    async getConnectedClients () {
+      const response = await fetch(`${makeURL('/api/v1/ws/sessions')}`)
       if (response.ok) {
-        const sessions = await response.json();
-        this.connectedClients = sessions.sessions;
+        const sessions = await response.json()
+        this.connectedClients = sessions.sessions
       } else {
-        log.error('Unable to get available shows');
+        log.error('Unable to get available shows')
       }
-      this.clientTimeout = setTimeout(this.getConnectedClients, 1000);
+      this.clientTimeout = setTimeout(this.getConnectedClients, 1000)
     },
-    validateState(name) {
-      const { $dirty, $error } = this.$v.formState[name];
-      return $dirty ? !$error : null;
+    validateState (name) {
+      const { $dirty, $error } = this.$v.formState[name]
+      return $dirty ? !$error : null
     },
-    resetForm() {
+    resetForm () {
       this.formState = {
         name: null,
         start: null,
         end: null,
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    async saveAndLoad(event) {
-      await this.saveShow(event, true);
+    async saveAndLoad (event) {
+      await this.saveShow(event, true)
     },
-    async onSubmit(event) {
-      await this.saveShow(event, false);
+    async onSubmit (event) {
+      await this.saveShow(event, false)
     },
-    async saveShow(event, load) {
-      this.$v.formState.$touch();
+    async saveShow (event, load) {
+      this.$v.formState.$touch()
       if (this.$v.formState.$anyError) {
-        event.preventDefault();
-        return;
+        event.preventDefault()
+        return
       }
 
       const searchParams = new URLSearchParams({
         load,
-      });
+      })
       const response = await fetch(`${makeURL('/api/v1/show')}?${searchParams}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(this.formState),
-      });
+      })
       if (response.ok) {
-        const settings = await response.json();
-        await this.getAvailableShows();
-        this.$toast.success('Created new show!');
-        this.$bvModal.hide('show-config');
-        this.resetForm();
+        const settings = await response.json()
+        await this.getAvailableShows()
+        this.$toast.success('Created new show!')
+        this.$bvModal.hide('show-config')
+        this.resetForm()
       } else {
-        this.$toast.error('Unable to save show');
-        log.error('Unable to create new show');
-        event.preventDefault();
+        this.$toast.error('Unable to save show')
+        log.error('Unable to create new show')
+        event.preventDefault()
       }
     },
-    async loadShow(show) {
+    async loadShow (show) {
       const response = await fetch(`${makeURL('/api/v1/settings')}`, {
         method: 'PATCH',
         headers: {
@@ -341,22 +343,22 @@ export default {
         body: JSON.stringify({
           current_show: show.id,
         }),
-      });
+      })
       if (response.ok) {
-        this.$toast.success('Loaded show!');
-        this.$bvModal.hide('show-load');
+        this.$toast.success('Loaded show!')
+        this.$bvModal.hide('show-load')
       } else {
-        this.$toast.error('Unable to load show');
-        log.error('Unable to load show');
+        this.$toast.error('Unable to load show')
+        log.error('Unable to load show')
       }
     },
     ...mapMutations(['UPDATE_SHOWS']),
   },
   computed: {
-    currentShowLoaded() {
-      return (this.$store.state.system.settings.current_show != null
-        && this.$store.state.currentShow != null);
+    currentShowLoaded () {
+      return (this.$store.state.system.settings.current_show != null &&
+        this.$store.state.currentShow != null)
     },
   },
-};
+}
 </script>

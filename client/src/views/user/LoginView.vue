@@ -74,19 +74,19 @@
 </template>
 
 <script>
-import { required } from 'vuelidate/lib/validators';
-import { mapActions } from 'vuex';
+import { required } from 'vuelidate/lib/validators'
+import { mapActions } from 'vuex'
 
 export default {
   name: 'LoginView',
-  data() {
+  data () {
     return {
       state: {
         username: '',
         password: '',
       },
       showLoginFeedback: false,
-    };
+    }
   },
   validations: {
     state: {
@@ -99,32 +99,32 @@ export default {
     },
   },
   methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
-      return $dirty ? !$error : null;
+    validateState (name) {
+      const { $dirty, $error } = this.$v.state[name]
+      return $dirty ? !$error : null
     },
-    async doLogin(event) {
-      this.$v.state.$touch();
+    async doLogin (event) {
+      this.$v.state.$touch()
       if (this.$v.state.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        this.showLoginFeedback = false;
-        const loginSuccess = await this.USER_LOGIN(this.state);
+        this.showLoginFeedback = false
+        const loginSuccess = await this.USER_LOGIN(this.state)
         if (loginSuccess) {
-          this.$router.replace('/');
+          this.$router.replace('/')
         } else {
-          this.showLoginFeedback = true;
+          this.showLoginFeedback = true
         }
       }
     },
     ...mapActions(['USER_LOGIN']),
   },
   computed: {
-    isDisabled() {
-      return Boolean(this.$v.state.$invalid);
+    isDisabled () {
+      return Boolean(this.$v.state.$invalid)
     },
   },
-};
+}
 </script>
 
 <style scoped>

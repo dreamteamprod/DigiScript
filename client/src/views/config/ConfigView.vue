@@ -29,11 +29,11 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters } from 'vuex'
 
-import ConfigSystem from '@/vue_components/config/ConfigSystem.vue';
-import ConfigSettings from '@/vue_components/config/ConfigSettings.vue';
-import ConfigUsers from '@/vue_components/config/ConfigUsers.vue';
+import ConfigSystem from '@/vue_components/config/ConfigSystem.vue'
+import ConfigSettings from '@/vue_components/config/ConfigSettings.vue'
+import ConfigUsers from '@/vue_components/config/ConfigUsers.vue'
 
 export default {
   name: 'ConfigView',
@@ -41,5 +41,5 @@ export default {
   computed: {
     ...mapGetters(['CURRENT_SHOW']),
   },
-};
+}
 </script>

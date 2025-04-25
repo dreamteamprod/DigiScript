@@ -102,10 +102,10 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
-import { required, requiredIf } from 'vuelidate/lib/validators';
-import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
-import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import { mapGetters } from 'vuex'
+import { required, requiredIf } from 'vuelidate/lib/validators'
+import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue'
+import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators'
 
 export default {
   name: 'ScriptLineEditor',
@@ -147,7 +147,7 @@ export default {
       required: true,
     },
   },
-  data() {
+  data () {
     return {
       state: this.value,
       blankLinePartObj: {
@@ -160,7 +160,7 @@ export default {
       },
       previousLine: null,
       nextLine: null,
-    };
+    }
   },
   validations: {
     state: {
@@ -179,17 +179,17 @@ export default {
         $each: {
           character_id: {
             required: requiredIf(function (m) {
-              return this.isStageDirection === false && m.character_group_id == null;
+              return this.isStageDirection === false && m.character_group_id == null
             }),
           },
           character_group_id: {
             required: requiredIf(function (m) {
-              return this.isStageDirection === false && m.character_id == null;
+              return this.isStageDirection === false && m.character_id == null
             }),
           },
           line_text: {
             required: requiredIf(function () {
-              return this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== '');
+              return this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== '')
             }),
           },
         },
@@ -197,121 +197,121 @@ export default {
       stage_direction_style_id: {},
     },
   },
-  async created() {
-    this.previousLine = await this.previousLineFn(this.lineIndex);
-    this.nextLine = await this.nextLineFn(this.lineIndex);
+  async created () {
+    this.previousLine = await this.previousLineFn(this.lineIndex)
+    this.nextLine = await this.nextLineFn(this.lineIndex)
     if (this.state.line_parts.length === 0) {
-      this.addLinePart();
+      this.addLinePart()
     }
   },
-  mounted() {
-    this.$v.state.$touch();
+  mounted () {
+    this.$v.state.$touch()
   },
   methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
-      return $dirty ? !$error : null;
+    validateState (name) {
+      const { $dirty, $error } = this.$v.state[name]
+      return $dirty ? !$error : null
     },
-    doneEditing() {
-      this.$emit('doneEditing');
+    doneEditing () {
+      this.$emit('doneEditing')
     },
-    stateChange() {
-      this.$v.state.$touch();
-      this.$emit('input', this.state);
+    stateChange () {
+      this.$v.state.$touch()
+      this.$emit('input', this.state)
     },
-    addLinePart() {
-      const blankLine = JSON.parse(JSON.stringify(this.blankLinePartObj));
-      blankLine.line_id = this.state.id;
-      blankLine.part_index = this.state.line_parts.length;
-      this.state.line_parts.push(blankLine);
+    addLinePart () {
+      const blankLine = JSON.parse(JSON.stringify(this.blankLinePartObj))
+      blankLine.line_id = this.state.id
+      blankLine.part_index = this.state.line_parts.length
+      this.state.line_parts.push(blankLine)
       if (!this.isStageDirection && this.previousLine != null) {
-        const newPartIndex = this.state.line_parts.length - 1;
-        const newPart = this.state.line_parts[newPartIndex];
+        const newPartIndex = this.state.line_parts.length - 1
+        const newPart = this.state.line_parts[newPartIndex]
         if (this.previousLine.line_parts.length >= newPartIndex + 1) {
-          const previousPart = this.previousLine.line_parts[newPartIndex];
+          const previousPart = this.previousLine.line_parts[newPartIndex]
           if (previousPart.character_id != null) {
-            newPart.character_id = previousPart.character_id;
+            newPart.character_id = previousPart.character_id
           } else if (previousPart.character_group_id != null) {
-            newPart.character_group_id = previousPart.character_group_id;
+            newPart.character_group_id = previousPart.character_group_id
           }
         }
       }
-      this.stateChange();
+      this.stateChange()
     },
-    deleteLine() {
-      this.$emit('deleteLine');
+    deleteLine () {
+      this.$emit('deleteLine')
     },
   },
   computed: {
     ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID']),
-    nextActs() {
+    nextActs () {
       // Start act is either the first act for the show, or the act of the previous line if there
       // is one
-      let startAct = this.acts.find((act) => (act.previous_act == null));
+      let startAct = this.acts.find((act) => (act.previous_act == null))
       if (this.previousLine != null) {
-        startAct = this.acts.find((act) => (act.id === this.previousLine.act_id));
+        startAct = this.acts.find((act) => (act.id === this.previousLine.act_id))
       }
-      const validActs = [];
-      let nextAct = startAct;
+      const validActs = []
+      let nextAct = startAct
       // Find all valid acts, if there is no next line then this is all acts after the start act.
       // If there is a next line, this is all acts up to and including the act of the next line
       while (nextAct != null) {
-        validActs.push(JSON.parse(JSON.stringify(nextAct)));
+        validActs.push(JSON.parse(JSON.stringify(nextAct)))
         if (this.nextLine != null && this.nextLine.act_id === nextAct.id) {
-          break;
+          break
         }
-        nextAct = this.ACT_BY_ID(nextAct.next_act);
+        nextAct = this.ACT_BY_ID(nextAct.next_act)
       }
-      return validActs;
+      return validActs
     },
-    actOptions() {
+    actOptions () {
       return [
         { value: null, text: 'N/A', disabled: true },
         ...this.nextActs.map((act) => ({ value: act.id, text: act.name })),
-      ];
+      ]
     },
-    nextScenes() {
+    nextScenes () {
       if (this.state.act_id == null) {
-        return [];
+        return []
       }
-      const scenes = this.scenes.filter((scene) => (scene.act === this.state.act_id));
+      const scenes = this.scenes.filter((scene) => (scene.act === this.state.act_id))
       // Start scene is either the first scene of the act, or the scene of the previous line if
       // there is one
-      let startScene = scenes.find((scene) => (scene.previous_scene == null));
+      let startScene = scenes.find((scene) => (scene.previous_scene == null))
       if (this.previousLine != null && this.previousLine.act_id === this.state.act_id) {
-        startScene = scenes.find((scene) => (scene.id === this.previousLine.scene_id));
+        startScene = scenes.find((scene) => (scene.id === this.previousLine.scene_id))
       }
-      const validScenes = [];
-      let nextScene = startScene;
+      const validScenes = []
+      let nextScene = startScene
       // Find all valid scenes, if there is no next line then this is all scenes after the start
       // scene. If there is a next line, this is all scenes up to and including the scene of the
       // next line
       while (nextScene != null) {
-        validScenes.push(JSON.parse(JSON.stringify(nextScene)));
+        validScenes.push(JSON.parse(JSON.stringify(nextScene)))
         if (this.nextLine != null && this.nextLine.scene_id === nextScene.id) {
-          break;
+          break
         }
-        nextScene = this.SCENE_BY_ID(nextScene.next_scene);
+        nextScene = this.SCENE_BY_ID(nextScene.next_scene)
       }
-      return validScenes;
+      return validScenes
     },
-    sceneOptions() {
+    sceneOptions () {
       return [
         { value: null, text: 'N/A', disabled: true },
         ...this.nextScenes.map((scene) => ({ value: scene.id, text: scene.name })),
-      ];
+      ]
     },
-    lineValid() {
-      return !this.$v.state.$anyError;
+    lineValid () {
+      return !this.$v.state.$anyError
     },
-    stageDirectionStylesOptions() {
+    stageDirectionStylesOptions () {
       return [
         { value: null, text: 'N/A' },
         ...this.stageDirectionStyles.map((style) => ({ value: style.id, text: style.description })),
-      ];
+      ]
     },
   },
-};
+}
 </script>
 
 <style scoped>

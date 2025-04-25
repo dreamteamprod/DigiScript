@@ -324,12 +324,12 @@
 </template>
 
 <script>
-import { mapGetters, mapActions } from 'vuex';
-import { required } from 'vuelidate/lib/validators';
+import { mapGetters, mapActions } from 'vuex'
+import { required } from 'vuelidate/lib/validators'
 
 export default {
   name: 'StageDirectionConfigs',
-  data() {
+  data () {
     return {
       exampleText: 'Your stage direction will look like this when formatted in the script!',
       columns: [
@@ -364,35 +364,35 @@ export default {
         enableBackgroundColour: false,
         backgroundColour: '#000000',
       },
-    };
+    }
   },
   computed: {
     ...mapGetters(['STAGE_DIRECTION_STYLES']),
-    newFormExampleCss() {
+    newFormExampleCss () {
       const style = {
         'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state ? 'bold' : 'normal',
         'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state ? 'italic' : 'normal',
         'text-decoration-line': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state ? 'underline' : 'none',
         color: this.newStyleFormState.textColour,
-      };
-      if (this.newStyleFormState.enableBackgroundColour) {
-        style['background-color'] = this.newStyleFormState.backgroundColour;
       }
-      return style;
+      if (this.newStyleFormState.enableBackgroundColour) {
+        style['background-color'] = this.newStyleFormState.backgroundColour
+      }
+      return style
     },
-    editFormExampleCss() {
+    editFormExampleCss () {
       const style = {
         'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state ? 'bold' : 'normal',
         'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state ? 'italic' : 'normal',
         'text-decoration-line': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state ? 'underline' : 'none',
         color: this.editStyleFormState.textColour,
-      };
-      if (this.editStyleFormState.enableBackgroundColour) {
-        style['background-color'] = this.editStyleFormState.backgroundColour;
       }
-      return style;
+      if (this.editStyleFormState.enableBackgroundColour) {
+        style['background-color'] = this.editStyleFormState.backgroundColour
+      }
+      return style
     },
-    createPayload() {
+    createPayload () {
       return {
         description: this.newStyleFormState.description,
         bold: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
@@ -402,9 +402,9 @@ export default {
         textColour: this.newStyleFormState.textColour,
         enableBackgroundColour: this.newStyleFormState.enableBackgroundColour,
         backgroundColour: this.newStyleFormState.backgroundColour,
-      };
+      }
     },
-    editPayload() {
+    editPayload () {
       return {
         id: this.editStyleFormState.id,
         description: this.editStyleFormState.description,
@@ -415,11 +415,11 @@ export default {
         textColour: this.editStyleFormState.textColour,
         enableBackgroundColour: this.editStyleFormState.enableBackgroundColour,
         backgroundColour: this.editStyleFormState.backgroundColour,
-      };
+      }
     },
   },
-  async mounted() {
-    await this.GET_STAGE_DIRECTION_STYLES();
+  async mounted () {
+    await this.GET_STAGE_DIRECTION_STYLES()
   },
   validations: {
     newStyleFormState: {
@@ -464,7 +464,7 @@ export default {
     },
   },
   methods: {
-    resetNewFormState() {
+    resetNewFormState () {
       this.newStyleFormState = {
         description: '',
         styleOptions: [
@@ -476,12 +476,12 @@ export default {
         textColour: '#FFFFFF',
         enableBackgroundColour: false,
         backgroundColour: '#000000',
-      };
+      }
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    resetEditFormState() {
+    resetEditFormState () {
       this.newStyleFormState = {
         id: null,
         description: '',
@@ -494,73 +494,73 @@ export default {
         textColour: '#FFFFFF',
         enableBackgroundColour: false,
         backgroundColour: '#000000',
-      };
+      }
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    validateNewStyleState(name) {
-      const { $dirty, $error } = this.$v.newStyleFormState[name];
-      return $dirty ? !$error : null;
+    validateNewStyleState (name) {
+      const { $dirty, $error } = this.$v.newStyleFormState[name]
+      return $dirty ? !$error : null
     },
-    validateEditStyleState(name) {
-      const { $dirty, $error } = this.$v.editStyleFormState[name];
-      return $dirty ? !$error : null;
+    validateEditStyleState (name) {
+      const { $dirty, $error } = this.$v.editStyleFormState[name]
+      return $dirty ? !$error : null
     },
-    async onSubmitNewStyle(event) {
-      this.$v.newStyleFormState.$touch();
+    async onSubmitNewStyle (event) {
+      this.$v.newStyleFormState.$touch()
       if (this.$v.newStyleFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.ADD_STAGE_DIRECTION_STYLE(this.createPayload);
-        this.resetNewFormState();
+        await this.ADD_STAGE_DIRECTION_STYLE(this.createPayload)
+        this.resetNewFormState()
       }
     },
-    async onSubmitEditStyle(event) {
-      this.$v.editStyleFormState.$touch();
+    async onSubmitEditStyle (event) {
+      this.$v.editStyleFormState.$touch()
       if (this.$v.editStyleFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.UPDATE_STAGE_DIRECTION_STYLE(this.editPayload);
-        this.resetEditFormState();
+        await this.UPDATE_STAGE_DIRECTION_STYLE(this.editPayload)
+        this.resetEditFormState()
       }
     },
-    openEditStyleForm(style) {
+    openEditStyleForm (style) {
       if (style != null) {
-        this.editStyleFormState.id = style.item.id;
-        this.editStyleFormState.description = style.item.description;
+        this.editStyleFormState.id = style.item.id
+        this.editStyleFormState.description = style.item.description
         this.editStyleFormState.styleOptions = [
           { caption: 'Bold', state: style.item.bold },
           { caption: 'Italic', state: style.item.italic },
           { caption: 'Underline', state: style.item.underline },
-        ];
-        this.editStyleFormState.textFormat = style.item.text_format;
-        this.editStyleFormState.textColour = style.item.text_colour;
-        this.editStyleFormState.enableBackgroundColour = style.item.enable_background_colour;
-        this.editStyleFormState.backgroundColour = style.item.background_colour;
-        this.$bvModal.show('edit-config-modal');
+        ]
+        this.editStyleFormState.textFormat = style.item.text_format
+        this.editStyleFormState.textColour = style.item.text_colour
+        this.editStyleFormState.enableBackgroundColour = style.item.enable_background_colour
+        this.editStyleFormState.backgroundColour = style.item.background_colour
+        this.$bvModal.show('edit-config-modal')
       }
     },
-    async deleteStyle(style) {
-      const msg = `Are you sure you want to delete ${style.item.description}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async deleteStyle (style) {
+      const msg = `Are you sure you want to delete ${style.item.description}?`
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.DELETE_STAGE_DIRECTION_STYLE(style.item.id);
+        await this.DELETE_STAGE_DIRECTION_STYLE(style.item.id)
       }
     },
-    exampleCss(data) {
+    exampleCss (data) {
       const style = {
         'font-weight': data.bold ? 'bold' : 'normal',
         'font-style': data.italic ? 'italic' : 'normal',
         'text-decoration-line': data.underline ? 'underline' : 'none',
         color: data.text_colour,
-      };
-      if (data.enable_background_colour) {
-        style['background-color'] = data.background_colour;
       }
-      return style;
+      if (data.enable_background_colour) {
+        style['background-color'] = data.background_colour
+      }
+      return style
     },
     ...mapActions(['GET_STAGE_DIRECTION_STYLES', 'ADD_STAGE_DIRECTION_STYLE', 'DELETE_STAGE_DIRECTION_STYLE', 'UPDATE_STAGE_DIRECTION_STYLE']),
   },
-};
+}
 </script>

@@ -22,15 +22,15 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters } from 'vuex'
 
 export default {
   name: 'HomeView',
   computed: {
-    isAdminUser() {
-      return this.CURRENT_USER != null && this.CURRENT_USER.is_admin;
+    isAdminUser () {
+      return this.CURRENT_USER != null && this.CURRENT_USER.is_admin
     },
     ...mapGetters(['SETTINGS', 'CURRENT_SHOW_SESSION', 'CURRENT_SHOW', 'CURRENT_USER']),
   },
-};
+}
 </script>

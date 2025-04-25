@@ -206,15 +206,15 @@
 </template>
 
 <script>
-import { required, maxLength } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
+import { required, maxLength } from 'vuelidate/lib/validators'
+import { mapGetters, mapActions } from 'vuex'
 
-import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
+import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue'
 
 export default {
   name: 'ConfigCues',
   components: { CueEditor },
-  data() {
+  data () {
     return {
       cueTypeFields: [
         'prefix',
@@ -235,7 +235,7 @@ export default {
         description: '',
         colour: '#000000',
       },
-    };
+    }
   },
   validations: {
     newCueTypeForm: {
@@ -263,79 +263,79 @@ export default {
       },
     },
   },
-  async mounted() {
-    await this.GET_CUE_TYPES();
+  async mounted () {
+    await this.GET_CUE_TYPES()
   },
   methods: {
     ...mapActions(['GET_CUE_TYPES', 'ADD_CUE_TYPE', 'DELETE_CUE_TYPE', 'UPDATE_CUE_TYPE']),
-    resetNewCueTypeForm() {
+    resetNewCueTypeForm () {
       this.newCueTypeForm = {
         prefix: '',
         description: '',
         colour: '#000000',
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    validateNewCueTypeState(name) {
-      const { $dirty, $error } = this.$v.newCueTypeForm[name];
-      return $dirty ? !$error : null;
+    validateNewCueTypeState (name) {
+      const { $dirty, $error } = this.$v.newCueTypeForm[name]
+      return $dirty ? !$error : null
     },
-    async onSubmitNewCueType(event) {
-      this.$v.newCueTypeForm.$touch();
+    async onSubmitNewCueType (event) {
+      this.$v.newCueTypeForm.$touch()
       if (this.$v.newCueTypeForm.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.ADD_CUE_TYPE(this.newCueTypeForm);
-        this.resetNewCueTypeForm();
+        await this.ADD_CUE_TYPE(this.newCueTypeForm)
+        this.resetNewCueTypeForm()
       }
     },
-    async deleteCueType(cueType) {
-      const msg = `Are you sure you want to delete ${cueType.item.prefix}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async deleteCueType (cueType) {
+      const msg = `Are you sure you want to delete ${cueType.item.prefix}?`
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.DELETE_CUE_TYPE(cueType.item.id);
+        await this.DELETE_CUE_TYPE(cueType.item.id)
       }
     },
-    openEditCueTypeForm(cueType) {
+    openEditCueTypeForm (cueType) {
       if (cueType != null) {
-        this.editCueTypeFormState.id = cueType.item.id;
-        this.editCueTypeFormState.prefix = cueType.item.prefix;
-        this.editCueTypeFormState.description = cueType.item.description;
-        this.editCueTypeFormState.colour = cueType.item.colour;
-        this.$bvModal.show('edit-cue-type');
+        this.editCueTypeFormState.id = cueType.item.id
+        this.editCueTypeFormState.prefix = cueType.item.prefix
+        this.editCueTypeFormState.description = cueType.item.description
+        this.editCueTypeFormState.colour = cueType.item.colour
+        this.$bvModal.show('edit-cue-type')
       }
     },
-    resetEditCueTypeForm() {
+    resetEditCueTypeForm () {
       this.editCueTypeFormState = {
         id: null,
         prefix: '',
         description: '',
         colour: '#000000',
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    async onSubmitEditCueType(event) {
-      this.$v.editCueTypeFormState.$touch();
+    async onSubmitEditCueType (event) {
+      this.$v.editCueTypeFormState.$touch()
       if (this.$v.editCueTypeFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.UPDATE_CUE_TYPE(this.editCueTypeFormState);
-        this.resetEditCueTypeForm();
+        await this.UPDATE_CUE_TYPE(this.editCueTypeFormState)
+        this.resetEditCueTypeForm()
       }
     },
-    validateEditCueTypeState(name) {
-      const { $dirty, $error } = this.$v.editCueTypeFormState[name];
-      return $dirty ? !$error : null;
+    validateEditCueTypeState (name) {
+      const { $dirty, $error } = this.$v.editCueTypeFormState[name]
+      return $dirty ? !$error : null
     },
   },
   computed: {
     ...mapGetters(['CUE_TYPES']),
   },
-};
+}
 </script>

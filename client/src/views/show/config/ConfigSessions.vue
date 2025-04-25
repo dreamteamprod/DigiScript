@@ -44,14 +44,14 @@
 </template>
 
 <script>
-import { mapGetters, mapActions } from 'vuex';
-import log from 'loglevel';
+import { mapGetters, mapActions } from 'vuex'
+import log from 'loglevel'
 
-import { makeURL, msToTimer } from '@/js/utils';
+import { makeURL, msToTimer } from '@/js/utils'
 
 export default {
   name: 'ConfigSessions',
-  data() {
+  data () {
     return {
       sessionFields: [
         { key: 'start_date_time', label: 'Start Date' },
@@ -60,55 +60,55 @@ export default {
       ],
       startingSession: false,
       stoppingSession: false,
-    };
+    }
   },
-  async mounted() {
-    await this.GET_SHOW_SESSION_DATA();
+  async mounted () {
+    await this.GET_SHOW_SESSION_DATA()
   },
   methods: {
-    async startSession() {
+    async startSession () {
       if (this.INTERNAL_UUID == null) {
-        this.$toast.error('Unable to start new show session');
-        return;
+        this.$toast.error('Unable to start new show session')
+        return
       }
-      this.startingSession = true;
+      this.startingSession = true
       const response = await fetch(`${makeURL('/api/v1/show/sessions/start')}`, {
         method: 'POST',
         body: JSON.stringify({
           session_id: this.INTERNAL_UUID,
         }),
-      });
+      })
       if (response.ok) {
-        this.$toast.success('Started new show session');
+        this.$toast.success('Started new show session')
       } else {
-        log.error('Unable to start new show session');
-        this.$toast.error('Unable to start new show session');
+        log.error('Unable to start new show session')
+        this.$toast.error('Unable to start new show session')
       }
-      this.startingSession = false;
+      this.startingSession = false
     },
-    async stopSession() {
-      this.stoppingSession = true;
+    async stopSession () {
+      this.stoppingSession = true
       const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
         method: 'POST',
-      });
+      })
       if (response.ok) {
-        this.$toast.success('Stopped show session');
+        this.$toast.success('Stopped show session')
       } else {
-        log.error('Unable to stop show session');
-        this.$toast.error('Unable to stop show session');
+        log.error('Unable to stop show session')
+        this.$toast.error('Unable to stop show session')
       }
-      this.stoppingSession = false;
+      this.stoppingSession = false
     },
-    runTimeCalc(start, end) {
-      const startDate = Date.parse(start);
-      const endDate = Date.parse(end);
-      const diff = endDate - startDate;
-      return msToTimer(diff);
+    runTimeCalc (start, end) {
+      const startDate = Date.parse(start)
+      const endDate = Date.parse(end)
+      const diff = endDate - startDate
+      return msToTimer(diff)
     },
     ...mapActions(['GET_SHOW_SESSION_DATA']),
   },
   computed: {
     ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID']),
   },
-};
+}
 </script>

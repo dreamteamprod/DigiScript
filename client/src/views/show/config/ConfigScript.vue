@@ -134,15 +134,15 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
-import { required } from 'vuelidate/lib/validators';
-import ScriptConfig from '@/vue_components/show/config/script/ScriptEditor.vue';
-import StageDirectionStyles from '@/vue_components/show/config/script/StageDirectionStyles.vue';
+import { mapActions, mapGetters } from 'vuex'
+import { required } from 'vuelidate/lib/validators'
+import ScriptConfig from '@/vue_components/show/config/script/ScriptEditor.vue'
+import StageDirectionStyles from '@/vue_components/show/config/script/StageDirectionStyles.vue'
 
 export default {
   name: 'ConfigScript',
   components: { ScriptConfig, StageDirectionConfigs: StageDirectionStyles },
-  data() {
+  data () {
     return {
       revisionColumns: [
         { key: 'current', label: 'Current' },
@@ -156,7 +156,7 @@ export default {
       newRevFormState: {
         description: '',
       },
-    };
+    }
   },
   validations: {
     newRevFormState: {
@@ -165,53 +165,53 @@ export default {
       },
     },
   },
-  async beforeMount() {
-    await this.GET_SCRIPT_CONFIG_STATUS();
+  async beforeMount () {
+    await this.GET_SCRIPT_CONFIG_STATUS()
   },
-  async mounted() {
-    await this.GET_SCRIPT_REVISIONS();
+  async mounted () {
+    await this.GET_SCRIPT_REVISIONS()
   },
   methods: {
-    resetNewRevForm() {
+    resetNewRevForm () {
       this.newRevFormState = {
         description: '',
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    validateNewRevState(name) {
-      const { $dirty, $error } = this.$v.newRevFormState[name];
-      return $dirty ? !$error : null;
+    validateNewRevState (name) {
+      const { $dirty, $error } = this.$v.newRevFormState[name]
+      return $dirty ? !$error : null
     },
-    async onSubmitNewRev(event) {
-      this.$v.newRevFormState.$touch();
+    async onSubmitNewRev (event) {
+      this.$v.newRevFormState.$touch()
       if (this.$v.newRevFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.ADD_SCRIPT_REVISION(this.newRevFormState);
-        this.resetNewRevForm();
+        await this.ADD_SCRIPT_REVISION(this.newRevFormState)
+        this.resetNewRevForm()
       }
     },
-    async loadRevision(revision) {
-      const msg = `Are you sure you want to load revision ${revision.item.revision}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async loadRevision (revision) {
+      const msg = `Are you sure you want to load revision ${revision.item.revision}?`
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.LOAD_SCRIPT_REVISION(revision.item.id);
+        await this.LOAD_SCRIPT_REVISION(revision.item.id)
       }
     },
-    openEditRevForm(revision) {
+    openEditRevForm (revision) {
 
     },
-    async deleteRev(revision) {
-      let msg = `Are you sure you want to delete revision ${revision.item.revision}?`;
+    async deleteRev (revision) {
+      let msg = `Are you sure you want to delete revision ${revision.item.revision}?`
       if (this.CURRENT_REVISION === revision.item.id) {
-        msg = `${msg}  This will load the previous revision, or first revision if this is not available.`;
+        msg = `${msg}  This will load the previous revision, or first revision if this is not available.`
       }
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.DELETE_SCRIPT_REVISION(revision.item.id);
+        await this.DELETE_SCRIPT_REVISION(revision.item.id)
       }
     },
     ...mapActions(['GET_SCRIPT_REVISIONS', 'ADD_SCRIPT_REVISION', 'LOAD_SCRIPT_REVISION',
@@ -219,9 +219,9 @@ export default {
   },
   computed: {
     ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION', 'CURRENT_EDITOR', 'INTERNAL_UUID']),
-    canChangeRevisions() {
-      return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
+    canChangeRevisions () {
+      return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID
     },
   },
-};
+}
 </script>

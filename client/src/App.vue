@@ -139,138 +139,138 @@
 </template>
 
 <script>
-import { getCookie, makeURL } from '@/js/utils';
+import { getCookie, makeURL } from '@/js/utils'
 
-import { mapGetters, mapActions } from 'vuex';
-import CreateUser from '@/vue_components/user/CreateUser.vue';
-import log from 'loglevel';
+import { mapGetters, mapActions } from 'vuex'
+import CreateUser from '@/vue_components/user/CreateUser.vue'
+import log from 'loglevel'
 
 export default {
   components: { CreateUser },
-  data() {
+  data () {
     return {
       loaded: false,
       loadTimer: null,
       stoppingSession: false,
       startingSession: false,
-    };
+    }
   },
-  async created() {
-    await this.GET_SETTINGS();
-    await this.awaitWSConnect();
+  async created () {
+    await this.GET_SETTINGS()
+    await this.awaitWSConnect()
   },
   methods: {
     ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_CURRENT_USER', 'USER_LOGOUT', 'GET_RBAC_ROLES',
       'GET_CURRENT_RBAC', 'GET_SETTINGS']),
-    async awaitWSConnect() {
+    async awaitWSConnect () {
       if (this.WEBSOCKET_HEALTHY) {
-        clearTimeout(this.loadTimer);
-        await this.GET_RBAC_ROLES();
+        clearTimeout(this.loadTimer)
+        await this.GET_RBAC_ROLES()
         if (getCookie('digiscript_user_id') != null) {
-          await this.GET_CURRENT_USER();
-          await this.GET_CURRENT_RBAC();
+          await this.GET_CURRENT_USER()
+          await this.GET_CURRENT_RBAC()
         }
 
         if (this.SETTINGS.current_show != null) {
-          await this.GET_SHOW_SESSION_DATA();
-          this.loaded = true;
+          await this.GET_SHOW_SESSION_DATA()
+          this.loaded = true
           if (this.CURRENT_SHOW_SESSION != null && this.$router.currentRoute.fullPath !== '/live') {
-            this.$router.push('/live');
+            this.$router.push('/live')
           }
         } else {
-          this.loaded = true;
+          this.loaded = true
         }
       } else {
-        this.loadTimer = setTimeout(this.awaitWSConnect, 150);
+        this.loadTimer = setTimeout(this.awaitWSConnect, 150)
       }
     },
-    async stopShowSession() {
-      this.stoppingSession = true;
-      const msg = 'Are you sure you want to stop the show?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async stopShowSession () {
+      this.stoppingSession = true
+      const msg = 'Are you sure you want to stop the show?'
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
         const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
           method: 'POST',
-        });
+        })
         if (response.ok) {
-          this.$toast.success('Stopped show session');
+          this.$toast.success('Stopped show session')
         } else {
-          log.error('Unable to stop show session');
-          this.$toast.error('Unable to stop show session');
+          log.error('Unable to stop show session')
+          this.$toast.error('Unable to stop show session')
         }
       }
-      this.stoppingSession = false;
+      this.stoppingSession = false
     },
-    async startShowSession() {
+    async startShowSession () {
       if (this.INTERNAL_UUID == null) {
-        this.$toast.error('Unable to start new show session');
-        return;
+        this.$toast.error('Unable to start new show session')
+        return
       }
-      this.startingSession = true;
-      const msg = 'Are you sure you want to start a show?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      this.startingSession = true
+      const msg = 'Are you sure you want to start a show?'
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
         const response = await fetch(`${makeURL('/api/v1/show/sessions/start')}`, {
           method: 'POST',
           body: JSON.stringify({
             session_id: this.INTERNAL_UUID,
           }),
-        });
+        })
         if (response.ok) {
-          this.$toast.success('Started new show session');
+          this.$toast.success('Started new show session')
         } else {
-          log.error('Unable to start new show session');
-          this.$toast.error('Unable to start new show session');
+          log.error('Unable to start new show session')
+          this.$toast.error('Unable to start new show session')
         }
       }
-      this.startingSession = false;
+      this.startingSession = false
     },
-    async reloadClients() {
+    async reloadClients () {
       if (this.INTERNAL_UUID == null) {
-        this.$toast.error('Unable to start new show session');
-        return;
+        this.$toast.error('Unable to start new show session')
+        return
       }
-      this.startingSession = true;
-      const msg = 'Are you sure you want to reload all connected clients?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      this.startingSession = true
+      const msg = 'Are you sure you want to reload all connected clients?'
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
         this.$socket.sendObj({
           OP: 'RELOAD_CLIENTS',
           DATA: {},
-        });
+        })
       }
     },
   },
   computed: {
-    isAdminUser() {
-      return this.CURRENT_USER != null && this.CURRENT_USER.is_admin;
+    isAdminUser () {
+      return this.CURRENT_USER != null && this.CURRENT_USER.is_admin
     },
-    isShowEditor() {
+    isShowEditor () {
       if (this.RBAC_ROLES.length === 0) {
-        return false;
+        return false
       }
       if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
-        return false;
+        return false
       }
-      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
-      // eslint-disable-next-line no-bitwise
-      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value
+
+      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0
     },
-    isShowExecutor() {
+    isShowExecutor () {
       if (this.RBAC_ROLES.length === 0) {
-        return false;
+        return false
       }
       if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
-        return false;
+        return false
       }
-      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value;
-      // eslint-disable-next-line no-bitwise
-      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value
+
+      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0
     },
     ...mapGetters(['WEBSOCKET_HEALTHY', 'CURRENT_SHOW_SESSION', 'SETTINGS', 'CURRENT_USER',
       'RBAC_ROLES', 'CURRENT_USER_RBAC', 'INTERNAL_UUID']),
   },
-};
+}
 </script>
 
 <style scoped>

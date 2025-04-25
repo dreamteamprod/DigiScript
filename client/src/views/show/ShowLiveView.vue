@@ -100,20 +100,20 @@
 </template>
 
 <script>
-import { mapGetters, mapActions } from 'vuex';
-import $ from 'jquery';
-import { debounce } from 'lodash';
-import log from 'loglevel';
+import { mapGetters, mapActions } from 'vuex'
+import $ from 'jquery'
+import { debounce } from 'lodash'
+import log from 'loglevel'
 
-import { makeURL, msToTimer } from '@/js/utils';
-import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
+import { makeURL, msToTimer } from '@/js/utils'
+import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue'
 
 export default {
   name: 'ShowLiveView',
   components: {
     ScriptLineViewer,
   },
-  data() {
+  data () {
     return {
       elapsedTime: 0,
       elapsedTimer: null,
@@ -137,28 +137,28 @@ export default {
       currentLineOnPage: 0,
       isScrollingProgrammatically: false,
       debounceContentSize: debounce(this.computeContentSize, 100),
-    };
+    }
   },
   computed: {
-    pageIter() {
+    pageIter () {
       if (this.SETTINGS.enable_live_batching) {
         return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
-          x <= this.currentLastPage + this.pageBatchSize
-            && x >= this.currentFirstPage - this.pageBatchSize));
+          x <= this.currentLastPage + this.pageBatchSize &&
+            x >= this.currentFirstPage - this.pageBatchSize))
       }
-      return [...Array(this.currentMaxPage).keys()];
+      return [...Array(this.currentMaxPage).keys()]
     },
-    isScriptFollowing() {
+    isScriptFollowing () {
       if (this.loadedSessionData) {
-        return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
+        return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader
       }
-      return false;
+      return false
     },
-    isScriptLeader() {
+    isScriptLeader () {
       if (this.loadedSessionData) {
-        return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
+        return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID
       }
-      return false;
+      return false
     },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
@@ -166,218 +166,214 @@ export default {
       'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
   },
   watch: {
-    SESSION_FOLLOW_DATA() {
+    SESSION_FOLLOW_DATA () {
       if (this.isScriptFollowing) {
         // Get the current line element
-        const currentLineElement = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
+        const currentLineElement = document.getElementById(this.SESSION_FOLLOW_DATA.current_line)
         if (currentLineElement != null) {
         // Extract page and line from the ID
-          const idParts = this.SESSION_FOLLOW_DATA.current_line.split('_');
-          const page = parseInt(idParts[1], 10);
-          const line = parseInt(idParts[3], 10);
+          const idParts = this.SESSION_FOLLOW_DATA.current_line.split('_')
+          const page = parseInt(idParts[1], 10)
+          const line = parseInt(idParts[3], 10)
 
           // Update the current line highlight
-          $('.script-item').removeClass('current-line');
-          $(currentLineElement).addClass('current-line');
+          $('.script-item').removeClass('current-line')
+          $(currentLineElement).addClass('current-line')
 
           // Find the context element to scroll to
-          const contextLines = 3; // Same as in navigateTo
-          const contextElement = this.findContextElement(page, line, contextLines);
+          const contextLines = 3 // Same as in navigateTo
+          const contextElement = this.findContextElement(page, line, contextLines)
 
           // Scroll to the context element if found, otherwise the current line
           if (contextElement) {
             contextElement.scrollIntoView({
               behavior: 'instant',
               block: 'start',
-            });
+            })
           } else {
             currentLineElement.scrollIntoView({
               behavior: 'instant',
               block: 'start',
-            });
+            })
           }
-          this.computeScriptBoundaries();
+          this.computeScriptBoundaries()
         }
       }
     },
   },
-  async mounted() {
-    await this.GET_SHOW_SESSION_DATA();
-    this.loadedSessionData = true;
+  async mounted () {
+    await this.GET_SHOW_SESSION_DATA()
+    this.loadedSessionData = true
     // Get the current user
-    await this.GET_CURRENT_USER();
+    await this.GET_CURRENT_USER()
 
     // User related stuff
     if (this.CURRENT_USER != null) {
-      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES()
     }
 
-    await this.GET_ACT_LIST();
-    await this.GET_SCENE_LIST();
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CHARACTER_GROUP_LIST();
-    await this.GET_CUE_TYPES();
-    await this.LOAD_CUES();
-    await this.GET_CUTS();
-    await this.GET_STAGE_DIRECTION_STYLES();
-    await this.getMaxScriptPage();
+    await this.GET_ACT_LIST()
+    await this.GET_SCENE_LIST()
+    await this.GET_CHARACTER_LIST()
+    await this.GET_CHARACTER_GROUP_LIST()
+    await this.GET_CUE_TYPES()
+    await this.LOAD_CUES()
+    await this.GET_CUTS()
+    await this.GET_STAGE_DIRECTION_STYLES()
+    await this.getMaxScriptPage()
 
-    this.updateElapsedTime();
-    this.computeContentSize();
+    this.updateElapsedTime()
+    this.computeContentSize()
 
-    this.startTime = this.createDateAsUTC(new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T')));
-    this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
-    window.addEventListener('resize', this.debounceContentSize);
+    this.startTime = this.createDateAsUTC(new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T')))
+    this.elapsedTimer = setInterval(this.updateElapsedTime, 1000)
+    window.addEventListener('resize', this.debounceContentSize)
 
     if (this.isScriptFollowing || this.isScriptLeader) {
       if (this.CURRENT_SHOW_SESSION.latest_line_ref != null) {
-        const loadCurrentPage = parseInt(this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1], 10);
+        const loadCurrentPage = parseInt(this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1], 10)
 
         if (this.SETTINGS.enable_lazy_loading === false) {
-          this.currentMinLoadedPage = 1;
+          this.currentMinLoadedPage = 1
           for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-            // eslint-disable-next-line no-await-in-loop
-            await this.loadNextPage();
+            await this.loadNextPage()
           }
         } else {
-          this.currentMinLoadedPage = Math.max(0, loadCurrentPage - this.pageBatchSize - 1);
-          this.currentLoadedPage = this.currentMinLoadedPage;
+          this.currentMinLoadedPage = Math.max(0, loadCurrentPage - this.pageBatchSize - 1)
+          this.currentLoadedPage = this.currentMinLoadedPage
           for (let loadIndex = this.currentMinLoadedPage;
             loadIndex < loadCurrentPage + this.pageBatchSize; loadIndex++) {
-            // eslint-disable-next-line no-await-in-loop
-            await this.loadNextPage();
+            await this.loadNextPage()
           }
-          this.currentMinLoadedPage += 1;
+          this.currentMinLoadedPage += 1
         }
 
-        this.currentFirstPage = loadCurrentPage;
-        this.currentLastPage = loadCurrentPage;
-        await this.$nextTick();
-        this.initialLoad = true;
-        await this.$nextTick();
-        this.computeScriptBoundaries();
+        this.currentFirstPage = loadCurrentPage
+        this.currentLastPage = loadCurrentPage
+        await this.$nextTick()
+        this.initialLoad = true
+        await this.$nextTick()
+        this.computeScriptBoundaries()
         document.getElementById(this.CURRENT_SHOW_SESSION.latest_line_ref).scrollIntoView({
           behavior: 'instant',
           block: 'start',
-        });
-        await this.$nextTick();
-        this.computeScriptBoundaries();
+        })
+        await this.$nextTick()
+        this.computeScriptBoundaries()
       } else {
-        this.currentMinLoadedPage = 1;
+        this.currentMinLoadedPage = 1
         if (this.SETTINGS.enable_lazy_loading === false) {
           for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-            // eslint-disable-next-line no-await-in-loop
-            await this.loadNextPage();
+            await this.loadNextPage()
           }
         } else {
-          await this.loadNextPage();
+          await this.loadNextPage()
         }
-        this.initialLoad = true;
-        await this.$nextTick();
-        this.computeScriptBoundaries();
+        this.initialLoad = true
+        await this.$nextTick()
+        this.computeScriptBoundaries()
       }
     } else {
-      this.currentMinLoadedPage = 1;
+      this.currentMinLoadedPage = 1
       if (this.SETTINGS.enable_lazy_loading === false) {
         for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-          // eslint-disable-next-line no-await-in-loop
-          await this.loadNextPage();
+          await this.loadNextPage()
         }
       } else {
-        await this.loadNextPage();
+        await this.loadNextPage()
       }
-      this.initialLoad = true;
-      await this.$nextTick();
-      this.computeScriptBoundaries();
+      this.initialLoad = true
+      await this.$nextTick()
+      this.computeScriptBoundaries()
     }
 
-    this.fullLoad = true;
-    this.setupNavigation();
+    this.fullLoad = true
+    this.setupNavigation()
     // Wait for initial load
     this.$nextTick(() => {
       if (this.initialLoad) {
-        this.initializeNavigation();
+        this.initializeNavigation()
       }
-    });
+    })
   },
-  destroyed() {
-    clearInterval(this.elapsedTimer);
-    this.removeNavigation();
-    window.removeEventListener('resize', this.debounceContentSize);
+  destroyed () {
+    clearInterval(this.elapsedTimer)
+    this.removeNavigation()
+    window.removeEventListener('resize', this.debounceContentSize)
   },
   methods: {
-    setupNavigation() {
-      window.addEventListener('keydown', this.handleKeyNavigation);
-      const scriptContainer = document.getElementById('script-container');
+    setupNavigation () {
+      window.addEventListener('keydown', this.handleKeyNavigation)
+      const scriptContainer = document.getElementById('script-container')
       if (scriptContainer) {
-        scriptContainer.addEventListener('wheel', this.handleWheelNavigation, { passive: false });
+        scriptContainer.addEventListener('wheel', this.handleWheelNavigation, { passive: false })
       }
     },
-    removeNavigation() {
-      window.removeEventListener('keydown', this.handleKeyNavigation);
-      const scriptContainer = document.getElementById('script-container');
+    removeNavigation () {
+      window.removeEventListener('keydown', this.handleKeyNavigation)
+      const scriptContainer = document.getElementById('script-container')
       if (scriptContainer) {
-        scriptContainer.removeEventListener('wheel', this.handleWheelNavigation);
+        scriptContainer.removeEventListener('wheel', this.handleWheelNavigation)
       }
     },
-    navigateTo(targetPage, targetLineOnPage, preventScroll = false) {
+    navigateTo (targetPage, targetLineOnPage, preventScroll = false) {
       // Check if the page is loaded
       if (targetPage > this.currentLoadedPage) {
-        return false;
+        return false
       }
 
       // Check if the target line exists on that page
-      const pageLines = this.GET_SCRIPT_PAGE(targetPage);
+      const pageLines = this.GET_SCRIPT_PAGE(targetPage)
       if (!pageLines || targetLineOnPage >= pageLines.length) {
-        return false;
+        return false
       }
 
       // Update internal state
-      this.currentPage = targetPage;
-      this.currentLineOnPage = targetLineOnPage;
+      this.currentPage = targetPage
+      this.currentLineOnPage = targetLineOnPage
 
       // Find the element for this line
-      const targetElementId = `page_${targetPage}_line_${targetLineOnPage}`;
-      const targetElement = document.getElementById(targetElementId);
+      const targetElementId = `page_${targetPage}_line_${targetLineOnPage}`
+      const targetElement = document.getElementById(targetElementId)
 
       if (!targetElement) {
-        log.error(`Could not find element for line: ${targetElementId}`);
-        return false;
+        log.error(`Could not find element for line: ${targetElementId}`)
+        return false
       }
 
       // Update line highlighting
-      $('.script-item').removeClass('current-line');
-      $(targetElement).addClass('current-line');
+      $('.script-item').removeClass('current-line')
+      $(targetElement).addClass('current-line')
 
       // Update line tracking for the rest of the application
-      this.previousLine = this.currentLine;
-      this.currentLine = targetElementId;
+      this.previousLine = this.currentLine
+      this.currentLine = targetElementId
 
       // Update page tracking to match
       if (targetPage !== this.currentFirstPage) {
-        this.currentFirstPage = targetPage;
+        this.currentFirstPage = targetPage
       }
 
       // Scroll the element into view (unless prevented)
       if (!preventScroll) {
-        this.isScrollingProgrammatically = true;
+        this.isScrollingProgrammatically = true
         // Instead of directly scrolling to the target element,
         // find the context element (N visible lines above) and scroll to it
-        const contextLines = 3;
-        const contextElement = this.findContextElement(targetPage, targetLineOnPage, contextLines);
+        const contextLines = 3
+        const contextElement = this.findContextElement(targetPage, targetLineOnPage, contextLines)
 
         if (contextElement) {
           // Scroll to the context element instead of the target element
           contextElement.scrollIntoView({
             behavior: 'instant',
             block: 'start',
-          });
+          })
         } else {
           // Fall back to standard scrolling if we can't find a context element
           targetElement.scrollIntoView({
             behavior: 'instant',
             block: 'start',
-          });
+          })
         }
 
         // Send update to followers
@@ -388,58 +384,58 @@ export default {
               previous_line: this.previousLine,
               current_line: this.currentLine,
             },
-          });
+          })
         }
 
         // Reset scrolling flag after animation completes
         setTimeout(() => {
-          this.isScrollingProgrammatically = false;
-          this.computeScriptBoundaries();
-        }, 50);
+          this.isScrollingProgrammatically = false
+          this.computeScriptBoundaries()
+        }, 50)
       }
 
-      return true;
+      return true
     },
-    findContextElement(targetPage, targetLineOnPage, contextLines) {
+    findContextElement (targetPage, targetLineOnPage, contextLines) {
       // Start from the target line and move backwards
-      let currentPage = targetPage;
-      let currentLine = targetLineOnPage;
-      let visibleLinesFound = 0;
+      let currentPage = targetPage
+      let currentLine = targetLineOnPage
+      let visibleLinesFound = 0
 
       while (visibleLinesFound < contextLines && currentPage >= 1) {
         // Move to the previous line
-        currentLine--;
+        currentLine--
 
         // If we've gone before the first line on this page, move to the previous page
         if (currentLine < 0) {
-          currentPage--;
+          currentPage--
           if (currentPage < 1) {
             // We've reached the beginning of the script, return the first line
-            return document.getElementById('page_1_line_0');
+            return document.getElementById('page_1_line_0')
           }
 
           // Get the lines on the previous page
-          const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
+          const prevPageLines = this.GET_SCRIPT_PAGE(currentPage)
           if (!prevPageLines || prevPageLines.length === 0) {
             // Skip empty pages
-            // eslint-disable-next-line no-continue
-            continue;
+
+            continue
           }
 
           // Move to the last line of the previous page
-          currentLine = prevPageLines.length - 1;
+          currentLine = prevPageLines.length - 1
         }
 
         // Check if this line is visible (not cut)
-        const pageLines = this.GET_SCRIPT_PAGE(currentPage);
+        const pageLines = this.GET_SCRIPT_PAGE(currentPage)
         if (pageLines && currentLine < pageLines.length) {
-          const line = pageLines[currentLine];
+          const line = pageLines[currentLine]
           if (!this.isWholeLineCut(line)) {
-            visibleLinesFound++;
+            visibleLinesFound++
 
             // If we've found enough visible lines, this is our context line
             if (visibleLinesFound >= contextLines) {
-              return document.getElementById(`page_${currentPage}_line_${currentLine}`);
+              return document.getElementById(`page_${currentPage}_line_${currentLine}`)
             }
           }
         }
@@ -447,323 +443,321 @@ export default {
 
       // If we couldn't find enough visible lines, return the earliest visible line we found
       if (visibleLinesFound > 0) {
-        return document.getElementById(`page_${currentPage}_line_${currentLine}`);
+        return document.getElementById(`page_${currentPage}_line_${currentLine}`)
       }
 
       // If we couldn't find any visible lines above, just return null
       // and let the main method fall back to the target line
-      return null;
+      return null
     },
-    navigateRelative(deltaPage, deltaLine) {
+    navigateRelative (deltaPage, deltaLine) {
       // If no navigation needed, exit early
-      if (deltaLine === 0 && deltaPage === 0) return true;
+      if (deltaLine === 0 && deltaPage === 0) return true
 
       // Direction of navigation (positive for down/forward, negative for up/backward)
-      const direction = deltaLine > 0 ? 1 : -1;
+      const direction = deltaLine > 0 ? 1 : -1
 
       // Start from current position
-      let newPage = this.currentPage;
-      let newLineOnPage = this.currentLineOnPage;
+      let newPage = this.currentPage
+      let newLineOnPage = this.currentLineOnPage
 
       // Keep track of how many visible lines we've moved
-      let visibleLinesMoved = 0;
+      let visibleLinesMoved = 0
 
       // Continue until we've moved the requested number of visible lines
       while (visibleLinesMoved < Math.abs(deltaLine)) {
         // Move one line in the appropriate direction
-        newLineOnPage += direction;
+        newLineOnPage += direction
 
         // Handle line overflow/underflow
         if (newLineOnPage < 0) {
-          newPage--;
+          newPage--
           if (newPage < 1) {
-            newPage = 1;
-            newLineOnPage = 0;
-            break;
+            newPage = 1
+            newLineOnPage = 0
+            break
           } else {
-            const prevPageLines = this.GET_SCRIPT_PAGE(newPage);
-            if (!prevPageLines) break;
-            newLineOnPage = prevPageLines.length - 1;
-            if (newLineOnPage < 0) newLineOnPage = 0;
+            const prevPageLines = this.GET_SCRIPT_PAGE(newPage)
+            if (!prevPageLines) break
+            newLineOnPage = prevPageLines.length - 1
+            if (newLineOnPage < 0) newLineOnPage = 0
           }
         } else {
-          const currentPageLines = this.GET_SCRIPT_PAGE(newPage);
-          if (!currentPageLines) break;
+          const currentPageLines = this.GET_SCRIPT_PAGE(newPage)
+          if (!currentPageLines) break
           if (newLineOnPage >= currentPageLines.length) {
-            newPage++;
+            newPage++
             if (newPage > this.currentLoadedPage) {
-              newPage = this.currentLoadedPage;
-              newLineOnPage = currentPageLines.length - 1;
-              break;
+              newPage = this.currentLoadedPage
+              newLineOnPage = currentPageLines.length - 1
+              break
             } else {
-              newLineOnPage = 0;
+              newLineOnPage = 0
             }
           }
         }
 
         // Check if this line is visible (not cut)
-        const pageLines = this.GET_SCRIPT_PAGE(newPage);
+        const pageLines = this.GET_SCRIPT_PAGE(newPage)
         if (pageLines && newLineOnPage < pageLines.length) {
-          const currentLine = pageLines[newLineOnPage];
+          const currentLine = pageLines[newLineOnPage]
           if (!this.isWholeLineCut(currentLine)) {
-            visibleLinesMoved++;
+            visibleLinesMoved++
           }
           if (visibleLinesMoved >= Math.abs(deltaLine)) {
-            break;
+            break
           }
         } else {
-          break;
+          break
         }
       }
 
       // Navigate to the calculated position
-      return this.navigateTo(newPage, newLineOnPage);
+      return this.navigateTo(newPage, newLineOnPage)
     },
-    handleKeyNavigation(event) {
+    handleKeyNavigation (event) {
       // Only handle if we're the leader and not currently scrolling
-      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return;
+      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return
 
       // Process arrow keys
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        event.preventDefault();
+        event.preventDefault()
 
         // Always move by 1 visible line in the appropriate direction
-        const delta = event.key === 'ArrowDown' ? 1 : -1;
-        this.navigateRelative(0, delta);
+        const delta = event.key === 'ArrowDown' ? 1 : -1
+        this.navigateRelative(0, delta)
       }
     },
-    handleWheelNavigation(event) {
+    handleWheelNavigation (event) {
       // Only handle if we're the leader and not currently scrolling
-      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return;
+      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return
 
       // Don't take over all scrolling, just script navigation
       // We need to check if we're at the top or bottom of the container
-      const scriptContainer = document.getElementById('script-container');
-      const isAtTop = scriptContainer.scrollTop === 0;
+      const scriptContainer = document.getElementById('script-container')
+      const isAtTop = scriptContainer.scrollTop === 0
       const isAtBottom = (
         scriptContainer.scrollHeight - scriptContainer.scrollTop === scriptContainer.clientHeight
-      );
+      )
 
       // Only prevent default if we're not at the limits of the container
       if ((event.deltaY > 0 && !isAtBottom) || (event.deltaY < 0 && !isAtTop)) {
-        event.preventDefault();
+        event.preventDefault()
 
         // Always move by 1 visible line in the appropriate direction
-        const delta = event.deltaY > 0 ? 1 : -1;
-        this.navigateRelative(0, delta);
+        const delta = event.deltaY > 0 ? 1 : -1
+        this.navigateRelative(0, delta)
       }
     },
-    initializeNavigation() {
+    initializeNavigation () {
       // If we have a CURRENT_SHOW_SESSION.latest_line_ref, use that
       if (this.CURRENT_SHOW_SESSION.latest_line_ref) {
-        const parts = this.CURRENT_SHOW_SESSION.latest_line_ref.split('_');
+        const parts = this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')
         if (parts.length >= 4) {
-          const page = parseInt(parts[1], 10);
-          const line = parseInt(parts[3], 10);
+          const page = parseInt(parts[1], 10)
+          const line = parseInt(parts[3], 10)
 
           // Only set position after initial load is complete
           if (this.initialLoad) {
-            this.navigateTo(page, line);
+            this.navigateTo(page, line)
           } else {
             // Remember position for later
-            this.currentPage = page;
-            this.currentLineOnPage = line;
+            this.currentPage = page
+            this.currentLineOnPage = line
           }
         }
       } else {
         // Default to first line if no previous position
-        this.navigateTo(1, 0);
+        this.navigateTo(1, 0)
       }
     },
     msToTimer,
-    createDateAsUTC(date) {
+    createDateAsUTC (date) {
       return new Date(Date.UTC(
         date.getFullYear(),
         date.getMonth(),
         date.getDate(),
         date.getHours(),
         date.getMinutes(),
-        date.getSeconds(),
-      ));
+        date.getSeconds()
+      ))
     },
-    updateElapsedTime() {
+    updateElapsedTime () {
       if (this.startTime != null) {
-        this.elapsedTime = Date.now() - this.startTime;
+        this.elapsedTime = Date.now() - this.startTime
       }
     },
-    computeScriptBoundaries() {
+    computeScriptBoundaries () {
       // Skip if we're programmatically scrolling
-      if (this.isScrollingProgrammatically) return;
+      if (this.isScrollingProgrammatically) return
 
       // Original boundary computation for first/last elements only
-      const scriptContainer = $('#script-container');
-      const cutoffTop = scriptContainer.offset().top;
-      const cutoffBottom = scriptContainer.offset().top + scriptContainer.outerHeight();
-      const scriptSelector = $('.script-item');
+      const scriptContainer = $('#script-container')
+      const cutoffTop = scriptContainer.offset().top
+      const cutoffBottom = scriptContainer.offset().top + scriptContainer.outerHeight()
+      const scriptSelector = $('.script-item')
 
       // Update first element class
       scriptSelector.each(function () {
         if ($(this).offset() && $(this).offset().top >= cutoffTop) {
           if (!$(this).attr('class').split(/\s+/).includes('first-script-element')) {
-            scriptSelector.removeClass('first-script-element');
-            $(this).addClass('first-script-element');
+            scriptSelector.removeClass('first-script-element')
+            $(this).addClass('first-script-element')
           }
-          return false;
+          return false
         }
-        return true;
-      });
+        return true
+      })
 
       // Update last element class
-      let assignedLastScript = false;
-      let lastObject = null;
+      let assignedLastScript = false
+      let lastObject = null
       scriptSelector.each(function () {
         if ($(this).offset()) {
           if (lastObject == null) {
-            lastObject = this;
-          } else if ($(lastObject).offset()
-               && $(this).offset().top > $(lastObject).offset().top
-               && $(this).offset().top < cutoffBottom) {
-            lastObject = this;
+            lastObject = this
+          } else if ($(lastObject).offset() &&
+               $(this).offset().top > $(lastObject).offset().top &&
+               $(this).offset().top < cutoffBottom) {
+            lastObject = this
           }
 
           if ($(this).offset().top >= cutoffBottom) {
-            scriptSelector.removeClass('last-script-element');
-            $(this).addClass('last-script-element');
-            assignedLastScript = true;
-            return false;
+            scriptSelector.removeClass('last-script-element')
+            $(this).addClass('last-script-element')
+            assignedLastScript = true
+            return false
           }
         }
-        return true;
-      });
+        return true
+      })
 
-      this.assignedLastLine = assignedLastScript;
+      this.assignedLastLine = assignedLastScript
       if (!assignedLastScript && lastObject && $(lastObject).offset()) {
-        scriptSelector.removeClass('last-script-element');
-        $(lastObject).addClass('last-script-element');
+        scriptSelector.removeClass('last-script-element')
+        $(lastObject).addClass('last-script-element')
       }
     },
-    computeContentSize() {
-      const scriptContainer = $('#script-container');
-      const startPos = scriptContainer.offset().top;
-      const boxHeight = document.documentElement.clientHeight - startPos;
-      scriptContainer.height(boxHeight - 10);
-      this.computeScriptBoundaries();
+    computeContentSize () {
+      const scriptContainer = $('#script-container')
+      const startPos = scriptContainer.offset().top
+      const boxHeight = document.documentElement.clientHeight - startPos
+      scriptContainer.height(boxHeight - 10)
+      this.computeScriptBoundaries()
     },
-    async loadNextPage() {
+    async loadNextPage () {
       if (this.currentLoadedPage < this.currentMaxPage) {
-        this.currentLoadedPage += 1;
-        await this.LOAD_SCRIPT_PAGE(this.currentLoadedPage);
+        this.currentLoadedPage += 1
+        await this.LOAD_SCRIPT_PAGE(this.currentLoadedPage)
       }
     },
-    async getMaxScriptPage() {
+    async getMaxScriptPage () {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-      });
+      })
       if (response.ok) {
-        const respJson = await response.json();
-        this.currentMaxPage = respJson.max_page;
+        const respJson = await response.json()
+        this.currentMaxPage = respJson.max_page
       } else {
-        log.error('Unable to get current max page');
+        log.error('Unable to get current max page')
       }
     },
-    async handleLastLineChange(lastPage, lineIndex) {
-      this.previousLastPage = this.currentLastPage;
-      this.currentLastPage = lastPage;
-      const cutoffPage = this.currentLoadedPage - this.pageBatchSize;
+    async handleLastLineChange (lastPage, lineIndex) {
+      this.previousLastPage = this.currentLastPage
+      this.currentLastPage = lastPage
+      const cutoffPage = this.currentLoadedPage - this.pageBatchSize
       if (lastPage >= cutoffPage && this.currentLoadedPage < this.currentMaxPage) {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
-          // eslint-disable-next-line no-await-in-loop
-          await this.loadNextPage();
+          await this.loadNextPage()
         }
-        this.computeScriptBoundaries();
+        this.computeScriptBoundaries()
         while (!this.assignedLastLine && this.currentLoadedPage <= this.currentMaxPage) {
-          // eslint-disable-next-line no-await-in-loop
-          await this.loadNextPage();
-          this.computeScriptBoundaries();
-          // eslint-disable-next-line no-await-in-loop
-          await this.$nextTick();
+          await this.loadNextPage()
+          this.computeScriptBoundaries()
+
+          await this.$nextTick()
         }
       }
-      await this.$nextTick();
+      await this.$nextTick()
     },
-    async handleFirstLineChange(firstPage, lineIndex, previousLine) {
-      this.previousFirstPage = this.currentFirstPage;
-      this.currentFirstPage = firstPage;
-      this.previousLine = previousLine;
-      this.currentLine = `page_${firstPage}_line_${lineIndex}`;
+    async handleFirstLineChange (firstPage, lineIndex, previousLine) {
+      this.previousFirstPage = this.currentFirstPage
+      this.currentFirstPage = firstPage
+      this.previousLine = previousLine
+      this.currentLine = `page_${firstPage}_line_${lineIndex}`
 
-      const cutoffPage = firstPage - this.pageBatchSize;
+      const cutoffPage = firstPage - this.pageBatchSize
       if (this.currentMinLoadedPage > cutoffPage) {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
           if (this.currentMinLoadedPage > 1) {
-            this.currentMinLoadedPage -= 1;
-            // eslint-disable-next-line no-await-in-loop
-            await this.LOAD_SCRIPT_PAGE(this.currentMinLoadedPage);
+            this.currentMinLoadedPage -= 1
+
+            await this.LOAD_SCRIPT_PAGE(this.currentMinLoadedPage)
           }
         }
       }
     },
-    getPreviousLineForIndex(pageIndex, lineIndex) {
+    getPreviousLineForIndex (pageIndex, lineIndex) {
       if (lineIndex > 0) {
-        return this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1];
+        return this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1]
       }
-      let loopPageNo = pageIndex - 1;
+      let loopPageNo = pageIndex - 1
       while (loopPageNo >= 1) {
-        let loopPage = null;
-        loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        let loopPage = null
+        loopPage = this.GET_SCRIPT_PAGE(loopPageNo)
         if (loopPage.length > 0) {
-          return loopPage[loopPage.length - 1];
+          return loopPage[loopPage.length - 1]
         }
-        loopPageNo -= 1;
+        loopPageNo -= 1
       }
-      return null;
+      return null
     },
-    getPreviousLineIndex(pageIndex, lineIndex) {
+    getPreviousLineIndex (pageIndex, lineIndex) {
       if (lineIndex > 0) {
-        return lineIndex - 1;
+        return lineIndex - 1
       }
-      let loopPageNo = pageIndex - 1;
+      let loopPageNo = pageIndex - 1
       while (loopPageNo >= 1) {
-        let loopPage = null;
-        loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        let loopPage = null
+        loopPage = this.GET_SCRIPT_PAGE(loopPageNo)
         if (loopPage.length > 0) {
-          return loopPage.length - 1;
+          return loopPage.length - 1
         }
-        loopPageNo -= 1;
+        loopPageNo -= 1
       }
-      return null;
+      return null
     },
-    async stopShow() {
-      this.stoppingSession = true;
+    async stopShow () {
+      this.stoppingSession = true
       const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
         method: 'POST',
-      });
+      })
       if (response.ok) {
-        this.$toast.success('Stopped show session');
+        this.$toast.success('Stopped show session')
       } else {
-        log.error('Unable to stop show session');
-        this.$toast.error('Unable to stop show session');
+        log.error('Unable to stop show session')
+        this.$toast.error('Unable to stop show session')
       }
-      this.stoppingSession = false;
+      this.stoppingSession = false
     },
-    getCuesForLine(line) {
+    getCuesForLine (line) {
       if (Object.keys(this.SCRIPT_CUES).includes(line.id.toString())) {
-        return this.SCRIPT_CUES[line.id.toString()];
+        return this.SCRIPT_CUES[line.id.toString()]
       }
-      return [];
+      return []
     },
-    isWholeLineCut(line) {
-      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+    isWholeLineCut (line) {
+      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id) ||
+          linePart.line_text == null || linePart.line_text.trim().length === 0), this)
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
       'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES']),
   },
-};
+}
 </script>
 
 <style scoped>

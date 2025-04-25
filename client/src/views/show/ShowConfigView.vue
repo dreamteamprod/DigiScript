@@ -101,7 +101,7 @@
 <script>
 export default {
   name: 'ShowView',
-};
+}
 </script>
 
 <style scoped>

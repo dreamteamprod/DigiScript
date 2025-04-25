@@ -54,7 +54,7 @@
 </template>
 
 <script>
-import { makeURL } from '@/js/utils';
+import { makeURL } from '@/js/utils'
 
 export default {
   name: 'RbacResource',
@@ -66,7 +66,7 @@ export default {
       required: true,
     },
   },
-  data() {
+  data () {
     return {
       loaded: false,
       error: false,
@@ -74,76 +74,76 @@ export default {
       displayFields: null,
       roles: null,
       processing: false,
-    };
+    }
   },
   computed: {
-    rbacRoles() {
-      return this.roles.map((x) => x.key);
+    rbacRoles () {
+      return this.roles.map((x) => x.key)
     },
-    rbacRolesDict() {
-      const ret = {};
+    rbacRolesDict () {
+      const ret = {}
       this.roles.forEach((role) => {
-        ret[role.key] = role.value;
-      });
-      return ret;
+        ret[role.key] = role.value
+      })
+      return ret
     },
   },
-  async mounted() {
-    await this.getObjects();
-    await this.getRoles();
-    this.loaded = true;
+  async mounted () {
+    await this.getObjects()
+    await this.getRoles()
+    this.loaded = true
   },
   methods: {
-    getCellName(slot) {
-      return `cell(${slot})`;
+    getCellName (slot) {
+      return `cell(${slot})`
     },
-    async getRoles() {
+    async getRoles () {
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/roles')}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
           },
-        });
+        })
         if (response.ok) {
-          const rbacRoles = await response.json();
-          this.roles = rbacRoles.roles;
+          const rbacRoles = await response.json()
+          this.roles = rbacRoles.roles
         } else {
-          this.$toast.error('Unable to fetch RBAC roles');
-          this.error = true;
+          this.$toast.error('Unable to fetch RBAC roles')
+          this.error = true
         }
       } catch {
-        this.$toast.error('Unable to fetch RBAC roles');
-        this.error = true;
+        this.$toast.error('Unable to fetch RBAC roles')
+        this.error = true
       }
     },
-    async getObjects() {
+    async getObjects () {
       const searchParams = new URLSearchParams({
         resource: this.resource,
         user: this.user_id,
-      });
+      })
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/user/objects')}?${searchParams}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
           },
-        });
+        })
         if (response.ok) {
-          const rbacObjects = await response.json();
-          this.rbacObjects = rbacObjects.objects;
-          this.displayFields = rbacObjects.display_fields;
+          const rbacObjects = await response.json()
+          this.rbacObjects = rbacObjects.objects
+          this.displayFields = rbacObjects.display_fields
         } else {
-          this.$toast.error('Unable to fetch RBAC objects for resource');
-          this.error = true;
+          this.$toast.error('Unable to fetch RBAC objects for resource')
+          this.error = true
         }
       } catch {
-        this.$toast.error('Unable to fetch RBAC objects for resource');
-        this.error = true;
+        this.$toast.error('Unable to fetch RBAC objects for resource')
+        this.error = true
       }
     },
-    async giveRole(object, role) {
-      this.processing = true;
+    async giveRole (object, role) {
+      this.processing = true
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/user/roles/grant')}`, {
           method: 'POST',
@@ -156,20 +156,20 @@ export default {
             object,
             role,
           }),
-        });
+        })
         if (response.ok) {
-          this.$toast.success('Granted role to user');
+          this.$toast.success('Granted role to user')
         } else {
-          this.$toast.error('Unable to grant role to user');
+          this.$toast.error('Unable to grant role to user')
         }
       } catch {
-        this.$toast.error('Unable to grant role to user');
+        this.$toast.error('Unable to grant role to user')
       }
-      await this.getObjects();
-      this.processing = false;
+      await this.getObjects()
+      this.processing = false
     },
-    async revokeRole(object, role) {
-      this.processing = true;
+    async revokeRole (object, role) {
+      this.processing = true
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/user/roles/revoke')}`, {
           method: 'POST',
@@ -182,18 +182,18 @@ export default {
             object,
             role,
           }),
-        });
+        })
         if (response.ok) {
-          this.$toast.success('Revoked role from user');
+          this.$toast.success('Revoked role from user')
         } else {
-          this.$toast.error('Unable to revoke role from user');
+          this.$toast.error('Unable to revoke role from user')
         }
       } catch {
-        this.$toast.error('Unable to revoke role from user');
+        this.$toast.error('Unable to revoke role from user')
       }
-      await this.getObjects();
-      this.processing = false;
+      await this.getObjects()
+      this.processing = false
     },
   },
-};
+}
 </script>

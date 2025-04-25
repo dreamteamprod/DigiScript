@@ -73,8 +73,8 @@
 </template>
 
 <script>
-import { required, minLength, sameAs } from 'vuelidate/lib/validators';
-import { mapActions } from 'vuex';
+import { required, minLength, sameAs } from 'vuelidate/lib/validators'
+import { mapActions } from 'vuex'
 
 export default {
   name: 'CreateUser',
@@ -89,7 +89,7 @@ export default {
       default: null,
     },
   },
-  data() {
+  data () {
     return {
       state: {
         username: this.is_first_admin ? 'admin' : '',
@@ -98,7 +98,7 @@ export default {
         show_id: this.show_id,
         is_admin: this.is_first_admin,
       },
-    };
+    }
   },
   validations: {
     state: {
@@ -116,27 +116,27 @@ export default {
     },
   },
   methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
-      return $dirty ? !$error : null;
+    validateState (name) {
+      const { $dirty, $error } = this.$v.state[name]
+      return $dirty ? !$error : null
     },
-    async createUser(event) {
-      this.$v.state.$touch();
+    async createUser (event) {
+      this.$v.state.$touch()
       if (this.$v.state.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.CREATE_USER(this.state);
-        this.$emit('created_user');
+        await this.CREATE_USER(this.state)
+        this.$emit('created_user')
       }
     },
     ...mapActions(['CREATE_USER']),
   },
   computed: {
-    isDisabled() {
-      return Boolean(this.$v.state.$invalid);
+    isDisabled () {
+      return Boolean(this.$v.state.$invalid)
     },
   },
-};
+}
 </script>
 
 <style scoped>

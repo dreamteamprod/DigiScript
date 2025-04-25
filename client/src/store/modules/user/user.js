@@ -1,10 +1,10 @@
-import Vue from 'vue';
-import log from 'loglevel';
+import Vue from 'vue'
+import log from 'loglevel'
 
-import { makeURL } from '@/js/utils';
-import router from '@/router';
-import { isEmpty } from 'lodash';
-import settings from './settings';
+import { makeURL } from '@/js/utils'
+import router from '@/router'
+import { isEmpty } from 'lodash'
+import settings from './settings'
 
 export default {
   state: {
@@ -13,69 +13,69 @@ export default {
     showUsers: [],
   },
   mutations: {
-    SET_CURRENT_USER(state, user) {
-      state.currentUser = user;
+    SET_CURRENT_USER (state, user) {
+      state.currentUser = user
     },
-    SET_SHOW_USERS(state, users) {
-      state.showUsers = users;
+    SET_SHOW_USERS (state, users) {
+      state.showUsers = users
     },
-    SET_CURRENT_RBAC(state, rbac) {
-      state.currentRbac = rbac;
+    SET_CURRENT_RBAC (state, rbac) {
+      state.currentRbac = rbac
     },
   },
   actions: {
-    async GET_USERS(context) {
-      if (context.getters.CURRENT_USER == null || !context.getters.CURRENT_USER.is_admin
-        || context.rootGetters.CURRENT_SHOW == null) {
-        return;
+    async GET_USERS (context) {
+      if (context.getters.CURRENT_USER == null || !context.getters.CURRENT_USER.is_admin ||
+        context.rootGetters.CURRENT_SHOW == null) {
+        return
       }
       const response = await fetch(`${makeURL('/api/v1/auth/users')}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-      });
+      })
       if (response.ok) {
-        const users = await response.json();
-        await context.commit('SET_SHOW_USERS', users.users);
+        const users = await response.json()
+        await context.commit('SET_SHOW_USERS', users.users)
       } else {
-        log.error('Unable to get users');
-        Vue.$toast.error('Unable to fetch users!');
+        log.error('Unable to get users')
+        Vue.$toast.error('Unable to fetch users!')
       }
     },
-    async CREATE_USER(context, user) {
+    async CREATE_USER (context, user) {
       const response = await fetch(`${makeURL('/api/v1/auth/create')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(user),
-      });
+      })
       if (response.ok) {
-        await context.dispatch('GET_USERS');
-        Vue.$toast.success('User created!');
+        await context.dispatch('GET_USERS')
+        Vue.$toast.success('User created!')
       } else {
-        log.error('Unable to create user');
-        Vue.$toast.error('Unable to create user');
+        log.error('Unable to create user')
+        Vue.$toast.error('Unable to create user')
       }
     },
-    async DELETE_USER(context, userId) {
+    async DELETE_USER (context, userId) {
       const response = await fetch(`${makeURL('/api/v1/auth/delete')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ id: userId }),
-      });
+      })
       if (response.ok) {
-        await context.dispatch('GET_USERS');
-        Vue.$toast.success('User deleted!');
+        await context.dispatch('GET_USERS')
+        Vue.$toast.success('User deleted!')
       } else {
-        log.error('Unable to delete user');
-        Vue.$toast.error('Unable to delete user');
+        log.error('Unable to delete user')
+        Vue.$toast.error('Unable to delete user')
       }
     },
-    async USER_LOGIN(context, user) {
+    async USER_LOGIN (context, user) {
       const response = await fetch(`${makeURL('/api/v1/auth/login')}`, {
         method: 'POST',
         headers: {
@@ -86,20 +86,20 @@ export default {
           password: user.password,
           session_id: context.rootGetters.INTERNAL_UUID,
         }),
-      });
+      })
       if (response.ok) {
-        context.dispatch('GET_RBAC_ROLES');
-        context.dispatch('GET_CURRENT_USER');
-        context.dispatch('GET_CURRENT_RBAC');
-        Vue.$toast.success('Successfully logged in!');
-        return true;
+        context.dispatch('GET_RBAC_ROLES')
+        context.dispatch('GET_CURRENT_USER')
+        context.dispatch('GET_CURRENT_RBAC')
+        Vue.$toast.success('Successfully logged in!')
+        return true
       }
-      const responseBody = await response.json();
-      log.error('Unable to log in');
-      Vue.$toast.error(`Unable to log in! ${responseBody.message}.`);
-      return false;
+      const responseBody = await response.json()
+      log.error('Unable to log in')
+      Vue.$toast.error(`Unable to log in! ${responseBody.message}.`)
+      return false
     },
-    async USER_LOGOUT(context) {
+    async USER_LOGOUT (context) {
       const response = await fetch(`${makeURL('/api/v1/auth/logout')}`, {
         method: 'POST',
         headers: {
@@ -108,50 +108,50 @@ export default {
         body: JSON.stringify({
           session_id: context.rootGetters.INTERNAL_UUID,
         }),
-      });
+      })
       if (response.ok) {
-        await context.commit('SET_CURRENT_USER', null);
-        Vue.$toast.success('Successfully logged out!');
+        await context.commit('SET_CURRENT_USER', null)
+        Vue.$toast.success('Successfully logged out!')
         if (router.currentRoute.path !== '/') {
-          router.push('/');
+          router.push('/')
         }
       } else {
-        log.error('Unable to log out');
-        Vue.$toast.error('Unable to log out!');
+        log.error('Unable to log out')
+        Vue.$toast.error('Unable to log out!')
       }
     },
-    async GET_CURRENT_USER(context) {
-      const response = await fetch(`${makeURL('/api/v1/auth')}`);
+    async GET_CURRENT_USER (context) {
+      const response = await fetch(`${makeURL('/api/v1/auth')}`)
       if (response.ok) {
-        const user = await response.json();
-        const userJson = isEmpty(user) ? null : user;
-        await context.commit('SET_CURRENT_USER', userJson);
+        const user = await response.json()
+        const userJson = isEmpty(user) ? null : user
+        await context.commit('SET_CURRENT_USER', userJson)
       } else {
-        log.error('Unable to get current user');
+        log.error('Unable to get current user')
       }
     },
-    async GET_CURRENT_RBAC(context) {
-      const response = await fetch(`${makeURL('/api/v1/rbac/user/roles')}`);
+    async GET_CURRENT_RBAC (context) {
+      const response = await fetch(`${makeURL('/api/v1/rbac/user/roles')}`)
       if (response.ok) {
-        const rbac = await response.json();
-        await context.commit('SET_CURRENT_RBAC', rbac.roles);
+        const rbac = await response.json()
+        await context.commit('SET_CURRENT_RBAC', rbac.roles)
       } else {
-        log.error('Unable to get current user\'s RBAC roles');
+        log.error('Unable to get current user\'s RBAC roles')
       }
     },
   },
   getters: {
-    CURRENT_USER(state) {
-      return state.currentUser;
+    CURRENT_USER (state) {
+      return state.currentUser
     },
-    SHOW_USERS(state) {
-      return state.showUsers;
+    SHOW_USERS (state) {
+      return state.showUsers
     },
-    CURRENT_USER_RBAC(state) {
-      return state.currentRbac;
+    CURRENT_USER_RBAC (state) {
+      return state.currentRbac
     },
   },
   modules: {
     settings,
   },
-};
+}

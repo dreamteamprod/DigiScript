@@ -126,182 +126,182 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
-import { diff } from 'deep-object-diff';
+import { mapActions, mapGetters } from 'vuex'
+import { diff } from 'deep-object-diff'
 
 export default {
   name: 'MicAllocations',
-  data() {
+  data () {
     return {
       selectedMic: null,
       internalState: {},
       loaded: false,
       saving: false,
       editMode: true,
-    };
+    }
   },
-  async mounted() {
-    await this.resetToStoredAlloc();
-    this.loaded = true;
+  async mounted () {
+    await this.resetToStoredAlloc()
+    this.loaded = true
   },
   methods: {
-    async resetToStoredAlloc() {
-      await this.GET_MIC_ALLOCATIONS();
-      const internalState = {};
+    async resetToStoredAlloc () {
+      await this.GET_MIC_ALLOCATIONS()
+      const internalState = {}
       this.MICROPHONES.forEach(function (mic) {
-        const micData = {};
+        const micData = {}
         this.sortedScenes.forEach((scene) => {
-          micData[scene.id] = this.allAllocations[mic.id][scene.id];
-        }, this);
-        internalState[mic.id] = micData;
-      }, this);
-      this.internalState = internalState;
+          micData[scene.id] = this.allAllocations[mic.id][scene.id]
+        }, this)
+        internalState[mic.id] = micData
+      }, this)
+      this.internalState = internalState
     },
-    numScenesPerAct(actId) {
-      return this.sortedScenes.filter((scene) => scene.act === actId).length;
+    numScenesPerAct (actId) {
+      return this.sortedScenes.filter((scene) => scene.act === actId).length
     },
-    getHeaderName(sceneId) {
-      return `head(${sceneId})`;
+    getHeaderName (sceneId) {
+      return `head(${sceneId})`
     },
-    getCellName(sceneId) {
-      return `cell(${sceneId})`;
+    getCellName (sceneId) {
+      return `cell(${sceneId})`
     },
-    micDisabledForCharacter(micId, sceneId, characterId) {
+    micDisabledForCharacter (micId, sceneId, characterId) {
       if (this.saving) {
-        return true;
+        return true
       }
 
-      let disabled = false;
+      let disabled = false
       // Check this mic isn't allocated to anyone else for this scene
-      if (this.internalState[micId][sceneId] != null
-          && this.internalState[micId][sceneId] !== characterId) {
-        return true;
+      if (this.internalState[micId][sceneId] != null &&
+          this.internalState[micId][sceneId] !== characterId) {
+        return true
       }
       // Check another mic isn't already assigned for this scene
       this.MICROPHONES.map((mic) => (mic.id)).forEach((innerMicId) => {
-        if (this.internalState[innerMicId][sceneId] != null
-            && this.internalState[innerMicId][sceneId] === characterId
-            && innerMicId !== micId) {
-          disabled = true;
+        if (this.internalState[innerMicId][sceneId] != null &&
+            this.internalState[innerMicId][sceneId] === characterId &&
+            innerMicId !== micId) {
+          disabled = true
         }
-      }, this);
-      return disabled;
+      }, this)
+      return disabled
     },
-    toggleAllocation(micId, sceneId, characterId) {
+    toggleAllocation (micId, sceneId, characterId) {
       if (this.internalState[micId][sceneId] === characterId) {
-        this.internalState[micId][sceneId] = null;
+        this.internalState[micId][sceneId] = null
       } else if (this.internalState[micId][sceneId] === null) {
-        this.internalState[micId][sceneId] = characterId;
+        this.internalState[micId][sceneId] = characterId
       }
     },
-    async saveAllocations() {
-      this.saving = true;
-      await this.UPDATE_MIC_ALLOCATIONS(this.changes);
-      await this.resetToStoredAlloc();
-      this.saving = false;
+    async saveAllocations () {
+      this.saving = true
+      await this.UPDATE_MIC_ALLOCATIONS(this.changes)
+      await this.resetToStoredAlloc()
+      this.saving = false
     },
     ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
   },
   computed: {
-    micOptions() {
+    micOptions () {
       return [
         { value: null, text: 'N/A', disabled: true },
         ...this.MICROPHONES.map((mic) => ({ value: mic.id, text: mic.name })),
-      ];
+      ]
     },
-    tableFields() {
-      return ['Character', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
+    tableFields () {
+      return ['Character', ...this.sortedScenes.map((scene) => (scene.id.toString()))]
     },
-    sortedActs() {
+    sortedActs () {
       if (this.CURRENT_SHOW.first_act_id == null) {
-        return [];
+        return []
       }
-      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id)
       if (currentAct == null) {
-        return [];
+        return []
       }
-      const acts = [];
+      const acts = []
       while (currentAct != null) {
-        acts.push(currentAct);
-        currentAct = this.ACT_BY_ID(currentAct.next_act);
+        acts.push(currentAct)
+        currentAct = this.ACT_BY_ID(currentAct.next_act)
       }
-      return acts;
+      return acts
     },
-    sortedScenes() {
+    sortedScenes () {
       if (this.CURRENT_SHOW.first_act_id == null) {
-        return [];
+        return []
       }
 
-      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id)
       if (currentAct == null || currentAct.first_scene == null) {
-        return [];
+        return []
       }
 
-      const scenes = [];
+      const scenes = []
       while (currentAct != null) {
-        let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
+        let currentScene = this.SCENE_BY_ID(currentAct.first_scene)
         while (currentScene != null) {
-          scenes.push(currentScene);
-          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
+          scenes.push(currentScene)
+          currentScene = this.SCENE_BY_ID(currentScene.next_scene)
         }
-        currentAct = this.ACT_BY_ID(currentAct.next_act);
+        currentAct = this.ACT_BY_ID(currentAct.next_act)
       }
-      return scenes;
+      return scenes
     },
-    tableData() {
+    tableData () {
       if (!this.loaded) {
-        return [];
+        return []
       }
       return this.CHARACTER_LIST.map((character) => ({
         Character: character.id,
-      }), this);
+      }), this)
     },
-    allAllocations() {
-      const micData = {};
+    allAllocations () {
+      const micData = {}
       Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
-        const sceneData = {};
-        const allocations = this.MIC_ALLOCATIONS[micId];
+        const sceneData = {}
+        const allocations = this.MIC_ALLOCATIONS[micId]
         allocations.forEach((allocation) => {
-          sceneData[allocation.scene_id] = allocation.character_id;
-        });
+          sceneData[allocation.scene_id] = allocation.character_id
+        })
         this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
           if (!Object.keys(sceneData).includes(sceneId.toString())) {
-            sceneData[sceneId] = null;
+            sceneData[sceneId] = null
           }
-        });
-        micData[micId] = sceneData;
-      }, this);
-      return micData;
+        })
+        micData[micId] = sceneData
+      }, this)
+      return micData
     },
-    changes() {
-      return diff(this.allAllocations, this.internalState);
+    changes () {
+      return diff(this.allAllocations, this.internalState)
     },
-    needsSaving() {
-      return Object.keys(this.changes).length > 0;
+    needsSaving () {
+      return Object.keys(this.changes).length > 0
     },
-    allocationByCharacter() {
-      const charData = {};
+    allocationByCharacter () {
+      const charData = {}
       this.CHARACTER_LIST.map((character) => (character.id)).forEach((characterId) => {
-        const sceneData = {};
+        const sceneData = {}
         this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
-          sceneData[sceneId] = null;
-        });
-        charData[characterId] = sceneData;
-      }, this);
+          sceneData[sceneId] = null
+        })
+        charData[characterId] = sceneData
+      }, this)
       Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
         this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
           if (this.allAllocations[micId][sceneId] != null) {
             charData[this.allAllocations[micId][sceneId]][
-              sceneId] = this.MICROPHONE_BY_ID(micId).name;
+              sceneId] = this.MICROPHONE_BY_ID(micId).name
           }
-        }, this);
-      }, this);
-      return charData;
+        }, this)
+      }, this)
+      return charData
     },
     ...mapGetters(['MICROPHONES', 'CURRENT_SHOW', 'ACT_BY_ID', 'SCENE_BY_ID', 'CHARACTER_LIST',
       'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID']),
   },
-};
+}
 </script>
 
 <style>

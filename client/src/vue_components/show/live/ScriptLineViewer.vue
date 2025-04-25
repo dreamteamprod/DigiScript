@@ -103,8 +103,8 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
-import { contrastColor } from 'contrast-color';
+import { mapGetters } from 'vuex'
+import { contrastColor } from 'contrast-color'
 
 export default {
   name: 'ScriptLineViewer',
@@ -154,151 +154,149 @@ export default {
       type: Array,
     },
   },
-  data() {
+  data () {
     return {
       observer: null,
-    };
+    }
   },
-  mounted() {
-    /* eslint-disable no-restricted-syntax */
+  mounted () {
     this.observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
-        const newValue = m.target.getAttribute(m.attributeName);
+        const newValue = m.target.getAttribute(m.attributeName)
         this.$nextTick(() => {
-          this.onClassChange(newValue, m.oldValue);
-        });
+          this.onClassChange(newValue, m.oldValue)
+        })
       }
-    });
-    /* eslint-enable no-restricted-syntax */
+    })
 
     this.observer.observe(this.$refs.lineContainer, {
       attributes: true,
       attributeOldValue: true,
       attributeFilter: ['class'],
-    });
+    })
   },
-  destroyed() {
-    this.observer.disconnect();
+  destroyed () {
+    this.observer.disconnect()
   },
   methods: {
     contrastColor,
-    onClassChange(classAttrValue, oldClassAttrValue) {
-      const classList = classAttrValue.split(' ');
-      const oldClassList = oldClassAttrValue.split(' ');
+    onClassChange (classAttrValue, oldClassAttrValue) {
+      const classList = classAttrValue.split(' ')
+      const oldClassList = oldClassAttrValue.split(' ')
       if (classList.includes('last-script-element') && !oldClassList.includes('last-script-element')) {
-        this.$emit('last-line-change', this.line.page, this.lineIndex);
+        this.$emit('last-line-change', this.line.page, this.lineIndex)
       }
       if (classList.includes('first-script-element') && !oldClassList.includes('first-script-element')) {
-        let previousLine = null;
+        let previousLine = null
         if (this.previousLine != null) {
-          previousLine = `page_${this.previousLine.page}_line_${this.previousLineIndex}`;
+          previousLine = `page_${this.previousLine.page}_line_${this.previousLineIndex}`
         }
-        this.$emit('first-line-change', this.line.page, this.lineIndex, previousLine);
+        this.$emit('first-line-change', this.line.page, this.lineIndex, previousLine)
       }
     },
-    cueLabel(cue) {
-      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
-      return `${cueType.prefix} ${cue.ident}`;
+    cueLabel (cue) {
+      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id))
+      return `${cueType.prefix} ${cue.ident}`
     },
-    cueBackgroundColour(cue) {
-      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
+    cueBackgroundColour (cue) {
+      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour
     },
-    getPreviousLineForIndex(pageIndex, lineIndex) {
+    getPreviousLineForIndex (pageIndex, lineIndex) {
       if (lineIndex > 0) {
-        return [lineIndex - 1, this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1]];
+        return [lineIndex - 1, this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1]]
       }
-      let loopPageNo = pageIndex - 1;
+      let loopPageNo = pageIndex - 1
       while (loopPageNo >= 1) {
-        const loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        const loopPage = this.GET_SCRIPT_PAGE(loopPageNo)
         if (loopPage.length > 0) {
-          return [loopPage.length - 1, loopPage[loopPage.length - 1]];
+          return [loopPage.length - 1, loopPage[loopPage.length - 1]]
         }
-        loopPageNo -= 1;
+        loopPageNo -= 1
       }
-      return [null, null];
+      return [null, null]
     },
-    isWholeLineCut(line) {
-      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+    isWholeLineCut (line) {
+      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id) ||
+          linePart.line_text == null || linePart.line_text.trim().length === 0), this)
     },
   },
   computed: {
-    needsHeadings() {
-      let { previousLine, lineIndex } = this;
-      while (previousLine != null && (previousLine.stage_direction === true
-          || this.isWholeLineCut(previousLine))) {
-        [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
+    needsHeadings () {
+      let { previousLine, lineIndex } = this
+      while (previousLine != null && (previousLine.stage_direction === true ||
+          this.isWholeLineCut(previousLine))) {
+        [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex)
       }
 
-      const ret = [];
+      const ret = []
       this.line.line_parts.forEach(function (part) {
-        if (previousLine == null
-          || previousLine.line_parts.length !== this.line.line_parts.length) {
-          ret.push(true);
+        if (previousLine == null ||
+          previousLine.line_parts.length !== this.line.line_parts.length) {
+          ret.push(true)
         } else {
           const matchingIndex = previousLine.line_parts.find((prevPart) => (
-            prevPart.part_index === part.part_index));
+            prevPart.part_index === part.part_index))
           if (matchingIndex == null) {
-            ret.push(true);
+            ret.push(true)
           } else {
-            ret.push(!(matchingIndex.character_id === part.character_id
-              && matchingIndex.character_group_id === part.character_group_id));
+            ret.push(!(matchingIndex.character_id === part.character_id &&
+              matchingIndex.character_group_id === part.character_group_id))
           }
         }
-      }, this);
-      return ret;
+      }, this)
+      return ret
     },
-    needsHeadingsAny() {
-      return this.needsHeadings.some((x) => (x === true));
+    needsHeadingsAny () {
+      return this.needsHeadings.some((x) => (x === true))
     },
-    needsHeadingsAll() {
-      return this.needsHeadings.every((x) => (x === true));
+    needsHeadingsAll () {
+      return this.needsHeadings.every((x) => (x === true))
     },
-    needsActSceneLabel() {
+    needsActSceneLabel () {
       if (this.previousLine == null) {
-        return true;
+        return true
       }
-      return !(this.previousLine.act_id === this.line.act_id
-        && this.previousLine.scene_id === this.line.scene_id);
+      return !(this.previousLine.act_id === this.line.act_id &&
+        this.previousLine.scene_id === this.line.scene_id)
     },
-    actLabel() {
-      return this.acts.find((act) => (act.id === this.line.act_id)).name;
+    actLabel () {
+      return this.acts.find((act) => (act.id === this.line.act_id)).name
     },
-    sceneLabel() {
-      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
+    sceneLabel () {
+      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name
     },
-    stageDirectionStyle() {
+    stageDirectionStyle () {
       const sdStyle = this.stageDirectionStyles.find(
-        (style) => (style.id === this.line.stage_direction_style_id),
-      );
+        (style) => (style.id === this.line.stage_direction_style_id)
+      )
       const override = this.stageDirectionStyleOverrides
-        .find((elem) => elem.settings.id === sdStyle.id);
+        .find((elem) => elem.settings.id === sdStyle.id)
       if (this.line.stage_direction) {
-        return override ? override.settings : sdStyle;
+        return override ? override.settings : sdStyle
       }
-      return null;
+      return null
     },
-    stageDirectionStyling() {
+    stageDirectionStyling () {
       if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
         return {
           'background-color': 'darkslateblue',
           'font-style': 'italic',
-        };
+        }
       }
       const style = {
         'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
         'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
         'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
         color: this.stageDirectionStyle.text_colour,
-      };
-      if (this.stageDirectionStyle.enable_background_colour) {
-        style['background-color'] = this.stageDirectionStyle.background_colour;
       }
-      return style;
+      if (this.stageDirectionStyle.enable_background_colour) {
+        style['background-color'] = this.stageDirectionStyle.background_colour
+      }
+      return style
     },
     ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS']),
   },
-};
+}
 </script>
 
 <style scoped>

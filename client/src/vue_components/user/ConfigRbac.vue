@@ -37,8 +37,8 @@
 </template>
 
 <script>
-import { makeURL } from '@/js/utils';
-import RbacResource from '@/vue_components/user/RbacResource.vue';
+import { makeURL } from '@/js/utils'
+import RbacResource from '@/vue_components/user/RbacResource.vue'
 
 export default {
   name: 'ConfigRBAC',
@@ -48,33 +48,33 @@ export default {
       required: true,
     },
   },
-  data() {
+  data () {
     return {
       loaded: false,
       error: false,
       rbacResources: null,
-    };
+    }
   },
-  async mounted() {
+  async mounted () {
     try {
       const response = await fetch(`${makeURL('/api/v1/rbac/user/resources')}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-      });
+      })
       if (response.ok) {
-        const rbacResources = await response.json();
-        this.rbacResources = rbacResources.resources;
+        const rbacResources = await response.json()
+        this.rbacResources = rbacResources.resources
       } else {
-        this.$toast.error('Unable to fetch RBAC configuration for show');
-        this.error = true;
+        this.$toast.error('Unable to fetch RBAC configuration for show')
+        this.error = true
       }
     } catch {
-      this.$toast.error('Unable to fetch RBAC configuration for show');
-      this.error = true;
+      this.$toast.error('Unable to fetch RBAC configuration for show')
+      this.error = true
     }
-    this.loaded = true;
+    this.loaded = true
   },
-};
+}
 </script>

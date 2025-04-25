@@ -184,12 +184,12 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
-import { required } from 'vuelidate/lib/validators';
+import { mapActions, mapGetters } from 'vuex'
+import { required } from 'vuelidate/lib/validators'
 
 export default {
   name: 'ConfigCharacterGroups',
-  data() {
+  data () {
     return {
       characterGroupFields: [
         'name',
@@ -212,7 +212,7 @@ export default {
         description: '',
         characters: [],
       },
-    };
+    }
   },
   validations: {
     newFormState: {
@@ -230,87 +230,87 @@ export default {
       characters: {},
     },
   },
-  async mounted() {
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CHARACTER_GROUP_LIST();
+  async mounted () {
+    await this.GET_CHARACTER_LIST()
+    await this.GET_CHARACTER_GROUP_LIST()
   },
   methods: {
-    newSelectChanged(value, id) {
-      this.$v.newFormState.characters.$model = value.map((character) => (character.id));
+    newSelectChanged (value, id) {
+      this.$v.newFormState.characters.$model = value.map((character) => (character.id))
     },
-    resetNewForm() {
-      this.tempCharacterList = [];
+    resetNewForm () {
+      this.tempCharacterList = []
       this.newFormState = {
         name: '',
         description: '',
         characters: [],
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
+    async onSubmitNew (event) {
+      this.$v.newFormState.$touch()
       if (this.$v.newFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.ADD_CHARACTER_GROUP(this.newFormState);
-        this.resetNewForm();
+        await this.ADD_CHARACTER_GROUP(this.newFormState)
+        this.resetNewForm()
       }
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+    validateNewState (name) {
+      const { $dirty, $error } = this.$v.newFormState[name]
+      return $dirty ? !$error : null
     },
-    async deleteCharacterGroup(characterGroup) {
-      const msg = `Are you sure you want to delete ${characterGroup.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async deleteCharacterGroup (characterGroup) {
+      const msg = `Are you sure you want to delete ${characterGroup.item.name}?`
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.DELETE_CHARACTER_GROUP(characterGroup.item.id);
+        await this.DELETE_CHARACTER_GROUP(characterGroup.item.id)
       }
     },
-    openEditForm(characterGroup) {
+    openEditForm (characterGroup) {
       if (characterGroup != null) {
-        this.editFormState.id = characterGroup.item.id;
-        this.editFormState.name = characterGroup.item.name;
-        this.editFormState.description = characterGroup.item.description;
-        this.editFormState.characters = characterGroup.item.characters;
+        this.editFormState.id = characterGroup.item.id
+        this.editFormState.name = characterGroup.item.name
+        this.editFormState.description = characterGroup.item.description
+        this.editFormState.characters = characterGroup.item.characters
 
         this.tempEditCharacterList.push(...this.CHARACTER_LIST.filter((character) => (
-          this.editFormState.characters.includes(character.id))));
+          this.editFormState.characters.includes(character.id))))
 
-        this.$bvModal.show('edit-character-group');
+        this.$bvModal.show('edit-character-group')
       }
     },
-    resetEditForm() {
+    resetEditForm () {
       this.editFormState = {
         id: null,
         name: '',
         description: '',
         characters: [],
-      };
-      this.tempEditCharacterList = [];
+      }
+      this.tempEditCharacterList = []
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    editSelectChanged(value, id) {
-      this.$v.editFormState.characters.$model = value.map((character) => (character.id));
+    editSelectChanged (value, id) {
+      this.$v.editFormState.characters.$model = value.map((character) => (character.id))
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
+    async onSubmitEdit (event) {
+      this.$v.editFormState.$touch()
       if (this.$v.editFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.UPDATE_CHARACTER_GROUP(this.editFormState);
-        this.resetEditForm();
+        await this.UPDATE_CHARACTER_GROUP(this.editFormState)
+        this.resetEditForm()
       }
     },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
+    validateEditState (name) {
+      const { $dirty, $error } = this.$v.editFormState[name]
+      return $dirty ? !$error : null
     },
     ...mapActions(['GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'ADD_CHARACTER_GROUP',
       'DELETE_CHARACTER_GROUP', 'UPDATE_CHARACTER_GROUP']),
@@ -318,7 +318,7 @@ export default {
   computed: {
     ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
   },
-};
+}
 </script>
 
 <style scoped>

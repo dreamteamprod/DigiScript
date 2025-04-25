@@ -67,15 +67,15 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
+import { mapActions, mapGetters } from 'vuex'
 
-import CreateUser from '@/vue_components/user/CreateUser.vue';
-import ConfigRbac from '@/vue_components/user/ConfigRbac.vue';
+import CreateUser from '@/vue_components/user/CreateUser.vue'
+import ConfigRbac from '@/vue_components/user/ConfigRbac.vue'
 
 export default {
   name: 'ConfigUsers',
   components: { CreateUser, ConfigRbac },
-  data() {
+  data () {
     return {
       userFields: [
         'username',
@@ -84,23 +84,23 @@ export default {
         { key: 'btn', label: '' },
       ],
       editUser: null,
-    };
+    }
   },
-  async mounted() {
-    await this.GET_USERS();
+  async mounted () {
+    await this.GET_USERS()
   },
   methods: {
-    resetNewForm() {
-      this.$bvModal.hide('new-user');
+    resetNewForm () {
+      this.$bvModal.hide('new-user')
     },
-    setEditUser(userId) {
-      this.editUser = userId;
+    setEditUser (userId) {
+      this.editUser = userId
     },
-    async deleteUser(data) {
-      const msg = `Are you sure you want to delete ${data.item.username}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async deleteUser (data) {
+      const msg = `Are you sure you want to delete ${data.item.username}?`
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.DELETE_USER(data.item.id);
+        await this.DELETE_USER(data.item.id)
       }
     },
     ...mapActions(['GET_USERS', 'DELETE_USER']),
@@ -108,5 +108,5 @@ export default {
   computed: {
     ...mapGetters(['SHOW_USERS', 'CURRENT_SHOW']),
   },
-};
+}
 </script>

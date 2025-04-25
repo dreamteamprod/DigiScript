@@ -154,12 +154,12 @@
 </template>
 
 <script>
-import { required } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
+import { required } from 'vuelidate/lib/validators'
+import { mapGetters, mapActions } from 'vuex'
 
 export default {
   name: 'ConfigCast',
-  data() {
+  data () {
     return {
       castFields: [
         'first_name',
@@ -178,7 +178,7 @@ export default {
         firstName: '',
         lastName: '',
       },
-    };
+    }
   },
   validations: {
     newFormState: {
@@ -198,72 +198,72 @@ export default {
       },
     },
   },
-  async mounted() {
-    await this.GET_CAST_LIST();
+  async mounted () {
+    await this.GET_CAST_LIST()
   },
   methods: {
-    resetNewForm() {
+    resetNewForm () {
       this.newFormState = {
         firstName: '',
         lastName: '',
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
+    async onSubmitNew (event) {
+      this.$v.newFormState.$touch()
       if (this.$v.newFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.ADD_CAST_MEMBER(this.newFormState);
-        this.resetNewForm();
+        await this.ADD_CAST_MEMBER(this.newFormState)
+        this.resetNewForm()
       }
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+    validateNewState (name) {
+      const { $dirty, $error } = this.$v.newFormState[name]
+      return $dirty ? !$error : null
     },
-    openEditForm(castMember) {
+    openEditForm (castMember) {
       if (castMember != null) {
-        this.editFormState.id = castMember.item.id;
-        this.editFormState.showID = castMember.item.show_id;
-        this.editFormState.firstName = castMember.item.first_name;
-        this.editFormState.lastName = castMember.item.last_name;
-        this.$bvModal.show('edit-cast');
+        this.editFormState.id = castMember.item.id
+        this.editFormState.showID = castMember.item.show_id
+        this.editFormState.firstName = castMember.item.first_name
+        this.editFormState.lastName = castMember.item.last_name
+        this.$bvModal.show('edit-cast')
       }
     },
-    resetEditForm() {
+    resetEditForm () {
       this.editFormState = {
         id: null,
         showID: null,
         firstName: '',
         lastName: '',
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
+    async onSubmitEdit (event) {
+      this.$v.editFormState.$touch()
       if (this.$v.editFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.UPDATE_CAST_MEMBER(this.editFormState);
-        this.resetEditForm();
+        await this.UPDATE_CAST_MEMBER(this.editFormState)
+        this.resetEditForm()
       }
     },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
+    validateEditState (name) {
+      const { $dirty, $error } = this.$v.editFormState[name]
+      return $dirty ? !$error : null
     },
-    async deleteCastMember(castMember) {
-      const msg = `Are you sure you want to delete ${castMember.item.first_name} ${castMember.item.last_name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async deleteCastMember (castMember) {
+      const msg = `Are you sure you want to delete ${castMember.item.first_name} ${castMember.item.last_name}?`
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.DELETE_CAST_MEMBER(castMember.item.id);
+        await this.DELETE_CAST_MEMBER(castMember.item.id)
       }
     },
     ...mapActions(['GET_CAST_LIST', 'ADD_CAST_MEMBER', 'DELETE_CAST_MEMBER', 'UPDATE_CAST_MEMBER']),
@@ -271,7 +271,7 @@ export default {
   computed: {
     ...mapGetters(['CAST_LIST']),
   },
-};
+}
 </script>
 
 <style scoped>

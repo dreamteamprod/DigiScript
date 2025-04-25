@@ -24,11 +24,11 @@
 </template>
 
 <script>
-import StageDirectionStyles from '@/vue_components/user/settings/StageDirectionStyles.vue';
-import AboutUserUser from '@/vue_components/user/settings/AboutUser.vue';
+import StageDirectionStyles from '@/vue_components/user/settings/StageDirectionStyles.vue'
+import AboutUserUser from '@/vue_components/user/settings/AboutUser.vue'
 
 export default {
   name: 'UserSettings',
   components: { AboutUser: AboutUserUser, StageDirectionStyles },
-};
+}
 </script>

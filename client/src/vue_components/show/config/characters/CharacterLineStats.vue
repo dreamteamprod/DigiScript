@@ -68,109 +68,109 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
-import { makeURL } from '@/js/utils';
-import log from 'loglevel';
+import { mapActions, mapGetters } from 'vuex'
+import { makeURL } from '@/js/utils'
+import log from 'loglevel'
 
 export default {
   name: 'CharacterLineStats',
-  data() {
+  data () {
     return {
       loaded: false,
       characterStats: {},
-    };
+    }
   },
-  async mounted() {
-    await this.GET_ACT_LIST();
-    await this.GET_SCENE_LIST();
-    await this.getCharacterStats();
-    this.loaded = true;
+  async mounted () {
+    await this.GET_ACT_LIST()
+    await this.GET_SCENE_LIST()
+    await this.getCharacterStats()
+    this.loaded = true
   },
   methods: {
-    numScenesPerAct(actId) {
-      return this.sortedScenes.filter((scene) => scene.act === actId).length;
+    numScenesPerAct (actId) {
+      return this.sortedScenes.filter((scene) => scene.act === actId).length
     },
-    getHeaderName(sceneId) {
-      return `head(${sceneId})`;
+    getHeaderName (sceneId) {
+      return `head(${sceneId})`
     },
-    getCellName(sceneId) {
-      return `cell(${sceneId})`;
+    getCellName (sceneId) {
+      return `cell(${sceneId})`
     },
-    async getCharacterStats() {
-      const response = await fetch(`${makeURL('/api/v1/show/character/stats')}`);
+    async getCharacterStats () {
+      const response = await fetch(`${makeURL('/api/v1/show/character/stats')}`)
       if (response.ok) {
-        this.characterStats = await response.json();
+        this.characterStats = await response.json()
       } else {
-        log.error('Unable to get character stats!');
+        log.error('Unable to get character stats!')
       }
     },
-    getLineCountForCharacter(characterId, actId, sceneId) {
+    getLineCountForCharacter (characterId, actId, sceneId) {
       if (!Object.keys(this.characterStats).includes('line_counts')) {
-        return 0;
+        return 0
       }
-      const lineCounts = this.characterStats.line_counts;
+      const lineCounts = this.characterStats.line_counts
       if (Object.keys(lineCounts).includes(characterId.toString())) {
-        const characterCounts = this.characterStats.line_counts[characterId];
+        const characterCounts = this.characterStats.line_counts[characterId]
         if (Object.keys(characterCounts).includes(actId.toString())) {
-          const actCounts = characterCounts[actId];
+          const actCounts = characterCounts[actId]
           if (Object.keys(actCounts).includes(sceneId.toString())) {
-            return actCounts[sceneId];
+            return actCounts[sceneId]
           }
         }
       }
-      return 0;
+      return 0
     },
     ...mapActions(['GET_ACT_LIST', 'GET_SCENE_LIST']),
   },
   computed: {
-    tableData() {
+    tableData () {
       if (!this.loaded) {
-        return [];
+        return []
       }
       return this.CHARACTER_LIST.map((character) => ({
         Character: character.id,
-      }), this);
+      }), this)
     },
-    tableFields() {
-      return ['Character', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
+    tableFields () {
+      return ['Character', ...this.sortedScenes.map((scene) => (scene.id.toString()))]
     },
-    sortedActs() {
+    sortedActs () {
       if (this.CURRENT_SHOW.first_act_id == null) {
-        return [];
+        return []
       }
-      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id)
       if (currentAct == null) {
-        return [];
+        return []
       }
-      const acts = [];
+      const acts = []
       while (currentAct != null) {
-        acts.push(currentAct);
-        currentAct = this.ACT_BY_ID(currentAct.next_act);
+        acts.push(currentAct)
+        currentAct = this.ACT_BY_ID(currentAct.next_act)
       }
-      return acts;
+      return acts
     },
-    sortedScenes() {
+    sortedScenes () {
       if (this.CURRENT_SHOW.first_act_id == null) {
-        return [];
+        return []
       }
 
-      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id)
       if (currentAct == null || currentAct.first_scene == null) {
-        return [];
+        return []
       }
 
-      const scenes = [];
+      const scenes = []
       while (currentAct != null) {
-        let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
+        let currentScene = this.SCENE_BY_ID(currentAct.first_scene)
         while (currentScene != null) {
-          scenes.push(currentScene);
-          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
+          scenes.push(currentScene)
+          currentScene = this.SCENE_BY_ID(currentScene.next_scene)
         }
-        currentAct = this.ACT_BY_ID(currentAct.next_act);
+        currentAct = this.ACT_BY_ID(currentAct.next_act)
       }
-      return scenes;
+      return scenes
     },
     ...mapGetters(['ACT_BY_ID', 'SCENE_BY_ID', 'CURRENT_SHOW', 'CHARACTER_BY_ID', 'CHARACTER_LIST']),
   },
-};
+}
 </script>

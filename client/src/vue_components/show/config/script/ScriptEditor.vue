@@ -278,21 +278,21 @@
 </template>
 
 <script>
-import { mapGetters, mapMutations, mapActions } from 'vuex';
-import { required, minValue } from 'vuelidate/lib/validators';
-import { diff } from 'deep-object-diff';
-import log from 'loglevel';
-import { sample } from 'lodash';
+import { mapGetters, mapMutations, mapActions } from 'vuex'
+import { required, minValue } from 'vuelidate/lib/validators'
+import { diff } from 'deep-object-diff'
+import log from 'loglevel'
+import { sample } from 'lodash'
 
-import ScriptLineEditor from '@/vue_components/show/config/script/ScriptLineEditor.vue';
-import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineViewer.vue';
-import { makeURL, randInt } from '@/js/utils';
-import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import ScriptLineEditor from '@/vue_components/show/config/script/ScriptLineEditor.vue'
+import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineViewer.vue'
+import { makeURL, randInt } from '@/js/utils'
+import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators'
 
 export default {
   name: 'ScriptConfig',
   components: { ScriptLineViewer, ScriptLineEditor },
-  data() {
+  data () {
     return {
       currentEditPage: 1,
       editPages: [],
@@ -322,7 +322,7 @@ export default {
       latestAddedLine: null,
       linePartCuts: [],
       insertMode: false,
-    };
+    }
   },
   validations: {
     debugFormState: {
@@ -348,407 +348,405 @@ export default {
       },
     },
   },
-  async beforeMount() {
+  async beforeMount () {
     // Get the current user
-    await this.GET_CURRENT_USER();
+    await this.GET_CURRENT_USER()
     // Config status
-    await this.GET_SCRIPT_CONFIG_STATUS();
+    await this.GET_SCRIPT_CONFIG_STATUS()
     // Show details
-    await this.GET_ACT_LIST();
-    await this.GET_SCENE_LIST();
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CHARACTER_GROUP_LIST();
+    await this.GET_ACT_LIST()
+    await this.GET_SCENE_LIST()
+    await this.GET_CHARACTER_LIST()
+    await this.GET_CHARACTER_GROUP_LIST()
     // Stage direction styles
-    await this.GET_STAGE_DIRECTION_STYLES();
+    await this.GET_STAGE_DIRECTION_STYLES()
     // User related stuff
     if (this.CURRENT_USER != null) {
-      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES()
     }
     // Handle script cuts
-    await this.GET_CUTS();
-    this.resetCutsToSaved();
+    await this.GET_CUTS()
+    this.resetCutsToSaved()
 
     // Get the max page of the saved version of the script
-    await this.getMaxScriptPage();
+    await this.getMaxScriptPage()
 
     // Initialisation of page data
-    const storedPage = localStorage.getItem('scriptEditPage');
+    const storedPage = localStorage.getItem('scriptEditPage')
     if (storedPage != null) {
-      this.currentEditPage = parseInt(storedPage, 10);
+      this.currentEditPage = parseInt(storedPage, 10)
     }
-    await this.goToPageInner(this.currentEditPage);
+    await this.goToPageInner(this.currentEditPage)
   },
-  mounted() {
-    this.loaded = true;
+  mounted () {
+    this.loaded = true
   },
-  created() {
+  created () {
     window.addEventListener('keydown', (e) => {
       if (e.shiftKey && this.canEdit) {
-        this.insertMode = true;
+        this.insertMode = true
       }
-    });
+    })
     window.addEventListener('keyup', (e) => {
       if (e.key === 'Shift' && this.insertMode && this.canEdit) {
-        this.insertMode = false;
+        this.insertMode = false
       }
-    });
+    })
   },
   methods: {
-    async getMaxScriptPage() {
+    async getMaxScriptPage () {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-      });
+      })
       if (response.ok) {
-        const respJson = await response.json();
-        this.currentMaxPage = respJson.max_page;
+        const respJson = await response.json()
+        this.currentMaxPage = respJson.max_page
       } else {
-        log.error('Unable to get current max page');
+        log.error('Unable to get current max page')
       }
     },
-    requestEdit() {
+    requestEdit () {
       this.$socket.sendObj({
         OP: 'REQUEST_SCRIPT_EDIT',
         DATA: {},
-      });
+      })
     },
-    requestCutEdit() {
-      this.SET_CUT_MODE(true);
+    requestCutEdit () {
+      this.SET_CUT_MODE(true)
       this.$socket.sendObj({
         OP: 'REQUEST_SCRIPT_EDIT',
         DATA: {},
-      });
+      })
     },
-    resetCutsToSaved() {
-      this.linePartCuts = JSON.parse(JSON.stringify(this.SCRIPT_CUTS));
+    resetCutsToSaved () {
+      this.linePartCuts = JSON.parse(JSON.stringify(this.SCRIPT_CUTS))
     },
-    async stopEditing() {
+    async stopEditing () {
       if (this.scriptChanges) {
-        const msg = 'Are you sure you want to stop editing the script? '
-          + 'This will cause all unsaved changes to be lost';
-        const action = await this.$bvModal.msgBoxConfirm(msg, {});
+        const msg = 'Are you sure you want to stop editing the script? ' +
+          'This will cause all unsaved changes to be lost'
+        const action = await this.$bvModal.msgBoxConfirm(msg, {})
         if (action === false) {
-          return;
+          return
         }
       }
-      this.editPages = [];
-      this.RESET_TO_SAVED(this.currentEditPage);
-      this.resetCutsToSaved();
+      this.editPages = []
+      this.RESET_TO_SAVED(this.currentEditPage)
+      this.resetCutsToSaved()
       this.$socket.sendObj({
         OP: 'STOP_SCRIPT_EDIT',
         DATA: {},
-      });
-      this.SET_CUT_MODE(false);
+      })
+      this.SET_CUT_MODE(false)
     },
-    async decrPage() {
+    async decrPage () {
       if (this.currentEditPage > 1) {
         if (!Object.keys(this.TMP_SCRIPT).includes((this.currentEditPage - 1).toString())) {
-          this.ADD_BLANK_PAGE(this.currentEditPage - 1);
+          this.ADD_BLANK_PAGE(this.currentEditPage - 1)
         }
         if (this.TMP_SCRIPT[this.currentEditPageKey].length === 0) {
-          this.REMOVE_PAGE(this.currentEditPage);
+          this.REMOVE_PAGE(this.currentEditPage)
         }
-        this.currentEditPage--;
+        this.currentEditPage--
 
         // Pre-load previous page
-        await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
+        await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1)
       }
     },
-    async incrPage() {
-      this.currentEditPage++;
+    async incrPage () {
+      this.currentEditPage++
       if (!Object.keys(this.TMP_SCRIPT).includes(this.currentEditPageKey)) {
-        this.ADD_BLANK_PAGE(this.currentEditPage);
+        this.ADD_BLANK_PAGE(this.currentEditPage)
       }
       // Pre-load next page
-      await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
+      await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1)
     },
-    async addNewLine() {
+    async addNewLine () {
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: this.blankLineObj,
-      });
-      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
-      const lineIdent = `page_${this.currentEditPage}_line_${lineIndex}`;
-      this.editPages.push(lineIdent);
-      this.latestAddedLine = lineIdent;
-      const prevLine = await this.getPreviousLineForIndex(lineIndex);
+      })
+      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1
+      const lineIdent = `page_${this.currentEditPage}_line_${lineIndex}`
+      this.editPages.push(lineIdent)
+      this.latestAddedLine = lineIdent
+      const prevLine = await this.getPreviousLineForIndex(lineIndex)
       if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id
       }
     },
-    async addStageDirection() {
-      const stageDirectionObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      stageDirectionObject.stage_direction = true;
+    async addStageDirection () {
+      const stageDirectionObject = JSON.parse(JSON.stringify(this.blankLineObj))
+      stageDirectionObject.stage_direction = true
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: stageDirectionObject,
-      });
-      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
-      this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
-      const prevLine = await this.getPreviousLineForIndex(lineIndex);
+      })
+      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1
+      this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`)
+      const prevLine = await this.getPreviousLineForIndex(lineIndex)
       if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id
       }
     },
-    async getPreviousLineForIndex(lineIndex) {
+    async getPreviousLineForIndex (lineIndex) {
       if (lineIndex > 0) {
-        return this.TMP_SCRIPT[this.currentEditPage][lineIndex - 1];
+        return this.TMP_SCRIPT[this.currentEditPage][lineIndex - 1]
       }
       if (this.currentEditPage > 1) {
-        let loopPageNo = this.currentEditPage - 1;
-        /* eslint-disable no-await-in-loop */
+        let loopPageNo = this.currentEditPage - 1
+
         while (loopPageNo >= 1) {
-          let loopPage = null;
+          let loopPage = null
           if (Object.keys(this.TMP_SCRIPT).includes(loopPageNo.toString())) {
-            loopPage = this.TMP_SCRIPT[loopPageNo.toString()];
+            loopPage = this.TMP_SCRIPT[loopPageNo.toString()]
           } else {
-            await this.LOAD_SCRIPT_PAGE(loopPageNo);
-            loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+            await this.LOAD_SCRIPT_PAGE(loopPageNo)
+            loopPage = this.GET_SCRIPT_PAGE(loopPageNo)
           }
           if (loopPage.length > 0) {
-            return loopPage[loopPage.length - 1];
+            return loopPage[loopPage.length - 1]
           }
-          loopPageNo -= 1;
+          loopPageNo -= 1
         }
-        /* eslint-enable no-await-in-loop */
       }
-      return null;
+      return null
     },
-    async getNextLineForIndex(lineIndex) {
+    async getNextLineForIndex (lineIndex) {
       // If there are lines after this one on the page, return the next line from the page
       if (lineIndex < this.TMP_SCRIPT[this.currentEditPage].length - 1) {
-        return this.TMP_SCRIPT[this.currentEditPage][lineIndex + 1];
+        return this.TMP_SCRIPT[this.currentEditPage][lineIndex + 1]
       }
       // See if there are any edit pages loaded which are after this page, and if so, return the
       // first line from the first page which contains lines
-      const editPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort();
+      const editPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort()
       for (let i = 0; i < editPages.length; i++) {
-        const editPage = editPages[i];
+        const editPage = editPages[i]
         if (editPage <= this.currentEditPage) {
-          break;
+          break
         }
-        const pageContent = this.TMP_SCRIPT[editPage.toString()];
+        const pageContent = this.TMP_SCRIPT[editPage.toString()]
         if (pageContent.length > 0) {
-          return pageContent[0];
+          return pageContent[0]
         }
       }
       // Edit pages do not have any lines we can use, so try loading script pages up to the max
       // page that is saved
-      /* eslint-disable no-await-in-loop */
+
       for (let i = this.currentEditPage + 1; i <= this.currentMaxPage; i++) {
-        await this.LOAD_SCRIPT_PAGE(i);
-        const loopPage = this.GET_SCRIPT_PAGE(i);
+        await this.LOAD_SCRIPT_PAGE(i)
+        const loopPage = this.GET_SCRIPT_PAGE(i)
         if (loopPage.length > 0) {
-          return loopPage[0];
+          return loopPage[0]
         }
       }
-      /* eslint-enable no-await-in-loop */
-      return null;
+
+      return null
     },
-    lineChange(line, index) {
+    lineChange (line, index) {
       this.SET_LINE({
         pageNo: this.currentEditPage,
         lineIndex: index,
         lineObj: line,
-      });
+      })
     },
-    beginEditingLine(pageIndex, lineIndex) {
-      const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);
+    beginEditingLine (pageIndex, lineIndex) {
+      const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`)
       if (index === -1) {
-        this.editPages.push(`page_${pageIndex}_line_${lineIndex}`);
+        this.editPages.push(`page_${pageIndex}_line_${lineIndex}`)
       }
     },
-    doneEditingLine(pageIndex, lineIndex) {
-      const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
-      const index = this.editPages.indexOf(lineIdent);
+    doneEditingLine (pageIndex, lineIndex) {
+      const lineIdent = `page_${pageIndex}_line_${lineIndex}`
+      const index = this.editPages.indexOf(lineIdent)
       if (index !== -1) {
-        this.editPages.splice(index, 1);
+        this.editPages.splice(index, 1)
       }
       if (this.latestAddedLine === lineIdent) {
-        this.addNewLine();
+        this.addNewLine()
       }
     },
-    deleteLine(pageIndex, lineIndex) {
+    deleteLine (pageIndex, lineIndex) {
       if (this.latestAddedLine === `page_${pageIndex}_line_${lineIndex}`) {
-        this.latestAddedLine = null;
+        this.latestAddedLine = null
       }
       this.DELETE_LINE({
         pageNo: pageIndex,
         lineIndex,
-      });
-      this.doneEditingLine(pageIndex, lineIndex);
+      })
+      this.doneEditingLine(pageIndex, lineIndex)
 
       this.editPages.forEach(function (editPage, index) {
-        const editParts = editPage.split('_');
-        const editPageIndex = parseInt(editParts[1], 10);
-        const editIndex = parseInt(editParts[3], 10);
+        const editParts = editPage.split('_')
+        const editPageIndex = parseInt(editParts[1], 10)
+        const editIndex = parseInt(editParts[3], 10)
         if (editPageIndex === pageIndex && editIndex >= lineIndex) {
-          this.editPages[index] = `page_${editPageIndex}_line_${editIndex - 1}`;
+          this.editPages[index] = `page_${editPageIndex}_line_${editIndex - 1}`
         }
-      }, this);
+      }, this)
 
       if (this.latestAddedLine != null) {
-        const editParts = this.latestAddedLine.split('_');
-        const editPageIndex = parseInt(editParts[1], 10);
-        const editIndex = parseInt(editParts[3], 10);
+        const editParts = this.latestAddedLine.split('_')
+        const editPageIndex = parseInt(editParts[1], 10)
+        const editIndex = parseInt(editParts[3], 10)
         if (editPageIndex === pageIndex && editIndex >= lineIndex) {
-          this.latestAddedLine = `page_${pageIndex}_line_${editIndex - 1}`;
+          this.latestAddedLine = `page_${pageIndex}_line_${editIndex - 1}`
         }
       }
     },
-    cutLinePart(linePartId) {
-      const index = this.linePartCuts.indexOf(linePartId);
+    cutLinePart (linePartId) {
+      const index = this.linePartCuts.indexOf(linePartId)
       if (index === -1) {
-        this.linePartCuts.push(linePartId);
+        this.linePartCuts.push(linePartId)
       } else {
-        this.linePartCuts.splice(index, 1);
+        this.linePartCuts.splice(index, 1)
       }
     },
-    async insertLineAt(pageIndex, lineIndex) {
+    async insertLineAt (pageIndex, lineIndex) {
       if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
-        await this.addNewLine();
-        return;
+        await this.addNewLine()
+        return
       }
 
-      const newLineIndex = lineIndex + 1;
+      const newLineIndex = lineIndex + 1
       this.INSERT_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineIndex: newLineIndex,
         lineObj: this.blankLineObj,
-      });
+      })
       this.editPages.forEach(function (editPage, index) {
-        const editParts = editPage.split('_');
-        const editPageIndex = parseInt(editParts[1], 10);
-        const editIndex = parseInt(editParts[3], 10);
+        const editParts = editPage.split('_')
+        const editPageIndex = parseInt(editParts[1], 10)
+        const editIndex = parseInt(editParts[3], 10)
         if (editPageIndex === pageIndex && editIndex >= newLineIndex) {
-          this.editPages[index] = `page_${editPageIndex}_line_${editIndex + 1}`;
+          this.editPages[index] = `page_${editPageIndex}_line_${editIndex + 1}`
         }
-      }, this);
+      }, this)
 
-      const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
-      this.editPages.push(lineIdent);
-      const prevLine = await this.getPreviousLineForIndex(newLineIndex);
+      const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`
+      this.editPages.push(lineIdent)
+      const prevLine = await this.getPreviousLineForIndex(newLineIndex)
       if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
+        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id
+        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id
       }
     },
-    async saveScript() {
+    async saveScript () {
       if (!this.IS_CUT_MODE) {
         if (this.scriptChanges) {
-          this.savingInProgress = true;
-          this.totalSavePages = Object.keys(this.TMP_SCRIPT).length;
-          this.curSavePage = 0;
-          this.$bvModal.show('save-script');
+          this.savingInProgress = true
+          this.totalSavePages = Object.keys(this.TMP_SCRIPT).length
+          this.curSavePage = 0
+          this.$bvModal.show('save-script')
 
           const orderedPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort(
-            (a, b) => a - b,
-          );
+            (a, b) => a - b
+          )
 
-          /* eslint-disable no-await-in-loop, no-restricted-syntax */
           for (const pageNo of orderedPages) {
-            this.curSavePage = pageNo;
+            this.curSavePage = pageNo
             // Check whether the page actually has any lines on it, and if not then skip
-            const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
+            const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()]
             if (tmpScriptPage.length !== 0) {
               // Check the actual script to see if the page exists or not
-              const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
+              const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo)
               if (actualScriptPage.length === 0) {
                 // New page
-                const response = await this.SAVE_NEW_PAGE(pageNo);
+                const response = await this.SAVE_NEW_PAGE(pageNo)
                 if (response) {
-                  await this.LOAD_SCRIPT_PAGE(pageNo);
-                  this.ADD_BLANK_PAGE(pageNo);
-                  this.RESET_DELETED(pageNo);
-                  this.RESET_INSERTED(pageNo);
+                  await this.LOAD_SCRIPT_PAGE(pageNo)
+                  this.ADD_BLANK_PAGE(pageNo)
+                  this.RESET_DELETED(pageNo)
+                  this.RESET_INSERTED(pageNo)
                 } else {
-                  this.$toast.error('Unable to save script. Please try again.');
-                  this.saveError = true;
-                  break;
+                  this.$toast.error('Unable to save script. Please try again.')
+                  this.saveError = true
+                  break
                 }
               } else {
                 // Existing page, check if anything has changed before saving
-                const lineDiff = diff(actualScriptPage, tmpScriptPage);
-                if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
-                    || this.INSERTED_LINES(pageNo).length > 0) {
-                  const response = await this.SAVE_CHANGED_PAGE(pageNo);
+                const lineDiff = diff(actualScriptPage, tmpScriptPage)
+                if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0 ||
+                    this.INSERTED_LINES(pageNo).length > 0) {
+                  const response = await this.SAVE_CHANGED_PAGE(pageNo)
                   if (response) {
-                    await this.LOAD_SCRIPT_PAGE(pageNo);
-                    this.ADD_BLANK_PAGE(pageNo);
-                    this.RESET_DELETED(pageNo);
-                    this.RESET_INSERTED(pageNo);
+                    await this.LOAD_SCRIPT_PAGE(pageNo)
+                    this.ADD_BLANK_PAGE(pageNo)
+                    this.RESET_DELETED(pageNo)
+                    this.RESET_INSERTED(pageNo)
                   } else {
-                    this.$toast.error('Unable to save script. Please try again.');
-                    this.saveError = true;
-                    break;
+                    this.$toast.error('Unable to save script. Please try again.')
+                    this.saveError = true
+                    break
                   }
                 }
               }
             }
           }
-          /* eslint-enable no-await-in-loop, no-restricted-syntax */
-          this.savingInProgress = false;
+
+          this.savingInProgress = false
         } else {
-          this.$toast.warning('No changes to save!');
+          this.$toast.warning('No changes to save!')
         }
-        await this.getMaxScriptPage();
+        await this.getMaxScriptPage()
       } else {
-        this.savingInProgress = true;
-        await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
-        this.resetCutsToSaved();
-        this.savingInProgress = false;
+        this.savingInProgress = true
+        await this.SAVE_SCRIPT_CUTS(this.linePartCuts)
+        this.resetCutsToSaved()
+        this.savingInProgress = false
       }
     },
-    validateDebugState(name) {
-      const { $dirty, $error } = this.$v.debugFormState[name];
-      return $dirty ? !$error : null;
+    validateDebugState (name) {
+      const { $dirty, $error } = this.$v.debugFormState[name]
+      return $dirty ? !$error : null
     },
-    async generateDebugScript(event) {
-      this.$v.debugFormState.$touch();
+    async generateDebugScript (event) {
+      this.$v.debugFormState.$touch()
       if (this.$v.debugFormState.$anyError) {
-        event.preventDefault();
-        return;
+        event.preventDefault()
+        return
       }
 
-      const firstActId = this.CURRENT_SHOW.first_act_id;
+      const firstActId = this.CURRENT_SHOW.first_act_id
       if (firstActId == null) {
-        this.$toast.error('Unable to generate script as first act has not been set!');
-        return;
+        this.$toast.error('Unable to generate script as first act has not been set!')
+        return
       }
 
-      const firstAct = this.ACT_LIST.find((act) => (act.id === firstActId));
+      const firstAct = this.ACT_LIST.find((act) => (act.id === firstActId))
       if (firstAct == null) {
-        log.error(`Could not find act with ID ${firstActId}`);
-        this.$toast.error('Unable to generate script!');
-        return;
+        log.error(`Could not find act with ID ${firstActId}`)
+        this.$toast.error('Unable to generate script!')
+        return
       }
 
       if (this.CHARACTER_LIST.length === 0 && this.CHARACTER_GROUP_LIST.length === 0) {
-        this.$toast.error('Unable to generate script as no characters or '
-          + 'character groups created!');
-        return;
+        this.$toast.error('Unable to generate script as no characters or ' +
+          'character groups created!')
+        return
       }
 
-      let currentAct = firstAct;
-      /* eslint-disable no-await-in-loop */
+      let currentAct = firstAct
+
       while (currentAct != null) {
-        let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
+        let currentScene = this.SCENE_BY_ID(currentAct.first_scene)
         while (currentScene != null) {
           for (let pageIter = 0; pageIter < this.debugFormState.pages; pageIter++) {
             for (let linesIter = 0; linesIter < this.debugFormState.linesPerPage; linesIter++) {
-              this.addNewLine();
-              const scriptAtPage = this.TMP_SCRIPT[this.currentEditPageKey];
-              const line = scriptAtPage[scriptAtPage.length - 1];
-              line.act_id = currentAct.id;
-              line.scene_id = currentScene.id;
-              const totalCharacters = this.CHARACTER_GROUP_LIST.length + this.CHARACTER_LIST.length;
-              const partLength = (randInt(0, 100) % Math.min(totalCharacters, 4)) + 1;
+              this.addNewLine()
+              const scriptAtPage = this.TMP_SCRIPT[this.currentEditPageKey]
+              const line = scriptAtPage[scriptAtPage.length - 1]
+              line.act_id = currentAct.id
+              line.scene_id = currentScene.id
+              const totalCharacters = this.CHARACTER_GROUP_LIST.length + this.CHARACTER_LIST.length
+              const partLength = (randInt(0, 100) % Math.min(totalCharacters, 4)) + 1
               for (let partIter = 0; partIter < partLength; partIter++) {
-                const characterGroup = this.CHARACTER_GROUP_LIST.length > 0 && randInt(0, 100) > 75;
+                const characterGroup = this.CHARACTER_GROUP_LIST.length > 0 && randInt(0, 100) > 75
                 line.line_parts.push({
                   id: null,
                   line_id: null,
@@ -756,42 +754,42 @@ export default {
                   character_id: characterGroup ? null : sample(this.CHARACTER_LIST).id,
                   character_group_id: characterGroup ? sample(this.CHARACTER_GROUP_LIST).id : null,
                   line_text: `Act: ${currentAct.name}. Scene: ${currentScene.name}. Page: ${this.currentEditPage}. Line: ${linesIter + 1}. Part: ${partIter + 1}`,
-                });
+                })
               }
-              this.doneEditingLine(this.currentEditPage, scriptAtPage.length - 1);
+              this.doneEditingLine(this.currentEditPage, scriptAtPage.length - 1)
             }
-            await this.incrPage();
+            await this.incrPage()
           }
-          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
+          currentScene = this.SCENE_BY_ID(currentScene.next_scene)
         }
-        /* eslint-enable no-await-in-loop */
+
         if (currentAct.next_act != null) {
-          currentAct = this.ACT_BY_ID(currentAct.next_act);
+          currentAct = this.ACT_BY_ID(currentAct.next_act)
         } else {
-          currentAct = null;
+          currentAct = null
         }
       }
-      this.decrPage();
+      this.decrPage()
     },
-    validatePageState(name) {
-      const { $dirty, $error } = this.$v.pageInputFormState[name];
-      return $dirty ? !$error : null;
+    validatePageState (name) {
+      const { $dirty, $error } = this.$v.pageInputFormState[name]
+      return $dirty ? !$error : null
     },
-    async goToPage() {
-      this.changingPage = true;
-      await this.goToPageInner(this.pageInputFormState.pageNo);
-      this.changingPage = false;
+    async goToPage () {
+      this.changingPage = true
+      await this.goToPageInner(this.pageInputFormState.pageNo)
+      this.changingPage = false
     },
-    async goToPageInner(pageNo) {
+    async goToPageInner (pageNo) {
       if (pageNo > 1) {
-        await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1);
+        await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1)
       }
-      await this.LOAD_SCRIPT_PAGE(pageNo);
-      this.currentEditPage = pageNo;
+      await this.LOAD_SCRIPT_PAGE(pageNo)
+      this.currentEditPage = pageNo
       if (!Object.keys(this.TMP_SCRIPT).includes(this.currentEditPageKey)) {
-        this.ADD_BLANK_PAGE(this.currentEditPage);
+        this.ADD_BLANK_PAGE(this.currentEditPage)
       }
-      await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
+      await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1)
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED',
       'SET_CUT_MODE', 'INSERT_BLANK_LINE', 'RESET_INSERTED']),
@@ -801,40 +799,40 @@ export default {
       'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES']),
   },
   computed: {
-    canGenerateDebugScript() {
-      return this.DEBUG_MODE_ENABLED && this.currentMaxPage === 0 && !this.scriptChanges;
+    canGenerateDebugScript () {
+      return this.DEBUG_MODE_ENABLED && this.currentMaxPage === 0 && !this.scriptChanges
     },
-    currentEditPageKey() {
-      return this.currentEditPage.toString();
+    currentEditPageKey () {
+      return this.currentEditPage.toString()
     },
-    scriptChanges() {
+    scriptChanges () {
       if (this.IS_CUT_MODE) {
-        return Object.keys(diff(this.SCRIPT_CUTS, this.linePartCuts)).length > 0;
+        return Object.keys(diff(this.SCRIPT_CUTS, this.linePartCuts)).length > 0
       }
-      let hasChanges = false;
+      let hasChanges = false
       Object.keys(this.TMP_SCRIPT).forEach(function (pageNo) {
-        const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
-        if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
-            || this.INSERTED_LINES(pageNo).length > 0) {
-          hasChanges = true;
+        const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo])
+        if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0 ||
+            this.INSERTED_LINES(pageNo).length > 0) {
+          hasChanges = true
         }
-      }, this);
-      return hasChanges;
+      }, this)
+      return hasChanges
     },
-    saveProgressVariant() {
+    saveProgressVariant () {
       if (!this.savingInProgress) {
-        return this.saveError ? 'danger' : 'success';
+        return this.saveError ? 'danger' : 'success'
       }
-      return 'primary';
+      return 'primary'
     },
-    canEdit() {
-      return this.INTERNAL_UUID === this.CURRENT_EDITOR;
+    canEdit () {
+      return this.INTERNAL_UUID === this.CURRENT_EDITOR
     },
-    canSave() {
+    canSave () {
       if (this.IS_CUT_MODE) {
-        return this.scriptChanges;
+        return this.scriptChanges
       }
-      return (this.scriptChanges && this.editPages.length === 0);
+      return (this.scriptChanges && this.editPages.length === 0)
     },
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
@@ -843,11 +841,11 @@ export default {
       'STAGE_DIRECTION_STYLE_OVERRIDES']),
   },
   watch: {
-    currentEditPage(val) {
-      localStorage.setItem('scriptEditPage', val);
+    currentEditPage (val) {
+      localStorage.setItem('scriptEditPage', val)
     },
   },
-};
+}
 </script>
 
 <style scoped>

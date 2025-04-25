@@ -34,29 +34,29 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex';
-import MicList from '@/vue_components/show/config/mics/MicList.vue';
-import MicAllocations from '@/vue_components/show/config/mics/MicAllocations.vue';
+import { mapActions } from 'vuex'
+import MicList from '@/vue_components/show/config/mics/MicList.vue'
+import MicAllocations from '@/vue_components/show/config/mics/MicAllocations.vue'
 
 export default {
   name: 'ConfigMics',
   components: { MicAllocations, MicList },
-  data() {
+  data () {
     return {
       loaded: false,
-    };
+    }
   },
-  async mounted() {
-    await this.GET_SCENE_LIST();
-    await this.GET_ACT_LIST();
-    await this.GET_CHARACTER_LIST();
-    await this.GET_MICROPHONE_LIST();
-    await this.GET_MIC_ALLOCATIONS();
-    this.loaded = true;
+  async mounted () {
+    await this.GET_SCENE_LIST()
+    await this.GET_ACT_LIST()
+    await this.GET_CHARACTER_LIST()
+    await this.GET_MICROPHONE_LIST()
+    await this.GET_MIC_ALLOCATIONS()
+    this.loaded = true
   },
   methods: {
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_MICROPHONE_LIST', 'GET_MIC_ALLOCATIONS']),
   },
-};
+}
 </script>

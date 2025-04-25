@@ -113,7 +113,7 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters } from 'vuex'
 
 export default {
   name: 'ScriptLineViewer',
@@ -168,105 +168,105 @@ export default {
     },
   },
   computed: {
-    needsHeadings() {
-      let { previousLine } = this;
-      let previousLineIndex = this.lineIndex - 1;
+    needsHeadings () {
+      let { previousLine } = this
+      let previousLineIndex = this.lineIndex - 1
       while (previousLine != null && previousLine.stage_direction === true) {
         if (previousLineIndex === 0) {
-          break;
+          break
         }
-        previousLineIndex -= 1;
-        previousLine = this.page[previousLineIndex];
+        previousLineIndex -= 1
+        previousLine = this.page[previousLineIndex]
       }
 
-      const ret = [];
+      const ret = []
       this.line.line_parts.forEach(function (part) {
-        if (previousLine == null
-          || previousLine.line_parts.length !== this.line.line_parts.length) {
-          ret.push(true);
+        if (previousLine == null ||
+          previousLine.line_parts.length !== this.line.line_parts.length) {
+          ret.push(true)
         } else {
           const matchingIndex = previousLine.line_parts.find((prevPart) => (
-            prevPart.part_index === part.part_index));
+            prevPart.part_index === part.part_index))
           if (matchingIndex == null) {
-            ret.push(true);
+            ret.push(true)
           } else {
-            ret.push(!(matchingIndex.character_id === part.character_id
-              && matchingIndex.character_group_id === part.character_group_id));
+            ret.push(!(matchingIndex.character_id === part.character_id &&
+              matchingIndex.character_group_id === part.character_group_id))
           }
         }
-      }, this);
-      return ret;
+      }, this)
+      return ret
     },
-    needsHeadingsAny() {
-      return this.needsHeadings.some((x) => (x === true));
+    needsHeadingsAny () {
+      return this.needsHeadings.some((x) => (x === true))
     },
-    needsHeadingsAll() {
-      return this.needsHeadings.every((x) => (x === true));
+    needsHeadingsAll () {
+      return this.needsHeadings.every((x) => (x === true))
     },
-    needsActSceneLabel() {
+    needsActSceneLabel () {
       if (this.previousLine == null) {
-        return true;
+        return true
       }
-      return !(this.previousLine.act_id === this.line.act_id
-        && this.previousLine.scene_id === this.line.scene_id);
+      return !(this.previousLine.act_id === this.line.act_id &&
+        this.previousLine.scene_id === this.line.scene_id)
     },
-    actLabel() {
-      return this.acts.find((act) => (act.id === this.line.act_id)).name;
+    actLabel () {
+      return this.acts.find((act) => (act.id === this.line.act_id)).name
     },
-    sceneLabel() {
-      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
+    sceneLabel () {
+      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name
     },
-    stageDirectionStyle() {
+    stageDirectionStyle () {
       const sdStyle = this.stageDirectionStyles.find(
-        (style) => (style.id === this.line.stage_direction_style_id),
-      );
+        (style) => (style.id === this.line.stage_direction_style_id)
+      )
       const override = this.stageDirectionStyleOverrides
-        .find((elem) => elem.settings.id === sdStyle.id);
+        .find((elem) => elem.settings.id === sdStyle.id)
       if (this.line.stage_direction) {
-        return override ? override.settings : sdStyle;
+        return override ? override.settings : sdStyle
       }
-      return null;
+      return null
     },
-    stageDirectionStyling() {
+    stageDirectionStyling () {
       if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
         return {
           'background-color': 'darkslateblue',
           'font-style': 'italic',
-        };
+        }
       }
       const style = {
         'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
         'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
         'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
         color: this.stageDirectionStyle.text_colour,
-      };
-      if (this.stageDirectionStyle.enable_background_colour) {
-        style['background-color'] = this.stageDirectionStyle.background_colour;
       }
-      return style;
+      if (this.stageDirectionStyle.enable_background_colour) {
+        style['background-color'] = this.stageDirectionStyle.background_colour
+      }
+      return style
     },
     ...mapGetters(['IS_CUT_MODE']),
   },
   methods: {
-    editLine() {
+    editLine () {
       if (this.insertMode) {
-        this.$emit('insertLine');
+        this.$emit('insertLine')
       } else {
-        this.$emit('editLine');
+        this.$emit('editLine')
       }
     },
-    cutLinePart(partIndex) {
+    cutLinePart (partIndex) {
       if (partIndex < this.line.line_parts.length && this.line.line_parts[partIndex] != null) {
-        const linePart = this.line.line_parts[partIndex];
+        const linePart = this.line.line_parts[partIndex]
         if (linePart.id != null && linePart.line_id != null) {
-          this.$emit('cutLinePart', linePart.id);
-          return;
+          this.$emit('cutLinePart', linePart.id)
+          return
         }
       }
-      this.$toast.error('Unable to cut line part');
+      this.$toast.error('Unable to cut line part')
     },
   },
-};
+}
 </script>
 
 <style scoped>

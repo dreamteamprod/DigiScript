@@ -196,12 +196,12 @@
 </template>
 
 <script>
-import { required, integer } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
+import { required, integer } from 'vuelidate/lib/validators'
+import { mapGetters, mapActions } from 'vuex'
 
 export default {
   name: 'ConfigActs',
-  data() {
+  data () {
     return {
       rowsPerPage: 15,
       currentPage: 1,
@@ -224,7 +224,7 @@ export default {
         interval_after: false,
         previous_act_id: null,
       },
-    };
+    }
   },
   validations: {
     newFormState: {
@@ -238,139 +238,138 @@ export default {
       },
       previous_act_id: {
         integer,
-        noLoops(value) {
-          const actIndexes = [this.editFormState.id];
-          let currentAct = this.ACT_BY_ID(value);
+        noLoops (value) {
+          const actIndexes = [this.editFormState.id]
+          let currentAct = this.ACT_BY_ID(value)
           while (currentAct != null && currentAct.previous_act != null) {
             if (actIndexes.includes(currentAct.previous_act)) {
-              return false;
+              return false
             }
-            currentAct = this.ACT_BY_ID(currentAct.previous_act);
+            currentAct = this.ACT_BY_ID(currentAct.previous_act)
           }
-          return true;
+          return true
         },
       },
     },
   },
-  async mounted() {
-    await this.GET_ACT_LIST();
+  async mounted () {
+    await this.GET_ACT_LIST()
   },
   methods: {
-    resetNewForm() {
+    resetNewForm () {
       this.newFormState = {
         name: '',
         interval_after: false,
         previous_act_id: null,
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+    validateNewState (name) {
+      const { $dirty, $error } = this.$v.newFormState[name]
+      return $dirty ? !$error : null
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
+    async onSubmitNew (event) {
+      this.$v.newFormState.$touch()
       if (this.$v.newFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.ADD_ACT(this.newFormState);
-        this.resetNewForm();
+        await this.ADD_ACT(this.newFormState)
+        this.resetNewForm()
       }
     },
-    openEditForm(act) {
+    openEditForm (act) {
       if (act != null) {
-        this.editFormState.id = act.item.id;
-        this.editFormState.showID = act.item.show_id;
-        this.editFormState.name = act.item.name;
-        this.editFormState.interval_after = act.item.interval_after;
+        this.editFormState.id = act.item.id
+        this.editFormState.showID = act.item.show_id
+        this.editFormState.name = act.item.name
+        this.editFormState.interval_after = act.item.interval_after
         if (act.item.previous_act != null) {
-          this.editFormState.previous_act_id = act.item.previous_act;
+          this.editFormState.previous_act_id = act.item.previous_act
         }
-        this.$bvModal.show('edit-act');
+        this.$bvModal.show('edit-act')
       }
     },
-    resetEditForm() {
+    resetEditForm () {
       this.editFormState = {
         id: null,
         showID: null,
         name: '',
         interval_after: false,
         previous_act_id: null,
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
+    async onSubmitEdit (event) {
+      this.$v.editFormState.$touch()
       if (this.$v.editFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.UPDATE_ACT(this.editFormState);
-        this.resetEditForm();
+        await this.UPDATE_ACT(this.editFormState)
+        this.resetEditForm()
       }
     },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
+    validateEditState (name) {
+      const { $dirty, $error } = this.$v.editFormState[name]
+      return $dirty ? !$error : null
     },
-    async deleteAct(act) {
-      const msg = `Are you sure you want to delete ${act.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async deleteAct (act) {
+      const msg = `Are you sure you want to delete ${act.item.name}?`
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.DELETE_ACT(act.item.id);
+        await this.DELETE_ACT(act.item.id)
       }
     },
     ...mapActions(['GET_ACT_LIST', 'ADD_ACT', 'DELETE_ACT', 'UPDATE_ACT']),
   },
   computed: {
-    actTableItems() {
-      const ret = [];
+    actTableItems () {
+      const ret = []
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
-        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id)
         while (act != null) {
-          // eslint-disable-next-line no-loop-func
-          ret.push(this.ACT_BY_ID(act.id));
-          act = this.ACT_BY_ID(act.next_act);
+          ret.push(this.ACT_BY_ID(act.id))
+          act = this.ACT_BY_ID(act.next_act)
         }
       }
-      const actIds = ret.map((x) => (x.id));
+      const actIds = ret.map((x) => (x.id))
       this.ACT_LIST.forEach((act) => {
         if (!actIds.includes(act.id)) {
-          ret.push(act);
+          ret.push(act)
         }
-      });
-      return ret;
+      })
+      return ret
     },
-    previousActOptions() {
+    previousActOptions () {
       return [
         { value: null, text: 'None', disabled: false },
         ...this.ACT_LIST.filter((act) => (act.next_act == null), this).map((act) => ({
           value: act.id,
           text: act.name,
         })),
-      ];
+      ]
     },
-    editFormActOptions() {
-      const ret = [];
-      ret.push(...this.previousActOptions.filter((act) => (act.value !== this.editFormState.id)));
+    editFormActOptions () {
+      const ret = []
+      ret.push(...this.previousActOptions.filter((act) => (act.value !== this.editFormState.id)))
       if (this.editFormState.previous_act_id != null) {
-        const act = this.ACT_LIST.find((a) => (a.id === this.editFormState.previous_act_id));
+        const act = this.ACT_LIST.find((a) => (a.id === this.editFormState.previous_act_id))
         ret.push({
           value: this.editFormState.previous_act_id,
           text: act.name,
           disabled: false,
-        });
+        })
       }
-      return ret;
+      return ret
     },
     ...mapGetters(['ACT_LIST', 'CURRENT_SHOW', 'ACT_BY_ID']),
   },
-};
+}
 </script>
 
 <style scoped>

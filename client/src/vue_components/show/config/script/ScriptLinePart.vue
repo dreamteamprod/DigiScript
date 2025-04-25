@@ -59,7 +59,7 @@
 </template>
 
 <script>
-import { required, requiredIf } from 'vuelidate/lib/validators';
+import { required, requiredIf } from 'vuelidate/lib/validators'
 
 export default {
   name: 'ScriptLinePart',
@@ -99,59 +99,59 @@ export default {
     state: {
       character_id: {
         required: requiredIf(function () {
-          return this.isStageDirection === false && this.state.character_group_id == null;
+          return this.isStageDirection === false && this.state.character_group_id == null
         }),
       },
       character_group_id: {
         required: requiredIf(function () {
-          return this.isStageDirection === false && this.state.character_id == null;
+          return this.isStageDirection === false && this.state.character_id == null
         }),
       },
       line_text: {
         required: requiredIf(function () {
-          return this.lineParts.length <= 1 || !this.lineParts.some((x) => x.line_text !== '');
+          return this.lineParts.length <= 1 || !this.lineParts.some((x) => x.line_text !== '')
         }),
       },
     },
   },
-  data() {
+  data () {
     return {
       state: this.value,
-    };
+    }
   },
   computed: {
-    characterOptions() {
+    characterOptions () {
       return [
         { value: null, text: 'N/A' },
         ...this.characters.map((char) => ({ value: char.id, text: char.name })),
-      ];
+      ]
     },
-    characterGroupOptions() {
+    characterGroupOptions () {
       return [
         { value: null, text: 'N/A' },
         ...this.characterGroups.map((char) => ({ value: char.id, text: char.name })),
-      ];
+      ]
     },
   },
-  mounted() {
-    this.$v.state.$touch();
+  mounted () {
+    this.$v.state.$touch()
     if (this.focusInput) {
-      this.$refs.partInput.focus();
+      this.$refs.partInput.focus()
     }
   },
   methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
-      return $dirty ? !$error : null;
+    validateState (name) {
+      const { $dirty, $error } = this.$v.state[name]
+      return $dirty ? !$error : null
     },
-    addLinePart() {
-      this.$emit('addLinePart');
+    addLinePart () {
+      this.$emit('addLinePart')
     },
-    stateChange() {
-      this.$v.state.$touch();
-      this.$emit('input', this.state);
-      this.$refs.partInput.focus();
+    stateChange () {
+      this.$v.state.$touch()
+      this.$emit('input', this.state)
+      this.$refs.partInput.focus()
     },
   },
-};
+}
 </script>

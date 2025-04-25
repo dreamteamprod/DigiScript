@@ -183,14 +183,14 @@
 </template>
 
 <script>
-import { required } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
-import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
+import { required } from 'vuelidate/lib/validators'
+import { mapGetters, mapActions } from 'vuex'
+import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue'
 
 export default {
   name: 'ConfigCharacters',
   components: { CharacterLineStats },
-  data() {
+  data () {
     return {
       rowsPerPage: 15,
       currentPage: 1,
@@ -212,7 +212,7 @@ export default {
         description: '',
         played_by: null,
       },
-    };
+    }
   },
   validations: {
     newFormState: {
@@ -234,90 +234,90 @@ export default {
       },
     },
   },
-  async mounted() {
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CAST_LIST();
+  async mounted () {
+    await this.GET_CHARACTER_LIST()
+    await this.GET_CAST_LIST()
   },
   methods: {
-    resetNewForm() {
+    resetNewForm () {
       this.newFormState = {
         name: '',
         description: '',
         played_by: null,
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
+    async onSubmitNew (event) {
+      this.$v.newFormState.$touch()
       if (this.$v.newFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.ADD_CHARACTER(this.newFormState);
-        this.resetNewForm();
+        await this.ADD_CHARACTER(this.newFormState)
+        this.resetNewForm()
       }
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+    validateNewState (name) {
+      const { $dirty, $error } = this.$v.newFormState[name]
+      return $dirty ? !$error : null
     },
-    openEditForm(character) {
+    openEditForm (character) {
       if (character != null) {
-        this.editFormState.id = character.item.id;
-        this.editFormState.showID = character.item.show_id;
-        this.editFormState.name = character.item.name;
-        this.editFormState.description = character.item.description;
-        this.editFormState.played_by = character.item.played_by;
-        this.$bvModal.show('edit-character');
+        this.editFormState.id = character.item.id
+        this.editFormState.showID = character.item.show_id
+        this.editFormState.name = character.item.name
+        this.editFormState.description = character.item.description
+        this.editFormState.played_by = character.item.played_by
+        this.$bvModal.show('edit-character')
       }
     },
-    resetEditForm() {
+    resetEditForm () {
       this.editFormState = {
         id: null,
         showID: null,
         name: '',
         description: '',
         played_by: null,
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
+    async onSubmitEdit (event) {
+      this.$v.editFormState.$touch()
       if (this.$v.editFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.UPDATE_CHARACTER(this.editFormState);
-        this.resetEditForm();
+        await this.UPDATE_CHARACTER(this.editFormState)
+        this.resetEditForm()
       }
     },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
+    validateEditState (name) {
+      const { $dirty, $error } = this.$v.editFormState[name]
+      return $dirty ? !$error : null
     },
-    async deleteCharacter(character) {
-      const msg = `Are you sure you want to delete ${character.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+    async deleteCharacter (character) {
+      const msg = `Are you sure you want to delete ${character.item.name}?`
+      const action = await this.$bvModal.msgBoxConfirm(msg, {})
       if (action === true) {
-        await this.DELETE_CHARACTER(character.item.id);
+        await this.DELETE_CHARACTER(character.item.id)
       }
     },
     ...mapActions(['GET_CHARACTER_LIST', 'GET_CAST_LIST', 'ADD_CHARACTER', 'UPDATE_CHARACTER', 'DELETE_CHARACTER']),
   },
   computed: {
     ...mapGetters(['CHARACTER_LIST', 'CAST_LIST']),
-    castOptions() {
+    castOptions () {
       return [
         { value: null, text: 'Please select an option', disabled: true },
         ...this.CAST_LIST.map((castMember) => ({ value: castMember.id, text: `${castMember.first_name} ${castMember.last_name}` })),
-      ];
+      ]
     },
   },
-};
+}
 </script>
 
 <style scoped>

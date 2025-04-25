@@ -207,9 +207,9 @@
 </template>
 
 <script>
-import { required } from 'vuelidate/lib/validators';
-import { mapActions } from 'vuex';
-import { contrastColor } from 'contrast-color';
+import { required } from 'vuelidate/lib/validators'
+import { mapActions } from 'vuex'
+import { contrastColor } from 'contrast-color'
 
 export default {
   name: 'ScriptLineCueEditor',
@@ -255,7 +255,7 @@ export default {
       type: Array,
     },
   },
-  data() {
+  data () {
     return {
       newFormState: {
         cueType: null,
@@ -268,7 +268,7 @@ export default {
         ident: null,
         lineId: null,
       },
-    };
+    }
   },
   validations: {
     newFormState: {
@@ -299,169 +299,169 @@ export default {
   },
   methods: {
     contrastColor,
-    openNewForm() {
-      this.resetNewForm();
-      this.newFormState.lineId = this.line.id;
-      this.$bvModal.show(`line_${this.lineIndex}_-new-cue`);
+    openNewForm () {
+      this.resetNewForm()
+      this.newFormState.lineId = this.line.id
+      this.$bvModal.show(`line_${this.lineIndex}_-new-cue`)
     },
-    resetNewForm() {
+    resetNewForm () {
       this.newFormState = {
         cueType: null,
         ident: null,
         lineId: null,
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+    validateNewState (name) {
+      const { $dirty, $error } = this.$v.newFormState[name]
+      return $dirty ? !$error : null
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
+    async onSubmitNew (event) {
+      this.$v.newFormState.$touch()
       if (this.$v.newFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.ADD_NEW_CUE(this.newFormState);
-        this.resetNewForm();
+        await this.ADD_NEW_CUE(this.newFormState)
+        this.resetNewForm()
       }
     },
-    openEditForm(cue) {
-      this.resetEditForm();
-      this.editFormState.cueId = cue.id;
-      this.editFormState.cueType = cue.cue_type_id;
-      this.editFormState.ident = cue.ident;
-      this.editFormState.lineId = this.line.id;
-      this.$bvModal.show(`line_${this.lineIndex}_-edit-cue`);
+    openEditForm (cue) {
+      this.resetEditForm()
+      this.editFormState.cueId = cue.id
+      this.editFormState.cueType = cue.cue_type_id
+      this.editFormState.ident = cue.ident
+      this.editFormState.lineId = this.line.id
+      this.$bvModal.show(`line_${this.lineIndex}_-edit-cue`)
     },
-    resetEditForm() {
+    resetEditForm () {
       this.editFormState = {
         cueId: null,
         cueType: null,
         ident: null,
         lineId: null,
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
+    validateEditState (name) {
+      const { $dirty, $error } = this.$v.editFormState[name]
+      return $dirty ? !$error : null
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
+    async onSubmitEdit (event) {
+      this.$v.editFormState.$touch()
       if (this.$v.editFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.EDIT_CUE(this.editFormState);
-        this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
-        this.resetEditForm();
+        await this.EDIT_CUE(this.editFormState)
+        this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`)
+        this.resetEditForm()
       }
     },
-    async deleteCue(event) {
-      this.$v.editFormState.$touch();
+    async deleteCue (event) {
+      this.$v.editFormState.$touch()
       if (this.$v.editFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        const msg = 'Are you sure you want to delete this cue?';
-        const action = await this.$bvModal.msgBoxConfirm(msg, {});
+        const msg = 'Are you sure you want to delete this cue?'
+        const action = await this.$bvModal.msgBoxConfirm(msg, {})
         if (action === true) {
           await this.DELETE_CUE({
             cueId: this.editFormState.cueId,
             lineId: this.editFormState.lineId,
-          });
-          this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
-          this.resetEditForm();
+          })
+          this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`)
+          this.resetEditForm()
         }
       }
     },
-    cueLabel(cue) {
-      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
-      return `${cueType.prefix} ${cue.ident}`;
+    cueLabel (cue) {
+      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id))
+      return `${cueType.prefix} ${cue.ident}`
     },
-    cueBackgroundColour(cue) {
-      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
+    cueBackgroundColour (cue) {
+      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour
     },
-    isWholeLineCut(line) {
-      return line.line_parts.every((linePart) => (this.linePartCuts.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+    isWholeLineCut (line) {
+      return line.line_parts.every((linePart) => (this.linePartCuts.includes(linePart.id) ||
+          linePart.line_text == null || linePart.line_text.trim().length === 0), this)
     },
     ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE']),
   },
   computed: {
-    cueTypeOptions() {
+    cueTypeOptions () {
       return [
         { value: null, text: 'N/A' },
         ...this.cueTypes.map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
-      ];
+      ]
     },
-    needsHeadings() {
-      const ret = [];
+    needsHeadings () {
+      const ret = []
       this.line.line_parts.forEach(function (part) {
-        if (this.previousLine == null
-          || this.previousLine.line_parts.length !== this.line.line_parts.length) {
-          ret.push(true);
+        if (this.previousLine == null ||
+          this.previousLine.line_parts.length !== this.line.line_parts.length) {
+          ret.push(true)
         } else {
           const matchingIndex = this.previousLine.line_parts.find((prevPart) => (
-            prevPart.part_index === part.part_index));
+            prevPart.part_index === part.part_index))
           if (matchingIndex == null) {
-            ret.push(true);
+            ret.push(true)
           } else {
-            ret.push(!(matchingIndex.character_id === part.character_id
-              && matchingIndex.character_group_id === part.character_group_id));
+            ret.push(!(matchingIndex.character_id === part.character_id &&
+              matchingIndex.character_group_id === part.character_group_id))
           }
         }
-      }, this);
-      return ret;
+      }, this)
+      return ret
     },
-    needsActSceneLabel() {
+    needsActSceneLabel () {
       if (this.previousLine == null) {
-        return true;
+        return true
       }
-      return !(this.previousLine.act_id === this.line.act_id
-        && this.previousLine.scene_id === this.line.scene_id);
+      return !(this.previousLine.act_id === this.line.act_id &&
+        this.previousLine.scene_id === this.line.scene_id)
     },
-    actLabel() {
-      return this.acts.find((act) => (act.id === this.line.act_id)).name;
+    actLabel () {
+      return this.acts.find((act) => (act.id === this.line.act_id)).name
     },
-    sceneLabel() {
-      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
+    sceneLabel () {
+      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name
     },
-    stageDirectionStyle() {
+    stageDirectionStyle () {
       const sdStyle = this.stageDirectionStyles.find(
-        (style) => (style.id === this.line.stage_direction_style_id),
-      );
+        (style) => (style.id === this.line.stage_direction_style_id)
+      )
       const override = this.stageDirectionStyleOverrides
-        .find((elem) => elem.settings.id === sdStyle.id);
+        .find((elem) => elem.settings.id === sdStyle.id)
       if (this.line.stage_direction) {
-        return override ? override.settings : sdStyle;
+        return override ? override.settings : sdStyle
       }
-      return null;
+      return null
     },
-    stageDirectionStyling() {
+    stageDirectionStyling () {
       if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
         return {
           'background-color': 'darkslateblue',
           'font-style': 'italic',
-        };
+        }
       }
       const style = {
         'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
         'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
         'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
         color: this.stageDirectionStyle.text_colour,
-      };
-      if (this.stageDirectionStyle.enable_background_colour) {
-        style['background-color'] = this.stageDirectionStyle.background_colour;
       }
-      return style;
+      if (this.stageDirectionStyle.enable_background_colour) {
+        style['background-color'] = this.stageDirectionStyle.background_colour
+      }
+      return style
     },
   },
-};
+}
 </script>
 
 <style scoped>

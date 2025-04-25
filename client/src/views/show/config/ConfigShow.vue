@@ -120,13 +120,13 @@
 </template>
 
 <script>
-import { required, maxLength } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
-import { titleCase } from '@/js/utils';
+import { required, maxLength } from 'vuelidate/lib/validators'
+import { mapGetters, mapActions } from 'vuex'
+import { titleCase } from '@/js/utils'
 
 export default {
   name: 'ConfigShow',
-  data() {
+  data () {
     return {
       editFormState: {
         name: null,
@@ -134,11 +134,11 @@ export default {
         end_date: null,
         first_act_id: null,
       },
-    };
+    }
   },
-  async mounted() {
-    await this.GET_SHOW_DETAILS();
-    await this.GET_ACT_LIST();
+  async mounted () {
+    await this.GET_SHOW_DETAILS()
+    await this.GET_ACT_LIST()
   },
   validations: {
     editFormState: {
@@ -148,12 +148,14 @@ export default {
       },
       start_date: {
         required,
-        beforeEnd: (value, vm) => (value == null && vm.end_date != null ? false
+        beforeEnd: (value, vm) => (value == null && vm.end_date != null
+          ? false
           : new Date(value) <= new Date(vm.end_date)),
       },
       end_date: {
         required,
-        afterStart: (value, vm) => (value == null && vm.start_date != null ? false
+        afterStart: (value, vm) => (value == null && vm.start_date != null
+          ? false
           : new Date(value) >= new Date(vm.start_date)),
       },
       first_act_id: {},
@@ -162,58 +164,58 @@ export default {
   methods: {
     titleCase,
     ...mapActions(['GET_SHOW_DETAILS', 'GET_ACT_LIST', 'UPDATE_SHOW']),
-    resetEditForm() {
+    resetEditForm () {
       this.editFormState = {
         name: null,
         start_date: null,
         end_date: null,
         first_act_id: null,
-      };
+      }
 
       this.$nextTick(() => {
-        this.$v.$reset();
-      });
+        this.$v.$reset()
+      })
     },
-    openEditForm() {
+    openEditForm () {
       Object.keys(this.editFormState).forEach(function (key) {
-        this.editFormState[key] = this.CURRENT_SHOW[key];
-      }, this);
-      this.$bvModal.show('edit-show');
+        this.editFormState[key] = this.CURRENT_SHOW[key]
+      }, this)
+      this.$bvModal.show('edit-show')
     },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
+    validateEditState (name) {
+      const { $dirty, $error } = this.$v.editFormState[name]
+      return $dirty ? !$error : null
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
+    async onSubmitEdit (event) {
+      this.$v.editFormState.$touch()
       if (this.$v.editFormState.$anyError) {
-        event.preventDefault();
+        event.preventDefault()
       } else {
-        await this.UPDATE_SHOW(this.editFormState);
-        this.resetEditForm();
+        await this.UPDATE_SHOW(this.editFormState)
+        this.resetEditForm()
       }
     },
   },
   computed: {
-    tableData() {
-      const data = {};
+    tableData () {
+      const data = {}
       Object.keys(this.CURRENT_SHOW).forEach(function (key) {
-        data[this.titleCase(key, '_')] = this.CURRENT_SHOW[key];
-      }, this);
-      return data;
+        data[this.titleCase(key, '_')] = this.CURRENT_SHOW[key]
+      }, this)
+      return data
     },
-    orderedKeys() {
-      return Object.keys(this.tableData).sort();
+    orderedKeys () {
+      return Object.keys(this.tableData).sort()
     },
-    actOptions() {
+    actOptions () {
       return [
         { value: null, text: 'N/A', disabled: false },
         ...this.ACT_LIST.map((act) => ({ value: act.id, text: act.name })),
-      ];
+      ]
     },
     ...mapGetters(['CURRENT_SHOW', 'ACT_LIST']),
   },
-};
+}
 </script>
 
 <style scoped>
