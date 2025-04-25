@@ -41,8 +41,6 @@
         cols="12"
         class="script-container"
         :data-following="isScriptFollowing"
-        @scroll="computeScriptBoundaries"
-        @scrollend="computeScriptBoundaries"
       >
         <div
           v-if="!initialLoad"
@@ -135,7 +133,73 @@ export default {
       currentMinLoadedPage: null,
       fullLoad: false,
       loadedSessionData: false,
+      currentPage: 1,
+      currentLineOnPage: 0,
+      isScrollingProgrammatically: false,
+      debounceContentSize: debounce(this.computeContentSize, 100),
     };
+  },
+  computed: {
+    pageIter() {
+      if (this.SETTINGS.enable_live_batching) {
+        return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
+          x <= this.currentLastPage + this.pageBatchSize
+            && x >= this.currentFirstPage - this.pageBatchSize));
+      }
+      return [...Array(this.currentMaxPage).keys()];
+    },
+    isScriptFollowing() {
+      if (this.loadedSessionData) {
+        return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
+      }
+      return false;
+    },
+    isScriptLeader() {
+      if (this.loadedSessionData) {
+        return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
+      }
+      return false;
+    },
+    ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
+      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
+      'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
+      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
+  },
+  watch: {
+    SESSION_FOLLOW_DATA() {
+      if (this.isScriptFollowing) {
+        // Get the current line element
+        const currentLineElement = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
+        if (currentLineElement != null) {
+        // Extract page and line from the ID
+          const idParts = this.SESSION_FOLLOW_DATA.current_line.split('_');
+          const page = parseInt(idParts[1], 10);
+          const line = parseInt(idParts[3], 10);
+
+          // Update the current line highlight
+          $('.script-item').removeClass('current-line');
+          $(currentLineElement).addClass('current-line');
+
+          // Find the context element to scroll to
+          const contextLines = 3; // Same as in navigateTo
+          const contextElement = this.findContextElement(page, line, contextLines);
+
+          // Scroll to the context element if found, otherwise the current line
+          if (contextElement) {
+            contextElement.scrollIntoView({
+              behavior: 'instant',
+              block: 'start',
+            });
+          } else {
+            currentLineElement.scrollIntoView({
+              behavior: 'instant',
+              block: 'start',
+            });
+          }
+          this.computeScriptBoundaries();
+        }
+      }
+    },
   },
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();
@@ -163,7 +227,7 @@ export default {
 
     this.startTime = this.createDateAsUTC(new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T')));
     this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
-    window.addEventListener('resize', debounce(this.computeContentSize, 100));
+    window.addEventListener('resize', this.debounceContentSize);
 
     if (this.isScriptFollowing || this.isScriptLeader) {
       if (this.CURRENT_SHOW_SESSION.latest_line_ref != null) {
@@ -194,6 +258,7 @@ export default {
         this.computeScriptBoundaries();
         document.getElementById(this.CURRENT_SHOW_SESSION.latest_line_ref).scrollIntoView({
           behavior: 'instant',
+          block: 'start',
         });
         await this.$nextTick();
         this.computeScriptBoundaries();
@@ -227,11 +292,289 @@ export default {
     }
 
     this.fullLoad = true;
+    this.setupNavigation();
+    // Wait for initial load
+    this.$nextTick(() => {
+      if (this.initialLoad) {
+        this.initializeNavigation();
+      }
+    });
   },
   destroyed() {
     clearInterval(this.elapsedTimer);
+    this.removeNavigation();
+    window.removeEventListener('resize', this.debounceContentSize);
   },
   methods: {
+    setupNavigation() {
+      window.addEventListener('keydown', this.handleKeyNavigation);
+      const scriptContainer = document.getElementById('script-container');
+      if (scriptContainer) {
+        scriptContainer.addEventListener('wheel', this.handleWheelNavigation, { passive: false });
+      }
+    },
+    removeNavigation() {
+      window.removeEventListener('keydown', this.handleKeyNavigation);
+      const scriptContainer = document.getElementById('script-container');
+      if (scriptContainer) {
+        scriptContainer.removeEventListener('wheel', this.handleWheelNavigation);
+      }
+    },
+    navigateTo(targetPage, targetLineOnPage, preventScroll = false) {
+      // Check if the page is loaded
+      if (targetPage > this.currentLoadedPage) {
+        return false;
+      }
+
+      // Check if the target line exists on that page
+      const pageLines = this.GET_SCRIPT_PAGE(targetPage);
+      if (!pageLines || targetLineOnPage >= pageLines.length) {
+        return false;
+      }
+
+      // Update internal state
+      this.currentPage = targetPage;
+      this.currentLineOnPage = targetLineOnPage;
+
+      // Find the element for this line
+      const targetElementId = `page_${targetPage}_line_${targetLineOnPage}`;
+      const targetElement = document.getElementById(targetElementId);
+
+      if (!targetElement) {
+        log.error(`Could not find element for line: ${targetElementId}`);
+        return false;
+      }
+
+      // Update line highlighting
+      $('.script-item').removeClass('current-line');
+      $(targetElement).addClass('current-line');
+
+      // Update line tracking for the rest of the application
+      this.previousLine = this.currentLine;
+      this.currentLine = targetElementId;
+
+      // Update page tracking to match
+      if (targetPage !== this.currentFirstPage) {
+        this.currentFirstPage = targetPage;
+      }
+
+      // Scroll the element into view (unless prevented)
+      if (!preventScroll) {
+        this.isScrollingProgrammatically = true;
+        // Instead of directly scrolling to the target element,
+        // find the context element (N visible lines above) and scroll to it
+        const contextLines = 3;
+        const contextElement = this.findContextElement(targetPage, targetLineOnPage, contextLines);
+
+        if (contextElement) {
+          // Scroll to the context element instead of the target element
+          contextElement.scrollIntoView({
+            behavior: 'instant',
+            block: 'start',
+          });
+        } else {
+          // Fall back to standard scrolling if we can't find a context element
+          targetElement.scrollIntoView({
+            behavior: 'instant',
+            block: 'start',
+          });
+        }
+
+        // Send update to followers
+        if (this.fullLoad) {
+          this.$socket.sendObj({
+            OP: 'SCRIPT_SCROLL',
+            DATA: {
+              previous_line: this.previousLine,
+              current_line: this.currentLine,
+            },
+          });
+        }
+
+        // Reset scrolling flag after animation completes
+        setTimeout(() => {
+          this.isScrollingProgrammatically = false;
+          this.computeScriptBoundaries();
+        }, 50);
+      }
+
+      return true;
+    },
+    findContextElement(targetPage, targetLineOnPage, contextLines) {
+      // Start from the target line and move backwards
+      let currentPage = targetPage;
+      let currentLine = targetLineOnPage;
+      let visibleLinesFound = 0;
+
+      while (visibleLinesFound < contextLines && currentPage >= 1) {
+        // Move to the previous line
+        currentLine--;
+
+        // If we've gone before the first line on this page, move to the previous page
+        if (currentLine < 0) {
+          currentPage--;
+          if (currentPage < 1) {
+            // We've reached the beginning of the script, return the first line
+            return document.getElementById('page_1_line_0');
+          }
+
+          // Get the lines on the previous page
+          const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
+          if (!prevPageLines || prevPageLines.length === 0) {
+            // Skip empty pages
+            // eslint-disable-next-line no-continue
+            continue;
+          }
+
+          // Move to the last line of the previous page
+          currentLine = prevPageLines.length - 1;
+        }
+
+        // Check if this line is visible (not cut)
+        const pageLines = this.GET_SCRIPT_PAGE(currentPage);
+        if (pageLines && currentLine < pageLines.length) {
+          const line = pageLines[currentLine];
+          if (!this.isWholeLineCut(line)) {
+            visibleLinesFound++;
+
+            // If we've found enough visible lines, this is our context line
+            if (visibleLinesFound >= contextLines) {
+              return document.getElementById(`page_${currentPage}_line_${currentLine}`);
+            }
+          }
+        }
+      }
+
+      // If we couldn't find enough visible lines, return the earliest visible line we found
+      if (visibleLinesFound > 0) {
+        return document.getElementById(`page_${currentPage}_line_${currentLine}`);
+      }
+
+      // If we couldn't find any visible lines above, just return null
+      // and let the main method fall back to the target line
+      return null;
+    },
+    navigateRelative(deltaPage, deltaLine) {
+      // If no navigation needed, exit early
+      if (deltaLine === 0 && deltaPage === 0) return true;
+
+      // Direction of navigation (positive for down/forward, negative for up/backward)
+      const direction = deltaLine > 0 ? 1 : -1;
+
+      // Start from current position
+      let newPage = this.currentPage;
+      let newLineOnPage = this.currentLineOnPage;
+
+      // Keep track of how many visible lines we've moved
+      let visibleLinesMoved = 0;
+
+      // Continue until we've moved the requested number of visible lines
+      while (visibleLinesMoved < Math.abs(deltaLine)) {
+        // Move one line in the appropriate direction
+        newLineOnPage += direction;
+
+        // Handle line overflow/underflow
+        if (newLineOnPage < 0) {
+          newPage--;
+          if (newPage < 1) {
+            newPage = 1;
+            newLineOnPage = 0;
+            break;
+          } else {
+            const prevPageLines = this.GET_SCRIPT_PAGE(newPage);
+            if (!prevPageLines) break;
+            newLineOnPage = prevPageLines.length - 1;
+            if (newLineOnPage < 0) newLineOnPage = 0;
+          }
+        } else {
+          const currentPageLines = this.GET_SCRIPT_PAGE(newPage);
+          if (!currentPageLines) break;
+          if (newLineOnPage >= currentPageLines.length) {
+            newPage++;
+            if (newPage > this.currentLoadedPage) {
+              newPage = this.currentLoadedPage;
+              newLineOnPage = currentPageLines.length - 1;
+              break;
+            } else {
+              newLineOnPage = 0;
+            }
+          }
+        }
+
+        // Check if this line is visible (not cut)
+        const pageLines = this.GET_SCRIPT_PAGE(newPage);
+        if (pageLines && newLineOnPage < pageLines.length) {
+          const currentLine = pageLines[newLineOnPage];
+          if (!this.isWholeLineCut(currentLine)) {
+            visibleLinesMoved++;
+          }
+          if (visibleLinesMoved >= Math.abs(deltaLine)) {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+
+      // Navigate to the calculated position
+      return this.navigateTo(newPage, newLineOnPage);
+    },
+    handleKeyNavigation(event) {
+      // Only handle if we're the leader and not currently scrolling
+      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return;
+
+      // Process arrow keys
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+
+        // Always move by 1 visible line in the appropriate direction
+        const delta = event.key === 'ArrowDown' ? 1 : -1;
+        this.navigateRelative(0, delta);
+      }
+    },
+    handleWheelNavigation(event) {
+      // Only handle if we're the leader and not currently scrolling
+      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return;
+
+      // Don't take over all scrolling, just script navigation
+      // We need to check if we're at the top or bottom of the container
+      const scriptContainer = document.getElementById('script-container');
+      const isAtTop = scriptContainer.scrollTop === 0;
+      const isAtBottom = (
+        scriptContainer.scrollHeight - scriptContainer.scrollTop === scriptContainer.clientHeight
+      );
+
+      // Only prevent default if we're not at the limits of the container
+      if ((event.deltaY > 0 && !isAtBottom) || (event.deltaY < 0 && !isAtTop)) {
+        event.preventDefault();
+
+        // Always move by 1 visible line in the appropriate direction
+        const delta = event.deltaY > 0 ? 1 : -1;
+        this.navigateRelative(0, delta);
+      }
+    },
+    initializeNavigation() {
+      // If we have a CURRENT_SHOW_SESSION.latest_line_ref, use that
+      if (this.CURRENT_SHOW_SESSION.latest_line_ref) {
+        const parts = this.CURRENT_SHOW_SESSION.latest_line_ref.split('_');
+        if (parts.length >= 4) {
+          const page = parseInt(parts[1], 10);
+          const line = parseInt(parts[3], 10);
+
+          // Only set position after initial load is complete
+          if (this.initialLoad) {
+            this.navigateTo(page, line);
+          } else {
+            // Remember position for later
+            this.currentPage = page;
+            this.currentLineOnPage = line;
+          }
+        }
+      } else {
+        // Default to first line if no previous position
+        this.navigateTo(1, 0);
+      }
+    },
     msToTimer,
     createDateAsUTC(date) {
       return new Date(Date.UTC(
@@ -249,13 +592,18 @@ export default {
       }
     },
     computeScriptBoundaries() {
+      // Skip if we're programmatically scrolling
+      if (this.isScrollingProgrammatically) return;
+
+      // Original boundary computation for first/last elements only
       const scriptContainer = $('#script-container');
       const cutoffTop = scriptContainer.offset().top;
       const cutoffBottom = scriptContainer.offset().top + scriptContainer.outerHeight();
       const scriptSelector = $('.script-item');
 
+      // Update first element class
       scriptSelector.each(function () {
-        if ($(this).offset().top >= cutoffTop) {
+        if ($(this).offset() && $(this).offset().top >= cutoffTop) {
           if (!$(this).attr('class').split(/\s+/).includes('first-script-element')) {
             scriptSelector.removeClass('first-script-element');
             $(this).addClass('first-script-element');
@@ -265,27 +613,31 @@ export default {
         return true;
       });
 
+      // Update last element class
       let assignedLastScript = false;
       let lastObject = null;
       scriptSelector.each(function () {
-        if (lastObject == null) {
-          lastObject = this;
-        } else if ($(this).offset().top > $(lastObject).offset().top
-            && $(this).offset().top < cutoffBottom) {
-          lastObject = this;
-        }
-        if ($(this).offset().top >= cutoffBottom) {
-          if (!$(this).attr('class').split(/\s+/).includes('last-script-element')) {
+        if ($(this).offset()) {
+          if (lastObject == null) {
+            lastObject = this;
+          } else if ($(lastObject).offset()
+               && $(this).offset().top > $(lastObject).offset().top
+               && $(this).offset().top < cutoffBottom) {
+            lastObject = this;
+          }
+
+          if ($(this).offset().top >= cutoffBottom) {
             scriptSelector.removeClass('last-script-element');
             $(this).addClass('last-script-element');
+            assignedLastScript = true;
+            return false;
           }
-          assignedLastScript = true;
-          return false;
         }
         return true;
       });
+
       this.assignedLastLine = assignedLastScript;
-      if (!assignedLastScript) {
+      if (!assignedLastScript && lastObject && $(lastObject).offset()) {
         scriptSelector.removeClass('last-script-element');
         $(lastObject).addClass('last-script-element');
       }
@@ -353,18 +705,6 @@ export default {
           }
         }
       }
-
-      if (this.isScriptLeader && this.fullLoad) {
-        $('.script-item').removeClass('current-line');
-        $(`#${this.currentLine}`).addClass('current-line');
-        this.$socket.sendObj({
-          OP: 'SCRIPT_SCROLL',
-          DATA: {
-            previous_line: this.previousLine,
-            current_line: this.currentLine,
-          },
-        });
-      }
     },
     getPreviousLineForIndex(pageIndex, lineIndex) {
       if (lineIndex > 0) {
@@ -422,51 +762,6 @@ export default {
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
       'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES']),
-  },
-  computed: {
-    pageIter() {
-      if (this.SETTINGS.enable_live_batching) {
-        return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
-          x <= this.currentLastPage + this.pageBatchSize
-            && x >= this.currentFirstPage - this.pageBatchSize));
-      }
-      return [...Array(this.currentMaxPage).keys()];
-    },
-    isScriptFollowing() {
-      if (this.loadedSessionData) {
-        return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
-      }
-      return false;
-    },
-    isScriptLeader() {
-      if (this.loadedSessionData) {
-        return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
-      }
-      return false;
-    },
-    ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
-      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
-      'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
-      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
-  },
-  watch: {
-    SESSION_FOLLOW_DATA() {
-      if (this.isScriptFollowing) {
-        let scrollToLine;
-        if (this.SESSION_FOLLOW_DATA.previous_line != null) {
-          scrollToLine = document.getElementById(this.SESSION_FOLLOW_DATA.previous_line);
-        } else {
-          scrollToLine = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
-        }
-        if (scrollToLine != null) {
-          $('.script-item').removeClass('current-line');
-          $(`#${this.SESSION_FOLLOW_DATA.current_line}`).addClass('current-line');
-          scrollToLine.scrollIntoView({
-            behavior: 'instant',
-          });
-        }
-      }
-    },
   },
 };
 </script>
