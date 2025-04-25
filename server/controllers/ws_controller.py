@@ -10,6 +10,7 @@ from tornado_sqlalchemy import SessionMixin
 from digi_server.logger import get_logger
 from models.session import Session, ShowSession
 from models.show import Show
+from models.user import User
 from utils.web.route import ApiRoute, ApiVersion
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         super().__init__(application, request, **kwargs)
         # pylint: disable=used-before-assignment
         self.application: DigiScriptServer = application
+        self.current_user_id = None
 
     def update_session(self, is_editor=False, user_id=None):
         with self.make_session() as session:
@@ -30,6 +32,9 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             if entry:
                 entry.last_ping = self.ws_connection.last_ping
                 entry.last_pong = self.ws_connection.last_pong
+                # Update user_id if it has changed
+                if user_id is not None and entry.user_id != user_id:
+                    entry.user_id = user_id
                 session.commit()
             else:
                 session.add(
@@ -57,9 +62,21 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         self.__setattr__("internal_id", str(uuid4()))
         self.application.clients.append(self)
 
-        user_id = self.get_secure_cookie("digiscript_user_id")
-        if user_id is not None:
-            user_id = int(user_id)
+        # Check for token in query parameters (optional initial authentication)
+        token = self.get_argument("token", None)
+        if token:
+            payload = self.application.jwt_service.decode_access_token(token)
+            if payload and "user_id" in payload:
+                with self.make_session() as session:
+                    user = session.query(User).get(int(payload["user_id"]))
+                    if user:
+                        self.current_user_id = user.id
+        else:
+            # Try to get user_id from cookie (for backward compatibility)
+            user_id = self.get_secure_cookie("digiscript_user_id")
+            if user_id is not None:
+                user_id = int(user_id)
+                self.current_user_id = user_id
 
         self.update_session(user_id=user_id)
         get_logger().info(f"WebSocket opened from: {self.request.remote_ip}")
@@ -152,6 +169,37 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
         get_logger().info(f"WebSocket closed from: {self.request.remote_ip}")
 
+    async def authenticate_with_token(self, token):
+        """Authenticate using JWT token"""
+        payload = self.application.jwt_service.decode_access_token(token)
+
+        if not payload or "user_id" not in payload:
+            await self.write_message(
+                {"OP": "AUTH_ERROR", "DATA": "Invalid or expired token"}
+            )
+            return False
+
+        with self.make_session() as session:
+            user = session.query(User).get(int(payload["user_id"]))
+            if not user:
+                await self.write_message({"OP": "AUTH_ERROR", "DATA": "User not found"})
+                return False
+
+            # Update the user ID for this connection
+            self.current_user_id = user.id
+
+            # Update the session with the user ID
+            self.update_session(user_id=user.id)
+
+            # Notify of successful authentication
+            await self.write_message(
+                {
+                    "OP": "AUTH_SUCCESS",
+                    "DATA": {"user_id": user.id, "username": user.username},
+                }
+            )
+            return True
+
     async def on_message(
         self, message: Union[str, bytes]
     ):  # pylint: disable=invalid-overridden-method
@@ -161,6 +209,37 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
         message = json.loads(message)
         ws_op = message["OP"]
+
+        # Handle JWT authentication operations
+        if ws_op == "AUTHENTICATE":
+            token = message.get("DATA", {}).get("token")
+            if token:
+                await self.authenticate_with_token(token)
+            else:
+                await self.write_message(
+                    {"OP": "AUTH_ERROR", "DATA": "No token provided"}
+                )
+            return
+        if ws_op == "REFRESH_TOKEN":
+            token = message.get("DATA", {}).get("token")
+            if token:
+                success = await self.authenticate_with_token(token)
+                if success:
+                    await self.write_message(
+                        {"OP": "TOKEN_REFRESH_SUCCESS", "DATA": {}}
+                    )
+            else:
+                await self.write_message(
+                    {"OP": "AUTH_ERROR", "DATA": "No token provided"}
+                )
+            return
+
+        # For backward compatibility, check cookie as fallback
+        if self.current_user_id is None:
+            user_id = self.get_secure_cookie("digiscript_user_id")
+            if user_id is not None:
+                self.current_user_id = int(user_id)
+
         with self.make_session() as session:
             entry: Session = session.get(Session, self.__getattribute__("internal_id"))
             current_show = await self.application.digi_settings.get("current_show")
@@ -170,17 +249,13 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                 show = None
             show_session: Optional[ShowSession] = None
 
-            user_id = self.get_secure_cookie("digiscript_user_id")
-            if user_id is not None:
-                user_id = int(user_id)
-
             if ws_op == "NEW_CLIENT":
-                if user_id and show and show.current_session_id:
+                if self.current_user_id and show and show.current_session_id:
                     show_session = session.query(ShowSession).get(
                         show.current_session_id
                     )
                     if show_session and not show_session.client_internal_id:
-                        if show_session.user_id == user_id:
+                        if show_session.user_id == self.current_user_id:
                             show_session.client_internal_id = self.__getattribute__(
                                 "internal_id"
                             )
@@ -218,7 +293,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                     session.commit()
 
                 self.__setattr__("internal_id", new_uuid)
-                self.update_session(is_editor=is_editor, user_id=user_id)
+                self.update_session(is_editor=is_editor, user_id=self.current_user_id)
                 if update_session_client:
                     show_session.client_internal_id = new_uuid
                     show_session.last_client_internal_id = None
