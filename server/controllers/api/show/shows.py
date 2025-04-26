@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from dateutil import parser
-from tornado import escape, web
+from tornado import escape
 
 from digi_server.logger import get_logger
 from models.script import Script, ScriptRevision
@@ -10,13 +10,13 @@ from rbac.role import Role
 from schemas.schemas import ShowSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import require_admin, requires_show
+from utils.web.web_decorators import api_authenticated, require_admin, requires_show
 
 
 @ApiRoute("show", ApiVersion.V1)
 class ShowController(BaseAPIController):
 
-    @web.authenticated
+    @api_authenticated
     @require_admin
     async def post(self):
         """

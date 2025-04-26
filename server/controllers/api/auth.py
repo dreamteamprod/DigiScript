@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 import bcrypt
-from tornado import escape, gen, web
+from tornado import escape, gen
 from tornado.ioloop import IOLoop
 
 from models.session import Session
@@ -10,7 +10,12 @@ from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import no_live_session, require_admin, requires_show
+from utils.web.web_decorators import (
+    api_authenticated,
+    no_live_session,
+    require_admin,
+    requires_show,
+)
 
 
 @ApiRoute("auth/create", ApiVersion.V1)
@@ -72,7 +77,7 @@ class UserCreateController(BaseAPIController):
 
 @ApiRoute("auth/delete", ApiVersion.V1)
 class UserDeleteController(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     @require_admin
     @no_live_session
     async def post(self):
@@ -204,7 +209,7 @@ class LoginHandler(BaseAPIController):
 
 @ApiRoute("auth/logout", ApiVersion.V1)
 class LogoutHandler(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     async def post(self):
         data = escape.json_decode(self.request.body)
 
@@ -233,7 +238,7 @@ class LogoutHandler(BaseAPIController):
 
 @ApiRoute("auth/refresh-token", ApiVersion.V1)
 class RefreshTokenHandler(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     async def post(self):
         """Generate a new access token using the current authentication"""
         if not self.current_user:
@@ -255,7 +260,7 @@ class RefreshTokenHandler(BaseAPIController):
 
 @ApiRoute("auth/users", ApiVersion.V1)
 class UsersHandler(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     @require_admin
     @requires_show
     def get(self):
