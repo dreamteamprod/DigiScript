@@ -156,13 +156,15 @@ export default {
     };
   },
   async created() {
-    await this.GET_SETTINGS();
-    await this.awaitWSConnect();
-
-    // If we have a stored auth token, set up token refresh
+    // If we have a stored auth token, refresh the token to validate we are still logged in,
+    // and then set up token refresh
     if (this.AUTH_TOKEN) {
+      await this.REFRESH_TOKEN();
       await this.SETUP_TOKEN_REFRESH();
     }
+
+    await this.GET_SETTINGS();
+    await this.awaitWSConnect();
 
     // Set up an interval to check WebSocket state
     this.wsStateCheckInterval = setInterval(() => {
@@ -186,7 +188,7 @@ export default {
       'GET_CURRENT_RBAC',
       'GET_SETTINGS',
       'SETUP_TOKEN_REFRESH',
-      'AUTHENTICATE_WEBSOCKET',
+      'REFRESH_TOKEN',
       'CHECK_WEBSOCKET_STATE',
     ]),
     async awaitWSConnect() {
