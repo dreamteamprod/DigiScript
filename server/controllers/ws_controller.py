@@ -175,14 +175,16 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
         if not payload or "user_id" not in payload:
             await self.write_message(
-                {"OP": "AUTH_ERROR", "DATA": "Invalid or expired token"}
+                {"OP": "WS_AUTH_ERROR", "DATA": "Invalid or expired token"}
             )
             return False
 
         with self.make_session() as session:
             user = session.query(User).get(int(payload["user_id"]))
             if not user:
-                await self.write_message({"OP": "AUTH_ERROR", "DATA": "User not found"})
+                await self.write_message(
+                    {"OP": "WS_AUTH_ERROR", "DATA": "User not found"}
+                )
                 return False
 
             # Update the user ID for this connection
@@ -194,7 +196,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             # Notify of successful authentication
             await self.write_message(
                 {
-                    "OP": "AUTH_SUCCESS",
+                    "OP": "WS_AUTH_SUCCESS",
                     "DATA": {"user_id": user.id, "username": user.username},
                 }
             )
@@ -217,7 +219,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                 await self.authenticate_with_token(token)
             else:
                 await self.write_message(
-                    {"OP": "AUTH_ERROR", "DATA": "No token provided"}
+                    {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
                 )
             return
         if ws_op == "REFRESH_TOKEN":
@@ -226,11 +228,11 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                 success = await self.authenticate_with_token(token)
                 if success:
                     await self.write_message(
-                        {"OP": "TOKEN_REFRESH_SUCCESS", "DATA": {}}
+                        {"OP": "WS_TOKEN_REFRESH_SUCCESS", "DATA": {}}
                     )
             else:
                 await self.write_message(
-                    {"OP": "AUTH_ERROR", "DATA": "No token provided"}
+                    {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
                 )
             return
 

@@ -63,20 +63,20 @@ export default {
             state.pendingAuthentication = true;
           }
           break;
-        case 'AUTH_SUCCESS':
+        case 'WS_AUTH_SUCCESS':
           state.authenticated = true;
           state.authenticationInProgress = false;
           state.pendingAuthentication = false;
           state.authSucceeded = true;
           log.info('WebSocket authenticated successfully');
           break;
-        case 'AUTH_ERROR':
+        case 'WS_AUTH_ERROR':
           state.authenticated = false;
           state.authenticationInProgress = false;
           state.pendingAuthentication = false;
           log.error(`WebSocket authentication error: ${message.DATA}`);
           break;
-        case 'TOKEN_REFRESH_SUCCESS':
+        case 'WS_TOKEN_REFRESH_SUCCESS':
           log.info('WebSocket token refreshed successfully');
           break;
         case 'SETTINGS_CHANGED':
@@ -139,7 +139,7 @@ export default {
         await context.dispatch('AUTHENTICATE_WEBSOCKET');
       }
       if (context.state.authSucceeded) {
-        await context.dispatch('HANDLE_AUTH_SUCCESS');
+        await context.dispatch('HANDLE_WS_AUTH_SUCCESS');
         await context.commit('CLEAR_AUTH_SUCCEEDED');
       }
       if (context.state.newConnection
@@ -170,7 +170,7 @@ export default {
       });
       log.debug('Sent WebSocket authentication request');
     },
-    async HANDLE_AUTH_SUCCESS(context) {
+    async HANDLE_WS_AUTH_SUCCESS(context) {
       // After successful authentication, register as a new client if this is a new connection
       if (context.state.newConnection) {
         if (Vue.prototype.$socket && Vue.prototype.$socket.readyState === WebSocket.OPEN) {
