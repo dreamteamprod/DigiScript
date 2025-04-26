@@ -1,5 +1,5 @@
 [MASTER]
-init-hook="from pylint.config import find_default_config_files; import sys; sys.path.append(next(find_default_config_files()).parent.as_posix())"
+init-hook=""
 ignore-paths=^alembic_config/.*$,^test/.*$
 
 [MESSAGES CONTROL]
