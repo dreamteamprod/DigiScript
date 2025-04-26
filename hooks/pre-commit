@@ -61,7 +61,7 @@ run_python_checks() {
         return 1
     }
     
-    # Run pylint
+    # Run pylint with errors-only flag to match CI approach
     echo -e "${YELLOW}Running pylint...${NC}"
     pylint "${server_python_files[@]}" --errors-only || {
         echo -e "${RED}pylint failed${NC}"
