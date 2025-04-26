@@ -59,19 +59,12 @@ class JWTService:
 
         return encoded_jwt
 
-    def decode_access_token(
-        self, token: str, verify_exp: bool = True
-    ) -> Optional[Dict[str, Any]]:
+    def decode_access_token(self, token: str) -> Optional[Dict[str, Any]]:
         """
         Decode and validate a JWT token
         """
         try:
-            payload = jwt.decode(
-                token,
-                self.get_secret(),
-                algorithms=[JWT_ALGORITHM],
-                options={"verify_exp": verify_exp},
-            )
+            payload = jwt.decode(token, self.get_secret(), algorithms=[JWT_ALGORITHM])
             return payload
         except jwt.PyJWTError:
             return None
