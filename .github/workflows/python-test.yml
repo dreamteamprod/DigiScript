@@ -1,5 +1,5 @@
 name: Python Unit Tests
-on: [push, pull_request]
+on: [pull_request]
 permissions:
   checks: write
   pull-requests: write
