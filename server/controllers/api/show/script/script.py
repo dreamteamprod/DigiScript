@@ -143,9 +143,6 @@ class ScriptController(BaseAPIController):
     @requires_show
     @no_live_session
     async def post(self):
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
         page = self.get_query_argument("page", None)
         if not page:
             self.set_status(400)
@@ -155,7 +152,7 @@ class ScriptController(BaseAPIController):
         page = int(page)
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.query(Show).get(self.get_current_show()["id"])
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
@@ -353,9 +350,6 @@ class ScriptController(BaseAPIController):
     @requires_show
     @no_live_session
     async def patch(self):
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
         page = self.get_query_argument("page", None)
         if not page:
             self.set_status(400)
@@ -365,7 +359,7 @@ class ScriptController(BaseAPIController):
         page = int(page)
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.query(Show).get(self.get_current_show()["id"])
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()

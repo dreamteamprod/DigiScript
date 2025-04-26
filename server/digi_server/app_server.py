@@ -26,7 +26,6 @@ from models.show import Show
 from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
-from utils.env_parser import EnvParser
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.web.jwt_service import JWTService
 from utils.web.route import Route
@@ -43,8 +42,6 @@ class DigiScriptServer(
         skip_migrations=False,
         skip_migrations_check=False,
     ):
-        self.env_parser: EnvParser = EnvParser.instance()  # pylint: disable=no-member
-
         self.digi_settings: Settings = Settings(self, settings_path)
         self.app_log_handler = None
         self.db_file_handler = None
