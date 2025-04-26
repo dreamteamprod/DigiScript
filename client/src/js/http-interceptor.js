@@ -46,16 +46,15 @@ export default function setupHttpInterceptor() {
         // Handle 401 Unauthorized errors globally
         if (response.status === 401 && !isLogoutRequest) {
           log.warn('Received 401 Unauthorized response');
-          
+
           if (isRefreshRequest || isRefreshingToken) {
             log.warn('Token refresh failed with 401 or already refreshing, logging out');
             Vue.$toast.warning('Your session has expired. Please log in again.');
             await store.dispatch('USER_LOGOUT');
             return response;
           }
-          
+
           log.info('Attempting token refresh');
-          
           // Try to refresh the token if we have one
           if (token) {
             try {

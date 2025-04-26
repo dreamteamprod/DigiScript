@@ -120,12 +120,14 @@ export default {
         context.commit('SET_TOKEN_REFRESH_INTERVAL', null);
       }
 
+      const token = context.getters.AUTH_TOKEN;
+
       await context.commit('SET_AUTH_TOKEN', null);
       await context.commit('SET_CURRENT_USER', null);
       await context.commit('SET_CURRENT_RBAC', null);
       await context.commit('CLEAR_WS_AUTHENTICATION');
 
-      if (context.getters.AUTH_TOKEN) {
+      if (token) {
         try {
           const response = await fetch(makeURL('/api/v1/auth/logout'), {
             method: 'POST',
