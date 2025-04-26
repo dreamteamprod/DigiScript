@@ -1,0 +1,135 @@
+#!/bin/bash
+
+# Pre-commit hook for DigiScript
+# This hook runs linting and formatting on changed files before committing
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Get the list of staged files
+STAGED_FILES=$(git diff --staged --name-only)
+
+# Exit if no files are staged
+if [ -z "$STAGED_FILES" ]; then
+    echo "No files staged for commit"
+    exit 0
+fi
+
+# Function to check if a file is in the list of staged files
+is_staged() {
+    local file="$1"
+    echo "$STAGED_FILES" | grep -q "^$file$"
+}
+
+# Function to run Python linting and formatting
+run_python_checks() {
+    local python_files=()
+    local server_python_files=()
+    
+    # Find Python files in staged files
+    while IFS= read -r file; do
+        if [[ "$file" == server/*.py ]]; then
+            python_files+=("$file")
+            server_python_files+=("${file#server/}")
+        fi
+    done <<< "$STAGED_FILES"
+    
+    if [ ${#python_files[@]} -eq 0 ]; then
+        echo "No Python files to check"
+        return 0
+    fi
+    
+    echo -e "${YELLOW}Checking Python files...${NC}"
+    
+    # Run black
+    echo -e "${YELLOW}Running black...${NC}"
+    cd server
+    black "${server_python_files[@]}" || {
+        echo -e "${RED}Black formatting failed${NC}"
+        cd ..
+        return 1
+    }
+    
+    # Run isort
+    echo -e "${YELLOW}Running isort...${NC}"
+    isort "${server_python_files[@]}" --profile=black || {
+        echo -e "${RED}isort failed${NC}"
+        cd ..
+        return 1
+    }
+    
+    # Run pylint
+    echo -e "${YELLOW}Running pylint...${NC}"
+    pylint "${server_python_files[@]}" --errors-only || {
+        echo -e "${RED}pylint failed${NC}"
+        cd ..
+        return 1
+    }
+    
+    cd ..
+    
+    # Add the formatted files back to staging
+    for file in "${python_files[@]}"; do
+        git add "$file"
+    done
+    
+    echo -e "${GREEN}Python checks passed${NC}"
+    return 0
+}
+
+# Function to run JavaScript/Vue linting
+run_javascript_checks() {
+    local js_files=()
+    local client_js_files=()
+    
+    # Find JavaScript/Vue files in staged files
+    while IFS= read -r file; do
+        if [[ "$file" == client/src/*.js || "$file" == client/src/*.vue ]]; then
+            js_files+=("$file")
+            client_js_files+=("${file#client/}")
+        fi
+    done <<< "$STAGED_FILES"
+    
+    if [ ${#js_files[@]} -eq 0 ]; then
+        echo "No JavaScript/Vue files to check"
+        return 0
+    fi
+    
+    echo -e "${YELLOW}Checking JavaScript/Vue files...${NC}"
+    
+    # Run eslint with fix
+    cd client
+    npm run lint -- --fix "${client_js_files[@]}" || {
+        # If eslint fails after fixing, check if there are still errors
+        npm run lint -- "${client_js_files[@]}" || {
+            echo -e "${RED}ESLint found errors that couldn't be fixed automatically${NC}"
+            cd ..
+            return 1
+        }
+    }
+    
+    cd ..
+    
+    # Add the fixed files back to staging
+    for file in "${js_files[@]}"; do
+        git add "$file"
+    done
+    
+    echo -e "${GREEN}JavaScript/Vue checks passed${NC}"
+    return 0
+}
+
+# Main execution
+echo -e "${YELLOW}Running pre-commit checks...${NC}"
+
+# Run Python checks
+run_python_checks || exit 1
+
+# Run JavaScript checks
+run_javascript_checks || exit 1
+
+echo -e "${GREEN}All pre-commit checks passed!${NC}"
+exit 0
