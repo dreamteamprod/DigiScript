@@ -238,24 +238,64 @@ class LogoutHandler(BaseAPIController):
 
 @ApiRoute("auth/refresh-token", ApiVersion.V1)
 class RefreshTokenHandler(BaseAPIController):
-    @api_authenticated
     async def post(self):
         """Generate a new access token using the current authentication"""
-        if not self.current_user:
-            self.set_status(401)
-            await self.finish({"message": "Not authenticated"})
-            return
-
-        # Create a new JWT token with extended expiration
-        access_token = self.application.jwt_service.create_access_token(
-            data={
-                "user_id": self.current_user["id"],
-            },
-            expires_delta=timedelta(minutes=120),
+        auth_header = self.request.headers.get("Authorization", "")
+        token = self.application.jwt_service.get_token_from_authorization_header(
+            auth_header
         )
 
-        self.set_status(200)
-        await self.finish({"access_token": access_token, "token_type": "bearer"})
+        if not token:
+            # Try cookie as fallback (for backward compatibility)
+            user_id = self.get_secure_cookie("digiscript_user_id")
+            if not user_id:
+                self.set_status(401)
+                await self.finish({"message": "No token provided"})
+                return
+
+            # Create a new token for cookie-based auth
+            with self.make_session() as session:
+                user = session.query(User).get(int(user_id))
+                if not user:
+                    self.set_status(401)
+                    await self.finish({"message": "User not found"})
+                    return
+
+                access_token = self.application.jwt_service.create_access_token(
+                    data={"user_id": user.id},
+                    expires_delta=timedelta(minutes=120),
+                )
+
+                self.set_status(200)
+                await self.finish(
+                    {"access_token": access_token, "token_type": "bearer"}
+                )
+                return
+
+        payload = self.application.jwt_service.decode_access_token(
+            token, verify_exp=False
+        )
+
+        if not payload or "user_id" not in payload:
+            self.set_status(401)
+            await self.finish({"message": "Invalid token"})
+            return
+
+        with self.make_session() as session:
+            user = session.query(User).get(int(payload["user_id"]))
+            if not user:
+                self.set_status(401)
+                await self.finish({"message": "User not found"})
+                return
+
+            # Create a new JWT token with extended expiration
+            access_token = self.application.jwt_service.create_access_token(
+                data={"user_id": user.id},
+                expires_delta=timedelta(minutes=120),
+            )
+
+            self.set_status(200)
+            await self.finish({"access_token": access_token, "token_type": "bearer"})
 
 
 @ApiRoute("auth/users", ApiVersion.V1)
