@@ -1,5 +1,5 @@
 pytest<8.4
 pytest-asyncio
-pylint=3.3.6
-black
-isort
+pylint==3.3.6
+black==25.1.0
+isort==5.13.2
