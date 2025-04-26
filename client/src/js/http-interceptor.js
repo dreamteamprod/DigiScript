@@ -6,9 +6,9 @@ import { makeURL } from '@/js/utils';
 export default function setupHttpInterceptor() {
   // Store the original fetch function
   const originalFetch = window.fetch;
-  
+
   let isRefreshingToken = false;
-  
+
   // Replace with our enhanced version
   window.fetch = async (resource, options = {}) => {
     // Only intercept our own API requests
