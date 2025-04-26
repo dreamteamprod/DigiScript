@@ -8,6 +8,39 @@ import globals from 'globals';
 export default [
   js.configs.recommended,
   
+  {
+    rules: {
+      'semi': ['error', 'always'], // Enforce semicolons
+      '@stylistic/semi': ['error', 'always'], // Enforce semicolons (stylistic plugin)
+      'space-before-function-paren': ['error', {
+        anonymous: 'always',
+        named: 'never',
+        asyncArrow: 'always',
+      }], // Preserve original function spacing
+      '@stylistic/space-before-function-paren': ['error', {
+        anonymous: 'always',
+        named: 'never',
+        asyncArrow: 'always',
+      }], // Preserve original function spacing (stylistic plugin)
+      'comma-dangle': ['error', 'always-multiline'], // Keep trailing commas
+      '@stylistic/comma-dangle': ['error', 'always-multiline'], // Keep trailing commas (stylistic plugin)
+      'quotes': ['error', 'single', { avoidEscape: true }], // Keep single quotes
+      '@stylistic/quotes': ['error', 'single', { avoidEscape: true }], // Keep single quotes (stylistic plugin)
+      'no-unused-vars': 'off',
+      'vue/no-unused-vars': 'off',
+      'no-plusplus': 'off',
+      'no-param-reassign': ['error', {
+        props: true,
+        ignorePropertyModificationsFor: [
+          'state',
+          'acc',
+          'e',
+        ],
+      }],
+      'import/no-unresolved': 'off', // Turning off due to alias resolution issues
+    },
+  },
+  
   ...vuePlugin.configs['flat/vue2-recommended'],
   
   {
@@ -28,41 +61,6 @@ export default [
       import: importPlugin,
       'vuejs-accessibility': accessibilityPlugin,
       '@stylistic': stylisticPlugin,
-    },
-  },
-  
-  {
-    files: ['**/*.{js,vue}'],
-    rules: {
-      'semi': ['error', 'always'], // Enforce semicolons
-      '@stylistic/semi': ['error', 'always'], // Enforce semicolons (stylistic plugin)
-      'comma-dangle': ['error', 'always-multiline'], // Keep trailing commas
-      '@stylistic/comma-dangle': ['error', 'always-multiline'], // Keep trailing commas (stylistic plugin)
-      'quotes': ['error', 'single', { avoidEscape: true }], // Keep single quotes
-      '@stylistic/quotes': ['error', 'single', { avoidEscape: true }], // Keep single quotes (stylistic plugin)
-      'space-before-function-paren': ['error', {
-        anonymous: 'always',
-        named: 'never',
-        asyncArrow: 'always',
-      }], // Preserve original function spacing
-      '@stylistic/space-before-function-paren': ['error', {
-        anonymous: 'always',
-        named: 'never',
-        asyncArrow: 'always',
-      }], // Preserve original function spacing (stylistic plugin)
-      
-      'no-unused-vars': 'off',
-      'vue/no-unused-vars': 'off',
-      'no-plusplus': 'off',
-      'no-param-reassign': ['error', {
-        props: true,
-        ignorePropertyModificationsFor: [
-          'state',
-          'acc',
-          'e',
-        ],
-      }],
-      'import/no-unresolved': 'off', // Turning off due to alias resolution issues
     },
   },
   
