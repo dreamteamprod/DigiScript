@@ -6,12 +6,16 @@ import { makeURL } from '@/js/utils';
 export default function setupHttpInterceptor() {
   // Store the original fetch function
   const originalFetch = window.fetch;
-
+  
+  let isRefreshingToken = false;
+  
   // Replace with our enhanced version
   window.fetch = async (resource, options = {}) => {
     // Only intercept our own API requests
     if (typeof resource === 'string' && resource.startsWith(makeURL('/api/'))) {
       const token = store.getters.AUTH_TOKEN;
+      const isLogoutRequest = resource.endsWith('/api/v1/auth/logout');
+      const isRefreshRequest = resource.endsWith('/api/v1/auth/refresh-token');
 
       // Clone the options
       const newOptions = {
@@ -40,13 +44,24 @@ export default function setupHttpInterceptor() {
         const response = await originalFetch(resource, newOptions);
 
         // Handle 401 Unauthorized errors globally
-        if (response.status === 401) {
-          log.warn('Received 401 Unauthorized response, attempting token refresh');
-
+        if (response.status === 401 && !isLogoutRequest) {
+          log.warn('Received 401 Unauthorized response');
+          
+          if (isRefreshRequest || isRefreshingToken) {
+            log.warn('Token refresh failed with 401 or already refreshing, logging out');
+            Vue.$toast.warning('Your session has expired. Please log in again.');
+            await store.dispatch('USER_LOGOUT');
+            return response;
+          }
+          
+          log.info('Attempting token refresh');
+          
           // Try to refresh the token if we have one
           if (token) {
             try {
+              isRefreshingToken = true;
               const refreshSuccess = await store.dispatch('REFRESH_TOKEN');
+              isRefreshingToken = false;
 
               if (refreshSuccess) {
                 log.info('Token refresh successful, retrying original request');
@@ -68,6 +83,7 @@ export default function setupHttpInterceptor() {
               // Return the original 401 response
               return response;
             } catch (refreshError) {
+              isRefreshingToken = false;
               log.error('Error during token refresh:', refreshError);
               Vue.$toast.error('Authentication error - please log in again');
               await store.dispatch('USER_LOGOUT');
