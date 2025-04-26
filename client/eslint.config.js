@@ -1,33 +1,56 @@
+import js from '@eslint/js';
 import vuePlugin from 'eslint-plugin-vue';
 import importPlugin from 'eslint-plugin-import';
 import accessibilityPlugin from 'eslint-plugin-vuejs-accessibility';
+import stylisticPlugin from '@stylistic/eslint-plugin';
 import globals from 'globals';
-import neostandard from 'neostandard';
-
-const baseConfig = neostandard({
-  env: ['browser'],
-  globals: {
-    fetch: 'readonly',
-    URLSearchParams: 'readonly',
-  }
-});
 
 export default [
-  ...baseConfig,
+  js.configs.recommended,
   
   ...vuePlugin.configs['flat/vue2-recommended'],
+  
+  {
+    languageOptions: {
+      ecmaVersion: 2021,
+      sourceType: 'module',
+      globals: {
+        ...globals.browser,
+        fetch: 'readonly',
+        URLSearchParams: 'readonly',
+      },
+    },
+  },
   
   {
     plugins: {
       vue: vuePlugin,
       import: importPlugin,
       'vuejs-accessibility': accessibilityPlugin,
+      '@stylistic': stylisticPlugin,
     },
   },
   
   {
     files: ['**/*.{js,vue}'],
     rules: {
+      'semi': ['error', 'always'], // Enforce semicolons
+      '@stylistic/semi': ['error', 'always'], // Enforce semicolons (stylistic plugin)
+      'comma-dangle': ['error', 'always-multiline'], // Keep trailing commas
+      '@stylistic/comma-dangle': ['error', 'always-multiline'], // Keep trailing commas (stylistic plugin)
+      'quotes': ['error', 'single', { avoidEscape: true }], // Keep single quotes
+      '@stylistic/quotes': ['error', 'single', { avoidEscape: true }], // Keep single quotes (stylistic plugin)
+      'space-before-function-paren': ['error', {
+        anonymous: 'always',
+        named: 'never',
+        asyncArrow: 'always',
+      }], // Preserve original function spacing
+      '@stylistic/space-before-function-paren': ['error', {
+        anonymous: 'always',
+        named: 'never',
+        asyncArrow: 'always',
+      }], // Preserve original function spacing (stylistic plugin)
+      
       'no-unused-vars': 'off',
       'vue/no-unused-vars': 'off',
       'no-plusplus': 'off',
