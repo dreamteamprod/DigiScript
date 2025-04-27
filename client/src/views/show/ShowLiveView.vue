@@ -73,6 +73,7 @@
               :cuts="SCRIPT_CUTS"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
               :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
+              :is-script-leader="isScriptLeader"
               @last-line-change="handleLastLineChange"
               @first-line-change="handleFirstLineChange"
             />
