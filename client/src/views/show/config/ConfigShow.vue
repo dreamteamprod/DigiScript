@@ -136,6 +136,25 @@ export default {
       },
     };
   },
+  computed: {
+    tableData() {
+      const data = {};
+      Object.keys(this.CURRENT_SHOW).forEach(function updateSettingsKey(key) {
+        data[this.titleCase(key, '_')] = this.CURRENT_SHOW[key];
+      }, this);
+      return data;
+    },
+    orderedKeys() {
+      return Object.keys(this.tableData).sort();
+    },
+    actOptions() {
+      return [
+        { value: null, text: 'N/A', disabled: false },
+        ...this.ACT_LIST.map((act) => ({ value: act.id, text: act.name })),
+      ];
+    },
+    ...mapGetters(['CURRENT_SHOW', 'ACT_LIST']),
+  },
   async mounted() {
     await this.GET_SHOW_DETAILS();
     await this.GET_ACT_LIST();
@@ -175,7 +194,7 @@ export default {
       });
     },
     openEditForm() {
-      Object.keys(this.editFormState).forEach(function (key) {
+      Object.keys(this.editFormState).forEach(function populateEditForm(key) {
         this.editFormState[key] = this.CURRENT_SHOW[key];
       }, this);
       this.$bvModal.show('edit-show');
@@ -193,25 +212,6 @@ export default {
         this.resetEditForm();
       }
     },
-  },
-  computed: {
-    tableData() {
-      const data = {};
-      Object.keys(this.CURRENT_SHOW).forEach(function (key) {
-        data[this.titleCase(key, '_')] = this.CURRENT_SHOW[key];
-      }, this);
-      return data;
-    },
-    orderedKeys() {
-      return Object.keys(this.tableData).sort();
-    },
-    actOptions() {
-      return [
-        { value: null, text: 'N/A', disabled: false },
-        ...this.ACT_LIST.map((act) => ({ value: act.id, text: act.name })),
-      ];
-    },
-    ...mapGetters(['CURRENT_SHOW', 'ACT_LIST']),
   },
 };
 </script>

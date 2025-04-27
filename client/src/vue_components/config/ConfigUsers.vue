@@ -50,7 +50,6 @@
     >
       <create-user
         :is_first_admin="false"
-        :show_id="CURRENT_SHOW.id"
         @created_user="resetNewForm"
       />
     </b-modal>
@@ -61,7 +60,7 @@
       size="xl"
       hide-footer
     >
-      <config-rbac :user_id="editUser" />
+      <config-rbac :user-id="editUser" />
     </b-modal>
   </b-container>
 </template>
@@ -86,6 +85,9 @@ export default {
       editUser: null,
     };
   },
+  computed: {
+    ...mapGetters(['SHOW_USERS', 'CURRENT_SHOW']),
+  },
   async mounted() {
     await this.GET_USERS();
   },
@@ -104,9 +106,6 @@ export default {
       }
     },
     ...mapActions(['GET_USERS', 'DELETE_USER']),
-  },
-  computed: {
-    ...mapGetters(['SHOW_USERS', 'CURRENT_SHOW']),
   },
 };
 </script>

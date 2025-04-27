@@ -80,48 +80,6 @@ export default {
       characterStats: {},
     };
   },
-  async mounted() {
-    await this.GET_ACT_LIST();
-    await this.GET_SCENE_LIST();
-    await this.getCharacterStats();
-    this.loaded = true;
-  },
-  methods: {
-    numScenesPerAct(actId) {
-      return this.sortedScenes.filter((scene) => scene.act === actId).length;
-    },
-    getHeaderName(sceneId) {
-      return `head(${sceneId})`;
-    },
-    getCellName(sceneId) {
-      return `cell(${sceneId})`;
-    },
-    async getCharacterStats() {
-      const response = await fetch(`${makeURL('/api/v1/show/character/stats')}`);
-      if (response.ok) {
-        this.characterStats = await response.json();
-      } else {
-        log.error('Unable to get character stats!');
-      }
-    },
-    getLineCountForCharacter(characterId, actId, sceneId) {
-      if (!Object.keys(this.characterStats).includes('line_counts')) {
-        return 0;
-      }
-      const lineCounts = this.characterStats.line_counts;
-      if (Object.keys(lineCounts).includes(characterId.toString())) {
-        const characterCounts = this.characterStats.line_counts[characterId];
-        if (Object.keys(characterCounts).includes(actId.toString())) {
-          const actCounts = characterCounts[actId];
-          if (Object.keys(actCounts).includes(sceneId.toString())) {
-            return actCounts[sceneId];
-          }
-        }
-      }
-      return 0;
-    },
-    ...mapActions(['GET_ACT_LIST', 'GET_SCENE_LIST']),
-  },
   computed: {
     tableData() {
       if (!this.loaded) {
@@ -171,6 +129,48 @@ export default {
       return scenes;
     },
     ...mapGetters(['ACT_BY_ID', 'SCENE_BY_ID', 'CURRENT_SHOW', 'CHARACTER_BY_ID', 'CHARACTER_LIST']),
+  },
+  async mounted() {
+    await this.GET_ACT_LIST();
+    await this.GET_SCENE_LIST();
+    await this.getCharacterStats();
+    this.loaded = true;
+  },
+  methods: {
+    numScenesPerAct(actId) {
+      return this.sortedScenes.filter((scene) => scene.act === actId).length;
+    },
+    getHeaderName(sceneId) {
+      return `head(${sceneId})`;
+    },
+    getCellName(sceneId) {
+      return `cell(${sceneId})`;
+    },
+    async getCharacterStats() {
+      const response = await fetch(`${makeURL('/api/v1/show/character/stats')}`);
+      if (response.ok) {
+        this.characterStats = await response.json();
+      } else {
+        log.error('Unable to get character stats!');
+      }
+    },
+    getLineCountForCharacter(characterId, actId, sceneId) {
+      if (!Object.keys(this.characterStats).includes('line_counts')) {
+        return 0;
+      }
+      const lineCounts = this.characterStats.line_counts;
+      if (Object.keys(lineCounts).includes(characterId.toString())) {
+        const characterCounts = this.characterStats.line_counts[characterId];
+        if (Object.keys(characterCounts).includes(actId.toString())) {
+          const actCounts = characterCounts[actId];
+          if (Object.keys(actCounts).includes(sceneId.toString())) {
+            return actCounts[sceneId];
+          }
+        }
+      }
+      return 0;
+    },
+    ...mapActions(['GET_ACT_LIST', 'GET_SCENE_LIST']),
   },
 };
 </script>

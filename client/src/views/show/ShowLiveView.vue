@@ -597,7 +597,7 @@ export default {
       const scriptSelector = $('.script-item');
 
       // Update first element class
-      scriptSelector.each(function () {
+      scriptSelector.each(function filterFirst() {
         if ($(this).offset() && $(this).offset().top >= cutoffTop) {
           if (!$(this).attr('class').split(/\s+/).includes('first-script-element')) {
             scriptSelector.removeClass('first-script-element');
@@ -611,7 +611,7 @@ export default {
       // Update last element class
       let assignedLastScript = false;
       let lastObject = null;
-      scriptSelector.each(function () {
+      scriptSelector.each(function filterLast() {
         if ($(this).offset()) {
           if (lastObject == null) {
             lastObject = this;
