@@ -102,9 +102,8 @@
         </b-navbar-nav>
       </b-collapse>
     </b-navbar>
-    <template>
+    <template v-if="!loaded">
       <div
-        v-if="!loaded"
         class="text-center center-spinner"
       >
         <b-spinner
@@ -112,29 +111,29 @@
           variant="info"
         />
       </div>
-      <template v-else-if="SETTINGS.has_admin_user === false">
-        <b-container
-          class="mx-0"
-          fluid
-        >
-          <b-row>
-            <b-col>
-              <h2>Welcome to DigiScript</h2>
-              <b>To get started, please create an admin user!</b>
-            </b-col>
-          </b-row>
-          <b-row style="margin-top: 1rem">
-            <b-col
-              cols="6"
-              offset="3"
-            >
-              <create-user :is_first_admin="true" />
-            </b-col>
-          </b-row>
-        </b-container>
-      </template>
-      <router-view v-else />
     </template>
+    <template v-else-if="SETTINGS.has_admin_user === false">
+      <b-container
+        class="mx-0"
+        fluid
+      >
+        <b-row>
+          <b-col>
+            <h2>Welcome to DigiScript</h2>
+            <b>To get started, please create an admin user!</b>
+          </b-col>
+        </b-row>
+        <b-row style="margin-top: 1rem">
+          <b-col
+            cols="6"
+            offset="3"
+          >
+            <create-user :is_first_admin="true" />
+          </b-col>
+        </b-row>
+      </b-container>
+    </template>
+    <router-view v-else />
   </div>
 </template>
 
