@@ -788,8 +788,4 @@ export default {
     padding-top: .5rem;
     padding-bottom: .1rem;
   }
-
-  .current-line {
-    background: #3498db54;
-  }
 </style>
