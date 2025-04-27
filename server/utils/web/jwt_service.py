@@ -5,17 +5,22 @@ import jwt
 
 from models.settings import SystemSettings
 
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
 
 class JWTService:
-    def __init__(self, application=None, secret=None):
+    def __init__(
+        self,
+        application=None,
+        secret=None,
+        jwt_algorithm: str = "HS256",
+        default_expiry: timedelta = timedelta(minutes=60),
+    ):
         """
         Initialize JWT service with either application instance or direct secret
         """
         self.application = application
         self._secret = secret
+        self._jwt_algorithm = jwt_algorithm
+        self._default_expiry = default_expiry
 
     def get_secret(self):
         """
@@ -50,12 +55,12 @@ class JWTService:
         if expires_delta:
             expire = datetime.now(tz=timezone.utc) + expires_delta
         else:
-            expire = datetime.now(tz=timezone.utc) + timedelta(
-                minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-            )
+            expire = datetime.now(tz=timezone.utc) + self._default_expiry
 
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, self.get_secret(), algorithm=JWT_ALGORITHM)
+        to_encode.update({"exp": expire, "iat": datetime.now(tz=timezone.utc)})
+        encoded_jwt = jwt.encode(
+            to_encode, self.get_secret(), algorithm=self._jwt_algorithm
+        )
 
         return encoded_jwt
 
@@ -64,7 +69,12 @@ class JWTService:
         Decode and validate a JWT token
         """
         try:
-            payload = jwt.decode(token, self.get_secret(), algorithms=[JWT_ALGORITHM])
+            payload = jwt.decode(
+                token,
+                self.get_secret(),
+                options={"require": ["exp"]},
+                algorithms=[self._jwt_algorithm],
+            )
             return payload
         except jwt.PyJWTError:
             return None

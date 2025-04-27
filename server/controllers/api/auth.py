@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import bcrypt
 from tornado import escape, gen
@@ -189,7 +189,6 @@ class LoginHandler(BaseAPIController):
                         data={
                             "user_id": user.id,
                         },
-                        expires_delta=timedelta(minutes=120),
                     )
 
                     # Keep setting the cookie for backward compatibility
@@ -238,10 +237,21 @@ class LogoutHandler(BaseAPIController):
 
 @ApiRoute("auth/refresh-token", ApiVersion.V1)
 class RefreshTokenHandler(BaseAPIController):
-    @api_authenticated
+    # @api_authenticated
     async def post(self):
         """Generate a new access token using the current authentication"""
-        if not self.current_user:
+        # Extract JWT token from header
+        # TODO: When we remove secure cookies, we can remove this check
+        #  and use the @api_authenticated decorator
+        auth_header = self.request.headers.get("Authorization", "")
+        token = self.application.jwt_service.decode_access_token(
+            self.application.jwt_service.get_token_from_authorization_header(
+                auth_header
+            )
+        )
+
+        # Token refresh requires a token, not a secure cookie
+        if not token:
             self.set_status(401)
             await self.finish({"message": "Not authenticated"})
             return
@@ -251,7 +261,6 @@ class RefreshTokenHandler(BaseAPIController):
             data={
                 "user_id": self.current_user["id"],
             },
-            expires_delta=timedelta(minutes=120),
         )
 
         self.set_status(200)

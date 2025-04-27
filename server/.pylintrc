@@ -19,7 +19,8 @@ disable=
     too-many-arguments,
     unnecessary-dunder-call,
     broad-exception-raised,
-    broad-exception-caught
+    broad-exception-caught,
+    fixme
 
 [FORMAT]
 max-line-length=120
