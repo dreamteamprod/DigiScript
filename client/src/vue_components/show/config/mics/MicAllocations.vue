@@ -140,68 +140,6 @@ export default {
       editMode: true,
     };
   },
-  async mounted() {
-    await this.resetToStoredAlloc();
-    this.loaded = true;
-  },
-  methods: {
-    async resetToStoredAlloc() {
-      await this.GET_MIC_ALLOCATIONS();
-      const internalState = {};
-      this.MICROPHONES.forEach(function (mic) {
-        const micData = {};
-        this.sortedScenes.forEach((scene) => {
-          micData[scene.id] = this.allAllocations[mic.id][scene.id];
-        }, this);
-        internalState[mic.id] = micData;
-      }, this);
-      this.internalState = internalState;
-    },
-    numScenesPerAct(actId) {
-      return this.sortedScenes.filter((scene) => scene.act === actId).length;
-    },
-    getHeaderName(sceneId) {
-      return `head(${sceneId})`;
-    },
-    getCellName(sceneId) {
-      return `cell(${sceneId})`;
-    },
-    micDisabledForCharacter(micId, sceneId, characterId) {
-      if (this.saving) {
-        return true;
-      }
-
-      let disabled = false;
-      // Check this mic isn't allocated to anyone else for this scene
-      if (this.internalState[micId][sceneId] != null
-          && this.internalState[micId][sceneId] !== characterId) {
-        return true;
-      }
-      // Check another mic isn't already assigned for this scene
-      this.MICROPHONES.map((mic) => (mic.id)).forEach((innerMicId) => {
-        if (this.internalState[innerMicId][sceneId] != null
-            && this.internalState[innerMicId][sceneId] === characterId
-            && innerMicId !== micId) {
-          disabled = true;
-        }
-      }, this);
-      return disabled;
-    },
-    toggleAllocation(micId, sceneId, characterId) {
-      if (this.internalState[micId][sceneId] === characterId) {
-        this.internalState[micId][sceneId] = null;
-      } else if (this.internalState[micId][sceneId] === null) {
-        this.internalState[micId][sceneId] = characterId;
-      }
-    },
-    async saveAllocations() {
-      this.saving = true;
-      await this.UPDATE_MIC_ALLOCATIONS(this.changes);
-      await this.resetToStoredAlloc();
-      this.saving = false;
-    },
-    ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
-  },
   computed: {
     micOptions() {
       return [
@@ -258,7 +196,7 @@ export default {
     },
     allAllocations() {
       const micData = {};
-      Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
+      Object.keys(this.MIC_ALLOCATIONS).forEach(function processMicAllocations(micId) {
         const sceneData = {};
         const allocations = this.MIC_ALLOCATIONS[micId];
         allocations.forEach((allocation) => {
@@ -268,7 +206,7 @@ export default {
           if (!Object.keys(sceneData).includes(sceneId.toString())) {
             sceneData[sceneId] = null;
           }
-        });
+        }, this);
         micData[micId] = sceneData;
       }, this);
       return micData;
@@ -281,26 +219,92 @@ export default {
     },
     allocationByCharacter() {
       const charData = {};
-      this.CHARACTER_LIST.map((character) => (character.id)).forEach((characterId) => {
-        const sceneData = {};
-        this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
-          sceneData[sceneId] = null;
-        });
-        charData[characterId] = sceneData;
-      }, this);
-      Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
-        this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
-          if (this.allAllocations[micId][sceneId] != null) {
-            charData[this.allAllocations[micId][sceneId]][
-              sceneId] = this.MICROPHONE_BY_ID(micId).name;
-          }
+      this.CHARACTER_LIST.map((character) => (character.id))
+        .forEach(function initCharacterData(characterId) {
+          const sceneData = {};
+          this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
+            sceneData[sceneId] = null;
+          }, this);
+          charData[characterId] = sceneData;
         }, this);
+      Object.keys(this.MIC_ALLOCATIONS).forEach(function processAllocations(micId) {
+        this.sortedScenes.map((scene) => (scene.id))
+          .forEach(function processSceneAllocations(sceneId) {
+            if (this.allAllocations[micId][sceneId] != null) {
+              charData[this.allAllocations[micId][sceneId]][
+                sceneId] = this.MICROPHONE_BY_ID(micId).name;
+            }
+          }, this);
       }, this);
       return charData;
     },
     ...mapGetters(['MICROPHONES', 'CURRENT_SHOW', 'ACT_BY_ID', 'SCENE_BY_ID', 'CHARACTER_LIST',
       'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID']),
   },
+  async mounted() {
+    await this.resetToStoredAlloc();
+    this.loaded = true;
+  },
+  methods: {
+    async resetToStoredAlloc() {
+      await this.GET_MIC_ALLOCATIONS();
+      const internalState = {};
+      this.MICROPHONES.forEach(function processMicrophones(mic) {
+        const micData = {};
+        this.sortedScenes.forEach((scene) => {
+          micData[scene.id] = this.allAllocations[mic.id][scene.id];
+        }, this);
+        internalState[mic.id] = micData;
+      }, this);
+      this.internalState = internalState;
+    },
+    numScenesPerAct(actId) {
+      return this.sortedScenes.filter((scene) => scene.act === actId).length;
+    },
+    getHeaderName(sceneId) {
+      return `head(${sceneId})`;
+    },
+    getCellName(sceneId) {
+      return `cell(${sceneId})`;
+    },
+    micDisabledForCharacter(micId, sceneId, characterId) {
+      if (this.saving) {
+        return true;
+      }
+
+      let disabled = false;
+      // Check this mic isn't allocated to anyone else for this scene
+      if (this.internalState[micId][sceneId] != null
+          && this.internalState[micId][sceneId] !== characterId) {
+        return true;
+      }
+      // Check another mic isn't already assigned for this scene
+      this.MICROPHONES.map((mic) => (mic.id))
+        .forEach(function checkExistingAssignments(innerMicId) {
+          if (this.internalState[innerMicId][sceneId] != null
+            && this.internalState[innerMicId][sceneId] === characterId
+            && innerMicId !== micId) {
+            disabled = true;
+          }
+        }, this);
+      return disabled;
+    },
+    toggleAllocation(micId, sceneId, characterId) {
+      if (this.internalState[micId][sceneId] === characterId) {
+        this.internalState[micId][sceneId] = null;
+      } else if (this.internalState[micId][sceneId] === null) {
+        this.internalState[micId][sceneId] = characterId;
+      }
+    },
+    async saveAllocations() {
+      this.saving = true;
+      await this.UPDATE_MIC_ALLOCATIONS(this.changes);
+      await this.resetToStoredAlloc();
+      this.saving = false;
+    },
+    ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
+  },
+
 };
 </script>
 
