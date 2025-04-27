@@ -35,14 +35,21 @@ class BaseController(SessionMixin, RequestHandler):
     ) -> Optional[Awaitable[None]]:
         show_schema = ShowSchema()
         user_schema = UserSchema()
+
+        # Extract JWT token from header
+        auth_header = self.request.headers.get("Authorization", "")
+        token = self.application.jwt_service.get_token_from_authorization_header(
+            auth_header
+        )
+
         with self.make_session() as session:
-            user_id = self.get_secure_cookie("digiscript_user_id")
-            if user_id:
-                user = session.query(User).get(int(user_id))
-                if user:
-                    self.current_user = user_schema.dump(user)
-                else:
-                    self.clear_cookie("digiscript_user_id")
+            # If we have a token, try to authenticate with it
+            if token:
+                payload = self.application.jwt_service.decode_access_token(token)
+                if payload and "user_id" in payload:
+                    user = session.query(User).get(int(payload["user_id"]))
+                    if user:
+                        self.current_user = user_schema.dump(user)
 
             current_show = await self.application.digi_settings.get("current_show")
             if current_show:

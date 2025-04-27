@@ -237,7 +237,7 @@ class RBACDatabase:
 
     def _delete_from_rbac_db(self, table_name: str, cols: Dict[str, Any]):
         if table_name not in self._mappings:
-            RBACException("Could not get table for actor/resource")
+            raise RBACException("Could not get table for actor/resource")
         with self._db.sessionmaker() as session:
             rbac_assignments = (
                 session.query(self._mappings[table_name]).filter_by(**cols).all()

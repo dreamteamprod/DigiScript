@@ -1,16 +1,17 @@
 from typing import List
 
-from tornado import escape, web
+from tornado import escape
 
 from models.script import StageDirectionStyle
 from models.user import UserSettings
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
+from utils.web.web_decorators import api_authenticated
 
 
 @ApiRoute("user/settings/stage_direction_overrides", ApiVersion.V1)
 class UserStageDirectionOverridesController(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     def get(self):
         with self.make_session() as session:
             overrides: List[UserSettings] = UserSettings.get_by_type(
@@ -26,7 +27,7 @@ class UserStageDirectionOverridesController(BaseAPIController):
                 }
             )
 
-    @web.authenticated
+    @api_authenticated
     async def post(self):
         data = escape.json_decode(self.request.body)
         style_id: str = data.get("styleId", None)
@@ -97,7 +98,7 @@ class UserStageDirectionOverridesController(BaseAPIController):
                 {},
             )
 
-    @web.authenticated
+    @api_authenticated
     async def patch(self):
         data = escape.json_decode(self.request.body)
         settings_id = data.get("id", None)
@@ -135,7 +136,7 @@ class UserStageDirectionOverridesController(BaseAPIController):
                     {"message": "Stage direction style override not found"}
                 )
 
-    @web.authenticated
+    @api_authenticated
     async def delete(self):
         data = escape.json_decode(self.request.body)
         with self.make_session() as session:

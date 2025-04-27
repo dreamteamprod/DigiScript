@@ -27,7 +27,7 @@ export default new Vuex.Store({
       const response = await fetch(`${makeURL('/api/v1/show')}`);
       if (response.ok) {
         const showSettings = await response.json();
-        context.commit('SET_CURRENT_SHOW', showSettings);
+        await context.commit('SET_CURRENT_SHOW', showSettings);
       } else {
         log.error('Unable to get show details');
       }

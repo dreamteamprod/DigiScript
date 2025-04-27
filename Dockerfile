@@ -7,7 +7,7 @@ RUN npm ci
 COPY /server /server
 RUN npm run build
 
-FROM python:3.10-bookworm
+FROM python:3.13-bookworm
 
 COPY /server/requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt

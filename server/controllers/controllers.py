@@ -23,7 +23,7 @@ def import_all_controllers():
 
 
 class RootController(BaseController):
-    def get(self, path):
+    def get(self, _path):
         file_path = os.path.join(
             os.path.abspath(os.path.dirname(__file__)), "..", "static"
         )

@@ -1,6 +1,6 @@
 [MASTER]
-init-hook="from pylint.config import find_pylintrc; import os, sys; sys.path.append(os.path.dirname(find_pylintrc()))"
-ignore-paths=^alembic_config/versions/.*$,^test/.*$
+init-hook="from pylint.config import find_default_config_files; import sys; sys.path.append(next(find_default_config_files()).parent.as_posix())"
+ignore-paths=^alembic_config/.*$,^test/.*$
 
 [MESSAGES CONTROL]
 disable=
@@ -9,7 +9,6 @@ disable=
     missing-class-docstring,
     missing-function-docstring,
     too-few-public-methods,
-    broad-except,
     duplicate-code,
     too-many-return-statements,
     too-many-branches,
@@ -17,7 +16,20 @@ disable=
     unnecessary-lambda,
     too-many-locals,
     too-many-nested-blocks,
-    too-many-arguments
+    too-many-arguments,
+    unnecessary-dunder-call,
+    broad-exception-raised,
+    broad-exception-caught,
+    fixme
 
 [FORMAT]
 max-line-length=120
+
+[DESIGN]
+max-args=15
+max-locals=20
+max-returns=20
+max-branches=20
+max-statements=50
+max-attributes=20
+max-positional-arguments=15

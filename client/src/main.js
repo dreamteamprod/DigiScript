@@ -9,10 +9,13 @@ import Multiselect from 'vue-multiselect';
 import store from '@/store/store';
 import App from './App.vue';
 import router from './router';
+import setupHttpInterceptor from './js/http-interceptor';
 
 import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
+
+setupHttpInterceptor();
 
 Vue.use(BootstrapVue);
 Vue.use(IconsPlugin);

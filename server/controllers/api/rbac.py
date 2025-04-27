@@ -1,14 +1,14 @@
 from collections import defaultdict
 
 from sqlalchemy import inspect
-from tornado import escape, web
+from tornado import escape
 
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import get_registry
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import require_admin
+from utils.web.web_decorators import api_authenticated, require_admin
 
 
 @ApiRoute("rbac/roles", ApiVersion.V1)
@@ -22,7 +22,7 @@ class RBACRolesHandler(BaseAPIController):
 
 @ApiRoute("rbac/user/resources", ApiVersion.V1)
 class RBACUsersHandler(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     @require_admin
     async def get(self):
         resources = self.application.rbac.get_resources_for_actor(User)
@@ -36,7 +36,7 @@ class RBACUsersHandler(BaseAPIController):
 
 @ApiRoute("rbac/user/objects", ApiVersion.V1)
 class RBACObjectsHandler(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     @require_admin
     async def get(self):
         resource = self.get_query_argument("resource", None)
@@ -95,7 +95,7 @@ class RBACObjectsHandler(BaseAPIController):
 @ApiRoute("rbac/user/roles", ApiVersion.V1)
 class RBACUserRolesHandler(BaseAPIController):
 
-    @web.authenticated
+    @api_authenticated
     async def get(self):
         with self.make_session() as session:
             res = defaultdict(list)
@@ -118,7 +118,7 @@ class RBACUserRolesHandler(BaseAPIController):
 @ApiRoute("rbac/user/roles/grant", ApiVersion.V1)
 class RBACRolesGrantHandler(BaseAPIController):
 
-    @web.authenticated
+    @api_authenticated
     @require_admin
     async def post(self):
         data = escape.json_decode(self.request.body)
@@ -176,7 +176,7 @@ class RBACRolesGrantHandler(BaseAPIController):
 @ApiRoute("rbac/user/roles/revoke", ApiVersion.V1)
 class RBACRolesRevokeHandler(BaseAPIController):
 
-    @web.authenticated
+    @api_authenticated
     @require_admin
     async def post(self):
         data = escape.json_decode(self.request.body)

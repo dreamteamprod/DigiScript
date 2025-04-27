@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import bcrypt
-from tornado import escape, gen, web
+from tornado import escape, gen
 from tornado.ioloop import IOLoop
 
 from models.session import Session
@@ -10,7 +10,12 @@ from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import no_live_session, require_admin, requires_show
+from utils.web.web_decorators import (
+    api_authenticated,
+    no_live_session,
+    require_admin,
+    requires_show,
+)
 
 
 @ApiRoute("auth/create", ApiVersion.V1)
@@ -72,7 +77,7 @@ class UserCreateController(BaseAPIController):
 
 @ApiRoute("auth/delete", ApiVersion.V1)
 class UserDeleteController(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     @require_admin
     @no_live_session
     async def post(self):
@@ -117,6 +122,7 @@ class UserDeleteController(BaseAPIController):
                         await ws_session.write_message(
                             {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
                         )
+                        ws_session.current_user_id = None
                     await gen.sleep(0.2)
                     user_sessions = (
                         session.query(Session)
@@ -178,9 +184,21 @@ class LoginHandler(BaseAPIController):
                     user.last_login = datetime.utcnow()
                     session.commit()
 
-                    self.set_secure_cookie("digiscript_user_id", str(user.id))
+                    # Create JWT token
+                    access_token = self.application.jwt_service.create_access_token(
+                        data={
+                            "user_id": user.id,
+                        },
+                    )
+
                     self.set_status(200)
-                    await self.finish({"message": "Successful log in"})
+                    await self.finish(
+                        {
+                            "message": "Successful log in",
+                            "access_token": access_token,
+                            "token_type": "bearer",
+                        }
+                    )
                 else:
                     self.set_status(401)
                     await self.finish({"message": "Invalid username/password"})
@@ -188,7 +206,7 @@ class LoginHandler(BaseAPIController):
 
 @ApiRoute("auth/logout", ApiVersion.V1)
 class LogoutHandler(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     async def post(self):
         data = escape.json_decode(self.request.body)
 
@@ -201,7 +219,11 @@ class LogoutHandler(BaseAPIController):
                         ws_session.user = None
                         session.commit()
 
-            self.clear_cookie("digiscript_user_id")
+            # Update the WebSocket controller if it exists
+            ws_controller = self.application.get_ws(session_id)
+            if ws_controller and hasattr(ws_controller, "current_user_id"):
+                ws_controller.current_user_id = None
+
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})
         else:
@@ -209,9 +231,24 @@ class LogoutHandler(BaseAPIController):
             await self.finish({"message": "No user logged in"})
 
 
+@ApiRoute("auth/refresh-token", ApiVersion.V1)
+class RefreshTokenHandler(BaseAPIController):
+    @api_authenticated
+    async def post(self):
+        """Generate a new access token using the current authentication"""
+        access_token = self.application.jwt_service.create_access_token(
+            data={
+                "user_id": self.current_user["id"],
+            },
+        )
+
+        self.set_status(200)
+        await self.finish({"access_token": access_token, "token_type": "bearer"})
+
+
 @ApiRoute("auth/users", ApiVersion.V1)
 class UsersHandler(BaseAPIController):
-    @web.authenticated
+    @api_authenticated
     @require_admin
     @requires_show
     def get(self):

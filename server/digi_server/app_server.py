@@ -1,4 +1,5 @@
 import os
+import secrets
 import shutil
 import time
 from typing import List, Optional
@@ -20,16 +21,19 @@ from models import models
 from models.cue import CueType
 from models.script import Script
 from models.session import Session, ShowSession
+from models.settings import SystemSettings
 from models.show import Show
 from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
-from utils.env_parser import EnvParser
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
+from utils.web.jwt_service import JWTService
 from utils.web.route import Route
 
 
-class DigiScriptServer(PrometheusMixIn, Application):
+class DigiScriptServer(
+    PrometheusMixIn, Application
+):  # pylint: disable=too-many-instance-attributes
 
     def __init__(
         self,
@@ -38,8 +42,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
         skip_migrations=False,
         skip_migrations_check=False,
     ):
-        self.env_parser: EnvParser = EnvParser.instance()  # pylint: disable=no-member
-
         self.digi_settings: Settings = Settings(self, settings_path)
         self.app_log_handler = None
         self.db_file_handler = None
@@ -52,6 +54,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.clients: List[WebSocketController] = []
 
         self._db: DigiSQLAlchemy = models.db
+        self.jwt_service: JWTService = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
         if db_path.startswith("sqlite://"):
@@ -99,6 +102,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
             self.rbac = RBACController(self)
             self._configure_rbac()
             self._db.create_all()
+
+        # Configure the JWT service once we have set up the database
+        self.jwt_service = self._configure_jwt()
 
         # Clear out all sessions since we are starting the app up
         with self._db.sessionmaker() as session:
@@ -254,6 +260,26 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.rbac.add_mapping(User, CueType, [CueType.id, CueType.prefix])
         self.rbac.add_mapping(User, Script, [Script.id])
 
+    def _configure_jwt(self) -> JWTService:
+        get_logger().info("Configuring JWT service")
+        with self._db.sessionmaker() as session:
+            jwt_secret = (
+                session.query(SystemSettings)
+                .filter(SystemSettings.key == "jwt_secret")
+                .first()
+            )
+            if jwt_secret:
+                get_logger().info("Retrieved JWT secret from database")
+            else:
+                get_logger().info("Generating new JWT secret")
+                jwt_secret = SystemSettings(
+                    key="jwt_secret", value=secrets.token_hex(32)
+                )
+                session.add(jwt_secret)
+                session.commit()
+                get_logger().info("JWT secret generated and stored in database")
+        return JWTService(application=self)
+
     def regen_logging(self):
         if not IOLoop.current():
             get_logger().error(
@@ -293,8 +319,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
     def get_all_ws(self, user_id: int) -> List[WebSocketController]:
         sockets = []
         for client in self.clients:
-            c_user_id = client.get_secure_cookie("digiscript_user_id")
-            if c_user_id is not None and int(c_user_id) == user_id:
+            # Check JWT-based authentication (stored in controller property)
+            if hasattr(client, "current_user_id") and client.current_user_id == user_id:
                 sockets.append(client)
         return sockets
 
