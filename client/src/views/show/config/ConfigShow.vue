@@ -139,7 +139,7 @@ export default {
   computed: {
     tableData() {
       const data = {};
-      Object.keys(this.CURRENT_SHOW).forEach(function (key) {
+      Object.keys(this.CURRENT_SHOW).forEach(function updateSettingsKey(key) {
         data[this.titleCase(key, '_')] = this.CURRENT_SHOW[key];
       }, this);
       return data;
@@ -194,7 +194,7 @@ export default {
       });
     },
     openEditForm() {
-      Object.keys(this.editFormState).forEach(function (key) {
+      Object.keys(this.editFormState).forEach(function populateEditForm(key) {
         this.editFormState[key] = this.CURRENT_SHOW[key];
       }, this);
       this.$bvModal.show('edit-show');

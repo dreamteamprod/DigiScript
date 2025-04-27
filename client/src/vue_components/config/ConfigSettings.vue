@@ -116,7 +116,7 @@ export default {
     },
   },
   mounted() {
-    Object.keys(this.RAW_SETTINGS).forEach(function (x) {
+    Object.keys(this.RAW_SETTINGS).forEach(function setEditSettings(x) {
       this.editSettings[x] = this.RAW_SETTINGS[x].value;
     }, this);
     this.loaded = true;
@@ -168,7 +168,7 @@ export default {
     resetForm() {
       this.loaded = false;
       this.toggle = !this.toggle;
-      Object.keys(this.RAW_SETTINGS).forEach(function (x) {
+      Object.keys(this.RAW_SETTINGS).forEach(function resetEditSettings(x) {
         this.editSettings[x] = this.RAW_SETTINGS[x].value;
       }, this);
       this.loaded = true;

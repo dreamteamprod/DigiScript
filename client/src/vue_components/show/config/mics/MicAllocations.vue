@@ -247,7 +247,7 @@ export default {
     async resetToStoredAlloc() {
       await this.GET_MIC_ALLOCATIONS();
       const internalState = {};
-      this.MICROPHONES.forEach(function (mic) {
+      this.MICROPHONES.forEach(function resetMic(mic) {
         const micData = {};
         this.sortedScenes.forEach((scene) => {
           micData[scene.id] = this.allAllocations[mic.id][scene.id];

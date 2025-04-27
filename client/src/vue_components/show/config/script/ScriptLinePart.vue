@@ -98,17 +98,17 @@ export default {
   validations: {
     state: {
       character_id: {
-        required: requiredIf(function () {
+        required: requiredIf(function isCharacterRequired() {
           return this.isStageDirection === false && this.state.character_group_id == null;
         }),
       },
       character_group_id: {
-        required: requiredIf(function () {
+        required: requiredIf(function isCharacterGroupRequired() {
           return this.isStageDirection === false && this.state.character_id == null;
         }),
       },
       line_text: {
-        required: requiredIf(function () {
+        required: requiredIf(function isLineTextRequired() {
           return this.lineParts.length <= 1 || !this.lineParts.some((x) => x.line_text !== '');
         }),
       },

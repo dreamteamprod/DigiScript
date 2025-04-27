@@ -360,7 +360,7 @@ export default {
         return Object.keys(diff(this.SCRIPT_CUTS, this.linePartCuts)).length > 0;
       }
       let hasChanges = false;
-      Object.keys(this.TMP_SCRIPT).forEach(function (pageNo) {
+      Object.keys(this.TMP_SCRIPT).forEach(function checkPageHasChanges(pageNo) {
         const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
         if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
             || this.INSERTED_LINES(pageNo).length > 0) {
@@ -629,7 +629,7 @@ export default {
       });
       this.doneEditingLine(pageIndex, lineIndex);
 
-      this.editPages.forEach(function (editPage, index) {
+      this.editPages.forEach(function updateEditPage(editPage, index) {
         const editParts = editPage.split('_');
         const editPageIndex = parseInt(editParts[1], 10);
         const editIndex = parseInt(editParts[3], 10);
@@ -667,7 +667,7 @@ export default {
         lineIndex: newLineIndex,
         lineObj: this.blankLineObj,
       });
-      this.editPages.forEach(function (editPage, index) {
+      this.editPages.forEach(function updateEditPage(editPage, index) {
         const editParts = editPage.split('_');
         const editPageIndex = parseInt(editParts[1], 10);
         const editIndex = parseInt(editParts[3], 10);

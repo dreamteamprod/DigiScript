@@ -306,7 +306,7 @@ export default {
     },
     needsHeadings() {
       const ret = [];
-      this.line.line_parts.forEach(function (part) {
+      this.line.line_parts.forEach(function checkLinePartNeedsHeading(part) {
         if (this.previousLine == null
           || this.previousLine.line_parts.length !== this.line.line_parts.length) {
           ret.push(true);

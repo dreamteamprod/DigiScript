@@ -178,17 +178,17 @@ export default {
         required,
         $each: {
           character_id: {
-            required: requiredIf(function (m) {
+            required: requiredIf(function isCharacterRequired(m) {
               return this.isStageDirection === false && m.character_group_id == null;
             }),
           },
           character_group_id: {
-            required: requiredIf(function (m) {
+            required: requiredIf(function isCharacterGroupRequired(m) {
               return this.isStageDirection === false && m.character_id == null;
             }),
           },
           line_text: {
-            required: requiredIf(function () {
+            required: requiredIf(function isLineTextRequired() {
               return this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== '');
             }),
           },
