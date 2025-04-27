@@ -62,7 +62,7 @@ export default {
     resource: {
       required: true,
     },
-    user_id: {
+    userId: {
       required: true,
     },
   },
@@ -120,7 +120,7 @@ export default {
     async getObjects() {
       const searchParams = new URLSearchParams({
         resource: this.resource,
-        user: this.user_id,
+        user: this.userId,
       });
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/user/objects')}?${searchParams}`, {
@@ -152,7 +152,7 @@ export default {
           },
           body: JSON.stringify({
             resource: this.resource,
-            user: this.user_id,
+            user: this.userId,
             object,
             role,
           }),
@@ -178,7 +178,7 @@ export default {
           },
           body: JSON.stringify({
             resource: this.resource,
-            user: this.user_id,
+            user: this.userId,
             object,
             role,
           }),

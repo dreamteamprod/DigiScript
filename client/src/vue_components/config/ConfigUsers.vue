@@ -50,7 +50,6 @@
     >
       <create-user
         :is_first_admin="false"
-        :show_id="CURRENT_SHOW.id"
         @created_user="resetNewForm"
       />
     </b-modal>
@@ -61,7 +60,7 @@
       size="xl"
       hide-footer
     >
-      <config-rbac :user_id="editUser" />
+      <config-rbac :user-id="editUser" />
     </b-modal>
   </b-container>
 </template>
