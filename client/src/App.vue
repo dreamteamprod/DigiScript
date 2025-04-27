@@ -101,8 +101,7 @@
           </b-nav-text>
         </b-navbar-nav>
       </b-collapse>
-    </b-navbar>
-    <template>
+    </b-navbar>    <div>
       <div
         v-if="!loaded"
         class="text-center center-spinner"
@@ -134,7 +133,7 @@
         </b-container>
       </template>
       <router-view v-else />
-    </template>
+    </div>
   </div>
 </template>
 
@@ -145,6 +144,7 @@ import CreateUser from '@/vue_components/user/CreateUser.vue';
 import { getCookie, makeURL } from '@/js/utils';
 
 export default {
+  name: 'App',
   components: { CreateUser },
   data() {
     return {
@@ -154,6 +154,44 @@ export default {
       startingSession: false,
       wsStateCheckInterval: null,
     };
+  },
+  computed: {
+    isAdminUser() {
+      return this.CURRENT_USER != null && this.CURRENT_USER.is_admin;
+    },
+    isShowEditor() {
+      if (this.RBAC_ROLES.length === 0) {
+        return false;
+      }
+      if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
+        return false;
+      }
+      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
+      // eslint-disable-next-line no-bitwise
+      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+    },
+    isShowExecutor() {
+      if (this.RBAC_ROLES.length === 0) {
+        return false;
+      }
+      if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
+        return false;
+      }
+      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value;
+      // eslint-disable-next-line no-bitwise
+      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+    },
+    ...mapGetters([
+      'WEBSOCKET_HEALTHY',
+      'CURRENT_SHOW_SESSION',
+      'SETTINGS',
+      'CURRENT_USER',
+      'RBAC_ROLES',
+      'CURRENT_USER_RBAC',
+      'INTERNAL_UUID',
+      'AUTH_TOKEN',
+      'WEBSOCKET_HAS_PENDING_OPERATIONS',
+    ]),
   },
   async created() {
     // If we have a stored auth token, refresh the token to validate we are still logged in,
@@ -285,44 +323,6 @@ export default {
         });
       }
     },
-  },
-  computed: {
-    isAdminUser() {
-      return this.CURRENT_USER != null && this.CURRENT_USER.is_admin;
-    },
-    isShowEditor() {
-      if (this.RBAC_ROLES.length === 0) {
-        return false;
-      }
-      if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
-        return false;
-      }
-      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
-      // eslint-disable-next-line no-bitwise
-      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
-    },
-    isShowExecutor() {
-      if (this.RBAC_ROLES.length === 0) {
-        return false;
-      }
-      if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
-        return false;
-      }
-      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value;
-      // eslint-disable-next-line no-bitwise
-      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
-    },
-    ...mapGetters([
-      'WEBSOCKET_HEALTHY',
-      'CURRENT_SHOW_SESSION',
-      'SETTINGS',
-      'CURRENT_USER',
-      'RBAC_ROLES',
-      'CURRENT_USER_RBAC',
-      'INTERNAL_UUID',
-      'AUTH_TOKEN',
-      'WEBSOCKET_HAS_PENDING_OPERATIONS',
-    ]),
   },
 };
 </script>
