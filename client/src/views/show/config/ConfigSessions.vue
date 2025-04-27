@@ -62,6 +62,9 @@ export default {
       stoppingSession: false,
     };
   },
+  computed: {
+    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID']),
+  },
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();
   },
@@ -106,9 +109,6 @@ export default {
       return msToTimer(diff);
     },
     ...mapActions(['GET_SHOW_SESSION_DATA']),
-  },
-  computed: {
-    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID']),
   },
 };
 </script>

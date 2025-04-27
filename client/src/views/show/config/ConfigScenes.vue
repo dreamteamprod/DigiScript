@@ -332,6 +332,109 @@ export default {
       },
     },
   },
+  computed: {
+    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID', 'ACT_BY_ID']),
+    sceneTableItems() {
+      // Get ordering of Acts
+      const acts = [];
+      if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
+        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+        while (act != null) {
+          // eslint-disable-next-line no-loop-func
+          acts.push(act.id);
+          act = this.ACT_BY_ID(act.next_act);
+        }
+      }
+      this.ACT_LIST.forEach((act) => {
+        if (!acts.includes(act.id)) {
+          acts.push(act.id);
+        }
+      });
+      const ret = [];
+      acts.forEach((actId) => {
+        const act = this.ACT_LIST.find((a) => (a.id === actId));
+        if (act.first_scene != null) {
+          let scene = this.SCENE_BY_ID(act.first_scene);
+          while (scene != null) {
+            // eslint-disable-next-line no-loop-func
+            ret.push(this.SCENE_BY_ID(scene.id));
+            scene = this.SCENE_BY_ID(scene.next_scene);
+          }
+        }
+        const sceneIds = ret.map((s) => (s.id));
+        this.SCENE_LIST.filter((s) => (s.act === actId)).forEach((scene) => {
+          if (!sceneIds.includes(scene.id)) {
+            ret.push(scene);
+          }
+        });
+      });
+      return ret;
+    },
+    actOptions() {
+      return [
+        { value: null, text: 'Please select an option', disabled: true },
+        ...this.ACT_LIST.map((act) => ({ value: act.id, text: act.name })),
+      ];
+    },
+    previousSceneOptions() {
+      const ret = {
+        null: [{ value: null, text: 'None', disabled: false }],
+      };
+      this.ACT_LIST.forEach((act) => {
+        ret[act.id] = [
+          {
+            value: null, text: 'None', disabled: false,
+          },
+          ...this.SCENE_LIST.filter((scene) => (
+            scene.act === act.id && scene.next_scene == null
+            && this.ACT_BY_ID(scene.act) != null), this).map((scene) => ({
+            value: scene.id,
+            text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
+          }))];
+      }, this);
+
+      return ret;
+    },
+    firstSceneOptions() {
+      const ret = {};
+      this.ACT_LIST.forEach((act) => {
+        ret[act.id] = [{
+          value: null,
+          text: 'None',
+          disabled: false,
+        }, ...act.scene_list.filter((scene) => (
+          this.SCENE_BY_ID(scene) != null
+          && this.SCENE_BY_ID(scene).previous_scene == null), this).map((scene) => ({
+          value: scene,
+          text: `${act.name}: ${this.SCENE_BY_ID(scene).name}`,
+        }))];
+      }, this);
+      return ret;
+    },
+    firstSceneModalLabel() {
+      if (this.firstSceneFormState.act_id == null) {
+        return '';
+      }
+      return `${this.ACT_LIST.find((act) => (act.id === this.firstSceneFormState.act_id)).name} First Scene`;
+    },
+    editFormPrevScenes() {
+      const ret = [];
+      ret.push(...this.previousSceneOptions[this.editFormState.act_id].filter(
+        (scene) => (scene.value !== this.editFormState.scene_id),
+      ));
+      if (this.editFormState.previous_scene_id != null) {
+        const scene = this.SCENE_LIST.find(
+          (s) => (s.id === this.editFormState.previous_scene_id),
+        );
+        ret.push({
+          value: this.editFormState.previous_scene_id,
+          text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
+          disabled: false,
+        });
+      }
+      return ret;
+    },
+  },
   async mounted() {
     await this.GET_SCENE_LIST();
     await this.GET_ACT_LIST();
@@ -448,109 +551,6 @@ export default {
     },
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'ADD_SCENE', 'DELETE_SCENE',
       'SET_ACT_FIRST_SCENE', 'UPDATE_SCENE']),
-  },
-  computed: {
-    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID', 'ACT_BY_ID']),
-    sceneTableItems() {
-      // Get ordering of Acts
-      const acts = [];
-      if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
-        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
-        while (act != null) {
-          // eslint-disable-next-line no-loop-func
-          acts.push(act.id);
-          act = this.ACT_BY_ID(act.next_act);
-        }
-      }
-      this.ACT_LIST.forEach((act) => {
-        if (!acts.includes(act.id)) {
-          acts.push(act.id);
-        }
-      });
-      const ret = [];
-      acts.forEach((actId) => {
-        const act = this.ACT_LIST.find((a) => (a.id === actId));
-        if (act.first_scene != null) {
-          let scene = this.SCENE_BY_ID(act.first_scene);
-          while (scene != null) {
-            // eslint-disable-next-line no-loop-func
-            ret.push(this.SCENE_BY_ID(scene.id));
-            scene = this.SCENE_BY_ID(scene.next_scene);
-          }
-        }
-        const sceneIds = ret.map((s) => (s.id));
-        this.SCENE_LIST.filter((s) => (s.act === actId)).forEach((scene) => {
-          if (!sceneIds.includes(scene.id)) {
-            ret.push(scene);
-          }
-        });
-      });
-      return ret;
-    },
-    actOptions() {
-      return [
-        { value: null, text: 'Please select an option', disabled: true },
-        ...this.ACT_LIST.map((act) => ({ value: act.id, text: act.name })),
-      ];
-    },
-    previousSceneOptions() {
-      const ret = {
-        null: [{ value: null, text: 'None', disabled: false }],
-      };
-      this.ACT_LIST.forEach((act) => {
-        ret[act.id] = [
-          {
-            value: null, text: 'None', disabled: false,
-          },
-          ...this.SCENE_LIST.filter((scene) => (
-            scene.act === act.id && scene.next_scene == null
-            && this.ACT_BY_ID(scene.act) != null), this).map((scene) => ({
-            value: scene.id,
-            text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
-          }))];
-      }, this);
-
-      return ret;
-    },
-    firstSceneOptions() {
-      const ret = {};
-      this.ACT_LIST.forEach((act) => {
-        ret[act.id] = [{
-          value: null,
-          text: 'None',
-          disabled: false,
-        }, ...act.scene_list.filter((scene) => (
-          this.SCENE_BY_ID(scene) != null
-          && this.SCENE_BY_ID(scene).previous_scene == null), this).map((scene) => ({
-          value: scene,
-          text: `${act.name}: ${this.SCENE_BY_ID(scene).name}`,
-        }))];
-      }, this);
-      return ret;
-    },
-    firstSceneModalLabel() {
-      if (this.firstSceneFormState.act_id == null) {
-        return '';
-      }
-      return `${this.ACT_LIST.find((act) => (act.id === this.firstSceneFormState.act_id)).name} First Scene`;
-    },
-    editFormPrevScenes() {
-      const ret = [];
-      ret.push(...this.previousSceneOptions[this.editFormState.act_id].filter(
-        (scene) => (scene.value !== this.editFormState.scene_id),
-      ));
-      if (this.editFormState.previous_scene_id != null) {
-        const scene = this.SCENE_LIST.find(
-          (s) => (s.id === this.editFormState.previous_scene_id),
-        );
-        ret.push({
-          value: this.editFormState.previous_scene_id,
-          text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
-          disabled: false,
-        });
-      }
-      return ret;
-    },
   },
 };
 </script>

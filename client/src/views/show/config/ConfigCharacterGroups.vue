@@ -230,6 +230,9 @@ export default {
       characters: {},
     },
   },
+  computed: {
+    ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
+  },
   async mounted() {
     await this.GET_CHARACTER_LIST();
     await this.GET_CHARACTER_GROUP_LIST();
@@ -314,9 +317,6 @@ export default {
     },
     ...mapActions(['GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'ADD_CHARACTER_GROUP',
       'DELETE_CHARACTER_GROUP', 'UPDATE_CHARACTER_GROUP']),
-  },
-  computed: {
-    ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
   },
 };
 </script>

@@ -165,6 +165,12 @@ export default {
       },
     },
   },
+  computed: {
+    ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION', 'CURRENT_EDITOR', 'INTERNAL_UUID']),
+    canChangeRevisions() {
+      return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
+    },
+  },
   async beforeMount() {
     await this.GET_SCRIPT_CONFIG_STATUS();
   },
@@ -216,12 +222,6 @@ export default {
     },
     ...mapActions(['GET_SCRIPT_REVISIONS', 'ADD_SCRIPT_REVISION', 'LOAD_SCRIPT_REVISION',
       'DELETE_SCRIPT_REVISION', 'GET_SCRIPT_CONFIG_STATUS']),
-  },
-  computed: {
-    ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION', 'CURRENT_EDITOR', 'INTERNAL_UUID']),
-    canChangeRevisions() {
-      return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
-    },
   },
 };
 </script>
