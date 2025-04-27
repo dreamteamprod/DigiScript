@@ -26,7 +26,7 @@ export default function setupHttpInterceptor() {
       };
 
       // Add token if it exists
-      if (token) {
+      if (token && !Object.keys(newOptions.headers).includes('Authorization')) {
         newOptions.headers = {
           ...newOptions.headers,
           Authorization: `Bearer ${token}`,

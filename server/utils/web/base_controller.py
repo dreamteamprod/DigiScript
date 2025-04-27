@@ -51,16 +51,6 @@ class BaseController(SessionMixin, RequestHandler):
                     if user:
                         self.current_user = user_schema.dump(user)
 
-            # Fallback to cookie authentication (backwards compatability, for now)
-            if not self.current_user:
-                user_id = self.get_secure_cookie("digiscript_user_id")
-                if user_id:
-                    user = session.query(User).get(int(user_id))
-                    if user:
-                        self.current_user = user_schema.dump(user)
-                    else:
-                        self.clear_cookie("digiscript_user_id")
-
             current_show = await self.application.digi_settings.get("current_show")
             if current_show:
                 show = session.query(Show).get(current_show)

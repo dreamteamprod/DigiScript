@@ -120,7 +120,7 @@ export default {
         context.commit('SET_TOKEN_REFRESH_INTERVAL', null);
       }
 
-      const token = context.getters.AUTH_TOKEN;
+      const token = context.state.authToken;
 
       await context.commit('SET_AUTH_TOKEN', null);
       await context.commit('SET_CURRENT_USER', null);
@@ -131,14 +131,15 @@ export default {
         try {
           const response = await fetch(makeURL('/api/v1/auth/logout'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify({
               session_id: context.rootGetters.INTERNAL_UUID,
             }),
           });
-          if (response.ok) {
-            Vue.$toast.success('Successfully logged out!');
-          } else {
+          if (!response.ok) {
             log.error('Logout response was not OK, but local state was cleared');
           }
         } catch (error) {
@@ -147,7 +148,7 @@ export default {
       } else {
         log.info('Logout completed without API call - token already invalid');
       }
-
+      Vue.$toast.success('Successfully logged out!');
       if (router.currentRoute.path !== '/') {
         router.push('/');
       }

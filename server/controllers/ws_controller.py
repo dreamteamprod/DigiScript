@@ -71,14 +71,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                     user = session.query(User).get(int(payload["user_id"]))
                     if user:
                         self.current_user_id = user.id
-        else:
-            # Try to get user_id from cookie (for backward compatibility)
-            user_id = self.get_secure_cookie("digiscript_user_id")
-            if user_id is not None:
-                user_id = int(user_id)
-                self.current_user_id = user_id
 
-        self.update_session(user_id=user_id)
+        self.update_session(user_id=self.current_user_id)
         get_logger().info(f"WebSocket opened from: {self.request.remote_ip}")
 
         yield self.write_message(
@@ -235,12 +229,6 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                     {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
                 )
             return
-
-        # For backward compatibility, check cookie as fallback
-        if self.current_user_id is None:
-            user_id = self.get_secure_cookie("digiscript_user_id")
-            if user_id is not None:
-                self.current_user_id = int(user_id)
 
         with self.make_session() as session:
             entry: Session = session.get(Session, self.__getattribute__("internal_id"))
