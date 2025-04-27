@@ -297,6 +297,75 @@ export default {
       },
     },
   },
+  computed: {
+    cueTypeOptions() {
+      return [
+        { value: null, text: 'N/A' },
+        ...this.cueTypes.map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
+      ];
+    },
+    needsHeadings() {
+      const ret = [];
+      this.line.line_parts.forEach(function (part) {
+        if (this.previousLine == null
+          || this.previousLine.line_parts.length !== this.line.line_parts.length) {
+          ret.push(true);
+        } else {
+          const matchingIndex = this.previousLine.line_parts.find((prevPart) => (
+            prevPart.part_index === part.part_index));
+          if (matchingIndex == null) {
+            ret.push(true);
+          } else {
+            ret.push(!(matchingIndex.character_id === part.character_id
+              && matchingIndex.character_group_id === part.character_group_id));
+          }
+        }
+      }, this);
+      return ret;
+    },
+    needsActSceneLabel() {
+      if (this.previousLine == null) {
+        return true;
+      }
+      return !(this.previousLine.act_id === this.line.act_id
+        && this.previousLine.scene_id === this.line.scene_id);
+    },
+    actLabel() {
+      return this.acts.find((act) => (act.id === this.line.act_id)).name;
+    },
+    sceneLabel() {
+      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
+    },
+    stageDirectionStyle() {
+      const sdStyle = this.stageDirectionStyles.find(
+        (style) => (style.id === this.line.stage_direction_style_id),
+      );
+      const override = this.stageDirectionStyleOverrides
+        .find((elem) => elem.settings.id === sdStyle.id);
+      if (this.line.stage_direction) {
+        return override ? override.settings : sdStyle;
+      }
+      return null;
+    },
+    stageDirectionStyling() {
+      if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
+        return {
+          'background-color': 'darkslateblue',
+          'font-style': 'italic',
+        };
+      }
+      const style = {
+        'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
+        'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
+        'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
+        color: this.stageDirectionStyle.text_colour,
+      };
+      if (this.stageDirectionStyle.enable_background_colour) {
+        style['background-color'] = this.stageDirectionStyle.background_colour;
+      }
+      return style;
+    },
+  },
   methods: {
     contrastColor,
     openNewForm() {
@@ -391,75 +460,6 @@ export default {
           || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
     },
     ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE']),
-  },
-  computed: {
-    cueTypeOptions() {
-      return [
-        { value: null, text: 'N/A' },
-        ...this.cueTypes.map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
-      ];
-    },
-    needsHeadings() {
-      const ret = [];
-      this.line.line_parts.forEach(function (part) {
-        if (this.previousLine == null
-          || this.previousLine.line_parts.length !== this.line.line_parts.length) {
-          ret.push(true);
-        } else {
-          const matchingIndex = this.previousLine.line_parts.find((prevPart) => (
-            prevPart.part_index === part.part_index));
-          if (matchingIndex == null) {
-            ret.push(true);
-          } else {
-            ret.push(!(matchingIndex.character_id === part.character_id
-              && matchingIndex.character_group_id === part.character_group_id));
-          }
-        }
-      }, this);
-      return ret;
-    },
-    needsActSceneLabel() {
-      if (this.previousLine == null) {
-        return true;
-      }
-      return !(this.previousLine.act_id === this.line.act_id
-        && this.previousLine.scene_id === this.line.scene_id);
-    },
-    actLabel() {
-      return this.acts.find((act) => (act.id === this.line.act_id)).name;
-    },
-    sceneLabel() {
-      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
-    },
-    stageDirectionStyle() {
-      const sdStyle = this.stageDirectionStyles.find(
-        (style) => (style.id === this.line.stage_direction_style_id),
-      );
-      const override = this.stageDirectionStyleOverrides
-        .find((elem) => elem.settings.id === sdStyle.id);
-      if (this.line.stage_direction) {
-        return override ? override.settings : sdStyle;
-      }
-      return null;
-    },
-    stageDirectionStyling() {
-      if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
-        return {
-          'background-color': 'darkslateblue',
-          'font-style': 'italic',
-        };
-      }
-      const style = {
-        'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
-        'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
-        'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
-        color: this.stageDirectionStyle.text_colour,
-      };
-      if (this.stageDirectionStyle.enable_background_colour) {
-        style['background-color'] = this.stageDirectionStyle.background_colour;
-      }
-      return style;
-    },
   },
 };
 </script>

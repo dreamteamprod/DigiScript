@@ -263,6 +263,9 @@ export default {
       },
     },
   },
+  computed: {
+    ...mapGetters(['CUE_TYPES']),
+  },
   async mounted() {
     await this.GET_CUE_TYPES();
   },
@@ -333,9 +336,6 @@ export default {
       const { $dirty, $error } = this.$v.editCueTypeFormState[name];
       return $dirty ? !$error : null;
     },
-  },
-  computed: {
-    ...mapGetters(['CUE_TYPES']),
   },
 };
 </script>

@@ -348,6 +348,53 @@ export default {
       },
     },
   },
+  computed: {
+    canGenerateDebugScript() {
+      return this.DEBUG_MODE_ENABLED && this.currentMaxPage === 0 && !this.scriptChanges;
+    },
+    currentEditPageKey() {
+      return this.currentEditPage.toString();
+    },
+    scriptChanges() {
+      if (this.IS_CUT_MODE) {
+        return Object.keys(diff(this.SCRIPT_CUTS, this.linePartCuts)).length > 0;
+      }
+      let hasChanges = false;
+      Object.keys(this.TMP_SCRIPT).forEach(function (pageNo) {
+        const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
+        if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
+            || this.INSERTED_LINES(pageNo).length > 0) {
+          hasChanges = true;
+        }
+      }, this);
+      return hasChanges;
+    },
+    saveProgressVariant() {
+      if (!this.savingInProgress) {
+        return this.saveError ? 'danger' : 'success';
+      }
+      return 'primary';
+    },
+    canEdit() {
+      return this.INTERNAL_UUID === this.CURRENT_EDITOR;
+    },
+    canSave() {
+      if (this.IS_CUT_MODE) {
+        return this.scriptChanges;
+      }
+      return (this.scriptChanges && this.editPages.length === 0);
+    },
+    ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
+      'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
+      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
+      'IS_CUT_MODE', 'SCRIPT_CUTS', 'INSERTED_LINES', 'STAGE_DIRECTION_STYLES', 'CURRENT_USER',
+      'STAGE_DIRECTION_STYLE_OVERRIDES']),
+  },
+  watch: {
+    currentEditPage(val) {
+      localStorage.setItem('scriptEditPage', val);
+    },
+  },
   async beforeMount() {
     // Get the current user
     await this.GET_CURRENT_USER();
@@ -799,53 +846,6 @@ export default {
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUTS', 'SAVE_SCRIPT_CUTS',
       'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES']),
-  },
-  computed: {
-    canGenerateDebugScript() {
-      return this.DEBUG_MODE_ENABLED && this.currentMaxPage === 0 && !this.scriptChanges;
-    },
-    currentEditPageKey() {
-      return this.currentEditPage.toString();
-    },
-    scriptChanges() {
-      if (this.IS_CUT_MODE) {
-        return Object.keys(diff(this.SCRIPT_CUTS, this.linePartCuts)).length > 0;
-      }
-      let hasChanges = false;
-      Object.keys(this.TMP_SCRIPT).forEach(function (pageNo) {
-        const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
-        if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
-            || this.INSERTED_LINES(pageNo).length > 0) {
-          hasChanges = true;
-        }
-      }, this);
-      return hasChanges;
-    },
-    saveProgressVariant() {
-      if (!this.savingInProgress) {
-        return this.saveError ? 'danger' : 'success';
-      }
-      return 'primary';
-    },
-    canEdit() {
-      return this.INTERNAL_UUID === this.CURRENT_EDITOR;
-    },
-    canSave() {
-      if (this.IS_CUT_MODE) {
-        return this.scriptChanges;
-      }
-      return (this.scriptChanges && this.editPages.length === 0);
-    },
-    ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
-      'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
-      'IS_CUT_MODE', 'SCRIPT_CUTS', 'INSERTED_LINES', 'STAGE_DIRECTION_STYLES', 'CURRENT_USER',
-      'STAGE_DIRECTION_STYLE_OVERRIDES']),
-  },
-  watch: {
-    currentEditPage(val) {
-      localStorage.setItem('scriptEditPage', val);
-    },
   },
 };
 </script>

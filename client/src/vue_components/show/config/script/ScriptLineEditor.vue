@@ -197,51 +197,6 @@ export default {
       stage_direction_style_id: {},
     },
   },
-  async created() {
-    this.previousLine = await this.previousLineFn(this.lineIndex);
-    this.nextLine = await this.nextLineFn(this.lineIndex);
-    if (this.state.line_parts.length === 0) {
-      this.addLinePart();
-    }
-  },
-  mounted() {
-    this.$v.state.$touch();
-  },
-  methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
-      return $dirty ? !$error : null;
-    },
-    doneEditing() {
-      this.$emit('doneEditing');
-    },
-    stateChange() {
-      this.$v.state.$touch();
-      this.$emit('input', this.state);
-    },
-    addLinePart() {
-      const blankLine = JSON.parse(JSON.stringify(this.blankLinePartObj));
-      blankLine.line_id = this.state.id;
-      blankLine.part_index = this.state.line_parts.length;
-      this.state.line_parts.push(blankLine);
-      if (!this.isStageDirection && this.previousLine != null) {
-        const newPartIndex = this.state.line_parts.length - 1;
-        const newPart = this.state.line_parts[newPartIndex];
-        if (this.previousLine.line_parts.length >= newPartIndex + 1) {
-          const previousPart = this.previousLine.line_parts[newPartIndex];
-          if (previousPart.character_id != null) {
-            newPart.character_id = previousPart.character_id;
-          } else if (previousPart.character_group_id != null) {
-            newPart.character_group_id = previousPart.character_group_id;
-          }
-        }
-      }
-      this.stateChange();
-    },
-    deleteLine() {
-      this.$emit('deleteLine');
-    },
-  },
   computed: {
     ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID']),
     nextActs() {
@@ -309,6 +264,51 @@ export default {
         { value: null, text: 'N/A' },
         ...this.stageDirectionStyles.map((style) => ({ value: style.id, text: style.description })),
       ];
+    },
+  },
+  async created() {
+    this.previousLine = await this.previousLineFn(this.lineIndex);
+    this.nextLine = await this.nextLineFn(this.lineIndex);
+    if (this.state.line_parts.length === 0) {
+      this.addLinePart();
+    }
+  },
+  mounted() {
+    this.$v.state.$touch();
+  },
+  methods: {
+    validateState(name) {
+      const { $dirty, $error } = this.$v.state[name];
+      return $dirty ? !$error : null;
+    },
+    doneEditing() {
+      this.$emit('doneEditing');
+    },
+    stateChange() {
+      this.$v.state.$touch();
+      this.$emit('input', this.state);
+    },
+    addLinePart() {
+      const blankLine = JSON.parse(JSON.stringify(this.blankLinePartObj));
+      blankLine.line_id = this.state.id;
+      blankLine.part_index = this.state.line_parts.length;
+      this.state.line_parts.push(blankLine);
+      if (!this.isStageDirection && this.previousLine != null) {
+        const newPartIndex = this.state.line_parts.length - 1;
+        const newPart = this.state.line_parts[newPartIndex];
+        if (this.previousLine.line_parts.length >= newPartIndex + 1) {
+          const previousPart = this.previousLine.line_parts[newPartIndex];
+          if (previousPart.character_id != null) {
+            newPart.character_id = previousPart.character_id;
+          } else if (previousPart.character_group_id != null) {
+            newPart.character_group_id = previousPart.character_group_id;
+          }
+        }
+      }
+      this.stateChange();
+    },
+    deleteLine() {
+      this.$emit('deleteLine');
     },
   },
 };

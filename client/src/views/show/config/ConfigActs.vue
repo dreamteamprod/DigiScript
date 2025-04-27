@@ -252,6 +252,49 @@ export default {
       },
     },
   },
+  computed: {
+    actTableItems() {
+      const ret = [];
+      if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
+        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+        while (act != null) {
+          // eslint-disable-next-line no-loop-func
+          ret.push(this.ACT_BY_ID(act.id));
+          act = this.ACT_BY_ID(act.next_act);
+        }
+      }
+      const actIds = ret.map((x) => (x.id));
+      this.ACT_LIST.forEach((act) => {
+        if (!actIds.includes(act.id)) {
+          ret.push(act);
+        }
+      });
+      return ret;
+    },
+    previousActOptions() {
+      return [
+        { value: null, text: 'None', disabled: false },
+        ...this.ACT_LIST.filter((act) => (act.next_act == null), this).map((act) => ({
+          value: act.id,
+          text: act.name,
+        })),
+      ];
+    },
+    editFormActOptions() {
+      const ret = [];
+      ret.push(...this.previousActOptions.filter((act) => (act.value !== this.editFormState.id)));
+      if (this.editFormState.previous_act_id != null) {
+        const act = this.ACT_LIST.find((a) => (a.id === this.editFormState.previous_act_id));
+        ret.push({
+          value: this.editFormState.previous_act_id,
+          text: act.name,
+          disabled: false,
+        });
+      }
+      return ret;
+    },
+    ...mapGetters(['ACT_LIST', 'CURRENT_SHOW', 'ACT_BY_ID']),
+  },
   async mounted() {
     await this.GET_ACT_LIST();
   },
@@ -326,49 +369,6 @@ export default {
       }
     },
     ...mapActions(['GET_ACT_LIST', 'ADD_ACT', 'DELETE_ACT', 'UPDATE_ACT']),
-  },
-  computed: {
-    actTableItems() {
-      const ret = [];
-      if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
-        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
-        while (act != null) {
-          // eslint-disable-next-line no-loop-func
-          ret.push(this.ACT_BY_ID(act.id));
-          act = this.ACT_BY_ID(act.next_act);
-        }
-      }
-      const actIds = ret.map((x) => (x.id));
-      this.ACT_LIST.forEach((act) => {
-        if (!actIds.includes(act.id)) {
-          ret.push(act);
-        }
-      });
-      return ret;
-    },
-    previousActOptions() {
-      return [
-        { value: null, text: 'None', disabled: false },
-        ...this.ACT_LIST.filter((act) => (act.next_act == null), this).map((act) => ({
-          value: act.id,
-          text: act.name,
-        })),
-      ];
-    },
-    editFormActOptions() {
-      const ret = [];
-      ret.push(...this.previousActOptions.filter((act) => (act.value !== this.editFormState.id)));
-      if (this.editFormState.previous_act_id != null) {
-        const act = this.ACT_LIST.find((a) => (a.id === this.editFormState.previous_act_id));
-        ret.push({
-          value: this.editFormState.previous_act_id,
-          text: act.name,
-          disabled: false,
-        });
-      }
-      return ret;
-    },
-    ...mapGetters(['ACT_LIST', 'CURRENT_SHOW', 'ACT_BY_ID']),
   },
 };
 </script>

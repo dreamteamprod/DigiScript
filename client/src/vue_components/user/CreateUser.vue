@@ -115,6 +115,11 @@ export default {
       },
     },
   },
+  computed: {
+    isDisabled() {
+      return Boolean(this.$v.state.$invalid);
+    },
+  },
   methods: {
     validateState(name) {
       const { $dirty, $error } = this.$v.state[name];
@@ -130,11 +135,6 @@ export default {
       }
     },
     ...mapActions(['CREATE_USER']),
-  },
-  computed: {
-    isDisabled() {
-      return Boolean(this.$v.state.$invalid);
-    },
   },
 };
 </script>

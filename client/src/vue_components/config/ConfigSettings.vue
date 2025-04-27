@@ -107,6 +107,9 @@ export default {
       toggle: 0,
     };
   },
+  computed: {
+    ...mapGetters(['RAW_SETTINGS']),
+  },
   watch: {
     RAW_SETTINGS() {
       this.resetForm();
@@ -170,9 +173,6 @@ export default {
       }, this);
       this.loaded = true;
     },
-  },
-  computed: {
-    ...mapGetters(['RAW_SETTINGS']),
   },
 };
 </script>

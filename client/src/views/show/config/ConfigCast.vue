@@ -198,6 +198,9 @@ export default {
       },
     },
   },
+  computed: {
+    ...mapGetters(['CAST_LIST']),
+  },
   async mounted() {
     await this.GET_CAST_LIST();
   },
@@ -267,9 +270,6 @@ export default {
       }
     },
     ...mapActions(['GET_CAST_LIST', 'ADD_CAST_MEMBER', 'DELETE_CAST_MEMBER', 'UPDATE_CAST_MEMBER']),
-  },
-  computed: {
-    ...mapGetters(['CAST_LIST']),
   },
 };
 </script>
