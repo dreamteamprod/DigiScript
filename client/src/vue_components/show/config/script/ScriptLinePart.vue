@@ -71,9 +71,11 @@ export default {
     },
     characters: {
       required: true,
+      type: Array,
     },
     characterGroups: {
       required: true,
+      type: Array,
     },
     showAddButton: {
       required: true,
@@ -93,22 +95,23 @@ export default {
     },
     value: {
       required: true,
+      type: Object,
     },
   },
   validations: {
     state: {
       character_id: {
-        required: requiredIf(function () {
+        required: requiredIf(function validateCharacterId() {
           return this.isStageDirection === false && this.state.character_group_id == null;
         }),
       },
       character_group_id: {
-        required: requiredIf(function () {
+        required: requiredIf(function validateCharacterGroupId() {
           return this.isStageDirection === false && this.state.character_id == null;
         }),
       },
       line_text: {
-        required: requiredIf(function () {
+        required: requiredIf(function validateLineText() {
           return this.lineParts.length <= 1 || !this.lineParts.some((x) => x.line_text !== '');
         }),
       },

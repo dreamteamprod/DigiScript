@@ -112,6 +112,7 @@ export default {
   props: {
     line: {
       required: true,
+      type: Object,
     },
     lineIndex: {
       required: true,
@@ -119,27 +120,35 @@ export default {
     },
     previousLine: {
       required: true,
+      type: Object,
     },
     previousLineIndex: {
       required: true,
+      type: Number,
     },
     acts: {
       required: true,
+      type: Array,
     },
     scenes: {
       required: true,
+      type: Array,
     },
     characters: {
       required: true,
+      type: Array,
     },
     characterGroups: {
       required: true,
+      type: Array,
     },
     cueTypes: {
       required: true,
+      type: Array,
     },
     cues: {
       required: true,
+      type: Array,
     },
     cuts: {
       required: true,
@@ -159,69 +168,6 @@ export default {
       observer: null,
     };
   },
-  mounted() {
-    /* eslint-disable no-restricted-syntax */
-    this.observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        const newValue = m.target.getAttribute(m.attributeName);
-        this.$nextTick(() => {
-          this.onClassChange(newValue, m.oldValue);
-        });
-      }
-    });
-    /* eslint-enable no-restricted-syntax */
-
-    this.observer.observe(this.$refs.lineContainer, {
-      attributes: true,
-      attributeOldValue: true,
-      attributeFilter: ['class'],
-    });
-  },
-  destroyed() {
-    this.observer.disconnect();
-  },
-  methods: {
-    contrastColor,
-    onClassChange(classAttrValue, oldClassAttrValue) {
-      const classList = classAttrValue.split(' ');
-      const oldClassList = oldClassAttrValue.split(' ');
-      if (classList.includes('last-script-element') && !oldClassList.includes('last-script-element')) {
-        this.$emit('last-line-change', this.line.page, this.lineIndex);
-      }
-      if (classList.includes('first-script-element') && !oldClassList.includes('first-script-element')) {
-        let previousLine = null;
-        if (this.previousLine != null) {
-          previousLine = `page_${this.previousLine.page}_line_${this.previousLineIndex}`;
-        }
-        this.$emit('first-line-change', this.line.page, this.lineIndex, previousLine);
-      }
-    },
-    cueLabel(cue) {
-      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
-      return `${cueType.prefix} ${cue.ident}`;
-    },
-    cueBackgroundColour(cue) {
-      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
-    },
-    getPreviousLineForIndex(pageIndex, lineIndex) {
-      if (lineIndex > 0) {
-        return [lineIndex - 1, this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1]];
-      }
-      let loopPageNo = pageIndex - 1;
-      while (loopPageNo >= 1) {
-        const loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
-        if (loopPage.length > 0) {
-          return [loopPage.length - 1, loopPage[loopPage.length - 1]];
-        }
-        loopPageNo -= 1;
-      }
-      return [null, null];
-    },
-    isWholeLineCut(line) {
-      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
-    },
-  },
   computed: {
     needsHeadings() {
       let { previousLine, lineIndex } = this;
@@ -231,7 +177,7 @@ export default {
       }
 
       const ret = [];
-      this.line.line_parts.forEach(function (part) {
+      this.line.line_parts.forEach(function checkHeadingNeeded(part) {
         if (previousLine == null
           || previousLine.line_parts.length !== this.line.line_parts.length) {
           ret.push(true);
@@ -298,6 +244,70 @@ export default {
     },
     ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS']),
   },
+  mounted() {
+    /* eslint-disable no-restricted-syntax */
+    this.observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        const newValue = m.target.getAttribute(m.attributeName);
+        this.$nextTick(() => {
+          this.onClassChange(newValue, m.oldValue);
+        });
+      }
+    });
+    /* eslint-enable no-restricted-syntax */
+
+    this.observer.observe(this.$refs.lineContainer, {
+      attributes: true,
+      attributeOldValue: true,
+      attributeFilter: ['class'],
+    });
+  },
+  destroyed() {
+    this.observer.disconnect();
+  },
+  methods: {
+    contrastColor,
+    onClassChange(classAttrValue, oldClassAttrValue) {
+      const classList = classAttrValue.split(' ');
+      const oldClassList = oldClassAttrValue.split(' ');
+      if (classList.includes('last-script-element') && !oldClassList.includes('last-script-element')) {
+        this.$emit('last-line-change', this.line.page, this.lineIndex);
+      }
+      if (classList.includes('first-script-element') && !oldClassList.includes('first-script-element')) {
+        let previousLine = null;
+        if (this.previousLine != null) {
+          previousLine = `page_${this.previousLine.page}_line_${this.previousLineIndex}`;
+        }
+        this.$emit('first-line-change', this.line.page, this.lineIndex, previousLine);
+      }
+    },
+    cueLabel(cue) {
+      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
+      return `${cueType.prefix} ${cue.ident}`;
+    },
+    cueBackgroundColour(cue) {
+      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
+    },
+    getPreviousLineForIndex(pageIndex, lineIndex) {
+      if (lineIndex > 0) {
+        return [lineIndex - 1, this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1]];
+      }
+      let loopPageNo = pageIndex - 1;
+      while (loopPageNo >= 1) {
+        const loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        if (loopPage.length > 0) {
+          return [loopPage.length - 1, loopPage[loopPage.length - 1]];
+        }
+        loopPageNo -= 1;
+      }
+      return [null, null];
+    },
+    isWholeLineCut(line) {
+      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
+          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+    },
+  },
+
 };
 </script>
 

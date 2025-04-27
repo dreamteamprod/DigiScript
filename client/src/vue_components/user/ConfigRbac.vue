@@ -27,7 +27,7 @@
           >
             <rbac-resource
               :resource="resource"
-              :user_id="user_id"
+              :user-id="userId"
             />
           </b-tab>
         </b-tabs>
@@ -44,8 +44,9 @@ export default {
   name: 'ConfigRBAC',
   components: { RbacResource },
   props: {
-    user_id: {
+    userId: {
       required: true,
+      type: [Number, String],
     },
   },
   data() {

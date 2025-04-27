@@ -12,7 +12,7 @@
         name="username-input"
         :state="validateState('username')"
         aria-describedby="username-feedback"
-        :disabled="is_first_admin"
+        :disabled="isFirstAdmin"
       />
       <b-form-invalid-feedback
         id="username-feedback"
@@ -79,11 +79,11 @@ import { mapActions } from 'vuex';
 export default {
   name: 'CreateUser',
   props: {
-    is_first_admin: {
+    isFirstAdmin: {
       type: Boolean,
       default: false,
     },
-    show_id: {
+    showId: {
       type: Number,
       required: false,
       default: null,
@@ -92,11 +92,11 @@ export default {
   data() {
     return {
       state: {
-        username: this.is_first_admin ? 'admin' : '',
+        username: this.isFirstAdmin ? 'admin' : '',
         password: '',
         confirmPassword: '',
-        show_id: this.show_id,
-        is_admin: this.is_first_admin,
+        show_id: this.showId,
+        is_admin: this.isFirstAdmin,
       },
     };
   },
@@ -115,6 +115,11 @@ export default {
       },
     },
   },
+  computed: {
+    isDisabled() {
+      return Boolean(this.$v.state.$invalid);
+    },
+  },
   methods: {
     validateState(name) {
       const { $dirty, $error } = this.$v.state[name];
@@ -130,11 +135,6 @@ export default {
       }
     },
     ...mapActions(['CREATE_USER']),
-  },
-  computed: {
-    isDisabled() {
-      return Boolean(this.$v.state.$invalid);
-    },
   },
 };
 </script>
