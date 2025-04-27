@@ -201,11 +201,16 @@ export default {
       return this.needsHeadings.every((x) => (x === true));
     },
     needsActSceneLabel() {
-      if (this.previousLine == null) {
+      let { previousLine, lineIndex } = this;
+      while (previousLine != null && (previousLine.stage_direction === true
+          || this.isWholeLineCut(previousLine))) {
+        [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
+      }
+      if (previousLine == null) {
         return true;
       }
-      return !(this.previousLine.act_id === this.line.act_id
-        && this.previousLine.scene_id === this.line.scene_id);
+      return !(previousLine.act_id === this.line.act_id
+        && previousLine.scene_id === this.line.scene_id);
     },
     actLabel() {
       return this.acts.find((act) => (act.id === this.line.act_id)).name;
