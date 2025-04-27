@@ -224,6 +224,13 @@ class LogoutHandler(BaseAPIController):
             if ws_controller and hasattr(ws_controller, "current_user_id"):
                 ws_controller.current_user_id = None
 
+            # Revoke the JWT
+            auth_header = self.request.headers.get("Authorization", "")
+            token = self.application.jwt_service.get_token_from_authorization_header(
+                auth_header
+            )
+            await self.application.jwt_service.revoke_token(token)
+
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})
         else:

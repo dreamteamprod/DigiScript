@@ -45,6 +45,10 @@ class BaseController(SessionMixin, RequestHandler):
         with self.make_session() as session:
             # If we have a token, try to authenticate with it
             if token:
+                is_revoked = await self.application.jwt_service.is_token_revoked(token)
+                if is_revoked:
+                    raise HTTPError(401, log_message="JWT revoked")
+
                 payload = self.application.jwt_service.decode_access_token(token)
                 if payload and "user_id" in payload:
                     user = session.query(User).get(int(payload["user_id"]))

@@ -62,23 +62,12 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         self.__setattr__("internal_id", str(uuid4()))
         self.application.clients.append(self)
 
-        # Check for token in query parameters (optional initial authentication)
-        token = self.get_argument("token", None)
-        if token:
-            payload = self.application.jwt_service.decode_access_token(token)
-            if payload and "user_id" in payload:
-                with self.make_session() as session:
-                    user = session.query(User).get(int(payload["user_id"]))
-                    if user:
-                        self.current_user_id = user.id
-
         self.update_session(user_id=self.current_user_id)
         get_logger().info(f"WebSocket opened from: {self.request.remote_ip}")
 
         yield self.write_message(
             {"OP": "SET_UUID", "DATA": self.__getattribute__("internal_id")}
         )
-
         yield self.write_message({"OP": "NOOP", "DATA": {}, "ACTION": "GET_SETTINGS"})
 
     def on_close(self) -> None:
@@ -165,8 +154,12 @@ class WebSocketController(SessionMixin, WebSocketHandler):
 
     async def authenticate_with_token(self, token):
         """Authenticate using JWT token"""
-        payload = self.application.jwt_service.decode_access_token(token)
+        is_revoked = await self.application.jwt_service.is_token_revoked(token)
+        if is_revoked:
+            await self.write_message({"OP": "WS_AUTH_ERROR", "DATA": "Revoked token"})
+            return False
 
+        payload = self.application.jwt_service.decode_access_token(token)
         if not payload or "user_id" not in payload:
             await self.write_message(
                 {"OP": "WS_AUTH_ERROR", "DATA": "Invalid or expired token"}

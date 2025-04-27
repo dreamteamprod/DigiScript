@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import jwt
+import tornado.locks
 
 from models.settings import SystemSettings
 
@@ -21,6 +22,26 @@ class JWTService:
         self._secret = secret
         self._jwt_algorithm = jwt_algorithm
         self._default_expiry = default_expiry
+        self._revoked_tokens: Dict[str, int] = {}
+        self._revoked_token_lock = tornado.locks.Lock()
+
+    async def revoke_token(self, token: str):
+        headers = jwt.get_unverified_header(token)
+        expiry = headers.get("exp", -1)
+        async with self._revoked_token_lock:
+            self._revoked_tokens[token] = expiry
+
+    async def is_token_revoked(self, token: str):
+        async with self._revoked_token_lock:
+            if token in self._revoked_tokens:
+                expiry = self._revoked_tokens[token]
+                if expiry != -1:
+                    expiry_time = datetime.fromtimestamp(expiry, tz=timezone.utc)
+                    current_time = datetime.now(tz=timezone.utc)
+                    if current_time > expiry_time:
+                        self._revoked_tokens.pop(token)
+                return True
+            return False
 
     def get_secret(self):
         """
