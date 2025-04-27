@@ -204,6 +204,9 @@ export default {
       },
     },
   },
+  computed: {
+    ...mapGetters(['MICROPHONES']),
+  },
   methods: {
     openEditMicForm(mic) {
       if (mic != null) {
@@ -269,8 +272,6 @@ export default {
     },
     ...mapActions(['DELETE_MICROPHONE', 'ADD_MICROPHONE', 'UPDATE_MICROPHONE']),
   },
-  computed: {
-    ...mapGetters(['MICROPHONES']),
-  },
+
 };
 </script>

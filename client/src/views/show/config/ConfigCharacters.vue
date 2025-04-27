@@ -234,6 +234,15 @@ export default {
       },
     },
   },
+  computed: {
+    ...mapGetters(['CHARACTER_LIST', 'CAST_LIST']),
+    castOptions() {
+      return [
+        { value: null, text: 'Please select an option', disabled: true },
+        ...this.CAST_LIST.map((castMember) => ({ value: castMember.id, text: `${castMember.first_name} ${castMember.last_name}` })),
+      ];
+    },
+  },
   async mounted() {
     await this.GET_CHARACTER_LIST();
     await this.GET_CAST_LIST();
@@ -307,15 +316,6 @@ export default {
       }
     },
     ...mapActions(['GET_CHARACTER_LIST', 'GET_CAST_LIST', 'ADD_CHARACTER', 'UPDATE_CHARACTER', 'DELETE_CHARACTER']),
-  },
-  computed: {
-    ...mapGetters(['CHARACTER_LIST', 'CAST_LIST']),
-    castOptions() {
-      return [
-        { value: null, text: 'Please select an option', disabled: true },
-        ...this.CAST_LIST.map((castMember) => ({ value: castMember.id, text: `${castMember.first_name} ${castMember.last_name}` })),
-      ];
-    },
   },
 };
 </script>

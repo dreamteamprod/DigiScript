@@ -355,13 +355,6 @@ export default {
       },
     };
   },
-  async beforeMount() {
-    await this.GET_SHOW_DETAILS();
-    if (this.CURRENT_SHOW != null) {
-      await this.GET_STAGE_DIRECTION_STYLES();
-      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
-    }
-  },
   computed: {
     overrideChoices() {
       return [
@@ -425,6 +418,13 @@ export default {
       };
     },
     ...mapGetters(['CURRENT_SHOW', 'STAGE_DIRECTION_STYLES', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
+  },
+  async beforeMount() {
+    await this.GET_SHOW_DETAILS();
+    if (this.CURRENT_SHOW != null) {
+      await this.GET_STAGE_DIRECTION_STYLES();
+      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+    }
   },
   methods: {
     exampleCss(data) {

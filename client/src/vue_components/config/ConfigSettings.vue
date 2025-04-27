@@ -107,13 +107,16 @@ export default {
       toggle: 0,
     };
   },
+  computed: {
+    ...mapGetters(['RAW_SETTINGS']),
+  },
   watch: {
     RAW_SETTINGS() {
       this.resetForm();
     },
   },
   mounted() {
-    Object.keys(this.RAW_SETTINGS).forEach(function (x) {
+    Object.keys(this.RAW_SETTINGS).forEach(function loadSettings(x) {
       this.editSettings[x] = this.RAW_SETTINGS[x].value;
     }, this);
     this.loaded = true;
@@ -165,14 +168,11 @@ export default {
     resetForm() {
       this.loaded = false;
       this.toggle = !this.toggle;
-      Object.keys(this.RAW_SETTINGS).forEach(function (x) {
+      Object.keys(this.RAW_SETTINGS).forEach(function resetSettings(x) {
         this.editSettings[x] = this.RAW_SETTINGS[x].value;
       }, this);
       this.loaded = true;
     },
-  },
-  computed: {
-    ...mapGetters(['RAW_SETTINGS']),
   },
 };
 </script>

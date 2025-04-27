@@ -255,6 +255,12 @@ export default {
       },
     },
   },
+  computed: {
+    currentShowLoaded() {
+      return (this.$store.state.system.settings.current_show != null
+        && this.$store.state.currentShow != null);
+    },
+  },
   async mounted() {
     await this.getAvailableShows();
     await this.getConnectedClients();
@@ -351,12 +357,6 @@ export default {
       }
     },
     ...mapMutations(['UPDATE_SHOWS']),
-  },
-  computed: {
-    currentShowLoaded() {
-      return (this.$store.state.system.settings.current_show != null
-        && this.$store.state.currentShow != null);
-    },
   },
 };
 </script>

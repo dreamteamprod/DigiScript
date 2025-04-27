@@ -118,15 +118,19 @@ export default {
     },
     acts: {
       required: true,
+      type: Array,
     },
     scenes: {
       required: true,
+      type: Array,
     },
     characters: {
       required: true,
+      type: Array,
     },
     characterGroups: {
       required: true,
+      type: Array,
     },
     previousLineFn: {
       required: true,
@@ -142,9 +146,11 @@ export default {
     },
     stageDirectionStyles: {
       required: true,
+      type: Array,
     },
     value: {
       required: true,
+      type: Object,
     },
   },
   data() {
@@ -178,68 +184,23 @@ export default {
         required,
         $each: {
           character_id: {
-            required: requiredIf(function (m) {
+            required: requiredIf(function validateCharacterId(m) {
               return this.isStageDirection === false && m.character_group_id == null;
             }),
           },
           character_group_id: {
-            required: requiredIf(function (m) {
+            required: requiredIf(function validateCharacterGroupId(m) {
               return this.isStageDirection === false && m.character_id == null;
             }),
           },
           line_text: {
-            required: requiredIf(function () {
+            required: requiredIf(function validateLineText() {
               return this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== '');
             }),
           },
         },
       },
       stage_direction_style_id: {},
-    },
-  },
-  async created() {
-    this.previousLine = await this.previousLineFn(this.lineIndex);
-    this.nextLine = await this.nextLineFn(this.lineIndex);
-    if (this.state.line_parts.length === 0) {
-      this.addLinePart();
-    }
-  },
-  mounted() {
-    this.$v.state.$touch();
-  },
-  methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
-      return $dirty ? !$error : null;
-    },
-    doneEditing() {
-      this.$emit('doneEditing');
-    },
-    stateChange() {
-      this.$v.state.$touch();
-      this.$emit('input', this.state);
-    },
-    addLinePart() {
-      const blankLine = JSON.parse(JSON.stringify(this.blankLinePartObj));
-      blankLine.line_id = this.state.id;
-      blankLine.part_index = this.state.line_parts.length;
-      this.state.line_parts.push(blankLine);
-      if (!this.isStageDirection && this.previousLine != null) {
-        const newPartIndex = this.state.line_parts.length - 1;
-        const newPart = this.state.line_parts[newPartIndex];
-        if (this.previousLine.line_parts.length >= newPartIndex + 1) {
-          const previousPart = this.previousLine.line_parts[newPartIndex];
-          if (previousPart.character_id != null) {
-            newPart.character_id = previousPart.character_id;
-          } else if (previousPart.character_group_id != null) {
-            newPart.character_group_id = previousPart.character_group_id;
-          }
-        }
-      }
-      this.stateChange();
-    },
-    deleteLine() {
-      this.$emit('deleteLine');
     },
   },
   computed: {
@@ -311,6 +272,52 @@ export default {
       ];
     },
   },
+  async created() {
+    this.previousLine = await this.previousLineFn(this.lineIndex);
+    this.nextLine = await this.nextLineFn(this.lineIndex);
+    if (this.state.line_parts.length === 0) {
+      this.addLinePart();
+    }
+  },
+  mounted() {
+    this.$v.state.$touch();
+  },
+  methods: {
+    validateState(name) {
+      const { $dirty, $error } = this.$v.state[name];
+      return $dirty ? !$error : null;
+    },
+    doneEditing() {
+      this.$emit('doneEditing');
+    },
+    stateChange() {
+      this.$v.state.$touch();
+      this.$emit('input', this.state);
+    },
+    addLinePart() {
+      const blankLine = JSON.parse(JSON.stringify(this.blankLinePartObj));
+      blankLine.line_id = this.state.id;
+      blankLine.part_index = this.state.line_parts.length;
+      this.state.line_parts.push(blankLine);
+      if (!this.isStageDirection && this.previousLine != null) {
+        const newPartIndex = this.state.line_parts.length - 1;
+        const newPart = this.state.line_parts[newPartIndex];
+        if (this.previousLine.line_parts.length >= newPartIndex + 1) {
+          const previousPart = this.previousLine.line_parts[newPartIndex];
+          if (previousPart.character_id != null) {
+            newPart.character_id = previousPart.character_id;
+          } else if (previousPart.character_group_id != null) {
+            newPart.character_group_id = previousPart.character_group_id;
+          }
+        }
+      }
+      this.stateChange();
+    },
+    deleteLine() {
+      this.$emit('deleteLine');
+    },
+  },
+
 };
 </script>
 

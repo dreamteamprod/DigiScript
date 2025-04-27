@@ -86,6 +86,9 @@ export default {
       editUser: null,
     };
   },
+  computed: {
+    ...mapGetters(['SHOW_USERS', 'CURRENT_SHOW']),
+  },
   async mounted() {
     await this.GET_USERS();
   },
@@ -104,9 +107,6 @@ export default {
       }
     },
     ...mapActions(['GET_USERS', 'DELETE_USER']),
-  },
-  computed: {
-    ...mapGetters(['SHOW_USERS', 'CURRENT_SHOW']),
   },
 };
 </script>
