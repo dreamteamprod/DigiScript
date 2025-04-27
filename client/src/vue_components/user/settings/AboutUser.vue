@@ -19,7 +19,7 @@ export default {
   computed: {
     tableData() {
       const data = {};
-      Object.keys(this.CURRENT_USER).forEach(function (key) {
+      Object.keys(this.CURRENT_USER).forEach(function formatUserData(key) {
         data[this.titleCase(key, '_')] = this.CURRENT_USER[key];
       }, this);
       return data;
