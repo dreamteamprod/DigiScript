@@ -6,7 +6,10 @@
     style="margin: 0; padding: 0"
     fluid
   >
-    <b-row v-if="needsActSceneLabel">
+    <b-row
+      v-if="needsActSceneLabel"
+      class="act-scene-header"
+    >
       <b-col
         cols="3"
         class="cue-column"
@@ -334,5 +337,13 @@ export default {
   }
   .cut-line-part {
     text-decoration: line-through;
+  }
+
+  .current-line {
+    background: #3498db54;
+  }
+
+  .act-scene-header {
+    background: var(--body-background);
   }
 </style>
