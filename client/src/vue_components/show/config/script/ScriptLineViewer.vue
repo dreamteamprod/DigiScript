@@ -121,6 +121,7 @@ export default {
   props: {
     line: {
       required: true,
+      type: Object,
     },
     lineIndex: {
       required: true,
@@ -132,18 +133,23 @@ export default {
     },
     previousLine: {
       required: true,
+      type: Object,
     },
     acts: {
       required: true,
+      type: Array,
     },
     scenes: {
       required: true,
+      type: Array,
     },
     characters: {
       required: true,
+      type: Array,
     },
     characterGroups: {
       required: true,
+      type: Array,
     },
     canEdit: {
       required: true,

@@ -71,9 +71,11 @@ export default {
     },
     characters: {
       required: true,
+      type: Array,
     },
     characterGroups: {
       required: true,
+      type: Array,
     },
     showAddButton: {
       required: true,
@@ -93,6 +95,7 @@ export default {
     },
     value: {
       required: true,
+      type: Object,
     },
   },
   validations: {

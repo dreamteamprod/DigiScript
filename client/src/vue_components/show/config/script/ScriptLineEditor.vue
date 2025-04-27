@@ -118,15 +118,19 @@ export default {
     },
     acts: {
       required: true,
+      type: Array,
     },
     scenes: {
       required: true,
+      type: Array,
     },
     characters: {
       required: true,
+      type: Array,
     },
     characterGroups: {
       required: true,
+      type: Array,
     },
     previousLineFn: {
       required: true,
@@ -142,9 +146,11 @@ export default {
     },
     stageDirectionStyles: {
       required: true,
+      type: Array,
     },
     value: {
       required: true,
+      type: Object,
     },
   },
   data() {

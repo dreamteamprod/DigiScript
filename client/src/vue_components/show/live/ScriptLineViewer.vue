@@ -112,6 +112,7 @@ export default {
   props: {
     line: {
       required: true,
+      type: Object,
     },
     lineIndex: {
       required: true,
@@ -119,27 +120,35 @@ export default {
     },
     previousLine: {
       required: true,
+      type: Object,
     },
     previousLineIndex: {
       required: true,
+      type: Number,
     },
     acts: {
       required: true,
+      type: Array,
     },
     scenes: {
       required: true,
+      type: Array,
     },
     characters: {
       required: true,
+      type: Array,
     },
     characterGroups: {
       required: true,
+      type: Array,
     },
     cueTypes: {
       required: true,
+      type: Array,
     },
     cues: {
       required: true,
+      type: Array,
     },
     cuts: {
       required: true,

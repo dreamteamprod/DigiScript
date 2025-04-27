@@ -61,9 +61,11 @@ export default {
   props: {
     resource: {
       required: true,
+      type: String,
     },
     userId: {
       required: true,
+      type: Number,
     },
   },
   data() {
