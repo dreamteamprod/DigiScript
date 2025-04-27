@@ -191,8 +191,6 @@ class LoginHandler(BaseAPIController):
                         },
                     )
 
-                    # Keep setting the cookie for backward compatibility
-                    self.set_secure_cookie("digiscript_user_id", str(user.id))
                     self.set_status(200)
                     await self.finish(
                         {
@@ -226,8 +224,6 @@ class LogoutHandler(BaseAPIController):
             if ws_controller and hasattr(ws_controller, "current_user_id"):
                 ws_controller.current_user_id = None
 
-            # Clear cookie (for backward compatibility)
-            self.clear_cookie("digiscript_user_id")
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})
         else:
@@ -237,26 +233,9 @@ class LogoutHandler(BaseAPIController):
 
 @ApiRoute("auth/refresh-token", ApiVersion.V1)
 class RefreshTokenHandler(BaseAPIController):
-    # @api_authenticated
+    @api_authenticated
     async def post(self):
         """Generate a new access token using the current authentication"""
-        # Extract JWT token from header
-        # TODO: When we remove secure cookies, we can remove this check
-        #  and use the @api_authenticated decorator
-        auth_header = self.request.headers.get("Authorization", "")
-        token = self.application.jwt_service.decode_access_token(
-            self.application.jwt_service.get_token_from_authorization_header(
-                auth_header
-            )
-        )
-
-        # Token refresh requires a token, not a secure cookie
-        if not token:
-            self.set_status(401)
-            await self.finish({"message": "Not authenticated"})
-            return
-
-        # Create a new JWT token with extended expiration
         access_token = self.application.jwt_service.create_access_token(
             data={
                 "user_id": self.current_user["id"],

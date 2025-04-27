@@ -141,7 +141,7 @@
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 import CreateUser from '@/vue_components/user/CreateUser.vue';
-import { getCookie, makeURL } from '@/js/utils';
+import { makeURL } from '@/js/utils';
 
 export default {
   name: 'App',
@@ -242,10 +242,6 @@ export default {
         // Check for authentication via token first
         if (this.AUTH_TOKEN) {
           // Then get user data
-          await this.GET_CURRENT_USER();
-          await this.GET_CURRENT_RBAC();
-        } else if (getCookie('digiscript_user_id') != null) {
-          // Fallback to cookie authentication
           await this.GET_CURRENT_USER();
           await this.GET_CURRENT_RBAC();
         }

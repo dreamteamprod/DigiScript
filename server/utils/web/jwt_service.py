@@ -12,7 +12,7 @@ class JWTService:
         application=None,
         secret=None,
         jwt_algorithm: str = "HS256",
-        default_expiry: timedelta = timedelta(minutes=60),
+        default_expiry: timedelta = timedelta(days=1),
     ):
         """
         Initialize JWT service with either application instance or direct secret
