@@ -5,7 +5,8 @@
   "scripts": {
     "build": "vite build",
     "lint": "eslint 'src/**/*.{js,vue}' --fix",
-    "ci-lint": "eslint 'src/**/*.{js,vue}'"
+    "ci-lint": "eslint 'src/**/*.{js,vue}'",
+    "lint:filter": "./scripts/eslint-filter.sh"
   },
   "engines": {
     "npm": ">=10.0.0 <11",
