@@ -73,9 +73,11 @@ jobs:
       - name: Copy database to PR branch and run migration check
         working-directory: ./pr-branch/server
         run: |
-          # Copy the generated config across to the current code
+          # Copy the generated config file across to the current code
           mkdir -p conf          
-          cp -r ${{ github.workspace }}/db-conf-mount/. ./conf/
+          cp ${{ github.workspace }}/db-conf-mount/digiscript.json ./conf/
+          # Replace the db_path variable in the settings file to the file in the mount directory
+          jq '.db_path = "${{ github.workspace }}/db-conf-mount/digiscript.sqlite"' ./conf/digiscript.json
           
           # First, run all migrations to make sure the database file is updated
           python -m alembic upgrade head
