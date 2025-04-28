@@ -75,7 +75,7 @@ jobs:
         run: |
           # Copy the generated database file into the source branch server conf
           mkdir -p conf          
-          cp ${{ github.workspace }}/db-conf-mount/digiscript.db ./conf/
+          cp ${{ github.workspace }}/db-conf-mount/digiscript.sqlite ./conf/
           
           # Run alembic check
           python -m alembic check
