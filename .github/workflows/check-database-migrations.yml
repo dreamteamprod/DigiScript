@@ -61,10 +61,11 @@ jobs:
       - name: Stop target branch container
         if: always()
         run: docker stop digiscript-target
-      - name: Check database files
+      - name: Check database files and update permissions
         run: |
           echo "Database files in mount directory:"
           ls -la db-conf-mount
+          chown -R runner:runner db-conf-mount
       - name: Install Alembic in PR branch
         working-directory: ./pr-branch/server
         run: |
