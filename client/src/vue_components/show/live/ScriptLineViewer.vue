@@ -113,6 +113,7 @@
         <b-button
           v-if="isScriptLeader"
           variant="primary"
+          @click.stop="startInterval"
         >
           Start Interval
         </b-button>
@@ -139,7 +140,7 @@ import { contrastColor } from 'contrast-color';
 
 export default {
   name: 'ScriptLineViewer',
-  events: ['last-line-change', 'first-line-change'],
+  events: ['last-line-change', 'first-line-change', 'start-interval'],
   props: {
     line: {
       required: true,
@@ -370,6 +371,9 @@ export default {
     isWholeLineCut(line) {
       return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
           || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+    },
+    startInterval() {
+      this.$emit('start-interval', this.acts.find((act) => (act.id === this.line.act_id)).id);
     },
   },
 };

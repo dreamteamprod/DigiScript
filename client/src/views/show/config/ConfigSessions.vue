@@ -47,7 +47,7 @@
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 
-import { makeURL, msToTimer } from '@/js/utils';
+import { makeURL, msToTimerString } from '@/js/utils';
 
 export default {
   name: 'ConfigSessions',
@@ -106,7 +106,7 @@ export default {
       const startDate = Date.parse(start);
       const endDate = Date.parse(end);
       const diff = endDate - startDate;
-      return msToTimer(diff);
+      return msToTimerString(diff);
     },
     ...mapActions(['GET_SHOW_SESSION_DATA']),
   },

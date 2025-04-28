@@ -20,7 +20,7 @@ export function randInt(min, max) {
   return Math.floor(Math.random() * (maxFloor - minCeil) + minCeil);
 }
 
-export function msToTimer(milliseconds) {
+export function msToTimerString(milliseconds) {
   // Adapted from https://stackoverflow.com/a/33909506
   const hours = milliseconds / (1000 * 60 * 60);
   const absoluteHours = Math.floor(hours);
@@ -33,4 +33,22 @@ export function msToTimer(milliseconds) {
   const s = absoluteSeconds > 9 ? absoluteSeconds : `0${absoluteSeconds}`;
 
   return `${h}:${m}:${s}`;
+}
+
+export function msToTimerParts(milliseconds) {
+  // Adapted from https://stackoverflow.com/a/33909506
+  const hours = milliseconds / (1000 * 60 * 60);
+  const absoluteHours = Math.floor(hours);
+  const minutes = (hours - absoluteHours) * 60;
+  const absoluteMinutes = Math.floor(minutes);
+  const seconds = (minutes - absoluteMinutes) * 60;
+  const absoluteSeconds = Math.floor(seconds);
+  return [absoluteHours, absoluteMinutes, absoluteSeconds];
+}
+
+export function formatTimerParts(hours, minutes, seconds) {
+  const h = hours > 9 ? hours : `0${hours}`;
+  const m = minutes > 9 ? minutes : `0${minutes}`;
+  const s = seconds > 9 ? seconds : `0${seconds}`;
+  return [h, m, s];
 }

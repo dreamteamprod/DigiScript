@@ -1,3 +1,4 @@
+import datetime
 import json
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, Optional, Union
 from uuid import uuid4
@@ -8,8 +9,8 @@ from tornado.websocket import WebSocketClosedError, WebSocketHandler
 from tornado_sqlalchemy import SessionMixin
 
 from digi_server.logger import get_logger
-from models.session import Session, ShowSession
-from models.show import Show
+from models.session import Interval, Session, ShowSession
+from models.show import Act, Show
 from models.user import User
 from utils.web.route import ApiRoute, ApiVersion
 
@@ -318,6 +319,52 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                             session.commit()
                             await self.application.ws_send_to_all(
                                 "NOOP", "SCRIPT_SCROLL", message["DATA"]
+                            )
+            elif ws_op == "BEGIN_INTERVAL":
+                if show and show.current_session_id:
+                    show_session = session.query(ShowSession).get(
+                        show.current_session_id
+                    )
+                    if show_session:
+                        if show_session.client_internal_id == self.__getattribute__(
+                            "internal_id"
+                        ):
+                            act: Act = session.get(Act, message["DATA"]["actId"])
+                            if not entry:
+                                return
+
+                            show_interval = Interval(
+                                session_id=show_session.id,
+                                act_id=act.id,
+                                initial_length=message["DATA"]["length"],
+                            )
+                            session.add(show_interval)
+                            session.flush()
+                            show_session.current_interval_id = show_interval.id
+                            session.commit()
+                            await self.application.ws_send_to_all(
+                                "NOOP", "GET_SHOW_SESSION_DATA", {}
+                            )
+            elif ws_op == "END_INTERVAL":
+                if show and show.current_session_id:
+                    show_session = session.query(ShowSession).get(
+                        show.current_session_id
+                    )
+                    if show_session:
+                        if show_session.client_internal_id == self.__getattribute__(
+                            "internal_id"
+                        ):
+                            current_interval: Interval = session.get(
+                                Interval, show_session.current_interval_id
+                            )
+                            if current_interval:
+                                current_interval.end_datetime = datetime.datetime.now(
+                                    tz=datetime.timezone.utc
+                                )
+                            show_session.current_interval_id = None
+                            session.commit()
+                            await self.application.ws_send_to_all(
+                                "NOOP", "GET_SHOW_SESSION_DATA", {}
                             )
             elif ws_op == "RELOAD_CLIENTS":
                 if show and show.current_session_id:

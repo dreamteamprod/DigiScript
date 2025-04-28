@@ -2,10 +2,10 @@ from datetime import datetime
 
 from tornado import escape
 
-from models.session import Session, ShowSession
+from models.session import Interval, Session, ShowSession
 from models.show import Show
 from rbac.role import Role
-from schemas.schemas import ShowSessionSchema
+from schemas.schemas import IntervalSchema, ShowSessionSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import requires_show
@@ -19,6 +19,7 @@ class SessionsController(BaseAPIController):
         current_show = self.get_current_show()
         show_id = current_show["id"]
         session_schema = ShowSessionSchema()
+        interval_schema = IntervalSchema()
 
         with self.make_session() as session:
             show = session.query(Show).get(show_id)
@@ -31,14 +32,28 @@ class SessionsController(BaseAPIController):
                 sessions = [session_schema.dump(s) for s in sessions]
 
                 current_session = None
+                current_interval = None
                 if show.current_session_id:
                     current_session = session.query(ShowSession).get(
                         show.current_session_id
                     )
+
+                    if current_session.current_interval_id:
+                        current_interval = session.query(Interval).get(
+                            current_session.current_interval_id
+                        )
+                        current_interval = interval_schema.dump(current_interval)
+
                     current_session = session_schema.dump(current_session)
 
                 self.set_status(200)
-                self.finish({"sessions": sessions, "current_session": current_session})
+                self.finish(
+                    {
+                        "sessions": sessions,
+                        "current_session": current_session,
+                        "current_interval": current_interval,
+                    }
+                )
             else:
                 self.set_status(404)
                 self.finish({"message": "404 show not found"})

@@ -14,7 +14,7 @@ from models.script import (
     ScriptRevision,
     StageDirectionStyle,
 )
-from models.session import Session, ShowSession
+from models.session import Interval, Session, ShowSession
 from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
 from models.user import User
 
@@ -192,6 +192,14 @@ class StageDirectionStyleSchema(SQLAlchemyAutoSchema):
 class ShowSessionSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = ShowSession
+        load_instance = True
+        include_fk = True
+
+
+@schema
+class IntervalSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Interval
         load_instance = True
         include_fk = True
 

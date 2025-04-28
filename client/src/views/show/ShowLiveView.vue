@@ -31,72 +31,169 @@
         style="text-align: right"
       >
         <b>
-          Elapsed Time: {{ msToTimer(elapsedTime) }}
+          Elapsed Time: {{ msToTimerString(elapsedTime) }}
         </b>
       </b-col>
     </b-row>
-    <b-row>
-      <b-col
-        id="script-container"
-        cols="12"
-        class="script-container"
-        :data-following="isScriptFollowing"
-      >
+    <b-overlay
+      :show="CURRENT_SHOW_INTERVAL != null"
+      rounded="sm"
+      variant="secondary"
+      @shown="onOverlayShown"
+      @hidden="onOverlayHidden"
+    >
+      <template #overlay>
         <div
-          v-if="!initialLoad"
-          class="text-center center-spinner"
+          ref="interval-overlay"
+          class="text-center"
         >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
-        </div>
-        <template v-else>
-          <template v-for="page in pageIter">
-            <script-line-viewer
-              v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-              v-show="!isWholeLineCut(line)"
-              v-once
-              :id="`page_${page}_line_${index}`"
-              :key="`page_${page}_line_${index}`"
-              class="script-item"
-              :line-index="index"
-              :line="line"
-              :acts="ACT_LIST"
-              :scenes="SCENE_LIST"
-              :characters="CHARACTER_LIST"
-              :character-groups="CHARACTER_GROUP_LIST"
-              :previous-line="getPreviousLineForIndex(page, index)"
-              :previous-line-index="getPreviousLineIndex(page, index)"
-              :cue-types="CUE_TYPES"
-              :cues="getCuesForLine(line)"
-              :cuts="SCRIPT_CUTS"
-              :stage-direction-styles="STAGE_DIRECTION_STYLES"
-              :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
-              :is-script-leader="isScriptLeader"
-              @last-line-change="handleLastLineChange"
-              @first-line-change="handleFirstLineChange"
-            />
-          </template>
-          <b-row
-            v-show="initialLoad"
-            class="script-footer"
+          <b-container
+            class="mx-0"
+            fluid
           >
-            <b-col>
-              <b-button-group>
+            <b-row>
+              <b-col class="d-flex align-items-center justify-content-center">
+                <h3>
+                  {{ intervalOverlayHeading }} - Interval in Progress
+                  <b-icon
+                    icon="stopwatch"
+                    animation="cylon"
+                  />
+                </h3>
+              </b-col>
+            </b-row>
+            <b-row v-if="intervalTimer != null">
+              <b-col class="d-flex align-items-center justify-content-center">
+                <h1 style="margin-top: .5rem">
+                  <!-- eslint-disable-next-line max-len -->
+                  <span :style="intervalTimerStyle">{{ intervalTimerValues[0] }}</span>:<span :style="intervalTimerStyle">{{ intervalTimerValues[1] }}</span>:<span :style="intervalTimerStyle">{{ intervalTimerValues[2] }}</span>
+                </h1>
+              </b-col>
+            </b-row>
+            <b-row style="margin-top: .5rem">
+              <b-col class="d-flex align-items-center justify-content-center">
                 <b-button
-                  variant="danger"
-                  :disabled="stoppingSession"
-                  @click.stop="stopShow"
+                  v-if="isScriptLeader"
+                  variant="primary"
+                  @click.stop="stopInterval"
                 >
-                  End Show
+                  Stop Interval
                 </b-button>
-              </b-button-group>
-            </b-col>
-          </b-row>
-        </template>
-      </b-col>
-    </b-row>
+              </b-col>
+            </b-row>
+          </b-container>
+        </div>
+      </template>
+      <b-row
+        ref="script-container"
+        :aria-hidden="CURRENT_SHOW_INTERVAL != null ? 'true' : null"
+      >
+        <b-col
+          id="script-container"
+          cols="12"
+          class="script-container"
+          :data-following="isScriptFollowing"
+        >
+          <div
+            v-if="!initialLoad"
+            class="text-center center-spinner"
+          >
+            <b-spinner
+              style="width: 10rem; height: 10rem;"
+              variant="info"
+            />
+          </div>
+          <template v-else>
+            <template v-for="page in pageIter">
+              <script-line-viewer
+                v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+                v-show="!isWholeLineCut(line)"
+                v-once
+                :id="`page_${page}_line_${index}`"
+                :key="`page_${page}_line_${index}`"
+                class="script-item"
+                :line-index="index"
+                :line="line"
+                :acts="ACT_LIST"
+                :scenes="SCENE_LIST"
+                :characters="CHARACTER_LIST"
+                :character-groups="CHARACTER_GROUP_LIST"
+                :previous-line="getPreviousLineForIndex(page, index)"
+                :previous-line-index="getPreviousLineIndex(page, index)"
+                :cue-types="CUE_TYPES"
+                :cues="getCuesForLine(line)"
+                :cuts="SCRIPT_CUTS"
+                :stage-direction-styles="STAGE_DIRECTION_STYLES"
+                :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
+                :is-script-leader="isScriptLeader"
+                @last-line-change="handleLastLineChange"
+                @first-line-change="handleFirstLineChange"
+                @start-interval="configureInterval"
+              />
+            </template>
+            <b-row
+              v-show="initialLoad"
+              class="script-footer"
+            >
+              <b-col>
+                <b-button-group>
+                  <b-button
+                    variant="danger"
+                    :disabled="stoppingSession"
+                    @click.stop="stopShow"
+                  >
+                    End Show
+                  </b-button>
+                </b-button-group>
+              </b-col>
+            </b-row>
+          </template>
+        </b-col>
+      </b-row>
+    </b-overlay>
+    <b-modal
+      id="start-interval-modal"
+      ref="start-interval-modal"
+      title="Start Interval"
+      size="md"
+      :ok-disabled="intervalTimerLength === 0"
+      ok-title="Start"
+      :ok-only="true"
+      ok-variant="success"
+      @show="resetIntervalState"
+      @hidden="resetIntervalState"
+      @ok="startInterval"
+    >
+      <b-container
+        class="mx-0"
+        fluid
+      >
+        <b-row align-h="center">
+          <b-col md="auto">
+            <b-time
+              id="interval-time-selector"
+              v-model="intervalTimerValue"
+              :hour12="false"
+              :show-seconds="true"
+              :hide-header="true"
+              label-increment="+"
+              label-decrement="-"
+              @context="onIntervalTimerContext"
+            />
+          </b-col>
+        </b-row>
+        <b-row align-h="center">
+          <b-col md="auto">
+            <b-alert
+              show
+              variant="info"
+            >
+              Select the length of the interval (HH:MM:SS)
+            </b-alert>
+          </b-col>
+        </b-row>
+      </b-container>
+    </b-modal>
   </b-container>
 </template>
 
@@ -106,7 +203,9 @@ import $ from 'jquery';
 import { debounce } from 'lodash';
 import log from 'loglevel';
 
-import { makeURL, msToTimer } from '@/js/utils';
+import {
+  formatTimerParts, makeURL, msToTimerParts, msToTimerString,
+} from '@/js/utils';
 import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
 
 export default {
@@ -138,6 +237,14 @@ export default {
       currentLineOnPage: 0,
       isScrollingProgrammatically: false,
       debounceContentSize: debounce(this.computeContentSize, 100),
+      intervalActId: null,
+      intervalTimerValue: '00:00:00',
+      intervalTimerContext: null,
+      intervalTimer: null,
+      intervalStartDate: null,
+      isIntervalLong: false,
+      intervalTimerValues: [0, 0, 0],
+      intervalRemainingTime: 0,
     };
   },
   computed: {
@@ -161,10 +268,44 @@ export default {
       }
       return false;
     },
+    intervalTimerLength() {
+      if (this.intervalTimerContext == null) {
+        return 0;
+      }
+      return ((this.intervalTimerContext.hours * 60 * 60)
+        + (this.intervalTimerContext.minutes * 60)
+        + this.intervalTimerContext.seconds);
+    },
+    intervalOverlayHeading() {
+      if (this.CURRENT_SHOW_INTERVAL == null || this.ACT_LIST.length === 0) {
+        return '';
+      }
+      return this.ACT_LIST.find((act) => (act.id === this.CURRENT_SHOW_INTERVAL.act_id)).name;
+    },
+    intervalTimerColour() {
+      if (this.isIntervalLong) {
+        return '#cc0000';
+      }
+      const intervalProgress = (Math.abs(this.intervalRemainingTime)
+        / (this.CURRENT_SHOW_INTERVAL.initial_length * 1000));
+      if (intervalProgress > 0.25) {
+        return '#00cc00';
+      }
+      return '#d76113';
+    },
+    intervalTimerStyle() {
+      return {
+        margin: '.5rem',
+        'border-radius': '3px',
+        color: '#ffffff',
+        'background-color': this.intervalTimerColour,
+        padding: '.25rem',
+      };
+    },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
       'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
-      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
+      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES', 'CURRENT_SHOW_INTERVAL']),
   },
   watch: {
     SESSION_FOLLOW_DATA() {
@@ -201,10 +342,16 @@ export default {
         }
       }
     },
+    CURRENT_SHOW_INTERVAL() {
+      this.setupIntervalTimer();
+    },
   },
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();
     this.loadedSessionData = true;
+    if (this.CURRENT_SHOW_INTERVAL != null) {
+      this.setupIntervalTimer();
+    }
     // Get the current user
     await this.GET_CURRENT_USER();
 
@@ -516,8 +663,9 @@ export default {
       return this.navigateTo(newPage, newLineOnPage);
     },
     handleKeyNavigation(event) {
-      // Only handle if we're the leader and not currently scrolling
-      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return;
+      // Only handle if we're the leader and not currently scrolling or starting an interval
+      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically
+        || this.intervalTimerContext != null || this.CURRENT_SHOW_INTERVAL != null) return;
 
       // Process arrow keys
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
@@ -529,8 +677,9 @@ export default {
       }
     },
     handleWheelNavigation(event) {
-      // Only handle if we're the leader and not currently scrolling
-      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically) return;
+      // Only handle if we're the leader and not currently scrolling or starting an interval
+      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically
+        || this.intervalTimerContext != null || this.CURRENT_SHOW_INTERVAL != null) return;
 
       // Don't take over all scrolling, just script navigation
       // We need to check if we're at the top or bottom of the container
@@ -571,7 +720,7 @@ export default {
         this.navigateTo(1, 0);
       }
     },
-    msToTimer,
+    msToTimerString,
     createDateAsUTC(date) {
       return new Date(Date.UTC(
         date.getFullYear(),
@@ -754,6 +903,66 @@ export default {
     isWholeLineCut(line) {
       return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
           || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+    },
+    configureInterval(actId) {
+      this.intervalActId = actId;
+      this.$bvModal.show('start-interval-modal');
+    },
+    resetIntervalState() {
+      this.intervalTimerContext = null;
+      this.intervalTimerValue = '00:00:00';
+    },
+    onIntervalTimerContext(ctx) {
+      this.intervalTimerContext = ctx;
+    },
+    startInterval() {
+      this.$socket.sendObj({
+        OP: 'BEGIN_INTERVAL',
+        DATA: {
+          actId: this.intervalActId,
+          length: this.intervalTimerLength,
+        },
+      });
+      this.$toast.success('Interval started!');
+    },
+    stopInterval() {
+      this.$socket.sendObj({
+        OP: 'END_INTERVAL',
+        DATA: {},
+      });
+      this.$toast.success('Interval stopped!');
+    },
+    onOverlayShown() {
+      this.$refs['interval-overlay'].focus();
+    },
+    onOverlayHidden() {
+      this.$refs['script-container'].focus();
+    },
+    setupIntervalTimer() {
+      clearInterval(this.intervalTimer);
+      this.intervalTimer = null;
+      this.intervalTimerValues = [0, 0, 0];
+      this.isIntervalLong = false;
+      this.intervalRemainingTime = 0;
+      if (this.CURRENT_SHOW_INTERVAL != null) {
+        this.intervalStartDate = this.createDateAsUTC(new Date(this.CURRENT_SHOW_INTERVAL.start_datetime.replace(' ', 'T')));
+        this.updateIntervalTimer();
+        this.intervalTimer = setInterval(this.updateIntervalTimer, 500);
+      }
+    },
+    updateIntervalTimer() {
+      if (this.intervalStartDate != null) {
+        const intervalElapsedTime = Date.now() - this.intervalStartDate;
+        this.intervalRemainingTime = (
+          this.CURRENT_SHOW_INTERVAL.initial_length * 1000
+        ) - intervalElapsedTime;
+        if (this.intervalRemainingTime < 0) {
+          this.isIntervalLong = true;
+        }
+        this.intervalTimerValues = formatTimerParts(
+          ...msToTimerParts(Math.abs(this.intervalRemainingTime)),
+        );
+      }
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
