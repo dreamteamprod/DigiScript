@@ -13,6 +13,7 @@ export default {
     cueTypes: [],
     sessions: [],
     currentSession: null,
+    currentInterval: null,
     sessionFollowData: {},
     microphones: [],
     micAllocations: [],
@@ -48,6 +49,9 @@ export default {
     },
     SET_CURRENT_SESSION(state, session) {
       state.currentSession = session;
+    },
+    SET_CURRENT_INTERVAL(state, interval) {
+      state.currentInterval = interval;
     },
     SET_SESSION_FOLLOW_DATA(state, data) {
       state.sessionFollowData = data;
@@ -431,6 +435,7 @@ export default {
         const sessions = await response.json();
         context.commit('SET_SESSIONS_LIST', sessions.sessions);
         context.commit('SET_CURRENT_SESSION', sessions.current_session);
+        context.commit('SET_CURRENT_INTERVAL', sessions.current_interval);
         if (context.getters.NO_LEADER_TOAST
             && context.getters.CURRENT_SHOW_SESSION.client_internal_id != null) {
           context.getters.NO_LEADER_TOAST.dismiss();
@@ -603,6 +608,9 @@ export default {
     },
     CURRENT_SHOW_SESSION(state) {
       return state.currentSession;
+    },
+    CURRENT_SHOW_INTERVAL(state) {
+      return state.currentInterval;
     },
     SESSION_FOLLOW_DATA(state) {
       return state.sessionFollowData;

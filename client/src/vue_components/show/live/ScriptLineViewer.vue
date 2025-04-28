@@ -102,6 +102,35 @@
         </b-col>
       </template>
     </b-row>
+    <b-row
+      v-if="needsIntervalBanner"
+      class="interval-footer"
+    >
+      <b-col
+        cols="3"
+        class="cue-column d-flex align-items-center justify-content-center"
+      >
+        <b-button
+          v-if="isScriptLeader"
+          variant="primary"
+          @click.stop="startInterval"
+        >
+          Start Interval
+        </b-button>
+      </b-col>
+      <b-col
+        cols="9"
+        class="interval-banner"
+      >
+        <b-alert
+          show
+          variant="warning"
+          style="margin: 0"
+        >
+          <h3> {{ actLabel }} - Interval</h3>
+        </b-alert>
+      </b-col>
+    </b-row>
   </b-container>
 </template>
 
@@ -111,7 +140,7 @@ import { contrastColor } from 'contrast-color';
 
 export default {
   name: 'ScriptLineViewer',
-  events: ['last-line-change', 'first-line-change'],
+  events: ['last-line-change', 'first-line-change', 'start-interval'],
   props: {
     line: {
       required: true,
@@ -165,6 +194,10 @@ export default {
       required: true,
       type: Array,
     },
+    isScriptLeader: {
+      required: true,
+      type: Boolean,
+    },
   },
   data() {
     return {
@@ -213,6 +246,17 @@ export default {
       }
       return !(previousLine.act_id === this.line.act_id
         && previousLine.scene_id === this.line.scene_id);
+    },
+    needsIntervalBanner() {
+      let [lineIndex, nextLine] = this.getNextLineForIndex(this.line.page, this.lineIndex);
+      while (nextLine != null && this.isWholeLineCut(nextLine)) {
+        [lineIndex, nextLine] = this.getNextLineForIndex(nextLine.page, lineIndex);
+      }
+      if (nextLine == null) {
+        return this.acts.find((act) => (act.id === this.line.act_id)).interval_after;
+      }
+      return (this.line.act_id !== nextLine.act_id
+        && this.acts.find((act) => (act.id === nextLine.act_id)).interval_after);
     },
     actLabel() {
       return this.acts.find((act) => (act.id === this.line.act_id)).name;
@@ -309,9 +353,27 @@ export default {
       }
       return [null, null];
     },
+    getNextLineForIndex(pageIndex, lineIndex) {
+      const currentPage = this.GET_SCRIPT_PAGE(pageIndex);
+      if (lineIndex < currentPage.length - 1) {
+        return [lineIndex + 1, currentPage[lineIndex + 1]];
+      }
+      let loopPageNo = pageIndex + 1;
+      while (loopPageNo <= this.currentMaxPage) {
+        const loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        if (loopPage && loopPage.length > 0) {
+          return [0, loopPage[0]];
+        }
+        loopPageNo += 1;
+      }
+      return [null, null];
+    },
     isWholeLineCut(line) {
       return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
           || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+    },
+    startInterval() {
+      this.$emit('start-interval', this.acts.find((act) => (act.id === this.line.act_id)).id);
     },
   },
 };
@@ -320,6 +382,12 @@ export default {
 <style scoped>
   .cue-column {
     border-right: .1rem solid #3498db;
+    margin-top: -1rem;
+    margin-bottom: -1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+  .interval-banner {
     margin-top: -1rem;
     margin-bottom: -1rem;
     padding-top: 1rem;
@@ -343,7 +411,10 @@ export default {
     background: #3498db54;
   }
 
-  .act-scene-header {
+  .interval-footer, .act-scene-header {
     background: var(--body-background);
+  }
+  .interval-footer {
+    margin-bottom: 1rem;
   }
 </style>
