@@ -79,8 +79,8 @@ jobs:
           # List the output of the conf directory
           ls -al ${{ github.workspace }}/pr-branch/server/conf
           # Replace the db_path variable in the settings file to the file in the mount directory
-          jq '.db_path = "sqlite:///${{ github.workspace }}/pr-branch/server/conf/digiscript.sqlite"' ./conf/digiscript.json > /conf/digiscript.json.tmp 
-          mv /conf/digiscript.json.tmp /conf/digiscript.json
+          jq '.db_path = "sqlite:///${{ github.workspace }}/pr-branch/server/conf/digiscript.sqlite"' ./conf/digiscript.json > ./conf/digiscript.json.tmp 
+          mv ./conf/digiscript.json.tmp ./conf/digiscript.json
           
           # First, run all migrations to make sure the database file is updated
           python -m alembic upgrade head
