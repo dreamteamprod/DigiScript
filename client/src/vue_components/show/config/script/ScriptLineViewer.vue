@@ -72,6 +72,7 @@
         style="text-align: center"
       >
         <i
+          v-if="(canEdit && !IS_CUT_MODE) || !canEdit"
           class="viewable-line"
           :style="stageDirectionStyling"
         >
@@ -89,6 +90,26 @@
             {{ line.line_parts[0].line_text }}
           </template>
         </i>
+        <a
+          v-else
+          class="viewable-line-cut"
+          :style="stageDirectionStyling"
+          @click.stop="cutLinePart(0)"
+        >
+          <template
+            v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+          >
+            {{ line.line_parts[0].line_text | uppercase }}
+          </template>
+          <template
+            v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+          >
+            {{ line.line_parts[0].line_text | lowercase }}
+          </template>
+          <template v-else>
+            {{ line.line_parts[0].line_text }}
+          </template>
+        </a>
       </b-col>
     </template>
     <b-col
@@ -99,10 +120,13 @@
         v-show="canEdit && !IS_CUT_MODE"
         variant="link"
         style="padding: 0"
-        @click.stop="editLine"
+        @click.prevent.stop="editLine"
       >
         <template v-if="insertMode">
           Insert
+        </template>
+        <template v-else-if="insertSDMode">
+          Insert Stage Direction
         </template>
         <template v-else>
           Edit
@@ -117,7 +141,7 @@ import { mapGetters } from 'vuex';
 
 export default {
   name: 'ScriptLineViewer',
-  events: ['editLine', 'cutLinePart', 'insertLine'],
+  events: ['editLine', 'cutLinePart', 'insertLine', 'insertStageDirection'],
   props: {
     line: {
       required: true,
@@ -160,6 +184,11 @@ export default {
       type: Array,
     },
     insertMode: {
+      required: true,
+      type: Boolean,
+      default: false,
+    },
+    insertSDMode: {
       required: true,
       type: Boolean,
       default: false,
@@ -235,10 +264,14 @@ export default {
     },
     stageDirectionStyling() {
       if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
-        return {
+        const style = {
           'background-color': 'darkslateblue',
           'font-style': 'italic',
         };
+        if (this.linePartCuts.indexOf(this.line.line_parts[0].id) !== -1) {
+          style['text-decoration'] = 'line-through';
+        }
+        return style;
       }
       const style = {
         'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
@@ -249,6 +282,9 @@ export default {
       if (this.stageDirectionStyle.enable_background_colour) {
         style['background-color'] = this.stageDirectionStyle.background_colour;
       }
+      if (this.linePartCuts.indexOf(this.line.line_parts[0].id) !== -1) {
+        style['text-decoration-line'] = `${style['text-decoration-line']} line-through`;
+      }
       return style;
     },
     ...mapGetters(['IS_CUT_MODE']),
@@ -257,6 +293,8 @@ export default {
     editLine() {
       if (this.insertMode) {
         this.$emit('insertLine');
+      } else if (this.insertSDMode) {
+        this.$emit('insertStageDirection');
       } else {
         this.$emit('editLine');
       }

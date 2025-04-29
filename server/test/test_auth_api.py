@@ -40,7 +40,6 @@ class TestAuthAPI(DigiScriptTestCase):
                     "username": "foobar",
                     "password": "password",
                     "is_admin": True,
-                    "show_id": None,
                 }
             ),
         )
@@ -59,7 +58,6 @@ class TestAuthAPI(DigiScriptTestCase):
                     "username": "foobar",
                     "password": "password",
                     "is_admin": True,
-                    "show_id": None,
                 }
             ),
         )
@@ -83,7 +81,6 @@ class TestAuthAPI(DigiScriptTestCase):
                     "username": "foobar",
                     "password": "password",
                     "is_admin": True,
-                    "show_id": None,
                 }
             ),
         )
@@ -109,7 +106,6 @@ class TestAuthAPI(DigiScriptTestCase):
                     "username": "foobar",
                     "password": "password",
                     "is_admin": True,
-                    "show_id": None,
                 }
             ),
         )
@@ -125,3 +121,49 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertEqual(401, response.code)
         self.assertTrue("message" in response_body)
         self.assertEqual("Invalid username/password", response_body["message"])
+
+    def test_jwt_logout_revoke(self):
+        # Create a test user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "foobar",
+                    "password": "password",
+                    "is_admin": True,
+                }
+            ),
+        )
+
+        # Log in to that test user
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "foobar", "password": "password"}),
+        )
+
+        response_body = escape.json_decode(response.body)
+        self.assertEqual(200, response.code)
+        self.assertTrue("message" in response_body)
+        self.assertEqual("Successful log in", response_body["message"])
+
+        token = response_body["access_token"]
+
+        # Log out of the test user
+        response = self.fetch(
+            "/api/v1/auth/logout",
+            method="POST",
+            body=escape.json_encode({}),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        response_body = escape.json_decode(response.body)
+        self.assertEqual(200, response.code)
+        self.assertTrue("message" in response_body)
+        self.assertEqual("Successfully logged out", response_body["message"])
+
+        # Try to use this token to do something else, should get 401 back
+        response = self.fetch(
+            "/api/v1/auth", method="GET", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(401, response.code)

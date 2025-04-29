@@ -1,0 +1,89 @@
+name: Database Migration Check
+on: [pull_request]
+
+jobs:
+  check-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch first
+        uses: actions/checkout@v3
+        with:
+          path: pr-branch
+      - name: Checkout target branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.base_ref }}
+          path: target-branch
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.13
+      - name: Create docker mount directory
+        run: mkdir -p db-conf-mount
+      - name: Build and run target branch Docker
+        working-directory: ./target-branch
+        run: |
+          # Build and run the docker image from the target branch
+          docker build -t digiscript:target .
+          docker run -d --name digiscript-target -p 8081:8080 -v ${{ github.workspace }}/db-conf-mount:/server/conf digiscript:target
+          
+          # Wait for the container to initialize
+          timeout=30
+          counter=0
+          echo "Waiting for target branch server to initialize..."
+          while [ $counter -lt $timeout ]
+          do
+            if ! docker ps | grep -q digiscript-target; then
+              echo "Container exited unexpectedly"
+              docker logs digiscript-target
+              exit 1
+            fi
+            
+            if curl -s --retry 0 --max-time 1 http://localhost:8081/api/v1/debug >/dev/null 2>&1; then
+              echo "Target branch server is up and running!"
+              break
+            fi
+            
+            counter=$((counter + 1))
+            echo "Still waiting for target branch server to initialize... ($counter/$timeout)"
+            sleep 1
+          done
+          
+          if [ $counter -eq $timeout ]; then
+            echo "Target branch server failed to initialize within timeout period"
+            docker logs digiscript-target
+            docker stop digiscript-target
+            exit 1
+          fi
+          
+          # Give the server a moment to potentially create/update the database
+          sleep 5
+      - name: Stop target branch container
+        if: always()
+        run: docker stop digiscript-target
+      - name: Check database files and update permissions
+        run: |
+          echo "Database files in mount directory:"
+          ls -la db-conf-mount
+      - name: Install Alembic in PR branch
+        working-directory: ./pr-branch/server
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Copy database to PR branch and run migration check
+        working-directory: ./pr-branch/server
+        run: |
+          # Copy the generated config files across to the current code
+          mkdir -p conf          
+          cp -r ${{ github.workspace }}/db-conf-mount/. ./conf/
+          # List the output of the conf directory
+          ls -al ${{ github.workspace }}/pr-branch/server/conf
+          # Replace the db_path variable in the settings file to the file in the mount directory
+          jq '.db_path = "sqlite:///${{ github.workspace }}/pr-branch/server/conf/digiscript.sqlite"' ./conf/digiscript.json > ./conf/digiscript.json.tmp 
+          mv ./conf/digiscript.json.tmp ./conf/digiscript.json
+          
+          # First, run all migrations to make sure the database file is updated
+          python -m alembic upgrade head
+          
+          # Then check for any outstanding migrations needed, and therefore not included in this PR
+          python -m alembic check

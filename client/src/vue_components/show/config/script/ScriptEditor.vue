@@ -121,11 +121,13 @@
               :can-edit="canEdit"
               :line-part-cuts="linePartCuts"
               :insert-mode="insertMode"
+              :insert-s-d-mode="insertSDMode"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
               :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
               @editLine="beginEditingLine(currentEditPage, index)"
               @cutLinePart="cutLinePart"
-              @insertLine="insertLineAt(currentEditPage, index)"
+              @insertLine="insertLineAt(currentEditPage, index, false)"
+              @insertStageDirection="insertLineAt(currentEditPage, index, true)"
             />
           </template>
         </template>
@@ -322,6 +324,7 @@ export default {
       latestAddedLine: null,
       linePartCuts: [],
       insertMode: false,
+      insertSDMode: false,
     };
   },
   validations: {
@@ -429,18 +432,32 @@ export default {
     this.loaded = true;
   },
   created() {
-    window.addEventListener('keydown', (e) => {
-      if (e.shiftKey && this.canEdit) {
-        this.insertMode = true;
-      }
-    });
-    window.addEventListener('keyup', (e) => {
-      if (e.key === 'Shift' && this.insertMode && this.canEdit) {
-        this.insertMode = false;
-      }
-    });
+    window.addEventListener('keydown', this.handleKeyDown);
+    window.addEventListener('keyup', this.handleKeyUp);
+  },
+  destroyed() {
+    window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keyup', this.handleKeyUp);
   },
   methods: {
+    handleKeyDown(e) {
+      if (e.shiftKey && e.altKey && this.canEdit) {
+        this.insertSDMode = true;
+        this.insertMode = false;
+      } else if (e.shiftKey && this.canEdit) {
+        this.insertMode = true;
+        this.insertSDMode = false;
+      }
+    },
+    handleKeyUp(e) {
+      if (e.key === 'Alt' && e.shiftKey && this.insertSDMode && this.canEdit) {
+        this.insertSDMode = false;
+        this.insertMode = true;
+      } else if (e.key === 'Shift' && (this.insertMode || this.insertSDMode) && this.canEdit) {
+        this.insertMode = false;
+        this.insertSDMode = false;
+      }
+    },
     async getMaxScriptPage() {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
         method: 'GET',
@@ -655,17 +672,25 @@ export default {
         this.linePartCuts.splice(index, 1);
       }
     },
-    async insertLineAt(pageIndex, lineIndex) {
+    async insertLineAt(pageIndex, lineIndex, isStageDirection) {
       if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
-        await this.addNewLine();
+        if (isStageDirection) {
+          await this.addStageDirection();
+        } else {
+          await this.addNewLine();
+        }
         return;
       }
 
       const newLineIndex = lineIndex + 1;
+      const blackLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
+      if (isStageDirection) {
+        blackLineObject.stage_direction = true;
+      }
       this.INSERT_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineIndex: newLineIndex,
-        lineObj: this.blankLineObj,
+        lineObj: blackLineObject,
       });
       this.editPages.forEach(function updateEditPage(editPage, index) {
         const editParts = editPage.split('_');

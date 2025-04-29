@@ -1,3 +1,6 @@
+import datetime
+from functools import partial
+
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import backref, relationship
 
@@ -33,6 +36,9 @@ class ShowSession(db.Model):
     )
     last_client_internal_id = Column(String(255))
     latest_line_ref = Column(String)
+    current_interval_id = Column(
+        Integer, ForeignKey("showinterval.id", ondelete="SET NULL")
+    )
 
     show = relationship("Show", uselist=False, foreign_keys=[show_id])
     user = relationship("User", uselist=False, foreign_keys=[user_id])
@@ -42,3 +48,16 @@ class ShowSession(db.Model):
         foreign_keys=[client_internal_id],
         backref=backref("live_session", uselist=False),
     )
+
+
+class Interval(db.Model):
+    __tablename__ = "showinterval"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("showsession.id", ondelete="CASCADE"))
+    act_id = Column(Integer, ForeignKey("act.id", ondelete="CASCADE"))
+    start_datetime = Column(
+        DateTime, default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
+    )
+    end_datetime = Column(DateTime, default=None)
+    initial_length = Column(Float, default=0)
