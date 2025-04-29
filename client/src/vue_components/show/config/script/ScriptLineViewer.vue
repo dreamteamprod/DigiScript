@@ -120,10 +120,13 @@
         v-show="canEdit && !IS_CUT_MODE"
         variant="link"
         style="padding: 0"
-        @click.stop="editLine"
+        @click.prevent.stop="editLine"
       >
         <template v-if="insertMode">
           Insert
+        </template>
+        <template v-else-if="insertSDMode">
+          Insert Stage Direction
         </template>
         <template v-else>
           Edit
@@ -138,7 +141,7 @@ import { mapGetters } from 'vuex';
 
 export default {
   name: 'ScriptLineViewer',
-  events: ['editLine', 'cutLinePart', 'insertLine'],
+  events: ['editLine', 'cutLinePart', 'insertLine', 'insertStageDirection'],
   props: {
     line: {
       required: true,
@@ -181,6 +184,11 @@ export default {
       type: Array,
     },
     insertMode: {
+      required: true,
+      type: Boolean,
+      default: false,
+    },
+    insertSDMode: {
       required: true,
       type: Boolean,
       default: false,
@@ -285,6 +293,8 @@ export default {
     editLine() {
       if (this.insertMode) {
         this.$emit('insertLine');
+      } else if (this.insertSDMode) {
+        this.$emit('insertStageDirection');
       } else {
         this.$emit('editLine');
       }
