@@ -120,7 +120,7 @@
         v-show="canEdit && !IS_CUT_MODE"
         variant="link"
         style="padding: 0"
-        @click.capture.stop="editLine"
+        @click.prevent.stop="editLine"
       >
         <template v-if="insertMode">
           Insert
