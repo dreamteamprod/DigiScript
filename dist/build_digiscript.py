@@ -138,7 +138,7 @@ def run_pyinstaller(one_file=False, output_name=None):
         print(f"Changed working directory to: {SERVER_DIR}")
 
         # Run PyInstaller with the spec file
-        cmd = ["pyinstaller", spec_file]
+        cmd = ["pyinstaller", spec_file, "-y"]
         print(f"Running command: {' '.join(cmd)}")
 
         subprocess.run(cmd, check=True)
@@ -148,7 +148,7 @@ def run_pyinstaller(one_file=False, output_name=None):
 
         # Copy the appropriate output based on one_file option
         if one_file:
-            source = os.path.join(SERVER_DIR, "dist", f"DigiScript-onefile{exe_ext}")
+            source = os.path.join(SERVER_DIR, "dist", f"DigiScript{exe_ext}")
         else:
             source = os.path.join(SERVER_DIR, "dist", "DigiScript")
 

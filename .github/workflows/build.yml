@@ -80,7 +80,7 @@ jobs:
       - name: Build executable
         run: |
           cd server
-          python -m PyInstaller ${{ github.workspace }}/dist/DigiScript.spec
+          python -m PyInstaller ${{ github.workspace }}/dist/DigiScript.spec -y
         shell: bash
       - name: Copy executable to output
         run: |
