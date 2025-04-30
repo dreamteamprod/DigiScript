@@ -32,6 +32,8 @@ jobs:
           python-version: '3.13'
           cache: 'pip'
           cache-dependency-path: 'server/requirements.txt'
+      - name: Install Python Packages
+        run: python -m pip install server/requirements.txt
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
