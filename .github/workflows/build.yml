@@ -33,7 +33,7 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'server/requirements.txt'
       - name: Install Python Packages
-        run: python -m pip install server/requirements.txt
+        run: python -m pip install -r server/requirements.txt
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
