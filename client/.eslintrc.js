@@ -30,6 +30,18 @@ module.exports = {
         'e',
       ],
     }],
+    'max-len': [
+      'error',
+      150,
+      2,
+      {
+        ignoreUrls: true,
+        ignoreComments: false,
+        ignoreRegExpLiterals: true,
+        ignoreStrings: true,
+        ignoreTemplateLiterals: true,
+      },
+    ],
   },
   settings: {
     'import/resolver': {
