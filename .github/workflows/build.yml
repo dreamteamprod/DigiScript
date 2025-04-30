@@ -2,38 +2,12 @@ name: Build DigiScript Applications
 
 on:
   push:
-    branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main, dev ]
 
 jobs:
-  build-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: 'client/package-lock.json'
-      - name: Install dependencies
-        run: |
-          cd client
-          npm ci
-      - name: Build frontend
-        run: |
-          cd client
-          npm run build
-      - name: Upload frontend build
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: server/static/
   build-executables:
-    needs: build-frontend
     strategy:
       fail-fast: false
       matrix:
@@ -58,59 +32,39 @@ jobs:
           python-version: '3.13'
           cache: 'pip'
           cache-dependency-path: 'server/requirements.txt'
-      - name: Download frontend build
-        uses: actions/download-artifact@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          name: frontend-build
-          path: server/static
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r server/requirements.txt
-          pip install pyinstaller
-      - name: Set up PyInstaller utilities
-        run: |
-          mkdir -p server/utils
-          cp dist/pyinstaller_utils.py server/utils/
-        shell: bash
-      - name: Create output directories
-        run: |
-          mkdir -p dist/output
-        shell: bash
-      - name: Build executable
-        run: |
-          cd server
-          python -m PyInstaller ${{ github.workspace }}/dist/DigiScript.spec -y
-        shell: bash
-      - name: Copy executable to output
-        run: |
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cp server/dist/DigiScript.exe dist/output/${{ matrix.platform }}/DigiScript${{ matrix.artifact_extension }}
-          else
-            cp server/dist/DigiScript dist/output/${{ matrix.platform }}/DigiScript${{ matrix.artifact_extension }}
-            chmod +x dist/output/${{ matrix.platform }}/DigiScript${{ matrix.artifact_extension }}
-          fi
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'client/package-lock.json'
+      - name: Build DigiScript with build script
+        run: python dist/build_digiscript.py --onefile --name DigiScript-${{ matrix.platform }}
         shell: bash
       - name: Create ZIP package
         run: |
-          cd dist/output/${{ matrix.platform }}
+          mkdir -p artifacts
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            powershell Compress-Archive -Path DigiScript${{ matrix.artifact_extension }} -DestinationPath DigiScript-${{ matrix.platform }}.zip
+            cp dist/output/${{ matrix.platform }}/DigiScript-${{ matrix.platform }}${{ matrix.artifact_extension }} artifacts/
+            cd artifacts
+            powershell Compress-Archive -Path DigiScript-${{ matrix.platform }}${{ matrix.artifact_extension }} -DestinationPath DigiScript-${{ matrix.platform }}.zip
           else
-            zip DigiScript-${{ matrix.platform }}.zip DigiScript${{ matrix.artifact_extension }}
+            cp dist/output/${{ matrix.platform }}/DigiScript-${{ matrix.platform }}${{ matrix.artifact_extension }} artifacts/
+            cd artifacts
+            chmod +x DigiScript-${{ matrix.platform }}${{ matrix.artifact_extension }}
+            zip DigiScript-${{ matrix.platform }}.zip DigiScript-${{ matrix.platform }}${{ matrix.artifact_extension }}
           fi
-          cd ../../..
         shell: bash
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
           name: DigiScript-${{ matrix.platform }}
-          path: dist/output/${{ matrix.platform }}/DigiScript${{ matrix.artifact_extension }}
+          path: artifacts/DigiScript-${{ matrix.platform }}${{ matrix.artifact_extension }}
       - name: Upload ZIP package
         uses: actions/upload-artifact@v4
         with:
           name: DigiScript-${{ matrix.platform }}-zip
-          path: dist/output/${{ matrix.platform }}/DigiScript-${{ matrix.platform }}.zip
+          path: artifacts/DigiScript-${{ matrix.platform }}.zip
   create-release:
     needs: build-executables
     if: startsWith(github.ref, 'refs/tags/v')
