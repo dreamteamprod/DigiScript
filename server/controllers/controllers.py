@@ -1,49 +1,20 @@
-import importlib
 import os
-import sys
 
 from tornado.escape import url_unescape
 from tornado.web import HTTPError
 from tornado_prometheus import MetricsHandler
 
 from digi_server.logger import get_logger
+from utils.module_discovery import get_resource_path, import_modules, is_frozen
 from utils.web.base_controller import BaseAPIController, BaseController
 from utils.web.route import ApiRoute, ApiVersion, Route
-
-# Import shared module discovery utilities
-try:
-    from utils.module_discovery import import_modules, is_frozen, get_resource_path
-except ImportError:
-    # Fallback if module_discovery.py isn't available yet
-    from utils.pkg_utils import find_end_modules
-    def is_frozen():
-        return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
-    def get_resource_path(path):
-        return path
 
 IMPORTED_CONTROLLERS = {}
 
 
 def import_all_controllers():
-    """Import all controller modules in the application."""
     get_logger().info("Importing controllers...")
-
-    try:
-        # Try to use the shared module discovery utilities
-        from utils.module_discovery import import_modules
-        import_modules('controllers', IMPORTED_CONTROLLERS, __name__)
-    except ImportError:
-        # Fall back to the original method if the utilities aren't available
-        get_logger().warning("Using legacy controller discovery method")
-        controllers = find_end_modules(".", prefix="controllers")
-        for controller in controllers:
-            if controller != __name__:
-                try:
-                    get_logger().debug(f"Importing controller module {controller}")
-                    mod = importlib.import_module(controller)
-                    IMPORTED_CONTROLLERS[controller] = mod
-                except ImportError as e:
-                    get_logger().error(f"Error importing controller {controller}: {str(e)}")
+    import_modules("controllers", IMPORTED_CONTROLLERS, __name__)
 
     # Log summary
     get_logger().info(f"Imported {len(IMPORTED_CONTROLLERS)} controller modules")
@@ -86,9 +57,7 @@ class StaticController(BaseController):
         else:
             # In development mode, use relative path
             full_path = os.path.join(
-                os.path.abspath(os.path.dirname(__file__)),
-                "..",
-                uri
+                os.path.abspath(os.path.dirname(__file__)), "..", uri
             )
 
         if not os.path.isfile(full_path):

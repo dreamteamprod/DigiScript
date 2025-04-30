@@ -203,7 +203,9 @@ class DigiScriptServer(
             get_logger().info(f"Using bundled alembic.ini: {alembic_cfg_path}")
         else:
             # Use the standard path
-            alembic_cfg_path = os.path.join(os.path.dirname(__file__), "..", "alembic.ini")
+            alembic_cfg_path = os.path.join(
+                os.path.dirname(__file__), "..", "alembic.ini"
+            )
 
         # Check if the file exists
         if not os.path.isfile(alembic_cfg_path):
@@ -211,11 +213,14 @@ class DigiScriptServer(
             # If running in PyInstaller, try an absolute path as a fallback
             if is_frozen():
                 import sys
-                if hasattr(sys, '_MEIPASS'):
+
+                if hasattr(sys, "_MEIPASS"):
                     alt_path = os.path.join(sys._MEIPASS, "alembic.ini")
                     if os.path.isfile(alt_path):
                         alembic_cfg_path = alt_path
-                        get_logger().info(f"Found alternative alembic.ini: {alembic_cfg_path}")
+                        get_logger().info(
+                            f"Found alternative alembic.ini: {alembic_cfg_path}"
+                        )
 
         alembic_cfg = Config(alembic_cfg_path)
 
@@ -233,7 +238,9 @@ class DigiScriptServer(
                 alembic_cfg.set_main_option("script_location", script_location)
                 get_logger().info(f"Set alembic script_location to: {script_location}")
             else:
-                get_logger().warning(f"Alembic script directory not found: {script_location}")
+                get_logger().warning(
+                    f"Alembic script directory not found: {script_location}"
+                )
 
         return alembic_cfg
 
@@ -384,7 +391,7 @@ class DigiScriptServer(
             )
 
     async def ws_send_to_user(
-            self, user_id: int, ws_op: str, ws_action: str, ws_data: dict
+        self, user_id: int, ws_op: str, ws_action: str, ws_data: dict
     ):
         for client in self.get_all_ws(user_id):
             await client.write_message(

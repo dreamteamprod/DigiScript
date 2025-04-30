@@ -72,7 +72,6 @@ jobs:
         run: |
           mkdir -p server/utils
           cp dist/pyinstaller_utils.py server/utils/
-          cp dist/module_discovery.py server/utils/
         shell: bash
       - name: Create output directories
         run: |

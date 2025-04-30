@@ -9,9 +9,9 @@ from tornado.options import define, options, parse_command_line
 try:
     from utils.pyinstaller_utils import (
         configure_for_pyinstaller,
+        ensure_writable_db_path,
         get_conf_dir,
         get_log_dir,
-        ensure_writable_db_path
     )
 
     # Apply PyInstaller configurations if needed
@@ -20,17 +20,15 @@ except ImportError:
     # If the module doesn't exist yet, assume we're not frozen
     is_frozen = False
 
-
     def get_conf_dir():
         return os.path.join(os.path.dirname(__file__), "conf")
-
 
     def get_log_dir():
         return os.path.join(os.path.dirname(__file__), "logs")
 
-
     def ensure_writable_db_path(path):
         return path
+
 
 from digi_server.app_server import DigiScriptServer
 from digi_server.logger import add_logging_level, get_logger
@@ -67,21 +65,44 @@ async def main():
     if is_frozen:
         # Patch DigiSettings to ensure writable paths
         from digi_server.settings import Settings
+
         original_define = Settings.define
 
-        def patched_define(self, key, val_type, default, can_edit=True, callback_fn=None, nullable=False,
-                           display_name="", help_text=""):
+        def patched_define(
+            self,
+            key,
+            val_type,
+            default,
+            can_edit=True,
+            callback_fn=None,
+            nullable=False,
+            display_name="",
+            help_text="",
+        ):
             # For database path, adjust to a writable location if needed
             if key == "db_path" and default and isinstance(default, str):
                 default = ensure_writable_db_path(default)
 
             # For log paths, adjust to the log directory
-            if (key == "log_path" or key == "db_log_path") and default and isinstance(default, str):
+            if (
+                (key == "log_path" or key == "db_log_path")
+                and default
+                and isinstance(default, str)
+            ):
                 log_dir = get_log_dir()
                 default = os.path.join(log_dir, os.path.basename(default))
 
-            return original_define(self, key, val_type, default, can_edit, callback_fn, nullable, display_name,
-                                   help_text)
+            return original_define(
+                self,
+                key,
+                val_type,
+                default,
+                can_edit,
+                callback_fn,
+                nullable,
+                display_name,
+                help_text,
+            )
 
         # Apply the patch
         Settings.define = patched_define
