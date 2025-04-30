@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
@@ -28,7 +28,7 @@ jobs:
           cd client
           npm run build
       - name: Upload frontend build
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-build
           path: server/static/
@@ -51,7 +51,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -59,7 +59,7 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'server/requirements.txt'
       - name: Download frontend build
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: frontend-build
           path: server/static
@@ -103,12 +103,12 @@ jobs:
           cd ../../..
         shell: bash
       - name: Upload executable
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: DigiScript-${{ matrix.platform }}
           path: dist/output/${{ matrix.platform }}/DigiScript${{ matrix.artifact_extension }}
       - name: Upload ZIP package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: DigiScript-${{ matrix.platform }}-zip
           path: dist/output/${{ matrix.platform }}/DigiScript-${{ matrix.platform }}.zip
@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Create release
