@@ -60,6 +60,24 @@ export default new Vuex.Store({
     CURRENT_SHOW(state) {
       return state.currentShow;
     },
+    IS_ADMIN_USER(state, getters) {
+      return getters.CURRENT_USER != null && getters.CURRENT_USER.is_admin;
+    },
+    IS_SHOW_EDITOR(state, getters) {
+      if (getters.IS_ADMIN_USER) {
+        return true;
+      }
+      if (getters.RBAC_ROLES.length === 0) {
+        return false;
+      }
+      if (getters.CURRENT_USER_RBAC == null || !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')) {
+        return false;
+      }
+      const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
+      return getters.CURRENT_USER != null
+        // eslint-disable-next-line no-bitwise
+        && (getters.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+    },
   },
   modules: {
     websocket,
