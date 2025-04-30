@@ -79,12 +79,14 @@ with open(os.path.join(DIST_DIR, 'preload_modules.py'), 'w') as f:
     f.write("print('Module preloading complete.')\n")
 
 # Find all necessary modules to include
+controller_modules = collect_submodules('controllers')
 digi_server_modules = collect_submodules('digi_server')
+model_modules = collect_submodules('models')
 rbac_modules = collect_submodules('rbac')
 registry_modules = collect_submodules('registry')
 schemas_modules = collect_submodules('schemas')
 util_modules = collect_submodules('utils')
-logging_modules = ['logging', 'logging.config', 'logging.handlers']
+all_modules = controller_modules + digi_server_modules + model_modules + rbac_modules + registry_modules + schemas_modules + util_modules
 
 # Define paths that need to be included
 static_path = os.path.join(SERVER_DIR, 'static')
@@ -120,14 +122,14 @@ hidden_imports = [
     'python_dateutil',
     'jwt',
     'datetime',
-    'logging.config',   # Explicitly include logging.config
-    'logging.handlers', # Also include logging.handlers which might be needed
-    'configparser',     # Needed for parsing INI files
-    'controllers',      # Include the controllers package
-    'models',           # Include the models package
-    'pkgutil',          # Used for module discovery
-    'importlib',        # Used for imports
-] + controller_modules + model_modules + digi_server_modules + rbac_modules + registry_modules + schemas_modules + util_modules
+    'logging.config',
+    'logging.handlers',
+    'configparser',
+    'controllers',
+    'models',
+    'pkgutil',
+    'importlib',
+] + all_modules
 
 a = Analysis(
     [os.path.join(SERVER_DIR, 'main.py')],
@@ -189,7 +191,7 @@ exe_onefile = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='DigiScript-onefile',
+    name='DigiScript',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
