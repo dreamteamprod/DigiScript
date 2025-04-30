@@ -205,7 +205,6 @@ class CueController(BaseAPIController):
                 self.finish({"message": "404 show not found"})
 
     @requires_show
-    @no_live_session
     async def post(self):
         current_show = self.get_current_show()
         show_id = current_show["id"]

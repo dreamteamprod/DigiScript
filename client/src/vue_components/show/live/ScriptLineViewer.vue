@@ -67,6 +67,14 @@
           >
             {{ cueLabel(cue) }}
           </b-button>
+          <b-button
+            v-if="cueAddMode"
+            class="cue-button"
+            :disabled="isWholeLineCut(line)"
+            @click.stop="addNewCue"
+          >
+            <b-icon-plus-square-fill variant="success" />
+          </b-button>
         </b-button-group>
       </b-col>
       <template v-if="line.stage_direction">
@@ -135,7 +143,7 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters, mapActions } from 'vuex';
 import { contrastColor } from 'contrast-color';
 
 export default {
@@ -195,6 +203,10 @@ export default {
       type: Array,
     },
     isScriptLeader: {
+      required: true,
+      type: Boolean,
+    },
+    cueAddMode: {
       required: true,
       type: Boolean,
     },
@@ -361,6 +373,9 @@ export default {
     },
     startInterval() {
       this.$emit('start-interval', this.acts.find((act) => (act.id === this.previousLine.act_id)).id);
+    },
+    addNewCue() {
+      this.$emit('add-cue', this.line.id);
     },
   },
 };
