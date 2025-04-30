@@ -58,14 +58,16 @@ def build_frontend(force_rebuild=False):
     original_dir = os.getcwd()
     os.chdir(CLIENT_DIR)
 
+    npm_command = f"npm{'.cmd' if IS_WINDOWS else ''}"
+
     # Install dependencies if needed
     try:
         print(f"{emoji('package')} Installing dependencies...")
-        subprocess.run(["npm", "ci"], check=True)
+        subprocess.run([npm_command, "ci"], check=True)
 
         # Build the frontend - this will output directly to server/static based on vite.config.js
         print(f"{emoji('working')} Building frontend application...")
-        subprocess.run(["npm", "run", "build"], check=True)
+        subprocess.run([npm_command, "run", "build"], check=True)
 
         print(f"{emoji('success')} Frontend build completed successfully.")
         return True
@@ -138,6 +140,7 @@ def run_pyinstaller(one_file=False, output_name=None):
         platform_output = LINUX_OUTPUT
 
     os.makedirs(platform_output, exist_ok=True)
+    print(f"{emoji('folder')} Platform build directory: {platform_output}")
 
     # Go to server directory for PyInstaller
     original_dir = os.getcwd()
@@ -162,23 +165,22 @@ def run_pyinstaller(one_file=False, output_name=None):
         if one_file:
             source = os.path.join(SERVER_DIR, "dist", f"DigiScript{exe_ext}")
             if not os.path.exists(source):
-                print(f"{emoji('warning')} Warning: Expected output {source} not found. Checking for alternative naming...")
-                # Try with the custom name if provided
-                if output_name:
-                    source = os.path.join(SERVER_DIR, "dist", f"{output_name}{exe_ext}")
+                print(f"{emoji('warning')} Warning: Expected output {source} not found.")
+                return False
         else:
             source = os.path.join(SERVER_DIR, "dist", "DigiScript")
             if not os.path.exists(source):
-                print(f"{emoji('warning')} Warning: Expected output {source} not found. Checking for alternative naming...")
-                # Try with the custom name if provided
-                if output_name:
-                    source = os.path.join(SERVER_DIR, "dist", output_name)
+                print(f"{emoji('warning')} Warning: Expected output {source} not found.")
+                return False
 
         # Create target path
         target_basename = os.path.basename(source)
-        if output_name and target_basename != output_name and not target_basename.endswith(exe_ext):
+        if output_name and target_basename != output_name:
             # If a custom name was provided, use it
-            target_basename = f"{output_name}{exe_ext if one_file else ''}"
+            if not target_basename.endswith(exe_ext):
+                target_basename = f"{output_name}{exe_ext if one_file else ''}"
+            else:
+                target_basename = output_name
 
         target = os.path.join(platform_output, target_basename)
 
@@ -286,6 +288,7 @@ def main():
     args = parser.parse_args()
 
     # Show paths for verification
+    print(f"{emoji('folder')} Script directory: {SCRIPT_DIR}")
     print(f"{emoji('search')} Project root: {ROOT_DIR}")
     print(f"{emoji('folder')} Client directory: {CLIENT_DIR}")
     print(f"{emoji('folder')} Server directory: {SERVER_DIR}")
