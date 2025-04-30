@@ -110,7 +110,7 @@
                 v-show="!isWholeLineCut(line)"
                 v-once
                 :id="`page_${page}_line_${index}`"
-                :key="`page_${page}_line_${index}`"
+                :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
                 class="script-item"
                 :line-index="index"
                 :line="line"
@@ -126,9 +126,11 @@
                 :stage-direction-styles="STAGE_DIRECTION_STYLES"
                 :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
                 :is-script-leader="isScriptLeader"
+                :cue-add-mode="cueAddMode"
                 @last-line-change="handleLastLineChange"
                 @first-line-change="handleFirstLineChange"
                 @start-interval="configureInterval"
+                @add-cue="openNewCueModal"
               />
             </template>
             <b-row
@@ -194,10 +196,60 @@
         </b-row>
       </b-container>
     </b-modal>
+    <b-modal
+      :id="`new-cue-modal`"
+      title="Add New Cue"
+      size="md"
+      @hidden="resetNewCueForm"
+      @ok="onSubmitNewCue"
+    >
+      <b-form
+        ref="new-cue-form"
+        @submit.stop.prevent="onSubmitNewCue"
+      >
+        <b-form-group
+          id="type-input-group"
+          label="Cue Type"
+          label-for="type-input"
+        >
+          <b-form-select
+            id="type-input"
+            v-model="$v.newCueFormState.cueType.$model"
+            :options="cueTypeOptions"
+            :state="validateNewCueState('cueType')"
+            aria-describedby="cue-type-feedback"
+          />
+          <b-form-invalid-feedback
+            id="cue-type-feedback"
+          >
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group
+          id="ident-input-group"
+          label="Identifier"
+          label-for="ident-input"
+        >
+          <b-form-input
+            id="ident-input"
+            v-model="$v.newCueFormState.ident.$model"
+            name="ident-input"
+            :state="validateNewCueState('ident')"
+            aria-describedby="ident-feedback"
+          />
+          <b-form-invalid-feedback
+            id="ident-feedback"
+          >
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
   </b-container>
 </template>
 
 <script>
+import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import $ from 'jquery';
 import { debounce } from 'lodash';
@@ -245,7 +297,26 @@ export default {
       isIntervalLong: false,
       intervalTimerValues: [0, 0, 0],
       intervalRemainingTime: 0,
+      cueAddMode: false,
+      newCueFormState: {
+        cueType: null,
+        ident: null,
+        lineId: null,
+      },
     };
+  },
+  validations: {
+    newCueFormState: {
+      cueType: {
+        required,
+      },
+      ident: {
+        required,
+      },
+      lineId: {
+        required,
+      },
+    },
   },
   computed: {
     pageIter() {
@@ -302,10 +373,23 @@ export default {
         padding: '.25rem',
       };
     },
+    cueTypeOptions() {
+      return [
+        { value: null, text: 'N/A' },
+        ...this.CUE_TYPES.map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
+      ];
+    },
+    totalCueCount() {
+      let count = 0;
+      Object.keys(this.SCRIPT_CUES).forEach((line) => {
+        count += this.SCRIPT_CUES[line].length;
+      }, this);
+      return count;
+    },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
       'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
-      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES', 'CURRENT_SHOW_INTERVAL']),
+      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES', 'CURRENT_SHOW_INTERVAL', 'IS_SHOW_EDITOR']),
   },
   watch: {
     SESSION_FOLLOW_DATA() {
@@ -344,6 +428,13 @@ export default {
     },
     CURRENT_SHOW_INTERVAL() {
       this.setupIntervalTimer();
+    },
+    totalCueCount() {
+      this.$nextTick(() => {
+        if (this.initialLoad) {
+          this.resumeNavigation();
+        }
+      });
     },
   },
   async mounted() {
@@ -455,14 +546,14 @@ export default {
   },
   methods: {
     setupNavigation() {
-      window.addEventListener('keydown', this.handleKeyNavigation);
+      window.addEventListener('keydown', this.handleKeyPress);
       const scriptContainer = document.getElementById('script-container');
       if (scriptContainer) {
         scriptContainer.addEventListener('wheel', this.handleWheelNavigation, { passive: false });
       }
     },
     removeNavigation() {
-      window.removeEventListener('keydown', this.handleKeyNavigation);
+      window.removeEventListener('keydown', this.handleKeyPress);
       const scriptContainer = document.getElementById('script-container');
       if (scriptContainer) {
         scriptContainer.removeEventListener('wheel', this.handleWheelNavigation);
@@ -662,19 +753,37 @@ export default {
       // Navigate to the calculated position
       return this.navigateTo(newPage, newLineOnPage);
     },
+    handleKeyPress(event) {
+      // Process arrow keys
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        this.handleKeyNavigation(event);
+      } else if (event.key === 'C') {
+        this.handleCueEditToggle(event);
+      }
+    },
+    handleCueEditToggle(event) {
+      event.preventDefault();
+      if (this.IS_SHOW_EDITOR) {
+        this.cueAddMode = !this.cueAddMode;
+        this.$nextTick(() => {
+          if (this.initialLoad) {
+            this.resumeNavigation();
+          }
+        });
+      } else {
+        this.cueAddMode = false;
+      }
+    },
     handleKeyNavigation(event) {
       // Only handle if we're the leader and not currently scrolling or starting an interval
       if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically
         || this.intervalTimerContext != null || this.CURRENT_SHOW_INTERVAL != null) return;
 
-      // Process arrow keys
-      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        event.preventDefault();
+      event.preventDefault();
 
-        // Always move by 1 visible line in the appropriate direction
-        const delta = event.key === 'ArrowDown' ? 1 : -1;
-        this.navigateRelative(0, delta);
-      }
+      // Always move by 1 visible line in the appropriate direction
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      this.navigateRelative(0, delta);
     },
     handleWheelNavigation(event) {
       // Only handle if we're the leader and not currently scrolling or starting an interval
@@ -718,6 +827,24 @@ export default {
       } else {
         // Default to first line if no previous position
         this.navigateTo(1, 0);
+      }
+    },
+    resumeNavigation() {
+      if (this.SESSION_FOLLOW_DATA.current_line) {
+        const parts = this.SESSION_FOLLOW_DATA.current_line.split('_');
+        if (parts.length >= 4) {
+          const page = parseInt(parts[1], 10);
+          const line = parseInt(parts[3], 10);
+
+          // Only set position after initial load is complete
+          if (this.initialLoad) {
+            this.navigateTo(page, line);
+          } else {
+            // Remember position for later
+            this.currentPage = page;
+            this.currentLineOnPage = line;
+          }
+        }
       }
     },
     msToTimerString,
@@ -964,9 +1091,39 @@ export default {
         );
       }
     },
+    openNewCueModal(lineId) {
+      this.resetNewCueForm();
+      this.newCueFormState.lineId = lineId;
+      this.$bvModal.show('new-cue-modal');
+    },
+    resetNewCueForm() {
+      this.newCueFormState = {
+        cueType: null,
+        ident: null,
+        lineId: null,
+      };
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    validateNewCueState(name) {
+      const { $dirty, $error } = this.$v.newCueFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async onSubmitNewCue(event) {
+      this.$v.newCueFormState.$touch();
+      if (this.$v.newCueFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.ADD_NEW_CUE(this.newCueFormState);
+        this.resetNewCueForm();
+      }
+    },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
-      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES']),
+      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
+      'ADD_NEW_CUE']),
   },
 };
 </script>
