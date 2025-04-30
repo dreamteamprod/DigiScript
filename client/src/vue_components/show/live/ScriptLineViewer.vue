@@ -265,7 +265,7 @@ export default {
         [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
       }
       if (previousLine == null) {
-        return true;
+        return false;
       }
       return previousLine.act_id !== this.line.act_id;
     },
