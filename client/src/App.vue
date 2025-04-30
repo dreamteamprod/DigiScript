@@ -23,7 +23,7 @@
               Live
             </b-nav-item>
             <b-nav-item-dropdown
-              v-if="isShowExecutor || isAdminUser"
+              v-if="isShowExecutor || IS_ADMIN_USER"
               text="Live Config"
             >
               <b-dropdown-item-button
@@ -50,7 +50,7 @@
             </b-nav-item-dropdown>
           </template>
           <b-nav-item
-            v-if="isAdminUser"
+            v-if="IS_ADMIN_USER"
             v-show="CURRENT_SHOW_SESSION == null"
             to="/config"
             :disabled="!WEBSOCKET_HEALTHY"
@@ -58,7 +58,7 @@
             System Config
           </b-nav-item>
           <b-nav-item
-            v-if="$store.state.currentShow != null && (isAdminUser || isShowEditor)"
+            v-if="$store.state.currentShow != null && (IS_ADMIN_USER || IS_SHOW_EDITOR)"
             v-show="CURRENT_SHOW_SESSION == null"
             to="/show-config"
             :disabled="!WEBSOCKET_HEALTHY"
@@ -128,7 +128,7 @@
             cols="6"
             offset="3"
           >
-            <create-user :is_first_admin="true" />
+            <create-user :is-first-admin="true" />
           </b-col>
         </b-row>
       </b-container>
@@ -155,20 +155,6 @@ export default {
     };
   },
   computed: {
-    isAdminUser() {
-      return this.CURRENT_USER != null && this.CURRENT_USER.is_admin;
-    },
-    isShowEditor() {
-      if (this.RBAC_ROLES.length === 0) {
-        return false;
-      }
-      if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
-        return false;
-      }
-      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
-      // eslint-disable-next-line no-bitwise
-      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
-    },
     isShowExecutor() {
       if (this.RBAC_ROLES.length === 0) {
         return false;
@@ -181,6 +167,8 @@ export default {
       return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
     },
     ...mapGetters([
+      'IS_ADMIN_USER',
+      'IS_SHOW_EDITOR',
       'WEBSOCKET_HEALTHY',
       'CURRENT_SHOW_SESSION',
       'SETTINGS',
