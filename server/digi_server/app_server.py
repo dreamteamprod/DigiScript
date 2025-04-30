@@ -135,7 +135,9 @@ class DigiScriptServer(
                         show.current_session_id
                     )
                     if show_session:
-                        show_session.last_client_internal_id = show_session.client_internal_id
+                        show_session.last_client_internal_id = (
+                            show_session.client_internal_id
+                        )
                     else:
                         get_logger().warning(
                             "Current show session not found. Resetting."
