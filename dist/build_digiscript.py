@@ -1,17 +1,33 @@
 #!/usr/bin/env python3
-"""
-DigiScript Application Builder
-
-This script builds the DigiScript application by compiling the Node.js frontend
-and packaging the Python backend into a standalone executable using PyInstaller.
-"""
-
 import os
 import sys
 import shutil
 import subprocess
 import argparse
 import platform
+
+# Determine if we're on Windows to handle emoji display
+IS_WINDOWS = platform.system().lower() == "windows"
+
+# Emoji dictionary - use plain text on Windows, emojis elsewhere
+EMOJI = {
+    "build": "🔨" if not IS_WINDOWS else "",
+    "package": "📦" if not IS_WINDOWS else "",
+    "working": "🏗️" if not IS_WINDOWS else "",
+    "success": "✅" if not IS_WINDOWS else "",
+    "error": "❌" if not IS_WINDOWS else "",
+    "warning": "⚠️" if not IS_WINDOWS else "",
+    "info": "ℹ️" if not IS_WINDOWS else "",
+    "search": "🔍" if not IS_WINDOWS else "",
+    "file": "📄" if not IS_WINDOWS else "",
+    "folder": "📁" if not IS_WINDOWS else "",
+    "done": "🎉" if not IS_WINDOWS else "",
+}
+
+
+def emoji(key, fallback=""):
+    return EMOJI.get(key, fallback)
+
 
 # Determine project paths relative to the script location
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,14 +44,14 @@ LINUX_OUTPUT = os.path.join(OUTPUT_DIR, "linux")
 
 def build_frontend(force_rebuild=False):
     """Build the Node.js frontend"""
-    print("🔨 Building frontend...")
+    print(f"{emoji('build')} Building frontend...")
 
     # The vite.config.js already outputs to server/static, so we just need to
     # check if this directory has content and if we need to rebuild
     server_static = os.path.join(SERVER_DIR, "static")
 
     if not force_rebuild and os.path.exists(server_static) and len(os.listdir(server_static)) > 0:
-        print("✅ Frontend already built in server/static. Use --force-rebuild to rebuild.")
+        print(f"{emoji('success')} Frontend already built in server/static. Use --force-rebuild to rebuild.")
         return True
 
     # Navigate to client directory
@@ -44,17 +60,17 @@ def build_frontend(force_rebuild=False):
 
     # Install dependencies if needed
     try:
-        print("📦 Installing dependencies...")
+        print(f"{emoji('package')} Installing dependencies...")
         subprocess.run(["npm", "ci"], check=True)
 
         # Build the frontend - this will output directly to server/static based on vite.config.js
-        print("🏗️ Building frontend application...")
+        print(f"{emoji('working')} Building frontend application...")
         subprocess.run(["npm", "run", "build"], check=True)
 
-        print("✅ Frontend build completed successfully.")
+        print(f"{emoji('success')} Frontend build completed successfully.")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Frontend build failed: {e}")
+        print(f"{emoji('error')} Frontend build failed: {e}")
         return False
     finally:
         # Return to original directory
@@ -63,11 +79,11 @@ def build_frontend(force_rebuild=False):
 
 def install_python_requirements():
     """Install Python dependencies"""
-    print("📦 Installing Python dependencies...")
+    print(f"{emoji('package')} Installing Python dependencies...")
 
     requirements_file = os.path.join(SERVER_DIR, "requirements.txt")
     if not os.path.exists(requirements_file):
-        print(f"❌ Error: Requirements file {requirements_file} not found.")
+        print(f"{emoji('error')} Error: Requirements file {requirements_file} not found.")
         return False
 
     try:
@@ -77,20 +93,20 @@ def install_python_requirements():
         # Install PyInstaller
         subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
 
-        print("✅ Python dependencies installed successfully.")
+        print(f"{emoji('success')} Python dependencies installed successfully.")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to install Python dependencies: {e}")
+        print(f"{emoji('error')} Failed to install Python dependencies: {e}")
         return False
 
 
 def setup_pyinstaller_utils():
     """Copy PyInstaller utilities to the server utils directory"""
-    print("📂 Setting up PyInstaller utilities...")
+    print(f"{emoji('folder')} Setting up PyInstaller utilities...")
 
     utils_dir = os.path.join(SERVER_DIR, "utils")
     if not os.path.exists(utils_dir):
-        print(f"❌ Error: Utils directory {utils_dir} does not exist.")
+        print(f"{emoji('error')} Error: Utils directory {utils_dir} does not exist.")
         return False
 
     source_file = os.path.join(SCRIPT_DIR, "pyinstaller_utils.py")
@@ -98,19 +114,19 @@ def setup_pyinstaller_utils():
 
     try:
         shutil.copy2(source_file, target_file)
-        print(f"✅ Copied PyInstaller utilities to {target_file}")
+        print(f"{emoji('success')} Copied PyInstaller utilities to {target_file}")
         return True
     except Exception as e:
-        print(f"❌ Error copying PyInstaller utilities: {e}")
+        print(f"{emoji('error')} Error copying PyInstaller utilities: {e}")
         return False
 
 
 def run_pyinstaller(one_file=False, output_name=None):
     """Build the executable with PyInstaller"""
     if one_file:
-        print("📦 Building single-file executable with PyInstaller...")
+        print(f"{emoji('package')} Building single-file executable with PyInstaller...")
     else:
-        print("📦 Building directory-based executable with PyInstaller...")
+        print(f"{emoji('package')} Building directory-based executable with PyInstaller...")
 
     # Create platform-specific output directory
     current_platform = platform.system().lower()
@@ -123,42 +139,46 @@ def run_pyinstaller(one_file=False, output_name=None):
 
     os.makedirs(platform_output, exist_ok=True)
 
-    # Use full path to spec file
+    # Go to server directory for PyInstaller
+    original_dir = os.getcwd()
+    os.chdir(SERVER_DIR)
+
+    # Use spec file from dist directory
     spec_file = os.path.join(SCRIPT_DIR, "DigiScript.spec")
     if not os.path.exists(spec_file):
-        print(f"❌ Error: PyInstaller spec file {spec_file} not found.")
+        print(f"{emoji('error')} Error: PyInstaller spec file {spec_file} not found.")
         return False
 
-    # Store original directory
-    original_dir = os.getcwd()
-
     try:
-        # Change to the server directory
-        os.chdir(SERVER_DIR)
-        print(f"Changed working directory to: {SERVER_DIR}")
-
         # Run PyInstaller with the spec file
         cmd = ["pyinstaller", spec_file, "-y"]
         print(f"Running command: {' '.join(cmd)}")
 
         subprocess.run(cmd, check=True)
 
-        # Copy the output to the platform-specific directory
         exe_ext = ".exe" if current_platform == "windows" else ""
 
         # Copy the appropriate output based on one_file option
         if one_file:
             source = os.path.join(SERVER_DIR, "dist", f"DigiScript{exe_ext}")
+            if not os.path.exists(source):
+                print(f"{emoji('warning')} Warning: Expected output {source} not found. Checking for alternative naming...")
+                # Try with the custom name if provided
+                if output_name:
+                    source = os.path.join(SERVER_DIR, "dist", f"{output_name}{exe_ext}")
         else:
             source = os.path.join(SERVER_DIR, "dist", "DigiScript")
+            if not os.path.exists(source):
+                print(f"{emoji('warning')} Warning: Expected output {source} not found. Checking for alternative naming...")
+                # Try with the custom name if provided
+                if output_name:
+                    source = os.path.join(SERVER_DIR, "dist", output_name)
 
         # Create target path
         target_basename = os.path.basename(source)
-        if output_name:
-            if one_file:
-                target_basename = f"{output_name}{exe_ext}"
-            else:
-                target_basename = output_name
+        if output_name and target_basename != output_name and not target_basename.endswith(exe_ext):
+            # If a custom name was provided, use it
+            target_basename = f"{output_name}{exe_ext if one_file else ''}"
 
         target = os.path.join(platform_output, target_basename)
 
@@ -171,15 +191,15 @@ def run_pyinstaller(one_file=False, output_name=None):
                 if os.path.exists(target):
                     os.remove(target)
                 shutil.copy2(source, target)
-            print(f"✅ Copied build output to {target}")
+            print(f"{emoji('success')} Copied build output to {target}")
         else:
-            print(f"❌ Error: Expected output {source} not found.")
+            print(f"{emoji('error')} Error: Expected output {source} not found.")
             return False
 
-        print("✅ PyInstaller build completed successfully.")
+        print(f"{emoji('success')} PyInstaller build completed successfully.")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ PyInstaller build failed: {e}")
+        print(f"{emoji('error')} PyInstaller build failed: {e}")
         return False
     finally:
         # Return to original directory
@@ -198,12 +218,12 @@ def create_platform_specific_package(package_format):
         platform_output = LINUX_OUTPUT
 
     if not os.path.exists(platform_output):
-        print(f"❌ Error: Platform output directory {platform_output} does not exist.")
+        print(f"{emoji('error')} Error: Platform output directory {platform_output} does not exist.")
         return False
 
     if package_format == "zip":
         try:
-            print("📦 Creating ZIP archive...")
+            print(f"{emoji('package')} Creating ZIP archive...")
             output_file = os.path.join(
                 OUTPUT_DIR,
                 f"DigiScript-{current_platform}.zip"
@@ -217,41 +237,41 @@ def create_platform_specific_package(package_format):
                 "zip",
                 platform_output
             )
-            print(f"✅ Created package: {output_file}")
+            print(f"{emoji('success')} Created package: {output_file}")
             return True
         except Exception as e:
-            print(f"❌ Failed to create package: {e}")
+            print(f"{emoji('error')} Failed to create package: {e}")
             return False
     elif package_format == "dmg" and current_platform == "darwin":
         # macOS DMG creation would go here
-        print("⚠️ DMG packaging not implemented yet")
+        print(f"{emoji('warning')} DMG packaging not implemented yet")
         return False
     elif package_format == "msi" and current_platform == "windows":
         # Windows MSI creation would go here
-        print("⚠️ MSI packaging not implemented yet")
+        print(f"{emoji('warning')} MSI packaging not implemented yet")
         return False
     else:
-        print(f"⚠️ Package format {package_format} not supported on {current_platform}")
+        print(f"{emoji('warning')} Package format {package_format} not supported on {current_platform}")
         return False
 
 
 def remove_copied_files():
     """Remove copied PyInstaller utilities from the server utils directory"""
-    print("📂 Removing PyInstaller utilities...")
+    print(f"{emoji('folder')} Removing PyInstaller utilities...")
 
     utils_dir = os.path.join(SERVER_DIR, "utils")
     if not os.path.exists(utils_dir):
-        print(f"❌ Error: Utils directory {utils_dir} does not exist.")
+        print(f"{emoji('error')} Error: Utils directory {utils_dir} does not exist.")
         return False
 
     target_file = os.path.join(utils_dir, "pyinstaller_utils.py")
 
     try:
         os.remove(target_file)
-        print(f"✅ Removed PyInstaller utilities from {target_file}")
+        print(f"{emoji('success')} Removed PyInstaller utilities from {target_file}")
         return True
     except Exception as e:
-        print(f"❌ Error removing PyInstaller utilities: {e}")
+        print(f"{emoji('error')} Error removing PyInstaller utilities: {e}")
         return False
 
 
@@ -266,18 +286,18 @@ def main():
     args = parser.parse_args()
 
     # Show paths for verification
-    print(f"🔍 Project root: {ROOT_DIR}")
-    print(f"🔍 Client directory: {CLIENT_DIR}")
-    print(f"🔍 Server directory: {SERVER_DIR}")
-    print(f"🔍 Output directory: {OUTPUT_DIR}")
+    print(f"{emoji('search')} Project root: {ROOT_DIR}")
+    print(f"{emoji('folder')} Client directory: {CLIENT_DIR}")
+    print(f"{emoji('folder')} Server directory: {SERVER_DIR}")
+    print(f"{emoji('folder')} Output directory: {OUTPUT_DIR}")
 
     # Validate directories
     if not os.path.exists(CLIENT_DIR):
-        print(f"❌ Error: Client directory {CLIENT_DIR} not found.")
+        print(f"{emoji('error')} Error: Client directory {CLIENT_DIR} not found.")
         return 1
 
     if not os.path.exists(SERVER_DIR):
-        print(f"❌ Error: Server directory {SERVER_DIR} not found.")
+        print(f"{emoji('error')} Error: Server directory {SERVER_DIR} not found.")
         return 1
 
     # Ensure output directory exists
@@ -308,10 +328,10 @@ def main():
         remove_copied_files()
 
     if success:
-        print("\n🎉 Build completed successfully!")
+        print(f"\n{emoji('done')} Build completed successfully!")
         return 0
     else:
-        print("\n❌ Build failed.")
+        print(f"\n{emoji('error')} Build failed.")
         return 1
 
 
