@@ -106,12 +106,6 @@ class DigiScriptServer(
         # Configure the JWT service once we have set up the database
         self.jwt_service = self._configure_jwt()
 
-        # Clear out all sessions since we are starting the app up
-        with self._db.sessionmaker() as session:
-            get_logger().debug("Emptying out sessions table!")
-            session.query(Session).delete()
-            session.commit()
-
         # Check for presence of admin user, and update settings to match
         with self._db.sessionmaker() as session:
             any_admin = session.query(User).filter(User.is_admin).first()
@@ -141,16 +135,19 @@ class DigiScriptServer(
                         show.current_session_id
                     )
                     if show_session:
-                        show_session.last_client_internal_id = (
-                            show_session.client_internal_id
-                        )
-                        show_session.client_internal_id = None
+                        show_session.last_client_internal_id = show_session.client_internal_id
                     else:
                         get_logger().warning(
                             "Current show session not found. Resetting."
                         )
                         show.current_session_id = None
                     session.commit()
+
+        # Clear out all sessions since we are starting the app up
+        with self._db.sessionmaker() as session:
+            get_logger().debug("Emptying out sessions table!")
+            session.query(Session).delete()
+            session.commit()
 
         static_files_path = os.path.join(
             os.path.abspath(os.path.dirname(__file__)), "..", "static", "assets"
