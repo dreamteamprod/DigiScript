@@ -128,7 +128,7 @@
             cols="6"
             offset="3"
           >
-            <create-user :is_first_admin="true" />
+            <create-user :is-first-admin="true" />
           </b-col>
         </b-row>
       </b-container>
