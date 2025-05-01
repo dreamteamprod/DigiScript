@@ -57,7 +57,10 @@ class StaticController(BaseController):
         else:
             # In source mode, use relative path
             full_path = os.path.join(
-                os.path.abspath(os.path.dirname(__file__)), "..", uri
+                os.path.abspath(os.path.dirname(__file__)),
+                "..",
+                "static",
+                url_unescape(self.request.uri).strip(os.path.sep),
             )
 
         if not os.path.isfile(full_path):
