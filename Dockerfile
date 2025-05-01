@@ -1,11 +1,16 @@
 FROM node:22-bookworm AS node_build
-RUN npm install npm@10 -g
 
-COPY /client /client
+RUN npm install npm@10 -g
+RUN mkdir -p /server/static
+
+COPY /client/package.json /client/package.json
+COPY /client/package-lock.json /client/package-lock.json
 WORKDIR /client
 RUN npm ci
-COPY /server /server
+COPY /client /client
 RUN npm run build
+
+COPY /server /server
 
 FROM python:3.13-bookworm
 
