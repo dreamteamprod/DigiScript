@@ -28,19 +28,9 @@ from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
+from utils.module_discovery import is_frozen, get_resource_path
 from utils.web.jwt_service import JWTService
 from utils.web.route import Route
-
-# Check if we're running in a PyInstaller bundle
-try:
-    from utils.pyinstaller_utils import get_resource_path, is_frozen
-except ImportError:
-    # Define fallback functions if not running in PyInstaller
-    def get_resource_path(path):
-        return path
-
-    def is_frozen():
-        return False
 
 
 class DigiScriptServer(

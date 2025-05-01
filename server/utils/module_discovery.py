@@ -12,7 +12,7 @@ try:
 except ImportError:
 
     def is_frozen():
-        return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+        return False
 
     def get_resource_path(path):
         return path
