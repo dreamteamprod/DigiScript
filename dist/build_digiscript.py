@@ -174,22 +174,15 @@ def run_pyinstaller(one_file=False, output_name=None):
                 return False
 
         # Create target path
-        if source.endswith(exe_ext):
-            target_basename = os.path.basename(
-                os.path.join(SERVER_DIR, "dist", f"DigiScript{exe_ext}")
-            )
+        if output_name:
+            if one_file and not output_name.endswith(exe_ext):
+                target_basename = f"{output_name}{exe_ext}"
+            else:
+                target_basename = output_name
         else:
             target_basename = os.path.basename(source)
 
-        if output_name and target_basename != output_name:
-            # If a custom name was provided, use it
-            if not target_basename.endswith(exe_ext):
-                target_basename = f"{output_name}{exe_ext if one_file else ''}"
-            else:
-                target_basename = output_name
-
         target = os.path.join(platform_output, target_basename)
-
         if os.path.exists(source):
             if os.path.isdir(source):
                 if os.path.exists(target):
