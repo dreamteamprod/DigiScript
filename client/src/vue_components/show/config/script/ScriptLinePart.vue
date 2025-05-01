@@ -43,6 +43,7 @@
           v-model="$v.state.line_text.$model"
           :state="validateState('line_text')"
           @change="stateChange"
+          @keydown.enter.native="handleEnterPress"
         />
         <b-button
           v-if="showAddButton && !isStageDirection"
@@ -63,7 +64,7 @@ import { required, requiredIf } from 'vuelidate/lib/validators';
 
 export default {
   name: 'ScriptLinePart',
-  events: ['input', 'addLinePart'],
+  events: ['input', 'addLinePart', 'tryFinishLine'],
   props: {
     focusInput: {
       required: true,
@@ -154,6 +155,10 @@ export default {
       this.$v.state.$touch();
       this.$emit('input', this.state);
       this.$refs.partInput.focus();
+    },
+    handleEnterPress() {
+      this.$v.state.$touch();
+      this.$emit('tryFinishLine');
     },
   },
 };

@@ -71,6 +71,7 @@
         :line-parts="state.line_parts"
         @input="stateChange"
         @addLinePart="addLinePart"
+        @tryFinishLine="tryFinishLine"
       />
       <b-col
         v-if="isStageDirection && stageDirectionStyles.length > 0"
@@ -315,6 +316,12 @@ export default {
     },
     deleteLine() {
       this.$emit('deleteLine');
+    },
+    tryFinishLine() {
+      this.$v.state.$touch();
+      if (this.lineValid) {
+        this.doneEditing();
+      }
     },
   },
 };
