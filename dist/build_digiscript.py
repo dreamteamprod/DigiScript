@@ -199,7 +199,7 @@ def run_pyinstaller(one_file=False, output_name=None):
                 if os.path.exists(target):
                     os.remove(target)
                 shutil.copy2(source, target)
-            print(f"{emoji('success')} Copied build output to {target}")
+            print(f"{emoji('success')} Copied build output from {source} to {target}")
         else:
             print(f"{emoji('error')} Error: Expected output {source} not found.")
             return False
