@@ -32,7 +32,7 @@ jobs:
           name: frontend-build
           path: server/static/
   build-executables:
-    needs: build-frontend
+    needs: build-front-end
     strategy:
       fail-fast: false
       matrix:
@@ -58,10 +58,10 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'server/requirements.txt'
       - name: Download frontend build
-          uses: actions/download-artifact@v4
-          with:
-            name: frontend-build
-            path: server/static
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: server/static
       - name: Install Python Packages
         run: python -m pip install -r server/requirements.txt
       - name: Build DigiScript with build script
