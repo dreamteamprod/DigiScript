@@ -163,7 +163,7 @@ def run_pyinstaller(one_file=False, output_name=None):
 
         # Copy the appropriate output based on one_file option
         if one_file:
-            source = os.path.join(SERVER_DIR, "dist", f"DigiScript{exe_ext}")
+            source = os.path.join(SERVER_DIR, "dist", f"DigiScript-tmp{exe_ext}")
             if not os.path.exists(source):
                 print(f"{emoji('warning')} Warning: Expected output {source} not found.")
                 return False
@@ -174,7 +174,13 @@ def run_pyinstaller(one_file=False, output_name=None):
                 return False
 
         # Create target path
-        target_basename = os.path.basename(source)
+        if source.endswith(exe_ext):
+            target_basename = os.path.basename(
+                os.path.join(SERVER_DIR, "dist", f"DigiScript{exe_ext}")
+            )
+        else:
+            target_basename = os.path.basename(source)
+
         if output_name and target_basename != output_name:
             # If a custom name was provided, use it
             if not target_basename.endswith(exe_ext):
@@ -277,6 +283,38 @@ def remove_copied_files():
         return False
 
 
+def remove_tmp_build_files():
+    success = True
+
+    print(f"{emoji('folder')} Removing PyInstaller generated build files...")
+    build_dir = os.path.join(SERVER_DIR, "build")
+    if not os.path.exists(build_dir):
+        print(f"{emoji('warning')} Error: PyInstaller build directory {build_dir} does not exist.")
+    else:
+        try:
+            shutil.rmtree(build_dir)
+            print(f"{emoji('success')} Removed PyInstaller build directory at {build_dir}")
+        except Exception as e:
+            print(f"{emoji('error')} Error removing PyInstaller build directory: {e}")
+            success = False
+
+    print(f"{emoji('folder')} Removing PyInstaller generated dist files...")
+    dist_dir = os.path.join(SERVER_DIR, "dist")
+    if not os.path.exists(dist_dir):
+        print(f"{emoji('warning')} Error: PyInstaller dist directory {dist_dir} does not exist.")
+    else:
+        try:
+            shutil.rmtree(dist_dir)
+            print(f"{emoji('success')} Removed PyInstaller dist directory at {dist_dir}")
+        except Exception as e:
+            print(f"{emoji('error')} Error removing PyInstaller build directory: {e}")
+            success = False
+
+    return success
+
+
+
+
 def main():
     parser = argparse.ArgumentParser(description="Build DigiScript Application")
     parser.add_argument("--skip-frontend", action="store_true", help="Skip frontend build")
@@ -330,7 +368,9 @@ def main():
     if remove_files:
         remove_copied_files()
 
-    if success:
+    if not remove_tmp_build_files():
+        print(f"\n{emoji('warning')} Build completed successfully but could not remove build files!")
+    elif success:
         print(f"\n{emoji('done')} Build completed successfully!")
         return 0
     else:

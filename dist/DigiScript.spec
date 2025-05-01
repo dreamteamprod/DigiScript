@@ -79,9 +79,7 @@ with open(os.path.join(DIST_DIR, 'preload_modules.py'), 'w') as f:
     f.write("print('Module preloading complete.')\n")
 
 # Find all necessary modules to include
-controller_modules = collect_submodules('controllers')
 digi_server_modules = collect_submodules('digi_server')
-model_modules = collect_submodules('models')
 rbac_modules = collect_submodules('rbac')
 registry_modules = collect_submodules('registry')
 schemas_modules = collect_submodules('schemas')
@@ -191,7 +189,7 @@ exe_onefile = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='DigiScript',
+    name='DigiScript-tmp',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
