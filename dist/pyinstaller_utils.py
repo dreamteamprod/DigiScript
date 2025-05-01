@@ -62,7 +62,7 @@ def get_writeable_path(app_name="DigiScript"):
             # On Linux/Unix, use ~/.config
             app_dir = os.path.expanduser(f'~/.config/{app_name}')
     else:
-        # We're running in development mode, use a directory in the project
+        # We're running in source mode, use a directory in the project
         app_dir = os.path.join(get_base_path(), 'data')
 
     # Ensure the directory exists

@@ -1,11 +1,14 @@
 import importlib
-import os
 import pkgutil
 import sys
 
+from digi_server.logger import get_logger
+from utils.pkg_utils import find_end_modules
+
 # Check if running in PyInstaller bundle
 try:
-    from utils.pyinstaller_utils import get_base_path, get_resource_path, is_frozen
+    # pylint: disable=unused-import
+    from utils.pyinstaller_utils import get_resource_path, is_frozen
 except ImportError:
 
     def is_frozen():
@@ -13,13 +16,6 @@ except ImportError:
 
     def get_resource_path(path):
         return path
-
-    def get_base_path():
-        return os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-
-
-from digi_server.logger import get_logger
-from utils.pkg_utils import find_end_modules
 
 
 def discover_modules(package_name, module_name=None):
@@ -39,7 +35,7 @@ def discover_modules(package_name, module_name=None):
             get_logger().debug(f"Using pkgutil to discover {package_name} modules")
             package = importlib.import_module(package_name)
 
-            for finder, name, is_pkg in pkgutil.walk_packages(
+            for _finder, name, is_pkg in pkgutil.walk_packages(
                 package.__path__, package.__name__ + "."
             ):
                 # Skip the package itself and the current module
@@ -74,13 +70,11 @@ def discover_modules(package_name, module_name=None):
 
         # Return the discovered modules
         return discovered_modules
-    else:
-        # In development mode, use the existing find_end_modules utility
-        modules = find_end_modules(".", prefix=package_name)
-        get_logger().debug(
-            f"Found {len(modules)} {package_name} modules in development mode"
-        )
-        return modules
+
+    # In source mode, use the existing find_end_modules utility
+    modules = find_end_modules(".", prefix=package_name)
+    get_logger().debug(f"Found {len(modules)} {package_name} modules in source mode")
+    return modules
 
 
 def has_module_code(module_name):

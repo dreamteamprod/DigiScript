@@ -27,7 +27,7 @@ class RootController(BaseController):
             # In PyInstaller mode, use resource path
             full_path = get_resource_path(os.path.join("static", "index.html"))
         else:
-            # In development mode, use relative path
+            # In source mode, use relative path
             file_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static"
             )
@@ -55,7 +55,7 @@ class StaticController(BaseController):
             # In PyInstaller mode, use resource path
             full_path = get_resource_path(uri)
         else:
-            # In development mode, use relative path
+            # In source mode, use relative path
             full_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", uri
             )

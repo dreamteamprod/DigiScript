@@ -1,6 +1,7 @@
 import os
 import secrets
 import shutil
+import sys
 import time
 from typing import List, Optional
 
@@ -212,10 +213,8 @@ class DigiScriptServer(
             get_logger().error(f"Alembic config file not found: {alembic_cfg_path}")
             # If running in PyInstaller, try an absolute path as a fallback
             if is_frozen():
-                import sys
-
                 if hasattr(sys, "_MEIPASS"):
-                    alt_path = os.path.join(sys._MEIPASS, "alembic.ini")
+                    alt_path = os.path.join(getattr(sys, "_MEIPASS"), "alembic.ini")
                     if os.path.isfile(alt_path):
                         alembic_cfg_path = alt_path
                         get_logger().info(
