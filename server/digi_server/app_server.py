@@ -1,6 +1,7 @@
 import os
 import secrets
 import shutil
+import sys
 import time
 from typing import List, Optional
 
@@ -29,6 +30,17 @@ from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.web.jwt_service import JWTService
 from utils.web.route import Route
+
+# Check if we're running in a PyInstaller bundle
+try:
+    from utils.pyinstaller_utils import get_resource_path, is_frozen
+except ImportError:
+    # Define fallback functions if not running in PyInstaller
+    def get_resource_path(path):
+        return path
+
+    def is_frozen():
+        return False
 
 
 class DigiScriptServer(
@@ -151,10 +163,15 @@ class DigiScriptServer(
             session.query(Session).delete()
             session.commit()
 
-        static_files_path = os.path.join(
-            os.path.abspath(os.path.dirname(__file__)), "..", "static", "assets"
-        )
-        get_logger().info(f"Using {static_files_path} as static files path")
+        # Get static files path - adjust for PyInstaller if needed
+        if is_frozen():
+            static_files_path = get_resource_path(os.path.join("static", "assets"))
+            get_logger().info(f"Using packaged static files path: {static_files_path}")
+        else:
+            static_files_path = os.path.join(
+                os.path.abspath(os.path.dirname(__file__)), "..", "static", "assets"
+            )
+            get_logger().info(f"Using relative static files path: {static_files_path}")
 
         handlers = Route.routes()
         handlers.append(("/favicon.ico", controllers.StaticController))
@@ -180,13 +197,50 @@ class DigiScriptServer(
 
     @property
     def _alembic_config(self):
-        alembic_cfg_path = os.path.join(os.path.dirname(__file__), "..", "alembic.ini")
+        # Handle path differently if running in PyInstaller bundle
+        if is_frozen():
+            # Look for alembic.ini in the PyInstaller bundle
+            alembic_cfg_path = get_resource_path("alembic.ini")
+            get_logger().info(f"Using bundled alembic.ini: {alembic_cfg_path}")
+        else:
+            # Use the standard path
+            alembic_cfg_path = os.path.join(
+                os.path.dirname(__file__), "..", "alembic.ini"
+            )
+
+        # Check if the file exists
+        if not os.path.isfile(alembic_cfg_path):
+            get_logger().error(f"Alembic config file not found: {alembic_cfg_path}")
+            # If running in PyInstaller, try an absolute path as a fallback
+            if is_frozen():
+                if hasattr(sys, "_MEIPASS"):
+                    alt_path = os.path.join(getattr(sys, "_MEIPASS"), "alembic.ini")
+                    if os.path.isfile(alt_path):
+                        alembic_cfg_path = alt_path
+                        get_logger().info(
+                            f"Found alternative alembic.ini: {alembic_cfg_path}"
+                        )
+
         alembic_cfg = Config(alembic_cfg_path)
+
         # Override config options with specific ones based on this running instance
         alembic_cfg.set_main_option(
             "digiscript.config", self.digi_settings.settings_path
         )
         alembic_cfg.set_main_option("configure_logging", "False")
+
+        # If running in PyInstaller, patch the script_location
+        if is_frozen():
+            # Get the script directory from the bundle
+            script_location = get_resource_path("alembic")
+            if os.path.isdir(script_location):
+                alembic_cfg.set_main_option("script_location", script_location)
+                get_logger().info(f"Set alembic script_location to: {script_location}")
+            else:
+                get_logger().warning(
+                    f"Alembic script directory not found: {script_location}"
+                )
+
         return alembic_cfg
 
     def _run_migrations(self):

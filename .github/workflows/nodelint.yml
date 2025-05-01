@@ -3,7 +3,7 @@ name: ESLint
 on: [push]
 
 jobs:
-  build:
+  run-node-lint:
     runs-on: ubuntu-latest
     defaults:
       run:
