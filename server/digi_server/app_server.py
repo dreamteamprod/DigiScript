@@ -28,7 +28,7 @@ from models.user import User
 from rbac.rbac import RBACController
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
-from utils.module_discovery import is_frozen, get_resource_path
+from utils.module_discovery import get_resource_path, is_frozen
 from utils.web.jwt_service import JWTService
 from utils.web.route import Route
 

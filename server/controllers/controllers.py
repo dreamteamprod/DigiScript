@@ -60,7 +60,7 @@ class StaticController(BaseController):
                 os.path.abspath(os.path.dirname(__file__)),
                 "..",
                 "static",
-                url_unescape(self.request.uri).strip(os.path.sep),
+                uri,
             )
 
         if not os.path.isfile(full_path):
