@@ -2,7 +2,7 @@ name: Labeler
 on: [pull_request]
 
 jobs:
-  build:
+  labeller:
     runs-on: ubuntu-latest
     steps:
     - uses: srvaroa/labeler@master
