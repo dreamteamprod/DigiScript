@@ -60,6 +60,7 @@
           <b-button
             v-else
             variant="warning"
+            :disabled="savingInProgress || isAutoSaving"
             @click="stopEditing"
           >
             Stop Editing
@@ -67,7 +68,7 @@
           <b-button
             v-if="INTERNAL_UUID === CURRENT_EDITOR"
             variant="success"
-            :disabled="!canSave"
+            :disabled="!canSave && !isAutoSaving"
             @click="saveScript"
           >
             Save
@@ -325,6 +326,8 @@ export default {
       linePartCuts: [],
       insertMode: false,
       insertSDMode: false,
+      autoSaveInterval: null,
+      isAutoSaving: false,
     };
   },
   validations: {
@@ -391,16 +394,23 @@ export default {
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
       'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
       'IS_CUT_MODE', 'SCRIPT_CUTS', 'INSERTED_LINES', 'STAGE_DIRECTION_STYLES', 'CURRENT_USER',
-      'STAGE_DIRECTION_STYLE_OVERRIDES']),
+      'STAGE_DIRECTION_STYLE_OVERRIDES', 'USER_SETTINGS']),
   },
   watch: {
     currentEditPage(val) {
       localStorage.setItem('scriptEditPage', val);
     },
+    USER_SETTINGS() {
+      this.setupAutoSave();
+    },
+    CURRENT_EDITOR() {
+      this.setupAutoSave();
+    },
   },
   async beforeMount() {
     // Get the current user
     await this.GET_CURRENT_USER();
+    await this.GET_USER_SETTINGS();
     // Config status
     await this.GET_SCRIPT_CONFIG_STATUS();
     // Show details
@@ -438,6 +448,9 @@ export default {
   destroyed() {
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
+    if (this.autoSaveInterval != null) {
+      clearInterval(this.autoSaveInterval);
+    }
   },
   methods: {
     handleKeyDown(e) {
@@ -865,12 +878,42 @@ export default {
       }
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
     },
+    setupAutoSave() {
+      if (this.INTERNAL_UUID !== this.CURRENT_EDITOR && this.autoSaveInterval != null) {
+        clearInterval(this.autoSaveInterval);
+      } else if (this.INTERNAL_UUID === this.CURRENT_EDITOR) {
+        if (this.USER_SETTINGS.enable_script_auto_save) {
+          if (this.autoSaveInterval == null) {
+            this.autoSaveInterval = setInterval(this.autosave, this.USER_SETTINGS.script_auto_save_interval * 1000 * 60);
+          } else {
+            clearInterval(this.autoSaveInterval);
+            this.autoSaveInterval = setInterval(this.autosave, this.USER_SETTINGS.script_auto_save_interval * 1000 * 60);
+          }
+        } else if (this.autoSaveInterval != null) {
+          clearInterval(this.autoSaveInterval);
+        }
+      }
+    },
+    async autosave() {
+      if (this.isAutoSaving) {
+        return;
+      }
+      this.isAutoSaving = true;
+      if (this.canSave) {
+        this.$toast.info('Starting autosave!');
+        await this.saveScript();
+      } else if (this.scriptChanges) {
+        this.$toast.warning('Cannot autosave as there are edits in progress!');
+      }
+      this.isAutoSaving = false;
+    },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED',
       'SET_CUT_MODE', 'INSERT_BLANK_LINE', 'RESET_INSERTED']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUTS', 'SAVE_SCRIPT_CUTS',
-      'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES']),
+      'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
+      'GET_USER_SETTINGS']),
   },
 };
 </script>
