@@ -215,6 +215,7 @@ export default {
       'SETUP_TOKEN_REFRESH',
       'REFRESH_TOKEN',
       'CHECK_WEBSOCKET_STATE',
+      'GET_USER_SETTINGS',
     ]),
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
@@ -231,6 +232,7 @@ export default {
           // Then get user data
           await this.GET_CURRENT_USER();
           await this.GET_CURRENT_RBAC();
+          await this.GET_USER_SETTINGS();
         }
 
         if (this.SETTINGS.current_show != null) {

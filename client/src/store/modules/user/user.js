@@ -103,6 +103,7 @@ export default {
         await context.dispatch('GET_RBAC_ROLES');
         await context.dispatch('GET_CURRENT_USER');
         await context.dispatch('GET_CURRENT_RBAC');
+        await context.dispatch('GET_USER_SETTINGS');
 
         await context.dispatch('AUTHENTICATE_WEBSOCKET');
         await context.dispatch('SETUP_TOKEN_REFRESH');
@@ -125,6 +126,8 @@ export default {
       await context.commit('SET_AUTH_TOKEN', null);
       await context.commit('SET_CURRENT_USER', null);
       await context.commit('SET_CURRENT_RBAC', null);
+      await context.commit('SET_USER_SETTINGS', []);
+      await context.commit('SET_STAGE_DIRECTION_STYLE_OVERRIDES', []);
       await context.commit('CLEAR_WS_AUTHENTICATION');
 
       if (token) {
