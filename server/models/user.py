@@ -6,7 +6,7 @@ from typing import Union
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 
 from models.models import db
-from registry.user_settings import UserSettingsRegistry
+from registry.user_overrides import UserOverridesRegistry
 
 
 class User(db.Model):
@@ -19,8 +19,8 @@ class User(db.Model):
     last_login = Column(DateTime())
 
 
-class UserSettings(db.Model):
-    __tablename__ = "user_settings"
+class UserOverrides(db.Model):
+    __tablename__ = "user_overrides"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), index=True)
@@ -49,7 +49,7 @@ class UserSettings(db.Model):
         merged = current.copy()
         merged.update(new_settings)
 
-        errors = UserSettingsRegistry.validate(self.settings_type, merged)
+        errors = UserOverridesRegistry.validate(self.settings_type, merged)
         if errors:
             raise ValueError(f"Invalid settings: {', '.join(errors)}")
 
@@ -61,10 +61,10 @@ class UserSettings(db.Model):
     def get_by_type(cls, user_id, settings_type: Union[db.Model, str], session):
         if issubclass(settings_type, db.Model):
             settings_type = settings_type.__tablename__
-        if not UserSettingsRegistry.is_registered(settings_type):
+        if not UserOverridesRegistry.is_registered(settings_type):
             return []
         return (
-            session.query(UserSettings)
+            session.query(UserOverrides)
             .filter_by(user_id=user_id)
             .filter_by(settings_type=settings_type)
             .all()
@@ -73,7 +73,7 @@ class UserSettings(db.Model):
     @classmethod
     def create_for_user(cls, user_id, settings_type, settings_data):
         """Create settings with validation"""
-        errors = UserSettingsRegistry.validate(settings_type, settings_data)
+        errors = UserOverridesRegistry.validate(settings_type, settings_data)
         if errors:
             raise ValueError(f"Invalid settings: {', '.join(errors)}")
 
@@ -88,5 +88,5 @@ class UserSettings(db.Model):
     @classmethod
     def get_default_settings(cls, settings_type):
         """Get default settings from registered model"""
-        model_class = UserSettingsRegistry.registry()[settings_type]["model"]
+        model_class = UserOverridesRegistry.registry()[settings_type]["model"]
         return model_class.to_settings_dict()

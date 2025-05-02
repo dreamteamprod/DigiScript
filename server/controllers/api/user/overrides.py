@@ -3,18 +3,18 @@ from typing import List
 from tornado import escape
 
 from models.script import StageDirectionStyle
-from models.user import UserSettings
+from models.user import UserOverrides
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import api_authenticated
 
 
 @ApiRoute("user/settings/stage_direction_overrides", ApiVersion.V1)
-class UserStageDirectionOverridesController(BaseAPIController):
+class StageDirectionOverridesController(BaseAPIController):
     @api_authenticated
     def get(self):
         with self.make_session() as session:
-            overrides: List[UserSettings] = UserSettings.get_by_type(
+            overrides: List[UserOverrides] = UserOverrides.get_by_type(
                 self.current_user["id"], StageDirectionStyle, session
             )
             self.set_status(200)
@@ -66,7 +66,7 @@ class UserStageDirectionOverridesController(BaseAPIController):
                 await self.finish({"message": "Stage direction style not found"})
                 return
 
-            user_style = UserSettings.create_for_user(
+            user_style = UserOverrides.create_for_user(
                 user_id=self.current_user["id"],
                 settings_type="stage_direction_styles",
                 settings_data={
@@ -108,7 +108,7 @@ class UserStageDirectionOverridesController(BaseAPIController):
             return
 
         with self.make_session() as session:
-            entry: UserSettings = session.get(UserSettings, settings_id)
+            entry: UserOverrides = session.get(UserOverrides, settings_id)
             if entry:
                 if entry.user_id != self.current_user["id"]:
                     self.set_status(403)
@@ -146,7 +146,7 @@ class UserStageDirectionOverridesController(BaseAPIController):
                 await self.finish({"message": "ID missing"})
                 return
 
-            entry: UserSettings = session.get(UserSettings, settings_id)
+            entry: UserOverrides = session.get(UserOverrides, settings_id)
             if entry:
                 if entry.user_id != self.current_user["id"]:
                     self.set_status(403)

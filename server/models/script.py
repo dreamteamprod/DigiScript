@@ -2,8 +2,8 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import backref, relationship
 
 from models.models import db
-from models.user import UserSettings
-from registry.user_settings import UserSettingsRegistry
+from models.user import UserOverrides
+from registry.user_overrides import UserOverridesRegistry
 from utils.database import DeleteMixin
 
 
@@ -141,7 +141,7 @@ class ScriptCuts(db.Model):
     )
 
 
-@UserSettingsRegistry.register(
+@UserOverridesRegistry.register(
     settings_fields=[
         "bold",
         "italic",
@@ -178,8 +178,8 @@ class StageDirectionStyle(db.Model, DeleteMixin):
 
     def pre_delete(self, session):
         user_overrides = (
-            session.query(UserSettings)
-            .filter(UserSettings.settings_type == self.__tablename__)
+            session.query(UserOverrides)
+            .filter(UserOverrides.settings_type == self.__tablename__)
             .all()
         )
         for override in user_overrides:
