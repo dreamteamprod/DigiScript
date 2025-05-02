@@ -5,14 +5,31 @@ import { makeURL } from '@/js/utils';
 
 export default {
   state: {
+    userSettings: {},
     stageDirectionStyleOverrides: [],
   },
   mutations: {
+    SET_USER_SETTINGS(state, settings) {
+      state.userSettings = settings;
+    },
     SET_STAGE_DIRECTION_STYLE_OVERRIDES(state, overrides) {
       state.stageDirectionStyleOverrides = overrides;
     },
   },
   actions: {
+    async GET_USER_SETTINGS(context) {
+      const response = await fetch(makeURL('/api/v1/user/settings'));
+      if (response.ok) {
+        const settings = await response.json();
+        await context.commit('SET_USER_SETTINGS', settings);
+      } else {
+        log.error('Unable to fetch user settings');
+      }
+    },
+    async UPDATE_SETTINGS(context, payload) {
+      context.commit('UPDATE_SETTINGS', payload);
+      await context.dispatch('SETTINGS_CHANGED');
+    },
     async GET_STAGE_DIRECTION_STYLE_OVERRIDES(context) {
       const response = await fetch(`${makeURL('/api/v1/user/settings/stage_direction_overrides')}`, {
         method: 'GET',
@@ -77,6 +94,9 @@ export default {
     },
   },
   getters: {
+    USER_SETTINGS(state) {
+      return state.userSettings;
+    },
     STAGE_DIRECTION_STYLE_OVERRIDES(state) {
       return state.stageDirectionStyleOverrides;
     },

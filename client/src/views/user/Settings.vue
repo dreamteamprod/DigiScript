@@ -14,6 +14,9 @@
       >
         <about-user />
       </b-tab>
+      <b-tab title="Settings">
+        <user-settings-config />
+      </b-tab>
       <b-tab
         title="Stage Direction Styles"
       >
@@ -25,10 +28,11 @@
 
 <script>
 import StageDirectionStyles from '@/vue_components/user/settings/StageDirectionStyles.vue';
-import AboutUserUser from '@/vue_components/user/settings/AboutUser.vue';
+import AboutUser from '@/vue_components/user/settings/AboutUser.vue';
+import UserSettingsConfig from '@/vue_components/user/settings/Settings.vue';
 
 export default {
   name: 'UserSettings',
-  components: { AboutUser: AboutUserUser, StageDirectionStyles },
+  components: { UserSettingsConfig, AboutUser, StageDirectionStyles },
 };
 </script>
