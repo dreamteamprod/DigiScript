@@ -1,173 +1,58 @@
-from typing import List
-
 from tornado import escape
 
-from models.script import StageDirectionStyle
+from digi_server.logger import get_logger
 from models.user import UserSettings
+from schemas.schemas import UserSettingsSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import api_authenticated
 
 
-@ApiRoute("user/settings/stage_direction_overrides", ApiVersion.V1)
-class UserStageDirectionOverridesController(BaseAPIController):
+@ApiRoute("user/settings", ApiVersion.V1)
+class UserSettingsController(BaseAPIController):
     @api_authenticated
-    def get(self):
+    async def get(self):
+        schema = UserSettingsSchema()
         with self.make_session() as session:
-            overrides: List[UserSettings] = UserSettings.get_by_type(
-                self.current_user["id"], StageDirectionStyle, session
-            )
-            self.set_status(200)
-            self.finish(
-                {
-                    "overrides": [
-                        {"id": override.id, "settings": override.settings_dict}
-                        for override in overrides
-                    ]
-                }
-            )
-
-    @api_authenticated
-    async def post(self):
-        data = escape.json_decode(self.request.body)
-        style_id: str = data.get("styleId", None)
-        if not style_id:
-            self.set_status(400)
-            await self.finish({"message": "Style ID missing"})
-            return
-
-        bold: bool = data.get("bold", False)
-        italic: bool = data.get("italic", False)
-        underline: bool = data.get("underline", False)
-
-        text_format: str = data.get("textFormat", None)
-        if not text_format or text_format not in ["default", "upper", "lower"]:
-            self.set_status(400)
-            await self.finish({"message": "Text format missing or invalid"})
-            return
-
-        text_colour: str = data.get("textColour", None)
-        if not text_colour:
-            self.set_status(400)
-            await self.finish({"message": "Text colour missing"})
-            return
-
-        enable_background_colour: bool = data.get("enableBackgroundColour", False)
-        background_colour: str = data.get("backgroundColour", None)
-        if enable_background_colour and not background_colour:
-            self.set_status(400)
-            await self.finish({"message": "Background colour missing"})
-            return
-
-        with self.make_session() as session:
-            style_to_override = session.query(StageDirectionStyle).get(style_id)
-            if not style_to_override:
-                self.set_status(404)
-                await self.finish({"message": "Stage direction style not found"})
-                return
-
-            user_style = UserSettings.create_for_user(
-                user_id=self.current_user["id"],
-                settings_type="stage_direction_styles",
-                settings_data={
-                    "id": style_id,
-                    "bold": bold,
-                    "italic": italic,
-                    "underline": underline,
-                    "text_format": text_format,
-                    "text_colour": text_colour,
-                    "enable_background_colour": enable_background_colour,
-                    "background_colour": background_colour,
-                },
-            )
-            session.add(user_style)
-            session.commit()
+            user_settings = session.get(UserSettings, self.current_user["id"])
+            # If we do not have any settings for this user, then create them
+            if not user_settings:
+                user_settings = UserSettings(_user_id=self.current_user["id"])
+                session.add(user_settings)
+                session.commit()
 
             self.set_status(200)
-            await self.finish(
-                {
-                    "id": user_style.id,
-                    "message": "Successfully added stage direction style override",
-                }
-            )
-
-            await self.application.ws_send_to_user(
-                self.current_user["id"],
-                "NOOP",
-                "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
-                {},
-            )
+            await self.finish(schema.dump(user_settings))
 
     @api_authenticated
     async def patch(self):
-        data = escape.json_decode(self.request.body)
-        settings_id = data.get("id", None)
-        if not settings_id:
-            self.set_status(400)
-            await self.finish({"message": "ID missing"})
-            return
-
-        with self.make_session() as session:
-            entry: UserSettings = session.get(UserSettings, settings_id)
-            if entry:
-                if entry.user_id != self.current_user["id"]:
-                    self.set_status(403)
-                    await self.finish()
-
-                merge_settings = data.copy()
-                del merge_settings["id"]
-                entry.update_settings(merge_settings)
-                session.commit()
-
-                self.set_status(200)
-                await self.finish(
-                    {"message": "Successfully edited stage direction style override"}
-                )
-
-                await self.application.ws_send_to_user(
-                    self.current_user["id"],
-                    "NOOP",
-                    "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
-                    {},
-                )
-            else:
-                self.set_status(404)
-                await self.finish(
-                    {"message": "Stage direction style override not found"}
-                )
-
-    @api_authenticated
-    async def delete(self):
+        log = get_logger()
         data = escape.json_decode(self.request.body)
         with self.make_session() as session:
-            settings_id = data.get("id", None)
-            if not settings_id:
-                self.set_status(400)
-                await self.finish({"message": "ID missing"})
-                return
+            user_settings = session.get(UserSettings, self.current_user["id"])
+            if not user_settings:
+                # If we do not have any settings for this user, then create them
+                user_settings = UserSettings(_user_id=self.current_user["id"])
+                session.add(user_settings)
+                session.flush()
 
-            entry: UserSettings = session.get(UserSettings, settings_id)
-            if entry:
-                if entry.user_id != self.current_user["id"]:
-                    self.set_status(403)
-                    await self.finish()
+            for k, v in data.items():
+                if hasattr(user_settings, k):
+                    if k[0] == "_":
+                        log.warning(
+                            f"User attempted to set protected setting: {k}. Ignoring."
+                        )
+                    else:
+                        setattr(user_settings, k, v)
+                else:
+                    log.warning(
+                        f"User attempted to set unknown setting: {k}. Ignoring."
+                    )
 
-                session.delete(entry)
-                session.commit()
+            session.commit()
 
-                self.set_status(200)
-                await self.finish(
-                    {"message": "Successfully deleted stage direction style override"}
-                )
-
-                await self.application.ws_send_to_user(
-                    self.current_user["id"],
-                    "NOOP",
-                    "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
-                    {},
-                )
-            else:
-                self.set_status(404)
-                await self.finish(
-                    {"message": "Stage direction style override not found"}
-                )
+        await self.application.ws_send_to_user(
+            self.current_user["id"], "NO_OP", "GET_USER_SETTINGS", {}
+        )
+        self.set_status(200)
+        self.write({"message": "User settings updated"})

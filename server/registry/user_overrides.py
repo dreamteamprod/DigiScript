@@ -3,7 +3,7 @@ from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from models.models import db
 
 
-class UserSettingsRegistry:
+class UserOverridesRegistry:
     _registry = {}
 
     # Type mapping for SQLAlchemy column types to Python types

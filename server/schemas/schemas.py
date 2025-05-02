@@ -16,7 +16,7 @@ from models.script import (
 )
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
-from models.user import User
+from models.user import User, UserSettings
 
 
 class SchemaRegistry:
@@ -63,6 +63,15 @@ class UserSchema(SQLAlchemyAutoSchema):
         load_instance = True
         include_fk = True
         exclude = ("password",)
+
+
+@schema
+class UserSettingsSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = UserSettings
+        load_instance = True
+        include_fk = True
+        exclude = ("_user_id", "_created_at", "_updated_at")
 
 
 @schema
