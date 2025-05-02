@@ -19,6 +19,28 @@ class User(db.Model):
     last_login = Column(DateTime())
 
 
+class UserSettings(db.Model):
+    __tablename__ = "user_settings"
+
+    # User editable settings
+    enable_script_auto_save = Column(Boolean, default=True)
+    script_auto_save_interval = Column(Integer, default=10)
+
+    # Hidden Properties (None user editable, marked with _)
+    # Make sure to also mark these as hidden in the Schema for this in schemas/schemas.py
+    _user_id = Column(
+        Integer, ForeignKey("user.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    _created_at = Column(
+        DateTime, default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
+    )
+    _updated_at = Column(
+        DateTime,
+        default=partial(datetime.datetime.now, tz=datetime.timezone.utc),
+        onupdate=partial(datetime.datetime.now, tz=datetime.timezone.utc),
+    )
+
+
 class UserOverrides(db.Model):
     __tablename__ = "user_overrides"
 
