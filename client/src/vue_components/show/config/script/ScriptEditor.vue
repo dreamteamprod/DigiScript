@@ -1,91 +1,96 @@
 <template>
   <b-container
     v-show="loaded"
-    class="mx-0 px-0"
+    class="mx-0 px-0 script-editor-container"
     fluid
   >
-    <b-row class="script-row">
-      <b-col cols="2">
-        <b-button
-          v-b-modal.go-to-page
-          variant="success"
-        >
-          Go to Page
-        </b-button>
-      </b-col>
-      <b-col
-        cols="2"
-        style="text-align: right"
-      >
-        <b-button
-          variant="success"
-          :disabled="currentEditPage === 1"
-          @click="decrPage"
-        >
-          Prev Page
-        </b-button>
-      </b-col>
-      <b-col cols="4">
-        <p>Current Page: {{ currentEditPage }}</p>
-      </b-col>
-      <b-col
-        cols="2"
-        style="text-align: left"
-      >
-        <b-button
-          variant="success"
-          @click="incrPage"
-        >
-          Next Page
-        </b-button>
-      </b-col>
-      <b-col cols="2">
-        <b-button-group>
+    <div
+      class="sticky-header"
+      :style="{ top: navbarHeight + 'px' }"
+    >
+      <b-row class="script-row">
+        <b-col cols="2">
           <b-button
-            v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-            variant="warning"
-            :disabled="!CAN_REQUEST_EDIT"
-            @click="requestEdit"
-          >
-            Edit
-          </b-button>
-          <b-button
-            v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-            variant="warning"
-            :disabled="!CAN_REQUEST_EDIT"
-            @click="requestCutEdit"
-          >
-            Cuts
-          </b-button>
-          <b-button
-            v-else
-            variant="warning"
-            :disabled="savingInProgress || isAutoSaving"
-            @click="stopEditing"
-          >
-            Stop Editing
-          </b-button>
-          <b-button
-            v-if="INTERNAL_UUID === CURRENT_EDITOR"
+            v-b-modal.go-to-page
             variant="success"
-            :disabled="!canSave && !isAutoSaving"
-            @click="saveScript"
           >
-            Save
+            Go to Page
           </b-button>
-        </b-button-group>
-      </b-col>
-    </b-row>
-    <b-row class="script-row">
-      <b-col cols="1">
-        Act
-      </b-col>
-      <b-col cols="1">
-        Scene
-      </b-col>
-      <b-col>Line</b-col>
-      <b-col cols="1" />
-    </b-row>
+        </b-col>
+        <b-col
+          cols="2"
+          style="text-align: right"
+        >
+          <b-button
+            variant="success"
+            :disabled="currentEditPage === 1"
+            @click="decrPage"
+          >
+            Prev Page
+          </b-button>
+        </b-col>
+        <b-col cols="4">
+          <p>Current Page: {{ currentEditPage }}</p>
+        </b-col>
+        <b-col
+          cols="2"
+          style="text-align: left"
+        >
+          <b-button
+            variant="success"
+            @click="incrPage"
+          >
+            Next Page
+          </b-button>
+        </b-col>
+        <b-col cols="2">
+          <b-button-group>
+            <b-button
+              v-if="INTERNAL_UUID !== CURRENT_EDITOR"
+              variant="warning"
+              :disabled="!CAN_REQUEST_EDIT"
+              @click="requestEdit"
+            >
+              Edit
+            </b-button>
+            <b-button
+              v-if="INTERNAL_UUID !== CURRENT_EDITOR"
+              variant="warning"
+              :disabled="!CAN_REQUEST_EDIT"
+              @click="requestCutEdit"
+            >
+              Cuts
+            </b-button>
+            <b-button
+              v-else
+              variant="warning"
+              :disabled="savingInProgress || isAutoSaving"
+              @click="stopEditing"
+            >
+              Stop Editing
+            </b-button>
+            <b-button
+              v-if="INTERNAL_UUID === CURRENT_EDITOR"
+              variant="success"
+              :disabled="!canSave && !isAutoSaving"
+              @click="saveScript"
+            >
+              Save
+            </b-button>
+          </b-button-group>
+        </b-col>
+      </b-row>
+      <b-row class="script-row">
+        <b-col cols="1">
+          Act
+        </b-col>
+        <b-col cols="1">
+          Scene
+        </b-col>
+        <b-col>Line</b-col>
+        <b-col cols="1" />
+      </b-row>
+    </div>
     <hr>
     <b-row class="script-row">
       <b-col cols="12">
@@ -328,6 +333,7 @@ export default {
       insertSDMode: false,
       autoSaveInterval: null,
       isAutoSaving: false,
+      navbarHeight: 0,
     };
   },
   validations: {
@@ -440,14 +446,17 @@ export default {
   },
   mounted() {
     this.loaded = true;
+    this.calculateNavbarHeight();
   },
   created() {
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
+    window.addEventListener('resize', this.calculateNavbarHeight);
   },
   destroyed() {
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
+    window.removeEventListener('resize', this.calculateNavbarHeight);
     if (this.autoSaveInterval != null) {
       clearInterval(this.autoSaveInterval);
     }
@@ -907,6 +916,14 @@ export default {
       }
       this.isAutoSaving = false;
     },
+    calculateNavbarHeight() {
+      const navbar = document.querySelector('.navbar');
+      if (navbar) {
+        this.navbarHeight = navbar.offsetHeight;
+      } else {
+        this.navbarHeight = 56;
+      }
+    },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED',
       'SET_CUT_MODE', 'INSERT_BLANK_LINE', 'RESET_INSERTED']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
@@ -919,5 +936,15 @@ export default {
 </script>
 
 <style scoped>
+.script-editor-container {
+  position: relative;
+}
 
+.sticky-header {
+  position: sticky;
+  z-index: 100;
+  padding: 10px 0;
+  border-bottom: 1px solid #dee2e6;
+  background: var(--body-background);
+}
 </style>
