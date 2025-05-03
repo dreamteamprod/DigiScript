@@ -38,6 +38,18 @@
                   :state="validateState('script_auto_save_interval')"
                 />
               </b-form-group>
+              <b-form-group
+                :label-cols="true"
+                label="Display cues on right side"
+                label-for="cue-position-input"
+              >
+                <b-form-checkbox
+                  id="cue-position-input"
+                  v-model="$v.editSettings.cue_position_right.$model"
+                  name="cue-position-input"
+                  :switch="true"
+                />
+              </b-form-group>
               <b-button-group
                 size="md"
                 style="float: right"
@@ -89,6 +101,7 @@ export default {
       editSettings: {
         enable_script_auto_save: false,
         script_auto_save_interval: 10,
+        cue_position_right: false,
       },
       toggle: 0,
     };
@@ -111,6 +124,7 @@ export default {
         notNullAndGreaterThanZero,
         minValue: minValue(1),
       },
+      cue_position_right: {},
     },
   },
   mounted() {

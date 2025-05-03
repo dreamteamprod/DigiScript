@@ -25,6 +25,7 @@ class UserSettings(db.Model):
     # User editable settings
     enable_script_auto_save = Column(Boolean, default=True)
     script_auto_save_interval = Column(Integer, default=10)
+    cue_position_right = Column(Boolean, default=False)
 
     # Hidden Properties (None user editable, marked with _)
     # Make sure to also mark these as hidden in the Schema for this in schemas/schemas.py
