@@ -10,42 +10,81 @@
       v-if="needsIntervalBanner"
       class="interval-header"
     >
-      <b-col
-        cols="3"
-        class="cue-column d-flex align-items-center justify-content-center"
-      >
-        <b-button
-          v-if="isScriptLeader"
-          variant="primary"
-          @click.stop="startInterval"
+      <template v-if="USER_SETTINGS.cue_position_right">
+        <b-col
+          cols="9"
+          class="interval-banner"
         >
-          Start Interval
-        </b-button>
-      </b-col>
-      <b-col
-        cols="9"
-        class="interval-banner"
-      >
-        <b-alert
-          show
-          variant="warning"
-          style="margin: 0"
+          <b-alert
+            show
+            variant="warning"
+            style="margin: 0"
+          >
+            <h3> {{ previousActLabel }} - Interval</h3>
+          </b-alert>
+        </b-col>
+        <b-col
+          cols="3"
+          class="cue-column d-flex align-items-center justify-content-center"
         >
-          <h3> {{ previousActLabel }} - Interval</h3>
-        </b-alert>
-      </b-col>
+          <b-button
+            v-if="isScriptLeader"
+            variant="primary"
+            @click.stop="startInterval"
+          >
+            Start Interval
+          </b-button>
+        </b-col>
+      </template>
+      <template v-else>
+        <b-col
+          cols="3"
+          class="cue-column d-flex align-items-center justify-content-center"
+        >
+          <b-button
+            v-if="isScriptLeader"
+            variant="primary"
+            @click.stop="startInterval"
+          >
+            Start Interval
+          </b-button>
+        </b-col>
+        <b-col
+          cols="9"
+          class="interval-banner"
+        >
+          <b-alert
+            show
+            variant="warning"
+            style="margin: 0"
+          >
+            <h3> {{ previousActLabel }} - Interval</h3>
+          </b-alert>
+        </b-col>
+      </template>
     </b-row>
     <b-row
       v-if="needsActSceneLabel"
       class="act-scene-header"
     >
-      <b-col
-        cols="3"
-        class="cue-column"
-      />
-      <b-col cols="9">
-        <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
-      </b-col>
+      <template v-if="USER_SETTINGS.cue_position_right">
+        <b-col cols="9">
+          <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
+        </b-col>
+        <b-col
+          cols="3"
+          class="cue-column"
+        />
+      </template>
+      <template v-else>
+        <b-col
+          cols="3"
+          class="cue-column"
+        />
+        <b-col cols="9">
+          <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
+        </b-col>
+      </template>
     </b-row>
     <b-row
       :class="{
@@ -53,90 +92,179 @@
         'heading-padding': !line.stage_direction && needsHeadingsAll
       }"
     >
-      <b-col
-        cols="3"
-        class="cue-column"
-      >
-        <b-button-group>
-          <b-button
-            v-for="cue in cues"
-            :key="cue.id"
-            class="cue-button"
-            :style="{backgroundColor: cueBackgroundColour(cue),
-                     color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
+      <template v-if="USER_SETTINGS.cue_position_right">
+        <template v-if="line.stage_direction">
+          <b-col
+            :key="`line_${lineIndex}_stage_direction`"
+            style="text-align: center"
           >
-            {{ cueLabel(cue) }}
-          </b-button>
-          <b-button
-            v-if="cueAddMode"
-            class="cue-button"
-            :disabled="isWholeLineCut(line)"
-            @click.stop="addNewCue"
-          >
-            <b-icon-plus-square-fill variant="success" />
-          </b-button>
-        </b-button-group>
-      </b-col>
-      <template v-if="line.stage_direction">
+            <i
+              class="viewable-line"
+              :style="stageDirectionStyling"
+            >
+              <template
+                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+              >
+                {{ line.line_parts[0].line_text | uppercase }}
+              </template>
+              <template
+                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+              >
+                {{ line.line_parts[0].line_text | lowercase }}
+              </template>
+              <template v-else>
+                {{ line.line_parts[0].line_text }}
+              </template>
+            </i>
+          </b-col>
+        </template>
+        <template v-else>
+          <b-col>
+            <b-row v-if="needsHeadingsAny">
+              <b-col
+                v-for="(part, index) in line.line_parts"
+                :key="`heading_${lineIndex}_part_${index}`"
+                style="text-align: center"
+              >
+                <template v-if="needsHeadings[index]">
+                  <b>
+                    <template v-if="part.character_id != null">
+                      {{ characters.find((char) => (char.id === part.character_id)).name }}
+                    </template>
+                    <template v-else>
+                      {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+                    </template>
+                  </b>
+                </template>
+              </b-col>
+            </b-row>
+            <b-row>
+              <b-col
+                v-for="(part, index) in line.line_parts"
+                :key="`line_${lineIndex}_part_${index}`"
+                style="text-align: center"
+              >
+                <p
+                  class="viewable-line"
+                  :class="{'cut-line-part': cuts.indexOf(part.id) !== -1}"
+                >
+                  {{ part.line_text }}
+                </p>
+              </b-col>
+            </b-row>
+          </b-col>
+        </template>
         <b-col
-          :key="`line_${lineIndex}_stage_direction`"
-          style="text-align: center"
+          cols="3"
+          class="cue-column"
         >
-          <i
-            class="viewable-line"
-            :style="stageDirectionStyling"
-          >
-            <template
-              v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+          <b-button-group>
+            <b-button
+              v-for="cue in cues"
+              :key="cue.id"
+              class="cue-button"
+              :style="{backgroundColor: cueBackgroundColour(cue),
+                       color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
             >
-              {{ line.line_parts[0].line_text | uppercase }}
-            </template>
-            <template
-              v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+              {{ cueLabel(cue) }}
+            </b-button>
+            <b-button
+              v-if="cueAddMode"
+              class="cue-button"
+              :disabled="isWholeLineCut(line)"
+              @click.stop="addNewCue"
             >
-              {{ line.line_parts[0].line_text | lowercase }}
-            </template>
-            <template v-else>
-              {{ line.line_parts[0].line_text }}
-            </template>
-          </i>
+              <b-icon-plus-square-fill variant="success" />
+            </b-button>
+          </b-button-group>
         </b-col>
       </template>
       <template v-else>
-        <b-col>
-          <b-row v-if="needsHeadingsAny">
-            <b-col
-              v-for="(part, index) in line.line_parts"
-              :key="`heading_${lineIndex}_part_${index}`"
-              style="text-align: center"
+        <b-col
+          cols="3"
+          class="cue-column"
+        >
+          <b-button-group>
+            <b-button
+              v-for="cue in cues"
+              :key="cue.id"
+              class="cue-button"
+              :style="{backgroundColor: cueBackgroundColour(cue),
+                       color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
             >
-              <template v-if="needsHeadings[index]">
-                <b>
-                  <template v-if="part.character_id != null">
-                    {{ characters.find((char) => (char.id === part.character_id)).name }}
-                  </template>
-                  <template v-else>
-                    {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
-                  </template>
-                </b>
-              </template>
-            </b-col>
-          </b-row>
-          <b-row>
-            <b-col
-              v-for="(part, index) in line.line_parts"
-              :key="`line_${lineIndex}_part_${index}`"
-              style="text-align: center"
+              {{ cueLabel(cue) }}
+            </b-button>
+            <b-button
+              v-if="cueAddMode"
+              class="cue-button"
+              :disabled="isWholeLineCut(line)"
+              @click.stop="addNewCue"
             >
-              <p
-                class="viewable-line"
-                :class="{'cut-line-part': cuts.indexOf(part.id) !== -1}"
-              >
-                {{ part.line_text }}
-              </p>
-            </b-col>
-          </b-row>
+              <b-icon-plus-square-fill variant="success" />
+            </b-button>
+          </b-button-group>
         </b-col>
+        <template v-if="line.stage_direction">
+          <b-col
+            :key="`line_${lineIndex}_stage_direction`"
+            style="text-align: center"
+          >
+            <i
+              class="viewable-line"
+              :style="stageDirectionStyling"
+            >
+              <template
+                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+              >
+                {{ line.line_parts[0].line_text | uppercase }}
+              </template>
+              <template
+                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+              >
+                {{ line.line_parts[0].line_text | lowercase }}
+              </template>
+              <template v-else>
+                {{ line.line_parts[0].line_text }}
+              </template>
+            </i>
+          </b-col>
+        </template>
+        <template v-else>
+          <b-col>
+            <b-row v-if="needsHeadingsAny">
+              <b-col
+                v-for="(part, index) in line.line_parts"
+                :key="`heading_${lineIndex}_part_${index}`"
+                style="text-align: center"
+              >
+                <template v-if="needsHeadings[index]">
+                  <b>
+                    <template v-if="part.character_id != null">
+                      {{ characters.find((char) => (char.id === part.character_id)).name }}
+                    </template>
+                    <template v-else>
+                      {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+                    </template>
+                  </b>
+                </template>
+              </b-col>
+            </b-row>
+            <b-row>
+              <b-col
+                v-for="(part, index) in line.line_parts"
+                :key="`line_${lineIndex}_part_${index}`"
+                style="text-align: center"
+              >
+                <p
+                  class="viewable-line"
+                  :class="{'cut-line-part': cuts.indexOf(part.id) !== -1}"
+                >
+                  {{ part.line_text }}
+                </p>
+              </b-col>
+            </b-row>
+          </b-col>
+        </template>
       </template>
     </b-row>
   </b-container>
@@ -307,7 +435,7 @@ export default {
       }
       return style;
     },
-    ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS']),
+    ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS', 'USER_SETTINGS']),
   },
   mounted() {
     /* eslint-disable no-restricted-syntax */
