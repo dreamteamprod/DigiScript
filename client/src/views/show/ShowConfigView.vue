@@ -2,12 +2,16 @@
   <div class="show">
     <h1>{{ $store.state.currentShow["name"] }}</h1>
     <b-container
-      class="mx-0"
+      class="mx-0 show-config-container"
       fluid
     >
       <b-row>
         <b-col cols="2">
-          <b-button-group vertical>
+          <b-button-group
+            vertical
+            class="sticky-nav"
+            :style="{ top: navbarHeight + 'px' }"
+          >
             <b-button
               replace
               :to="{'name': 'show-config'}"
@@ -101,9 +105,39 @@
 <script>
 export default {
   name: 'ShowView',
+  data() {
+    return {
+      navbarHeight: 0,
+    };
+  },
+  mounted() {
+    this.calculateNavbarHeight();
+    window.addEventListener('resize', this.calculateNavbarHeight);
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.calculateNavbarHeight);
+  },
+  methods: {
+    calculateNavbarHeight() {
+      const navbar = document.querySelector('.navbar');
+      if (navbar) {
+        this.navbarHeight = navbar.offsetHeight;
+      } else {
+        this.navbarHeight = 56;
+      }
+    },
+  },
 };
 </script>
 
 <style scoped>
+.show-config-container {
+  position: relative;
+}
 
+.sticky-nav {
+  position: sticky;
+  padding: 10px 0;
+  background: var(--body-background);
+}
 </style>

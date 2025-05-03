@@ -1,91 +1,96 @@
 <template>
   <b-container
     v-show="loaded"
-    class="mx-0 px-0"
+    class="mx-0 px-0 script-editor-container"
     fluid
   >
-    <b-row class="script-row">
-      <b-col cols="2">
-        <b-button
-          v-b-modal.go-to-page
-          variant="success"
-        >
-          Go to Page
-        </b-button>
-      </b-col>
-      <b-col
-        cols="2"
-        style="text-align: right"
-      >
-        <b-button
-          variant="success"
-          :disabled="currentEditPage === 1"
-          @click="decrPage"
-        >
-          Prev Page
-        </b-button>
-      </b-col>
-      <b-col cols="4">
-        <p>Current Page: {{ currentEditPage }}</p>
-      </b-col>
-      <b-col
-        cols="2"
-        style="text-align: left"
-      >
-        <b-button
-          variant="success"
-          @click="incrPage"
-        >
-          Next Page
-        </b-button>
-      </b-col>
-      <b-col cols="2">
-        <b-button-group>
+    <div
+      class="sticky-header"
+      :style="{ top: navbarHeight + 'px' }"
+    >
+      <b-row class="script-row">
+        <b-col cols="2">
           <b-button
-            v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-            variant="warning"
-            :disabled="!CAN_REQUEST_EDIT"
-            @click="requestEdit"
-          >
-            Edit
-          </b-button>
-          <b-button
-            v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-            variant="warning"
-            :disabled="!CAN_REQUEST_EDIT"
-            @click="requestCutEdit"
-          >
-            Cuts
-          </b-button>
-          <b-button
-            v-else
-            variant="warning"
-            :disabled="savingInProgress || isAutoSaving"
-            @click="stopEditing"
-          >
-            Stop Editing
-          </b-button>
-          <b-button
-            v-if="INTERNAL_UUID === CURRENT_EDITOR"
+            v-b-modal.go-to-page
             variant="success"
-            :disabled="!canSave && !isAutoSaving"
-            @click="saveScript"
           >
-            Save
+            Go to Page
           </b-button>
-        </b-button-group>
-      </b-col>
-    </b-row>
-    <b-row class="script-row">
-      <b-col cols="1">
-        Act
-      </b-col>
-      <b-col cols="1">
-        Scene
-      </b-col>
-      <b-col>Line</b-col>
-      <b-col cols="1" />
-    </b-row>
+        </b-col>
+        <b-col
+          cols="2"
+          style="text-align: right"
+        >
+          <b-button
+            variant="success"
+            :disabled="currentEditPage === 1"
+            @click="decrPage"
+          >
+            Prev Page
+          </b-button>
+        </b-col>
+        <b-col cols="4">
+          <p>Current Page: {{ currentEditPage }}</p>
+        </b-col>
+        <b-col
+          cols="2"
+          style="text-align: left"
+        >
+          <b-button
+            variant="success"
+            @click="incrPage"
+          >
+            Next Page
+          </b-button>
+        </b-col>
+        <b-col cols="2">
+          <b-button-group>
+            <b-button
+              v-if="INTERNAL_UUID !== CURRENT_EDITOR"
+              variant="warning"
+              :disabled="!CAN_REQUEST_EDIT"
+              @click="requestEdit"
+            >
+              Edit
+            </b-button>
+            <b-button
+              v-if="INTERNAL_UUID !== CURRENT_EDITOR"
+              variant="warning"
+              :disabled="!CAN_REQUEST_EDIT"
+              @click="requestCutEdit"
+            >
+              Cuts
+            </b-button>
+            <b-button
+              v-else
+              variant="warning"
+              :disabled="savingInProgress || isAutoSaving"
+              @click="stopEditing"
+            >
+              Stop Editing
+            </b-button>
+            <b-button
+              v-if="INTERNAL_UUID === CURRENT_EDITOR"
+              variant="success"
+              :disabled="!canSave && !isAutoSaving"
+              @click="saveScript"
+            >
+              Save
+            </b-button>
+          </b-button-group>
+        </b-col>
+      </b-row>
+      <b-row class="script-row">
+        <b-col cols="1">
+          Act
+        </b-col>
+        <b-col cols="1">
+          Scene
+        </b-col>
+        <b-col>Line</b-col>
+        <b-col cols="1" />
+      </b-row>
+    </div>
     <hr>
     <b-row class="script-row">
       <b-col cols="12">
@@ -328,6 +333,7 @@ export default {
       insertSDMode: false,
       autoSaveInterval: null,
       isAutoSaving: false,
+      navbarHeight: 0,
     };
   },
   validations: {
@@ -390,6 +396,9 @@ export default {
       }
       return (this.scriptChanges && this.editPages.length === 0);
     },
+    pagesWithOpenChanges() {
+      return [...new Set(this.editPages.map((x) => parseInt(x.split('_')[1], 10)))];
+    },
     ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
       'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
@@ -440,14 +449,17 @@ export default {
   },
   mounted() {
     this.loaded = true;
+    this.calculateNavbarHeight();
   },
   created() {
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
+    window.addEventListener('resize', this.calculateNavbarHeight);
   },
   destroyed() {
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
+    window.removeEventListener('resize', this.calculateNavbarHeight);
     if (this.autoSaveInterval != null) {
       clearInterval(this.autoSaveInterval);
     }
@@ -879,15 +891,16 @@ export default {
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
     },
     setupAutoSave() {
+      const autoSaveInterval = Math.max(this.USER_SETTINGS.script_auto_save_interval * 1000 * 60, 1000 * 60);
       if (this.INTERNAL_UUID !== this.CURRENT_EDITOR && this.autoSaveInterval != null) {
         clearInterval(this.autoSaveInterval);
       } else if (this.INTERNAL_UUID === this.CURRENT_EDITOR) {
         if (this.USER_SETTINGS.enable_script_auto_save) {
           if (this.autoSaveInterval == null) {
-            this.autoSaveInterval = setInterval(this.autosave, this.USER_SETTINGS.script_auto_save_interval * 1000 * 60);
+            this.autoSaveInterval = setInterval(this.autosave, autoSaveInterval);
           } else {
             clearInterval(this.autoSaveInterval);
-            this.autoSaveInterval = setInterval(this.autosave, this.USER_SETTINGS.script_auto_save_interval * 1000 * 60);
+            this.autoSaveInterval = setInterval(this.autosave, autoSaveInterval);
           }
         } else if (this.autoSaveInterval != null) {
           clearInterval(this.autoSaveInterval);
@@ -899,13 +912,97 @@ export default {
         return;
       }
       this.isAutoSaving = true;
-      if (this.canSave) {
-        this.$toast.info('Starting autosave!');
-        await this.saveScript();
-      } else if (this.scriptChanges) {
-        this.$toast.warning('Cannot autosave as there are edits in progress!');
+      const toastInstance = this.$toast.open({
+        type: 'info',
+        message: 'Performing autosave...',
+        duration: 0,
+        dismissible: false,
+      });
+      if (!this.IS_CUT_MODE) {
+        if (this.scriptChanges) {
+          let curSavePage = 0;
+          const orderedPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort(
+            (a, b) => a - b,
+          );
+          let saveFailure = false;
+
+          /* eslint-disable no-await-in-loop, no-restricted-syntax */
+          for (const pageNo of orderedPages) {
+            curSavePage = pageNo;
+            // If the page we are trying to save currently has edits, then stop
+            // here as we cannot save further changes (ordering is important, so if we have open
+            // edits on line X, then pages Y > X depend on the changes from X being saved
+            if (this.pagesWithOpenChanges.includes(pageNo)) {
+              break;
+            }
+            toastInstance.message = `Performing autosave...<br>Saving page ${curSavePage}`;
+            // Check whether the page actually has any lines on it, and if not then skip
+            const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
+            if (tmpScriptPage.length !== 0) {
+              // Check the actual script to see if the page exists or not
+              const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
+              if (actualScriptPage.length === 0) {
+                // New page
+                const response = await this.SAVE_NEW_PAGE(pageNo);
+                if (response) {
+                  await this.LOAD_SCRIPT_PAGE(pageNo);
+                  this.ADD_BLANK_PAGE(pageNo);
+                  this.RESET_DELETED(pageNo);
+                  this.RESET_INSERTED(pageNo);
+                } else {
+                  saveFailure = true;
+                  break;
+                }
+              } else {
+                // Existing page, check if anything has changed before saving
+                const lineDiff = diff(actualScriptPage, tmpScriptPage);
+                if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
+                    || this.INSERTED_LINES(pageNo).length > 0) {
+                  const response = await this.SAVE_CHANGED_PAGE(pageNo);
+                  if (response) {
+                    await this.LOAD_SCRIPT_PAGE(pageNo);
+                    this.ADD_BLANK_PAGE(pageNo);
+                    this.RESET_DELETED(pageNo);
+                    this.RESET_INSERTED(pageNo);
+                  } else {
+                    saveFailure = true;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+          /* eslint-enable no-await-in-loop, no-restricted-syntax */
+          if (saveFailure) {
+            toastInstance.message = 'Autosave failed.';
+            toastInstance.type = 'danger';
+          } else {
+            toastInstance.message = `Autosave successful<br>Saved up to page ${curSavePage}`;
+            toastInstance.type = 'success';
+          }
+          setTimeout(() => toastInstance.dismiss(), 5000);
+        } else {
+          toastInstance.message = 'Autosave successful<br>No changes to save';
+          toastInstance.type = 'success';
+          setTimeout(() => toastInstance.dismiss(), 5000);
+        }
+        await this.getMaxScriptPage();
+      } else {
+        await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
+        this.resetCutsToSaved();
+        toastInstance.message = 'Autosave successful';
+        toastInstance.type = 'success';
+        setTimeout(() => toastInstance.dismiss(), 5000);
       }
       this.isAutoSaving = false;
+    },
+    calculateNavbarHeight() {
+      const navbar = document.querySelector('.navbar');
+      if (navbar) {
+        this.navbarHeight = navbar.offsetHeight;
+      } else {
+        this.navbarHeight = 56;
+      }
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED',
       'SET_CUT_MODE', 'INSERT_BLANK_LINE', 'RESET_INSERTED']),
@@ -919,5 +1016,15 @@ export default {
 </script>
 
 <style scoped>
+.script-editor-container {
+  position: relative;
+}
 
+.sticky-header {
+  position: sticky;
+  z-index: 100;
+  padding: 10px 0;
+  border-bottom: 1px solid #dee2e6;
+  background: var(--body-background);
+}
 </style>
