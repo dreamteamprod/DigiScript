@@ -76,9 +76,10 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { required, integer } from 'vuelidate/lib/validators';
+import { required, integer, minValue } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
+import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 
 export default {
   name: 'UserSettingsConfig',
@@ -104,7 +105,11 @@ export default {
     editSettings: {
       enable_script_auto_save: {},
       script_auto_save_interval: {
-        required, integer,
+        required,
+        integer,
+        notNull,
+        notNullAndGreaterThanZero,
+        minValue: minValue(1),
       },
     },
   },
