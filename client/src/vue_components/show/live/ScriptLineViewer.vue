@@ -25,7 +25,7 @@
         </b-col>
         <b-col
           cols="3"
-          class="cue-column d-flex align-items-center justify-content-center"
+          class="cue-column-right d-flex align-items-center justify-content-center"
         >
           <b-button
             v-if="isScriptLeader"
@@ -73,7 +73,7 @@
         </b-col>
         <b-col
           cols="3"
-          class="cue-column"
+          class="cue-column-right"
         />
       </template>
       <template v-else>
@@ -156,7 +156,7 @@
         </template>
         <b-col
           cols="3"
-          class="cue-column"
+          class="cue-column-right"
         >
           <b-button-group>
             <b-button
@@ -512,6 +512,14 @@ export default {
 <style scoped>
   .cue-column {
     border-right: .1rem solid #3498db;
+    margin-top: -1rem;
+    margin-bottom: -1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .cue-column-right {
+    border-left: .1rem solid #3498db;
     margin-top: -1rem;
     margin-bottom: -1rem;
     padding-top: 1rem;
