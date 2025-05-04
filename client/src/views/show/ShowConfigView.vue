@@ -6,7 +6,7 @@
       fluid
     >
       <b-row>
-        <b-col cols="2">
+        <b-col cols="1">
           <b-button-group
             vertical
             class="sticky-nav"
@@ -94,7 +94,7 @@
             </b-button>
           </b-button-group>
         </b-col>
-        <b-col cols="10">
+        <b-col cols="11">
           <router-view />
         </b-col>
       </b-row>
