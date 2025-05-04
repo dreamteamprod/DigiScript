@@ -23,7 +23,7 @@
               Live
             </b-nav-item>
             <b-nav-item-dropdown
-              v-if="isShowExecutor || IS_ADMIN_USER"
+              v-if="IS_SHOW_EXECUTOR || IS_ADMIN_USER"
               text="Live Config"
             >
               <b-dropdown-item-button
@@ -58,7 +58,7 @@
             System Config
           </b-nav-item>
           <b-nav-item
-            v-if="$store.state.currentShow != null && (IS_ADMIN_USER || IS_SHOW_EDITOR)"
+            v-if="$store.state.currentShow != null && isAllowedScriptConfig"
             v-show="CURRENT_SHOW_SESSION == null"
             to="/show-config"
             :disabled="!WEBSOCKET_HEALTHY"
@@ -155,16 +155,15 @@ export default {
     };
   },
   computed: {
-    isShowExecutor() {
-      if (this.RBAC_ROLES.length === 0) {
-        return false;
-      }
-      if (this.CURRENT_USER_RBAC == null || !Object.keys(this.CURRENT_USER_RBAC).includes('shows')) {
-        return false;
-      }
-      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value;
-      // eslint-disable-next-line no-bitwise
-      return this.CURRENT_USER != null && (this.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+    isAllowedScriptConfig() {
+      return (this.IS_ADMIN_USER
+        || this.IS_SHOW_EDITOR
+        || this.IS_SHOW_READER
+        || this.IS_SHOW_EXECUTOR
+        || this.IS_SCRIPT_READER
+        || this.IS_SCRIPT_EDITOR
+        || this.IS_CUE_READER
+        || this.IS_CUE_EDITOR);
     },
     ...mapGetters([
       'IS_ADMIN_USER',
@@ -178,6 +177,12 @@ export default {
       'INTERNAL_UUID',
       'AUTH_TOKEN',
       'WEBSOCKET_HAS_PENDING_OPERATIONS',
+      'IS_SHOW_READER',
+      'IS_SHOW_EXECUTOR',
+      'IS_SCRIPT_READER',
+      'IS_SCRIPT_EDITOR',
+      'IS_CUE_READER',
+      'IS_CUE_EDITOR',
     ]),
   },
   async created() {

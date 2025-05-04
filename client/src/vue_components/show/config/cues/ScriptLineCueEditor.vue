@@ -21,6 +21,7 @@
           <b-button
             v-for="cue in cues"
             :key="cue.id"
+            :disabled="!IS_CUE_EDITOR"
             class="cue-button"
             :style="{backgroundColor: cueBackgroundColour(cue),
                      color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
@@ -29,6 +30,7 @@
             {{ cueLabel(cue) }}
           </b-button>
           <b-button
+            v-if="IS_CUE_EDITOR"
             class="cue-button"
             :disabled="isWholeLineCut(line)"
             @click.stop="openNewForm"
@@ -208,7 +210,7 @@
 
 <script>
 import { required } from 'vuelidate/lib/validators';
-import { mapActions } from 'vuex';
+import { mapActions, mapGetters } from 'vuex';
 import { contrastColor } from 'contrast-color';
 
 export default {
@@ -306,10 +308,20 @@ export default {
     },
   },
   computed: {
+    ...mapGetters(['IS_CUE_EDITOR', 'RBAC_ROLES', 'CURRENT_USER_RBAC', 'IS_ADMIN_USER']),
     cueTypeOptions() {
+      if (this.IS_ADMIN_USER) {
+        return [
+          { value: null, text: 'N/A' },
+          ...this.cueTypes.map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
+        ];
+      }
+      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
+      // eslint-disable-next-line no-bitwise
+      const allowableCueTypes = this.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & writeMask) !== 0).map((x) => x[0].id);
       return [
         { value: null, text: 'N/A' },
-        ...this.cueTypes.map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
+        ...this.cueTypes.filter((cueType) => allowableCueTypes.includes(cueType.id)).map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
       ];
     },
     needsHeadings() {

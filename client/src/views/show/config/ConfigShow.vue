@@ -10,6 +10,7 @@
         class="text-right"
       >
         <b-button
+          v-if="IS_SHOW_EDITOR"
           variant="warning"
           @click="openEditForm()"
         >

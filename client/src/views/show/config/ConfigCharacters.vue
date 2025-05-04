@@ -20,6 +20,7 @@
             >
               <template #head(btn)="data">
                 <b-button
+                  v-if="IS_SHOW_EDITOR"
                   v-b-modal.new-character
                   variant="outline-success"
                 >
@@ -30,14 +31,14 @@
                 <template v-if="data.item.cast_member">
                   {{ data.item.cast_member.first_name }} {{ data.item.cast_member.last_name }}
                 </template>
-                <template v-else>
+                <template v-else-if="IS_SHOW_EDITOR">
                   <b-link @click="openEditForm(data)">
                     Set Cast Member
                   </b-link>
                 </template>
               </template>
               <template #cell(btn)="data">
-                <b-button-group>
+                <b-button-group v-if="IS_SHOW_EDITOR">
                   <b-button
                     variant="warning"
                     @click="openEditForm(data)"
@@ -235,7 +236,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['CHARACTER_LIST', 'CAST_LIST']),
+    ...mapGetters(['CHARACTER_LIST', 'CAST_LIST', 'IS_SHOW_EDITOR']),
     castOptions() {
       return [
         { value: null, text: 'Please select an option', disabled: true },

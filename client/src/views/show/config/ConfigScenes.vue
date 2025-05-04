@@ -16,6 +16,7 @@
         >
           <template #head(btn)="data">
             <b-button
+              v-if="IS_SHOW_EDITOR"
               v-b-modal.new-scene
               variant="outline-success"
             >
@@ -42,7 +43,7 @@
             </p>
           </template>
           <template #cell(btn)="data">
-            <b-button-group>
+            <b-button-group v-if="IS_SHOW_EDITOR">
               <b-button
                 variant="warning"
                 @click="openEditForm(data)"
@@ -84,7 +85,7 @@
             </p>
           </template>
           <template #cell(btn)="data">
-            <b-button-group>
+            <b-button-group v-if="IS_SHOW_EDITOR">
               <b-button
                 variant="success"
                 @click="openFirstSceneEdit(data)"
@@ -333,7 +334,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID', 'ACT_BY_ID']),
+    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID', 'ACT_BY_ID', 'IS_SHOW_EDITOR']),
     sceneTableItems() {
       // Get ordering of Acts
       const acts = [];
