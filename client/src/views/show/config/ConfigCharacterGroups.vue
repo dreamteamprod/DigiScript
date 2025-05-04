@@ -16,6 +16,7 @@
         >
           <template #head(btn)="data">
             <b-button
+              v-if="IS_SHOW_EDITOR"
               v-b-modal.new-character-group
               variant="outline-success"
             >
@@ -31,7 +32,7 @@
             </div>
           </template>
           <template #cell(btn)="data">
-            <b-button-group>
+            <b-button-group v-if="IS_SHOW_EDITOR">
               <b-button
                 variant="warning"
                 @click="openEditForm(data)"
@@ -231,7 +232,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST']),
+    ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
     await this.GET_CHARACTER_LIST();

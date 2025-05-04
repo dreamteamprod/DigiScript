@@ -10,6 +10,7 @@
     >
       <template #head(btn)="data">
         <b-button
+          v-if="IS_SHOW_EDITOR"
           v-b-modal.new-microphone
           variant="outline-success"
         >
@@ -17,7 +18,7 @@
         </b-button>
       </template>
       <template #cell(btn)="data">
-        <b-button-group>
+        <b-button-group v-if="IS_SHOW_EDITOR">
           <b-button
             variant="warning"
             @click="openEditMicForm(data)"
@@ -205,7 +206,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['MICROPHONES']),
+    ...mapGetters(['MICROPHONES', 'IS_SHOW_EDITOR']),
   },
   methods: {
     openEditMicForm(mic) {

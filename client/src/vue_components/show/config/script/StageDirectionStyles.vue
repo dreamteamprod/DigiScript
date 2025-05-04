@@ -9,6 +9,7 @@
   >
     <template #head(btn)="data">
       <b-button
+        v-if="IS_SCRIPT_EDITOR"
         v-b-modal.new-config-modal
         variant="outline-success"
       >
@@ -305,7 +306,7 @@
       </i>
     </template>
     <template #cell(btn)="data">
-      <b-button-group>
+      <b-button-group v-if="IS_SCRIPT_EDITOR">
         <b-button
           variant="warning"
           @click="openEditStyleForm(data)"
@@ -367,7 +368,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['STAGE_DIRECTION_STYLES']),
+    ...mapGetters(['STAGE_DIRECTION_STYLES', 'IS_SCRIPT_EDITOR']),
     newFormExampleCss() {
       const style = {
         'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state ? 'bold' : 'normal',

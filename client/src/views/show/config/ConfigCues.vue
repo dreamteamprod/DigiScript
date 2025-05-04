@@ -20,6 +20,7 @@
             >
               <template #head(btn)="data">
                 <b-button
+                  v-if="IS_SHOW_EDITOR"
                   v-b-modal.new-cue-type
                   variant="outline-success"
                 >
@@ -32,7 +33,7 @@
                 </p>
               </template>
               <template #cell(btn)="data">
-                <b-button-group>
+                <b-button-group v-if="IS_SHOW_EDITOR">
                   <b-button
                     variant="warning"
                     @click="openEditCueTypeForm(data)"
@@ -264,7 +265,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['CUE_TYPES']),
+    ...mapGetters(['CUE_TYPES', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
     await this.GET_CUE_TYPES();
