@@ -3,6 +3,9 @@
 reporting
 scripts
 docs
+documentation
+dist
+hooks
 
 # Client
 client/node_modules
