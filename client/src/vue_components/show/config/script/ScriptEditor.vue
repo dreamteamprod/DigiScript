@@ -44,7 +44,7 @@
           </b-button>
         </b-col>
         <b-col cols="2">
-          <b-button-group>
+          <b-button-group v-if="IS_SCRIPT_EDITOR">
             <b-button
               v-if="INTERNAL_UUID !== CURRENT_EDITOR"
               variant="warning"
@@ -403,7 +403,7 @@ export default {
       'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
       'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
       'IS_CUT_MODE', 'SCRIPT_CUTS', 'INSERTED_LINES', 'STAGE_DIRECTION_STYLES', 'CURRENT_USER',
-      'STAGE_DIRECTION_STYLE_OVERRIDES', 'USER_SETTINGS']),
+      'STAGE_DIRECTION_STYLE_OVERRIDES', 'USER_SETTINGS', 'IS_SCRIPT_EDITOR']),
   },
   watch: {
     currentEditPage(val) {

@@ -22,7 +22,7 @@
     </b-row>
     <b-row>
       <b-col>
-        <b-button-group>
+        <b-button-group v-if="IS_SHOW_EXECUTOR">
           <b-button
             variant="success"
             :disabled="CURRENT_SHOW_SESSION !== null || startingSession"
@@ -63,7 +63,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID']),
+    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID', 'IS_SHOW_EXECUTOR']),
   },
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();

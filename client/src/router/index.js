@@ -131,6 +131,7 @@ router.beforeEach(async (to, from, next) => {
     requiresSettingsFetch = true;
   }
   if (requiresSettingsFetch) {
+    await router.app.$store.dispatch('GET_RBAC_ROLES');
     await router.app.$store.dispatch('GET_SETTINGS');
     await router.app.$store.dispatch('GET_CURRENT_USER');
     if (router.app.$store.getters.CURRENT_USER) {
@@ -166,17 +167,30 @@ router.beforeEach(async (to, from, next) => {
     const rbacRoles = router.app.$store.getters.RBAC_ROLES;
     const userRbac = router.app.$store.getters.CURRENT_USER_RBAC;
 
-    if (!rbacRoles.length || !userRbac || !Object.keys(userRbac).includes('shows')) {
+    if (!rbacRoles.length || !userRbac || (!Object.keys(userRbac).includes('shows') && !Object.keys(userRbac).includes('script') && !Object.keys(userRbac).includes('cuetypes'))) {
       return false;
     }
 
     const writeMask = rbacRoles.find((x) => x.key === 'WRITE')?.value || 0;
+    const readMask = rbacRoles.find((x) => x.key === 'READ')?.value || 0;
     const executeMask = rbacRoles.find((x) => x.key === 'EXECUTE')?.value || 0;
 
-    // Bitwise check if user has WRITE or EXECUTE permission for shows
-    return userRbac.shows && userRbac.shows[0]
+    // Bitwise check if user has READ, WRITE or EXECUTE permission for shows
+    const showAllowed = userRbac.shows && userRbac.shows[0]
       // eslint-disable-next-line no-bitwise
-      && ((userRbac.shows[0][1] & (writeMask | executeMask)) !== 0);
+      && ((userRbac.shows[0][1] & (writeMask | executeMask | readMask)) !== 0);
+
+    // Bitwise check if user has READ or WRITE permission for script
+    const scriptAllowed = userRbac.script && userRbac.script[0]
+      // eslint-disable-next-line no-bitwise
+      && ((userRbac.script[0][1] & (writeMask | readMask)) !== 0);
+
+    // Bitwise check if user has READ or WRITE permission for any cue types
+    const cueTypesAllowed = userRbac.cuetypes
+      // eslint-disable-next-line no-bitwise
+      && userRbac.cuetypes.filter((x) => (x[1] & (writeMask | readMask)) !== 0).length > 0;
+
+    return showAllowed || scriptAllowed || cueTypesAllowed;
   };
 
   // Check authentication requirements

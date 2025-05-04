@@ -23,6 +23,7 @@
                 />
                 <b-button-group v-else>
                   <b-button
+                    v-if="IS_SCRIPT_EDITOR"
                     variant="warning"
                     :disabled="!canChangeRevisions ||
                       data.item.id === $store.state.script.currentRevision"
@@ -44,7 +45,7 @@
                 </p>
               </template>
               <template #cell(btn)="data">
-                <b-button-group v-if="data.item.revision !== 1">
+                <b-button-group v-if="IS_SCRIPT_EDITOR && data.item.revision !== 1">
                   <b-button
                     variant="warning"
                     :disabled="!canChangeRevisions"
@@ -65,6 +66,7 @@
                 <b-tr>
                   <b-td>
                     <b-button
+                      v-if="IS_SCRIPT_EDITOR"
                       v-b-modal.new-revision
                       variant="outline-success"
                       :disabled="!canChangeRevisions"
@@ -166,7 +168,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION', 'CURRENT_EDITOR', 'INTERNAL_UUID']),
+    ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION', 'CURRENT_EDITOR', 'INTERNAL_UUID', 'IS_SCRIPT_EDITOR']),
     canChangeRevisions() {
       return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
     },

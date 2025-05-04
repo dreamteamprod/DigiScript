@@ -16,6 +16,7 @@
         >
           <template #head(btn)="data">
             <b-button
+              v-if="IS_SHOW_EDITOR"
               v-b-modal.new-cast
               variant="outline-success"
             >
@@ -23,7 +24,7 @@
             </b-button>
           </template>
           <template #cell(btn)="data">
-            <b-button-group>
+            <b-button-group v-if="IS_SHOW_EDITOR">
               <b-button
                 variant="warning"
                 @click="openEditForm(data)"
@@ -199,7 +200,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['CAST_LIST']),
+    ...mapGetters(['CAST_LIST', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
     await this.GET_CAST_LIST();

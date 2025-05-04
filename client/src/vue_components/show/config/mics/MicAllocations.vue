@@ -16,14 +16,14 @@
             v-model="selectedMic"
             name="act-input"
             :options="micOptions"
-            :disabled="!editMode"
+            :disabled="!editMode || !IS_SHOW_EDITOR"
           />
         </b-form-group>
       </b-col>
       <b-col
         cols="3"
       >
-        <b-button-group>
+        <b-button-group v-if="IS_SHOW_EDITOR">
           <b-button
             :disabled="needsSaving || saving"
             variant="primary"
@@ -87,7 +87,7 @@
               v-for="scene in sortedScenes"
               #[getCellName(scene.id)]="data"
             >
-              <template v-if="editMode">
+              <template v-if="editMode && IS_SHOW_EDITOR">
                 <span
                   v-if="selectedMic == null"
                   :key="scene.id"
@@ -237,7 +237,7 @@ export default {
       return charData;
     },
     ...mapGetters(['MICROPHONES', 'CURRENT_SHOW', 'ACT_BY_ID', 'SCENE_BY_ID', 'CHARACTER_LIST',
-      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID']),
+      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
     await this.resetToStoredAlloc();
