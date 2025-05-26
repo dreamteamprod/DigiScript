@@ -15,6 +15,7 @@ from models.script import (
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import ScriptLineSchema
+from utils.compression import compress_script_data
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
@@ -294,6 +295,25 @@ class ScriptController(BaseAPIController):
 
                 # Update the revision edit time
                 revision.edited_at = datetime.utcnow()
+
+                script_data = {}
+                line_schema = ScriptLineSchema()
+
+                revision_lines = (
+                    session.query(ScriptLineRevisionAssociation)
+                    .filter(ScriptLineRevisionAssociation.revision_id == revision.id)
+                    .all()
+                )
+
+                for line_association in revision_lines:
+                    line = line_association.line
+                    if line:
+                        page = line.page
+                        if page not in script_data:
+                            script_data[page] = []
+                        script_data[page].append(line_schema.dump(line))
+
+                revision.compressed_data = compress_script_data(script_data)
 
                 # Save everything to the DB
                 session.commit()
@@ -627,6 +647,31 @@ class ScriptController(BaseAPIController):
                         previous_line = session.query(
                             ScriptLineRevisionAssociation
                         ).get({"revision_id": revision.id, "line_id": line["id"]})
+
+                # Update the revision edit time
+                revision.edited_at = datetime.utcnow()
+
+                script_data = {}
+                line_schema = ScriptLineSchema()
+
+                revision_lines = (
+                    session.query(ScriptLineRevisionAssociation)
+                    .filter(ScriptLineRevisionAssociation.revision_id == revision.id)
+                    .all()
+                )
+
+                for line_association in revision_lines:
+                    line = line_association.line
+                    if line:
+                        page = line.page
+                        if page not in script_data:
+                            script_data[page] = []
+                        script_data[page].append(line_schema.dump(line))
+
+                revision.compressed_data = compress_script_data(script_data)
+
+                # Save everything to the DB
+                session.commit()
 
             else:
                 self.set_status(404)

@@ -32,6 +32,7 @@ class ScriptRevision(db.Model):
     created_at = Column(DateTime)
     edited_at = Column(DateTime)
     description = Column(String)
+    compressed_data = Column(String)  # Base64 encoded compressed JSON
     previous_revision_id = Column(
         Integer, ForeignKey("script_revisions.id", ondelete="SET NULL")
     )

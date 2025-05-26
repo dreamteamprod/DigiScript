@@ -12,7 +12,8 @@ from models.script import (
 )
 from models.show import Show
 from rbac.role import Role
-from schemas.schemas import ScriptRevisionsSchema
+from schemas.schemas import ScriptLineSchema, ScriptRevisionsSchema
+from utils.compression import compress_script_data
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
@@ -97,12 +98,27 @@ class ScriptRevisionsController(BaseAPIController):
                     return
 
                 now_time = datetime.utcnow()
+
+                line_schema = ScriptLineSchema()
+                script_data = {}
+
+                for line_association in current_rev.line_associations:
+                    line = line_association.line
+                    if line:
+                        page = line.page
+                        if page not in script_data:
+                            script_data[page] = []
+                        script_data[page].append(line_schema.dump(line))
+
+                compressed_data = compress_script_data(script_data)
+
                 new_rev = ScriptRevision(
                     script_id=script.id,
                     revision=max_rev + 1,
                     created_at=now_time,
                     edited_at=now_time,
                     description=description,
+                    compressed_data=compressed_data,
                     previous_revision_id=current_rev.id,
                 )
                 session.add(new_rev)

@@ -96,6 +96,11 @@ export default {
         case 'RELOAD_CLIENT':
           window.location.reload();
           break;
+        case 'COMPRESSED_SCRIPT_DATA':
+          if (message.DATA && message.DATA.compressed_data) {
+            this.context.dispatch('script/LOAD_COMPRESSED_SCRIPT_DATA', message.DATA.compressed_data, { root: true });
+          }
+          break;
         default:
           log.error(`Unknown OP received from websocket: ${message.OP}`);
       }

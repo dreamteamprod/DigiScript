@@ -461,6 +461,9 @@ export default {
     await this.GET_STAGE_DIRECTION_STYLES();
     await this.getMaxScriptPage();
 
+    // Request compressed script data if available
+    this.requestCompressedScriptData();
+
     this.updateElapsedTime();
     this.computeContentSize();
 
@@ -1119,6 +1122,14 @@ export default {
         await this.ADD_NEW_CUE(this.newCueFormState);
         this.resetNewCueForm();
       }
+    },
+    requestCompressedScriptData() {
+      // Request compressed script data through WebSocket
+      this.$socket.sendObj({
+        OP: 'REQUEST_COMPRESSED_SCRIPT',
+        DATA: {},
+      });
+      log.info('Requested compressed script data');
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',

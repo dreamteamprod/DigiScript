@@ -9,6 +9,7 @@ from tornado.websocket import WebSocketClosedError, WebSocketHandler
 from tornado_sqlalchemy import SessionMixin
 
 from digi_server.logger import get_logger
+from models.script import Script, ScriptRevision
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
 from models.user import User
@@ -379,6 +380,29 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                         await self.application.ws_send_to_all(
                             "RELOAD_CLIENT", "NOOP", {}
                         )
+            elif ws_op == "REQUEST_COMPRESSED_SCRIPT":
+                if self.current_user_id and show:
+                    script = session.query(Script).filter(Script.show_id == show.id).first()
+                    if script and script.current_revision:
+                        revision = session.query(ScriptRevision).get(script.current_revision)
+                        if revision and revision.compressed_data:
+                            await self.write_message(
+                                {
+                                    "OP": "COMPRESSED_SCRIPT_DATA",
+                                    "DATA": {
+                                        "compressed_data": revision.compressed_data
+                                    }
+                                }
+                            )
+                        else:
+                            await self.write_message(
+                                {
+                                    "OP": "COMPRESSED_SCRIPT_DATA",
+                                    "DATA": {
+                                        "compressed_data": None
+                                    }
+                                }
+                            )
             else:
                 get_logger().warning(
                     f"Unknown OP {ws_op} received from "

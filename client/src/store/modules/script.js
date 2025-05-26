@@ -282,6 +282,27 @@ export default {
         Vue.$toast.error('Unable to edit stage direction style');
       }
     },
+    async LOAD_COMPRESSED_SCRIPT_DATA(context, compressedData) {
+      try {
+        const decompressScriptData = (await import('@/js/compression')).default;
+
+        const scriptData = decompressScriptData(compressedData);
+
+        if (scriptData) {
+          Object.keys(scriptData).forEach((pageNumber) => {
+            context.commit('SET_SCRIPT_PAGE', {
+              pageNumber,
+              page: scriptData[pageNumber],
+            });
+          });
+          log.info('Loaded compressed script data successfully');
+        } else {
+          log.error('Failed to decompress script data');
+        }
+      } catch (error) {
+        log.error('Error loading compressed script data:', error);
+      }
+    },
   },
   getters: {
     SCRIPT_REVISIONS(state) {
