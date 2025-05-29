@@ -28,6 +28,7 @@
               name="username-input"
               :state="validateState('username')"
               aria-describedby="username-feedback"
+              @keydown.enter.native="doLogin"
             />
             <b-form-invalid-feedback
               id="username-feedback"
@@ -47,6 +48,7 @@
               :state="validateState('password')"
               aria-describedby="password-feedback"
               type="password"
+              @keydown.enter.native="doLogin"
             />
             <b-form-invalid-feedback
               id="password-feedback"

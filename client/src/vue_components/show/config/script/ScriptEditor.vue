@@ -789,6 +789,8 @@ export default {
           }
           /* eslint-enable no-await-in-loop, no-restricted-syntax */
           this.savingInProgress = false;
+          // Re-setup autosave (to reset the timer since we have just saved)
+          this.setupAutoSave();
         } else {
           this.$toast.warning('No changes to save!');
         }
@@ -797,6 +799,8 @@ export default {
         this.savingInProgress = true;
         await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
         this.resetCutsToSaved();
+        // Re-setup autosave (to reset the timer since we have just saved)
+        this.setupAutoSave();
         this.savingInProgress = false;
       }
     },
