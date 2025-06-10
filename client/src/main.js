@@ -27,7 +27,7 @@ Vue.use(ToastPlugin, {
   position: 'top-right',
 });
 
-Vue.use(VueNativeSock, `ws://${window.location.hostname}:${window.location.port}/api/v1/ws`, {
+Vue.use(VueNativeSock, `${window.location.protocol === 'https' ? 'wss' : 'ws'}://${window.location.hostname}:${window.location.port}/api/v1/ws`, {
   reconnection: true,
   format: 'json',
   store,
