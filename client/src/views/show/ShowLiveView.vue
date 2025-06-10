@@ -250,7 +250,7 @@
 
 <script>
 import { required } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
+import { mapGetters, mapActions, mapMutations } from 'vuex';
 import $ from 'jquery';
 import { debounce } from 'lodash';
 import log from 'loglevel';
@@ -468,29 +468,37 @@ export default {
     this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
     window.addEventListener('resize', this.debounceContentSize);
 
+    // Try and load the full script from the compiled endpoint
+    let loadedCompiledScript = false;
+    if (this.SETTINGS.enable_live_compiled_script === true) {
+      loadedCompiledScript = await this.loadCompiledScript();
+    }
+
     if (this.isScriptFollowing || this.isScriptLeader) {
       if (this.CURRENT_SHOW_SESSION.latest_line_ref != null) {
         const loadCurrentPage = parseInt(this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1], 10);
 
-        if (this.SETTINGS.enable_lazy_loading === false) {
-          this.currentMinLoadedPage = 1;
-          for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-            // eslint-disable-next-line no-await-in-loop
-            await this.loadNextPage();
+        if (!loadedCompiledScript) {
+          if (this.SETTINGS.enable_lazy_loading === false) {
+            this.currentMinLoadedPage = 1;
+            for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
+              // eslint-disable-next-line no-await-in-loop
+              await this.loadNextPage();
+            }
+          } else {
+            this.currentMinLoadedPage = Math.max(0, loadCurrentPage - this.pageBatchSize - 1);
+            this.currentLoadedPage = this.currentMinLoadedPage;
+            for (let loadIndex = this.currentMinLoadedPage;
+              loadIndex < loadCurrentPage + this.pageBatchSize; loadIndex++) {
+              // eslint-disable-next-line no-await-in-loop
+              await this.loadNextPage();
+            }
+            this.currentMinLoadedPage += 1;
           }
-        } else {
-          this.currentMinLoadedPage = Math.max(0, loadCurrentPage - this.pageBatchSize - 1);
-          this.currentLoadedPage = this.currentMinLoadedPage;
-          for (let loadIndex = this.currentMinLoadedPage;
-            loadIndex < loadCurrentPage + this.pageBatchSize; loadIndex++) {
-            // eslint-disable-next-line no-await-in-loop
-            await this.loadNextPage();
-          }
-          this.currentMinLoadedPage += 1;
+          this.currentFirstPage = loadCurrentPage;
+          this.currentLastPage = loadCurrentPage;
         }
 
-        this.currentFirstPage = loadCurrentPage;
-        this.currentLastPage = loadCurrentPage;
         await this.$nextTick();
         this.initialLoad = true;
         await this.$nextTick();
@@ -502,6 +510,23 @@ export default {
         await this.$nextTick();
         this.computeScriptBoundaries();
       } else {
+        if (!loadedCompiledScript) {
+          this.currentMinLoadedPage = 1;
+          if (this.SETTINGS.enable_lazy_loading === false) {
+            for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
+              // eslint-disable-next-line no-await-in-loop
+              await this.loadNextPage();
+            }
+          } else {
+            await this.loadNextPage();
+          }
+        }
+        this.initialLoad = true;
+        await this.$nextTick();
+        this.computeScriptBoundaries();
+      }
+    } else {
+      if (!loadedCompiledScript) {
         this.currentMinLoadedPage = 1;
         if (this.SETTINGS.enable_lazy_loading === false) {
           for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
@@ -511,19 +536,6 @@ export default {
         } else {
           await this.loadNextPage();
         }
-        this.initialLoad = true;
-        await this.$nextTick();
-        this.computeScriptBoundaries();
-      }
-    } else {
-      this.currentMinLoadedPage = 1;
-      if (this.SETTINGS.enable_lazy_loading === false) {
-        for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-          // eslint-disable-next-line no-await-in-loop
-          await this.loadNextPage();
-        }
-      } else {
-        await this.loadNextPage();
       }
       this.initialLoad = true;
       await this.$nextTick();
@@ -921,6 +933,38 @@ export default {
       scriptContainer.height(boxHeight - 10);
       this.computeScriptBoundaries();
     },
+    async loadCompiledScript() {
+      const response = await fetch(`${makeURL('/api/v1/show/script/compiled')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        let maxLoadedPage = 1;
+        let minLoadedPage = Number.POSITIVE_INFINITY;
+        const respJson = await response.json();
+        Object.entries(respJson).forEach((value) => {
+          const pageNumber = value[0];
+          const pageContents = value[1];
+
+          if (pageNumber > maxLoadedPage) {
+            maxLoadedPage = pageNumber;
+          }
+          if (pageNumber < minLoadedPage) {
+            minLoadedPage = pageNumber;
+          }
+          this.SET_SCRIPT_PAGE({
+            pageNumber,
+            page: pageContents,
+          });
+        }, this);
+        this.currentLoadedPage = maxLoadedPage;
+        this.currentMinLoadedPage = minLoadedPage;
+        return true;
+      }
+      return false;
+    },
     async loadNextPage() {
       if (this.currentLoadedPage < this.currentMaxPage) {
         this.currentLoadedPage += 1;
@@ -1124,6 +1168,7 @@ export default {
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
       'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
       'ADD_NEW_CUE']),
+    ...mapMutations(['SET_SCRIPT_PAGE']),
   },
 };
 </script>

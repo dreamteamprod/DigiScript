@@ -211,6 +211,22 @@ class Settings:
             help_text="Whether the live show page should only display a subsection of the script pages "
             "at a time",
         )
+        self.define(
+            "compiled_script_path",
+            str,
+            os.path.join(self._base_path, "compiled_scripts"),
+            False,
+            display_name="Compiled Script Path",
+            help_text="Directory used to store compiled scripts.",
+        )
+        self.define(
+            "enable_live_compiled_script",
+            bool,
+            True,
+            True,
+            display_name="Enable Compiled Script",
+            help_text="Whether the live show page should try and fetch the full compiled script from the back-end",
+        )
 
         self._load(spawn_callbacks=False)
 
