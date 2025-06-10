@@ -4,7 +4,7 @@ from models.models import db
 from rbac.exceptions import RBACException
 from rbac.rbac_db import RBACDatabase
 from rbac.role import Role
-from schemas.schemas import get_registry
+from registry.schema import get_registry
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer

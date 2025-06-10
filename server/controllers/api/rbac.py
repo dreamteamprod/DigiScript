@@ -5,7 +5,7 @@ from tornado import escape
 
 from models.user import User
 from rbac.role import Role
-from schemas.schemas import get_registry
+from registry.schema import get_registry
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import api_authenticated, require_admin
