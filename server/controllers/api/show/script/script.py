@@ -1,10 +1,13 @@
 from datetime import datetime
+from functools import partial
 from typing import List, Optional
 
 from sqlalchemy import func
 from tornado import escape
+from tornado.ioloop import IOLoop
 
 from models.script import (
+    CompiledScript,
     Script,
     ScriptCuts,
     ScriptLine,
@@ -297,6 +300,13 @@ class ScriptController(BaseAPIController):
 
                 # Save everything to the DB
                 session.commit()
+
+                # Spawn a callback to create a compiled version of the script
+                IOLoop.current().add_callback(
+                    partial(
+                        CompiledScript.compile_script, self.application, revision.id
+                    )
+                )
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})
@@ -627,10 +637,51 @@ class ScriptController(BaseAPIController):
                         previous_line = session.query(
                             ScriptLineRevisionAssociation
                         ).get({"revision_id": revision.id, "line_id": line["id"]})
-
+                # Spawn a callback to create a compiled version of the script
+                IOLoop.current().add_callback(
+                    partial(
+                        CompiledScript.compile_script, self.application, revision.id
+                    )
+                )
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})
+                return
+
+
+@ApiRoute("/show/script/compiled", ApiVersion.V1)
+class CompiledScriptController(BaseAPIController):
+    @requires_show
+    def get(self):
+        with self.make_session() as session:
+            show = session.query(Show).get(self.get_current_show()["id"])
+            if show:
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
+
+                if script.current_revision:
+                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                        script.current_revision
+                    )
+                else:
+                    self.set_status(400)
+                    self.finish({"message": "Script does not have a current revision"})
+                    return
+
+                compiled_script = CompiledScript.load_compiled_script(
+                    self.application, revision.id
+                )
+                if not compiled_script:
+                    self.set_status(404)
+                    self.finish({"message": "Script does not have a compiled form"})
+                    return
+
+                self.set_status(200)
+                self.finish(compiled_script)
+            else:
+                self.set_status(404)
+                self.finish({"message": "404 show not found"})
                 return
 
 

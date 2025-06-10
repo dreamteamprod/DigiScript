@@ -1,10 +1,13 @@
+import os
 from datetime import datetime
 
 from sqlalchemy import func
 from tornado import escape
 
+from digi_server.logger import get_logger
 from models.cue import CueAssociation
 from models.script import (
+    CompiledScript,
     Script,
     ScriptCuts,
     ScriptLineRevisionAssociation,
@@ -135,6 +138,9 @@ class ScriptRevisionsController(BaseAPIController):
                 script.current_revision = new_rev.id
                 session.commit()
 
+                # Create a new compiled version of the script
+                await CompiledScript.compile_script(self.application, new_rev.id)
+
                 self.set_status(200)
                 await self.finish(
                     {"id": new_rev.id, "message": "Successfully added script revision"}
@@ -209,6 +215,16 @@ class ScriptRevisionsController(BaseAPIController):
                         script.current_revision = first_rev.id
 
                 session.delete(rev)
+
+                # Delete the compiled script file if there is one
+                compiled_script: CompiledScript = session.get(CompiledScript, rev_id)
+                if compiled_script:
+                    try:
+                        os.remove(compiled_script.data_path)
+                    except OSError:
+                        get_logger().exception("Failed to remove compiled script file")
+                    session.delete(compiled_script)
+
                 session.commit()
 
                 self.set_status(200)
@@ -296,6 +312,19 @@ class ScriptCurrentRevisionController(BaseAPIController):
 
                 script.current_revision = new_rev.id
                 session.commit()
+
+                # If there isn't a compiled script or there is one but it was last updated
+                # before the revision was updated, then create a compiled script
+                compiled_script: CompiledScript = session.get(
+                    CompiledScript, new_rev.id
+                )
+                if compiled_script:
+                    if compiled_script.updated_at < new_rev.edited_at:
+                        await CompiledScript.compile_script(
+                            self.application, new_rev.id
+                        )
+                else:
+                    await CompiledScript.compile_script(self.application, new_rev.id)
 
                 self.set_status(200)
                 await self.finish({"message": "Successfully changed script revision"})
