@@ -17,7 +17,7 @@
     "bootstrap-vue": "2.23.1",
     "bootswatch": "4.6.2",
     "contrast-color": "1.0.1",
-    "core-js": "3.42.0",
+    "core-js": "3.43.0",
     "deep-object-diff": "1.1.9",
     "jquery": "3.7.1",
     "lodash": "4.17.21",
@@ -32,9 +32,9 @@
     "vuex-persistedstate": "3.2.1"
   },
   "devDependencies": {
-    "@babel/core": "7.27.1",
-    "@babel/eslint-parser": "7.27.1",
-    "@babel/preset-env": "7.27.1",
+    "@babel/core": "7.27.4",
+    "@babel/eslint-parser": "7.27.5",
+    "@babel/preset-env": "7.27.2",
     "@types/vuelidate": "^0.7.22",
     "@vitejs/plugin-vue2": "2.3.3",
     "eslint": "8.57.0",
@@ -44,7 +44,7 @@
     "eslint-plugin-vue": "^9.27.0",
     "eslint-plugin-vuejs-accessibility": "1.2.0",
     "node-sass": "7.0.3",
-    "sass": "1.87.0",
+    "sass": "1.89.2",
     "sass-loader": "13.3.3",
     "vite": "4.5.5"
   },
