@@ -25,7 +25,7 @@
             <template #thead-top="data">
               <b-tr>
                 <b-th colspan="1">
-                  <span class="sr-only">Character</span>
+                  <span class="sr-only">Cast</span>
                 </b-th>
                 <template v-for="act in sortedActs">
                   <b-th
@@ -46,17 +46,17 @@
             >
               {{ scene.name }}
             </template>
-            <template #cell(Character)="data">
-              {{ CHARACTER_BY_ID(data.item.Character).name }}
+            <template #cell(Cast)="data">
+              {{ CAST_BY_ID(data.item.Cast).first_name }} {{ CAST_BY_ID(data.item.Cast).last_name }}
             </template>
             <template
               v-for="scene in sortedScenes"
               #[getCellName(scene.id)]="data"
             >
               <template
-                v-if="getLineCountForCharacter(data.item.Character, scene.act, scene.id) > 0"
+                v-if="getLineCountForCast(data.item.Cast, scene.act, scene.id) > 0"
               >
-                {{ getLineCountForCharacter(data.item.Character, scene.act, scene.id) }}
+                {{ getLineCountForCast(data.item.Cast, scene.act, scene.id) }}
               </template>
             </template>
           </b-table>
@@ -73,11 +73,11 @@ import { makeURL } from '@/js/utils';
 import log from 'loglevel';
 
 export default {
-  name: 'CharacterLineStats',
+  name: 'CastLineStats',
   data() {
     return {
       loaded: false,
-      characterStats: {},
+      castStats: {},
     };
   },
   computed: {
@@ -85,12 +85,12 @@ export default {
       if (!this.loaded) {
         return [];
       }
-      return this.CHARACTER_LIST.map((character) => ({
-        Character: character.id,
+      return this.CAST_LIST.map((cast) => ({
+        Cast: cast.id,
       }), this);
     },
     tableFields() {
-      return ['Character', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
+      return ['Cast', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
     },
     sortedActs() {
       if (this.CURRENT_SHOW.first_act_id == null) {
@@ -128,12 +128,12 @@ export default {
       }
       return scenes;
     },
-    ...mapGetters(['ACT_BY_ID', 'SCENE_BY_ID', 'CURRENT_SHOW', 'CHARACTER_BY_ID', 'CHARACTER_LIST']),
+    ...mapGetters(['ACT_BY_ID', 'SCENE_BY_ID', 'CURRENT_SHOW', 'CAST_BY_ID', 'CAST_LIST']),
   },
   async mounted() {
     await this.GET_ACT_LIST();
     await this.GET_SCENE_LIST();
-    await this.getCharacterStats();
+    await this.getCastStats();
     this.loaded = true;
   },
   methods: {
@@ -146,23 +146,23 @@ export default {
     getCellName(sceneId) {
       return `cell(${sceneId})`;
     },
-    async getCharacterStats() {
-      const response = await fetch(`${makeURL('/api/v1/show/character/stats')}`);
+    async getCastStats() {
+      const response = await fetch(`${makeURL('/api/v1/show/cast/stats')}`);
       if (response.ok) {
-        this.characterStats = await response.json();
+        this.castStats = await response.json();
       } else {
-        log.error('Unable to get character stats!');
+        log.error('Unable to get cast stats!');
       }
     },
-    getLineCountForCharacter(characterId, actId, sceneId) {
-      if (!Object.keys(this.characterStats).includes('line_counts')) {
+    getLineCountForCast(castId, actId, sceneId) {
+      if (!Object.keys(this.castStats).includes('line_counts')) {
         return 0;
       }
-      const lineCounts = this.characterStats.line_counts;
-      if (Object.keys(lineCounts).includes(characterId.toString())) {
-        const characterCounts = this.characterStats.line_counts[characterId];
-        if (Object.keys(characterCounts).includes(actId.toString())) {
-          const actCounts = characterCounts[actId];
+      const lineCounts = this.castStats.line_counts;
+      if (Object.keys(lineCounts).includes(castId.toString())) {
+        const castCounts = this.castStats.line_counts[castId];
+        if (Object.keys(castCounts).includes(actId.toString())) {
+          const actCounts = castCounts[actId];
           if (Object.keys(actCounts).includes(sceneId.toString())) {
             return actCounts[sceneId];
           }

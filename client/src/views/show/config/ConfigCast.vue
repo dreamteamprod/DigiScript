@@ -5,49 +5,58 @@
   >
     <b-row>
       <b-col>
-        <h5>Cast List</h5>
-        <b-table
-          id="cast-table"
-          :items="CAST_LIST"
-          :fields="castFields"
-          :per-page="rowsPerPage"
-          :current-page="currentPage"
-          show-empty
-        >
-          <template #head(btn)="data">
-            <b-button
-              v-if="IS_SHOW_EDITOR"
-              v-b-modal.new-cast
-              variant="outline-success"
+        <b-tabs content-class="mt-3">
+          <b-tab
+            title="Cast List"
+            active
+          >
+            <b-table
+              id="cast-table"
+              :items="CAST_LIST"
+              :fields="castFields"
+              :per-page="rowsPerPage"
+              :current-page="currentPage"
+              show-empty
             >
-              New Cast Member
-            </b-button>
-          </template>
-          <template #cell(btn)="data">
-            <b-button-group v-if="IS_SHOW_EDITOR">
-              <b-button
-                variant="warning"
-                @click="openEditForm(data)"
-              >
-                Edit
-              </b-button>
-              <b-button
-                variant="danger"
-                @click="deleteCastMember(data)"
-              >
-                Delete
-              </b-button>
-            </b-button-group>
-          </template>
-        </b-table>
-        <b-pagination
-          v-show="CAST_LIST.length > rowsPerPage"
-          v-model="currentPage"
-          :total-rows="CAST_LIST.length"
-          :per-page="rowsPerPage"
-          aria-controls="cast-table"
-          class="justify-content-center"
-        />
+              <template #head(btn)="data">
+                <b-button
+                  v-if="IS_SHOW_EDITOR"
+                  v-b-modal.new-cast
+                  variant="outline-success"
+                >
+                  New Cast Member
+                </b-button>
+              </template>
+              <template #cell(btn)="data">
+                <b-button-group v-if="IS_SHOW_EDITOR">
+                  <b-button
+                    variant="warning"
+                    @click="openEditForm(data)"
+                  >
+                    Edit
+                  </b-button>
+                  <b-button
+                    variant="danger"
+                    @click="deleteCastMember(data)"
+                  >
+                    Delete
+                  </b-button>
+                </b-button-group>
+              </template>
+            </b-table>
+            <b-pagination
+              v-show="CAST_LIST.length > rowsPerPage"
+              v-model="currentPage"
+              :total-rows="CAST_LIST.length"
+              :per-page="rowsPerPage"
+              aria-controls="cast-table"
+              class="justify-content-center"
+            />
+          </b-tab>
+          <b-tab title="Line Counts">
+            <cast-line-stats />
+          </b-tab>
+        </b-tabs>
       </b-col>
     </b-row>
     <b-modal
@@ -157,9 +166,11 @@
 <script>
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
+import CastLineStats from '@/vue_components/show/config/cast/CastLineStats.vue';
 
 export default {
   name: 'ConfigCast',
+  components: { CastLineStats },
   data() {
     return {
       castFields: [
