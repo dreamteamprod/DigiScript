@@ -549,6 +549,19 @@ export default {
     CAST_LIST(state) {
       return state.castList;
     },
+    CAST_DICT(state) {
+      return Object.fromEntries(state.castList.map((cast) => [cast.id, cast]));
+    },
+    CAST_BY_ID: (state, getters) => (castId) => {
+      if (castId == null) {
+        return null;
+      }
+      const castStr = castId.toString();
+      if (Object.keys(getters.CAST_DICT).includes(castStr)) {
+        return getters.CAST_DICT[castStr];
+      }
+      return null;
+    },
     CHARACTER_LIST(state) {
       return state.characterList;
     },
