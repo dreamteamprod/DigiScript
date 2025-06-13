@@ -1,6 +1,9 @@
+from collections import defaultdict
+
 from tornado import escape
 
-from models.show import Cast, Show
+from models.script import Script, ScriptLine, ScriptRevision
+from models.show import Cast, Character, Show
 from rbac.role import Role
 from schemas.schemas import CastSchema
 from utils.web.base_controller import BaseAPIController
@@ -151,6 +154,58 @@ class CastController(BaseAPIController):
                 else:
                     self.set_status(404)
                     await self.finish({"message": "404 cast member not found"})
+            else:
+                self.set_status(404)
+                await self.finish({"message": "404 show not found"})
+
+
+@ApiRoute("show/cast/stats", ApiVersion.V1)
+class CharacterStatsController(BaseAPIController):
+    async def get(self):
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+
+        with self.make_session() as session:
+            show: Show = session.query(Show).get(show_id)
+            if show:
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
+
+                if script.current_revision:
+                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                        script.current_revision
+                    )
+                else:
+                    self.set_status(400)
+                    await self.finish(
+                        {"message": "Script does not have a current revision"}
+                    )
+                    return
+
+                line_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+                for line_association in revision.line_associations:
+                    line: ScriptLine = line_association.line
+                    if line.stage_direction:
+                        continue
+                    for line_part in line.line_parts:
+                        if line_part.line_part_cuts is not None:
+                            continue
+                        if line_part.character_id:
+                            character = session.get(Character, line_part.character_id)
+                            if character.played_by:
+                                line_counts[character.played_by][line.act_id][
+                                    line.scene_id
+                                ] += 1
+                        elif line_part.character_group_id:
+                            for character in line_part.character_group.characters:
+                                if character.played_by:
+                                    line_counts[character.played_by][line.act_id][
+                                        line.scene_id
+                                    ] += 1
+
+                self.set_status(200)
+                await self.finish({"line_counts": line_counts})
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})
