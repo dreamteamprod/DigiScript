@@ -78,7 +78,10 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     __mapper_args__ = {"confirm_deleted_rows": False}
 
     revision_id = Column(
-        Integer, ForeignKey("script_revisions.id"), primary_key=True, index=True
+        Integer,
+        ForeignKey("script_revisions.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
     )
     line_id = Column(
         Integer, ForeignKey("script_lines.id"), primary_key=True, index=True
@@ -105,8 +108,9 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     )
 
     def pre_delete(self, session):
-        if self.line and len(self.line.revision_associations) == 1:
-            session.delete(self.line)
+        with session.no_autoflush:
+            if self.line and len(self.line.revision_associations) == 1:
+                session.delete(self.line)
 
     def post_delete(self, session):
         pass
@@ -140,7 +144,10 @@ class ScriptCuts(db.Model):
         Integer, ForeignKey("script_line_parts.id"), primary_key=True, index=True
     )
     revision_id = Column(
-        Integer, ForeignKey("script_revisions.id"), primary_key=True, index=True
+        Integer,
+        ForeignKey("script_revisions.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
     )
 
     line_part = relationship(
