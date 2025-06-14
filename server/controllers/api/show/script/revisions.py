@@ -10,6 +10,7 @@ from models.script import (
     CompiledScript,
     Script,
     ScriptCuts,
+    ScriptLinePart,
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
@@ -214,6 +215,45 @@ class ScriptRevisionsController(BaseAPIController):
                         )
                         script.current_revision = first_rev.id
 
+                line_associations = (
+                    session.query(ScriptLineRevisionAssociation)
+                    .filter(ScriptLineRevisionAssociation.revision_id == rev.id)
+                    .all()
+                )
+
+                orphaned_lines = []
+                for line_assoc in line_associations:
+                    if (
+                        line_assoc.line
+                        and len(line_assoc.line.revision_associations) == 1
+                    ):
+                        orphaned_lines.append(line_assoc.line)
+
+                for line_assoc in line_associations:
+                    original_line = line_assoc.line
+                    line_assoc.line = None
+                    session.delete(line_assoc)
+                    line_assoc.line = original_line
+
+                cue_associations = (
+                    session.query(CueAssociation)
+                    .filter(CueAssociation.revision_id == rev.id)
+                    .all()
+                )
+                for cue_assoc in cue_associations:
+                    session.delete(cue_assoc)
+
+                session.flush()
+
+                for line in orphaned_lines:
+                    line_parts = (
+                        session.query(ScriptLinePart)
+                        .filter(ScriptLinePart.line_id == line.id)
+                        .all()
+                    )
+                    for part in line_parts:
+                        session.delete(part)
+                    session.delete(line)
                 session.delete(rev)
 
                 # Delete the compiled script file if there is one
