@@ -17,6 +17,7 @@ class User(db.Model):
     password = Column(String())
     is_admin = Column(Boolean())
     last_login = Column(DateTime())
+    last_seen = Column(DateTime())
 
 
 class UserSettings(db.Model):
