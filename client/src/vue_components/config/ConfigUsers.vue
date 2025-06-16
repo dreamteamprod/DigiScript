@@ -79,17 +79,22 @@ export default {
       userFields: [
         'username',
         'last_login',
+        'last_seen',
         'is_admin',
         { key: 'btn', label: '' },
       ],
       editUser: null,
+      clientTimeout: null,
     };
   },
   computed: {
     ...mapGetters(['SHOW_USERS', 'CURRENT_SHOW']),
   },
   async mounted() {
-    await this.GET_USERS();
+    await this.getUsers();
+  },
+  destroyed() {
+    clearTimeout(this.clientTimeout);
   },
   methods: {
     resetNewForm() {
@@ -104,6 +109,10 @@ export default {
       if (action === true) {
         await this.DELETE_USER(data.item.id);
       }
+    },
+    async getUsers() {
+      await this.GET_USERS();
+      this.clientTimeout = setTimeout(this.getUsers, 5000);
     },
     ...mapActions(['GET_USERS', 'DELETE_USER']),
   },

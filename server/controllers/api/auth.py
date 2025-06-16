@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 import bcrypt
 from tornado import escape, gen
@@ -181,7 +181,8 @@ class LoginHandler(BaseAPIController):
                         ws_session: Session = session.query(Session).get(session_id)
                         if ws_session:
                             ws_session.user = user
-                    user.last_login = datetime.utcnow()
+                    user.last_login = datetime.now(tz=timezone.utc)
+                    user.last_seen = datetime.now(tz=timezone.utc)
                     session.commit()
 
                     # Create JWT token
