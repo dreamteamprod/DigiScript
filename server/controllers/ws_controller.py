@@ -36,7 +36,6 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                 # Update user_id if it has changed
                 if user_id is not None and entry.user_id != user_id:
                     entry.user_id = user_id
-                session.commit()
             else:
                 session.add(
                     Session(
@@ -48,7 +47,10 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                         is_editor=is_editor,
                     )
                 )
-                session.commit()
+            if self.current_user_id:
+                user = session.get(User, self.current_user_id)
+                user.last_seen = datetime.datetime.now(tz=datetime.timezone.utc)
+            session.commit()
 
     def data_received(self, chunk: bytes) -> Optional[Awaitable[None]]:
         raise RuntimeError(f"Data streaming not supported for {self.__class__}")
