@@ -1,5 +1,6 @@
 import datetime
 import json
+from tornado.ioloop import IOLoop
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, Optional, Union
 from uuid import uuid4
 
@@ -26,13 +27,15 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         # pylint: disable=used-before-assignment
         self.application: DigiScriptServer = application
         self.current_user_id = None
+        self._last_ping = 0.0
+        self._last_pong = 0.0
 
     def update_session(self, is_editor=False, user_id=None):
         with self.make_session() as session:
             entry = session.get(Session, self.__getattribute__("internal_id"))
             if entry:
-                entry.last_ping = self.ws_connection.last_ping
-                entry.last_pong = self.ws_connection.last_pong
+                entry.last_ping = self._last_ping
+                entry.last_pong = self._last_pong
                 # Update user_id if it has changed
                 if user_id is not None and entry.user_id != user_id:
                     entry.user_id = user_id
@@ -41,8 +44,8 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                     Session(
                         internal_id=self.__getattribute__("internal_id"),
                         remote_ip=self.request.remote_ip,
-                        last_ping=self.ws_connection.last_ping,
-                        last_pong=self.ws_connection.last_pong,
+                        last_ping=self._last_ping,
+                        last_pong=self._last_pong,
                         user_id=user_id,
                         is_editor=is_editor,
                     )
@@ -388,12 +391,14 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                 )
 
     def on_pong(self, data: bytes) -> None:
+        self._last_pong = IOLoop.current().time()
         self.update_session()
         get_logger().trace(
             f"Ping response from {self.request.remote_ip} : {data.hex()}"
         )
 
     def on_ping(self, data: bytes) -> None:
+        self._last_ping = IOLoop.current().time()
         self.update_session()
         get_logger().trace(f"Ping from {self.request.remote_ip} : {data.hex()}")
 
