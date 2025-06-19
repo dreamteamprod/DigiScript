@@ -242,6 +242,12 @@
           >
             This is a required field.
           </b-form-invalid-feedback>
+          <b-form-text
+            v-if="isDuplicateCue"
+            class="text-warning"
+          >
+            ⚠️ A cue with this identifier already exists for this cue type
+          </b-form-text>
         </b-form-group>
       </b-form>
     </b-modal>
@@ -1154,6 +1160,13 @@ export default {
     validateNewCueState(name) {
       const { $dirty, $error } = this.$v.newCueFormState[name];
       return $dirty ? !$error : null;
+    },
+    isDuplicateCue() {
+      if (!this.newCueFormState.ident || !this.newCueFormState.cueType) {
+        return false;
+      }
+      return this.SCRIPT_CUES.some((cue) => cue.cue_type_id === this.newCueFormState.cueType
+        && cue.ident === this.newCueFormState.ident);
     },
     async onSubmitNewCue(event) {
       this.$v.newCueFormState.$touch();

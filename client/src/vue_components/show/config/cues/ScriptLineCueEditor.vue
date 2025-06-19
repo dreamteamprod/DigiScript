@@ -133,6 +133,12 @@
           >
             This is a required field.
           </b-form-invalid-feedback>
+          <b-form-text
+            v-if="isDuplicateNewCue"
+            class="text-warning"
+          >
+            ⚠️ A cue with this identifier already exists for this cue type
+          </b-form-text>
         </b-form-group>
       </b-form>
     </b-modal>
@@ -182,6 +188,12 @@
           >
             This is a required field.
           </b-form-invalid-feedback>
+          <b-form-text
+            v-if="isDuplicateEditCue"
+            class="text-warning"
+          >
+            ⚠️ A cue with this identifier already exists for this cue type
+          </b-form-text>
         </b-form-group>
       </b-form>
       <template #modal-footer="{ ok, cancel }">
@@ -441,6 +453,21 @@ export default {
     validateEditState(name) {
       const { $dirty, $error } = this.$v.editFormState[name];
       return $dirty ? !$error : null;
+    },
+    isDuplicateNewCue() {
+      if (!this.newFormState.ident || !this.newFormState.cueType) {
+        return false;
+      }
+      return this.SCRIPT_CUES.some((cue) => cue.cue_type_id === this.newFormState.cueType
+        && cue.ident === this.newFormState.ident);
+    },
+    isDuplicateEditCue() {
+      if (!this.editFormState.ident || !this.editFormState.cueType) {
+        return false;
+      }
+      return this.SCRIPT_CUES.some((cue) => cue.cue_type_id === this.editFormState.cueType
+        && cue.ident === this.editFormState.ident
+        && cue.id !== this.editFormState.cueId);
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
