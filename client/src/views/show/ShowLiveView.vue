@@ -242,6 +242,12 @@
           >
             This is a required field.
           </b-form-invalid-feedback>
+          <b-form-text
+            v-if="isDuplicateCue"
+            class="text-warning"
+          >
+            ⚠️ A cue with this identifier already exists for this cue type
+          </b-form-text>
         </b-form-group>
       </b-form>
     </b-modal>
@@ -385,6 +391,16 @@ export default {
         count += this.SCRIPT_CUES[line].length;
       }, this);
       return count;
+    },
+    flatScriptCues() {
+      return Object.keys(this.SCRIPT_CUES).map((key) => this.SCRIPT_CUES[key]).flat();
+    },
+    isDuplicateCue() {
+      if (!this.newCueFormState.ident || !this.newCueFormState.cueType) {
+        return false;
+      }
+      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.newCueFormState.cueType
+        && cue.ident === this.newCueFormState.ident);
     },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
