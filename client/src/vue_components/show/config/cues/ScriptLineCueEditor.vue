@@ -320,7 +320,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['IS_CUE_EDITOR', 'RBAC_ROLES', 'CURRENT_USER_RBAC', 'IS_ADMIN_USER']),
+    ...mapGetters(['IS_CUE_EDITOR', 'RBAC_ROLES', 'CURRENT_USER_RBAC', 'IS_ADMIN_USER', 'SCRIPT_CUES']),
     cueTypeOptions() {
       if (this.IS_ADMIN_USER) {
         return [
@@ -397,6 +397,24 @@ export default {
       }
       return style;
     },
+    flatScriptCues() {
+      return Object.keys(this.SCRIPT_CUES).map((key) => this.SCRIPT_CUES[key]).flat();
+    },
+    isDuplicateNewCue() {
+      if (this.newFormState.ident == null || this.newFormState.cueType == null) {
+        return false;
+      }
+      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.newFormState.cueType
+        && cue.ident === this.newFormState.ident);
+    },
+    isDuplicateEditCue() {
+      if (this.editFormState.ident == null || this.editFormState.cueType == null) {
+        return false;
+      }
+      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.editFormState.cueType
+        && cue.ident === this.editFormState.ident
+        && cue.id !== this.editFormState.cueId);
+    },
   },
   methods: {
     contrastColor,
@@ -453,21 +471,6 @@ export default {
     validateEditState(name) {
       const { $dirty, $error } = this.$v.editFormState[name];
       return $dirty ? !$error : null;
-    },
-    isDuplicateNewCue() {
-      if (!this.newFormState.ident || !this.newFormState.cueType) {
-        return false;
-      }
-      return this.SCRIPT_CUES.some((cue) => cue.cue_type_id === this.newFormState.cueType
-        && cue.ident === this.newFormState.ident);
-    },
-    isDuplicateEditCue() {
-      if (!this.editFormState.ident || !this.editFormState.cueType) {
-        return false;
-      }
-      return this.SCRIPT_CUES.some((cue) => cue.cue_type_id === this.editFormState.cueType
-        && cue.ident === this.editFormState.ident
-        && cue.id !== this.editFormState.cueId);
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();

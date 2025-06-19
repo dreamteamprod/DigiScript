@@ -392,6 +392,16 @@ export default {
       }, this);
       return count;
     },
+    flatScriptCues() {
+      return Object.keys(this.SCRIPT_CUES).map((key) => this.SCRIPT_CUES[key]).flat();
+    },
+    isDuplicateCue() {
+      if (!this.newCueFormState.ident || !this.newCueFormState.cueType) {
+        return false;
+      }
+      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.newCueFormState.cueType
+        && cue.ident === this.newCueFormState.ident);
+    },
     ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
       'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
       'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
@@ -1160,13 +1170,6 @@ export default {
     validateNewCueState(name) {
       const { $dirty, $error } = this.$v.newCueFormState[name];
       return $dirty ? !$error : null;
-    },
-    isDuplicateCue() {
-      if (!this.newCueFormState.ident || !this.newCueFormState.cueType) {
-        return false;
-      }
-      return this.SCRIPT_CUES.some((cue) => cue.cue_type_id === this.newCueFormState.cueType
-        && cue.ident === this.newCueFormState.ident);
     },
     async onSubmitNewCue(event) {
       this.$v.newCueFormState.$touch();
