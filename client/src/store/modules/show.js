@@ -616,6 +616,19 @@ export default {
     CUE_TYPES(state) {
       return state.cueTypes;
     },
+    CUE_TYPES_DICT(state) {
+      return Object.fromEntries(state.cueTypes.map((cueType) => [cueType.id, cueType]));
+    },
+    CUE_TYPE_BY_ID: (state, getters) => (cueTypeId) => {
+      if (cueTypeId == null) {
+        return null;
+      }
+      const cueTypeStr = cueTypeId.toString();
+      if (Object.keys(getters.CUE_TYPES_DICT).includes(cueTypeStr)) {
+        return getters.CUE_TYPES_DICT[cueTypeStr];
+      }
+      return null;
+    },
     SHOW_SESSIONS_LIST(state) {
       return state.sessions;
     },

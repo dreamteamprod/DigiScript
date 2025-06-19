@@ -4,7 +4,7 @@ from typing import List
 from tornado import escape
 
 from models.cue import Cue, CueAssociation, CueType
-from models.script import Script, ScriptRevision
+from models.script import Script, ScriptLine, ScriptRevision
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import CueSchema, CueTypeSchema
@@ -438,6 +438,48 @@ class CueController(BaseAPIController):
                         {"message": "Could not find cue association object"}
                     )
                     return
+            else:
+                self.set_status(404)
+                await self.finish({"message": "404 show not found"})
+
+
+@ApiRoute("show/cues/stats", ApiVersion.V1)
+class CueStatsController(BaseAPIController):
+    async def get(self):
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+
+        with self.make_session() as session:
+            show: Show = session.query(Show).get(show_id)
+            if show:
+                script: Script = (
+                    session.query(Script).filter(Script.show_id == show.id).first()
+                )
+
+                if script.current_revision:
+                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                        script.current_revision
+                    )
+                else:
+                    self.set_status(400)
+                    await self.finish(
+                        {"message": "Script does not have a current revision"}
+                    )
+                    return
+
+                cue_counts = collections.defaultdict(
+                    lambda: collections.defaultdict(
+                        lambda: collections.defaultdict(int)
+                    )
+                )
+                for cue_association in revision.cue_associations:
+                    line: ScriptLine = cue_association.line
+                    cue = session.get(Cue, cue_association.cue_id)
+                    if line is not None and cue is not None:
+                        cue_counts[cue.cue_type_id][line.act_id][line.scene_id] += 1
+
+                self.set_status(200)
+                await self.finish({"cue_counts": cue_counts})
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})

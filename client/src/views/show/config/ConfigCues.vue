@@ -61,6 +61,9 @@
           <b-tab title="Cue Configuration">
             <cue-editor />
           </b-tab>
+          <b-tab title="Cue Counts">
+            <cue-count-stats />
+          </b-tab>
         </b-tabs>
       </b-col>
     </b-row>
@@ -211,10 +214,11 @@ import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 
 import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
+import CueCountStats from '@/vue_components/show/config/cues/CueCountStats.vue';
 
 export default {
   name: 'ConfigCues',
-  components: { CueEditor },
+  components: { CueCountStats, CueEditor },
   data() {
     return {
       cueTypeFields: [
