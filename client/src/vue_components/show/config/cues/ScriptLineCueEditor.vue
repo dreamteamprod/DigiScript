@@ -414,6 +414,7 @@ export default {
         event.preventDefault();
       } else {
         await this.ADD_NEW_CUE(this.newFormState);
+        this.$bvModal.hide(`line_${this.lineIndex}_-new-cue`);
         this.resetNewForm();
       }
     },
