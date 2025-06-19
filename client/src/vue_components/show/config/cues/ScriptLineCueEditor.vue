@@ -133,6 +133,12 @@
           >
             This is a required field.
           </b-form-invalid-feedback>
+          <b-form-text
+            v-if="isDuplicateNewCue"
+            class="text-warning"
+          >
+            ⚠️ A cue with this identifier already exists for this cue type
+          </b-form-text>
         </b-form-group>
       </b-form>
     </b-modal>
@@ -182,6 +188,12 @@
           >
             This is a required field.
           </b-form-invalid-feedback>
+          <b-form-text
+            v-if="isDuplicateEditCue"
+            class="text-warning"
+          >
+            ⚠️ A cue with this identifier already exists for this cue type
+          </b-form-text>
         </b-form-group>
       </b-form>
       <template #modal-footer="{ ok, cancel }">
@@ -308,7 +320,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['IS_CUE_EDITOR', 'RBAC_ROLES', 'CURRENT_USER_RBAC', 'IS_ADMIN_USER']),
+    ...mapGetters(['IS_CUE_EDITOR', 'RBAC_ROLES', 'CURRENT_USER_RBAC', 'IS_ADMIN_USER', 'SCRIPT_CUES']),
     cueTypeOptions() {
       if (this.IS_ADMIN_USER) {
         return [
@@ -384,6 +396,24 @@ export default {
         style['background-color'] = this.stageDirectionStyle.background_colour;
       }
       return style;
+    },
+    flatScriptCues() {
+      return Object.keys(this.SCRIPT_CUES).map((key) => this.SCRIPT_CUES[key]).flat();
+    },
+    isDuplicateNewCue() {
+      if (this.newFormState.ident == null || this.newFormState.cueType == null) {
+        return false;
+      }
+      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.newFormState.cueType
+        && cue.ident === this.newFormState.ident);
+    },
+    isDuplicateEditCue() {
+      if (this.editFormState.ident == null || this.editFormState.cueType == null) {
+        return false;
+      }
+      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.editFormState.cueType
+        && cue.ident === this.editFormState.ident
+        && cue.id !== this.editFormState.cueId);
     },
   },
   methods: {
