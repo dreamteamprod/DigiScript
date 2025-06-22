@@ -66,6 +66,7 @@ class Show(db.Model):
     )
 
     cast_list: Mapped[List["Cast"]] = relationship(cascade="all, delete-orphan")
+    crew_list: Mapped[List["Crew"]] = relationship(cascade="all, delete-orphan")
     character_list: Mapped[List["Character"]] = relationship(
         cascade="all, delete-orphan"
     )
@@ -91,6 +92,15 @@ class Cast(db.Model):
     character_list: Mapped[List["Character"]] = relationship(
         back_populates="cast_member"
     )
+
+
+class Crew(db.Model):
+    __tablename__ = "crew"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    first_name: Mapped[str] = mapped_column()
+    last_name: Mapped[str] = mapped_column()
 
 
 character_group_association_table = Table(
