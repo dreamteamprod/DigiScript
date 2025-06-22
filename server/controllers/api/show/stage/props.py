@@ -1,6 +1,7 @@
 from tornado import escape
 
-from models.show import Props, Show
+from models.show import Show
+from models.stage import Props
 from rbac.role import Role
 from schemas.schemas import PropsSchema
 from utils.web.base_controller import BaseAPIController

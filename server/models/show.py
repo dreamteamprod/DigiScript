@@ -56,33 +56,6 @@ class Cast(db.Model):
     character_list = relationship("Character", back_populates="cast_member")
 
 
-class Crew(db.Model):
-    __tablename__ = "crew"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
-    first_name = Column(String)
-    last_name = Column(String)
-
-
-class Scenery(db.Model):
-    __tablename__ = "scenery"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
-    name = Column(String)
-    description = Column(String)
-
-
-class Props(db.Model):
-    __tablename__ = "props"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
-    name = Column(String)
-    description = Column(String)
-
-
 character_group_association_table = Table(
     "character_group_association",
     db.Model.metadata,
@@ -171,3 +144,5 @@ class Scene(db.Model):
     lines = relationship(
         "ScriptLine", back_populates="scene", cascade="all, delete-orphan"
     )
+    # scenery_allocations = relationship("Scenery", back_populates="scene")
+    # props_allocations = relationship("Props", back_populates="scene")

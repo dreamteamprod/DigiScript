@@ -12,17 +12,8 @@ from models.script import (
     StageDirectionStyle,
 )
 from models.session import Interval, Session, ShowSession
-from models.show import (
-    Act,
-    Cast,
-    Character,
-    CharacterGroup,
-    Crew,
-    Props,
-    Scene,
-    Scenery,
-    Show,
-)
+from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
+from models.stage import Crew, Props, Scenery
 from models.user import User, UserSettings
 from registry.schema import get_registry
 
