@@ -32,6 +32,7 @@ class Show(db.Model):
     )
 
     cast_list = relationship("Cast", cascade="all, delete-orphan")
+    crew_list = relationship("Crew", cascade="all, delete-orphan")
     character_list = relationship("Character", cascade="all, delete-orphan")
     character_group_list = relationship("CharacterGroup", cascade="all, delete-orphan")
     act_list = relationship(
@@ -51,6 +52,15 @@ class Cast(db.Model):
 
     # Relationships
     character_list = relationship("Character", back_populates="cast_member")
+
+
+class Crew(db.Model):
+    __tablename__ = "crew"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey("shows.id"))
+    first_name = Column(String)
+    last_name = Column(String)
 
 
 character_group_association_table = Table(
