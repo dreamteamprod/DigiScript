@@ -33,6 +33,8 @@ class Show(db.Model):
 
     cast_list = relationship("Cast", cascade="all, delete-orphan")
     crew_list = relationship("Crew", cascade="all, delete-orphan")
+    scenery_list = relationship("Scenery", cascade="all, delete-orphan")
+    props_list = relationship("Props", cascade="all, delete-orphan")
     character_list = relationship("Character", cascade="all, delete-orphan")
     character_group_list = relationship("CharacterGroup", cascade="all, delete-orphan")
     act_list = relationship(
@@ -61,6 +63,24 @@ class Crew(db.Model):
     show_id = Column(Integer, ForeignKey("shows.id"))
     first_name = Column(String)
     last_name = Column(String)
+
+
+class Scenery(db.Model):
+    __tablename__ = "scenery"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey("shows.id"))
+    name = Column(String)
+    description = Column(String)
+
+
+class Props(db.Model):
+    __tablename__ = "props"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    show_id = Column(Integer, ForeignKey("shows.id"))
+    name = Column(String)
+    description = Column(String)
 
 
 character_group_association_table = Table(

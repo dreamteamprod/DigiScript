@@ -6,7 +6,6 @@ import { makeURL } from '@/js/utils';
 export default {
   state: {
     castList: [],
-    crewList: [],
     characterList: [],
     characterGroupList: [],
     actList: [],
@@ -23,9 +22,6 @@ export default {
   mutations: {
     SET_CAST_LIST(state, castList) {
       state.castList = castList;
-    },
-    SET_CREW_LIST(state, crewList) {
-      state.crewList = crewList;
     },
     SET_CHARACTER_LIST(state, characterList) {
       state.characterList = characterList;
@@ -126,63 +122,6 @@ export default {
       } else {
         log.error('Unable to edit cast member');
         Vue.$toast.error('Unable to edit cast member');
-      }
-    },
-    async GET_CREW_LIST(context) {
-      const response = await fetch(`${makeURL('/api/v1/show/crew')}`);
-      if (response.ok) {
-        const crew = await response.json();
-        context.commit('SET_CREW_LIST', crew.crew);
-      } else {
-        log.error('Unable to get crew list');
-      }
-    },
-    async ADD_CREW_MEMBER(context, crewMember) {
-      const response = await fetch(`${makeURL('/api/v1/show/crew')}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(crewMember),
-      });
-      if (response.ok) {
-        context.dispatch('GET_CREW_LIST');
-        Vue.$toast.success('Added new crew member!');
-      } else {
-        log.error('Unable to add new crew member');
-        Vue.$toast.error('Unable to add new crew member');
-      }
-    },
-    async DELETE_CREW_MEMBER(context, crewId) {
-      const response = await fetch(`${makeURL('/api/v1/show/crew')}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: crewId }),
-      });
-      if (response.ok) {
-        context.dispatch('GET_CREW_LIST');
-        Vue.$toast.success('Deleted crew member!');
-      } else {
-        log.error('Unable to delete crew member');
-        Vue.$toast.error('Unable to delete crew member');
-      }
-    },
-    async UPDATE_CREW_MEMBER(context, crewMember) {
-      const response = await fetch(`${makeURL('/api/v1/show/crew')}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(crewMember),
-      });
-      if (response.ok) {
-        context.dispatch('GET_CREW_LIST');
-        Vue.$toast.success('Updated crew member!');
-      } else {
-        log.error('Unable to edit crew member');
-        Vue.$toast.error('Unable to edit crew member');
       }
     },
     async GET_CHARACTER_LIST(context) {
@@ -622,9 +561,6 @@ export default {
         return getters.CAST_DICT[castStr];
       }
       return null;
-    },
-    CREW_LIST(state) {
-      return state.crewList;
     },
     CHARACTER_LIST(state) {
       return state.characterList;

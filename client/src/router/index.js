@@ -41,9 +41,9 @@ const routes = [
         meta: { requiresAuth: true, requiresShowAccess: true },
       },
       {
-        name: 'show-config-crew',
-        path: 'crew',
-        component: () => import('../views/show/config/ConfigCrew.vue'),
+        name: 'show-config-stage',
+        path: 'stage',
+        component: () => import('../views/show/config/ConfigStage.vue'),
         meta: { requiresAuth: true, requiresShowAccess: true },
       },
       {

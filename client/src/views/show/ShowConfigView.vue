@@ -24,20 +24,20 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
+              :to="{'name': 'show-config-stage'}"
+              variant="outline-info"
+              active-class="active"
+            >
+              Staging
+            </b-button>
+            <b-button
+              :disabled="!shouldViewShowConfig"
+              replace
               :to="{'name': 'show-config-cast'}"
               variant="outline-info"
               active-class="active"
             >
               Cast
-            </b-button>
-            <b-button
-              :disabled="!shouldViewShowConfig"
-              replace
-              :to="{'name': 'show-config-crew'}"
-              variant="outline-info"
-              active-class="active"
-            >
-              Crew
             </b-button>
             <b-button
               :disabled="!shouldViewShowConfig"

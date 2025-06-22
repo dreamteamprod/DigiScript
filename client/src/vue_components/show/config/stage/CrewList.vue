@@ -1,61 +1,47 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
-    <b-row>
-      <b-col>
-        <b-tabs content-class="mt-3">
-          <b-tab
-            title="Crew List"
-            active
+  <span>
+    <b-table
+      id="crew-table"
+      :items="CREW_LIST"
+      :fields="crewFields"
+      :per-page="rowsPerPage"
+      :current-page="currentPage"
+      show-empty
+    >
+      <template #head(btn)="data">
+        <b-button
+          v-if="IS_SHOW_EDITOR"
+          v-b-modal.new-crew
+          variant="outline-success"
+        >
+          New Crew Member
+        </b-button>
+      </template>
+      <template #cell(btn)="data">
+        <b-button-group v-if="IS_SHOW_EDITOR">
+          <b-button
+            variant="warning"
+            @click="openEditForm(data)"
           >
-            <b-table
-              id="crew-table"
-              :items="CREW_LIST"
-              :fields="crewFields"
-              :per-page="rowsPerPage"
-              :current-page="currentPage"
-              show-empty
-            >
-              <template #head(btn)="data">
-                <b-button
-                  v-if="IS_SHOW_EDITOR"
-                  v-b-modal.new-crew
-                  variant="outline-success"
-                >
-                  New Crew Member
-                </b-button>
-              </template>
-              <template #cell(btn)="data">
-                <b-button-group v-if="IS_SHOW_EDITOR">
-                  <b-button
-                    variant="warning"
-                    @click="openEditForm(data)"
-                  >
-                    Edit
-                  </b-button>
-                  <b-button
-                    variant="danger"
-                    @click="deleteCrewMember(data)"
-                  >
-                    Delete
-                  </b-button>
-                </b-button-group>
-              </template>
-            </b-table>
-            <b-pagination
-              v-show="CREW_LIST.length > rowsPerPage"
-              v-model="currentPage"
-              :total-rows="CREW_LIST.length"
-              :per-page="rowsPerPage"
-              aria-controls="crew-table"
-              class="justify-content-center"
-            />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-    </b-row>
+            Edit
+          </b-button>
+          <b-button
+            variant="danger"
+            @click="deleteCrewMember(data)"
+          >
+            Delete
+          </b-button>
+        </b-button-group>
+      </template>
+    </b-table>
+    <b-pagination
+      v-show="CREW_LIST.length > rowsPerPage"
+      v-model="currentPage"
+      :total-rows="CREW_LIST.length"
+      :per-page="rowsPerPage"
+      aria-controls="crew-table"
+      class="justify-content-center"
+    />
     <b-modal
       id="new-crew"
       ref="new-crew"
@@ -157,7 +143,7 @@
         </b-form-group>
       </b-form>
     </b-modal>
-  </b-container>
+  </span>
 </template>
 
 <script>
@@ -165,7 +151,7 @@ import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 
 export default {
-  name: 'ConfigCrew',
+  name: 'CrewList',
   data() {
     return {
       crewFields: [
@@ -280,7 +266,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-
-</style>
