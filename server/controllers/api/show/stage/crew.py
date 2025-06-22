@@ -8,7 +8,7 @@ from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
 
 
-@ApiRoute("show/crew", ApiVersion.V1)
+@ApiRoute("show/stage/crew", ApiVersion.V1)
 class CastController(BaseAPIController):
 
     @requires_show
