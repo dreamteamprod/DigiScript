@@ -1,6 +1,7 @@
 from tornado import escape
 
-from models.show import Scenery, Show
+from models.show import Show
+from models.stage import Scenery
 from rbac.role import Role
 from schemas.schemas import ScenerySchema
 from utils.web.base_controller import BaseAPIController

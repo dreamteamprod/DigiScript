@@ -1,6 +1,7 @@
 from tornado import escape
 
-from models.show import Crew, Show
+from models.show import Show
+from models.stage import Crew
 from rbac.role import Role
 from schemas.schemas import CrewSchema
 from utils.web.base_controller import BaseAPIController

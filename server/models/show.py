@@ -66,9 +66,18 @@ class Show(db.Model):
     )
 
     cast_list: Mapped[List["Cast"]] = relationship(cascade="all, delete-orphan")
-    crew_list: Mapped[List["Crew"]] = relationship(cascade="all, delete-orphan")
-    scenery_list: Mapped[List["Scenery"]] = relationship(cascade="all, delete-orphan")
-    props_list: Mapped[List["Props"]] = relationship(cascade="all, delete-orphan")
+    crew_list: Mapped[List["Crew"]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    scenery_list: Mapped[List["Scenery"]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    props_list: Mapped[List["Props"]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
     character_list: Mapped[List["Character"]] = relationship(
         cascade="all, delete-orphan"
     )
@@ -94,33 +103,6 @@ class Cast(db.Model):
     character_list: Mapped[List["Character"]] = relationship(
         back_populates="cast_member"
     )
-
-
-class Crew(db.Model):
-    __tablename__ = "crew"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    first_name: Mapped[str] = mapped_column()
-    last_name: Mapped[str] = mapped_column()
-
-
-class Scenery(db.Model):
-    __tablename__ = "scenery"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    name: Mapped[str] = mapped_column()
-    description: Mapped[str | None] = mapped_column()
-
-
-class Props(db.Model):
-    __tablename__ = "props"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    name: Mapped[str] = mapped_column()
-    description: Mapped[str | None] = mapped_column()
 
 
 character_group_association_table = Table(
@@ -223,4 +205,12 @@ class Scene(db.Model):
     )
     mic_allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
         cascade="all, delete-orphan", back_populates="scene"
+    )
+    scenery_allocations: Mapped[List["SceneryAllocation"]] = relationship(
+        back_populates="scene",
+        cascade="all, delete-orphan",
+    )
+    props_allocations: Mapped[List["PropsAllocation"]] = relationship(
+        back_populates="scene",
+        cascade="all, delete-orphan",
     )
