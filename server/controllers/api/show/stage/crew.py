@@ -9,7 +9,7 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 
 @ApiRoute("show/stage/crew", ApiVersion.V1)
-class CastController(BaseAPIController):
+class CrewController(BaseAPIController):
 
     @requires_show
     def get(self):
