@@ -78,6 +78,7 @@
               {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
             </b>
           </template>
+          <b v-else>&nbsp;</b>
           <p
             class="viewable-line"
             :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"

@@ -136,6 +136,7 @@
                     </template>
                   </b>
                 </template>
+                <b v-else>&nbsp;</b>
               </b-col>
             </b-row>
             <b-row>
@@ -247,6 +248,7 @@
                     </template>
                   </b>
                 </template>
+                <b v-else>&nbsp;</b>
               </b-col>
             </b-row>
             <b-row>
