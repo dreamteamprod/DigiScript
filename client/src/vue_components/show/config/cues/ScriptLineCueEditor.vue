@@ -134,11 +134,70 @@
           >
             This is a required field.
           </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group>
           <b-form-text
             v-if="isDuplicateNewCue"
             class="text-warning"
           >
             ⚠️ A cue with this identifier already exists for this cue type
+          </b-form-text>
+        </b-form-group>
+        <hr>
+        <b-form-group
+          id="line-render-group"
+          label="Script Line"
+          label-for="line-render"
+        >
+          <b-form-text id="line-render">
+            <b-row>
+              <template v-if="line.stage_direction">
+                <b-col
+                  :key="`line_${lineIndex}_stage_direction`"
+                  style="text-align: center"
+                >
+                  <i
+                    class="viewable-line"
+                    :style="stageDirectionStyling"
+                  >
+                    <template
+                      v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+                    >
+                      {{ line.line_parts[0].line_text | uppercase }}
+                    </template>
+                    <template
+                      v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+                    >
+                      {{ line.line_parts[0].line_text | lowercase }}
+                    </template>
+                    <template v-else>
+                      {{ line.line_parts[0].line_text }}
+                    </template>
+                  </i>
+                </b-col>
+              </template>
+              <template v-else>
+                <b-col
+                  v-for="(part, index) in line.line_parts"
+                  :key="`line_${lineIndex}_part_${index}`"
+                  style="text-align: center"
+                >
+                  <b v-if="part.character_id != null">
+                    {{ characters.find((char) => (char.id === part.character_id)).name }}
+                  </b>
+                  <b v-else>
+                    {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+                  </b>
+
+                  <p
+                    class="viewable-line"
+                    :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"
+                  >
+                    {{ part.line_text }}
+                  </p>
+                </b-col>
+              </template>
+            </b-row>
           </b-form-text>
         </b-form-group>
       </b-form>
