@@ -438,6 +438,7 @@ export default {
               block: 'start',
             });
           }
+          this.currentPage = page;
           this.computeScriptBoundaries();
         }
       }
