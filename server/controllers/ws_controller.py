@@ -384,6 +384,19 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                         await self.application.ws_send_to_all(
                             "RELOAD_CLIENT", "NOOP", {}
                         )
+            elif ws_op == "LIVE_SHOW_JUMP_TO_PAGE":
+                if show and show.current_session_id:
+                    show_session = session.query(ShowSession).get(
+                        show.current_session_id
+                    )
+                    if show_session:
+                        show_session.latest_line_ref = (
+                            f"page_{message['DATA']['page']}_line_0"
+                        )
+                        session.commit()
+                        await self.application.ws_send_to_all(
+                            "RELOAD_CLIENT", "NOOP", {}
+                        )
             else:
                 get_logger().warning(
                     f"Unknown OP {ws_op} received from "
