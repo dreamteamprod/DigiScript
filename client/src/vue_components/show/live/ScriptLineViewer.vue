@@ -348,7 +348,8 @@ export default {
   },
   computed: {
     needsHeadings() {
-      let { previousLine, lineIndex } = this;
+      let { previousLine } = this;
+      let lineIndex = this.previousLineIndex;
       while (previousLine != null && (previousLine.stage_direction === true
           || this.isWholeLineCut(previousLine))) {
         [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
