@@ -47,6 +47,12 @@
               >
                 Reload Clients
               </b-dropdown-item-btn>
+              <b-dropdown-item
+                v-b-modal.go-to-page
+                :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY || stoppingSession || startingSession"
+              >
+                Jump To Page
+              </b-dropdown-item>
             </b-nav-item-dropdown>
           </template>
           <b-nav-item
@@ -134,6 +140,40 @@
       </b-container>
     </template>
     <router-view v-else />
+    <b-modal
+      id="go-to-page"
+      ref="go-to-page"
+      title="Go to Page"
+      size="sm"
+      :hide-header-close="changingPage"
+      :hide-footer="changingPage"
+      :no-close-on-backdrop="changingPage"
+      :no-close-on-esc="changingPage"
+      @ok="goToLivePage"
+    >
+      <b-form @submit.stop.prevent="">
+        <b-form-group
+          id="page-input-group"
+          label="Page"
+          label-for="page-input"
+          label-cols="auto"
+        >
+          <b-form-input
+            id="page-input"
+            v-model="$v.pageInputFormState.pageNo.$model"
+            name="page-input"
+            type="number"
+            :state="validatePageState('pageNo')"
+            aria-describedby="page-feedback"
+          />
+          <b-form-invalid-feedback
+            id="page-feedback"
+          >
+            This is a required field, and must be greater than 0.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
   </div>
 </template>
 
@@ -142,6 +182,8 @@ import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 import CreateUser from '@/vue_components/user/CreateUser.vue';
 import { makeURL } from '@/js/utils';
+import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import { required, minValue } from 'vuelidate/lib/validators';
 
 export default {
   components: { CreateUser },
@@ -152,7 +194,21 @@ export default {
       stoppingSession: false,
       startingSession: false,
       wsStateCheckInterval: null,
+      changingPage: false,
+      pageInputFormState: {
+        pageNo: 1,
+      },
     };
+  },
+  validations: {
+    pageInputFormState: {
+      pageNo: {
+        required,
+        notNull,
+        notNullAndGreaterThanZero,
+        minValue: minValue(1),
+      },
+    },
   },
   computed: {
     isAllowedScriptConfig() {
@@ -312,6 +368,18 @@ export default {
           DATA: {},
         });
       }
+    },
+    validatePageState(name) {
+      const { $dirty, $error } = this.$v.pageInputFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async goToLivePage() {
+      this.$socket.sendObj({
+        OP: 'LIVE_SHOW_JUMP_TO_PAGE',
+        DATA: {
+          page: this.pageInputFormState.pageNo,
+        },
+      });
     },
   },
 };
