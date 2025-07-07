@@ -359,6 +359,8 @@ export default {
         if (previousLine == null
           || previousLine.line_parts.length !== this.line.line_parts.length) {
           ret.push(true);
+        } else if (previousLine.act_id !== this.line.act_id || previousLine.scene_id !== this.line.scene_id) {
+          ret.push(true);
         } else {
           const matchingIndex = previousLine.line_parts.find((prevPart) => (
             prevPart.part_index === part.part_index));
