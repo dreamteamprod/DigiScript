@@ -194,38 +194,12 @@ class Settings:
             display_name="Database Log Backups",
         )
         self.define(
-            "enable_lazy_loading",
-            bool,
-            True,
-            True,
-            display_name="Enable Lazy Loading",
-            help_text="Whether the client side should load all script pages initially when connected "
-            "to a live show",
-        )
-        self.define(
-            "enable_live_batching",
-            bool,
-            True,
-            True,
-            display_name="Enable Live Batching",
-            help_text="Whether the live show page should only display a subsection of the script pages "
-            "at a time",
-        )
-        self.define(
             "compiled_script_path",
             str,
             os.path.join(self._base_path, "compiled_scripts"),
             False,
             display_name="Compiled Script Path",
             help_text="Directory used to store compiled scripts.",
-        )
-        self.define(
-            "enable_live_compiled_script",
-            bool,
-            True,
-            True,
-            display_name="Enable Compiled Script",
-            help_text="Whether the live show page should try and fetch the full compiled script from the back-end",
         )
 
         self._load(spawn_callbacks=False)

@@ -326,11 +326,6 @@ export default {
   },
   computed: {
     pageIter() {
-      if (this.SETTINGS.enable_live_batching) {
-        return [...Array(this.currentLoadedPage).keys()].map((x) => (x + 1)).filter((x) => (
-          x <= this.currentLastPage + this.pageBatchSize
-            && x >= this.currentFirstPage - this.pageBatchSize));
-      }
       return [...Array(this.currentMaxPage).keys()];
     },
     isScriptFollowing() {
@@ -486,31 +481,17 @@ export default {
     window.addEventListener('resize', this.debounceContentSize);
 
     // Try and load the full script from the compiled endpoint
-    let loadedCompiledScript = false;
-    if (this.SETTINGS.enable_live_compiled_script === true) {
-      loadedCompiledScript = await this.loadCompiledScript();
-    }
+    const loadedCompiledScript = await this.loadCompiledScript();
 
     if (this.isScriptFollowing || this.isScriptLeader) {
       if (this.CURRENT_SHOW_SESSION.latest_line_ref != null) {
         const loadCurrentPage = parseInt(this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1], 10);
 
         if (!loadedCompiledScript) {
-          if (this.SETTINGS.enable_lazy_loading === false) {
-            this.currentMinLoadedPage = 1;
-            for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-              // eslint-disable-next-line no-await-in-loop
-              await this.loadNextPage();
-            }
-          } else {
-            this.currentMinLoadedPage = Math.max(0, loadCurrentPage - this.pageBatchSize - 1);
-            this.currentLoadedPage = this.currentMinLoadedPage;
-            for (let loadIndex = this.currentMinLoadedPage;
-              loadIndex < loadCurrentPage + this.pageBatchSize; loadIndex++) {
-              // eslint-disable-next-line no-await-in-loop
-              await this.loadNextPage();
-            }
-            this.currentMinLoadedPage += 1;
+          this.currentMinLoadedPage = 1;
+          for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
+            // eslint-disable-next-line no-await-in-loop
+            await this.loadNextPage();
           }
           this.currentFirstPage = loadCurrentPage;
           this.currentLastPage = loadCurrentPage;
@@ -529,12 +510,8 @@ export default {
       } else {
         if (!loadedCompiledScript) {
           this.currentMinLoadedPage = 1;
-          if (this.SETTINGS.enable_lazy_loading === false) {
-            for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-              // eslint-disable-next-line no-await-in-loop
-              await this.loadNextPage();
-            }
-          } else {
+          for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
+            // eslint-disable-next-line no-await-in-loop
             await this.loadNextPage();
           }
         }
@@ -545,12 +522,8 @@ export default {
     } else {
       if (!loadedCompiledScript) {
         this.currentMinLoadedPage = 1;
-        if (this.SETTINGS.enable_lazy_loading === false) {
-          for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-            // eslint-disable-next-line no-await-in-loop
-            await this.loadNextPage();
-          }
-        } else {
+        for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
+          // eslint-disable-next-line no-await-in-loop
           await this.loadNextPage();
         }
       }
