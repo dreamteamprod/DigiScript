@@ -32,6 +32,9 @@ class Show(db.Model):
     )
 
     cast_list = relationship("Cast", cascade="all, delete-orphan")
+    crew_list = relationship("Crew", cascade="all, delete-orphan")
+    scenery_list = relationship("Scenery", cascade="all, delete-orphan")
+    props_list = relationship("Props", cascade="all, delete-orphan")
     character_list = relationship("Character", cascade="all, delete-orphan")
     character_group_list = relationship("CharacterGroup", cascade="all, delete-orphan")
     act_list = relationship(
@@ -141,3 +144,5 @@ class Scene(db.Model):
     lines = relationship(
         "ScriptLine", back_populates="scene", cascade="all, delete-orphan"
     )
+    # scenery_allocations = relationship("Scenery", back_populates="scene")
+    # props_allocations = relationship("Props", back_populates="scene")
