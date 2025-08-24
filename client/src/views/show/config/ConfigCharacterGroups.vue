@@ -35,12 +35,14 @@
             <b-button-group v-if="IS_SHOW_EDITOR">
               <b-button
                 variant="warning"
+                :disabled="submittingEditGroup || deletingGroup"
                 @click="openEditForm(data)"
               >
                 Edit
               </b-button>
               <b-button
                 variant="danger"
+                :disabled="submittingEditGroup || deletingGroup"
                 @click="deleteCharacterGroup(data)"
               >
                 Delete
@@ -63,6 +65,7 @@
       ref="new-character"
       title="Add New Character Group"
       size="md"
+      :ok-disabled="$v.newFormState.$invalid || submittingNewGroup"
       @show="resetNewForm"
       @hidden="resetNewForm"
       @ok="onSubmitNew"
@@ -123,8 +126,9 @@
     <b-modal
       id="edit-character-group"
       ref="edit-character"
-      title="Add New Character Group"
+      title="Edit Character Group"
       size="md"
+      :ok-disabled="$v.editFormState.$invalid || submittingEditGroup"
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
@@ -187,6 +191,7 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
+import log from 'loglevel';
 
 export default {
   name: 'ConfigCharacterGroups',
@@ -213,6 +218,9 @@ export default {
         description: '',
         characters: [],
       },
+      submittingNewGroup: false,
+      submittingEditGroup: false,
+      deletingGroup: false,
     };
   },
   validations: {
@@ -249,6 +257,7 @@ export default {
         description: '',
         characters: [],
       };
+      this.submittingNewGroup = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -256,11 +265,21 @@ export default {
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+      if (this.$v.newFormState.$anyError || this.submittingNewGroup) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewGroup = true;
+      try {
         await this.ADD_CHARACTER_GROUP(this.newFormState);
+        this.$bvModal.hide('new-character-group');
         this.resetNewForm();
+      } catch (error) {
+        log.error('Error submitting new character group:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewGroup = false;
       }
     },
     validateNewState(name) {
@@ -268,10 +287,21 @@ export default {
       return $dirty ? !$error : null;
     },
     async deleteCharacterGroup(characterGroup) {
+      if (this.deletingGroup) {
+        return;
+      }
+
       const msg = `Are you sure you want to delete ${characterGroup.item.name}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_CHARACTER_GROUP(characterGroup.item.id);
+        this.deletingGroup = true;
+        try {
+          await this.DELETE_CHARACTER_GROUP(characterGroup.item.id);
+        } catch (error) {
+          log.error('Error deleting character group:', error);
+        } finally {
+          this.deletingGroup = false;
+        }
       }
     },
     openEditForm(characterGroup) {
@@ -295,6 +325,8 @@ export default {
         characters: [],
       };
       this.tempEditCharacterList = [];
+      this.submittingEditGroup = false;
+      this.deletingGroup = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -305,11 +337,21 @@ export default {
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+      if (this.$v.editFormState.$anyError || this.submittingEditGroup) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingEditGroup = true;
+      try {
         await this.UPDATE_CHARACTER_GROUP(this.editFormState);
+        this.$bvModal.hide('edit-character-group');
         this.resetEditForm();
+      } catch (error) {
+        log.error('Error submitting edit character group:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingEditGroup = false;
       }
     },
     validateEditState(name) {
