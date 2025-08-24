@@ -36,12 +36,14 @@
                 <b-button-group v-if="IS_SHOW_EDITOR">
                   <b-button
                     variant="warning"
+                    :disabled="submittingNewCueType || submittingEditCueType || deletingCueType"
                     @click="openEditCueTypeForm(data)"
                   >
                     Edit
                   </b-button>
                   <b-button
                     variant="danger"
+                    :disabled="submittingNewCueType || submittingEditCueType || deletingCueType"
                     @click="deleteCueType(data)"
                   >
                     Delete
@@ -72,6 +74,7 @@
       ref="new-cue-type"
       title="Add Cue Type"
       size="md"
+      :ok-disabled="$v.newCueTypeForm.$invalid || submittingNewCueType"
       @show="resetNewCueTypeForm"
       @hidden="resetNewCueTypeForm"
       @ok="onSubmitNewCueType"
@@ -142,6 +145,7 @@
       ref="edit-cue-type"
       title="Edit Cue Type"
       size="md"
+      :ok-disabled="$v.editCueTypeFormState.$invalid || submittingEditCueType"
       @hidden="resetEditCueTypeForm"
       @ok="onSubmitEditCueType"
     >
@@ -212,6 +216,7 @@
 <script>
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
+import log from 'loglevel';
 
 import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
 import CueCountStats from '@/vue_components/show/config/cues/CueCountStats.vue';
@@ -240,6 +245,9 @@ export default {
         description: '',
         colour: '#000000',
       },
+      submittingNewCueType: false,
+      submittingEditCueType: false,
+      deletingCueType: false,
     };
   },
   validations: {
@@ -282,6 +290,7 @@ export default {
         description: '',
         colour: '#000000',
       };
+      this.submittingNewCueType = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -293,18 +302,39 @@ export default {
     },
     async onSubmitNewCueType(event) {
       this.$v.newCueTypeForm.$touch();
-      if (this.$v.newCueTypeForm.$anyError) {
+      if (this.$v.newCueTypeForm.$anyError || this.submittingNewCueType) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewCueType = true;
+      try {
         await this.ADD_CUE_TYPE(this.newCueTypeForm);
+        this.$bvModal.hide('new-cue-type');
         this.resetNewCueTypeForm();
+      } catch (error) {
+        log.error('Error submitting new cue type:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewCueType = false;
       }
     },
     async deleteCueType(cueType) {
+      if (this.deletingCueType) {
+        return;
+      }
+
       const msg = `Are you sure you want to delete ${cueType.item.prefix}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_CUE_TYPE(cueType.item.id);
+        this.deletingCueType = true;
+        try {
+          await this.DELETE_CUE_TYPE(cueType.item.id);
+        } catch (error) {
+          log.error('Error deleting cue type:', error);
+        } finally {
+          this.deletingCueType = false;
+        }
       }
     },
     openEditCueTypeForm(cueType) {
@@ -323,6 +353,8 @@ export default {
         description: '',
         colour: '#000000',
       };
+      this.submittingEditCueType = false;
+      this.deletingCueType = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -330,11 +362,21 @@ export default {
     },
     async onSubmitEditCueType(event) {
       this.$v.editCueTypeFormState.$touch();
-      if (this.$v.editCueTypeFormState.$anyError) {
+      if (this.$v.editCueTypeFormState.$anyError || this.submittingEditCueType) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingEditCueType = true;
+      try {
         await this.UPDATE_CUE_TYPE(this.editCueTypeFormState);
+        this.$bvModal.hide('edit-cue-type');
         this.resetEditCueTypeForm();
+      } catch (error) {
+        log.error('Error submitting edit cue type:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingEditCueType = false;
       }
     },
     validateEditCueTypeState(name) {

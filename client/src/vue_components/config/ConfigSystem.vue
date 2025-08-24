@@ -52,6 +52,7 @@
       id="show-config"
       ref="modal"
       title="Setup New Show"
+      :ok-disabled="isSubmittingShow"
       @show="resetForm"
       @hidden="resetForm"
       @ok="onSubmit"
@@ -129,12 +130,14 @@
         </b-button>
         <b-button
           variant="primary"
+          :disabled="isSubmittingShow"
           @click.stop="saveAndLoad"
         >
           Save and Load
         </b-button>
         <b-button
           variant="primary"
+          :disabled="isSubmittingShow"
           @click.stop="ok()"
         >
           Save
@@ -159,6 +162,7 @@
           <template #cell(btn)="data">
             <b-button
               variant="primary"
+              :disabled="isSubmittingLoad"
               @click="loadShow(data.item)"
             >
               Load Show
@@ -212,6 +216,8 @@ export default {
     return {
       perPage: 5,
       currentPageShows: 1,
+      isSubmittingShow: false,
+      isSubmittingLoad: false,
       formState: {
         name: null,
         start: null,
@@ -298,6 +304,7 @@ export default {
         start: null,
         end: null,
       };
+      this.isSubmittingShow = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -316,44 +323,72 @@ export default {
         return;
       }
 
-      const searchParams = new URLSearchParams({
-        load,
-      });
-      const response = await fetch(`${makeURL('/api/v1/show')}?${searchParams}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(this.formState),
-      });
-      if (response.ok) {
-        const settings = await response.json();
-        await this.getAvailableShows();
-        this.$toast.success('Created new show!');
-        this.$bvModal.hide('show-config');
-        this.resetForm();
-      } else {
-        this.$toast.error('Unable to save show');
-        log.error('Unable to create new show');
+      if (this.isSubmittingShow) {
         event.preventDefault();
+        return;
+      }
+
+      this.isSubmittingShow = true;
+
+      try {
+        const searchParams = new URLSearchParams({
+          load,
+        });
+        const response = await fetch(`${makeURL('/api/v1/show')}?${searchParams}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(this.formState),
+        });
+        if (response.ok) {
+          const settings = await response.json();
+          await this.getAvailableShows();
+          this.$toast.success('Created new show!');
+          this.$bvModal.hide('show-config');
+          this.resetForm();
+        } else {
+          this.$toast.error('Unable to save show');
+          log.error('Unable to create new show');
+          event.preventDefault();
+        }
+      } catch (error) {
+        this.$toast.error('Unable to save show');
+        log.error('Error creating new show:', error);
+        event.preventDefault();
+      } finally {
+        this.isSubmittingShow = false;
       }
     },
     async loadShow(show) {
-      const response = await fetch(`${makeURL('/api/v1/settings')}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          current_show: show.id,
-        }),
-      });
-      if (response.ok) {
-        this.$toast.success('Loaded show!');
-        this.$bvModal.hide('show-load');
-      } else {
+      if (this.isSubmittingLoad) {
+        return;
+      }
+
+      this.isSubmittingLoad = true;
+
+      try {
+        const response = await fetch(`${makeURL('/api/v1/settings')}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            current_show: show.id,
+          }),
+        });
+        if (response.ok) {
+          this.$toast.success('Loaded show!');
+          this.$bvModal.hide('show-load');
+        } else {
+          this.$toast.error('Unable to load show');
+          log.error('Unable to load show');
+        }
+      } catch (error) {
         this.$toast.error('Unable to load show');
-        log.error('Unable to load show');
+        log.error('Error loading show:', error);
+      } finally {
+        this.isSubmittingLoad = false;
       }
     },
     ...mapMutations(['UPDATE_SHOWS']),

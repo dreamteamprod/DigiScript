@@ -27,6 +27,7 @@
           </b-button>
           <b-button
             variant="danger"
+            :disabled="isSubmittingDeleteMicrophone"
             @click="deleteMic(data)"
           >
             Delete
@@ -47,6 +48,7 @@
       ref="new-microphone"
       title="Add Microphone"
       size="md"
+      :ok-disabled="isSubmittingNewMicrophone"
       @show="resetNewMicrophoneForm"
       @hidden="resetNewMicrophoneForm"
       @ok="onSubmitNewMicrophone"
@@ -98,6 +100,7 @@
       ref="edit-microphone"
       title="Edit Microphone"
       size="md"
+      :ok-disabled="isSubmittingEditMicrophone"
       @hidden="resetEditMicrophoneForm"
       @ok="onSubmitEditMicrophone"
     >
@@ -149,6 +152,7 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
+import log from 'loglevel';
 
 function isNameUnique(value) {
   if (value === '') {
@@ -185,6 +189,9 @@ export default {
         name: '',
         description: '',
       },
+      isSubmittingNewMicrophone: false,
+      isSubmittingEditMicrophone: false,
+      isSubmittingDeleteMicrophone: false,
     };
   },
   validations: {
@@ -223,6 +230,7 @@ export default {
         name: '',
         description: '',
       };
+      this.isSubmittingEditMicrophone = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -232,9 +240,24 @@ export default {
       this.$v.editMicrophoneForm.$touch();
       if (this.$v.editMicrophoneForm.$anyError) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      if (this.isSubmittingEditMicrophone) {
+        event.preventDefault();
+        return;
+      }
+
+      this.isSubmittingEditMicrophone = true;
+
+      try {
         await this.UPDATE_MICROPHONE(this.editMicrophoneForm);
-        this.resetEditMicrophoneForm();
+        this.$refs['edit-microphone'].hide();
+      } catch (error) {
+        log.error('Error updating microphone:', error);
+        event.preventDefault();
+      } finally {
+        this.isSubmittingEditMicrophone = false;
       }
     },
     validateEditMicrophone(name) {
@@ -242,10 +265,22 @@ export default {
       return $dirty ? !$error : null;
     },
     async deleteMic(mic) {
+      if (this.isSubmittingDeleteMicrophone) {
+        return;
+      }
+
       const msg = `Are you sure you want to delete ${mic.item.name}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_MICROPHONE(mic.item.id);
+        this.isSubmittingDeleteMicrophone = true;
+
+        try {
+          await this.DELETE_MICROPHONE(mic.item.id);
+        } catch (error) {
+          log.error('Error deleting microphone:', error);
+        } finally {
+          this.isSubmittingDeleteMicrophone = false;
+        }
       }
     },
     resetNewMicrophoneForm() {
@@ -253,6 +288,7 @@ export default {
         name: '',
         description: '',
       };
+      this.isSubmittingNewMicrophone = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -262,9 +298,24 @@ export default {
       this.$v.newMicrophoneForm.$touch();
       if (this.$v.newMicrophoneForm.$anyError) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      if (this.isSubmittingNewMicrophone) {
+        event.preventDefault();
+        return;
+      }
+
+      this.isSubmittingNewMicrophone = true;
+
+      try {
         await this.ADD_MICROPHONE(this.newMicrophoneForm);
-        this.resetNewMicrophoneForm();
+        this.$refs['new-microphone'].hide();
+      } catch (error) {
+        log.error('Error adding microphone:', error);
+        event.preventDefault();
+      } finally {
+        this.isSubmittingNewMicrophone = false;
       }
     },
     validateNewMicrophone(name) {

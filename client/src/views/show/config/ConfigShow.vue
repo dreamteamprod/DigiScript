@@ -12,6 +12,7 @@
         <b-button
           v-if="IS_SHOW_EDITOR"
           variant="warning"
+          :disabled="submittingEditShow"
           @click="openEditForm()"
         >
           Edit Show
@@ -36,6 +37,7 @@
       ref="edit-show"
       title="Edit Show"
       size="md"
+      :ok-disabled="$v.editFormState.$invalid || submittingEditShow"
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
@@ -124,6 +126,7 @@
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import { titleCase } from '@/js/utils';
+import log from 'loglevel';
 
 export default {
   name: 'ConfigShow',
@@ -135,6 +138,7 @@ export default {
         end_date: null,
         first_act_id: null,
       },
+      submittingEditShow: false,
     };
   },
   computed: {
@@ -189,6 +193,7 @@ export default {
         end_date: null,
         first_act_id: null,
       };
+      this.submittingEditShow = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -206,11 +211,21 @@ export default {
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+      if (this.$v.editFormState.$anyError || this.submittingEditShow) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingEditShow = true;
+      try {
         await this.UPDATE_SHOW(this.editFormState);
+        this.$bvModal.hide('edit-show');
         this.resetEditForm();
+      } catch (error) {
+        log.error('Error submitting edit show:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingEditShow = false;
       }
     },
   },

@@ -41,12 +41,14 @@
                 <b-button-group v-if="IS_SHOW_EDITOR">
                   <b-button
                     variant="warning"
+                    :disabled="submittingEditCharacter || deletingCharacter"
                     @click="openEditForm(data)"
                   >
                     Edit
                   </b-button>
                   <b-button
                     variant="danger"
+                    :disabled="submittingEditCharacter || deletingCharacter"
                     @click="deleteCharacter(data)"
                   >
                     Delete
@@ -74,6 +76,7 @@
       ref="new-character"
       title="Add New Character"
       size="md"
+      :ok-disabled="$v.newFormState.$invalid || submittingNewCharacter"
       @show="resetNewForm"
       @hidden="resetNewForm"
       @ok="onSubmitNew"
@@ -130,6 +133,7 @@
       ref="edit-character"
       title="Edit Cast Member"
       size="md"
+      :ok-disabled="$v.editFormState.$invalid || submittingEditCharacter"
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
@@ -187,6 +191,7 @@
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
+import log from 'loglevel';
 
 export default {
   name: 'ConfigCharacters',
@@ -213,6 +218,9 @@ export default {
         description: '',
         played_by: null,
       },
+      submittingNewCharacter: false,
+      submittingEditCharacter: false,
+      deletingCharacter: false,
     };
   },
   validations: {
@@ -255,6 +263,7 @@ export default {
         description: '',
         played_by: null,
       };
+      this.submittingNewCharacter = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -262,11 +271,21 @@ export default {
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+      if (this.$v.newFormState.$anyError || this.submittingNewCharacter) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewCharacter = true;
+      try {
         await this.ADD_CHARACTER(this.newFormState);
+        this.$bvModal.hide('new-character');
         this.resetNewForm();
+      } catch (error) {
+        log.error('Error submitting new character:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewCharacter = false;
       }
     },
     validateNewState(name) {
@@ -291,6 +310,8 @@ export default {
         description: '',
         played_by: null,
       };
+      this.submittingEditCharacter = false;
+      this.deletingCharacter = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -298,11 +319,21 @@ export default {
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+      if (this.$v.editFormState.$anyError || this.submittingEditCharacter) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingEditCharacter = true;
+      try {
         await this.UPDATE_CHARACTER(this.editFormState);
+        this.$bvModal.hide('edit-character');
         this.resetEditForm();
+      } catch (error) {
+        log.error('Error submitting edit character:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingEditCharacter = false;
       }
     },
     validateEditState(name) {
@@ -310,10 +341,21 @@ export default {
       return $dirty ? !$error : null;
     },
     async deleteCharacter(character) {
+      if (this.deletingCharacter) {
+        return;
+      }
+
       const msg = `Are you sure you want to delete ${character.item.name}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_CHARACTER(character.item.id);
+        this.deletingCharacter = true;
+        try {
+          await this.DELETE_CHARACTER(character.item.id);
+        } catch (error) {
+          log.error('Error deleting character:', error);
+        } finally {
+          this.deletingCharacter = false;
+        }
       }
     },
     ...mapActions(['GET_CHARACTER_LIST', 'GET_CAST_LIST', 'ADD_CHARACTER', 'UPDATE_CHARACTER', 'DELETE_CHARACTER']),

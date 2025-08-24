@@ -31,12 +31,14 @@
                 <b-button-group v-if="IS_SHOW_EDITOR">
                   <b-button
                     variant="warning"
+                    :disabled="submittingEditCast || deletingCast"
                     @click="openEditForm(data)"
                   >
                     Edit
                   </b-button>
                   <b-button
                     variant="danger"
+                    :disabled="submittingEditCast || deletingCast"
                     @click="deleteCastMember(data)"
                   >
                     Delete
@@ -64,6 +66,7 @@
       ref="new-cast"
       title="Add New Cast Member"
       size="sm"
+      :ok-disabled="$v.newFormState.$invalid || submittingNewCast"
       @show="resetNewForm"
       @hidden="resetNewForm"
       @ok="onSubmitNew"
@@ -115,6 +118,7 @@
       ref="edit-cast"
       title="Edit Cast Member"
       size="sm"
+      :ok-disabled="$v.editFormState.$invalid || submittingEditCast"
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
@@ -167,6 +171,7 @@
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import CastLineStats from '@/vue_components/show/config/cast/CastLineStats.vue';
+import log from 'loglevel';
 
 export default {
   name: 'ConfigCast',
@@ -190,6 +195,9 @@ export default {
         firstName: '',
         lastName: '',
       },
+      submittingNewCast: false,
+      submittingEditCast: false,
+      deletingCast: false,
     };
   },
   validations: {
@@ -222,6 +230,7 @@ export default {
         firstName: '',
         lastName: '',
       };
+      this.submittingNewCast = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -229,11 +238,21 @@ export default {
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+      if (this.$v.newFormState.$anyError || this.submittingNewCast) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewCast = true;
+      try {
         await this.ADD_CAST_MEMBER(this.newFormState);
+        this.$bvModal.hide('new-cast');
         this.resetNewForm();
+      } catch (error) {
+        log.error('Error submitting new cast member:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewCast = false;
       }
     },
     validateNewState(name) {
@@ -256,6 +275,8 @@ export default {
         firstName: '',
         lastName: '',
       };
+      this.submittingEditCast = false;
+      this.deletingCast = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -263,11 +284,21 @@ export default {
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+      if (this.$v.editFormState.$anyError || this.submittingEditCast) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingEditCast = true;
+      try {
         await this.UPDATE_CAST_MEMBER(this.editFormState);
+        this.$bvModal.hide('edit-cast');
         this.resetEditForm();
+      } catch (error) {
+        log.error('Error submitting edit cast member:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingEditCast = false;
       }
     },
     validateEditState(name) {
@@ -275,10 +306,21 @@ export default {
       return $dirty ? !$error : null;
     },
     async deleteCastMember(castMember) {
+      if (this.deletingCast) {
+        return;
+      }
+
       const msg = `Are you sure you want to delete ${castMember.item.first_name} ${castMember.item.last_name}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_CAST_MEMBER(castMember.item.id);
+        this.deletingCast = true;
+        try {
+          await this.DELETE_CAST_MEMBER(castMember.item.id);
+        } catch (error) {
+          log.error('Error deleting cast member:', error);
+        } finally {
+          this.deletingCast = false;
+        }
       }
     },
     ...mapActions(['GET_CAST_LIST', 'ADD_CAST_MEMBER', 'DELETE_CAST_MEMBER', 'UPDATE_CAST_MEMBER']),

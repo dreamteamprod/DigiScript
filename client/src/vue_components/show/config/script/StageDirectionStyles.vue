@@ -20,6 +20,7 @@
         ref="new-config-modal"
         title="Add New Config"
         size="lg"
+        :ok-disabled="isSubmittingNew"
         @show="resetNewFormState"
         @hidden="resetNewFormState"
         @ok="onSubmitNewStyle"
@@ -157,6 +158,7 @@
         ref="edit-config-modal"
         title="Edit Config"
         size="lg"
+        :ok-disabled="isSubmittingEdit"
         @hidden="resetEditFormState"
         @ok="onSubmitEditStyle"
       >
@@ -309,12 +311,14 @@
       <b-button-group v-if="IS_SCRIPT_EDITOR">
         <b-button
           variant="warning"
+          :disabled="isSubmittingEdit || isDeleting"
           @click="openEditStyleForm(data)"
         >
           Edit
         </b-button>
         <b-button
           variant="danger"
+          :disabled="isSubmittingEdit || isDeleting"
           @click="deleteStyle(data)"
         >
           Delete
@@ -327,6 +331,7 @@
 <script>
 import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
+import log from 'loglevel';
 
 export default {
   name: 'StageDirectionConfigs',
@@ -365,6 +370,9 @@ export default {
         enableBackgroundColour: false,
         backgroundColour: '#000000',
       },
+      isSubmittingNew: false,
+      isSubmittingEdit: false,
+      isDeleting: false,
     };
   },
   computed: {
@@ -478,12 +486,13 @@ export default {
         enableBackgroundColour: false,
         backgroundColour: '#000000',
       };
+      this.isSubmittingNew = false;
       this.$nextTick(() => {
         this.$v.$reset();
       });
     },
     resetEditFormState() {
-      this.newStyleFormState = {
+      this.editStyleFormState = {
         id: null,
         description: '',
         styleOptions: [
@@ -496,6 +505,7 @@ export default {
         enableBackgroundColour: false,
         backgroundColour: '#000000',
       };
+      this.isSubmittingEdit = false;
       this.$nextTick(() => {
         this.$v.$reset();
       });
@@ -512,18 +522,52 @@ export default {
       this.$v.newStyleFormState.$touch();
       if (this.$v.newStyleFormState.$anyError) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      if (this.isSubmittingNew) {
+        event.preventDefault();
+        return;
+      }
+
+      this.isSubmittingNew = true;
+
+      try {
         await this.ADD_STAGE_DIRECTION_STYLE(this.createPayload);
+        this.$refs['new-config-modal'].hide();
         this.resetNewFormState();
+      } catch (error) {
+        log.error('Error adding new stage direction style:', error);
+        this.$toast.error('Failed to add new style');
+        event.preventDefault();
+      } finally {
+        this.isSubmittingNew = false;
       }
     },
     async onSubmitEditStyle(event) {
       this.$v.editStyleFormState.$touch();
       if (this.$v.editStyleFormState.$anyError) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      if (this.isSubmittingEdit) {
+        event.preventDefault();
+        return;
+      }
+
+      this.isSubmittingEdit = true;
+
+      try {
         await this.UPDATE_STAGE_DIRECTION_STYLE(this.editPayload);
+        this.$refs['edit-config-modal'].hide();
         this.resetEditFormState();
+      } catch (error) {
+        log.error('Error updating stage direction style:', error);
+        this.$toast.error('Failed to update style');
+        event.preventDefault();
+      } finally {
+        this.isSubmittingEdit = false;
       }
     },
     openEditStyleForm(style) {
@@ -543,10 +587,22 @@ export default {
       }
     },
     async deleteStyle(style) {
+      if (this.isDeleting) {
+        return;
+      }
+
       const msg = `Are you sure you want to delete ${style.item.description}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_STAGE_DIRECTION_STYLE(style.item.id);
+        this.isDeleting = true;
+        try {
+          await this.DELETE_STAGE_DIRECTION_STYLE(style.item.id);
+        } catch (error) {
+          log.error('Error deleting stage direction style:', error);
+          this.$toast.error('Failed to delete style');
+        } finally {
+          this.isDeleting = false;
+        }
       }
     },
     exampleCss(data) {

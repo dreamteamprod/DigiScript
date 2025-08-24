@@ -20,7 +20,7 @@
         id="new-override-select"
         ref="new-override-select"
         title="Add New Override"
-        :ok-disabled="newStyleFormState.styleId == null"
+        :ok-disabled="newStyleFormState.styleId == null || isSubmittingNew"
         @show="resetOverrideSelect"
         @ok="openNewOverrideModal"
       >
@@ -36,6 +36,7 @@
         ref="new-override-modal"
         title="Add New Override"
         size="lg"
+        :ok-disabled="isSubmittingNew"
         @hidden="resetNewFormState"
         @ok="onSubmitNewOverride"
       >
@@ -154,6 +155,7 @@
         ref="edit-override-modal"
         title="Edit Override"
         size="lg"
+        :ok-disabled="isSubmittingEdit"
         @hidden="resetEditFormState"
         @ok="onSubmitEditOverride"
       >
@@ -291,12 +293,14 @@
       <b-button-group>
         <b-button
           variant="warning"
+          :disabled="isSubmittingEdit || isDeleting"
           @click="openEditStyleForm(data)"
         >
           Edit
         </b-button>
         <b-button
           variant="danger"
+          :disabled="isSubmittingEdit || isDeleting"
           @click="deleteStyleOverride(data)"
         >
           Delete
@@ -353,6 +357,9 @@ export default {
         enableBackgroundColour: false,
         backgroundColour: '#000000',
       },
+      isSubmittingNew: false,
+      isSubmittingEdit: false,
+      isDeleting: false,
     };
   },
   computed: {
@@ -475,6 +482,7 @@ export default {
         enableBackgroundColour: false,
         backgroundColour: '#000000',
       };
+      this.isSubmittingNew = false;
       this.$nextTick(() => {
         this.$v.$reset();
       });
@@ -492,6 +500,7 @@ export default {
         enableBackgroundColour: false,
         backgroundColour: '#000000',
       };
+      this.isSubmittingEdit = false;
       this.$nextTick(() => {
         this.$v.$reset();
       });
@@ -500,18 +509,52 @@ export default {
       this.$v.newStyleFormState.$touch();
       if (this.$v.newStyleFormState.$anyError) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      if (this.isSubmittingNew) {
+        event.preventDefault();
+        return;
+      }
+
+      this.isSubmittingNew = true;
+
+      try {
         await this.ADD_STAGE_DIRECTION_STYLE_OVERRIDE(this.createPayload);
+        this.$refs['new-override-modal'].hide();
         this.resetNewFormState();
+      } catch (error) {
+        log.error('Error adding new stage direction style override:', error);
+        this.$toast.error('Failed to add new override');
+        event.preventDefault();
+      } finally {
+        this.isSubmittingNew = false;
       }
     },
     async onSubmitEditOverride(event) {
       this.$v.editStyleFormState.$touch();
       if (this.$v.editStyleFormState.$anyError) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      if (this.isSubmittingEdit) {
+        event.preventDefault();
+        return;
+      }
+
+      this.isSubmittingEdit = true;
+
+      try {
         await this.UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE(this.editPayload);
+        this.$refs['edit-override-modal'].hide();
         this.resetEditFormState();
+      } catch (error) {
+        log.error('Error updating stage direction style override:', error);
+        this.$toast.error('Failed to update override');
+        event.preventDefault();
+      } finally {
+        this.isSubmittingEdit = false;
       }
     },
     validateNewStyleState(name) {
@@ -523,10 +566,22 @@ export default {
       return $dirty ? !$error : null;
     },
     async deleteStyleOverride(style) {
+      if (this.isDeleting) {
+        return;
+      }
+
       const msg = 'Are you sure you want to delete this override?';
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_STAGE_DIRECTION_STYLE_OVERRIDE(style.item.id);
+        this.isDeleting = true;
+        try {
+          await this.DELETE_STAGE_DIRECTION_STYLE_OVERRIDE(style.item.id);
+        } catch (error) {
+          log.error('Error deleting stage direction style override:', error);
+          this.$toast.error('Failed to delete override');
+        } finally {
+          this.isDeleting = false;
+        }
       }
     },
     openEditStyleForm(style) {
