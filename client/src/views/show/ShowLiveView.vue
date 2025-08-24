@@ -759,6 +759,8 @@ export default {
       // Process arrow keys
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         this.handleKeyNavigation(event);
+      } else if (event.key === 'PageUp' || event.key === 'PageDown') {
+        this.handlePageNavigation(event);
       } else if (event.key === 'C') {
         this.handleCueEditToggle(event);
       }
@@ -786,6 +788,28 @@ export default {
       // Always move by 1 visible line in the appropriate direction
       const delta = event.key === 'ArrowDown' ? 1 : -1;
       this.navigateRelative(0, delta);
+    },
+    handlePageNavigation(event) {
+      // Only handle if we're the leader and not currently scrolling or starting an interval
+      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically
+        || this.intervalTimerContext != null || this.CURRENT_SHOW_INTERVAL != null) return;
+
+      event.preventDefault();
+
+      // Navigate by page increments
+      const isPageDown = event.key === 'PageDown';
+      let targetPage = this.currentPage + (isPageDown ? 1 : -1);
+
+      // Ensure we stay within valid page bounds
+      if (targetPage < 1) {
+        targetPage = 1;
+      } else if (targetPage > this.currentLoadedPage) {
+        // Don't navigate beyond loaded pages
+        return;
+      }
+
+      // Navigate to the first line of the target page
+      this.navigateTo(targetPage, 0);
     },
     handleWheelNavigation(event) {
       // Only handle if we're the leader and not currently scrolling or starting an interval
