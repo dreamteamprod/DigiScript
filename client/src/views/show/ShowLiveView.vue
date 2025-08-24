@@ -200,6 +200,7 @@
       :id="`new-cue-modal`"
       title="Add New Cue"
       size="md"
+      :ok-disabled="$v.newCueFormState.$invalid || submittingNewCue"
       @hidden="resetNewCueForm"
       @ok="onSubmitNewCue"
     >
@@ -309,6 +310,7 @@ export default {
         ident: null,
         lineId: null,
       },
+      submittingNewCue: false,
     };
   },
   validations: {
@@ -1160,6 +1162,7 @@ export default {
         ident: null,
         lineId: null,
       };
+      this.submittingNewCue = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -1171,11 +1174,21 @@ export default {
     },
     async onSubmitNewCue(event) {
       this.$v.newCueFormState.$touch();
-      if (this.$v.newCueFormState.$anyError) {
+      if (this.$v.newCueFormState.$anyError || this.submittingNewCue) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewCue = true;
+      try {
         await this.ADD_NEW_CUE(this.newCueFormState);
+        this.$bvModal.hide('new-cue-modal');
         this.resetNewCueForm();
+      } catch (error) {
+        log.error('Error submitting new cue:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewCue = false;
       }
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
