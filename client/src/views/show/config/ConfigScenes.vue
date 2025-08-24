@@ -46,12 +46,14 @@
             <b-button-group v-if="IS_SHOW_EDITOR">
               <b-button
                 variant="warning"
+                :disabled="submittingEditScene || deletingScene"
                 @click="openEditForm(data)"
               >
                 Edit
               </b-button>
               <b-button
                 variant="danger"
+                :disabled="submittingEditScene || deletingScene"
                 @click="deleteAct(data)"
               >
                 Delete
@@ -88,6 +90,7 @@
             <b-button-group v-if="IS_SHOW_EDITOR">
               <b-button
                 variant="success"
+                :disabled="submittingFirstScene"
                 @click="openFirstSceneEdit(data)"
               >
                 Set
@@ -102,6 +105,7 @@
       ref="new-scene"
       title="Add New Scene"
       size="md"
+      :ok-disabled="$v.newFormState.$invalid || submittingNewScene"
       @show="resetNewForm"
       @hidden="resetNewForm"
       @ok="onSubmitNew"
@@ -165,6 +169,7 @@
       ref="edit-scene"
       title="Edit Scene"
       size="md"
+      :ok-disabled="$v.editFormState.$invalid || submittingEditScene"
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
@@ -234,6 +239,7 @@
       ref="set-first-scene"
       title="Set First Scene"
       size="md"
+      :ok-disabled="submittingFirstScene"
       @hidden="resetFirstSceneForm"
       @ok="onSubmitFirstScene"
     >
@@ -260,6 +266,7 @@
 <script>
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
+import log from 'loglevel';
 
 export default {
   name: 'ConfigScenes',
@@ -295,6 +302,10 @@ export default {
         act_id: null,
         previous_scene_id: null,
       },
+      submittingNewScene: false,
+      submittingEditScene: false,
+      submittingFirstScene: false,
+      deletingScene: false,
     };
   },
   validations: {
@@ -447,6 +458,7 @@ export default {
         act_id: null,
         previous_scene_id: null,
       };
+      this.submittingNewScene = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -458,18 +470,39 @@ export default {
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+      if (this.$v.newFormState.$anyError || this.submittingNewScene) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewScene = true;
+      try {
         await this.ADD_SCENE(this.newFormState);
+        this.$bvModal.hide('new-scene');
         this.resetNewForm();
+      } catch (error) {
+        log.error('Error submitting new scene:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewScene = false;
       }
     },
     async deleteAct(act) {
+      if (this.deletingScene) {
+        return;
+      }
+
       const msg = `Are you sure you want to delete ${act.item.name}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_SCENE(act.item.id);
+        this.deletingScene = true;
+        try {
+          await this.DELETE_SCENE(act.item.id);
+        } catch (error) {
+          log.error('Error deleting scene:', error);
+        } finally {
+          this.deletingScene = false;
+        }
       }
     },
     resetFirstSceneForm() {
@@ -477,6 +510,7 @@ export default {
         act_id: null,
         scene_id: null,
       };
+      this.submittingFirstScene = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -493,11 +527,21 @@ export default {
     },
     async onSubmitFirstScene(event) {
       this.$v.firstSceneFormState.$touch();
-      if (this.$v.firstSceneFormState.$anyError) {
+      if (this.$v.firstSceneFormState.$anyError || this.submittingFirstScene) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingFirstScene = true;
+      try {
         await this.SET_ACT_FIRST_SCENE(this.firstSceneFormState);
+        this.$bvModal.hide('set-first-scene');
         this.resetFirstSceneForm();
+      } catch (error) {
+        log.error('Error submitting first scene:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingFirstScene = false;
       }
     },
     resetEditForm() {
@@ -508,6 +552,8 @@ export default {
         act_id: null,
         previous_scene_id: null,
       };
+      this.submittingEditScene = false;
+      this.deletingScene = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -533,11 +579,21 @@ export default {
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+      if (this.$v.editFormState.$anyError || this.submittingEditScene) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingEditScene = true;
+      try {
         await this.UPDATE_SCENE(this.editFormState);
+        this.$bvModal.hide('edit-scene');
         this.resetEditForm();
+      } catch (error) {
+        log.error('Error submitting edit scene:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingEditScene = false;
       }
     },
     editActChanged(newActID) {

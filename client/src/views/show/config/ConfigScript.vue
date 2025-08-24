@@ -26,7 +26,8 @@
                     v-if="IS_SCRIPT_EDITOR"
                     variant="warning"
                     :disabled="!canChangeRevisions ||
-                      data.item.id === $store.state.script.currentRevision"
+                      data.item.id === $store.state.script.currentRevision ||
+                      submittingLoadRevision || submittingNewRevision || deletingRevision"
                     @click="loadRevision(data)"
                   >
                     Load
@@ -48,14 +49,14 @@
                 <b-button-group v-if="IS_SCRIPT_EDITOR && data.item.revision !== 1">
                   <b-button
                     variant="warning"
-                    :disabled="!canChangeRevisions"
+                    :disabled="!canChangeRevisions || submittingLoadRevision || submittingNewRevision || deletingRevision"
                     @click="openEditRevForm(data)"
                   >
                     Edit
                   </b-button>
                   <b-button
                     variant="danger"
-                    :disabled="!canChangeRevisions"
+                    :disabled="!canChangeRevisions || submittingLoadRevision || submittingNewRevision || deletingRevision"
                     @click="deleteRev(data)"
                   >
                     Delete
@@ -69,7 +70,7 @@
                       v-if="IS_SCRIPT_EDITOR"
                       v-b-modal.new-revision
                       variant="outline-success"
-                      :disabled="!canChangeRevisions"
+                      :disabled="!canChangeRevisions || submittingLoadRevision || submittingNewRevision || deletingRevision"
                     >
                       New Revision
                     </b-button>
@@ -98,6 +99,7 @@
       ref="new-revision"
       title="Add New Revision"
       size="md"
+      :ok-disabled="$v.newRevFormState.$invalid || submittingNewRevision"
       @show="resetNewRevForm"
       @hidden="resetNewRevForm"
       @ok="onSubmitNewRev"
@@ -138,6 +140,7 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
+import log from 'loglevel';
 import ScriptConfig from '@/vue_components/show/config/script/ScriptEditor.vue';
 import StageDirectionStyles from '@/vue_components/show/config/script/StageDirectionStyles.vue';
 
@@ -158,6 +161,9 @@ export default {
       newRevFormState: {
         description: '',
       },
+      submittingNewRevision: false,
+      submittingLoadRevision: false,
+      deletingRevision: false,
     };
   },
   validations: {
@@ -184,6 +190,7 @@ export default {
       this.newRevFormState = {
         description: '',
       };
+      this.submittingNewRevision = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -195,31 +202,63 @@ export default {
     },
     async onSubmitNewRev(event) {
       this.$v.newRevFormState.$touch();
-      if (this.$v.newRevFormState.$anyError) {
+      if (this.$v.newRevFormState.$anyError || this.submittingNewRevision) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewRevision = true;
+      try {
         await this.ADD_SCRIPT_REVISION(this.newRevFormState);
+        this.$bvModal.hide('new-revision');
         this.resetNewRevForm();
+      } catch (error) {
+        log.error('Error submitting new revision:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewRevision = false;
       }
     },
     async loadRevision(revision) {
+      if (this.submittingLoadRevision) {
+        return;
+      }
+
       const msg = `Are you sure you want to load revision ${revision.item.revision}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.LOAD_SCRIPT_REVISION(revision.item.id);
+        this.submittingLoadRevision = true;
+        try {
+          await this.LOAD_SCRIPT_REVISION(revision.item.id);
+        } catch (error) {
+          log.error('Error loading revision:', error);
+        } finally {
+          this.submittingLoadRevision = false;
+        }
       }
     },
     openEditRevForm(revision) {
 
     },
     async deleteRev(revision) {
+      if (this.deletingRevision) {
+        return;
+      }
+
       let msg = `Are you sure you want to delete revision ${revision.item.revision}?`;
       if (this.CURRENT_REVISION === revision.item.id) {
         msg = `${msg}  This will load the previous revision, or first revision if this is not available.`;
       }
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_SCRIPT_REVISION(revision.item.id);
+        this.deletingRevision = true;
+        try {
+          await this.DELETE_SCRIPT_REVISION(revision.item.id);
+        } catch (error) {
+          log.error('Error deleting revision:', error);
+        } finally {
+          this.deletingRevision = false;
+        }
       }
     },
     ...mapActions(['GET_SCRIPT_REVISIONS', 'ADD_SCRIPT_REVISION', 'LOAD_SCRIPT_REVISION',
