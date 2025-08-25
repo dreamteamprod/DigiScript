@@ -132,6 +132,17 @@ def upgrade() -> None:
         "ALTER TABLE script_cue_association_new RENAME TO script_cue_association"
     )
 
+    # Recreate the indexes on the new table
+    op.execute(
+        "CREATE INDEX ix_script_cue_association_revision_id ON script_cue_association (revision_id)"
+    )
+    op.execute(
+        "CREATE INDEX ix_script_cue_association_line_id ON script_cue_association (line_id)"
+    )
+    op.execute(
+        "CREATE INDEX ix_script_cue_association_cue_id ON script_cue_association (cue_id)"
+    )
+
 
 def downgrade() -> None:
     """
@@ -239,4 +250,15 @@ def downgrade() -> None:
     op.execute("DROP TABLE script_cue_association")
     op.execute(
         "ALTER TABLE script_cue_association_old RENAME TO script_cue_association"
+    )
+
+    # Recreate the indexes on the old table
+    op.execute(
+        "CREATE INDEX ix_script_cue_association_revision_id ON script_cue_association (revision_id)"
+    )
+    op.execute(
+        "CREATE INDEX ix_script_cue_association_line_id ON script_cue_association (line_id)"
+    )
+    op.execute(
+        "CREATE INDEX ix_script_cue_association_cue_id ON script_cue_association (cue_id)"
     )
