@@ -39,7 +39,10 @@ class CueAssociation(db.Model, DeleteMixin):
         Integer, ForeignKey("script_revisions.id"), primary_key=True, index=True
     )
     line_id = Column(
-        Integer, ForeignKey("script_lines.id"), primary_key=True, index=True
+        Integer,
+        ForeignKey("script_lines.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
     )
     cue_id = Column(Integer, ForeignKey("cue.id"), primary_key=True, index=True)
 

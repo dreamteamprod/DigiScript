@@ -81,11 +81,16 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
         Integer, ForeignKey("script_revisions.id"), primary_key=True, index=True
     )
     line_id = Column(
-        Integer, ForeignKey("script_lines.id"), primary_key=True, index=True
+        Integer,
+        ForeignKey("script_lines.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
     )
 
-    next_line_id = Column(Integer, ForeignKey("script_lines.id"))
-    previous_line_id = Column(Integer, ForeignKey("script_lines.id"))
+    next_line_id = Column(Integer, ForeignKey("script_lines.id", ondelete="CASCADE"))
+    previous_line_id = Column(
+        Integer, ForeignKey("script_lines.id", ondelete="CASCADE")
+    )
 
     revision: ScriptRevision = relationship(
         "ScriptRevision",
@@ -116,7 +121,7 @@ class ScriptLinePart(db.Model):
     __tablename__ = "script_line_parts"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    line_id = Column(Integer, ForeignKey("script_lines.id"))
+    line_id = Column(Integer, ForeignKey("script_lines.id", ondelete="CASCADE"))
 
     part_index = Column(Integer)
     character_id = Column(Integer, ForeignKey("character.id"))
