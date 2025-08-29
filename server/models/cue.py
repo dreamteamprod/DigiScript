@@ -68,8 +68,8 @@ class CueAssociation(db.Model, DeleteMixin):
     )
 
     def pre_delete(self, session):
-        if len(self.cue.revision_associations) == 1:
-            session.delete(self.cue)
+        # Cascade deletion is now handled by database constraints
+        pass
 
     def post_delete(self, session):
         pass

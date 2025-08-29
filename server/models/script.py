@@ -110,8 +110,8 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     )
 
     def pre_delete(self, session):
-        if self.line and len(self.line.revision_associations) == 1:
-            session.delete(self.line)
+        # Cascade deletion is now handled by database constraints
+        pass
 
     def post_delete(self, session):
         pass
