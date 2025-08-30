@@ -30,6 +30,9 @@ labels:
 - label: "client"
   files:
     - "client/.*"
+- label: "client-new"
+  files:
+    - "client-vue3/.*"
 - label: "server"
   files:
     - "server/.*"
