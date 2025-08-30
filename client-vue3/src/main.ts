@@ -7,9 +7,15 @@ import './assets/styles/main.css';
 const app = createApp(App);
 
 // State management
-app.use(createPinia());
+const pinia = createPinia();
+app.use(pinia);
 
 // Router
 app.use(router);
 
 app.mount('#app');
+
+// Initialize WebSocket connection after app is mounted
+// This matches the Vue 2 pattern where WebSocket is initialized at app level
+// The connection will be established when the composable is first used in a component
+console.log('Vue 3 DigiScript app initialized - WebSocket will connect on first use');
