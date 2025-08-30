@@ -7,14 +7,24 @@
       <div class="status-grid">
         <div class="status-item">
           <label>Connected:</label>
-          <span :class="{ 'text-success': websocketStore.isConnected, 'text-danger': !websocketStore.isConnected }">
+          <span
+            :class="{
+              'text-success': websocketStore.isConnected,
+              'text-danger': !websocketStore.isConnected
+            }"
+          >
             {{ websocketStore.isConnected ? 'Yes' : 'No' }}
           </span>
         </div>
 
         <div class="status-item">
           <label>Authenticated:</label>
-          <span :class="{ 'text-success': websocketStore.authenticated, 'text-danger': !websocketStore.authenticated }">
+          <span
+            :class="{
+              'text-success': websocketStore.authenticated,
+              'text-danger': !websocketStore.authenticated
+            }"
+          >
             {{ websocketStore.authenticated ? 'Yes' : 'No' }}
           </span>
         </div>
@@ -33,7 +43,12 @@
 
         <div class="status-item">
           <label>Healthy:</label>
-          <span :class="{ 'text-success': websocketStore.websocketHealthy, 'text-danger': !websocketStore.websocketHealthy }">
+          <span
+            :class="{
+              'text-success': websocketStore.websocketHealthy,
+              'text-danger': !websocketStore.websocketHealthy
+            }"
+          >
             {{ websocketStore.websocketHealthy ? 'Yes' : 'No' }}
           </span>
         </div>
@@ -52,7 +67,12 @@
       <div class="status-grid">
         <div class="status-item">
           <label>Has Auth Token:</label>
-          <span :class="{ 'text-success': authStore.isAuthenticated, 'text-danger': !authStore.isAuthenticated }">
+          <span
+            :class="{
+              'text-success': authStore.isAuthenticated,
+              'text-danger': !authStore.isAuthenticated
+            }"
+          >
             {{ authStore.isAuthenticated ? 'Yes' : 'No' }}
           </span>
         </div>
@@ -84,7 +104,11 @@
           Send Test Message
         </button>
 
-        <button @click="authenticateWS" :disabled="!isConnected || !authStore.isAuthenticated" class="btn btn-success">
+        <button
+          @click="authenticateWS"
+          :disabled="!isConnected || !authStore.isAuthenticated"
+          class="btn btn-success"
+        >
           Authenticate WebSocket
         </button>
       </div>
@@ -170,12 +194,13 @@ const authenticateWS = async () => {
 
 const testLogin = async () => {
   if (!loginForm.value.username || !loginForm.value.password) {
-    alert('Please enter both username and password');
+    console.warn('Please enter both username and password');
     return;
   }
 
   try {
-    const response = await fetch(`${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/v1/auth/login`, {
+    const loginUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/v1/auth/login`;
+    const response = await fetch(loginUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -193,22 +218,23 @@ const testLogin = async () => {
         await authStore.getCurrentRbac();
         await authStore.getUserSettings();
         await authStore.setupTokenRefresh();
-        alert('Login successful!');
+        console.log('Login successful!');
       }
     } else {
       const errorData = await response.json();
-      alert(`Login failed: ${errorData.message}`);
+      console.error(`Login failed: ${errorData.message}`);
     }
   } catch (error) {
     console.error('Login error:', error);
-    alert('Login failed due to network error');
+    console.error('Login failed due to network error');
   }
 };
 
 const testLogout = async () => {
   try {
     if (authStore.authToken) {
-      const response = await fetch(`${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/v1/auth/logout`, {
+      const logoutUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/v1/auth/logout`;
+      const response = await fetch(logoutUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,12 +254,12 @@ const testLogout = async () => {
 
     authStore.clearAuthData();
     websocketStore.clearWsAuthentication();
-    alert('Logged out successfully!');
+    console.log('Logged out successfully!');
   } catch (error) {
     console.error('Logout error:', error);
     authStore.clearAuthData();
     websocketStore.clearWsAuthentication();
-    alert('Logged out (with some errors)');
+    console.warn('Logged out (with some errors)');
   }
 };
 
@@ -243,7 +269,8 @@ watch(() => websocketStore.isConnected, (connected) => {
 });
 
 watch(() => websocketStore.authenticated, (authenticated) => {
-  console.log(`WebSocket authentication state changed: ${authenticated ? 'authenticated' : 'not authenticated'}`);
+  const status = authenticated ? 'authenticated' : 'not authenticated';
+  console.log(`WebSocket authentication state changed: ${status}`);
 });
 
 watch(lastMessage, (message) => {
@@ -260,7 +287,12 @@ watch(lastMessage, (message) => {
   padding: 20px;
 }
 
-.status-section, .auth-section, .actions-section, .messages-section, .login-section, .logout-section {
+.status-section,
+.auth-section,
+.actions-section,
+.messages-section,
+.login-section,
+.logout-section {
   margin-bottom: 30px;
   padding: 20px;
   border: 1px solid #ddd;

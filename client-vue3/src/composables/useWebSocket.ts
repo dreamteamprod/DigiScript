@@ -148,31 +148,11 @@ export function useWebSocket(url?: string, options: WebSocketOptions = {}) {
     }
   };
 
-  // Reconnection logic - declare first
-  const attemptReconnect = () => {
-    if (reconnectAttempts.value >= (config.reconnectionAttempts || 5)) {
-      websocketStore.handleSocketReconnectError();
-      return;
-    }
+  // Forward declarations to solve hoisting issues
+  let connect: () => void;
+  let attemptReconnect: () => void;
 
-    isReconnecting.value = true;
-    reconnectAttempts.value += 1;
-
-    websocketStore.handleSocketReconnect(reconnectAttempts.value);
-
-    const delay = Math.min(
-      (config.reconnectionDelay || 1000)
-      * (config.reconnectionDelayGrowFactor || 1.3) ** (reconnectAttempts.value - 1),
-      config.maxReconnectionDelay || 5000,
-    );
-
-    reconnectTimer.value = window.setTimeout(() => {
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      connect();
-    }, delay);
-  };
-
-  // WebSocket connection handlers
+  // WebSocket connection handlers - defined first to avoid hoisting issues
   const handleOpen = () => {
     console.log('WebSocket connected');
     websocketStore.handleSocketOpen();
@@ -200,8 +180,31 @@ export function useWebSocket(url?: string, options: WebSocketOptions = {}) {
     websocketStore.handleSocketError();
   };
 
+  // Reconnection logic
+  attemptReconnect = () => {
+    if (reconnectAttempts.value >= (config.reconnectionAttempts || 5)) {
+      websocketStore.handleSocketReconnectError();
+      return;
+    }
+
+    isReconnecting.value = true;
+    reconnectAttempts.value += 1;
+
+    websocketStore.handleSocketReconnect(reconnectAttempts.value);
+
+    const delay = Math.min(
+      (config.reconnectionDelay || 1000)
+      * (config.reconnectionDelayGrowFactor || 1.3) ** (reconnectAttempts.value - 1),
+      config.maxReconnectionDelay || 5000,
+    );
+
+    reconnectTimer.value = window.setTimeout(() => {
+      connect();
+    }, delay);
+  };
+
   // Declare connect function
-  const connect = () => {
+  connect = () => {
     try {
       socket.value = new WebSocket(getWebSocketUrl());
 

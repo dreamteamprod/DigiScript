@@ -2,7 +2,7 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
-import { setupHttpInterceptor } from './utils/httpInterceptor';
+import setupHttpInterceptor from './utils/httpInterceptor';
 import './assets/styles/main.css';
 
 // Setup HTTP interceptor for automatic JWT token injection

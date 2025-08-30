@@ -1,6 +1,6 @@
-import { makeURL } from '@/utils';
+import { makeURL } from '@/utils/index';
 
-export function setupHttpInterceptor() {
+export default function setupHttpInterceptor() {
   // Store the original fetch function
   const originalFetch = window.fetch;
 
@@ -24,9 +24,7 @@ export function setupHttpInterceptor() {
       };
 
       // Add token if it exists and Authorization header is not already set
-      if (token && !Object.keys(newOptions.headers || {}).some(key => 
-        key.toLowerCase() === 'authorization'
-      )) {
+      if (token && !Object.keys(newOptions.headers || {}).some((key) => key.toLowerCase() === 'authorization')) {
         newOptions.headers = {
           ...newOptions.headers,
           Authorization: `Bearer ${token}`,
@@ -34,9 +32,7 @@ export function setupHttpInterceptor() {
       }
 
       // Add content-type if not already set and it's a POST/PUT request
-      if ((!options.headers || !Object.keys(options.headers).some(key => 
-        key.toLowerCase() === 'content-type'
-      )) && (options.method === 'POST' || options.method === 'PUT')) {
+      if ((!options.headers || !Object.keys(options.headers).some((key) => key.toLowerCase() === 'content-type')) && (options.method === 'POST' || options.method === 'PUT')) {
         newOptions.headers = {
           ...newOptions.headers,
           'Content-Type': 'application/json',
@@ -65,25 +61,25 @@ export function setupHttpInterceptor() {
           if (token) {
             try {
               isRefreshingToken = true;
-              
+
               // Try to refresh the token
               const refreshResponse = await originalFetch(makeURL('/api/v1/auth/refresh-token'), {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
+                  Authorization: `Bearer ${token}`,
                 },
               });
-              
+
               isRefreshingToken = false;
 
               if (refreshResponse.ok) {
                 const refreshData = await refreshResponse.json();
                 const newToken = refreshData.access_token;
-                
+
                 // Update token in localStorage
                 localStorage.setItem('digiscript_auth_token', newToken);
-                
+
                 console.info('Token refresh successful, retrying original request');
                 // Retry the original request with the new token
                 const retriedOptions: RequestInit = {
@@ -99,7 +95,7 @@ export function setupHttpInterceptor() {
               console.warn('Token refresh failed, logging out');
               // TODO: Add toast notification when toast system is available
               console.warn('Your session has expired. Please log in again.');
-              
+
               // Clear token from localStorage
               localStorage.removeItem('digiscript_auth_token');
 
@@ -110,7 +106,7 @@ export function setupHttpInterceptor() {
               console.error('Error during token refresh:', refreshError);
               // TODO: Add toast notification when toast system is available
               console.error('Authentication error - please log in again');
-              
+
               // Clear token from localStorage
               localStorage.removeItem('digiscript_auth_token');
               return response;

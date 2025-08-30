@@ -55,15 +55,18 @@
     <div class="info-section">
       <h2>Phase 2: State Management & WebSocket</h2>
       <p>
-        <strong>COMPLETED:</strong> WebSocket communication and state management have been successfully migrated to Vue 3.
-        This includes Pinia stores for authentication and WebSocket state, with full OP/ACTION message routing compatibility.
+        <strong>COMPLETED:</strong> WebSocket communication and state management have been
+        successfully migrated to Vue 3.
+        This includes Pinia stores for authentication and WebSocket state, with full
+        OP/ACTION message routing compatibility.
       </p>
       <p>
         The WebSocket implementation maintains 100% compatibility with the existing backend API,
         preserving all message formats and authentication flows used by the Vue 2 application.
       </p>
       <p>
-        <strong>Test the implementation:</strong> Use the WebSocket test page above to verify connection,
+        <strong>Test the implementation:</strong> Use the WebSocket test page above to verify
+        connection,
         authentication, and message handling functionality.
       </p>
     </div>

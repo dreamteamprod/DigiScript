@@ -4,6 +4,12 @@ module.exports = {
     node: true,
     browser: true,
   },
+  globals: {
+    RequestInfo: 'readonly',
+    RequestInit: 'readonly',
+    Headers: 'readonly',
+    fetch: 'readonly',
+  },
   extends: [
     'eslint:recommended',
     '@vue/eslint-config-typescript/recommended',
@@ -35,6 +41,10 @@ module.exports = {
   },
   settings: {
     'import/resolver': {
+      typescript: {
+        alwaysTryTypes: true,
+        project: './tsconfig.json',
+      },
       node: {
         extensions: ['.js', '.jsx', '.ts', '.tsx', '.vue'],
       },
