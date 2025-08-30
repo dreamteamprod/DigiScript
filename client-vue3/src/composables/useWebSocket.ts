@@ -1,5 +1,5 @@
 import {
-  ref, onMounted, onUnmounted, watch,
+  ref, onMounted, onUnmounted, watch, computed,
 } from 'vue';
 import { useWebSocketStore, type WebSocketMessage } from '../stores/websocket';
 import { useAuthStore } from '../stores/auth';
@@ -338,8 +338,8 @@ export function useWebSocket(url?: string, options: WebSocketOptions = {}) {
 
   return {
     socket,
-    isConnected: websocketStore.isConnected,
-    isAuthenticated: websocketStore.authenticated,
+    isConnected: computed(() => websocketStore.isConnected),
+    isAuthenticated: computed(() => websocketStore.authenticated),
     sendMessage,
     sendObj,
     connect,
