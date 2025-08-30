@@ -7,5 +7,5 @@ tornado-prometheus==0.1.2
 bcrypt==4.3.0
 anytree==2.13.0
 alembic==1.16.5
-marshmallow<4
+marshmallow<5
 pyjwt[crypto]==2.10.1
