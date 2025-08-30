@@ -156,18 +156,27 @@ class DigiScriptServer(
         # Get static files path - adjust for PyInstaller if needed
         if is_frozen():
             static_files_path = get_resource_path(os.path.join("static", "assets"))
-            vue3_static_files_path = get_resource_path(os.path.join("static-vue3", "assets"))
+            vue3_static_files_path = get_resource_path(
+                os.path.join("static-vue3", "assets")
+            )
             get_logger().info(f"Using packaged static files path: {static_files_path}")
-            get_logger().info(f"Using packaged Vue 3 static files path: {vue3_static_files_path}")
+            get_logger().info(
+                f"Using packaged Vue 3 static files path: {vue3_static_files_path}"
+            )
         else:
             static_files_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static", "assets"
             )
             vue3_static_files_path = os.path.join(
-                os.path.abspath(os.path.dirname(__file__)), "..", "static-vue3", "assets"
+                os.path.abspath(os.path.dirname(__file__)),
+                "..",
+                "static-vue3",
+                "assets",
             )
             get_logger().info(f"Using relative static files path: {static_files_path}")
-            get_logger().info(f"Using relative Vue 3 static files path: {vue3_static_files_path}")
+            get_logger().info(
+                f"Using relative Vue 3 static files path: {vue3_static_files_path}"
+            )
 
         handlers = Route.routes()
         handlers.append(("/favicon.ico", controllers.StaticController))
