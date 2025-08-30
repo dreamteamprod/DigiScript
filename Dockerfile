@@ -2,12 +2,22 @@ FROM node:22-bookworm AS node_build
 
 RUN npm install npm@10 -g
 RUN mkdir -p /server/static
+RUN mkdir -p /server/static-vue3
 
+# Build Vue 2 frontend (existing)
 COPY /client/package.json /client/package.json
 COPY /client/package-lock.json /client/package-lock.json
 WORKDIR /client
 RUN npm ci
 COPY /client /client
+RUN npm run build
+
+# Build Vue 3 frontend (new)
+COPY /client-vue3/package.json /client-vue3/package.json
+COPY /client-vue3/package-lock.json /client-vue3/package-lock.json
+WORKDIR /client-vue3
+RUN npm ci
+COPY /client-vue3 /client-vue3
 RUN npm run build
 
 COPY /server /server
