@@ -1,5 +1,6 @@
 public/
 static/
+static-vue3/
 conf/
 digiscript.sqlite
 digiscript.json
