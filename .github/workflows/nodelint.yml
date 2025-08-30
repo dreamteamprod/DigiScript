@@ -5,9 +5,19 @@ on: [push]
 jobs:
   run-node-lint:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        frontend: [vue2, vue3]
+        include:
+          - frontend: vue2
+            directory: ./client
+            lint_command: npm run ci-lint
+          - frontend: vue3
+            directory: ./client-vue3
+            lint_command: npm run ci-lint
     defaults:
       run:
-        working-directory: ./client
+        working-directory: ${{ matrix.directory }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-node@v3
@@ -15,4 +25,7 @@ jobs:
         node-version: 22
     - run: npm install -g npm@10
     - run: npm ci
-    - run: npm run ci-lint
+    - run: ${{ matrix.lint_command }}
+    - name: Type check Vue 3
+      if: matrix.frontend == 'vue3'
+      run: npm run type-check
