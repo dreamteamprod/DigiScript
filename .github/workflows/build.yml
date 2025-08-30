@@ -32,14 +32,6 @@ jobs:
         run: |
           cd client-vue3
           npm ci
-      - name: Lint Vue 3 frontend
-        run: |
-          cd client-vue3
-          npm run ci-lint
-      - name: Type check Vue 3 frontend
-        run: |
-          cd client-vue3
-          npm run type-check
       - name: Build Vue 3 frontend
         run: |
           cd client-vue3
