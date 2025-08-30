@@ -156,19 +156,31 @@ class DigiScriptServer(
         # Get static files path - adjust for PyInstaller if needed
         if is_frozen():
             static_files_path = get_resource_path(os.path.join("static", "assets"))
+            vue3_static_files_path = get_resource_path(os.path.join("static-vue3", "assets"))
             get_logger().info(f"Using packaged static files path: {static_files_path}")
+            get_logger().info(f"Using packaged Vue 3 static files path: {vue3_static_files_path}")
         else:
             static_files_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static", "assets"
             )
+            vue3_static_files_path = os.path.join(
+                os.path.abspath(os.path.dirname(__file__)), "..", "static-vue3", "assets"
+            )
             get_logger().info(f"Using relative static files path: {static_files_path}")
+            get_logger().info(f"Using relative Vue 3 static files path: {vue3_static_files_path}")
 
         handlers = Route.routes()
         handlers.append(("/favicon.ico", controllers.StaticController))
+        # Vue 3 static assets (must come before Vue 2 assets for proper routing)
+        handlers.append(
+            (r"/v3/assets/(.*)", StaticFileHandler, {"path": vue3_static_files_path})
+        )
+        # Vue 2 static assets
         handlers.append(
             (r"/assets/(.*)", StaticFileHandler, {"path": static_files_path})
         )
         handlers.append((r"/api/.*", controllers.ApiFallback))
+        # Vue 2 app (catch-all, must be last)
         handlers.append((r"/(.*)", controllers.RootController))
         super().__init__(
             handlers=handlers,
