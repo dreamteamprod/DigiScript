@@ -1,53 +1,84 @@
 <template>
   <div id="app">
-    <Menubar :model="menuItems" class="app-header">
-      <template #start>
-        <div class="navbar-brand">
-          <h1>DigiScript v3</h1>
-        </div>
-      </template>
-      <template #end>
-        <div class="flex align-items-center gap-2">
-          <div v-if="authStore.isAuthenticated" class="user-info flex align-items-center gap-2">
-            <i class="pi pi-user"></i>
-            <span class="username">{{ authStore.currentUser?.username }}</span>
-            <Button
-              icon="pi pi-cog"
-              size="small"
-              outlined
-              rounded
-              v-tooltip="'User Settings'"
-              @click="router.push('/settings')"
-            />
-            <Button
-              icon="pi pi-sign-out"
-              size="small"
-              outlined
-              rounded
-              severity="secondary"
-              v-tooltip="'Logout'"
-              @click="handleLogout"
-            />
-          </div>
-          <div v-else class="auth-buttons flex align-items-center gap-2">
-            <Button
-              label="Login"
-              icon="pi pi-sign-in"
-              size="small"
-              @click="router.push('/login')"
-            />
-          </div>
-        </div>
-      </template>
-    </Menubar>
-
-    <main class="main-content">
-      <router-view />
-    </main>
-
-    <div class="app-footer">
-      <p>&copy; 2024 DigiScript - Vue 3 Migration (Phase 3B: Authentication)</p>
+    <!-- Loading spinner while initializing -->
+    <div v-if="!loaded" class="loading-spinner">
+      <div class="spinner">
+        <i class="pi pi-spin pi-spinner" style="font-size: 3rem; color: #17a2b8;"></i>
+      </div>
     </div>
+
+    <!-- First-time admin setup -->
+    <template v-else-if="settingsStore.hasAdminUser === false">
+      <Menubar class="app-header dark-header">
+        <template #start>
+          <div class="navbar-brand">
+            <h1>DigiScript</h1>
+          </div>
+        </template>
+        <template #end>
+          <div class="header-nav">
+            <span class="nav-link">About</span>
+            <span class="nav-link">Login</span>
+            <span class="connection-status connected">Connected</span>
+          </div>
+        </template>
+      </Menubar>
+
+      <div class="first-setup-container">
+        <div class="setup-content">
+          <h2 class="setup-title">Welcome to DigiScript</h2>
+          <p class="setup-subtitle">
+            <strong>To get started, please create an admin user!</strong>
+          </p>
+          <div class="setup-form">
+            <CreateAdminUser :is-first-admin="true" @user-created="onAdminUserCreated" />
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Normal application layout -->
+    <template v-else>
+      <Menubar :model="menuItems" class="app-header dark-header">
+        <template #start>
+          <div class="navbar-brand">
+            <h1>DigiScript</h1>
+          </div>
+        </template>
+        <template #end>
+          <div class="header-nav">
+            <span class="nav-link" @click="router.push('/about')">About</span>
+            <div v-if="authStore.isAuthenticated" class="user-dropdown">
+              <Button
+                :label="authStore.currentUser?.username || 'User'"
+                icon="pi pi-user"
+                size="small"
+                outlined
+                severity="secondary"
+                @click="toggleUserMenu"
+              />
+              <!-- Simple user menu - will be enhanced later -->
+              <div v-if="showUserMenu" class="user-menu">
+                <div class="menu-item" @click="router.push('/settings')">
+                  <i class="pi pi-cog"></i> Settings
+                </div>
+                <div class="menu-item" @click="handleLogout">
+                  <i class="pi pi-sign-out"></i> Sign Out
+                </div>
+              </div>
+            </div>
+            <span v-else class="nav-link" @click="router.push('/login')">Login</span>
+            <span class="connection-status" :class="{ connected: isConnected }">
+              {{ isConnected ? 'Connected' : 'Disconnected' }}
+            </span>
+          </div>
+        </template>
+      </Menubar>
+
+      <main class="main-content">
+        <router-view />
+      </main>
+    </template>
 
     <!-- Global PrimeVue components -->
     <Toast />
@@ -60,18 +91,30 @@ import Menubar from 'primevue/menubar';
 import Button from 'primevue/button';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useConfirm } from 'primevue/useconfirm';
 import { useAuthStore } from './stores/auth';
+import { useSettingsStore } from './stores/settings';
+import { useWebSocket } from './composables/useWebSocket';
+import CreateAdminUser from './components/CreateAdminUser.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const settingsStore = useSettingsStore();
 const confirm = useConfirm();
+
+// WebSocket composable
+const { connect, isConnected } = useWebSocket();
+
+// Local state
+const loaded = ref(false);
+const showUserMenu = ref(false);
 
 // Navigation menu items for PrimeVue Menubar
 const menuItems = computed(() => {
-  const baseItems = [
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseItems: any[] = [
     {
       label: 'Home',
       icon: 'pi pi-home',
@@ -79,38 +122,94 @@ const menuItems = computed(() => {
         router.push('/');
       },
     },
-    {
-      label: 'About',
-      icon: 'pi pi-info-circle',
-      command: () => {
-        router.push('/about');
-      },
-    },
-    {
-      label: 'WebSocket Test',
-      icon: 'pi pi-wifi',
-      command: () => {
-        router.push('/websocket-test');
-      },
-    },
   ];
 
-  // Add authenticated-only menu items
-  if (authStore.isAuthenticated) {
+  // Add Live and Live Config items if there's a current show
+  if (settingsStore.currentShow) {
     baseItems.push({
-      label: 'Settings',
-      icon: 'pi pi-cog',
+      label: 'Live',
+      icon: 'pi pi-play',
+      disabled: !settingsStore.currentShow || !isConnected.value,
       command: () => {
-        router.push('/settings');
+        router.push('/live');
+      },
+    });
+
+    // Live Config dropdown for admins and show executors
+    if (authStore.isAuthenticated
+      && (authStore.currentUser?.is_admin || authStore.isShowExecutor)) {
+      baseItems.push({
+        label: 'Live Config',
+        icon: 'pi pi-cog',
+        items: [
+          {
+            label: 'Start Session',
+            icon: 'pi pi-play',
+            disabled: true, // TODO: implement session management
+          },
+          {
+            label: 'Stop Session',
+            icon: 'pi pi-stop',
+            disabled: true, // TODO: implement session management
+          },
+          {
+            label: 'Reload Clients',
+            icon: 'pi pi-refresh',
+            disabled: true, // TODO: implement client reload
+          },
+          {
+            label: 'Jump To Page',
+            icon: 'pi pi-arrow-right',
+            disabled: true, // TODO: implement page jumping
+          },
+        ],
+      });
+    }
+  }
+
+  // System Config menu for admins
+  if (authStore.isAuthenticated && authStore.currentUser?.is_admin) {
+    baseItems.push({
+      label: 'System Config',
+      icon: 'pi pi-wrench',
+      disabled: !isConnected.value,
+      command: () => {
+        router.push('/system-admin');
       },
     });
   }
 
+  // Show Config menu for users with show access
+  if (settingsStore.currentShow && authStore.isAuthenticated && authStore.hasShowAccess) {
+    baseItems.push({
+      label: 'Show Config',
+      icon: 'pi pi-database',
+      disabled: !isConnected.value,
+      command: () => {
+        router.push('/show-config');
+      },
+    });
+  }
+
+  // Development/Testing items
+  baseItems.push({
+    label: 'WebSocket Test',
+    icon: 'pi pi-wifi',
+    command: () => {
+      router.push('/websocket-test');
+    },
+  });
+
   return baseItems;
 });
 
-// Logout handler
+// Handlers
+function toggleUserMenu() {
+  showUserMenu.value = !showUserMenu.value;
+}
+
 function handleLogout() {
+  showUserMenu.value = false;
   confirm.require({
     message: 'Are you sure you want to logout?',
     header: 'Confirm Logout',
@@ -122,45 +221,212 @@ function handleLogout() {
   });
 }
 
-// Initialize auth on app startup
-onMounted(async () => {
-  // If we have a token but no current user, try to get current user
-  if (authStore.authToken && !authStore.currentUser) {
-    try {
-      await authStore.getCurrentUser();
-      if (authStore.currentUser) {
-        await authStore.getUserSettings();
-        authStore.setupTokenRefresh();
-      }
-    } catch (error) {
-      console.error('Error initializing auth:', error);
-      // Clear invalid token
-      authStore.clearAuthData();
+async function waitForWebSocket(): Promise<void> {
+  return new Promise((resolve) => {
+    if (isConnected.value) {
+      resolve();
+      return;
     }
+
+    const checkConnection = () => {
+      if (isConnected.value) {
+        resolve();
+      } else {
+        setTimeout(checkConnection, 150);
+      }
+    };
+
+    setTimeout(checkConnection, 150);
+  });
+}
+
+async function onAdminUserCreated() {
+  // Refresh settings to update has_admin_user status
+  await settingsStore.getSettings();
+  loaded.value = true;
+}
+
+// Initialize application
+async function initializeApp() {
+  try {
+    // Initialize WebSocket connection first (done automatically by useWebSocket composable)
+    connect();
+
+    // Wait for WebSocket to be healthy before proceeding
+    await waitForWebSocket();
+
+    // Get system settings to check if admin user exists
+    await settingsStore.getSettings();
+    await settingsStore.getRbacRoles();
+
+    // If we have a stored auth token, try to authenticate
+    if (authStore.authToken) {
+      try {
+        await authStore.getCurrentUser();
+        if (authStore.currentUser) {
+          await authStore.getCurrentRbac();
+          await authStore.getUserSettings();
+          authStore.setupTokenRefresh();
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        authStore.clearAuthData();
+      }
+    }
+
+    loaded.value = true;
+  } catch (error) {
+    console.error('Error initializing app:', error);
+    loaded.value = true; // Show app even if there are initialization errors
   }
+}
+
+// Initialize app on mount
+onMounted(() => {
+  initializeApp();
 });
 </script>
 
 <style scoped>
-/* Global app styles with PrimeVue integration */
+/* Global app styles with dark theme matching Vue 2 */
 #app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: #343a40;
+  color: #fff;
+  text-align: center;
 }
 
-.app-header {
-  margin-bottom: 0;
+/* Loading spinner */
+.loading-spinner {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+}
+
+.spinner {
+  text-align: center;
+}
+
+/* Dark header styling to match Vue 2 */
+.app-header.dark-header {
+  background-color: #17a2b8 !important;
+  border: none !important;
   border-radius: 0;
+  padding: 1.875rem;
 }
 
 .navbar-brand h1 {
   margin: 0;
   font-size: 1.5rem;
-  color: var(--p-primary-color);
-  font-weight: 600;
+  color: white;
+  font-weight: bold;
 }
 
+/* Header navigation styling */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.nav-link {
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0.5rem;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  color: #00bc8c !important;
+}
+
+/* Connection status styling */
+.connection-status {
+  color: white;
+  font-weight: bold;
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background-color: #e74c3c;
+  font-size: 0.875rem;
+}
+
+.connection-status.connected {
+  background-color: #00bc8c;
+}
+
+/* User dropdown */
+.user-dropdown {
+  position: relative;
+}
+
+.user-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  z-index: 1000;
+  margin-top: 0.25rem;
+}
+
+.menu-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #212529;
+  border-bottom: 1px solid #f8f9fa;
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-item:hover {
+  background-color: #f8f9fa;
+}
+
+/* First-time setup styling */
+.first-setup-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: #343a40;
+}
+
+.setup-content {
+  width: 100%;
+  max-width: 600px;
+}
+
+.setup-title {
+  color: white;
+  margin-bottom: 1rem;
+  font-size: 2rem;
+}
+
+.setup-subtitle {
+  color: white;
+  margin-bottom: 2rem;
+  font-size: 1.125rem;
+}
+
+.setup-form {
+  margin-top: 2rem;
+}
+
+/* Main content */
 .main-content {
   flex: 1;
   max-width: 1200px;
@@ -168,44 +434,30 @@ onMounted(async () => {
   padding: 2rem;
   width: 100%;
   box-sizing: border-box;
+  background-color: #343a40;
+  color: white;
 }
 
-.app-footer {
-  background: var(--p-surface-100);
-  text-align: center;
-  padding: 1rem;
-  border-top: 1px solid var(--p-surface-200);
-  margin-top: auto;
+/* Override PrimeVue Menubar dark theme */
+:deep(.p-menubar) {
+  background-color: #17a2b8 !important;
+  border: none !important;
 }
 
-.app-footer p {
-  margin: 0;
-  color: var(--p-text-muted-color);
-  font-size: 0.875rem;
+:deep(.p-menubar .p-menubar-start) {
+  margin-right: auto;
 }
 
-/* PrimeVue utility classes */
-.flex {
-  display: flex;
-}
-
-.align-items-center {
-  align-items: center;
-}
-
-.gap-2 {
-  gap: 0.5rem;
-}
-
-/* User info styling */
-.user-info .username {
-  font-weight: 500;
-  color: var(--p-text-color);
-  margin-right: 0.5rem;
-}
-
-.auth-buttons {
+:deep(.p-menubar .p-menubar-end) {
   margin-left: auto;
+}
+
+:deep(.p-menubar .p-menuitem-link) {
+  color: white !important;
+}
+
+:deep(.p-menubar .p-menuitem-link:hover) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* Responsive adjustments */
@@ -218,8 +470,12 @@ onMounted(async () => {
     font-size: 1.25rem;
   }
 
-  .user-info .username {
-    display: none;
+  .header-nav {
+    gap: 1rem;
+  }
+
+  .app-header.dark-header {
+    padding: 1rem;
   }
 }
 </style>

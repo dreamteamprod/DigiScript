@@ -33,6 +33,12 @@ const router = createRouter({
       component: () => import('../views/UserSettingsView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/system-admin',
+      name: 'system-admin',
+      component: () => import('../views/admin/SystemAdminView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
   ],
 });
 
@@ -61,6 +67,12 @@ router.beforeEach(async (to, _from, next) => {
 
   // Check if route requires guest (not authenticated)
   if (to.meta.requiresGuest && isAuthenticated) {
+    next({ name: 'home' });
+    return;
+  }
+
+  // Check if route requires admin access
+  if (to.meta.requiresAdmin && !authStore.isAdmin) {
     next({ name: 'home' });
     return;
   }

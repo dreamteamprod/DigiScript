@@ -39,6 +39,17 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!authToken.value);
   const isAdmin = computed(() => currentUser.value?.is_admin || false);
 
+  // RBAC permission checks (simplified for now - will be enhanced in Phase 4)
+  const isShowExecutor = computed(() =>
+    // TODO: Implement proper RBAC permission checking
+    // For now, assume admins have executor permissions
+    isAdmin.value);
+
+  const hasShowAccess = computed(() =>
+    // TODO: Implement proper RBAC show access checking
+    // For now, assume authenticated users have basic show access
+    isAuthenticated.value);
+
   // Actions
   function setCurrentUser(user: User | null) {
     currentUser.value = user;
@@ -116,25 +127,22 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function createUser(user: { username: string; password: string; is_admin: boolean }) {
-    try {
-      const response = await fetch(makeURL('/api/v1/auth/create'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(user),
-      });
+    const response = await fetch(makeURL('/api/v1/auth/create'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(user),
+    });
 
-      if (response.ok) {
-        await getUsers();
-        // TODO: Show success toast
-        console.log('User created successfully');
-      } else {
-        const responseBody = await response.json();
-        console.error('Unable to create user:', responseBody.message);
-        // TODO: Show error toast
-      }
-    } catch (error) {
-      console.error('Error creating user:', error);
+    if (response.ok) {
+      await getUsers();
+      console.log('User created successfully');
+      return true;
     }
+
+    const responseBody = await response.json();
+    const errorMessage = responseBody.message || 'Unknown error';
+    console.error('Unable to create user:', errorMessage);
+    throw new Error(errorMessage);
   }
 
   async function deleteUser(userId: string) {
@@ -400,6 +408,8 @@ export const useAuthStore = defineStore('auth', () => {
     // Getters
     isAuthenticated,
     isAdmin,
+    isShowExecutor,
+    hasShowAccess,
 
     // Actions
     setCurrentUser,
