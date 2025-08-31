@@ -2,7 +2,7 @@ tornado==6.5.2
 tornado-sqlalchemy==0.7.0
 datetime==4.9
 python-dateutil==2.9.0.post0
-marshmallow-sqlalchemy==0.30.0
+marshmallow-sqlalchemy>=1.4.0
 tornado-prometheus==0.1.2
 bcrypt==4.3.0
 anytree==2.13.0
