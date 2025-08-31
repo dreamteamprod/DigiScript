@@ -15,6 +15,11 @@ const router = createRouter({
       // Lazy-loaded route
       component: () => import('../views/AboutView.vue'),
     },
+    {
+      path: '/websocket-test',
+      name: 'websocket-test',
+      component: () => import('../views/WebSocketTest.vue'),
+    },
   ],
 });
 

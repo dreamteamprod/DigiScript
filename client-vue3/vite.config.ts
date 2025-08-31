@@ -38,7 +38,7 @@ export default defineConfig({
         secure: false,
       },
       // Proxy WebSocket connections
-      '/ws': {
+      '/api/v1/ws': {
         target: 'ws://localhost:8080',
         ws: true,
         changeOrigin: true,

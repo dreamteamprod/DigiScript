@@ -1,19 +1,18 @@
 import { createPinia } from 'pinia';
 
-// Create and export the Pinia store instance
-const pinia = createPinia();
+// Import stores
+export { useWebSocketStore } from './websocket';
+export { useAuthStore } from './auth';
 
 // Export store types for future use
 export type RootState = {
-  // Future store state types will be added here during Phase 2
-  // This will include user state, websocket state, show state, etc.
+  // WebSocket and Auth stores are now implemented
+  // Future stores will be added in subsequent phases:
+  // show state, script state, etc.
 }
 
-// Future stores will be imported and exported here in Phase 2:
-// export { useUserStore } from './user'
-// export { useWebSocketStore } from './websocket'
-// export { useShowStore } from './show'
-// export { useScriptStore } from './script'
+// Create and export the Pinia store instance
+const pinia = createPinia();
 
 export { pinia };
 export default pinia;
