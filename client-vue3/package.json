@@ -16,7 +16,10 @@
     "node": ">=22.0.0 <23"
   },
   "dependencies": {
+    "@primevue/themes": "^4.3.7",
     "pinia": "^2.1.0",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.3.7",
     "vue": "^3.4.0",
     "vue-router": "^4.3.0"
   },

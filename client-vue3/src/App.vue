@@ -1,89 +1,115 @@
 <template>
   <div id="app">
-    <header class="app-header">
-      <nav class="navbar">
+    <Menubar :model="menuItems" class="app-header">
+      <template #start>
         <div class="navbar-brand">
           <h1>DigiScript v3</h1>
         </div>
-        <div class="navbar-nav">
-          <router-link to="/" class="nav-link">Home</router-link>
-          <router-link to="/about" class="nav-link">About</router-link>
+      </template>
+      <template #end>
+        <div class="flex align-items-center gap-2">
+          <i class="pi pi-user"></i>
+          <span>Vue 3 + PrimeVue</span>
         </div>
-      </nav>
-    </header>
+      </template>
+    </Menubar>
 
     <main class="main-content">
       <router-view />
     </main>
 
-    <footer class="app-footer">
-      <p>&copy; 2024 DigiScript - Vue 3 Migration (Phase 1)</p>
-    </footer>
+    <div class="app-footer">
+      <p>&copy; 2024 DigiScript - Vue 3 Migration (Phase 3A)</p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-// Vue 3 Composition API setup
-// Future phases will add more functionality here
+import Menubar from 'primevue/menubar';
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+
+// Navigation menu items for PrimeVue Menubar
+const menuItems = ref([
+  {
+    label: 'Home',
+    icon: 'pi pi-home',
+    command: () => {
+      router.push('/');
+    },
+  },
+  {
+    label: 'About',
+    icon: 'pi pi-info-circle',
+    command: () => {
+      router.push('/about');
+    },
+  },
+  {
+    label: 'WebSocket Test',
+    icon: 'pi pi-wifi',
+    command: () => {
+      router.push('/websocket-test');
+    },
+  },
+]);
 </script>
 
 <style scoped>
-.app-header {
-  background: #1a202c;
-  color: white;
-  padding: 1rem 0;
+/* Global app styles with PrimeVue integration */
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 2rem;
+.app-header {
+  margin-bottom: 0;
+  border-radius: 0;
 }
 
 .navbar-brand h1 {
   margin: 0;
   font-size: 1.5rem;
-}
-
-.navbar-nav {
-  display: flex;
-  gap: 2rem;
-}
-
-.nav-link {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.nav-link:hover,
-.nav-link.router-link-active {
-  background-color: #2d3748;
-  color: white;
-  text-decoration: none;
+  color: var(--p-primary-color);
+  font-weight: 600;
 }
 
 .main-content {
-  min-height: calc(100vh - 140px);
+  flex: 1;
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .app-footer {
-  background: #f8f9fa;
+  background: var(--p-surface-100);
   text-align: center;
   padding: 1rem;
-  margin-top: 2rem;
+  border-top: 1px solid var(--p-surface-200);
+  margin-top: auto;
 }
 
 .app-footer p {
   margin: 0;
-  color: #6c757d;
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+}
+
+/* PrimeVue utility classes */
+.flex {
+  display: flex;
+}
+
+.align-items-center {
+  align-items: center;
+}
+
+.gap-2 {
+  gap: 0.5rem;
 }
 </style>
