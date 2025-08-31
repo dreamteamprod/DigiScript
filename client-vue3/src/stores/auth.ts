@@ -324,6 +324,69 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function userLogin(credentials: { username: string; password: string }): Promise<boolean> {
+    try {
+      const response = await fetch(makeURL('/api/v1/auth/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAuthToken(data.access_token);
+        await getCurrentUser();
+        await getCurrentRbac();
+        await getUserSettings();
+        setupTokenRefresh();
+        console.log('Login successful');
+        return true;
+      }
+      console.error('Login failed');
+      return false;
+    } catch (error) {
+      console.error('Error during login:', error);
+      return false;
+    }
+  }
+
+  async function userLogout() {
+    try {
+      // Call logout endpoint to invalidate token server-side
+      await fetch(makeURL('/api/v1/auth/logout'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      // Clear local auth data regardless of server response
+      clearAuthData();
+    }
+  }
+
+  async function updateUserSettings(settings: UserSettings): Promise<boolean> {
+    try {
+      const response = await fetch(makeURL('/api/v1/user/settings'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+
+      if (response.ok) {
+        await getUserSettings(); // Refresh local settings
+        console.log('Settings updated successfully');
+        return true;
+      }
+      console.error('Unable to update settings');
+      return false;
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      return false;
+    }
+  }
+
   return {
     // State
     currentUser,
@@ -357,9 +420,12 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     setupTokenRefresh,
     getUserSettings,
+    updateUserSettings,
     getStageDirectionStyleOverrides,
     addStageDirectionStyleOverride,
     deleteStageDirectionStyleOverride,
     updateStageDirectionStyleOverride,
+    userLogin,
+    userLogout,
   };
 });
