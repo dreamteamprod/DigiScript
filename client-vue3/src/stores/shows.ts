@@ -64,7 +64,7 @@ export const useShowsStore = defineStore('shows', () => {
   function validateCreateShowForm(): {
     isValid: boolean;
     errors: Record<string, string>;
-  } {
+    } {
     const errors: Record<string, string> = {};
 
     if (!createShowForm.value.name || createShowForm.value.name.trim().length === 0) {
@@ -114,7 +114,9 @@ export const useShowsStore = defineStore('shows', () => {
     }
   }
 
-  async function createShow(loadAfterCreate = false): Promise<{ success: boolean; error?: string; show?: ShowData }> {
+  async function createShow(
+    loadAfterCreate = false,
+  ): Promise<{ success: boolean; error?: string; show?: ShowData }> {
     const validation = validateCreateShowForm();
     if (!validation.isValid) {
       return { success: false, error: 'Form validation failed' };

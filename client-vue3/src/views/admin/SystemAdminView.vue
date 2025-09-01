@@ -19,7 +19,8 @@
                         <div v-if="settingsStore.currentShowLoaded">
                           <span class="font-semibold">{{ settingsStore.currentShow?.name }}</span>
                           <div class="text-sm text-muted">
-                            {{ settingsStore.currentShow?.start_date }} - {{ settingsStore.currentShow?.end_date }}
+                            {{ settingsStore.currentShow?.start_date }} -
+                            {{ settingsStore.currentShow?.end_date }}
                           </div>
                         </div>
                         <div v-else>
@@ -55,8 +56,13 @@
                         <strong>Connected Clients</strong>
                       </div>
                       <div class="col-md-6">
-                        <span class="font-semibold">{{ settingsStore.connectedClients.length }} clients</span>
-                        <div v-if="settingsStore.connectedClients.length > 0" class="text-sm text-muted">
+                        <span class="font-semibold">
+                          {{ settingsStore.connectedClients.length }} clients
+                        </span>
+                        <div
+                          v-if="settingsStore.connectedClients.length > 0"
+                          class="text-sm text-muted"
+                        >
                           Last updated: {{ formatDateTime(new Date().toISOString()) }}
                         </div>
                       </div>
@@ -87,7 +93,9 @@
               <Card>
                 <template #content>
                   <div class="text-center py-4">
-                    <p class="text-muted">User management functionality will be implemented in Phase 4.</p>
+                    <p class="text-muted">
+                      User management functionality will be implemented in Phase 4.
+                    </p>
                   </div>
                 </template>
               </Card>

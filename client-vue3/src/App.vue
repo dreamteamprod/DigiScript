@@ -167,15 +167,28 @@ const menuItems = computed(() => {
     }
   }
 
-  // System Config menu for admins
+  // System menu for admins
   if (authStore.isAuthenticated && authStore.currentUser?.is_admin) {
     baseItems.push({
-      label: 'System Config',
+      label: 'System',
       icon: 'pi pi-wrench',
       disabled: !isConnected.value,
-      command: () => {
-        router.push('/system-admin');
-      },
+      items: [
+        {
+          label: 'System Administration',
+          icon: 'pi pi-cog',
+          command: () => {
+            router.push('/system-admin');
+          },
+        },
+        {
+          label: 'User Management',
+          icon: 'pi pi-users',
+          command: () => {
+            router.push('/user-management');
+          },
+        },
+      ],
     });
   }
 

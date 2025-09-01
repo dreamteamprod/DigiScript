@@ -5,7 +5,10 @@ export interface User {
   id: string;
   username: string;
   is_admin: boolean;
-  // Add other user properties as needed
+  last_login?: string;
+  last_seen?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RbacRole {
@@ -40,15 +43,17 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => currentUser.value?.is_admin || false);
 
   // RBAC permission checks (simplified for now - will be enhanced in Phase 4)
-  const isShowExecutor = computed(() =>
+  const isShowExecutor = computed(() => (
     // TODO: Implement proper RBAC permission checking
     // For now, assume admins have executor permissions
-    isAdmin.value);
+    isAdmin.value
+  ));
 
-  const hasShowAccess = computed(() =>
+  const hasShowAccess = computed(() => (
     // TODO: Implement proper RBAC show access checking
     // For now, assume authenticated users have basic show access
-    isAuthenticated.value);
+    isAuthenticated.value
+  ));
 
   // Actions
   function setCurrentUser(user: User | null) {
@@ -126,23 +131,64 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function createUser(user: { username: string; password: string; is_admin: boolean }) {
-    const response = await fetch(makeURL('/api/v1/auth/create'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(user),
-    });
+  async function createUser(user: { username: string; password: string; is_admin?: boolean }) {
+    try {
+      const response = await fetch(makeURL('/api/v1/auth/create'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: user.username,
+          password: user.password,
+          is_admin: user.is_admin || false,
+        }),
+      });
 
-    if (response.ok) {
-      await getUsers();
-      console.log('User created successfully');
-      return true;
+      if (response.ok) {
+        await getUsers();
+        console.log('User created successfully');
+        return { success: true, message: 'User created successfully' };
+      }
+
+      const responseBody = await response.json();
+      const errorMessage = responseBody.message || 'Unknown error';
+      console.error('Unable to create user:', errorMessage);
+      return { success: false, message: errorMessage };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Network error';
+      return { success: false, message: errorMessage };
     }
+  }
 
-    const responseBody = await response.json();
-    const errorMessage = responseBody.message || 'Unknown error';
-    console.error('Unable to create user:', errorMessage);
-    throw new Error(errorMessage);
+  async function updateUser(
+    userId: string,
+    updates: { username?: string; password?: string; is_admin?: boolean },
+  ) {
+    try {
+      const response = await fetch(makeURL('/api/v1/auth/update'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: userId,
+          ...updates,
+        }),
+      });
+
+      if (response.ok) {
+        await getUsers();
+        console.log('User updated successfully');
+        return { success: true, message: 'User updated successfully' };
+      }
+
+      const responseBody = await response.json();
+      const errorMessage = responseBody.message || 'Unknown error';
+      console.error('Unable to update user:', errorMessage);
+      return { success: false, message: errorMessage };
+    } catch (error) {
+      console.error('Error updating user:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Network error';
+      return { success: false, message: errorMessage };
+    }
   }
 
   async function deleteUser(userId: string) {
@@ -155,15 +201,18 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (response.ok) {
         await getUsers();
-        // TODO: Show success toast
         console.log('User deleted successfully');
-      } else {
-        const responseBody = await response.json();
-        console.error('Unable to delete user:', responseBody.message);
-        // TODO: Show error toast
+        return { success: true, message: 'User deleted successfully' };
       }
+
+      const responseBody = await response.json();
+      const errorMessage = responseBody.message || 'Unknown error';
+      console.error('Unable to delete user:', errorMessage);
+      return { success: false, message: errorMessage };
     } catch (error) {
       console.error('Error deleting user:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Network error';
+      return { success: false, message: errorMessage };
     }
   }
 
@@ -424,6 +473,7 @@ export const useAuthStore = defineStore('auth', () => {
     // API Actions
     getUsers,
     createUser,
+    updateUser,
     deleteUser,
     getCurrentUser,
     getCurrentRbac,

@@ -5,7 +5,11 @@
         <div class="col">
           <h1>System Settings</h1>
 
-          <div v-if="!loaded" class="d-flex justify-content-center align-items-center" style="height: 400px;">
+          <div
+            v-if="!loaded"
+            class="d-flex justify-content-center align-items-center"
+            style="height: 400px;"
+          >
             <ProgressSpinner />
           </div>
 
@@ -38,7 +42,9 @@
                   :readonly="!setting.can_edit"
                   :class="{ 'p-invalid': validationErrors[key] }"
                   class="w-full"
-                  @update:model-value="(value: string | undefined) => settingsStore.settingsForm[key] = value || ''"
+                  @update:model-value="
+                    (value: string | undefined) => settingsStore.settingsForm[key] = value || ''
+                  "
                 />
 
                 <!-- Boolean Switch -->
@@ -47,11 +53,15 @@
                   :id="`${key}-input`"
                   :model-value="Boolean(settingsStore.settingsForm[key])"
                   :disabled="!setting.can_edit"
-                  @update:model-value="(value: boolean) => settingsStore.settingsForm[key] = value"
+                  @update:model-value="
+                    (value: boolean) => settingsStore.settingsForm[key] = value
+                  "
                 />
 
                 <!-- Validation Error -->
-                <small v-if="validationErrors[key]" class="p-error">{{ validationErrors[key] }}</small>
+                <small v-if="validationErrors[key]" class="p-error">
+                  {{ validationErrors[key] }}
+                </small>
               </div>
             </div>
 
