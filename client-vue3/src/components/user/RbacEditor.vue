@@ -33,19 +33,33 @@
       </div>
 
       <!-- RBAC resource tabs -->
-      <TabView v-if="rbacResources && rbacResources.length > 0" class="rbac-tabs">
-        <TabPanel
-          v-for="resource in rbacResources"
-          :key="`rbac_resource_${resource}`"
-          :header="capitalizeResource(resource)"
-          :value="resource"
-        >
-          <RbacResourcePermissions
-            :resource="resource"
-            :user-id="userId"
-            @permissions-changed="onPermissionsChanged"
-          />
-        </TabPanel>
+      <TabView
+        v-if="rbacResources && rbacResources.length > 0"
+        :value="rbacResources[0]"
+        class="rbac-tabs"
+      >
+        <TabList>
+          <Tab
+            v-for="resource in rbacResources"
+            :key="`rbac_resource_${resource}`"
+            :value="resource"
+          >
+            {{ capitalizeResource(resource) }}
+          </Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel
+            v-for="resource in rbacResources"
+            :key="`rbac_panel_${resource}`"
+            :value="resource"
+          >
+            <RbacResourcePermissions
+              :resource="resource"
+              :user-id="userId"
+              @permissions-changed="onPermissionsChanged"
+            />
+          </TabPanel>
+        </TabPanels>
       </TabView>
 
       <!-- No resources available -->
@@ -77,6 +91,9 @@ import { useAuthStore } from '@/stores/auth';
 
 // PrimeVue components
 import TabView from 'primevue/tabview';
+import TabList from 'primevue/tablist';
+import Tab from 'primevue/tab';
+import TabPanels from 'primevue/tabpanels';
 import TabPanel from 'primevue/tabpanel';
 import Button from 'primevue/button';
 import Message from 'primevue/message';
@@ -219,34 +236,34 @@ onMounted(async () => {
 }
 
 /* RBAC tabs styling */
-:deep(.p-tabview) {
+:deep(.p-tabs) {
   background-color: var(--surface-card);
 }
 
-:deep(.p-tabview .p-tabview-nav) {
+:deep(.p-tablist) {
   background-color: var(--surface-section);
   border-color: var(--surface-border);
 }
 
-:deep(.p-tabview .p-tabview-nav .p-tabview-nav-link) {
+:deep(.p-tab) {
   color: var(--text-color);
   background-color: transparent;
   border-color: var(--surface-border);
 }
 
-:deep(.p-tabview .p-tabview-nav .p-highlight .p-tabview-nav-link) {
+:deep(.p-tab[data-p-active="true"]) {
   background-color: var(--surface-card);
   border-color: var(--primary-color);
   color: var(--primary-color);
 }
 
-:deep(.p-tabview .p-tabview-panels) {
+:deep(.p-tabpanels) {
   background-color: var(--surface-card);
   color: var(--text-color);
   border-color: var(--surface-border);
 }
 
-:deep(.p-tabview .p-tabview-panel) {
+:deep(.p-tabpanel) {
   background-color: var(--surface-card);
 }
 

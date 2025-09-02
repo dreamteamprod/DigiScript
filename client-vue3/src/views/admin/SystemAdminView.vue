@@ -5,101 +5,104 @@
         <div class="col">
           <h1>DigiScript System Administration</h1>
 
-          <TabView>
-            <TabPanel value="0" header="System">
-              <Card>
-                <template #content>
-                  <div class="system-overview">
-                    <!-- Current Show Status -->
-                    <div class="row mb-4">
-                      <div class="col-md-3">
-                        <strong>Current Show</strong>
-                      </div>
-                      <div class="col-md-6">
-                        <div v-if="settingsStore.currentShowLoaded">
-                          <span class="font-semibold">{{ settingsStore.currentShow?.name }}</span>
-                          <div class="text-sm text-muted">
-                            {{ settingsStore.currentShow?.start_date }} -
-                            {{ settingsStore.currentShow?.end_date }}
+          <TabView value="0">
+            <TabList>
+              <Tab value="0">System</Tab>
+              <Tab value="1">Settings</Tab>
+              <Tab value="2" :disabled="!settingsStore.currentShow">Users</Tab>
+            </TabList>
+            <TabPanels>
+              <TabPanel value="0">
+                <Card>
+                  <template #content>
+                    <div class="system-overview">
+                      <!-- Current Show Status -->
+                      <div class="row mb-4">
+                        <div class="col-md-3">
+                          <strong>Current Show</strong>
+                        </div>
+                        <div class="col-md-6">
+                          <div v-if="settingsStore.currentShowLoaded">
+                            <span class="font-semibold">{{ settingsStore.currentShow?.name }}</span>
+                            <div class="text-sm text-muted">
+                              {{ settingsStore.currentShow?.start_date }} -
+                              {{ settingsStore.currentShow?.end_date }}
+                            </div>
+                          </div>
+                          <div v-else>
+                            <span class="font-bold text-orange-600">No show loaded</span>
                           </div>
                         </div>
-                        <div v-else>
-                          <span class="font-bold text-orange-600">No show loaded</span>
+                        <div class="col-md-3">
+                          <div class="d-flex gap-2">
+                            <Button
+                              label="Load Show"
+                              severity="success"
+                              outlined
+                              size="small"
+                              :disabled="showsStore.availableShows.length === 0"
+                              @click="showLoadModal = true"
+                            />
+                            <Button
+                              label="Setup New Show"
+                              severity="success"
+                              outlined
+                              size="small"
+                              @click="showCreateModal = true"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div class="col-md-3">
-                        <div class="d-flex gap-2">
+
+                      <Divider />
+
+                      <!-- Connected Clients -->
+                      <div class="row">
+                        <div class="col-md-3">
+                          <strong>Connected Clients</strong>
+                        </div>
+                        <div class="col-md-6">
+                          <span class="font-semibold">
+                            {{ settingsStore.connectedClients.length }} clients
+                          </span>
+                          <div
+                            v-if="settingsStore.connectedClients.length > 0"
+                            class="text-sm text-muted"
+                          >
+                            Last updated: {{ formatDateTime(new Date().toISOString()) }}
+                          </div>
+                        </div>
+                        <div class="col-md-3">
                           <Button
-                            label="Load Show"
+                            label="View Clients"
                             severity="success"
                             outlined
                             size="small"
-                            :disabled="showsStore.availableShows.length === 0"
-                            @click="showLoadModal = true"
-                          />
-                          <Button
-                            label="Setup New Show"
-                            severity="success"
-                            outlined
-                            size="small"
-                            @click="showCreateModal = true"
+                            @click="showClientsModal = true"
                           />
                         </div>
                       </div>
                     </div>
+                  </template>
+                </Card>
+              </TabPanel>
 
-                    <Divider />
+              <TabPanel value="1">
+                <SystemSettingsView />
+              </TabPanel>
 
-                    <!-- Connected Clients -->
-                    <div class="row">
-                      <div class="col-md-3">
-                        <strong>Connected Clients</strong>
-                      </div>
-                      <div class="col-md-6">
-                        <span class="font-semibold">
-                          {{ settingsStore.connectedClients.length }} clients
-                        </span>
-                        <div
-                          v-if="settingsStore.connectedClients.length > 0"
-                          class="text-sm text-muted"
-                        >
-                          Last updated: {{ formatDateTime(new Date().toISOString()) }}
-                        </div>
-                      </div>
-                      <div class="col-md-3">
-                        <Button
-                          label="View Clients"
-                          severity="success"
-                          outlined
-                          size="small"
-                          @click="showClientsModal = true"
-                        />
-                      </div>
+              <TabPanel value="2">
+                <Card>
+                  <template #content>
+                    <div class="text-center py-4">
+                      <p class="text-muted">
+                        User management functionality will be implemented in Phase 4.
+                      </p>
                     </div>
-                  </div>
-                </template>
-              </Card>
-            </TabPanel>
-
-            <TabPanel value="1" header="Settings">
-              <SystemSettingsView />
-            </TabPanel>
-
-            <TabPanel
-              value="2"
-              header="Users"
-              :disabled="!settingsStore.currentShow"
-            >
-              <Card>
-                <template #content>
-                  <div class="text-center py-4">
-                    <p class="text-muted">
-                      User management functionality will be implemented in Phase 4.
-                    </p>
-                  </div>
-                </template>
-              </Card>
-            </TabPanel>
+                  </template>
+                </Card>
+              </TabPanel>
+            </TabPanels>
           </TabView>
         </div>
       </div>
@@ -140,6 +143,9 @@ import ConnectedClientsModal from '@/components/admin/ConnectedClientsModal.vue'
 
 // PrimeVue Components
 import TabView from 'primevue/tabview';
+import TabList from 'primevue/tablist';
+import Tab from 'primevue/tab';
+import TabPanels from 'primevue/tabpanels';
 import TabPanel from 'primevue/tabpanel';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -242,11 +248,13 @@ onUnmounted(() => {
 
 <style scoped>
 .system-admin {
-  padding: 2rem;
+  background-color: #343a40;
+  color: white;
+  min-height: 100vh;
 }
 
 .system-overview {
-  padding: 1rem 0;
+  /* No padding - content should use full available space */
 }
 
 .system-overview .row {
@@ -254,10 +262,87 @@ onUnmounted(() => {
 }
 
 .text-muted {
-  color: var(--text-color-secondary);
+  color: #6c757d;
 }
 
 .text-orange-600 {
   color: #ea580c;
+}
+
+/* Dark theme refinements to match Vue 2 exactly */
+
+/* Make tabs look like Vue 2 - simple dark background spanning full width */
+:deep(.p-tablist) {
+  background-color: #343a40 !important;
+  border-bottom: 1px solid #495057 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  display: flex !important;
+}
+
+:deep(.p-tab) {
+  background-color: #495057 !important;
+  border-right: 1px solid #6c757d !important;
+  border-top: 1px solid #6c757d !important;
+  border-left: 1px solid #6c757d !important;
+  margin-right: 2px !important;
+  flex: 1 !important;
+  color: #adb5bd !important;
+  padding: 0.75rem 1rem !important;
+  cursor: pointer !important;
+}
+
+:deep(.p-tab:last-child) {
+  border-right: 1px solid #6c757d !important;
+}
+
+:deep(.p-tab[data-p-active="true"]) {
+  background-color: #343a40 !important;
+  border-bottom: 1px solid #343a40 !important;
+  color: white !important;
+}
+
+:deep(.p-tab[data-p-disabled="true"]) {
+  color: #6c757d !important;
+  cursor: not-allowed !important;
+}
+
+/* Ensure cards blend with background */
+:deep(.p-card) {
+  background-color: transparent !important;
+  border: 1px solid #495057 !important;
+  box-shadow: none !important;
+}
+
+/* Success buttons to match Vue 2 green */
+:deep(.p-button.p-button-success.p-button-outlined) {
+  border-color: #28a745 !important;
+  color: #28a745 !important;
+  background-color: transparent !important;
+}
+
+:deep(.p-button.p-button-success.p-button-outlined:hover) {
+  background-color: #28a745 !important;
+  color: white !important;
+  border-color: #28a745 !important;
+}
+
+/* Text styling to match Vue 2 */
+h1 {
+  color: white !important;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+strong {
+  color: white !important;
+}
+
+.font-semibold {
+  color: white !important;
+}
+
+.text-sm {
+  color: #6c757d !important;
 }
 </style>

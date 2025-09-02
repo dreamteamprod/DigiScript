@@ -48,7 +48,7 @@
                 />
 
                 <!-- Boolean Switch -->
-                <InputSwitch
+                <ToggleSwitch
                   v-else
                   :id="`${key}-input`"
                   :model-value="Boolean(settingsStore.settingsForm[key])"
@@ -104,7 +104,7 @@ import { useAuthStore } from '@/stores/auth';
 // PrimeVue Components
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
-import InputSwitch from 'primevue/inputswitch';
+import ToggleSwitch from 'primevue/toggleswitch';
 import ProgressSpinner from 'primevue/progressspinner';
 import OverlayPanel from 'primevue/overlaypanel';
 
@@ -225,6 +225,9 @@ onMounted(async () => {
 <style scoped>
 .system-settings {
   padding: 2rem;
+  background-color: #343a40;
+  color: white;
+  min-height: 100vh;
 }
 
 .field {
@@ -234,17 +237,127 @@ onMounted(async () => {
 .field label {
   display: block;
   margin-bottom: 0.5rem;
-  color: var(--text-color);
+  color: white;
+  font-weight: bold;
 }
 
 .p-invalid {
-  border-color: var(--red-500);
+  border-color: #dc3545;
 }
 
 .p-error {
-  color: var(--red-500);
+  color: #dc3545;
   font-size: 0.875rem;
   margin-top: 0.25rem;
   display: block;
+}
+
+/* Force dark theme on all input components */
+h1 {
+  color: white !important;
+}
+
+/* Fix input styling - make wider and proper dark theme */
+:deep(.p-inputtext) {
+  background-color: #495057 !important;
+  color: white !important;
+  border: 1px solid #6c757d !important;
+  min-width: 300px !important;
+  max-width: 600px !important;
+}
+
+:deep(.p-inputtext:focus) {
+  background-color: #495057 !important;
+  color: white !important;
+  border-color: #17a2b8 !important;
+  box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.25) !important;
+}
+
+:deep(.p-inputtext[readonly]) {
+  background-color: #6c757d !important;
+  color: #adb5bd !important;
+}
+
+/* Fix switch styling */
+:deep(.p-inputswitch) {
+  background-color: #495057 !important;
+}
+
+:deep(.p-inputswitch.p-inputswitch-checked) {
+  background-color: #28a745 !important;
+}
+
+/* Fix button styling to match Vue 2 */
+:deep(.p-button) {
+  background-color: #007bff !important;
+  border-color: #007bff !important;
+  color: white !important;
+}
+
+:deep(.p-button:hover) {
+  background-color: #0056b3 !important;
+  border-color: #0056b3 !important;
+}
+
+:deep(.p-button.p-button-outlined) {
+  background-color: transparent !important;
+  color: #6c757d !important;
+  border-color: #6c757d !important;
+}
+
+:deep(.p-button.p-button-outlined:hover) {
+  background-color: #6c757d !important;
+  color: white !important;
+  border-color: #6c757d !important;
+}
+
+:deep(.p-button.p-button-secondary) {
+  background-color: #6c757d !important;
+  border-color: #6c757d !important;
+}
+
+:deep(.p-button.p-button-secondary:hover) {
+  background-color: #5a6268 !important;
+  border-color: #5a6268 !important;
+}
+
+/* Fix help button visibility - make visible by default */
+:deep(.p-button.p-button-text) {
+  color: #adb5bd !important;
+}
+
+:deep(.p-button.p-button-text:hover) {
+  color: white !important;
+  background-color: rgba(108, 117, 125, 0.1) !important;
+}
+
+/* Fix reset button visibility */
+:deep(.p-button.p-button-secondary.p-button-outlined) {
+  background-color: transparent !important;
+  color: #adb5bd !important;
+  border-color: #6c757d !important;
+}
+
+:deep(.p-button.p-button-secondary.p-button-outlined:hover) {
+  background-color: #6c757d !important;
+  color: white !important;
+  border-color: #6c757d !important;
+}
+
+/* Fix progress spinner */
+:deep(.p-progress-spinner-circle) {
+  stroke: #17a2b8 !important;
+}
+
+/* Fix popover */
+:deep(.p-popover) {
+  background-color: #495057 !important;
+  color: white !important;
+  border: 1px solid #6c757d !important;
+}
+
+:deep(.p-popover-content) {
+  background-color: #495057 !important;
+  color: white !important;
 }
 </style>

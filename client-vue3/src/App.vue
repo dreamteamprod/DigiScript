@@ -9,20 +9,16 @@
 
     <!-- First-time admin setup -->
     <template v-else-if="settingsStore.hasAdminUser === false">
-      <Menubar class="app-header dark-header">
-        <template #start>
-          <div class="navbar-brand">
-            <h1>DigiScript</h1>
-          </div>
-        </template>
-        <template #end>
-          <div class="header-nav">
-            <span class="nav-link">About</span>
-            <span class="nav-link">Login</span>
-            <span class="connection-status connected">Connected</span>
-          </div>
-        </template>
-      </Menubar>
+      <nav class="navbar app-header">
+        <div class="navbar-brand">
+          <h1>DigiScript</h1>
+        </div>
+        <div class="header-nav">
+          <span class="nav-link">About</span>
+          <span class="nav-link">Login</span>
+          <span class="connection-status connected">Connected</span>
+        </div>
+      </nav>
 
       <div class="first-setup-container">
         <div class="setup-content">
@@ -39,41 +35,55 @@
 
     <!-- Normal application layout -->
     <template v-else>
-      <Menubar :model="menuItems" class="app-header dark-header">
+      <Menubar :model="menuItems" class="app-menubar">
         <template #start>
-          <div class="navbar-brand">
-            <h1>DigiScript</h1>
+          <div class="brand-section">
+            <span class="brand-title" @click="router.push('/')">DigiScript</span>
           </div>
         </template>
         <template #end>
-          <div class="header-nav">
-            <span class="nav-link" @click="router.push('/about')">About</span>
-            <div v-if="authStore.isAuthenticated" class="user-dropdown">
-              <Button
-                :label="authStore.currentUser?.username || 'User'"
-                icon="pi pi-user"
-                size="small"
-                outlined
-                severity="secondary"
-                @click="toggleUserMenu"
-              />
-              <!-- Simple user menu - will be enhanced later -->
-              <div v-if="showUserMenu" class="user-menu">
-                <div class="menu-item" @click="router.push('/settings')">
-                  <i class="pi pi-cog"></i> Settings
-                </div>
-                <div class="menu-item" @click="handleLogout">
-                  <i class="pi pi-sign-out"></i> Sign Out
-                </div>
-              </div>
-            </div>
-            <span v-else class="nav-link" @click="router.push('/login')">Login</span>
-            <span class="connection-status" :class="{ connected: isConnected }">
-              {{ isConnected ? 'Connected' : 'Disconnected' }}
-            </span>
+          <div class="end-section">
+            <Button
+              label="About"
+              text
+              class="about-button"
+              @click="router.push('/about')"
+            />
+            <Button
+              v-if="authStore.isAuthenticated"
+              :label="authStore.currentUser?.username || 'User'"
+              icon="pi pi-user"
+              class="user-button"
+              @click="toggleUserMenu"
+            />
+            <Button
+              v-else
+              label="Login"
+              text
+              class="login-button"
+              @click="router.push('/login')"
+            />
+            <Badge
+              :value="isConnected ? 'Connected' : 'Disconnected'"
+              :severity="isConnected ? 'success' : 'danger'"
+            />
           </div>
         </template>
       </Menubar>
+
+      <!-- User Menu Overlay -->
+      <OverlayPanel ref="userMenuPanel">
+        <div class="user-menu">
+          <div class="user-menu-item" @click="handleUserMenuClick('/settings')">
+            <i class="pi pi-cog"></i>
+            <span>Settings</span>
+          </div>
+          <div class="user-menu-item" @click="handleLogout">
+            <i class="pi pi-sign-out"></i>
+            <span>Sign Out</span>
+          </div>
+        </div>
+      </OverlayPanel>
 
       <main class="main-content">
         <router-view />
@@ -87,17 +97,33 @@
 </template>
 
 <script setup lang="ts">
-import Menubar from 'primevue/menubar';
-import Button from 'primevue/button';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
-import { computed, onMounted, ref } from 'vue';
+import Menubar from 'primevue/menubar';
+import Button from 'primevue/button';
+import Badge from 'primevue/badge';
+import OverlayPanel from 'primevue/overlaypanel';
+import {
+  onMounted,
+  onUnmounted,
+  ref,
+  computed,
+} from 'vue';
 import { useRouter } from 'vue-router';
 import { useConfirm } from 'primevue/useconfirm';
 import { useAuthStore } from './stores/auth';
 import { useSettingsStore } from './stores/settings';
 import { useWebSocket } from './composables/useWebSocket';
 import CreateAdminUser from './components/CreateAdminUser.vue';
+
+// Menu item type for PrimeVue Menubar
+interface MenuItem {
+  label: string;
+  icon?: string;
+  disabled?: boolean;
+  command?: () => void;
+  items?: MenuItem[];
+}
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -110,115 +136,97 @@ const { connect, isConnected } = useWebSocket();
 // Local state
 const loaded = ref(false);
 const showUserMenu = ref(false);
+const userMenuPanel = ref();
 
-// Navigation menu items for PrimeVue Menubar
+// Computed menu items for PrimeVue Menubar
 const menuItems = computed(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const baseItems: any[] = [
-    {
-      label: 'Home',
-      icon: 'pi pi-home',
-      command: () => {
-        router.push('/');
-      },
-    },
-  ];
+  const items: MenuItem[] = [];
 
-  // Add Live and Live Config items if there's a current show
+  // Live menu item
   if (settingsStore.currentShow) {
-    baseItems.push({
-      label: 'Live',
-      icon: 'pi pi-play',
-      disabled: !settingsStore.currentShow || !isConnected.value,
-      command: () => {
-        router.push('/live');
-      },
-    });
+    if (authStore.isAuthenticated) {
+      const liveItems: MenuItem[] = [
+        {
+          label: 'Live',
+          icon: 'pi pi-play-circle',
+          disabled: !settingsStore.currentShow || !isConnected.value,
+          command: () => router.push('/live'),
+        },
+      ];
 
-    // Live Config dropdown for admins and show executors
-    if (authStore.isAuthenticated
-      && (authStore.currentUser?.is_admin || authStore.isShowExecutor)) {
-      baseItems.push({
-        label: 'Live Config',
-        icon: 'pi pi-cog',
-        items: [
+      // Live Config submenu for admins and show executors
+      if (authStore.currentUser?.is_admin || authStore.isShowExecutor) {
+        const liveConfigSubitems: MenuItem[] = [
           {
             label: 'Start Session',
-            icon: 'pi pi-play',
-            disabled: true, // TODO: implement session management
+            disabled: true,
+            command: () => console.log('Start Session - Not implemented'),
           },
           {
             label: 'Stop Session',
-            icon: 'pi pi-stop',
-            disabled: true, // TODO: implement session management
+            disabled: true,
+            command: () => console.log('Stop Session - Not implemented'),
           },
           {
             label: 'Reload Clients',
-            icon: 'pi pi-refresh',
-            disabled: true, // TODO: implement client reload
+            disabled: true,
+            command: () => console.log('Reload Clients - Not implemented'),
           },
           {
             label: 'Jump To Page',
-            icon: 'pi pi-arrow-right',
-            disabled: true, // TODO: implement page jumping
+            disabled: true,
+            command: () => console.log('Jump To Page - Not implemented'),
           },
-        ],
+        ];
+
+        liveItems.push({
+          label: 'Live Config',
+          icon: 'pi pi-cog',
+          items: liveConfigSubitems,
+        });
+      }
+
+      items.push(...liveItems);
+    } else {
+      items.push({
+        label: 'Live',
+        icon: 'pi pi-play-circle',
+        disabled: true,
       });
     }
   }
 
-  // System menu for admins
+  // System Config for admins
   if (authStore.isAuthenticated && authStore.currentUser?.is_admin) {
-    baseItems.push({
-      label: 'System',
-      icon: 'pi pi-wrench',
+    items.push({
+      label: 'System Config',
+      icon: 'pi pi-server',
       disabled: !isConnected.value,
-      items: [
-        {
-          label: 'System Administration',
-          icon: 'pi pi-cog',
-          command: () => {
-            router.push('/system-admin');
-          },
-        },
-        {
-          label: 'User Management',
-          icon: 'pi pi-users',
-          command: () => {
-            router.push('/user-management');
-          },
-        },
-      ],
+      command: () => router.push('/config'),
     });
   }
 
-  // Show Config menu for users with show access
+  // Show Config for users with show access
   if (settingsStore.currentShow && authStore.isAuthenticated && authStore.hasShowAccess) {
-    baseItems.push({
+    items.push({
       label: 'Show Config',
-      icon: 'pi pi-database',
+      icon: 'pi pi-calendar',
       disabled: !isConnected.value,
-      command: () => {
-        router.push('/show-config');
-      },
+      command: () => router.push('/show-config'),
     });
   }
 
-  // Development/Testing items
-  baseItems.push({
-    label: 'WebSocket Test',
-    icon: 'pi pi-wifi',
-    command: () => {
-      router.push('/websocket-test');
-    },
-  });
-
-  return baseItems;
+  return items;
 });
 
 // Handlers
-function toggleUserMenu() {
-  showUserMenu.value = !showUserMenu.value;
+function toggleUserMenu(event: Event) {
+  userMenuPanel.value.toggle(event);
+}
+
+function handleUserMenuClick(path: string) {
+  userMenuPanel.value.hide();
+  router.push(path);
 }
 
 function handleLogout() {
@@ -298,6 +306,11 @@ async function initializeApp() {
 onMounted(() => {
   initializeApp();
 });
+
+// Cleanup on unmount - reserved for future cleanup tasks
+onUnmounted(() => {
+  // Reserved for cleanup tasks
+});
 </script>
 
 <style scoped>
@@ -324,38 +337,153 @@ onMounted(() => {
   text-align: center;
 }
 
-/* Dark header styling to match Vue 2 */
-.app-header.dark-header {
-  background-color: #17a2b8 !important;
-  border: none !important;
-  border-radius: 0;
-  padding: 1.875rem;
+/* Navigation bar matching Vue 2 Bootstrap navbar exactly */
+.navbar.app-header {
+  background-color: #3498DA;
+  padding: 15px 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  position: relative;
 }
 
-.navbar-brand h1 {
-  margin: 0;
-  font-size: 1.5rem;
+/* Brand styling */
+.navbar-brand {
+  display: flex;
+  align-items: center;
+}
+
+.navbar-brand a {
   color: white;
+  font-size: 1.5rem;
   font-weight: bold;
+  text-decoration: none;
+  margin-right: 2rem;
 }
 
-/* Header navigation styling */
-.header-nav {
+.navbar-brand a:hover {
+  color: white;
+  text-decoration: none;
+}
+
+/* Navigation groups */
+.navbar-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+}
+
+.navbar-nav-right {
   display: flex;
   align-items: center;
   gap: 1.5rem;
 }
 
+/* Navigation items */
+.nav-item {
+  position: relative;
+}
+
 .nav-link {
   color: white;
   font-weight: bold;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
   cursor: pointer;
-  padding: 0.5rem;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  display: inline-block;
+  transition: color 0.15s ease-in-out;
+}
+
+.nav-link:hover:not(.disabled) {
+  color: white;
   text-decoration: none;
 }
 
-.nav-link:hover {
-  color: #00bc8c !important;
+.nav-link.disabled {
+  color: #6c757d;
+  cursor: default;
+}
+
+/* User link styling to match Vue 2 exactly */
+.user-link {
+  color: white !important;
+  font-weight: bold;
+  padding: 0.5rem;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.user-link:hover {
+  color: white !important;
+  text-decoration: none;
+}
+
+/* Dropdown styling */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-toggle::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.255em;
+  vertical-align: 0.255em;
+  border-top: 0.3em solid;
+  border-right: 0.3em solid transparent;
+  border-bottom: 0;
+  border-left: 0.3em solid transparent;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  min-width: 160px;
+  padding: 0.5rem 0;
+  margin: 0.125rem 0 0;
+  background-color: white;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 0.25rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.175);
+}
+
+.dropdown-menu-right {
+  right: 0;
+  left: auto;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 1rem;
+  font-weight: 400;
+  color: #212529;
+  text-align: inherit;
+  text-decoration: none;
+  background-color: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.dropdown-item:hover:not(.disabled) {
+  background-color: #f8f9fa;
+  color: #16181b;
+  text-decoration: none;
+}
+
+.dropdown-item.disabled {
+  color: #6c757d;
+  pointer-events: none;
+  background-color: transparent;
 }
 
 /* Connection status styling */
@@ -370,42 +498,6 @@ onMounted(() => {
 
 .connection-status.connected {
   background-color: #00bc8c;
-}
-
-/* User dropdown */
-.user-dropdown {
-  position: relative;
-}
-
-.user-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  min-width: 160px;
-  z-index: 1000;
-  margin-top: 0.25rem;
-}
-
-.menu-item {
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #212529;
-  border-bottom: 1px solid #f8f9fa;
-}
-
-.menu-item:last-child {
-  border-bottom: none;
-}
-
-.menu-item:hover {
-  background-color: #f8f9fa;
 }
 
 /* First-time setup styling */
@@ -442,35 +534,12 @@ onMounted(() => {
 /* Main content */
 .main-content {
   flex: 1;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  margin: 0;
+  padding: 0 15px;
   width: 100%;
   box-sizing: border-box;
   background-color: #343a40;
   color: white;
-}
-
-/* Override PrimeVue Menubar dark theme */
-:deep(.p-menubar) {
-  background-color: #17a2b8 !important;
-  border: none !important;
-}
-
-:deep(.p-menubar .p-menubar-start) {
-  margin-right: auto;
-}
-
-:deep(.p-menubar .p-menubar-end) {
-  margin-left: auto;
-}
-
-:deep(.p-menubar .p-menuitem-link) {
-  color: white !important;
-}
-
-:deep(.p-menubar .p-menuitem-link:hover) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* Responsive adjustments */
@@ -479,16 +548,21 @@ onMounted(() => {
     padding: 1rem;
   }
 
-  .navbar-brand h1 {
+  .navbar-brand a {
     font-size: 1.25rem;
+    margin-right: 1rem;
   }
 
-  .header-nav {
+  .navbar-nav-right {
     gap: 1rem;
   }
 
-  .app-header.dark-header {
+  .navbar.app-header {
     padding: 1rem;
+  }
+
+  .navbar-nav-left {
+    flex-wrap: wrap;
   }
 }
 </style>

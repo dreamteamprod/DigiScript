@@ -46,6 +46,9 @@ app.directive('tooltip', Tooltip);
 
 app.mount('#app');
 
+// Enable PrimeVue dark mode globally by adding p-dark class to document
+document.documentElement.classList.add('p-dark');
+
 // Initialize WebSocket connection after app is mounted
 // This matches the Vue 2 pattern where WebSocket is initialized at app level
 // The connection will be established when the composable is first used in a component

@@ -34,8 +34,8 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/system-admin',
-      name: 'system-admin',
+      path: '/config',
+      name: 'config',
       component: () => import('../views/admin/SystemAdminView.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
