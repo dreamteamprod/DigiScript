@@ -39,4 +39,4 @@ coverage
 *.tsbuildinfo
 
 # OS generated files
-Thumbs.db
+Thumbs.db/.playwright-mcp/
