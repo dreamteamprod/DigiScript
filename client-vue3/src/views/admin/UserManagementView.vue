@@ -278,7 +278,7 @@ onUnmounted(() => {
 .user-management {
   padding: 1rem;
   background-color: var(--surface-ground);
-  min-height: 100vh;
+  /* Remove min-height: 100vh as this is inside a tab panel */
 }
 
 /* Dark theme styling to match Vue 2 */

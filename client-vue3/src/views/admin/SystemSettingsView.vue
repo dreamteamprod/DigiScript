@@ -227,7 +227,7 @@ onMounted(async () => {
   padding: 2rem;
   background-color: #343a40;
   color: white;
-  min-height: 100vh;
+  /* Remove min-height: 100vh as this is inside a tab panel */
 }
 
 .field {
@@ -349,14 +349,14 @@ h1 {
   stroke: #17a2b8 !important;
 }
 
-/* Fix popover */
-:deep(.p-popover) {
+/* Fix OverlayPanel */
+:deep(.p-overlaypanel) {
   background-color: #495057 !important;
   color: white !important;
   border: 1px solid #6c757d !important;
 }
 
-:deep(.p-popover-content) {
+:deep(.p-overlaypanel-content) {
   background-color: #495057 !important;
   color: white !important;
 }

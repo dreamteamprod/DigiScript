@@ -133,7 +133,7 @@ import CreateShowModal from '@/components/admin/CreateShowModal.vue';
 import LoadShowModal from '@/components/admin/LoadShowModal.vue';
 import ConnectedClientsModal from '@/components/admin/ConnectedClientsModal.vue';
 
-// PrimeVue Components  
+// PrimeVue Components
 import Tabs from 'primevue/tabs';
 import TabList from 'primevue/tablist';
 import Tab from 'primevue/tab';
@@ -244,7 +244,7 @@ onUnmounted(() => {
 .system-admin {
   background-color: #343a40;
   color: white;
-  min-height: 100vh;
+  /* Remove min-height: 100vh as this is inside main content which already handles full height */
 }
 
 .system-overview {
@@ -331,7 +331,7 @@ onUnmounted(() => {
   border: 1px solid #495057 !important;
   border-top: none !important;
   padding: 1rem !important;
-  min-height: 400px !important;
+  /* Remove fixed min-height to allow natural content flow */
   display: block !important;
 }
 
