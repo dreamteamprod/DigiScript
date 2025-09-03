@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 
 export interface User {
-  id: string;
+  id: number; // Backend returns user ID as number
   username: string;
   is_admin: boolean;
   last_login?: string;
@@ -161,7 +161,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function updateUser(
-    userId: string,
+    userId: number,
     updates: { username?: string; password?: string; is_admin?: boolean },
   ) {
     try {
@@ -191,7 +191,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function deleteUser(userId: string) {
+  async function deleteUser(userId: number) {
     try {
       const response = await fetch(makeURL('/api/v1/auth/delete'), {
         method: 'POST',

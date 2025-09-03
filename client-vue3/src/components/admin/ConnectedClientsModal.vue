@@ -49,15 +49,7 @@
     </div>
 
     <template #footer>
-      <div class="d-flex justify-content-between w-100">
-        <Button
-          label="Refresh"
-          severity="secondary"
-          outlined
-          icon="pi pi-refresh"
-          :loading="loading"
-          @click="refreshClients"
-        />
+      <div class="d-flex justify-content-end w-100">
         <Button
           label="Close"
           @click="closeModal"
@@ -146,7 +138,12 @@ function closeModal() {
 }
 
 async function refreshClients() {
-  loading.value = true;
+  // Show loading only on initial load, not for subsequent refreshes
+  const isInitialLoad = !settingsStore.connectedClients.length;
+  if (isInitialLoad) {
+    loading.value = true;
+  }
+
   try {
     await settingsStore.getConnectedClients();
   } catch (error) {
@@ -158,7 +155,9 @@ async function refreshClients() {
       life: 5000,
     });
   } finally {
-    loading.value = false;
+    if (isInitialLoad) {
+      loading.value = false;
+    }
   }
 }
 

@@ -102,7 +102,7 @@ import ProgressSpinner from 'primevue/progressspinner';
 // Props and emits
 interface Props {
   resource: string;
-  userId: string;
+  userId: number;
 }
 
 const props = defineProps<Props>();
@@ -178,7 +178,7 @@ async function loadObjects(): Promise<void> {
   try {
     const searchParams = new URLSearchParams({
       resource: props.resource,
-      user: props.userId,
+      user: props.userId.toString(),
     });
 
     const response = await fetch(`${makeURL('/api/v1/rbac/user/objects')}?${searchParams}`, {
@@ -250,7 +250,7 @@ async function grantRole(obj: RbacObject, roleValue: number, roleKey: string): P
       },
       body: JSON.stringify({
         resource: props.resource,
-        user: parseInt(props.userId, 10),
+        user: props.userId,
         object: obj,
         role: roleValue,
       }),
@@ -297,7 +297,7 @@ async function revokeRole(obj: RbacObject, roleValue: number, roleKey: string): 
       },
       body: JSON.stringify({
         resource: props.resource,
-        user: parseInt(props.userId, 10),
+        user: props.userId,
         object: obj,
         role: roleValue,
       }),

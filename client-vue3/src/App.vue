@@ -66,6 +66,7 @@
             <Badge
               :value="isConnected ? 'Connected' : 'Disconnected'"
               :severity="isConnected ? 'success' : 'danger'"
+              class="connection-badge"
             />
           </div>
         </template>
@@ -542,27 +543,155 @@ onUnmounted(() => {
   color: white;
 }
 
+/* PrimeVue Menubar styling overrides */
+:deep(.p-menubar) {
+  background-color: #3498DA !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0.75rem 1.5rem !important;
+}
+
+:deep(.p-menubar .p-menubar-start) {
+  color: white !important;
+}
+
+:deep(.p-menubar .p-menubar-end) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+/* Brand title styling */
+.brand-section .brand-title {
+  color: white !important;
+  font-size: 1.5rem !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+}
+
+.brand-section .brand-title:hover {
+  color: white !important;
+  text-decoration: none !important;
+}
+
+/* End section spacing */
+.end-section {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+/* Button styling in navbar */
+.end-section .p-button {
+  background-color: transparent !important;
+  border: none !important;
+  color: white !important;
+  font-weight: bold !important;
+}
+
+.end-section .p-button:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+}
+
+.end-section .user-button {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 0.25rem !important;
+}
+
+/* Connection badge styling */
+.connection-badge {
+  margin-left: 0.25rem !important;
+  font-weight: bold !important;
+}
+
+/* Menu items in PrimeVue menubar */
+:deep(.p-menuitem-link) {
+  color: white !important;
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 0.25rem !important;
+}
+
+:deep(.p-menuitem-link:hover) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+}
+
+:deep(.p-menuitem-link[data-p-disabled="true"]) {
+  color: #6c757d !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+:deep(.p-menuitem-text) {
+  color: white !important;
+}
+
+:deep(.p-menuitem-icon) {
+  color: white !important;
+}
+
+/* User menu styling */
+.user-menu {
+  min-width: 150px;
+  background-color: #343a40 !important;
+  border: 1px solid #495057 !important;
+  border-radius: 0.25rem !important;
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  color: white;
+  transition: background-color 0.15s ease;
+}
+
+.user-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.user-menu-item i {
+  width: 16px;
+  text-align: center;
+}
+
+/* OverlayPanel dark theme styling */
+:deep(.p-overlaypanel) {
+  background-color: #343a40 !important;
+  border: 1px solid #495057 !important;
+  border-radius: 0.25rem !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4) !important;
+}
+
+:deep(.p-overlaypanel .p-overlaypanel-content) {
+  background-color: #343a40 !important;
+  color: white !important;
+  padding: 0 !important;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .main-content {
     padding: 1rem;
   }
 
-  .navbar-brand a {
-    font-size: 1.25rem;
-    margin-right: 1rem;
+  .brand-section .brand-title {
+    font-size: 1.25rem !important;
   }
 
-  .navbar-nav-right {
-    gap: 1rem;
+  .end-section {
+    gap: 0.5rem !important;
   }
 
-  .navbar.app-header {
-    padding: 1rem;
-  }
-
-  .navbar-nav-left {
-    flex-wrap: wrap;
+  :deep(.p-menubar) {
+    padding: 0.5rem 1rem !important;
   }
 }
 </style>

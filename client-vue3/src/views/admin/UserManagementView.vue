@@ -176,32 +176,39 @@ function formatDateTime(dateString: string): string {
   }
 }
 
-// User management actions
-async function refreshUsers(): Promise<void> {
+// Refresh users - shows loading spinner for initial load, silent for background updates
+async function refreshUsers(showLoading: boolean = false): Promise<void> {
   if (!isAdmin.value) {
-    console.warn('User management requires admin privileges');
     return;
   }
 
-  loading.value = true;
+  if (showLoading) {
+    loading.value = true;
+  }
+
   try {
     await authStore.getUsers();
   } catch (error) {
     console.error('Failed to refresh users:', error);
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: 'Failed to refresh user list',
-      life: 5000,
-    });
+    if (showLoading) {
+      toast.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Failed to refresh user list',
+        life: 5000,
+      });
+    }
+    // Silent failure for background refresh - no toast
   } finally {
-    loading.value = false;
+    if (showLoading) {
+      loading.value = false;
+    }
   }
 }
 
 function onUserCreated(): void {
   showCreateModal.value = false;
-  refreshUsers();
+  refreshUsers(); // Silent background refresh
   toast.add({
     severity: 'success',
     summary: 'Success',
@@ -218,7 +225,7 @@ function editUserRbac(user: User): void {
 async function deleteUser(user: User): Promise<void> {
   try {
     await authStore.deleteUser(user.id);
-    await refreshUsers();
+    await refreshUsers(); // Silent background refresh
     toast.add({
       severity: 'success',
       summary: 'Success',
@@ -260,11 +267,12 @@ onMounted(async () => {
     return;
   }
 
-  // Initial load
-  await refreshUsers();
+  // Initial load with loading spinner
+  await refreshUsers(true);
 
   // Set up auto-refresh every 5 seconds (matching Vue 2 behavior)
-  refreshInterval.value = window.setInterval(refreshUsers, 5000);
+  // Use silent refresh to avoid showing loading spinner
+  refreshInterval.value = window.setInterval(() => refreshUsers(), 5000);
 });
 
 onUnmounted(() => {
@@ -314,6 +322,18 @@ onUnmounted(() => {
 :deep(.p-button-success) {
   background-color: #28a745;
   border-color: #28a745;
+}
+
+:deep(.p-button-secondary.p-button-outlined) {
+  background-color: transparent;
+  border-color: #6c757d;
+  color: #6c757d;
+}
+
+:deep(.p-button-secondary.p-button-outlined:hover) {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  color: white;
 }
 
 :deep(.p-button-warning) {

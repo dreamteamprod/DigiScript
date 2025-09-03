@@ -33,25 +33,25 @@
       </div>
 
       <!-- RBAC resource tabs -->
-      <TabView
+      <Tabs
         v-if="rbacResources && rbacResources.length > 0"
-        :value="rbacResources[0]"
+        v-model:value="activeTab"
         class="rbac-tabs"
       >
         <TabList>
           <Tab
-            v-for="resource in rbacResources"
+            v-for="(resource, index) in rbacResources"
             :key="`rbac_resource_${resource}`"
-            :value="resource"
+            :value="index.toString()"
           >
             {{ capitalizeResource(resource) }}
           </Tab>
         </TabList>
         <TabPanels>
           <TabPanel
-            v-for="resource in rbacResources"
+            v-for="(resource, index) in rbacResources"
             :key="`rbac_panel_${resource}`"
-            :value="resource"
+            :value="index.toString()"
           >
             <RbacResourcePermissions
               :resource="resource"
@@ -60,7 +60,7 @@
             />
           </TabPanel>
         </TabPanels>
-      </TabView>
+      </Tabs>
 
       <!-- No resources available -->
       <div v-else class="no-resources p-4">
@@ -90,7 +90,7 @@ import { useToast } from 'primevue/usetoast';
 import { useAuthStore } from '@/stores/auth';
 
 // PrimeVue components
-import TabView from 'primevue/tabview';
+import Tabs from 'primevue/tabs';
 import TabList from 'primevue/tablist';
 import Tab from 'primevue/tab';
 import TabPanels from 'primevue/tabpanels';
@@ -104,7 +104,7 @@ import RbacResourcePermissions from './RbacResourcePermissions.vue';
 
 // Props and emits
 interface Props {
-  userId: string;
+  userId: number;
 }
 
 const props = defineProps<Props>();
@@ -121,6 +121,7 @@ const authStore = useAuthStore();
 const loading = ref(true);
 const error = ref<string>('');
 const rbacResources = ref<string[]>([]);
+const activeTab = ref<string>('0');
 
 // Computed properties
 const selectedUsername = computed(() => {
