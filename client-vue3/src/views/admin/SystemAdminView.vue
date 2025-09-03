@@ -5,7 +5,7 @@
         <div class="col">
           <h1>DigiScript System Administration</h1>
 
-          <TabView value="0">
+          <Tabs v-model:value="activeTab">
             <TabList>
               <Tab value="0">System</Tab>
               <Tab value="1">Settings</Tab>
@@ -92,18 +92,10 @@
               </TabPanel>
 
               <TabPanel value="2">
-                <Card>
-                  <template #content>
-                    <div class="text-center py-4">
-                      <p class="text-muted">
-                        User management functionality will be implemented in Phase 4.
-                      </p>
-                    </div>
-                  </template>
-                </Card>
+                <UserManagementView />
               </TabPanel>
             </TabPanels>
-          </TabView>
+          </Tabs>
         </div>
       </div>
     </div>
@@ -141,8 +133,8 @@ import CreateShowModal from '@/components/admin/CreateShowModal.vue';
 import LoadShowModal from '@/components/admin/LoadShowModal.vue';
 import ConnectedClientsModal from '@/components/admin/ConnectedClientsModal.vue';
 
-// PrimeVue Components
-import TabView from 'primevue/tabview';
+// PrimeVue Components  
+import Tabs from 'primevue/tabs';
 import TabList from 'primevue/tablist';
 import Tab from 'primevue/tab';
 import TabPanels from 'primevue/tabpanels';
@@ -151,6 +143,7 @@ import Card from 'primevue/card';
 import Button from 'primevue/button';
 import Divider from 'primevue/divider';
 import SystemSettingsView from './SystemSettingsView.vue';
+import UserManagementView from './UserManagementView.vue';
 
 const router = useRouter();
 const toast = useToast();
@@ -159,6 +152,7 @@ const showsStore = useShowsStore();
 const authStore = useAuthStore();
 
 // State
+const activeTab = ref('0');
 const showCreateModal = ref(false);
 const showLoadModal = ref(false);
 const showClientsModal = ref(false);
@@ -271,40 +265,81 @@ onUnmounted(() => {
 
 /* Dark theme refinements to match Vue 2 exactly */
 
-/* Make tabs look like Vue 2 - simple dark background spanning full width */
-:deep(.p-tablist) {
+/* TabView container styling - force visibility */
+:deep(.p-tabview) {
   background-color: #343a40 !important;
-  border-bottom: 1px solid #495057 !important;
+  width: 100% !important;
+  border: 1px solid #495057 !important;
+}
+
+/* Make tabs look like Vue 2 - simple dark background spanning full width */
+:deep(.p-tabview-nav) {
+  background-color: #495057 !important;
+  border-bottom: 1px solid #6c757d !important;
   padding: 0 !important;
   width: 100% !important;
   display: flex !important;
+  margin: 0 !important;
+  min-height: 50px !important;
 }
 
-:deep(.p-tab) {
+:deep(.p-tabview-nav-link) {
   background-color: #495057 !important;
   border-right: 1px solid #6c757d !important;
   border-top: 1px solid #6c757d !important;
   border-left: 1px solid #6c757d !important;
+  border-bottom: none !important;
   margin-right: 2px !important;
-  flex: 1 !important;
   color: #adb5bd !important;
   padding: 0.75rem 1rem !important;
   cursor: pointer !important;
+  border-radius: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 50px !important;
+  font-weight: bold !important;
+  text-decoration: none !important;
 }
 
-:deep(.p-tab:last-child) {
+:deep(.p-tabview-nav-link:first-child) {
+  margin-left: 0 !important;
+}
+
+:deep(.p-tabview-nav-link:last-child) {
   border-right: 1px solid #6c757d !important;
+  margin-right: 0 !important;
 }
 
-:deep(.p-tab[data-p-active="true"]) {
+:deep(.p-tabview-nav-link.p-highlight) {
   background-color: #343a40 !important;
   border-bottom: 1px solid #343a40 !important;
   color: white !important;
+  z-index: 1 !important;
+  position: relative !important;
 }
 
-:deep(.p-tab[data-p-disabled="true"]) {
+:deep(.p-tabview-nav-link.p-disabled) {
   color: #6c757d !important;
   cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+/* Tab panels - make sure they are visible */
+:deep(.p-tabview-panels) {
+  background-color: #343a40 !important;
+  border: 1px solid #495057 !important;
+  border-top: none !important;
+  padding: 1rem !important;
+  min-height: 400px !important;
+  display: block !important;
+}
+
+:deep(.p-tabview-panel) {
+  background-color: transparent !important;
+  color: white !important;
+  padding: 0 !important;
+  display: block !important;
 }
 
 /* Ensure cards blend with background */
