@@ -10,8 +10,7 @@ import { z } from 'zod';
 export const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 /**
- * Strong password validation regex
- * Requires at least 8 characters with at least one uppercase, lowercase, number, and special character
+ * Strong password validation regex - at least 8 chars with uppercase, lowercase, number, special
  */
 export const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
@@ -111,7 +110,7 @@ export const commonSchemas = {
 /**
  * Create a confirm password field that validates against a password field
  */
-export function createConfirmPasswordField(passwordFieldName = 'password', message = 'Passwords do not match') {
+export function createConfirmPasswordField() {
   return z.string()
     .min(1, 'Please confirm your password');
 }
@@ -125,7 +124,10 @@ export function addPasswordConfirmation<T extends z.ZodRawShape>(
   confirmField = 'confirmPassword',
   message = 'Passwords do not match',
 ) {
-  return schema.refine((data) => data[passwordField] === data[confirmField], {
+  return schema.refine((data) => {
+    const record = data as Record<string, unknown>;
+    return record[passwordField] === record[confirmField];
+  }, {
     message,
     path: [confirmField],
   });
@@ -141,8 +143,9 @@ export function createDateRangeValidation<T extends z.ZodRawShape>(
   message = 'Start date must be before or equal to end date',
 ) {
   return schema.refine((data) => {
-    const startDate = new Date(data[startDateField] as string);
-    const endDate = new Date(data[endDateField] as string);
+    const record = data as Record<string, unknown>;
+    const startDate = new Date(record[startDateField] as string);
+    const endDate = new Date(record[endDateField] as string);
     return startDate <= endDate;
   }, {
     message,
@@ -156,7 +159,7 @@ export function createDateRangeValidation<T extends z.ZodRawShape>(
 export function formatValidationError(error: z.ZodError): Record<string, string> {
   const formattedErrors: Record<string, string> = {};
 
-  error.errors.forEach((err) => {
+  error.issues.forEach((err) => {
     const path = err.path.join('.');
     if (!formattedErrors[path]) {
       formattedErrors[path] = err.message;

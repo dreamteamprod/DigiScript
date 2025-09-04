@@ -33,7 +33,7 @@ export interface SelectField extends BaseFormField {
   type: 'select' | 'multiselect';
   options: Array<{
     label: string;
-    value: any;
+    value: string | number;
     disabled?: boolean;
   }>;
   placeholder?: string;
@@ -89,7 +89,7 @@ export interface ValidationResult {
 /**
  * API response structure for form submissions
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -100,15 +100,17 @@ export interface ApiResponse<T = any> {
 /**
  * Form submission handler function type
  */
-export type FormSubmitHandler<T = any> = (
-  data: T
-) => Promise<ApiResponse<any>>;
+export type FormSubmitHandler<T = unknown> = (
+  _formData: T
+) => Promise<ApiResponse<unknown>>;
 
 /**
  * Enhanced form submit event with additional utilities
  */
-export interface EnhancedFormSubmitEvent<T = Record<string, any>> extends FormSubmitEvent {
+export interface EnhancedFormSubmitEvent<T = Record<string, unknown>> {
   values: T;
+  valid: boolean;
+  reset: () => void;
 }
 
 /**
@@ -116,7 +118,7 @@ export interface EnhancedFormSubmitEvent<T = Record<string, any>> extends FormSu
  */
 export interface DynamicFormConfig {
   fields: FormFieldConfig[];
-  validationRules?: Record<string, any>;
+  validationRules?: Record<string, unknown>;
   submitEndpoint?: string;
   resetOnSubmit?: boolean;
   showResetButton?: boolean;
@@ -130,27 +132,15 @@ export interface FormState {
   isDirty: boolean;
   isValid: boolean;
   errors: Record<string, string>;
-  values: Record<string, any>;
-}
-
-/**
- * Form action types
- */
-export enum FormActionType {
-  SUBMIT = 'submit',
-  RESET = 'reset',
-  VALIDATE = 'validate',
-  SET_FIELD_VALUE = 'setFieldValue',
-  SET_FIELD_ERROR = 'setFieldError',
-  CLEAR_ERRORS = 'clearErrors',
+  values: Record<string, unknown>;
 }
 
 /**
  * Form action payload
  */
 export interface FormAction {
-  type: FormActionType;
-  payload?: any;
+  type: string;
+  payload?: unknown;
 }
 
 /**
@@ -187,15 +177,15 @@ export interface ToastConfig {
  * Form utilities type
  */
 export interface FormUtils {
-  showSuccess: (message: string, summary?: string) => void;
-  showError: (message: string, summary?: string) => void;
-  showWarning: (message: string, summary?: string) => void;
-  showInfo: (message: string, summary?: string) => void;
-  validateForm: (form: any) => boolean;
+  showSuccess: (_msg: string, _sum?: string) => void;
+  showError: (_msg: string, _sum?: string) => void;
+  showWarning: (_msg: string, _sum?: string) => void;
+  showInfo: (_msg: string, _sum?: string) => void;
+  validateForm: (_frm: { valid: boolean }) => boolean;
   handleFormSubmit: <T>(
-    event: FormSubmitEvent,
-    submitFn: FormSubmitHandler<T>,
-    options?: {
+    _evt: FormSubmitEvent,
+    _fn: FormSubmitHandler<T>,
+    _opts?: {
       successMessage?: string;
       errorMessage?: string;
       resetOnSuccess?: boolean;

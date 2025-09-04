@@ -96,7 +96,7 @@
             type="button"
             :loading="isSubmitting && saveAndLoad"
             :disabled="!$form.valid || isSubmitting"
-@click="() => handleFormSubmit($form as any, true)"
+@click="() => handleFormSubmit($form, true)"
           />
           <Button
             label="Save"
@@ -231,7 +231,11 @@ async function handleSubmit(event: FormSubmitEvent): Promise<void> {
   }
 }
 
-async function handleFormSubmit(form: any, loadAfterCreate: boolean) {
+async function handleFormSubmit(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  form: any,
+  loadAfterCreate: boolean,
+) {
   if (!form.valid) {
     toast.add({
       severity: 'error',

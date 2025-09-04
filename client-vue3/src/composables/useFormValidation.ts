@@ -1,4 +1,4 @@
-import { ref, computed, type Ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import type { FormSubmitEvent } from '@primevue/forms/form';
 
@@ -12,9 +12,9 @@ export function useFormValidation() {
   /**
    * Handles form submission with common error handling
    */
-  async function handleFormSubmit<T = any>(
+  async function handleFormSubmit<T = unknown>(
     event: FormSubmitEvent,
-    submitFn: (data: T) => Promise<{ success: boolean; error?: string; message?: string }>,
+    submitFn: (_formData: T) => Promise<{ success: boolean; error?: string; message?: string }>,
     options?: {
       successMessage?: string;
       errorMessage?: string;
@@ -76,7 +76,7 @@ export function useFormValidation() {
   /**
    * Validates form and shows appropriate error messages
    */
-  function validateForm(form: any): boolean {
+  function validateForm(form: { valid: boolean }): boolean {
     if (!form.valid) {
       toast.add({
         severity: 'error',
