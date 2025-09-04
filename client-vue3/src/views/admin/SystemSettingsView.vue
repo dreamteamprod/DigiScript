@@ -13,7 +13,14 @@
             <ProgressSpinner />
           </div>
 
-          <form v-else @submit.prevent="handleSubmit" @reset.prevent="resetForm">
+          <Form
+            v-else
+            v-slot="$form"
+            :initialValues="initialValues"
+            :resolver="resolver || undefined"
+            @submit="handleSubmit"
+            class="system-settings-form"
+          >
             <div v-for="(setting, key) in settingsStore.rawSettings" :key="key" class="mb-4">
               <div class="field">
                 <label :for="`${key}-input`" class="font-bold">
@@ -37,50 +44,52 @@
                 <InputText
                   v-if="setting.type !== 'bool'"
                   :id="`${key}-input`"
-                  :model-value="String(settingsStore.settingsForm[key] || '')"
+                  :name="key"
                   :type="getInputType(setting.type)"
                   :readonly="!setting.can_edit"
-                  :class="{ 'p-invalid': validationErrors[key] }"
+                  :class="{ 'p-invalid': $form[key]?.invalid }"
                   class="w-full"
-                  @update:model-value="
-                    (value: string | undefined) => settingsStore.settingsForm[key] = value || ''
-                  "
+                  :disabled="isSubmitting"
+                  fluid
                 />
 
                 <!-- Boolean Switch -->
                 <ToggleSwitch
                   v-else
                   :id="`${key}-input`"
-                  :model-value="Boolean(settingsStore.settingsForm[key])"
-                  :disabled="!setting.can_edit"
-                  @update:model-value="
-                    (value: boolean) => settingsStore.settingsForm[key] = value
-                  "
+                  :name="key"
+                  :disabled="!setting.can_edit || isSubmitting"
                 />
 
                 <!-- Validation Error -->
-                <small v-if="validationErrors[key]" class="p-error">
-                  {{ validationErrors[key] }}
-                </small>
+                <Message
+                  v-if="$form[key]?.invalid"
+                  severity="error"
+                  size="small"
+                  variant="simple"
+                >
+                  {{ $form[key].error?.message }}
+                </Message>
               </div>
             </div>
 
             <div class="d-flex justify-content-end gap-2 mt-4">
               <Button
-                type="reset"
+                type="button"
                 label="Reset"
                 severity="secondary"
                 outlined
-                :disabled="settingsStore.isSubmittingSettings"
+                :disabled="isSubmitting"
+                @click="$form.reset()"
               />
               <Button
                 type="submit"
                 label="Save Settings"
-                :loading="settingsStore.isSubmittingSettings"
-                :disabled="settingsStore.isSubmittingSettings"
+                :loading="isSubmitting"
+                :disabled="!$form.valid || isSubmitting"
               />
             </div>
-          </form>
+          </Form>
         </div>
       </div>
     </div>
@@ -95,11 +104,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import {
+  ref, onMounted, computed, watch,
+} from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useSettingsStore } from '@/stores/settings';
 import { useAuthStore } from '@/stores/auth';
+import { zodResolver } from '@primevue/forms/resolvers/zod';
 
 // PrimeVue Components
 import Button from 'primevue/button';
@@ -107,6 +119,17 @@ import InputText from 'primevue/inputtext';
 import ToggleSwitch from 'primevue/toggleswitch';
 import ProgressSpinner from 'primevue/progressspinner';
 import OverlayPanel from 'primevue/overlaypanel';
+import Form from '@primevue/forms/form';
+import type { FormSubmitEvent } from '@primevue/forms/form';
+import Message from 'primevue/message';
+
+// Validation schema
+import {
+  createSystemSettingsSchema,
+  createSystemSettingsDefaults,
+  getInputType,
+  type SystemSettingsFormData,
+} from '@/schemas/systemSettingsValidation';
 
 const router = useRouter();
 const toast = useToast();
@@ -115,77 +138,67 @@ const authStore = useAuthStore();
 
 // State
 const loaded = ref(false);
-const validationErrors = ref<Record<string, string>>({});
 const helpOverlay = ref();
 const currentHelpText = ref('');
+const isSubmitting = ref(false);
+
+// Dynamic form configuration based on settings
+const initialValues = ref<SystemSettingsFormData>({});
+const resolver = ref<ReturnType<typeof zodResolver> | undefined>(undefined);
 
 // Computed
 const isAdmin = computed(() => authStore.currentUser?.is_admin === true);
 
-// Methods
-function getInputType(fieldType: string): string {
-  const mapping: Record<string, string> = {
-    int: 'number',
-    str: 'text',
-  };
-  return mapping[fieldType] || 'text';
-}
-
-function validateForm(): boolean {
-  validationErrors.value = {};
-  let isValid = true;
-
-  Object.keys(settingsStore.rawSettings).forEach((key) => {
-    const setting = settingsStore.rawSettings[key];
-    const value = settingsStore.settingsForm[key];
-
-    if (setting.type === 'int') {
-      if (value === null || value === undefined || value === '') {
-        validationErrors.value[key] = 'This field is required.';
-        isValid = false;
-      } else if (Number.isNaN(Number(value))) {
-        validationErrors.value[key] = 'This field must be a valid number.';
-        isValid = false;
-      }
+// Watch for changes in rawSettings to update form configuration
+watch(
+  () => settingsStore.rawSettings,
+  (newRawSettings) => {
+    if (Object.keys(newRawSettings).length > 0) {
+      initialValues.value = createSystemSettingsDefaults(newRawSettings);
+      resolver.value = zodResolver(createSystemSettingsSchema(newRawSettings));
     }
-  });
+  },
+  { immediate: true, deep: true },
+);
 
-  return isValid;
-}
-
-async function handleSubmit() {
-  if (!validateForm()) {
-    toast.add({
-      severity: 'error',
-      summary: 'Validation Error',
-      detail: 'Please correct the errors in the form.',
-      life: 3000,
-    });
+// Methods
+async function handleSubmit(event: FormSubmitEvent): Promise<void> {
+  if (!event.valid) {
     return;
   }
 
-  const result = await settingsStore.updateSystemSettings(settingsStore.settingsForm);
+  const formData = event.values as SystemSettingsFormData;
+  isSubmitting.value = true;
 
-  if (result.success) {
-    toast.add({
-      severity: 'success',
-      summary: 'Success',
-      detail: 'Settings saved successfully',
-      life: 3000,
-    });
-  } else {
+  try {
+    const result = await settingsStore.updateSystemSettings(formData);
+
+    if (result.success) {
+      toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: 'Settings saved successfully',
+        life: 3000,
+      });
+    } else {
+      toast.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: result.error || 'Unable to save settings',
+        life: 5000,
+      });
+    }
+  } catch (error) {
+    console.error('Error saving settings:', error);
     toast.add({
       severity: 'error',
       summary: 'Error',
-      detail: result.error || 'Unable to save settings',
+      detail: 'An unexpected error occurred while saving settings',
       life: 5000,
     });
+  } finally {
+    isSubmitting.value = false;
   }
-}
-
-function resetForm() {
-  settingsStore.resetSettingsForm();
-  validationErrors.value = {};
 }
 
 function showHelpTooltip(event: Event, helpText: string) {
@@ -230,6 +243,10 @@ onMounted(async () => {
   /* Remove min-height: 100vh as this is inside a tab panel */
 }
 
+.system-settings-form {
+  padding: 0;
+}
+
 .field {
   margin-bottom: 1.5rem;
 }
@@ -239,17 +256,6 @@ onMounted(async () => {
   margin-bottom: 0.5rem;
   color: white;
   font-weight: bold;
-}
-
-.p-invalid {
-  border-color: #dc3545;
-}
-
-.p-error {
-  color: #dc3545;
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
-  display: block;
 }
 
 /* Force dark theme on all input components */
@@ -360,4 +366,10 @@ h1 {
   background-color: #495057 !important;
   color: white !important;
 }
+
+/* Error styling */
+:deep(.p-invalid) {
+  border-color: var(--red-500) !important;
+}
+
 </style>

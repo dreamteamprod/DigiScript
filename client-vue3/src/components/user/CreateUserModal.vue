@@ -1,18 +1,31 @@
 <template>
-  <div class="create-user-form">
+  <Form
+    v-slot="$form"
+    :initialValues="initialValues"
+    :resolver="resolver"
+    @submit="handleSubmit"
+    class="create-user-form"
+  >
     <!-- Username Field -->
     <div class="field">
       <label for="username" class="block text-900 font-medium mb-2">Username</label>
       <InputText
         id="username"
-        v-model="form.username"
+        name="username"
         placeholder="Enter username"
         class="w-full"
-        :class="{ 'p-invalid': errors.username }"
+        :class="{ 'p-invalid': $form.username?.invalid }"
         :disabled="isSubmitting"
-        @blur="validateField('username')"
+        fluid
       />
-      <small v-if="errors.username" class="p-error">{{ errors.username }}</small>
+      <Message
+        v-if="$form.username?.invalid"
+        severity="error"
+        size="small"
+        variant="simple"
+      >
+        {{ $form.username.error?.message }}
+      </Message>
     </div>
 
     <!-- Password Field -->
@@ -20,16 +33,23 @@
       <label for="password" class="block text-900 font-medium mb-2">Password</label>
       <Password
         id="password"
-        v-model="form.password"
+        name="password"
         placeholder="Enter password"
         class="w-full"
-        :class="{ 'p-invalid': errors.password }"
+        :class="{ 'p-invalid': $form.password?.invalid }"
         :disabled="isSubmitting"
         :feedback="false"
         toggle-mask
-        @blur="validateField('password')"
+        fluid
       />
-      <small v-if="errors.password" class="p-error">{{ errors.password }}</small>
+      <Message
+        v-if="$form.password?.invalid"
+        severity="error"
+        size="small"
+        variant="simple"
+      >
+        {{ $form.password.error?.message }}
+      </Message>
     </div>
 
     <!-- Confirm Password Field -->
@@ -37,23 +57,30 @@
       <label for="confirmPassword" class="block text-900 font-medium mb-2">Confirm Password</label>
       <Password
         id="confirmPassword"
-        v-model="form.confirmPassword"
+        name="confirmPassword"
         placeholder="Confirm password"
         class="w-full"
-        :class="{ 'p-invalid': errors.confirmPassword }"
+        :class="{ 'p-invalid': $form.confirmPassword?.invalid }"
         :disabled="isSubmitting"
         :feedback="false"
         toggle-mask
-        @blur="validateField('confirmPassword')"
+        fluid
       />
-      <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
+      <Message
+        v-if="$form.confirmPassword?.invalid"
+        severity="error"
+        size="small"
+        variant="simple"
+      >
+        {{ $form.confirmPassword.error?.message }}
+      </Message>
     </div>
 
     <!-- Admin Checkbox -->
     <div class="field-checkbox">
       <Checkbox
         id="isAdmin"
-        v-model="form.isAdmin"
+        name="isAdmin"
         binary
         :disabled="isSubmitting"
       />
@@ -66,6 +93,7 @@
         label="Cancel"
         icon="pi pi-times"
         class="p-button-secondary"
+        type="button"
         :disabled="isSubmitting"
         @click="handleCancel"
       />
@@ -73,24 +101,31 @@
         label="Create User"
         icon="pi pi-check"
         class="p-button-success"
-        :disabled="!isFormValid || isSubmitting"
+        type="submit"
+        :disabled="!$form.valid || isSubmitting"
         :loading="isSubmitting"
-        @click="handleSubmit"
       />
     </div>
-  </div>
+  </Form>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useAuthStore } from '@/stores/auth';
+import { zodResolver } from '@primevue/forms/resolvers/zod';
 
 // PrimeVue components
+import Form from '@primevue/forms/form';
+import type { FormSubmitEvent } from '@primevue/forms/form';
 import InputText from 'primevue/inputtext';
 import Password from 'primevue/password';
 import Checkbox from 'primevue/checkbox';
 import Button from 'primevue/button';
+import Message from 'primevue/message';
+
+// Validation schema
+import { createUserSchema, createUserDefaults, type CreateUserFormData } from '@/schemas/userValidation';
 
 // Props and emits
 const emit = defineEmits<{
@@ -102,109 +137,31 @@ const emit = defineEmits<{
 const toast = useToast();
 const authStore = useAuthStore();
 
-// Form state
-const form = reactive({
-  username: '',
-  password: '',
-  confirmPassword: '',
-  isAdmin: false,
-});
-
-// Validation state
-const errors = reactive({
-  username: '',
-  password: '',
-  confirmPassword: '',
-});
+// Form configuration
+const initialValues = createUserDefaults;
+const resolver = zodResolver(createUserSchema);
 
 // UI state
 const isSubmitting = ref(false);
 
-// Form validation
-const isFormValid = computed(() => (
-  form.username.length > 0
-    && form.password.length >= 6
-    && form.confirmPassword === form.password
-    && !errors.username
-    && !errors.password
-    && !errors.confirmPassword
-));
-
-// Validation functions
-function validateField(field: keyof typeof errors): void {
-  errors[field] = '';
-
-  switch (field) {
-    case 'username':
-      if (!form.username.trim()) {
-        errors.username = 'Username is required';
-      } else if (form.username.trim().length < 3) {
-        errors.username = 'Username must be at least 3 characters';
-      }
-      break;
-
-    case 'password':
-      if (!form.password) {
-        errors.password = 'Password is required';
-      } else if (form.password.length < 6) {
-        errors.password = 'Password must be at least 6 characters';
-      }
-      // Also validate confirm password if it has been entered
-      if (form.confirmPassword) {
-        validateField('confirmPassword');
-      }
-      break;
-
-    case 'confirmPassword':
-      if (!form.confirmPassword) {
-        errors.confirmPassword = 'Please confirm your password';
-      } else if (form.confirmPassword !== form.password) {
-        errors.confirmPassword = 'Passwords do not match';
-      }
-      break;
-
-    default:
-      // No validation needed for unknown fields
-      break;
-  }
-}
-
-function resetForm(): void {
-  form.username = '';
-  form.password = '';
-  form.confirmPassword = '';
-  form.isAdmin = false;
-  errors.username = '';
-  errors.password = '';
-  errors.confirmPassword = '';
-}
-
-function validateForm(): boolean {
-  validateField('username');
-  validateField('password');
-  validateField('confirmPassword');
-
-  return isFormValid.value;
-}
-
 // Event handlers
 function handleCancel(): void {
-  resetForm();
   emit('cancel');
 }
 
-async function handleSubmit(): Promise<void> {
-  if (!validateForm()) {
+async function handleSubmit(event: FormSubmitEvent): Promise<void> {
+  if (!event.valid) {
     return;
   }
 
+  const formData = event.values as CreateUserFormData;
   isSubmitting.value = true;
 
   try {
     const result = await authStore.createUser({
-      username: form.username.trim(),
-      password: form.password,
-      is_admin: form.isAdmin,
+      username: formData.username.trim(),
+      password: formData.password,
+      is_admin: formData.isAdmin,
     });
 
     if (result.success) {
@@ -214,7 +171,8 @@ async function handleSubmit(): Promise<void> {
         detail: result.message,
         life: 3000,
       });
-      resetForm();
+      // Reset form using the provided reset function
+      event.reset();
       emit('user-created');
     } else {
       toast.add({
@@ -284,12 +242,6 @@ async function handleSubmit(): Promise<void> {
 /* Error styling */
 :deep(.p-invalid) {
   border-color: var(--red-500) !important;
-}
-
-.p-error {
-  color: var(--red-500);
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
 }
 
 /* Button styling */
