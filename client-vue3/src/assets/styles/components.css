@@ -1,0 +1,459 @@
+/* DigiScript Components - Reusable Component Styles */
+
+/* =============================================================================
+   Form Field Wrapper Styles
+   ============================================================================= */
+
+.ds-form-field {
+  margin-bottom: 1rem;
+}
+
+.ds-form-field-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--ds-text-primary);
+}
+
+.ds-form-field-label.required::after {
+  content: ' *';
+  color: var(--ds-danger);
+}
+
+.ds-form-field-help {
+  font-size: 0.875rem;
+  color: var(--ds-text-muted);
+  margin-top: 0.25rem;
+}
+
+.ds-form-field-error {
+  font-size: 0.875rem;
+  color: var(--ds-danger);
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ds-form-field-error::before {
+  content: '⚠️';
+}
+
+/* Form Field Input Variants */
+.ds-form-field-input {
+  width: 100%;
+}
+
+.ds-form-field-input.error {
+  border-color: var(--ds-danger) !important;
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+}
+
+/* =============================================================================
+   Button Variants & Patterns
+   ============================================================================= */
+
+/* Button Group Patterns */
+.ds-button-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ds-button-group-right {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Custom Button Variants */
+.ds-btn-icon-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ds-btn-loading {
+  position: relative;
+}
+
+.ds-btn-loading::before {
+  content: '';
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* =============================================================================
+   Tab System Patterns
+   ============================================================================= */
+
+/* Tab Content Sections */
+.ds-tab-section {
+  margin-bottom: 2rem;
+}
+
+.ds-tab-section:last-child {
+  margin-bottom: 0;
+}
+
+.ds-tab-section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--ds-text-primary);
+  border-bottom: 1px solid var(--ds-border-primary);
+  padding-bottom: 0.5rem;
+}
+
+/* Tab Panel Content */
+.ds-tab-content {
+  padding: 1.5rem 0;
+}
+
+/* =============================================================================
+   Layout Patterns
+   ============================================================================= */
+
+/* System Overview Sections */
+.ds-system-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: var(--ds-bg-secondary);
+  border-radius: 0.375rem;
+  border: 1px solid var(--ds-border-primary);
+}
+
+.ds-system-section:last-child {
+  margin-bottom: 0;
+}
+
+.ds-system-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--ds-border-primary);
+}
+
+.ds-system-section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  margin: 0;
+}
+
+.ds-system-section-content {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Info Grid Pattern */
+.ds-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--ds-border-primary);
+}
+
+.ds-info-grid:last-child {
+  border-bottom: none;
+}
+
+.ds-info-grid-label {
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  min-width: 120px;
+}
+
+.ds-info-grid-value {
+  color: var(--ds-text-primary);
+  flex: 1;
+}
+
+.ds-info-grid-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* Status Indicators */
+.ds-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.ds-status-indicator.success {
+  background-color: rgba(40, 167, 69, 0.2);
+  color: var(--ds-success);
+  border: 1px solid var(--ds-success);
+}
+
+.ds-status-indicator.warning {
+  background-color: rgba(255, 193, 7, 0.2);
+  color: var(--ds-warning);
+  border: 1px solid var(--ds-warning);
+}
+
+.ds-status-indicator.danger {
+  background-color: rgba(220, 53, 69, 0.2);
+  color: var(--ds-danger);
+  border: 1px solid var(--ds-danger);
+}
+
+.ds-status-indicator.info {
+  background-color: rgba(23, 162, 184, 0.2);
+  color: var(--ds-info);
+  border: 1px solid var(--ds-info);
+}
+
+.ds-status-indicator::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+/* =============================================================================
+   Data Display Patterns
+   ============================================================================= */
+
+/* Statistics Cards */
+.ds-stat-card {
+  background-color: var(--ds-bg-secondary);
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 0.375rem;
+  padding: 1.5rem;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.ds-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ds-shadow-md);
+}
+
+.ds-stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ds-primary);
+  display: block;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.ds-stat-label {
+  font-size: 0.875rem;
+  color: var(--ds-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+/* List Groups */
+.ds-list-group {
+  background-color: var(--ds-bg-secondary);
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.ds-list-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--ds-border-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--ds-bg-secondary);
+  color: var(--ds-text-primary);
+  transition: background-color 0.15s ease;
+}
+
+.ds-list-item:hover {
+  background-color: var(--ds-hover-bg);
+}
+
+.ds-list-item:last-child {
+  border-bottom: none;
+}
+
+.ds-list-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.ds-list-item-title {
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.ds-list-item-subtitle {
+  font-size: 0.875rem;
+  color: var(--ds-text-muted);
+}
+
+.ds-list-item-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* =============================================================================
+   Modal & Dialog Patterns
+   ============================================================================= */
+
+/* Modal Header Patterns */
+.ds-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--ds-border-primary);
+}
+
+.ds-modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  margin: 0;
+}
+
+/* Modal Content Sections */
+.ds-modal-section {
+  margin-bottom: 1.5rem;
+}
+
+.ds-modal-section:last-child {
+  margin-bottom: 0;
+}
+
+.ds-modal-section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--ds-border-primary);
+}
+
+/* Modal Footer */
+.ds-modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--ds-border-primary);
+}
+
+.ds-modal-footer.left {
+  justify-content: flex-start;
+}
+
+.ds-modal-footer.center {
+  justify-content: center;
+}
+
+.ds-modal-footer.between {
+  justify-content: space-between;
+}
+
+/* =============================================================================
+   Loading & Empty States
+   ============================================================================= */
+
+.ds-loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.ds-loading-spinner::before {
+  content: '';
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--ds-border-primary);
+  border-top: 3px solid var(--ds-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.ds-empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--ds-text-muted);
+}
+
+.ds-empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.ds-empty-state-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ds-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.ds-empty-state-description {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  max-width: 400px;
+  margin: 0 auto 1.5rem;
+}
+
+/* =============================================================================
+   Responsive Utilities
+   ============================================================================= */
+
+/* Mobile-first responsive patterns */
+@media (max-width: 768px) {
+  .ds-button-group,
+  .ds-button-group-right {
+    flex-direction: column;
+  }
+  
+  .ds-info-grid {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .ds-info-grid-actions {
+    justify-content: flex-start;
+  }
+  
+  .ds-modal-footer {
+    flex-direction: column-reverse;
+  }
+  
+  .ds-modal-footer.between {
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+  }
+}

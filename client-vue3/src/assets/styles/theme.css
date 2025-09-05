@@ -1,0 +1,357 @@
+/* DigiScript Theme - Centralized CSS Variables and PrimeVue Overrides */
+
+/* =============================================================================
+   DigiScript Brand Colors & Theme Variables
+   ============================================================================= */
+
+:root {
+  /* DigiScript Brand Colors */
+  --ds-primary: #3498da;      /* DigiScript blue - primary brand color */
+  --ds-primary-hover: #2980b9; /* Darker blue for hover states */
+  
+  /* Dark Theme Base Colors */
+  --ds-bg-primary: #343a40;    /* Main background */
+  --ds-bg-secondary: #495057;  /* Secondary background (cards, panels) */
+  --ds-bg-tertiary: #6c757d;   /* Tertiary background */
+  
+  /* Text Colors */
+  --ds-text-primary: #ffffff;  /* Primary text */
+  --ds-text-secondary: #adb5bd; /* Secondary/muted text */
+  --ds-text-muted: #6c757d;    /* Muted text */
+  
+  /* Border Colors */
+  --ds-border-primary: #495057; /* Primary borders */
+  --ds-border-secondary: #6c757d; /* Secondary borders */
+  
+  /* Status Colors */
+  --ds-success: #28a745;       /* Success green */
+  --ds-success-hover: #218838; /* Success hover */
+  --ds-info: #17a2b8;          /* Info cyan */
+  --ds-info-hover: #138496;    /* Info hover */
+  --ds-warning: #ffc107;       /* Warning yellow */
+  --ds-warning-hover: #e0a800; /* Warning hover */
+  --ds-danger: #dc3545;        /* Danger red */
+  --ds-danger-hover: #c82333;  /* Danger hover */
+  --ds-orange: #ea580c;        /* Orange accent */
+  
+  /* Interactive Elements */
+  --ds-hover-bg: #495057;      /* Generic hover background */
+  --ds-active-bg: #6c757d;     /* Active state background */
+  --ds-focus-ring: rgba(52, 152, 218, 0.25); /* Focus ring color */
+  
+  /* Form Elements */
+  --ds-input-bg: #495057;      /* Input background */
+  --ds-input-border: #6c757d;  /* Input border */
+  --ds-input-focus-border: var(--ds-primary); /* Input focus border */
+  
+  /* Shadows */
+  --ds-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
+  --ds-shadow-md: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+  --ds-shadow-lg: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+}
+
+/* =============================================================================
+   PrimeVue Dark Theme Variable Overrides
+   ============================================================================= */
+
+html.p-dark {
+  /* Global theme override */
+  --p-primary-color: var(--ds-primary);
+  --p-primary-contrast-color: var(--ds-text-primary);
+  
+  /* Surface colors */
+  --p-surface-0: var(--ds-bg-primary);
+  --p-surface-50: var(--ds-bg-secondary);
+  --p-surface-100: var(--ds-bg-secondary);
+  --p-surface-200: var(--ds-bg-tertiary);
+  --p-surface-300: var(--ds-bg-tertiary);
+  --p-surface-400: #5a6268;
+  --p-surface-500: var(--ds-bg-tertiary);
+  --p-surface-600: var(--ds-bg-secondary);
+  --p-surface-700: var(--ds-bg-primary);
+  --p-surface-800: #212529;
+  --p-surface-900: #1a1e21;
+  
+  /* Text colors */
+  --p-text-color: var(--ds-text-primary);
+  --p-text-muted-color: var(--ds-text-secondary);
+  --p-text-hover-color: var(--ds-text-primary);
+  
+  /* Border colors */
+  --p-content-border-color: var(--ds-border-primary);
+  --p-border-color: var(--ds-border-secondary);
+  
+  /* Background and overlay */
+  background-color: var(--ds-bg-primary) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+html.p-dark body {
+  background-color: var(--ds-bg-primary) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+/* =============================================================================
+   PrimeVue Component Overrides - Tab System
+   ============================================================================= */
+
+/* Tab View Styling - Consistent across all admin pages */
+.p-dark .p-tabview {
+  background-color: var(--ds-bg-primary) !important;
+  border-radius: 0;
+  border: 1px solid var(--ds-border-primary) !important;
+}
+
+.p-dark .p-tabview-nav {
+  background-color: var(--ds-bg-secondary) !important;
+  border-bottom: 1px solid var(--ds-border-secondary) !important;
+  border-radius: 0;
+  padding: 0;
+}
+
+.p-dark .p-tabview-nav-link {
+  background-color: var(--ds-bg-secondary) !important;
+  border-right: 1px solid var(--ds-border-secondary) !important;
+  border-top: 1px solid var(--ds-border-secondary) !important;
+  border-left: 1px solid var(--ds-border-secondary) !important;
+  border-bottom: none !important;
+  color: var(--ds-text-secondary) !important;
+  border-radius: 0;
+  padding: 0.75rem 1rem;
+  transition: all 0.2s ease;
+}
+
+.p-dark .p-tabview-nav-link:first-child {
+  border-left: none !important;
+}
+
+.p-dark .p-tabview-nav-link:last-child {
+  border-right: 1px solid var(--ds-border-secondary) !important;
+}
+
+.p-dark .p-tabview-nav-link.p-highlight {
+  background-color: var(--ds-bg-primary) !important;
+  border-bottom: 1px solid var(--ds-bg-primary) !important;
+  color: var(--ds-text-primary) !important;
+  font-weight: 600;
+}
+
+.p-dark .p-tabview-nav-link.p-disabled {
+  color: var(--ds-border-secondary) !important;
+  opacity: 0.6;
+}
+
+.p-dark .p-tabview-panels {
+  background-color: var(--ds-bg-primary) !important;
+  padding: 1rem;
+  border-radius: 0;
+  border: none;
+}
+
+.p-dark .p-tabview-panel {
+  padding: 0;
+}
+
+/* =============================================================================
+   PrimeVue Component Overrides - Cards & Containers
+   ============================================================================= */
+
+.p-dark .p-card {
+  background-color: var(--ds-bg-primary) !important;
+  border: 1px solid var(--ds-border-primary) !important;
+  border-radius: 0.375rem;
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.p-dark .p-card .p-card-content {
+  padding: 1.25rem;
+}
+
+/* =============================================================================
+   PrimeVue Component Overrides - Buttons
+   ============================================================================= */
+
+/* Success Button Variants */
+.p-dark .p-button.p-button-success.p-button-outlined {
+  border-color: var(--ds-success) !important;
+  color: var(--ds-success) !important;
+  background-color: transparent !important;
+}
+
+.p-dark .p-button.p-button-success.p-button-outlined:hover {
+  background-color: var(--ds-success) !important;
+  color: var(--ds-text-primary) !important;
+  border-color: var(--ds-success) !important;
+}
+
+/* Info Button Variants */
+.p-dark .p-button.p-button-info {
+  background-color: var(--ds-info) !important;
+  border-color: var(--ds-info) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+.p-dark .p-button.p-button-info:hover {
+  background-color: var(--ds-info-hover) !important;
+  border-color: var(--ds-info-hover) !important;
+}
+
+/* Secondary Button Variants */
+.p-dark .p-button.p-button-secondary {
+  background-color: var(--ds-bg-tertiary) !important;
+  border-color: var(--ds-bg-tertiary) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+.p-dark .p-button.p-button-secondary:hover {
+  background-color: #5a6268 !important;
+  border-color: #5a6268 !important;
+}
+
+.p-dark .p-button.p-button-secondary.p-button-outlined {
+  color: var(--ds-border-secondary) !important;
+  border-color: var(--ds-border-secondary) !important;
+  background-color: transparent !important;
+}
+
+.p-dark .p-button.p-button-secondary.p-button-outlined:hover {
+  background-color: var(--ds-bg-tertiary) !important;
+  color: var(--ds-text-primary) !important;
+  border-color: var(--ds-bg-tertiary) !important;
+}
+
+/* =============================================================================
+   PrimeVue Component Overrides - Form Elements
+   ============================================================================= */
+
+/* Input Fields */
+.p-dark .p-inputtext,
+.p-dark .p-dropdown,
+.p-dark .p-multiselect {
+  background-color: var(--ds-input-bg) !important;
+  border: 1px solid var(--ds-input-border) !important;
+  color: var(--ds-text-primary) !important;
+  border-radius: 0.25rem;
+}
+
+.p-dark .p-inputtext:focus,
+.p-dark .p-dropdown:focus,
+.p-dark .p-multiselect:focus {
+  border-color: var(--ds-input-focus-border) !important;
+  box-shadow: 0 0 0 0.2rem var(--ds-focus-ring) !important;
+}
+
+/* Dropdown specific */
+.p-dark .p-dropdown-panel {
+  background-color: var(--ds-bg-secondary) !important;
+  border: 1px solid var(--ds-border-secondary) !important;
+}
+
+.p-dark .p-dropdown-item:hover {
+  background-color: var(--ds-hover-bg) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+/* Calendar/DatePicker */
+.p-dark .p-datepicker {
+  background-color: var(--ds-bg-secondary) !important;
+  border: 1px solid var(--ds-border-secondary) !important;
+}
+
+.p-dark .p-datepicker-header {
+  background-color: var(--ds-bg-tertiary) !important;
+  border-bottom: 1px solid var(--ds-border-secondary) !important;
+}
+
+.p-dark .p-datepicker-calendar td span:hover {
+  background-color: var(--ds-hover-bg) !important;
+}
+
+.p-dark .p-datepicker-calendar td.p-datepicker-today span {
+  background-color: var(--ds-primary) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+/* =============================================================================
+   PrimeVue Component Overrides - Data Tables
+   ============================================================================= */
+
+.p-dark .p-datatable {
+  background-color: var(--ds-bg-secondary) !important;
+  border: 1px solid var(--ds-border-secondary) !important;
+}
+
+.p-dark .p-datatable .p-datatable-thead > tr > th {
+  background-color: var(--ds-bg-tertiary) !important;
+  border-color: var(--ds-border-secondary) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+.p-dark .p-datatable .p-datatable-tbody > tr > td {
+  border-color: var(--ds-border-primary) !important;
+  background-color: var(--ds-bg-secondary) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+.p-dark .p-datatable .p-datatable-tbody > tr:hover > td {
+  background-color: var(--ds-hover-bg) !important;
+}
+
+/* =============================================================================
+   PrimeVue Component Overrides - Modals & Overlays
+   ============================================================================= */
+
+.p-dark .p-dialog {
+  background-color: var(--ds-bg-secondary) !important;
+  border: 1px solid var(--ds-border-secondary) !important;
+  box-shadow: var(--ds-shadow-lg);
+}
+
+.p-dark .p-dialog-header {
+  background-color: var(--ds-bg-tertiary) !important;
+  border-bottom: 1px solid var(--ds-border-secondary) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+.p-dark .p-dialog-content {
+  background-color: var(--ds-bg-secondary) !important;
+  color: var(--ds-text-primary) !important;
+}
+
+/* =============================================================================
+   Utility Classes for Common Patterns
+   ============================================================================= */
+
+.ds-card {
+  background-color: var(--ds-bg-primary);
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 0.375rem;
+  box-shadow: var(--ds-shadow-sm);
+  padding: 1.25rem;
+}
+
+.ds-muted-text {
+  color: var(--ds-text-muted);
+}
+
+.ds-text-orange {
+  color: var(--ds-orange);
+}
+
+.ds-bg-secondary {
+  background-color: var(--ds-bg-secondary);
+}
+
+.ds-border {
+  border: 1px solid var(--ds-border-primary);
+}
+
+.ds-shadow-sm {
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.ds-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ds-shadow-md);
+  transition: all 0.2s ease;
+}

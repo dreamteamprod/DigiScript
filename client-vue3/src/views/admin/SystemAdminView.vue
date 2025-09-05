@@ -13,78 +13,85 @@
             </TabList>
             <TabPanels>
               <TabPanel value="0">
-                <Card>
-                  <template #content>
-                    <div class="system-overview">
-                      <!-- Current Show Status -->
-                      <div class="row mb-4">
-                        <div class="col-md-3">
-                          <strong>Current Show</strong>
-                        </div>
-                        <div class="col-md-6">
-                          <div v-if="settingsStore.currentShowLoaded">
-                            <span class="font-semibold">{{ settingsStore.currentShow?.name }}</span>
-                            <div class="text-sm text-muted">
-                              {{ settingsStore.currentShow?.start_date }} -
-                              {{ settingsStore.currentShow?.end_date }}
-                            </div>
-                          </div>
-                          <div v-else>
-                            <span class="font-bold text-orange-600">No show loaded</span>
-                          </div>
-                        </div>
-                        <div class="col-md-3">
-                          <div class="d-flex gap-2">
-                            <Button
-                              label="Load Show"
-                              severity="success"
-                              outlined
-                              size="small"
-                              :disabled="showsStore.availableShows.length === 0"
-                              @click="showLoadModal = true"
-                            />
-                            <Button
-                              label="Setup New Show"
-                              severity="success"
-                              outlined
-                              size="small"
-                              @click="showCreateModal = true"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <Divider />
-
-                      <!-- Connected Clients -->
-                      <div class="row">
-                        <div class="col-md-3">
-                          <strong>Connected Clients</strong>
-                        </div>
-                        <div class="col-md-6">
-                          <span class="font-semibold">
-                            {{ settingsStore.connectedClients.length }} clients
-                          </span>
-                          <div
-                            v-if="settingsStore.connectedClients.length > 0"
-                            class="text-sm text-muted"
-                          >
-                            Last updated: {{ formatDateTime(new Date().toISOString()) }}
-                          </div>
-                        </div>
-                        <div class="col-md-3">
-                          <Button
-                            label="View Clients"
-                            severity="success"
-                            outlined
-                            size="small"
-                            @click="showClientsModal = true"
-                          />
-                        </div>
+                <div class="ds-tab-content">
+                  <!-- Current Show Status -->
+                  <div class="ds-system-section">
+                    <div class="ds-system-section-header">
+                      <h3 class="ds-system-section-title">Current Show</h3>
+                      <div class="ds-button-group">
+                        <Button
+                          label="Load Show"
+                          severity="success"
+                          outlined
+                          size="small"
+                          :disabled="showsStore.availableShows.length === 0"
+                          @click="showLoadModal = true"
+                        />
+                        <Button
+                          label="Setup New Show"
+                          severity="success"
+                          outlined
+                          size="small"
+                          @click="showCreateModal = true"
+                        />
                       </div>
                     </div>
-                  </template>
-                </Card>
+                    <div class="ds-system-section-content">
+                      <div v-if="settingsStore.currentShowLoaded" class="ds-info-grid">
+                        <div class="ds-info-grid-label">Show Name:</div>
+                        <div class="ds-info-grid-value">
+                          <strong>{{ settingsStore.currentShow?.name }}</strong>
+                        </div>
+                        <div></div>
+                      </div>
+                      <div v-if="settingsStore.currentShowLoaded" class="ds-info-grid">
+                        <div class="ds-info-grid-label">Dates:</div>
+                        <div class="ds-info-grid-value ds-muted-text">
+                          {{ settingsStore.currentShow?.start_date }} -
+                          {{ settingsStore.currentShow?.end_date }}
+                        </div>
+                        <div></div>
+                      </div>
+                      <div v-if="!settingsStore.currentShowLoaded" class="ds-info-grid">
+                        <div class="ds-info-grid-label">Status:</div>
+                        <div class="ds-info-grid-value">
+                          <span class="ds-status-indicator warning">No show loaded</span>
+                        </div>
+                        <div></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Connected Clients -->
+                  <div class="ds-system-section">
+                    <div class="ds-system-section-header">
+                      <h3 class="ds-system-section-title">Connected Clients</h3>
+                      <Button
+                        label="View Clients"
+                        severity="success"
+                        outlined
+                        size="small"
+                        @click="showClientsModal = true"
+                      />
+                    </div>
+                    <div class="ds-system-section-content">
+                      <div class="ds-info-grid">
+                        <div class="ds-info-grid-label">Active Clients:</div>
+                        <div class="ds-info-grid-value">
+                          <strong>{{ settingsStore.connectedClients.length }} clients</strong>
+                        </div>
+                        <div></div>
+                      </div>
+                      <div v-if="settingsStore.connectedClients.length > 0" class="ds-info-grid">
+                        <div class="ds-info-grid-label">Last Updated:</div>
+                        <div class="ds-info-grid-value ds-muted-text">
+                          {{ formatDateTime(new Date().toISOString()) }}
+                        </div>
+                        <div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </TabPanel>
 
               <TabPanel value="1">
@@ -139,9 +146,7 @@ import TabList from 'primevue/tablist';
 import Tab from 'primevue/tab';
 import TabPanels from 'primevue/tabpanels';
 import TabPanel from 'primevue/tabpanel';
-import Card from 'primevue/card';
 import Button from 'primevue/button';
-import Divider from 'primevue/divider';
 import SystemSettingsView from './SystemSettingsView.vue';
 import UserManagementView from './UserManagementView.vue';
 
@@ -242,142 +247,14 @@ onUnmounted(() => {
 
 <style scoped>
 .system-admin {
-  background-color: #343a40;
-  color: white;
-  /* Remove min-height: 100vh as this is inside main content which already handles full height */
+  background-color: var(--ds-bg-primary);
+  color: var(--ds-text-primary);
 }
 
-.system-overview {
-  /* No padding - content should use full available space */
-}
-
-.system-overview .row {
-  align-items: center;
-}
-
-.text-muted {
-  color: #6c757d;
-}
-
-.text-orange-600 {
-  color: #ea580c;
-}
-
-/* Dark theme refinements to match Vue 2 exactly */
-
-/* TabView container styling - force visibility */
-:deep(.p-tabview) {
-  background-color: #343a40 !important;
-  width: 100% !important;
-  border: 1px solid #495057 !important;
-}
-
-/* Make tabs look like Vue 2 - simple dark background spanning full width */
-:deep(.p-tabview-nav) {
-  background-color: #495057 !important;
-  border-bottom: 1px solid #6c757d !important;
-  padding: 0 !important;
-  width: 100% !important;
-  display: flex !important;
-  margin: 0 !important;
-  min-height: 50px !important;
-}
-
-:deep(.p-tabview-nav-link) {
-  background-color: #495057 !important;
-  border-right: 1px solid #6c757d !important;
-  border-top: 1px solid #6c757d !important;
-  border-left: 1px solid #6c757d !important;
-  border-bottom: none !important;
-  margin-right: 2px !important;
-  color: #adb5bd !important;
-  padding: 0.75rem 1rem !important;
-  cursor: pointer !important;
-  border-radius: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 50px !important;
-  font-weight: bold !important;
-  text-decoration: none !important;
-}
-
-:deep(.p-tabview-nav-link:first-child) {
-  margin-left: 0 !important;
-}
-
-:deep(.p-tabview-nav-link:last-child) {
-  border-right: 1px solid #6c757d !important;
-  margin-right: 0 !important;
-}
-
-:deep(.p-tabview-nav-link.p-highlight) {
-  background-color: #343a40 !important;
-  border-bottom: 1px solid #343a40 !important;
-  color: white !important;
-  z-index: 1 !important;
-  position: relative !important;
-}
-
-:deep(.p-tabview-nav-link.p-disabled) {
-  color: #6c757d !important;
-  cursor: not-allowed !important;
-  opacity: 0.6 !important;
-}
-
-/* Tab panels - make sure they are visible */
-:deep(.p-tabview-panels) {
-  background-color: #343a40 !important;
-  border: 1px solid #495057 !important;
-  border-top: none !important;
-  padding: 1rem !important;
-  /* Remove fixed min-height to allow natural content flow */
-  display: block !important;
-}
-
-:deep(.p-tabview-panel) {
-  background-color: transparent !important;
-  color: white !important;
-  padding: 0 !important;
-  display: block !important;
-}
-
-/* Ensure cards blend with background */
-:deep(.p-card) {
-  background-color: transparent !important;
-  border: 1px solid #495057 !important;
-  box-shadow: none !important;
-}
-
-/* Success buttons to match Vue 2 green */
-:deep(.p-button.p-button-success.p-button-outlined) {
-  border-color: #28a745 !important;
-  color: #28a745 !important;
-  background-color: transparent !important;
-}
-
-:deep(.p-button.p-button-success.p-button-outlined:hover) {
-  background-color: #28a745 !important;
-  color: white !important;
-  border-color: #28a745 !important;
-}
-
-/* Text styling to match Vue 2 */
 h1 {
-  color: white !important;
+  color: var(--ds-text-primary);
   text-align: center;
   margin-bottom: 2rem;
-}
-
-strong {
-  color: white !important;
-}
-
-.font-semibold {
-  color: white !important;
-}
-
-.text-sm {
-  color: #6c757d !important;
+  font-weight: 600;
 }
 </style>

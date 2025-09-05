@@ -12,6 +12,8 @@ import setupHttpInterceptor from './utils/httpInterceptor';
 // PrimeVue CSS imports
 import 'primeicons/primeicons.css';
 import './assets/styles/main.css';
+import './assets/styles/theme.css';
+import './assets/styles/components.css';
 
 // Setup HTTP interceptor for automatic JWT token injection
 setupHttpInterceptor();
