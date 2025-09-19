@@ -1,5 +1,5 @@
 pytest<8.5
 pytest-asyncio
 pylint==3.3.8
-black==25.1.0
+black==25.9.0
 isort==5.13.2
