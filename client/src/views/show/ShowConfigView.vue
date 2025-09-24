@@ -24,6 +24,15 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
+              :to="{'name': 'show-config-stage'}"
+              variant="outline-info"
+              active-class="active"
+            >
+              Staging
+            </b-button>
+            <b-button
+              :disabled="!shouldViewShowConfig"
+              replace
               :to="{'name': 'show-config-cast'}"
               variant="outline-info"
               active-class="active"

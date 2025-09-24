@@ -13,6 +13,7 @@ from models.script import (
 )
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
+from models.stage import Crew, Props, Scenery
 from models.user import User, UserSettings
 from registry.schema import get_registry
 
@@ -69,6 +70,30 @@ class CastSchema(SQLAlchemyAutoSchema):
     character_list = Nested(
         lambda: CharacterSchema, many=True, exclude=("cast_member",)
     )
+
+
+@schema
+class CrewSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Crew
+        include_relationships = True
+        load_instance = True
+
+
+@schema
+class ScenerySchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Scenery
+        include_relationships = True
+        load_instance = True
+
+
+@schema
+class PropsSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Props
+        include_relationships = True
+        load_instance = True
 
 
 @schema
