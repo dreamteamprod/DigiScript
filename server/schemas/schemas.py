@@ -37,7 +37,7 @@ class UserSchema(SQLAlchemyAutoSchema):
         model = User
         load_instance = True
         include_fk = True
-        exclude = ("password",)
+        exclude = ("password", "api_token")
 
 
 @schema

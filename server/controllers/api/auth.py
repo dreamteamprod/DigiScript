@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import secrets
 
 import bcrypt
 from tornado import escape, gen
@@ -272,3 +273,76 @@ class AuthHandler(BaseAPIController):
     def get(self):
         self.set_status(200)
         self.finish(self.current_user if self.current_user else {})
+
+
+@ApiRoute("auth/api-token/generate", ApiVersion.V1)
+class ApiTokenGenerateController(BaseAPIController):
+    @api_authenticated
+    async def post(self):
+        """Generate a new API token for the authenticated user"""
+        with self.make_session() as session:
+            user = session.query(User).get(self.current_user["id"])
+            if not user:
+                self.set_status(404)
+                await self.finish({"message": "User not found"})
+                return
+
+            # Generate a secure random token (plain text to return to user)
+            new_token = secrets.token_urlsafe(32)
+
+            # Hash the token before storing (like passwords)
+            hashed_token = await IOLoop.current().run_in_executor(
+                None, bcrypt.hashpw, escape.utf8(new_token), bcrypt.gensalt()
+            )
+            hashed_token = escape.to_unicode(hashed_token)
+
+            user.api_token = hashed_token
+            session.commit()
+
+            self.set_status(200)
+            await self.finish(
+                {
+                    "message": "API token generated successfully",
+                    "api_token": new_token,
+                }
+            )
+
+
+@ApiRoute("auth/api-token/revoke", ApiVersion.V1)
+class ApiTokenRevokeController(BaseAPIController):
+    @api_authenticated
+    async def post(self):
+        """Revoke the API token for the authenticated user"""
+        with self.make_session() as session:
+            user = session.query(User).get(self.current_user["id"])
+            if not user:
+                self.set_status(404)
+                await self.finish({"message": "User not found"})
+                return
+
+            if not user.api_token:
+                self.set_status(400)
+                await self.finish({"message": "No API token to revoke"})
+                return
+
+            user.api_token = None
+            session.commit()
+
+            self.set_status(200)
+            await self.finish({"message": "API token revoked successfully"})
+
+
+@ApiRoute("auth/api-token", ApiVersion.V1)
+class ApiTokenController(BaseAPIController):
+    @api_authenticated
+    def get(self):
+        """Check if the authenticated user has an API token"""
+        with self.make_session() as session:
+            user = session.query(User).get(self.current_user["id"])
+            if not user:
+                self.set_status(404)
+                self.finish({"message": "User not found"})
+                return
+
+            self.set_status(200)
+            self.finish({"has_token": user.api_token is not None})

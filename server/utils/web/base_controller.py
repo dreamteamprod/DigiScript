@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
+import bcrypt
 from tornado import escape, httputil
+from tornado.ioloop import IOLoop
 from tornado.web import HTTPError, RequestHandler
 from tornado_sqlalchemy import SessionMixin
 
@@ -36,14 +38,13 @@ class BaseController(SessionMixin, RequestHandler):
         show_schema = ShowSchema()
         user_schema = UserSchema()
 
-        # Extract JWT token from header
-        auth_header = self.request.headers.get("Authorization", "")
-        token = self.application.jwt_service.get_token_from_authorization_header(
-            auth_header
-        )
-
         with self.make_session() as session:
-            # If we have a token, try to authenticate with it
+            # First, try JWT authentication
+            auth_header = self.request.headers.get("Authorization", "")
+            token = self.application.jwt_service.get_token_from_authorization_header(
+                auth_header
+            )
+
             if token:
                 is_revoked = await self.application.jwt_service.is_token_revoked(token)
                 if is_revoked:
@@ -54,6 +55,33 @@ class BaseController(SessionMixin, RequestHandler):
                     user = session.query(User).get(int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
+
+            # If not authenticated via JWT, try API token authentication
+            if not self.current_user:
+                api_key = self.request.headers.get("X-API-Key", "")
+                if api_key:
+                    # Get all users with API tokens and check each one
+                    users_with_tokens = (
+                        session.query(User).filter(User.api_token.isnot(None)).all()
+                    )
+
+                    authenticated_user = None
+                    for user in users_with_tokens:
+                        # Compare the provided token with the hashed token
+                        token_matches = await IOLoop.current().run_in_executor(
+                            None,
+                            bcrypt.checkpw,
+                            escape.utf8(api_key),
+                            escape.utf8(user.api_token),
+                        )
+                        if token_matches:
+                            authenticated_user = user
+                            break
+
+                    if authenticated_user:
+                        self.current_user = user_schema.dump(authenticated_user)
+                    else:
+                        raise HTTPError(401, log_message="Invalid API key")
 
             current_show = await self.application.digi_settings.get("current_show")
             if current_show:

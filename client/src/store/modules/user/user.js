@@ -207,6 +207,49 @@ export default {
 
       await context.commit('SET_TOKEN_REFRESH_INTERVAL', refreshInterval);
     },
+    async GENERATE_API_TOKEN(context) {
+      const response = await fetch(makeURL('/api/v1/auth/api-token/generate'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        Vue.$toast.success('API token generated successfully!');
+        return data;
+      }
+      const responseBody = await response.json();
+      log.error('Unable to generate API token');
+      Vue.$toast.error(`Unable to generate API token: ${responseBody.message || 'Unknown error'}`);
+      return null;
+    },
+    async REVOKE_API_TOKEN(context) {
+      const response = await fetch(makeURL('/api/v1/auth/api-token/revoke'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (response.ok) {
+        Vue.$toast.success('API token revoked successfully!');
+        return true;
+      }
+      const responseBody = await response.json();
+      log.error('Unable to revoke API token');
+      Vue.$toast.error(`Unable to revoke API token: ${responseBody.message || 'Unknown error'}`);
+      return false;
+    },
+    async GET_API_TOKEN(context) {
+      const response = await fetch(makeURL('/api/v1/auth/api-token'), {
+        method: 'GET',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      log.error('Unable to get API token');
+      Vue.$toast.error('Unable to get API token!');
+      return null;
+    },
   },
   getters: {
     CURRENT_USER(state) {
