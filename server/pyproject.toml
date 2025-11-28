@@ -1,0 +1,127 @@
+# ============================================================================
+# DigiScript Server - Python Project Configuration
+# ============================================================================
+# This file consolidates configuration for all Python development tools.
+# Dependencies are dynamically read from requirements.txt files.
+# ============================================================================
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "digiscript-server"
+version = "0.1.0"
+description = "DigiScript server - Digital script management for theatrical shows"
+readme = "../README.md"
+requires-python = ">=3.13"
+# Dependencies are dynamically loaded from requirements.txt
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies.test = {file = ["test_requirements.txt"]}
+
+# ============================================================================
+# PYTEST CONFIGURATION
+# ============================================================================
+[tool.pytest.ini_options]
+# Add the server directory to Python path so imports work correctly
+# This allows running `pytest` directly instead of `python -m pytest`
+pythonpath = ["."]
+
+# Test discovery patterns
+testpaths = ["test"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Asyncio configuration for pytest-asyncio
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# Output options
+addopts = [
+    "-v",  # Verbose output
+    "--tb=short",  # Shorter traceback format
+    "--strict-markers",  # Ensure all markers are defined
+]
+
+# Markers
+markers = [
+    "asyncio: mark test as async",
+]
+
+# ============================================================================
+# BLACK CONFIGURATION
+# ============================================================================
+[tool.black]
+# Use Black's default line-length of 88 to match existing codebase formatting
+line-length = 88
+target-version = ['py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # Exclude alembic migrations
+  | alembic_config/versions
+)/
+'''
+
+# ============================================================================
+# ISORT CONFIGURATION
+# ============================================================================
+[tool.isort]
+profile = "black"
+# Match Black's line length of 88
+line_length = 88
+skip_gitignore = true
+extend_skip = ["alembic_config/versions"]
+known_first_party = ["digi_server", "models", "controllers", "utils", "schemas", "rbac", "registry"]
+
+# ============================================================================
+# PYLINT CONFIGURATION
+# ============================================================================
+[tool.pylint.main]
+# Add current directory to path for imports
+init-hook = "from pylint.config import find_default_config_files; import sys; sys.path.append(next(find_default_config_files()).parent.as_posix())"
+
+# Ignore patterns
+ignore-paths = [
+    "^alembic_config/.*$",
+    "^test/.*$",
+]
+
+[tool.pylint."messages control"]
+disable = [
+    "logging-fstring-interpolation",
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "duplicate-code",
+    "too-many-return-statements",
+    "too-many-branches",
+    "too-many-statements",
+    "unnecessary-lambda",
+    "too-many-locals",
+    "too-many-nested-blocks",
+    "too-many-arguments",
+    "unnecessary-dunder-call",
+    "broad-exception-raised",
+    "broad-exception-caught",
+    "fixme",
+]
+
+[tool.pylint.format]
+# Note: Pylint's max-line-length is 120 but Black enforces 88
+# This is intentional - Pylint checks logic, Black formats code
+max-line-length = 120
+
+[tool.pylint.design]
+max-args = 15
+max-locals = 20
+max-returns = 20
+max-branches = 20
+max-statements = 50
+max-attributes = 20
+max-positional-arguments = 15

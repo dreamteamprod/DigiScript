@@ -92,6 +92,7 @@
       :id="`line_${lineIndex}_-new-cue`"
       title="Add New Cue"
       size="md"
+      :ok-disabled="$v.newFormState.$invalid || submittingNewCue"
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
@@ -206,6 +207,7 @@
       :id="`line_${lineIndex}_-edit-cue`"
       title="Edit Cue"
       size="md"
+      :ok-disabled="$v.editFormState.$invalid || submittingEditCue"
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
@@ -259,18 +261,21 @@
       <template #modal-footer="{ ok, cancel }">
         <b-button
           variant="secondary"
+          :disabled="submittingEditCue || deletingCue"
           @click="cancel()"
         >
           Cancel
         </b-button>
         <b-button
           variant="danger"
+          :disabled="submittingEditCue || deletingCue"
           @click.stop="deleteCue"
         >
           Delete
         </b-button>
         <b-button
           variant="primary"
+          :disabled="$v.editFormState.$invalid || submittingEditCue || deletingCue"
           @click="ok()"
         >
           Save
@@ -284,6 +289,7 @@
 import { required } from 'vuelidate/lib/validators';
 import { mapActions, mapGetters } from 'vuex';
 import { contrastColor } from 'contrast-color';
+import log from 'loglevel';
 
 export default {
   name: 'ScriptLineCueEditor',
@@ -350,6 +356,9 @@ export default {
         ident: null,
         lineId: null,
       },
+      submittingNewCue: false,
+      submittingEditCue: false,
+      deletingCue: false,
     };
   },
   validations: {
@@ -492,6 +501,7 @@ export default {
         ident: null,
         lineId: null,
       };
+      this.submittingNewCue = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -503,12 +513,21 @@ export default {
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+      if (this.$v.newFormState.$anyError || this.submittingNewCue) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewCue = true;
+      try {
         await this.ADD_NEW_CUE(this.newFormState);
         this.$bvModal.hide(`line_${this.lineIndex}_-new-cue`);
         this.resetNewForm();
+      } catch (error) {
+        log.error('Error submitting new cue:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewCue = false;
       }
     },
     openEditForm(cue) {
@@ -526,6 +545,8 @@ export default {
         ident: null,
         lineId: null,
       };
+      this.submittingEditCue = false;
+      this.deletingCue = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -537,28 +558,45 @@ export default {
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+      if (this.$v.editFormState.$anyError || this.submittingEditCue) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingEditCue = true;
+      try {
         await this.EDIT_CUE(this.editFormState);
         this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
         this.resetEditForm();
+      } catch (error) {
+        log.error('Error submitting edit cue:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingEditCue = false;
       }
     },
     async deleteCue(event) {
       this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+      if (this.$v.editFormState.$anyError || this.deletingCue) {
         event.preventDefault();
-      } else {
-        const msg = 'Are you sure you want to delete this cue?';
-        const action = await this.$bvModal.msgBoxConfirm(msg, {});
-        if (action === true) {
+        return;
+      }
+
+      const msg = 'Are you sure you want to delete this cue?';
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        this.deletingCue = true;
+        try {
           await this.DELETE_CUE({
             cueId: this.editFormState.cueId,
             lineId: this.editFormState.lineId,
           });
           this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
           this.resetEditForm();
+        } catch (error) {
+          log.error('Error deleting cue:', error);
+        } finally {
+          this.deletingCue = false;
         }
       }
     },

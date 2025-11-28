@@ -53,12 +53,14 @@
             <b-button-group v-if="IS_SHOW_EDITOR">
               <b-button
                 variant="warning"
+                :disabled="submittingEditAct || deletingAct"
                 @click="openEditForm(data)"
               >
                 Edit
               </b-button>
               <b-button
                 variant="danger"
+                :disabled="submittingEditAct || deletingAct"
                 @click="deleteAct(data)"
               >
                 Delete
@@ -81,6 +83,7 @@
       ref="new-act"
       title="Add New Act"
       size="md"
+      :ok-disabled="$v.newFormState.$invalid || submittingNewAct"
       @show="resetNewForm"
       @hidden="resetNewForm"
       @ok="onSubmitNew"
@@ -137,6 +140,7 @@
       ref="edit-act"
       title="Edit Act"
       size="md"
+      :ok-disabled="$v.editFormState.$invalid || submittingEditAct"
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
@@ -199,6 +203,7 @@
 <script>
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
+import log from 'loglevel';
 
 export default {
   name: 'ConfigActs',
@@ -225,6 +230,9 @@ export default {
         interval_after: false,
         previous_act_id: null,
       },
+      submittingNewAct: false,
+      submittingEditAct: false,
+      deletingAct: false,
     };
   },
   validations: {
@@ -306,6 +314,7 @@ export default {
         interval_after: false,
         previous_act_id: null,
       };
+      this.submittingNewAct = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -317,11 +326,21 @@ export default {
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+      if (this.$v.newFormState.$anyError || this.submittingNewAct) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingNewAct = true;
+      try {
         await this.ADD_ACT(this.newFormState);
+        this.$bvModal.hide('new-act');
         this.resetNewForm();
+      } catch (error) {
+        log.error('Error submitting new act:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingNewAct = false;
       }
     },
     openEditForm(act) {
@@ -344,6 +363,8 @@ export default {
         interval_after: false,
         previous_act_id: null,
       };
+      this.submittingEditAct = false;
+      this.deletingAct = false;
 
       this.$nextTick(() => {
         this.$v.$reset();
@@ -351,11 +372,21 @@ export default {
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+      if (this.$v.editFormState.$anyError || this.submittingEditAct) {
         event.preventDefault();
-      } else {
+        return;
+      }
+
+      this.submittingEditAct = true;
+      try {
         await this.UPDATE_ACT(this.editFormState);
+        this.$bvModal.hide('edit-act');
         this.resetEditForm();
+      } catch (error) {
+        log.error('Error submitting edit act:', error);
+        event.preventDefault();
+      } finally {
+        this.submittingEditAct = false;
       }
     },
     validateEditState(name) {
@@ -363,10 +394,21 @@ export default {
       return $dirty ? !$error : null;
     },
     async deleteAct(act) {
+      if (this.deletingAct) {
+        return;
+      }
+
       const msg = `Are you sure you want to delete ${act.item.name}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_ACT(act.item.id);
+        this.deletingAct = true;
+        try {
+          await this.DELETE_ACT(act.item.id);
+        } catch (error) {
+          log.error('Error deleting act:', error);
+        } finally {
+          this.deletingAct = false;
+        }
       }
     },
     ...mapActions(['GET_ACT_LIST', 'ADD_ACT', 'DELETE_ACT', 'UPDATE_ACT']),
