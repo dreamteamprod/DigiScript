@@ -39,4 +39,8 @@ class DigiScriptTestCase(AsyncHTTPTestCase):
             table_inspect = inspect(table)
             models.db.metadata.remove(table_inspect.mapped_table)
 
+        # Dispose the database engine to ensure proper test isolation
+        # This forces a new in-memory database for each test
+        models.db.engine.dispose()
+
         super().tearDown()
