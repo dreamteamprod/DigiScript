@@ -22,6 +22,9 @@
       >
         <stage-direction-styles />
       </b-tab>
+      <b-tab title="API Token">
+        <api-token />
+      </b-tab>
     </b-tabs>
   </b-container>
 </template>
@@ -30,9 +33,12 @@
 import StageDirectionStyles from '@/vue_components/user/settings/StageDirectionStyles.vue';
 import AboutUser from '@/vue_components/user/settings/AboutUser.vue';
 import UserSettingsConfig from '@/vue_components/user/settings/Settings.vue';
+import ApiToken from '@/vue_components/user/settings/ApiToken.vue';
 
 export default {
   name: 'UserSettings',
-  components: { UserSettingsConfig, AboutUser, StageDirectionStyles },
+  components: {
+    UserSettingsConfig, AboutUser, StageDirectionStyles, ApiToken,
+  },
 };
 </script>

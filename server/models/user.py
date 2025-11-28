@@ -18,6 +18,7 @@ class User(db.Model):
     is_admin = Column(Boolean())
     last_login = Column(DateTime())
     last_seen = Column(DateTime())
+    api_token = Column(String(), nullable=True, index=True)
 
 
 class UserSettings(db.Model):
