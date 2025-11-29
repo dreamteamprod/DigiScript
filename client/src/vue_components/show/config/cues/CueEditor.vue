@@ -254,9 +254,14 @@ export default {
         DATA: {},
       });
     },
-    decrPage() {
+    async decrPage() {
       if (this.currentEditPage > 1) {
+        const targetPage = this.currentEditPage - 1;
+        // Load target page from backend
+        await this.LOAD_SCRIPT_PAGE(targetPage);
         this.currentEditPage--;
+        // Pre-load previous page
+        await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
       }
     },
     async incrPage() {
