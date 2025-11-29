@@ -533,8 +533,11 @@ export default {
     },
     async decrPage() {
       if (this.currentEditPage > 1) {
-        if (!Object.keys(this.TMP_SCRIPT).includes((this.currentEditPage - 1).toString())) {
-          this.ADD_BLANK_PAGE(this.currentEditPage - 1);
+        const targetPage = this.currentEditPage - 1;
+        // Load from backend if not in buffer
+        if (!Object.keys(this.TMP_SCRIPT).includes(targetPage.toString())) {
+          await this.LOAD_SCRIPT_PAGE(targetPage);
+          this.ADD_BLANK_PAGE(targetPage);
         }
         if (this.TMP_SCRIPT[this.currentEditPageKey].length === 0) {
           this.REMOVE_PAGE(this.currentEditPage);
