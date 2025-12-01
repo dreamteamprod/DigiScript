@@ -6,12 +6,12 @@ from rbac.rbac_db import RBACDatabase
 from rbac.role import Role
 from registry.schema import get_registry
 
+
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
 class RBACController:
-
     def __init__(self, app: "DigiScriptServer"):
         self.app = app
         self._rbac_db = RBACDatabase(app.get_db(), app)

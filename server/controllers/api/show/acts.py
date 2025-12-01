@@ -12,7 +12,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/act", ApiVersion.V1)
 class ActController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -212,7 +211,6 @@ class ActController(BaseAPIController):
 
 @ApiRoute("show/act/first_scene", ApiVersion.V1)
 class FirstSceneController(BaseAPIController):
-
     @requires_show
     @no_live_session
     async def post(self):

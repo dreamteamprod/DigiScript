@@ -13,7 +13,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/cast", ApiVersion.V1)
 class CastController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()

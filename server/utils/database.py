@@ -15,7 +15,6 @@ class DeleteMixin:
 
 
 class DigiDBSession(SessionEx):
-
     def _delete_impl(self, state, obj, head):
         for hook in self.db.delete_hooks:
             hook(self, obj)
@@ -28,7 +27,6 @@ class DigiDBSession(SessionEx):
 
 
 class DigiSQLAlchemy(SQLAlchemy):
-
     def __init__(self, url=None, binds=None, session_options=None, engine_options=None):
         self.sessionmaker = None
         # Store the original create_engine method

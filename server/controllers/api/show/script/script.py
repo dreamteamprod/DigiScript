@@ -25,7 +25,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("/show/script", ApiVersion.V1)
 class ScriptController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -177,7 +176,6 @@ class ScriptController(BaseAPIController):
 
                 previous_line: Optional[ScriptLineRevisionAssociation] = None
                 for index, line in enumerate(lines):
-
                     # Validate each line before we do anything with it
                     valid_status, valid_reason = self._validate_line(line)
                     if not valid_status:
@@ -508,13 +506,13 @@ class ScriptController(BaseAPIController):
                         session.flush()
 
                         if previous_line.next_line:
-                            next_association: (
-                                ScriptLineRevisionAssociation
-                            ) = session.query(ScriptLineRevisionAssociation).get(
-                                {
-                                    "revision_id": revision.id,
-                                    "line_id": previous_line.next_line.id,
-                                }
+                            next_association: ScriptLineRevisionAssociation = (
+                                session.query(ScriptLineRevisionAssociation).get(
+                                    {
+                                        "revision_id": revision.id,
+                                        "line_id": previous_line.next_line.id,
+                                    }
+                                )
                             )
                             next_association.previous_line = line_object
                             line_association.next_line = next_association.line
@@ -535,50 +533,50 @@ class ScriptController(BaseAPIController):
                             and curr_association.previous_line
                         ):
                             # Next line and previous line, so need to update both
-                            next_association: (
-                                ScriptLineRevisionAssociation
-                            ) = session.query(ScriptLineRevisionAssociation).get(
-                                {
-                                    "revision_id": revision.id,
-                                    "line_id": curr_association.next_line.id,
-                                }
+                            next_association: ScriptLineRevisionAssociation = (
+                                session.query(ScriptLineRevisionAssociation).get(
+                                    {
+                                        "revision_id": revision.id,
+                                        "line_id": curr_association.next_line.id,
+                                    }
+                                )
                             )
                             next_association.previous_line = (
                                 curr_association.previous_line
                             )
                             session.flush()
 
-                            prev_association: (
-                                ScriptLineRevisionAssociation
-                            ) = session.query(ScriptLineRevisionAssociation).get(
-                                {
-                                    "revision_id": revision.id,
-                                    "line_id": curr_association.previous_line.id,
-                                }
+                            prev_association: ScriptLineRevisionAssociation = (
+                                session.query(ScriptLineRevisionAssociation).get(
+                                    {
+                                        "revision_id": revision.id,
+                                        "line_id": curr_association.previous_line.id,
+                                    }
+                                )
                             )
                             prev_association.next_line = next_association.line
                             session.flush()
                         elif curr_association.next_line:
                             # No previous line, so need to update next line only
-                            next_association: (
-                                ScriptLineRevisionAssociation
-                            ) = session.query(ScriptLineRevisionAssociation).get(
-                                {
-                                    "revision_id": revision.id,
-                                    "line_id": curr_association.next_line.id,
-                                }
+                            next_association: ScriptLineRevisionAssociation = (
+                                session.query(ScriptLineRevisionAssociation).get(
+                                    {
+                                        "revision_id": revision.id,
+                                        "line_id": curr_association.next_line.id,
+                                    }
+                                )
                             )
                             next_association.previous_line = None
                             session.flush()
                         elif curr_association.previous_line:
                             # No next line, so need to update previous line only
-                            prev_association: (
-                                ScriptLineRevisionAssociation
-                            ) = session.query(ScriptLineRevisionAssociation).get(
-                                {
-                                    "revision_id": revision.id,
-                                    "line_id": curr_association.previous_line.id,
-                                }
+                            prev_association: ScriptLineRevisionAssociation = (
+                                session.query(ScriptLineRevisionAssociation).get(
+                                    {
+                                        "revision_id": revision.id,
+                                        "line_id": curr_association.previous_line.id,
+                                    }
+                                )
                             )
                             prev_association.next_line = None
                             session.flush()
@@ -616,13 +614,13 @@ class ScriptController(BaseAPIController):
                             curr_association.previous_line = previous_line.line
 
                         if curr_association.next_line:
-                            next_association: (
-                                ScriptLineRevisionAssociation
-                            ) = session.query(ScriptLineRevisionAssociation).get(
-                                {
-                                    "revision_id": revision.id,
-                                    "line_id": curr_association.next_line.id,
-                                }
+                            next_association: ScriptLineRevisionAssociation = (
+                                session.query(ScriptLineRevisionAssociation).get(
+                                    {
+                                        "revision_id": revision.id,
+                                        "line_id": curr_association.next_line.id,
+                                    }
+                                )
                             )
                             next_association.previous_line = line_object
                         session.flush()
@@ -687,7 +685,6 @@ class CompiledScriptController(BaseAPIController):
 
 @ApiRoute("/show/script/cuts", ApiVersion.V1)
 class ScriptCutsController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -787,7 +784,6 @@ class ScriptCutsController(BaseAPIController):
 
 @ApiRoute("/show/script/max_page", ApiVersion.V1)
 class ScriptMaxPageController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()

@@ -13,7 +13,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/character", ApiVersion.V1)
 class CharacterController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -222,7 +221,6 @@ class CharacterStatsController(BaseAPIController):
 
 @ApiRoute("show/character/group", ApiVersion.V1)
 class CharacterGroupController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()

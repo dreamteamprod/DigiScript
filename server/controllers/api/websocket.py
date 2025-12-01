@@ -6,7 +6,6 @@ from utils.web.route import ApiRoute, ApiVersion
 
 @ApiRoute("ws/sessions", ApiVersion.V1)
 class WebsocketSessionsController(BaseAPIController):
-
     def get(self):
         session_scheme = SessionSchema()
         with self.make_session() as session:

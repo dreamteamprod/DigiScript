@@ -5,6 +5,7 @@ import sys
 from digi_server.logger import get_logger
 from utils.pkg_utils import find_end_modules
 
+
 # Check if running in PyInstaller bundle
 try:
     # pylint: disable=unused-import

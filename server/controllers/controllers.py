@@ -9,6 +9,7 @@ from utils.module_discovery import get_resource_path, import_modules, is_frozen
 from utils.web.base_controller import BaseAPIController, BaseController
 from utils.web.route import ApiRoute, ApiVersion, Route
 
+
 IMPORTED_CONTROLLERS = {}
 
 

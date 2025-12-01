@@ -15,7 +15,6 @@ from utils.web.web_decorators import api_authenticated, require_admin, requires_
 
 @ApiRoute("show", ApiVersion.V1)
 class ShowController(BaseAPIController):
-
     @api_authenticated
     @require_admin
     async def post(self):
@@ -207,7 +206,6 @@ class ShowController(BaseAPIController):
 
 @ApiRoute("shows", ApiVersion.V1)
 class ShowsController(BaseAPIController):
-
     def get(self):
         shows = []
         show_schema = ShowSchema()
