@@ -1,7 +1,6 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 import VueNativeSock from 'vue-native-websocket';
-import { BootstrapVue, IconsPlugin } from 'bootstrap-vue';
 import Vuelidate from 'vuelidate';
 import ToastPlugin from 'vue-toast-notification';
 import Multiselect from 'vue-multiselect';
@@ -11,14 +10,15 @@ import App from './App.vue';
 import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
 
+// Import tree-shakeable Bootstrap-Vue components
+import './plugins/bootstrap-vue';
+
 import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
 
 setupHttpInterceptor();
 
-Vue.use(BootstrapVue);
-Vue.use(IconsPlugin);
 Vue.component('MultiSelect', Multiselect);
 
 Vue.use(Vuex);
