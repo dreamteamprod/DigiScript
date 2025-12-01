@@ -13,7 +13,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/microphones", ApiVersion.V1)
 class MicrophoneController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -181,7 +180,6 @@ class MicrophoneController(BaseAPIController):
 
 @ApiRoute("show/microphones/allocations", ApiVersion.V1)
 class MicrophoneAllocationsController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()

@@ -9,7 +9,6 @@ from models import models
 
 
 class DigiScriptTestCase(AsyncHTTPTestCase):
-
     def get_app(self):
         return DigiScriptServer(
             debug=True,

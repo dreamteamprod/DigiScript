@@ -57,7 +57,7 @@ class ApiVersion(Enum):
 
 class ApiRoute(Route):
     def __init__(self, route: str, api_version: ApiVersion, name: str = None):
-        route = f'/api/v{api_version.value}/{route.removeprefix("/")}'
+        route = f"/api/v{api_version.value}/{route.removeprefix('/')}"
         super().__init__(route, name)
 
     def __call__(self, controller):

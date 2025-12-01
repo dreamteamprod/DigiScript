@@ -6,7 +6,6 @@ from digi_server.logger import get_logger
 
 
 class FileWatcher:
-
     def __init__(self, file_path, callback, poll_interval=500):
         if not os.path.isfile(file_path):
             raise RuntimeError(f"Path {file_path} does not exist")
@@ -31,7 +30,6 @@ class FileWatcher:
 
 
 class IOLoopFileWatcher(FileWatcher):
-
     def __init__(self, file_path, callback, poll_interval=500):
         if not IOLoop.current():
             raise RuntimeError("No IOLoop found!")
@@ -48,7 +46,7 @@ class IOLoopFileWatcher(FileWatcher):
                 raise IOError(f"File {self._file_path} could not be found")
 
             get_logger().warning(
-                f"File {self._file_path} could not be found, calling error " f"callback"
+                f"File {self._file_path} could not be found, calling error callback"
             )
             self.stop()
             self._error_callback()

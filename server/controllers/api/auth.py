@@ -21,7 +21,6 @@ from utils.web.web_decorators import (
 
 @ApiRoute("auth/create", ApiVersion.V1)
 class UserCreateController(BaseAPIController):
-
     async def post(self):
         data = escape.json_decode(self.request.body)
 

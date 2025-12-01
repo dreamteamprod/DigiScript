@@ -33,10 +33,7 @@ from utils.web.jwt_service import JWTService
 from utils.web.route import Route
 
 
-class DigiScriptServer(
-    PrometheusMixIn, Application
-):  # pylint: disable=too-many-instance-attributes
-
+class DigiScriptServer(PrometheusMixIn, Application):  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         debug=False,

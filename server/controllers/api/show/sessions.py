@@ -13,7 +13,6 @@ from utils.web.web_decorators import requires_show
 
 @ApiRoute("show/sessions", ApiVersion.V1)
 class SessionsController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()

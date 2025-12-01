@@ -3,6 +3,7 @@ from logging.handlers import RotatingFileHandler
 
 from tornado.log import LogFormatter
 
+
 logger = logging.getLogger("DigiScript")
 
 

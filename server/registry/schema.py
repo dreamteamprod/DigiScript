@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Optional
 
 from marshmallow_sqlalchemy import SQLAlchemySchema
 
+
 if TYPE_CHECKING:
     from models.models import db
 

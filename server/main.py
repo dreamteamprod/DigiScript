@@ -5,6 +5,7 @@ import os
 
 from tornado.options import define, options, parse_command_line
 
+
 # Add PyInstaller support
 try:
     from utils.pyinstaller_utils import (
@@ -32,6 +33,7 @@ except ImportError:
 
 from digi_server.app_server import DigiScriptServer
 from digi_server.logger import add_logging_level, get_logger
+
 
 add_logging_level("TRACE", logging.DEBUG - 5)
 get_logger().setLevel(logging.DEBUG)

@@ -23,7 +23,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/script/revisions", ApiVersion.V1)
 class ScriptRevisionsController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -244,7 +243,6 @@ class ScriptRevisionsController(BaseAPIController):
 
 @ApiRoute("show/script/revisions/current", ApiVersion.V1)
 class ScriptCurrentRevisionController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
