@@ -1,6 +1,6 @@
 import Vue from 'vue';
 
-// Import only the Bootstrap-Vue components used in the application
+// Import only the Bootstrap-Vue components, icons, and plugins used in the application
 import {
   // Layout & Grid
   BContainer,
@@ -82,10 +82,8 @@ import {
 
   // Time
   BTime,
-} from 'bootstrap-vue';
 
-// Import icons used in the application
-import {
+  // Icons
   BIcon,
   BIconPlusSquareFill,
   BIconCheckSquareFill,
@@ -95,10 +93,10 @@ import {
   BIconQuestionCircleFill,
   BIconClipboard,
   BIconCheckCircle,
-} from 'bootstrap-vue';
 
-// Import plugins
-import { BVModalPlugin } from 'bootstrap-vue';
+  // Plugins
+  BVModalPlugin,
+} from 'bootstrap-vue';
 
 // Register components globally
 Vue.component('BContainer', BContainer);
