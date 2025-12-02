@@ -15,6 +15,7 @@ from rbac.role import Role
 from utils import tree
 from utils.database import DigiDBSession, DigiSQLAlchemy
 
+
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
@@ -76,7 +77,6 @@ def _get_mapping_columns(
 
 
 class RBACDatabase:
-
     def __init__(self, _db: DigiSQLAlchemy, app: "DigiScriptServer"):
         self._db: DigiSQLAlchemy = _db
         self._app = app
@@ -267,9 +267,7 @@ class RBACDatabase:
             resource_inspect.mapper.mapped_table.fullname, []
         )
         for actor in actor_mappings:
-            table_name = (
-                f"rbac_{actor}_" f"{resource_inspect.mapper.mapped_table.fullname}"
-            )
+            table_name = f"rbac_{actor}_{resource_inspect.mapper.mapped_table.fullname}"
             self._delete_from_rbac_db(table_name, resource_cols)
 
     @functools.lru_cache()

@@ -15,12 +15,12 @@ from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
 
+
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
 class BaseController(SessionMixin, RequestHandler):
-
     def __init__(
         self,
         application: DigiScriptServer,
@@ -110,7 +110,6 @@ class BaseController(SessionMixin, RequestHandler):
 
 
 class BaseAPIController(BaseController):
-
     def _unimplemented_method(self, *args: str, **kwargs: str) -> None:
         self.set_status(405)
         self.write({"message": "405 not allowed"})
@@ -125,8 +124,6 @@ class BaseAPIController(BaseController):
                 )
             except BaseException:
                 get_logger().debug(
-                    f"{self.request.method} "
-                    f"{self.request.path} "
-                    f"{self.request.body}"
+                    f"{self.request.method} {self.request.path} {self.request.body}"
                 )
         super().on_finish()

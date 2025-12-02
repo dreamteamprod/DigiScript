@@ -4,7 +4,6 @@ from .test_utils import DigiScriptTestCase
 
 
 class TestAuthAPI(DigiScriptTestCase):
-
     def test_get(self):
         response = self.fetch("/api/v1/auth/create")
         self.assertEqual(405, response.code)

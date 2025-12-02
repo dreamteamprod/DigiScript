@@ -15,7 +15,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/cues/types", ApiVersion.V1)
 class CueTypesController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -165,7 +164,6 @@ class CueTypesController(BaseAPIController):
 
 @ApiRoute("show/cues", ApiVersion.V1)
 class CueController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()

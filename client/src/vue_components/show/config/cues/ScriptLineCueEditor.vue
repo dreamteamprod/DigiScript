@@ -46,6 +46,7 @@
         >
           <i
             class="viewable-line"
+            :class="{'cut-line-part': linePartCuts.indexOf(line.line_parts[0].id) !== -1}"
             :style="stageDirectionStyling"
           >
             <template
@@ -159,6 +160,7 @@
                 >
                   <i
                     class="viewable-line"
+                    :class="{'cut-line-part': linePartCuts.indexOf(line.line_parts[0].id) !== -1}"
                     :style="stageDirectionStyling"
                   >
                     <template

@@ -16,6 +16,7 @@ from registry.schema import get_registry
 from registry.user_overrides import UserOverridesRegistry
 from utils.database import DeleteMixin
 
+
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 

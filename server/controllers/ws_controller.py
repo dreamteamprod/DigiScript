@@ -15,13 +15,13 @@ from models.show import Act, Show
 from models.user import User
 from utils.web.route import ApiRoute, ApiVersion
 
+
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
 @ApiRoute("ws", ApiVersion.V1)
 class WebSocketController(SessionMixin, WebSocketHandler):
-
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
         # pylint: disable=used-before-assignment
@@ -195,9 +195,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             )
             return True
 
-    async def on_message(
-        self, message: Union[str, bytes]
-    ):  # pylint: disable=invalid-overridden-method
+    async def on_message(self, message: Union[str, bytes]):  # pylint: disable=invalid-overridden-method
         get_logger().debug(
             f"WebSocket received data from {self.request.remote_ip}: {message}"
         )
@@ -424,7 +422,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
         except WebSocketClosedError:
             get_logger().error(
                 f"Trying to send message to closed websocket "
-                f'{self.__getattribute__("internal_id")} at IP address '
+                f"{self.__getattribute__('internal_id')} at IP address "
                 f"{self.request.remote_ip}, closing."
             )
             self.on_close()

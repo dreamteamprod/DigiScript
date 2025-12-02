@@ -6,14 +6,12 @@ from .test_utils import DigiScriptTestCase
 
 
 class TestSettings(DigiScriptTestCase):
-
     @gen_test
     def test_set_invalid_name(self):
         yield self._app.digi_settings.set("not_present_key", "some_value")
         self.assertLogs(
             get_logger(),
-            "Setting not_present_key found in settings file is not "
-            "defined, ignoring!",
+            "Setting not_present_key found in settings file is not defined, ignoring!",
         )
 
     @gen_test

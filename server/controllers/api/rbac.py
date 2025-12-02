@@ -94,7 +94,6 @@ class RBACObjectsHandler(BaseAPIController):
 
 @ApiRoute("rbac/user/roles", ApiVersion.V1)
 class RBACUserRolesHandler(BaseAPIController):
-
     @api_authenticated
     async def get(self):
         with self.make_session() as session:
@@ -117,7 +116,6 @@ class RBACUserRolesHandler(BaseAPIController):
 
 @ApiRoute("rbac/user/roles/grant", ApiVersion.V1)
 class RBACRolesGrantHandler(BaseAPIController):
-
     @api_authenticated
     @require_admin
     async def post(self):
@@ -175,7 +173,6 @@ class RBACRolesGrantHandler(BaseAPIController):
 
 @ApiRoute("rbac/user/roles/revoke", ApiVersion.V1)
 class RBACRolesRevokeHandler(BaseAPIController):
-
     @api_authenticated
     @require_admin
     async def post(self):

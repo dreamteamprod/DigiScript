@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "digiscript-server"
-version = "0.1.0"
+version = "0.18.1"
 description = "DigiScript server - Digital script management for theatrical shows"
 readme = "../README.md"
 requires-python = ">=3.13"
@@ -53,75 +53,107 @@ markers = [
 ]
 
 # ============================================================================
-# BLACK CONFIGURATION
+# RUFF CONFIGURATION
 # ============================================================================
-[tool.black]
-# Use Black's default line-length of 88 to match existing codebase formatting
+# Ruff replaces black, isort, and pylint with a single, fast tool
+# https://docs.astral.sh/ruff/
+
+[tool.ruff]
+# Same line length as black (88)
 line-length = 88
-target-version = ['py313']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # Exclude alembic migrations
-  | alembic_config/versions
-)/
-'''
+target-version = "py313"
 
-# ============================================================================
-# ISORT CONFIGURATION
-# ============================================================================
-[tool.isort]
-profile = "black"
-# Match Black's line length of 88
-line_length = 88
-skip_gitignore = true
-extend_skip = ["alembic_config/versions"]
-known_first_party = ["digi_server", "models", "controllers", "utils", "schemas", "rbac", "registry"]
-
-# ============================================================================
-# PYLINT CONFIGURATION
-# ============================================================================
-[tool.pylint.main]
-# Add current directory to path for imports
-init-hook = "from pylint.config import find_default_config_files; import sys; sys.path.append(next(find_default_config_files()).parent.as_posix())"
-
-# Ignore patterns
-ignore-paths = [
-    "^alembic_config/.*$",
-    "^test/.*$",
+# Exclude alembic migrations and other generated files
+extend-exclude = [
+    "alembic_config/versions",
 ]
 
-[tool.pylint."messages control"]
-disable = [
-    "logging-fstring-interpolation",
-    "missing-module-docstring",
-    "missing-class-docstring",
-    "missing-function-docstring",
-    "too-few-public-methods",
-    "duplicate-code",
-    "too-many-return-statements",
-    "too-many-branches",
-    "too-many-statements",
-    "unnecessary-lambda",
-    "too-many-locals",
-    "too-many-nested-blocks",
-    "too-many-arguments",
-    "unnecessary-dunder-call",
-    "broad-exception-raised",
-    "broad-exception-caught",
-    "fixme",
+[tool.ruff.format]
+# Use black-compatible formatting
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+# Docstring formatting
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint]
+# Enable pycodestyle (E, W), Pyflakes (F), isort (I), and pylint-like rules (PL)
+# Note: We only enable rules that match the original black/isort/pylint behavior
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "PL",     # Pylint
 ]
 
-[tool.pylint.format]
-# Note: Pylint's max-line-length is 120 but Black enforces 88
-# This is intentional - Pylint checks logic, Black formats code
-max-line-length = 120
+# Ignore rules that match pylint's disabled checks
+ignore = [
+    # Line length in comments (black doesn't enforce this)
+    "E501",   # Line too long
 
-[tool.pylint.design]
+    # Documentation (pylint: missing-*-docstring)
+    "D100",   # Missing docstring in public module
+    "D101",   # Missing docstring in public class
+    "D102",   # Missing docstring in public method
+    "D103",   # Missing docstring in public function
+    "D104",   # Missing docstring in public package
+    "D105",   # Missing docstring in magic method
+    "D107",   # Missing docstring in __init__
+
+    # Complexity rules (pylint: too-many-*)
+    "PLR0911",  # Too many return statements
+    "PLR0912",  # Too many branches
+    "PLR0913",  # Too many arguments
+    "PLR0915",  # Too many statements
+    "PLR0917",  # Too many positional arguments
+    "PLR2004",  # Magic value used in comparison
+
+    # Design (pylint: too-few-public-methods)
+    "PLR6301",  # Method could be a function
+
+    # Other pylint equivalents
+    "PLE0604",  # Invalid object in __all__
+    "PLW2901",  # Redefined loop variable
+    "PLR1714",  # Consider merging isinstance calls
+    "SIM102",   # Use single if instead of nested
+    "SIM108",   # Use ternary operator
+    "SIM114",   # Combine if branches
+    "SIM115",   # Use context manager
+    "SIM117",   # Use single with statement
+
+    # Broad exceptions (pylint: broad-exception-*)
+    "BLE001",   # Blind except Exception
+    "TRY002",   # Create exception with error message
+    "TRY003",   # Long exception messages
+    "EM101",    # Exception string literal
+    "EM102",    # Exception f-string
+
+    # Fixme comments
+    "FIX002",   # Line contains TODO
+    "TD002",    # Missing TODO author
+    "TD003",    # Missing TODO link
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore test directory (matching pylint's ignore-paths)
+"test/**" = ["ALL"]
+"alembic_config/**" = ["ALL"]
+
+[tool.ruff.lint.isort]
+# Match isort configuration
+known-first-party = ["digi_server", "models", "controllers", "utils", "schemas", "rbac", "registry"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.ruff.lint.pylint]
+# Match pylint design limits
 max-args = 15
 max-locals = 20
 max-returns = 20
 max-branches = 20
 max-statements = 50
-max-attributes = 20
-max-positional-arguments = 15
+max-public-methods = 20
+max-positional-args = 15

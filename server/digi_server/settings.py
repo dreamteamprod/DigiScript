@@ -9,6 +9,7 @@ from tornado.locks import Lock
 from digi_server.logger import get_logger
 from utils.file_watcher import IOLoopFileWatcher
 
+
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
@@ -109,7 +110,7 @@ class Settings:
 
         self.settings = {}
 
-        db_default = f'sqlite:///{os.path.join(os.path.dirname(__file__), "../conf/digiscript.sqlite")}'
+        db_default = f"sqlite:///{os.path.join(os.path.dirname(__file__), '../conf/digiscript.sqlite')}"
         self.define(
             "has_admin_user",
             bool,
@@ -310,8 +311,7 @@ class Settings:
         async with self.lock:
             if key not in self.settings:
                 get_logger().warning(
-                    f"Setting {key} found in settings file is not "
-                    f"defined, ignoring!"
+                    f"Setting {key} found in settings file is not defined, ignoring!"
                 )
             else:
                 changed = self.settings[key].set_value(item)

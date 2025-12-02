@@ -2,6 +2,7 @@ from digi_server.logger import get_logger
 from utils.database import DigiSQLAlchemy
 from utils.module_discovery import import_modules
 
+
 IMPORTED_MODELS = {}
 
 
