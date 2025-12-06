@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from models.models import db
 
@@ -6,5 +6,5 @@ from models.models import db
 class SystemSettings(db.Model):
     __tablename__ = "system_settings"
 
-    key = Column(String, primary_key=True)
-    value = Column(String, nullable=False)
+    key: Mapped[str] = mapped_column(primary_key=True)
+    value: Mapped[str] = mapped_column(nullable=False)

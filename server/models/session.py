@@ -1,8 +1,9 @@
 import datetime
 from functools import partial
+from typing import List
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import backref, relationship
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, backref, relationship
 
 from models.models import db
 
@@ -10,40 +11,43 @@ from models.models import db
 class Session(db.Model):
     __tablename__ = "sessions"
 
-    internal_id = Column(String(255), primary_key=True)
-    remote_ip = Column(String(255))
-    last_ping = Column(Float())
-    last_pong = Column(Float())
-    is_editor = Column(Boolean(), default=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"), index=True)
+    internal_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    remote_ip: Mapped[str] = mapped_column(String(255))
+    last_ping: Mapped[float] = mapped_column()
+    last_pong: Mapped[float] = mapped_column()
+    is_editor: Mapped[bool] = mapped_column(default=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), index=True
+    )
 
-    user = relationship(
-        "User", uselist=False, backref=backref("sessions", uselist=True)
+    user: Mapped["User"] = relationship(
+        uselist=False, backref=backref("sessions", uselist=True)
     )
 
 
 class ShowSession(db.Model):
     __tablename__ = "showsession"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
-    start_date_time = Column(DateTime())
-    end_date_time = Column(DateTime())
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    start_date_time: Mapped[datetime.datetime] = mapped_column()
+    end_date_time: Mapped[datetime.datetime] = mapped_column()
 
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"), index=True)
-    client_internal_id = Column(
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), index=True
+    )
+    client_internal_id: Mapped[str | None] = mapped_column(
         String(255), ForeignKey("sessions.internal_id", ondelete="SET NULL")
     )
-    last_client_internal_id = Column(String(255))
-    latest_line_ref = Column(String)
-    current_interval_id = Column(
-        Integer, ForeignKey("showinterval.id", ondelete="SET NULL")
+    last_client_internal_id: Mapped[str | None] = mapped_column(String(255))
+    latest_line_ref: Mapped[str | None] = mapped_column()
+    current_interval_id: Mapped[int | None] = mapped_column(
+        ForeignKey("showinterval.id", ondelete="SET NULL")
     )
 
-    show = relationship("Show", uselist=False, foreign_keys=[show_id])
-    user = relationship("User", uselist=False, foreign_keys=[user_id])
-    client = relationship(
-        "Session",
+    show: Mapped["Show"] = relationship(uselist=False, foreign_keys=[show_id])
+    user: Mapped["User"] = relationship(uselist=False, foreign_keys=[user_id])
+    client: Mapped["Session"] = relationship(
         uselist=False,
         foreign_keys=[client_internal_id],
         backref=backref("live_session", uselist=False),
@@ -53,11 +57,13 @@ class ShowSession(db.Model):
 class Interval(db.Model):
     __tablename__ = "showinterval"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(Integer, ForeignKey("showsession.id", ondelete="CASCADE"))
-    act_id = Column(Integer, ForeignKey("act.id", ondelete="CASCADE"))
-    start_datetime = Column(
-        DateTime, default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("showsession.id", ondelete="CASCADE")
     )
-    end_datetime = Column(DateTime, default=None)
-    initial_length = Column(Float, default=0)
+    act_id: Mapped[int] = mapped_column(ForeignKey("act.id", ondelete="CASCADE"))
+    start_datetime: Mapped[datetime.datetime] = mapped_column(
+        default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
+    )
+    end_datetime: Mapped[datetime.datetime | None] = mapped_column(default=None)
+    initial_length: Mapped[float] = mapped_column(default=0)

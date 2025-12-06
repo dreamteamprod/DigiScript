@@ -7,12 +7,12 @@ from tornado import gen
 from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
 from tornado.websocket import WebSocketClosedError, WebSocketHandler
-from tornado_sqlalchemy import SessionMixin
 
 from digi_server.logger import get_logger
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
 from models.user import User
+from utils.web.base_controller import DatabaseMixin
 from utils.web.route import ApiRoute, ApiVersion
 
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 @ApiRoute("ws", ApiVersion.V1)
-class WebSocketController(SessionMixin, WebSocketHandler):
+class WebSocketController(DatabaseMixin, WebSocketHandler):
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
         # pylint: disable=used-before-assignment

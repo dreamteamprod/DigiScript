@@ -6,7 +6,6 @@ import bcrypt
 from tornado import escape, httputil
 from tornado.ioloop import IOLoop
 from tornado.web import HTTPError, RequestHandler
-from tornado_sqlalchemy import SessionMixin
 
 from digi_server.logger import get_logger
 from models.models import db
@@ -20,7 +19,20 @@ if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
-class BaseController(SessionMixin, RequestHandler):
+class DatabaseMixin:
+    """Mixin providing database session management (replaces tornado_sqlalchemy.SessionMixin)."""
+
+    @property
+    def db(self):
+        """Get database instance from application."""
+        return self.application.get_db()
+
+    def make_session(self):
+        """Create session context manager."""
+        return self.db.sessionmaker()
+
+
+class BaseController(DatabaseMixin, RequestHandler):
     def __init__(
         self,
         application: DigiScriptServer,
