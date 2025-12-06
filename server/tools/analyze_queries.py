@@ -20,6 +20,7 @@ import re
 import sys
 from pathlib import Path
 
+
 # Pattern definitions with regex, modern replacement, and complexity level
 PATTERNS = {
     "simple_get": {
@@ -120,7 +121,7 @@ def print_findings(findings, filepath):
         filepath: Path of the analyzed file
     """
     print(f"\n{'=' * 80}")
-    print(f"SQLAlchemy Query Migration Analysis")
+    print("SQLAlchemy Query Migration Analysis")
     print(f"File: {filepath}")
     print(f"{'=' * 80}\n")
 
