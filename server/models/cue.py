@@ -12,11 +12,11 @@ class CueType(db.Model):
     __tablename__ = "cuetypes"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
 
-    prefix: Mapped[str] = mapped_column(String(5))
-    description: Mapped[str] = mapped_column(String(100))
-    colour: Mapped[str] = mapped_column(String())
+    prefix: Mapped[str | None] = mapped_column(String(5))
+    description: Mapped[str | None] = mapped_column(String(100))
+    colour: Mapped[str | None] = mapped_column(String())
 
     cues: Mapped[List["Cue"]] = relationship(
         back_populates="cue_type", cascade="all, delete-orphan"
@@ -27,8 +27,8 @@ class Cue(db.Model):
     __tablename__ = "cue"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    cue_type_id: Mapped[int] = mapped_column(ForeignKey("cuetypes.id"))
-    ident: Mapped[str] = mapped_column(String())
+    cue_type_id: Mapped[int | None] = mapped_column(ForeignKey("cuetypes.id"))
+    ident: Mapped[str | None] = mapped_column(String())
 
     cue_type: Mapped["CueType"] = relationship(
         foreign_keys=[cue_type_id], back_populates="cues"

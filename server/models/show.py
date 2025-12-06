@@ -18,7 +18,7 @@ class Show(db.Model):
     __tablename__ = "shows"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str | None] = mapped_column(String(100))
     start_date: Mapped[datetime.date | None] = mapped_column(Date())
     end_date: Mapped[datetime.date | None] = mapped_column(Date())
     created_at: Mapped[datetime.datetime | None] = mapped_column()
@@ -50,9 +50,9 @@ class Cast(db.Model):
     __tablename__ = "cast"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    first_name: Mapped[str] = mapped_column()
-    last_name: Mapped[str] = mapped_column()
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    first_name: Mapped[str | None] = mapped_column()
+    last_name: Mapped[str | None] = mapped_column()
 
     # Relationships
     character_list: Mapped[List["Character"]] = relationship(
@@ -72,9 +72,9 @@ class Character(db.Model):
     __tablename__ = "character"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
     played_by: Mapped[int | None] = mapped_column(ForeignKey("cast.id"))
-    name: Mapped[str] = mapped_column()
+    name: Mapped[str | None] = mapped_column()
     description: Mapped[str | None] = mapped_column()
 
     cast_member: Mapped["Cast"] = relationship(back_populates="character_list")
@@ -91,9 +91,9 @@ class CharacterGroup(db.Model):
     __tablename__ = "character_group"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
 
-    name: Mapped[str] = mapped_column()
+    name: Mapped[str | None] = mapped_column()
     description: Mapped[str | None] = mapped_column()
 
     characters: Mapped[List["Character"]] = relationship(
@@ -106,9 +106,9 @@ class Act(db.Model):
     __tablename__ = "act"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    name: Mapped[str] = mapped_column()
-    interval_after: Mapped[bool] = mapped_column()
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    name: Mapped[str | None] = mapped_column()
+    interval_after: Mapped[bool | None] = mapped_column()
     first_scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
     previous_act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
 
@@ -136,9 +136,9 @@ class Scene(db.Model):
     __tablename__ = "scene"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    act_id: Mapped[int] = mapped_column(ForeignKey("act.id"))
-    name: Mapped[str] = mapped_column()
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
+    name: Mapped[str | None] = mapped_column()
     previous_scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
 
     act: Mapped["Act"] = relationship(

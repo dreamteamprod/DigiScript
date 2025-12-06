@@ -27,7 +27,7 @@ class Script(db.Model):
     __tablename__ = "script"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
     current_revision: Mapped[int | None] = mapped_column(
         ForeignKey("script_revisions.id")
     )
@@ -45,9 +45,9 @@ class ScriptRevision(db.Model):
     __tablename__ = "script_revisions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    script_id: Mapped[int] = mapped_column(ForeignKey("script.id"))
+    script_id: Mapped[int | None] = mapped_column(ForeignKey("script.id"))
 
-    revision: Mapped[int] = mapped_column()
+    revision: Mapped[int | None] = mapped_column()
     created_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
     edited_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
     description: Mapped[str | None] = mapped_column(String)
@@ -78,8 +78,8 @@ class ScriptLine(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
     scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
-    page: Mapped[int] = mapped_column(index=True)
-    stage_direction: Mapped[bool] = mapped_column(Boolean)
+    page: Mapped[int | None] = mapped_column(index=True)
+    stage_direction: Mapped[bool | None] = mapped_column(Boolean)
     stage_direction_style_id: Mapped[int | None] = mapped_column(
         ForeignKey("stage_direction_styles.id", ondelete="SET NULL")
     )
@@ -133,14 +133,14 @@ class ScriptLinePart(db.Model):
     __tablename__ = "script_line_parts"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    line_id: Mapped[int] = mapped_column(ForeignKey("script_lines.id"))
+    line_id: Mapped[int | None] = mapped_column(ForeignKey("script_lines.id"))
 
-    part_index: Mapped[int] = mapped_column()
+    part_index: Mapped[int | None] = mapped_column()
     character_id: Mapped[int | None] = mapped_column(ForeignKey("character.id"))
     character_group_id: Mapped[int | None] = mapped_column(
         ForeignKey("character_group.id")
     )
-    line_text: Mapped[str] = mapped_column(String)
+    line_text: Mapped[str | None] = mapped_column(String)
 
     line: Mapped["ScriptLine"] = relationship(
         foreign_keys=[line_id], back_populates="line_parts"
@@ -185,16 +185,16 @@ class StageDirectionStyle(db.Model, DeleteMixin):
     __tablename__ = "stage_direction_styles"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    script_id: Mapped[int] = mapped_column(ForeignKey("script.id"), index=True)
+    script_id: Mapped[int | None] = mapped_column(ForeignKey("script.id"), index=True)
 
-    description: Mapped[str] = mapped_column(String)
-    bold: Mapped[bool] = mapped_column(Boolean)
-    italic: Mapped[bool] = mapped_column(Boolean)
-    underline: Mapped[bool] = mapped_column(Boolean)
-    text_format: Mapped[str] = mapped_column(String)
-    text_colour: Mapped[str] = mapped_column(String)
-    enable_background_colour: Mapped[bool] = mapped_column(Boolean)
-    background_colour: Mapped[str] = mapped_column(String)
+    description: Mapped[str | None] = mapped_column(String)
+    bold: Mapped[bool | None] = mapped_column(Boolean)
+    italic: Mapped[bool | None] = mapped_column(Boolean)
+    underline: Mapped[bool | None] = mapped_column(Boolean)
+    text_format: Mapped[str | None] = mapped_column(String)
+    text_colour: Mapped[str | None] = mapped_column(String)
+    enable_background_colour: Mapped[bool | None] = mapped_column(Boolean)
+    background_colour: Mapped[str | None] = mapped_column(String)
 
     script: Mapped["Script"] = relationship(
         foreign_keys=[script_id], back_populates="stage_direction_styles"
@@ -219,15 +219,15 @@ class CompiledScript(db.Model):
     revision_id: Mapped[int] = mapped_column(
         ForeignKey("script_revisions.id", ondelete="CASCADE"), primary_key=True
     )
-    created_at: Mapped[datetime.datetime] = mapped_column(
+    created_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime, default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
     )
-    updated_at: Mapped[datetime.datetime] = mapped_column(
+    updated_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime,
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc),
         onupdate=partial(datetime.datetime.now, tz=datetime.timezone.utc),
     )
-    data_path: Mapped[str] = mapped_column(String)
+    data_path: Mapped[str | None] = mapped_column(String)
 
     script_revision: Mapped["ScriptRevision"] = relationship(foreign_keys=[revision_id])
 

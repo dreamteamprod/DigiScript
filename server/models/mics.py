@@ -14,7 +14,7 @@ class Microphone(db.Model):
     __tablename__ = "microphones"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
 
     name: Mapped[str | None] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(String)

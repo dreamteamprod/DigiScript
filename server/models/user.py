@@ -3,7 +3,7 @@ import json
 from functools import partial
 from typing import TYPE_CHECKING, List, Union
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -18,9 +18,9 @@ class User(db.Model):
     __tablename__ = "user"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(index=True)
-    password: Mapped[str] = mapped_column()
-    is_admin: Mapped[bool] = mapped_column()
+    username: Mapped[str | None] = mapped_column(index=True)
+    password: Mapped[str | None] = mapped_column()
+    is_admin: Mapped[bool | None] = mapped_column()
     last_login: Mapped[datetime.datetime | None] = mapped_column()
     last_seen: Mapped[datetime.datetime | None] = mapped_column()
     api_token: Mapped[str | None] = mapped_column(index=True)
@@ -32,19 +32,19 @@ class UserSettings(db.Model):
     __tablename__ = "user_settings"
 
     # User editable settings
-    enable_script_auto_save: Mapped[bool] = mapped_column(default=True)
-    script_auto_save_interval: Mapped[int] = mapped_column(default=10)
-    cue_position_right: Mapped[bool] = mapped_column(default=False)
+    enable_script_auto_save: Mapped[bool | None] = mapped_column(default=True)
+    script_auto_save_interval: Mapped[int | None] = mapped_column(default=10)
+    cue_position_right: Mapped[bool | None] = mapped_column(default=False)
 
     # Hidden Properties (None user editable, marked with _)
     # Make sure to also mark these as hidden in the Schema for this in schemas/schemas.py
     _user_id: Mapped[int] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE"), primary_key=True, index=True
     )
-    _created_at: Mapped[datetime.datetime] = mapped_column(
+    _created_at: Mapped[datetime.datetime | None] = mapped_column(
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
     )
-    _updated_at: Mapped[datetime.datetime] = mapped_column(
+    _updated_at: Mapped[datetime.datetime | None] = mapped_column(
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc),
         onupdate=partial(datetime.datetime.now, tz=datetime.timezone.utc),
     )
@@ -54,17 +54,17 @@ class UserOverrides(db.Model):
     __tablename__ = "user_overrides"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(
+    user_id: Mapped[int | None] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE"), index=True
     )
 
-    settings_type: Mapped[str] = mapped_column(index=True)
-    settings: Mapped[str] = mapped_column()
+    settings_type: Mapped[str | None] = mapped_column(index=True)
+    settings: Mapped[str | None] = mapped_column(Text)
 
-    created_at: Mapped[datetime.datetime] = mapped_column(
+    created_at: Mapped[datetime.datetime | None] = mapped_column(
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
     )
-    updated_at: Mapped[datetime.datetime] = mapped_column(
+    updated_at: Mapped[datetime.datetime | None] = mapped_column(
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc),
         onupdate=partial(datetime.datetime.now, tz=datetime.timezone.utc),
     )

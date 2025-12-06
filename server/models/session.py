@@ -17,10 +17,10 @@ class Session(db.Model):
     __tablename__ = "sessions"
 
     internal_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    remote_ip: Mapped[str] = mapped_column(String(255))
-    last_ping: Mapped[float] = mapped_column()
-    last_pong: Mapped[float] = mapped_column()
-    is_editor: Mapped[bool] = mapped_column(default=False, index=True)
+    remote_ip: Mapped[str | None] = mapped_column(String(255))
+    last_ping: Mapped[float | None] = mapped_column()
+    last_pong: Mapped[float | None] = mapped_column()
+    is_editor: Mapped[bool | None] = mapped_column(default=False, index=True)
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), index=True
     )
@@ -36,9 +36,9 @@ class ShowSession(db.Model):
     __tablename__ = "showsession"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    start_date_time: Mapped[datetime.datetime] = mapped_column()
-    end_date_time: Mapped[datetime.datetime] = mapped_column()
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    start_date_time: Mapped[datetime.datetime | None] = mapped_column()
+    end_date_time: Mapped[datetime.datetime | None] = mapped_column()
 
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), index=True
@@ -64,12 +64,12 @@ class Interval(db.Model):
     __tablename__ = "showinterval"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(
+    session_id: Mapped[int | None] = mapped_column(
         ForeignKey("showsession.id", ondelete="CASCADE")
     )
-    act_id: Mapped[int] = mapped_column(ForeignKey("act.id", ondelete="CASCADE"))
-    start_datetime: Mapped[datetime.datetime] = mapped_column(
+    act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id", ondelete="CASCADE"))
+    start_datetime: Mapped[datetime.datetime | None] = mapped_column(
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
     )
     end_datetime: Mapped[datetime.datetime | None] = mapped_column(default=None)
-    initial_length: Mapped[float] = mapped_column(default=0)
+    initial_length: Mapped[float | None] = mapped_column(default=0)
