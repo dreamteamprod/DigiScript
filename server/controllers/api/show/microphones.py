@@ -20,7 +20,7 @@ class MicrophoneController(BaseAPIController):
         mic_schema = MicrophoneSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 mics: List[Microphone] = (
                     session.query(Microphone)
@@ -41,7 +41,7 @@ class MicrophoneController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -90,7 +90,7 @@ class MicrophoneController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -101,7 +101,7 @@ class MicrophoneController(BaseAPIController):
                     await self.finish({"message": "ID missing"})
                     return
 
-                microphone: Microphone = session.query(Microphone).get(microphone_id)
+                microphone: Microphone = session.get(Microphone, microphone_id)
                 if not microphone:
                     self.set_status(404)
                     await self.finish({"message": "404 microphone not found"})
@@ -148,7 +148,7 @@ class MicrophoneController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -187,7 +187,7 @@ class MicrophoneAllocationsController(BaseAPIController):
         allocation_schema = MicrophoneAllocationSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 mics: List[Microphone] = (
                     session.query(Microphone)
@@ -214,20 +214,20 @@ class MicrophoneAllocationsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
                 for microphone_id in data:
-                    mic = session.query(Microphone).get(microphone_id)
+                    mic = session.get(Microphone, microphone_id)
                     if not mic:
                         self.set_status(404)
                         await self.finish({"message": "404 microphone not found"})
                         return
 
                     for scene_id in data[microphone_id]:
-                        scene = session.query(Scene).get(scene_id)
+                        scene = session.get(Scene, scene_id)
                         if not scene:
                             self.set_status(404)
                             await self.finish({"message": "404 scene not found"})
@@ -244,7 +244,7 @@ class MicrophoneAllocationsController(BaseAPIController):
 
                         character_id = data[microphone_id][scene_id]
                         if character_id:
-                            character = session.query(Character).get(character_id)
+                            character = session.get(Character, character_id)
                             if not character:
                                 self.set_status(404)
                                 await self.finish(

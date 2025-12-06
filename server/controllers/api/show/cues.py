@@ -22,7 +22,7 @@ class CueTypesController(BaseAPIController):
         cue_type_schema = CueTypeSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 cue_types = [cue_type_schema.dump(c) for c in show.cue_type_list]
                 self.set_status(200)
@@ -38,7 +38,7 @@ class CueTypesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -83,7 +83,7 @@ class CueTypesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -94,7 +94,7 @@ class CueTypesController(BaseAPIController):
                     await self.finish({"message": "ID missing"})
                     return
 
-                cue_type: CueType = session.query(CueType).get(cue_type_id)
+                cue_type: CueType = session.get(CueType, cue_type_id)
                 if not cue_type:
                     self.set_status(404)
                     await self.finish({"message": "404 cue type not found"})
@@ -134,7 +134,7 @@ class CueTypesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -171,14 +171,14 @@ class CueController(BaseAPIController):
         cue_schema = CueSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                    revision: ScriptRevision = session.get(ScriptRevision, 
                         script.current_revision
                     )
                 else:
@@ -208,14 +208,14 @@ class CueController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                    revision: ScriptRevision = session.get(ScriptRevision, 
                         script.current_revision
                     )
                 else:
@@ -233,7 +233,7 @@ class CueController(BaseAPIController):
                     await self.finish({"message": "Cue Type missing"})
                     return
 
-                cue_type = session.query(CueType).get(cue_type_id)
+                cue_type = session.get(CueType, cue_type_id)
                 if not cue_type:
                     self.set_status(400)
                     await self.finish(
@@ -281,14 +281,14 @@ class CueController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                    revision: ScriptRevision = session.get(ScriptRevision, 
                         script.current_revision
                     )
                 else:
@@ -312,7 +312,7 @@ class CueController(BaseAPIController):
                     await self.finish({"message": "Cue Type missing"})
                     return
 
-                cue_type = session.query(CueType).get(cue_type_id)
+                cue_type = session.get(CueType, cue_type_id)
                 if not cue_type:
                     self.set_status(400)
                     await self.finish(
@@ -333,13 +333,13 @@ class CueController(BaseAPIController):
                     await self.finish({"message": "Line ID missing"})
                     return
 
-                cue: Cue = session.query(Cue).get(cue_id)
+                cue: Cue = session.get(Cue, cue_id)
                 if not cue:
                     self.set_status(404)
                     await self.finish({"message": "404 cue not found"})
                     return
 
-                current_association: CueAssociation = session.query(CueAssociation).get(
+                current_association: CueAssociation = session.get(CueAssociation, 
                     {"revision_id": revision.id, "line_id": line_id, "cue_id": cue_id}
                 )
 
@@ -384,14 +384,14 @@ class CueController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                    revision: ScriptRevision = session.get(ScriptRevision, 
                         script.current_revision
                     )
                 else:
@@ -409,8 +409,8 @@ class CueController(BaseAPIController):
                     await self.finish({"message": "Cue ID missing"})
                     return
 
-                cue = session.query(Cue).get(cue_id)
-                cue_type = session.query(CueType).get(cue.cue_type_id)
+                cue = session.get(Cue, cue_id)
+                cue_type = session.get(CueType, cue.cue_type_id)
                 self.requires_role(cue_type, Role.WRITE)
 
                 line_id: int = data.get("lineId")
@@ -419,7 +419,7 @@ class CueController(BaseAPIController):
                     await self.finish({"message": "Line ID missing"})
                     return
 
-                association_object = session.query(CueAssociation).get(
+                association_object = session.get(CueAssociation, 
                     {"revision_id": revision.id, "line_id": line_id, "cue_id": cue_id}
                 )
 
@@ -448,14 +448,14 @@ class CueStatsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.query(ScriptRevision).get(
+                    revision: ScriptRevision = session.get(ScriptRevision, 
                         script.current_revision
                     )
                 else:

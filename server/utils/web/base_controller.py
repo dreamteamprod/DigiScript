@@ -64,7 +64,7 @@ class BaseController(DatabaseMixin, RequestHandler):
 
                 payload = self.application.jwt_service.decode_access_token(token)
                 if payload and "user_id" in payload:
-                    user = session.query(User).get(int(payload["user_id"]))
+                    user = session.get(User, int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
 
@@ -97,7 +97,7 @@ class BaseController(DatabaseMixin, RequestHandler):
 
             current_show = await self.application.digi_settings.get("current_show")
             if current_show:
-                show = session.query(Show).get(current_show)
+                show = session.get(Show, current_show)
                 if show:
                     self.current_show = show_schema.dump(show)
         return
@@ -108,7 +108,7 @@ class BaseController(DatabaseMixin, RequestHandler):
         if self.current_user["is_admin"]:
             return
         with self.make_session() as session:
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             if not user:
                 raise HTTPError(500)
             if not self.application.rbac.has_role(user, resource, role):

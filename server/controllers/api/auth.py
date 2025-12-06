@@ -89,7 +89,7 @@ class UserDeleteController(BaseAPIController):
             return
 
         with self.make_session() as session:
-            user_to_delete: User = session.query(User).get(int(user_to_delete))
+            user_to_delete: User = session.get(User, int(user_to_delete))
             if not user_to_delete:
                 self.set_status(400)
                 await self.finish({"message": "Could not find user to delete"})
@@ -178,7 +178,7 @@ class LoginHandler(BaseAPIController):
                 if password_equal:
                     session_id = data.get("session_id", "")
                     if session_id:
-                        ws_session: Session = session.query(Session).get(session_id)
+                        ws_session: Session = session.get(Session, session_id)
                         if ws_session:
                             ws_session.user = user
                     user.last_login = datetime.now(tz=timezone.utc)
@@ -215,7 +215,7 @@ class LogoutHandler(BaseAPIController):
             session_id = data.get("session_id", "")
             if session_id:
                 with self.make_session() as session:
-                    ws_session: Session = session.query(Session).get(session_id)
+                    ws_session: Session = session.get(Session, session_id)
                     if ws_session:
                         ws_session.user = None
                         session.commit()
@@ -280,7 +280,7 @@ class ApiTokenGenerateController(BaseAPIController):
     async def post(self):
         """Generate a new API token for the authenticated user"""
         with self.make_session() as session:
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             if not user:
                 self.set_status(404)
                 await self.finish({"message": "User not found"})
@@ -313,7 +313,7 @@ class ApiTokenRevokeController(BaseAPIController):
     async def post(self):
         """Revoke the API token for the authenticated user"""
         with self.make_session() as session:
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             if not user:
                 self.set_status(404)
                 await self.finish({"message": "User not found"})
@@ -337,7 +337,7 @@ class ApiTokenController(BaseAPIController):
     def get(self):
         """Check if the authenticated user has an API token"""
         with self.make_session() as session:
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             if not user:
                 self.set_status(404)
                 self.finish({"message": "User not found"})
