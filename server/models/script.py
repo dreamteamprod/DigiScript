@@ -6,7 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING, List
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, func
-from sqlalchemy.orm import backref, relationship
+from sqlalchemy.orm import Mapped, mapped_column, backref, relationship
 from tornado.ioloop import IOLoop
 
 from digi_server.logger import get_logger
@@ -19,6 +19,7 @@ from utils.database import DeleteMixin
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
+    from models.cue import CueAssociation
 
 
 class Script(db.Model):
@@ -56,6 +57,15 @@ class ScriptRevision(db.Model):
         "ScriptRevision", foreign_keys=[previous_revision_id]
     )
     script = relationship("Script", foreign_keys=[script_id])
+    line_associations: "Mapped[List[ScriptLineRevisionAssociation]]" = relationship(
+        cascade="all, delete", back_populates="revision"
+    )
+    line_part_cuts: "Mapped[List[ScriptCuts]]" = relationship(
+        cascade="all, delete-orphan", back_populates="revision"
+    )
+    cue_associations: "Mapped[List[CueAssociation]]" = relationship(
+        cascade="all, delete-orphan", back_populates="revision"
+    )
 
 
 class ScriptLine(db.Model):
@@ -72,37 +82,38 @@ class ScriptLine(db.Model):
 
     act = relationship("Act", uselist=False, back_populates="lines")
     scene = relationship("Scene", uselist=False, back_populates="lines")
+    revision_associations: "Mapped[List[ScriptLineRevisionAssociation]]" = relationship(
+        foreign_keys="[ScriptLineRevisionAssociation.line_id]",
+        cascade="all, delete",
+        back_populates="line",
+    )
+    cue_associations: "Mapped[List[CueAssociation]]" = relationship(
+        foreign_keys="[CueAssociation.line_id]", viewonly=True, back_populates="line"
+    )
 
 
 class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     __tablename__ = "script_line_revision_association"
-    __mapper_args__ = {"confirm_deleted_rows": False}
 
-    revision_id = Column(
-        Integer, ForeignKey("script_revisions.id"), primary_key=True, index=True
+    revision_id: Mapped[int] = mapped_column(
+        ForeignKey("script_revisions.id"), primary_key=True, index=True
     )
-    line_id = Column(
-        Integer, ForeignKey("script_lines.id"), primary_key=True, index=True
+    line_id: Mapped[int] = mapped_column(
+        ForeignKey("script_lines.id"), primary_key=True, index=True
     )
 
-    next_line_id = Column(Integer, ForeignKey("script_lines.id"))
-    previous_line_id = Column(Integer, ForeignKey("script_lines.id"))
+    next_line_id: Mapped[int | None] = mapped_column(ForeignKey("script_lines.id"))
+    previous_line_id: Mapped[int | None] = mapped_column(ForeignKey("script_lines.id"))
 
-    revision: ScriptRevision = relationship(
-        "ScriptRevision",
-        foreign_keys=[revision_id],
-        uselist=False,
-        backref=backref("line_associations", uselist=True, cascade="all, delete"),
+    revision: Mapped["ScriptRevision"] = relationship(
+        foreign_keys=[revision_id], back_populates="line_associations"
     )
-    line: ScriptLine = relationship(
-        "ScriptLine",
-        foreign_keys=[line_id],
-        uselist=False,
-        backref=backref("revision_associations", uselist=True, cascade="all, delete"),
+    line: Mapped["ScriptLine"] = relationship(
+        foreign_keys=[line_id], back_populates="revision_associations"
     )
-    next_line: ScriptLine = relationship("ScriptLine", foreign_keys=[next_line_id])
-    previous_line: ScriptLine = relationship(
-        "ScriptLine", foreign_keys=[previous_line_id]
+    next_line: Mapped["ScriptLine"] = relationship(foreign_keys=[next_line_id])
+    previous_line: Mapped["ScriptLine"] = relationship(
+        foreign_keys=[previous_line_id]
     )
 
     def pre_delete(self, session):
@@ -132,29 +143,26 @@ class ScriptLinePart(db.Model):
     )
     character = relationship("Character", uselist=False)
     character_group = relationship("CharacterGroup", uselist=False)
+    line_part_cuts: "Mapped[ScriptCuts]" = relationship(
+        cascade="all, delete-orphan", back_populates="line_part"
+    )
 
 
 class ScriptCuts(db.Model):
     __tablename__ = "script_line_cuts"
 
-    line_part_id = Column(
-        Integer, ForeignKey("script_line_parts.id"), primary_key=True, index=True
+    line_part_id: Mapped[int] = mapped_column(
+        ForeignKey("script_line_parts.id"), primary_key=True, index=True
     )
-    revision_id = Column(
-        Integer, ForeignKey("script_revisions.id"), primary_key=True, index=True
+    revision_id: Mapped[int] = mapped_column(
+        ForeignKey("script_revisions.id"), primary_key=True, index=True
     )
 
-    line_part = relationship(
-        "ScriptLinePart",
-        uselist=False,
-        foreign_keys=[line_part_id],
-        backref=backref("line_part_cuts", uselist=False, cascade="all, delete-orphan"),
+    line_part: Mapped["ScriptLinePart"] = relationship(
+        foreign_keys=[line_part_id], back_populates="line_part_cuts"
     )
-    revision = relationship(
-        "ScriptRevision",
-        uselist=False,
-        foreign_keys=[revision_id],
-        backref=backref("line_part_cuts", uselist=True, cascade="all, delete-orphan"),
+    revision: Mapped["ScriptRevision"] = relationship(
+        foreign_keys=[revision_id], back_populates="line_part_cuts"
     )
 
 

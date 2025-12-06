@@ -79,6 +79,9 @@ class Character(db.Model):
         secondary=character_group_association_table,
         back_populates="characters",
     )
+    mic_allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
+        cascade="all, delete-orphan", back_populates="character"
+    )
 
 
 class CharacterGroup(db.Model):
@@ -151,4 +154,7 @@ class Scene(db.Model):
     )
     lines: Mapped[List["ScriptLine"]] = relationship(
         back_populates="scene", cascade="all, delete-orphan"
+    )
+    mic_allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
+        cascade="all, delete-orphan", back_populates="scene"
     )
