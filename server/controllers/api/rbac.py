@@ -29,7 +29,7 @@ class RBACUsersHandler(BaseAPIController):
         res = []
         for resource in resources:
             r_inspect = inspect(resource)
-            res.append(r_inspect.mapped_table.fullname)
+            res.append(r_inspect.persist_selectable.fullname)
         self.set_status(200)
         await self.finish({"resources": res})
 

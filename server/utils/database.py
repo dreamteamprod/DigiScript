@@ -135,7 +135,7 @@ class DigiSQLAlchemy:
     def get_mapper_for_table(self, tablename):
         """Get the mapped entity for a table name."""
         for mapper in self.Model.registry.mappers:
-            if mapper.mapped_table.fullname == tablename:
+            if mapper.persist_selectable.fullname == tablename:
                 return mapper.entity
         return None
 

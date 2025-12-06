@@ -178,7 +178,7 @@ class CueController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision, 
+                    revision: ScriptRevision = session.get(ScriptRevision,
                         script.current_revision
                     )
                 else:
@@ -215,7 +215,7 @@ class CueController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision, 
+                    revision: ScriptRevision = session.get(ScriptRevision,
                         script.current_revision
                     )
                 else:
@@ -288,7 +288,7 @@ class CueController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision, 
+                    revision: ScriptRevision = session.get(ScriptRevision,
                         script.current_revision
                     )
                 else:
@@ -339,7 +339,7 @@ class CueController(BaseAPIController):
                     await self.finish({"message": "404 cue not found"})
                     return
 
-                current_association: CueAssociation = session.get(CueAssociation, 
+                current_association: CueAssociation = session.get(CueAssociation,
                     {"revision_id": revision.id, "line_id": line_id, "cue_id": cue_id}
                 )
 
@@ -391,7 +391,7 @@ class CueController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision, 
+                    revision: ScriptRevision = session.get(ScriptRevision,
                         script.current_revision
                     )
                 else:
@@ -419,7 +419,7 @@ class CueController(BaseAPIController):
                     await self.finish({"message": "Line ID missing"})
                     return
 
-                association_object = session.get(CueAssociation, 
+                association_object = session.get(CueAssociation,
                     {"revision_id": revision.id, "line_id": line_id, "cue_id": cue_id}
                 )
 
@@ -455,7 +455,7 @@ class CueStatsController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision, 
+                    revision: ScriptRevision = session.get(ScriptRevision,
                         script.current_revision
                     )
                 else:

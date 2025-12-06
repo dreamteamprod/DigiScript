@@ -3,7 +3,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String
-from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
 
@@ -25,8 +25,10 @@ class Session(db.Model):
         ForeignKey("user.id", ondelete="SET NULL"), index=True
     )
 
-    user: Mapped["User"] = relationship(
-        uselist=False, backref=backref("sessions", uselist=True)
+    user: Mapped["User"] = relationship(back_populates="sessions")
+    live_session: Mapped["ShowSession"] = relationship(
+        foreign_keys="[ShowSession.client_internal_id]",
+        back_populates="client",
     )
 
 
@@ -53,9 +55,8 @@ class ShowSession(db.Model):
     show: Mapped["Show"] = relationship(uselist=False, foreign_keys=[show_id])
     user: Mapped["User"] = relationship(uselist=False, foreign_keys=[user_id])
     client: Mapped["Session"] = relationship(
-        uselist=False,
         foreign_keys=[client_internal_id],
-        backref=backref("live_session", uselist=False),
+        back_populates="live_session",
     )
 
 

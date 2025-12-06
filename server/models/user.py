@@ -1,13 +1,17 @@
 import datetime
 import json
 from functools import partial
-from typing import Union
+from typing import TYPE_CHECKING, List, Union
 
 from sqlalchemy import ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
 from registry.user_overrides import UserOverridesRegistry
+
+
+if TYPE_CHECKING:
+    from models.session import Session
 
 
 class User(db.Model):
@@ -20,6 +24,8 @@ class User(db.Model):
     last_login: Mapped[datetime.datetime | None] = mapped_column()
     last_seen: Mapped[datetime.datetime | None] = mapped_column()
     api_token: Mapped[str | None] = mapped_column(index=True)
+
+    sessions: Mapped[List["Session"]] = relationship(back_populates="user")
 
 
 class UserSettings(db.Model):

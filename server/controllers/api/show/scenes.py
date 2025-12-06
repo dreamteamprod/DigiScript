@@ -184,7 +184,7 @@ class SceneController(BaseAPIController):
                             )
                             return
 
-                        previous_scene: Scene = session.get(Scene, 
+                        previous_scene: Scene = session.get(Scene,
                             previous_scene_id
                         )
                         if not previous_scene:

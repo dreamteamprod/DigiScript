@@ -184,7 +184,7 @@ class CharacterStatsController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision, 
+                    revision: ScriptRevision = session.get(ScriptRevision,
                         script.current_revision
                     )
                 else:
