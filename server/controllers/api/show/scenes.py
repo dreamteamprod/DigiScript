@@ -184,9 +184,7 @@ class SceneController(BaseAPIController):
                             )
                             return
 
-                        previous_scene: Scene = session.get(Scene,
-                            previous_scene_id
-                        )
+                        previous_scene: Scene = session.get(Scene, previous_scene_id)
                         if not previous_scene:
                             self.set_status(400)
                             await self.finish({"message": "Previous scene not found"})

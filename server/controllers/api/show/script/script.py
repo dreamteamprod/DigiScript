@@ -48,8 +48,8 @@ class ScriptController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision,
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)
@@ -88,11 +88,12 @@ class ScriptController(BaseAPIController):
                         break
 
                     lines.append(line_schema.dump(line_revision.line))
-                    line_revision = session.get(ScriptLineRevisionAssociation,
+                    line_revision = session.get(
+                        ScriptLineRevisionAssociation,
                         {
                             "revision_id": revision.id,
                             "line_id": line_revision.next_line_id,
-                        }
+                        },
                     )
 
                 self.set_status(200)
@@ -162,8 +163,8 @@ class ScriptController(BaseAPIController):
                 self.requires_role(script, Role.WRITE)
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision,
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)
@@ -375,8 +376,8 @@ class ScriptController(BaseAPIController):
                 self.requires_role(script, Role.WRITE)
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision,
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)
@@ -412,8 +413,9 @@ class ScriptController(BaseAPIController):
                 # to the first line of this page are reflected properly
                 if page > 1:
                     if lines[0]["id"] is not None:
-                        first_line = session.get(ScriptLineRevisionAssociation,
-                            {"revision_id": revision.id, "line_id": lines[0]["id"]}
+                        first_line = session.get(
+                            ScriptLineRevisionAssociation,
+                            {"revision_id": revision.id, "line_id": lines[0]["id"]},
                         )
 
                         if not first_line:
@@ -507,11 +509,12 @@ class ScriptController(BaseAPIController):
 
                         if previous_line.next_line:
                             next_association: ScriptLineRevisionAssociation = (
-                                session.get(ScriptLineRevisionAssociation,
+                                session.get(
+                                    ScriptLineRevisionAssociation,
                                     {
                                         "revision_id": revision.id,
                                         "line_id": previous_line.next_line.id,
-                                    }
+                                    },
                                 )
                             )
                             next_association.previous_line = line_object
@@ -534,11 +537,12 @@ class ScriptController(BaseAPIController):
                         ):
                             # Next line and previous line, so need to update both
                             next_association: ScriptLineRevisionAssociation = (
-                                session.get(ScriptLineRevisionAssociation,
+                                session.get(
+                                    ScriptLineRevisionAssociation,
                                     {
                                         "revision_id": revision.id,
                                         "line_id": curr_association.next_line.id,
-                                    }
+                                    },
                                 )
                             )
                             next_association.previous_line = (
@@ -547,11 +551,12 @@ class ScriptController(BaseAPIController):
                             session.flush()
 
                             prev_association: ScriptLineRevisionAssociation = (
-                                session.get(ScriptLineRevisionAssociation,
+                                session.get(
+                                    ScriptLineRevisionAssociation,
                                     {
                                         "revision_id": revision.id,
                                         "line_id": curr_association.previous_line.id,
-                                    }
+                                    },
                                 )
                             )
                             prev_association.next_line = next_association.line
@@ -559,11 +564,12 @@ class ScriptController(BaseAPIController):
                         elif curr_association.next_line:
                             # No previous line, so need to update next line only
                             next_association: ScriptLineRevisionAssociation = (
-                                session.get(ScriptLineRevisionAssociation,
+                                session.get(
+                                    ScriptLineRevisionAssociation,
                                     {
                                         "revision_id": revision.id,
                                         "line_id": curr_association.next_line.id,
-                                    }
+                                    },
                                 )
                             )
                             next_association.previous_line = None
@@ -571,11 +577,12 @@ class ScriptController(BaseAPIController):
                         elif curr_association.previous_line:
                             # No next line, so need to update previous line only
                             prev_association: ScriptLineRevisionAssociation = (
-                                session.get(ScriptLineRevisionAssociation,
+                                session.get(
+                                    ScriptLineRevisionAssociation,
                                     {
                                         "revision_id": revision.id,
                                         "line_id": curr_association.previous_line.id,
-                                    }
+                                    },
                                 )
                             )
                             prev_association.next_line = None
@@ -615,11 +622,12 @@ class ScriptController(BaseAPIController):
 
                         if curr_association.next_line:
                             next_association: ScriptLineRevisionAssociation = (
-                                session.get(ScriptLineRevisionAssociation,
+                                session.get(
+                                    ScriptLineRevisionAssociation,
                                     {
                                         "revision_id": revision.id,
                                         "line_id": curr_association.next_line.id,
-                                    }
+                                    },
                                 )
                             )
                             next_association.previous_line = line_object
@@ -659,8 +667,8 @@ class CompiledScriptController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision,
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)
@@ -698,8 +706,8 @@ class ScriptCutsController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision,
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)
@@ -735,8 +743,8 @@ class ScriptCutsController(BaseAPIController):
                 self.requires_role(script, Role.WRITE)
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision,
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)
@@ -797,8 +805,8 @@ class ScriptMaxPageController(BaseAPIController):
                 )
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.get(ScriptRevision,
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)

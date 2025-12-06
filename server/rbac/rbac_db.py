@@ -93,7 +93,9 @@ class RBACDatabase:
         actor_inspect = inspect(actor)
         resource_inspect = inspect(resource)
 
-        if actor is not User and not self._has_link_to_show(actor_inspect.persist_selectable):
+        if actor is not User and not self._has_link_to_show(
+            actor_inspect.persist_selectable
+        ):
             raise RBACException(
                 "actor class does not have a reference back to Show table"
             )
@@ -130,7 +132,9 @@ class RBACDatabase:
 
         rbac_class = type(table_name, (db.Model,), attr_dict)
         self._mappings[table_name] = rbac_class
-        self._resource_mappings[actor_inspect.persist_selectable.fullname].append(resource)
+        self._resource_mappings[actor_inspect.persist_selectable.fullname].append(
+            resource
+        )
         logger.info(f"Created RBAC mapping {table_name}")
 
     @property
@@ -267,7 +271,9 @@ class RBACDatabase:
             resource_inspect.mapper.persist_selectable.fullname, []
         )
         for actor in actor_mappings:
-            table_name = f"rbac_{actor}_{resource_inspect.mapper.persist_selectable.fullname}"
+            table_name = (
+                f"rbac_{actor}_{resource_inspect.mapper.persist_selectable.fullname}"
+            )
             self._delete_from_rbac_db(table_name, resource_cols)
 
     @functools.lru_cache()
