@@ -1,10 +1,17 @@
 import datetime
-from typing import List
+from typing import TYPE_CHECKING, List
 
-from sqlalchemy import Boolean, Column, Date, ForeignKey, String, Table
+from sqlalchemy import Column, Date, ForeignKey, String, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
+
+
+if TYPE_CHECKING:
+    from models.cue import CueType
+    from models.mics import MicrophoneAllocation
+    from models.script import ScriptLine
+    from models.session import ShowSession
 
 
 class Show(db.Model):
@@ -17,9 +24,7 @@ class Show(db.Model):
     created_at: Mapped[datetime.datetime | None] = mapped_column()
     edited_at: Mapped[datetime.datetime | None] = mapped_column()
     first_act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
-    current_session_id: Mapped[int | None] = mapped_column(
-        ForeignKey("showsession.id")
-    )
+    current_session_id: Mapped[int | None] = mapped_column(ForeignKey("showsession.id"))
 
     # Relationships
     first_act: Mapped["Act"] = relationship(foreign_keys=[first_act_id])
@@ -38,9 +43,7 @@ class Show(db.Model):
         primaryjoin="Show.id == Act.show_id", cascade="all, delete-orphan"
     )
     scene_list: Mapped[List["Scene"]] = relationship(cascade="all, delete-orphan")
-    cue_type_list: Mapped[List["CueType"]] = relationship(
-        cascade="all, delete-orphan"
-    )
+    cue_type_list: Mapped[List["CueType"]] = relationship(cascade="all, delete-orphan")
 
 
 class Cast(db.Model):

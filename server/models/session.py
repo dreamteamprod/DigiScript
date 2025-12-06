@@ -1,11 +1,16 @@
 import datetime
 from functools import partial
-from typing import List
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column, backref, relationship
+from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
 from models.models import db
+
+
+if TYPE_CHECKING:
+    from models.show import Show
+    from models.user import User
 
 
 class Session(db.Model):

@@ -5,8 +5,8 @@ import os
 from functools import partial
 from typing import TYPE_CHECKING, List
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, func
-from sqlalchemy.orm import Mapped, mapped_column, backref, relationship
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from tornado.ioloop import IOLoop
 
 from digi_server.logger import get_logger
@@ -20,6 +20,7 @@ from utils.database import DeleteMixin
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
     from models.cue import CueAssociation
+    from models.show import Act, Character, CharacterGroup, Scene, Show
 
 
 class Script(db.Model):
@@ -118,9 +119,7 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
         foreign_keys=[line_id], back_populates="revision_associations"
     )
     next_line: Mapped["ScriptLine"] = relationship(foreign_keys=[next_line_id])
-    previous_line: Mapped["ScriptLine"] = relationship(
-        foreign_keys=[previous_line_id]
-    )
+    previous_line: Mapped["ScriptLine"] = relationship(foreign_keys=[previous_line_id])
 
     def pre_delete(self, session):
         if self.line and len(self.line.revision_associations) == 1:
@@ -230,9 +229,7 @@ class CompiledScript(db.Model):
     )
     data_path: Mapped[str] = mapped_column(String)
 
-    script_revision: Mapped["ScriptRevision"] = relationship(
-        foreign_keys=[revision_id]
-    )
+    script_revision: Mapped["ScriptRevision"] = relationship(foreign_keys=[revision_id])
 
     @classmethod
     async def compile_script(cls, application: "DigiScriptServer", revision_id):
