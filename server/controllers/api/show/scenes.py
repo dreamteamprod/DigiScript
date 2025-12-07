@@ -1,5 +1,6 @@
 from typing import List
 
+from sqlalchemy import select
 from tornado import escape
 
 from models.show import Scene, Show
@@ -21,9 +22,9 @@ class SceneController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                scenes: List[Scene] = (
-                    session.query(Scene).filter(Scene.show_id == show.id).all()
-                )
+                scenes: List[Scene] = session.scalars(
+                    select(Scene).where(Scene.show_id == show.id)
+                ).all()
                 scenes = [scene_schema.dump(c) for c in scenes]
                 self.set_status(200)
                 self.finish({"scenes": scenes})

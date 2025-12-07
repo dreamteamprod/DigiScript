@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from sqlalchemy import select
 from tornado import escape
 
 from models.script import Script, ScriptLine, ScriptRevision
@@ -179,9 +180,9 @@ class CharacterStatsController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script.current_revision:
                     revision: ScriptRevision = session.get(

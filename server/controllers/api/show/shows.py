@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from dateutil import parser
+from sqlalchemy import select
 from tornado import escape
 
 from digi_server.logger import get_logger
@@ -210,7 +211,7 @@ class ShowsController(BaseAPIController):
         shows = []
         show_schema = ShowSchema()
         with self.make_session() as session:
-            shows = session.query(Show).all()
+            shows = session.scalars(select(Show)).all()
             shows = [show_schema.dump(s) for s in shows]
 
         self.set_status(200)
