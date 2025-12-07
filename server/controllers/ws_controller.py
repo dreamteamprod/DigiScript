@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 class WebSocketController(DatabaseMixin, WebSocketHandler):
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
-        # pylint: disable=used-before-assignment
         self.application: DigiScriptServer = application
         self.current_user_id = None
         self._last_ping = 0.0
@@ -195,7 +194,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             )
             return True
 
-    async def on_message(self, message: Union[str, bytes]):  # pylint: disable=invalid-overridden-method
+    async def on_message(self, message: Union[str, bytes]):
         get_logger().debug(
             f"WebSocket received data from {self.request.remote_ip}: {message}"
         )

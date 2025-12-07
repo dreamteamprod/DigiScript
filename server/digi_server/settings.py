@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
-class SettingsObject:  # pylint: disable=too-many-instance-attributes
+class SettingsObject:
     def __init__(
         self,
         key,

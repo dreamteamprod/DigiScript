@@ -43,7 +43,6 @@ class BaseController(DatabaseMixin, RequestHandler):
         self.application: DigiScriptServer = self.application
         self.current_show: Optional[dict] = None
 
-    # pylint: disable=invalid-overridden-method
     async def prepare(
         self,
     ) -> Optional[Awaitable[None]]:

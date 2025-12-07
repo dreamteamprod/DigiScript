@@ -145,7 +145,7 @@ class ScriptLineSchema(SQLAlchemyAutoSchema):
 
     line_parts = Nested(
         lambda: ScriptLinePartSchema(),
-        many=True,  # pylint:disable=unnecessary-lambda
+        many=True,
     )
 
 
