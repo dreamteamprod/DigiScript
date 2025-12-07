@@ -42,7 +42,6 @@ class TestDigiScriptServer(DigiScriptTestCase):
         has_admin = self._app.digi_settings.settings["has_admin_user"].get_value()
         self.assertFalse(has_admin)
 
-
     @gen_test
     async def test_validate_has_admin_method(self):
         """Test the _validate_has_admin() method directly.
