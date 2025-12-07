@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from tornado import escape
 
 from digi_server.logger import get_logger
@@ -32,9 +32,9 @@ class ScriptRevisionsController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script:
                     revisions = [revisions_schema.dump(c) for c in script.revisions]
@@ -63,9 +63,9 @@ class ScriptRevisionsController(BaseAPIController):
             if show:
                 data = escape.json_decode(self.request.body)
 
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 if not script:
                     self.set_status(404)
                     await self.finish({"message": "404 script not found"})
@@ -162,9 +162,9 @@ class ScriptRevisionsController(BaseAPIController):
             if show:
                 data = escape.json_decode(self.request.body)
 
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 if not script:
                     self.set_status(404)
                     await self.finish({"message": "404 script not found"})
@@ -251,9 +251,9 @@ class ScriptCurrentRevisionController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script:
                     self.set_status(200)
@@ -281,9 +281,9 @@ class ScriptCurrentRevisionController(BaseAPIController):
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 if not script:
                     self.set_status(404)
                     await self.finish({"message": "404 script not found"})
