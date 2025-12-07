@@ -4,7 +4,7 @@ from tornado.testing import gen_test
 from models.session import ShowSession
 from models.show import Show
 from models.user import User
-from .test_utils import DigiScriptTestCase
+from .utils import DigiScriptTestCase
 
 
 class TestDigiScriptServer(DigiScriptTestCase):

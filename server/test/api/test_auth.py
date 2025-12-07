@@ -1,6 +1,6 @@
 from tornado import escape
 
-from .test_utils import DigiScriptTestCase
+from test.utils import DigiScriptTestCase
 
 
 class TestAuthAPI(DigiScriptTestCase):

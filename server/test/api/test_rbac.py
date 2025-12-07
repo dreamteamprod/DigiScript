@@ -1,7 +1,7 @@
 from models.show import Show
 from models.user import User
 from rbac.role import Role
-from .test_utils import DigiScriptTestCase
+from test.utils import DigiScriptTestCase
 
 
 class TestRBAC(DigiScriptTestCase):

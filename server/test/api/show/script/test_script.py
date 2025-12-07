@@ -12,7 +12,7 @@ from models.script import (
 from models.show import Show, Act, Scene, Character
 from models.user import User
 from rbac.role import Role
-from .test_utils import DigiScriptTestCase
+from test.utils import DigiScriptTestCase
 
 
 class TestScriptController(DigiScriptTestCase):

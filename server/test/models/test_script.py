@@ -6,7 +6,7 @@ from tornado.testing import gen_test
 from models.script import CompiledScript, ScriptRevision, StageDirectionStyle, Script
 from models.show import Show
 from models.user import User, UserOverrides
-from .test_utils import DigiScriptTestCase
+from test.utils import DigiScriptTestCase
 
 
 class TestScriptModels(DigiScriptTestCase):

@@ -1,7 +1,7 @@
 import tornado.escape
 
 from models.session import Session
-from .test_utils import DigiScriptTestCase
+from test.utils import DigiScriptTestCase
 
 
 class TestScriptStatusController(DigiScriptTestCase):
