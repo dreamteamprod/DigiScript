@@ -2,6 +2,7 @@ import secrets
 from datetime import datetime, timezone
 
 import bcrypt
+from sqlalchemy import select
 from tornado import escape, gen
 from tornado.ioloop import IOLoop
 
@@ -45,9 +46,9 @@ class UserCreateController(BaseAPIController):
         is_admin = data.get("is_admin", False)
 
         with self.make_session() as session:
-            conflict_user = (
-                session.query(User).filter(User.username == username).first()
-            )
+            conflict_user = session.scalars(
+                select(User).where(User.username == username)
+            ).first()
             if conflict_user:
                 self.set_status(400)
                 await self.finish({"message": "Username already taken"})

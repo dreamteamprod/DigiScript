@@ -1,5 +1,6 @@
 from tornado import escape
 
+from models.user import User
 from test.utils import DigiScriptTestCase
 
 
@@ -47,6 +48,39 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertEqual(200, response.code)
         self.assertTrue("message" in response_body)
         self.assertEqual("Successfully created user", response_body["message"])
+
+    def test_create_user_duplicate_username(self):
+        """Test POST /api/v1/auth/create with duplicate username.
+
+        This specifically tests the query at lines 48-49 in controllers/api/auth.py:
+        session.query(User).filter(User.username == username).first()
+
+        When a user with the same username already exists, the query should return
+        that user and the endpoint should return a 400 error.
+        """
+        # Create an existing user directly in the database
+        with self._app.get_db().sessionmaker() as session:
+            existing_user = User(username="duplicate_test", password="hashed_pw")
+            session.add(existing_user)
+            session.commit()
+
+        # Try to create a user with the same username
+        response = self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "duplicate_test",
+                    "password": "password123",
+                    "is_admin": False,
+                }
+            ),
+        )
+        response_body = escape.json_decode(response.body)
+
+        self.assertEqual(400, response.code)
+        self.assertTrue("message" in response_body)
+        self.assertEqual("Username already taken", response_body["message"])
 
     def test_login_success(self):
         self.fetch(
