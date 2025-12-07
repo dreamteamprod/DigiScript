@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from tornado import escape
 
 from models.script import Script, StageDirectionStyle
@@ -20,9 +21,9 @@ class StageDirectionStylesController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 stage_direction_styles = [
                     stage_direction_style_schema.dump(style)
                     for style in script.stage_direction_styles
@@ -44,9 +45,9 @@ class StageDirectionStylesController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
@@ -119,9 +120,9 @@ class StageDirectionStylesController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
@@ -201,9 +202,9 @@ class StageDirectionStylesController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
