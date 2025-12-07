@@ -66,8 +66,7 @@ async def main():
     # If we're running in PyInstaller mode, make sure the database path is writable
     if IS_FROZEN:
         # Patch DigiSettings to ensure writable paths
-        # pylint: disable=import-outside-toplevel
-        from digi_server.settings import Settings
+        from digi_server.settings import Settings  # noqa: PLC0415
 
         original_define = Settings.define
 
