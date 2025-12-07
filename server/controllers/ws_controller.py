@@ -7,12 +7,12 @@ from tornado import gen
 from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
 from tornado.websocket import WebSocketClosedError, WebSocketHandler
-from tornado_sqlalchemy import SessionMixin
 
 from digi_server.logger import get_logger
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
 from models.user import User
+from utils.web.base_controller import DatabaseMixin
 from utils.web.route import ApiRoute, ApiVersion
 
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 @ApiRoute("ws", ApiVersion.V1)
-class WebSocketController(SessionMixin, WebSocketHandler):
+class WebSocketController(DatabaseMixin, WebSocketHandler):
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
         # pylint: disable=used-before-assignment
@@ -106,10 +106,10 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             ).get_value()
             if current_show:
                 with self.make_session() as session:
-                    show = session.query(Show).get(current_show)
+                    show = session.get(Show, current_show)
                     if show.current_session_id:
-                        live_session: ShowSession = session.query(ShowSession).get(
-                            show.current_session_id
+                        live_session: ShowSession = session.get(
+                            ShowSession, show.current_session_id
                         )
                         live_session.last_client_internal_id = self.__getattribute__(
                             "internal_id"
@@ -173,7 +173,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             return False
 
         with self.make_session() as session:
-            user = session.query(User).get(int(payload["user_id"]))
+            user = session.get(User, int(payload["user_id"]))
             if not user:
                 await self.write_message(
                     {"OP": "WS_AUTH_ERROR", "DATA": "User not found"}
@@ -231,16 +231,14 @@ class WebSocketController(SessionMixin, WebSocketHandler):
             entry: Session = session.get(Session, self.__getattribute__("internal_id"))
             current_show = await self.application.digi_settings.get("current_show")
             if current_show:
-                show = session.query(Show).get(current_show)
+                show = session.get(Show, current_show)
             else:
                 show = None
             show_session: Optional[ShowSession] = None
 
             if ws_op == "NEW_CLIENT":
                 if self.current_user_id and show and show.current_session_id:
-                    show_session = session.query(ShowSession).get(
-                        show.current_session_id
-                    )
+                    show_session = session.get(ShowSession, show.current_session_id)
                     if show_session and not show_session.client_internal_id:
                         if show_session.user_id == self.current_user_id:
                             show_session.client_internal_id = self.__getattribute__(
@@ -267,9 +265,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                 if entry:
                     is_editor = entry.is_editor
                     if show and show.current_session_id:
-                        show_session = session.query(ShowSession).get(
-                            show.current_session_id
-                        )
+                        show_session = session.get(ShowSession, show.current_session_id)
                         if (
                             show_session
                             and show_session.last_client_internal_id == new_uuid
@@ -309,9 +305,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                     )
             elif ws_op == "SCRIPT_SCROLL":
                 if show and show.current_session_id:
-                    show_session = session.query(ShowSession).get(
-                        show.current_session_id
-                    )
+                    show_session = session.get(ShowSession, show.current_session_id)
                     if show_session:
                         if show_session.client_internal_id == self.__getattribute__(
                             "internal_id"
@@ -325,9 +319,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                             )
             elif ws_op == "BEGIN_INTERVAL":
                 if show and show.current_session_id:
-                    show_session = session.query(ShowSession).get(
-                        show.current_session_id
-                    )
+                    show_session = session.get(ShowSession, show.current_session_id)
                     if show_session:
                         if show_session.client_internal_id == self.__getattribute__(
                             "internal_id"
@@ -350,9 +342,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                             )
             elif ws_op == "END_INTERVAL":
                 if show and show.current_session_id:
-                    show_session = session.query(ShowSession).get(
-                        show.current_session_id
-                    )
+                    show_session = session.get(ShowSession, show.current_session_id)
                     if show_session:
                         if show_session.client_internal_id == self.__getattribute__(
                             "internal_id"
@@ -371,9 +361,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                             )
             elif ws_op == "RELOAD_CLIENTS":
                 if show and show.current_session_id:
-                    show_session = session.query(ShowSession).get(
-                        show.current_session_id
-                    )
+                    show_session = session.get(ShowSession, show.current_session_id)
                     if (
                         show_session
                         and show_session.client_internal_id
@@ -384,9 +372,7 @@ class WebSocketController(SessionMixin, WebSocketHandler):
                         )
             elif ws_op == "LIVE_SHOW_JUMP_TO_PAGE":
                 if show and show.current_session_id:
-                    show_session = session.query(ShowSession).get(
-                        show.current_session_id
-                    )
+                    show_session = session.get(ShowSession, show.current_session_id)
                     if show_session:
                         show_session.latest_line_ref = (
                             f"page_{message['DATA']['page']}_line_0"

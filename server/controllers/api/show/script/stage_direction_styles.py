@@ -18,7 +18,7 @@ class StageDirectionStylesController(BaseAPIController):
 
         stage_direction_style_schema = StageDirectionStyleSchema()
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
@@ -42,7 +42,7 @@ class StageDirectionStylesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
@@ -117,7 +117,7 @@ class StageDirectionStylesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()
@@ -131,9 +131,7 @@ class StageDirectionStylesController(BaseAPIController):
                     await self.finish({"message": "ID missing"})
                     return
 
-                style: StageDirectionStyle = session.query(StageDirectionStyle).get(
-                    style_id
-                )
+                style: StageDirectionStyle = session.get(StageDirectionStyle, style_id)
                 if not style:
                     self.set_status(404)
                     await self.finish(
@@ -201,7 +199,7 @@ class StageDirectionStylesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 script: Script = (
                     session.query(Script).filter(Script.show_id == show.id).first()

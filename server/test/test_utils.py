@@ -36,7 +36,7 @@ class DigiScriptTestCase(AsyncHTTPTestCase):
         for rbac_table in self._app.rbac._rbac_db._mappings:
             table = self._app.rbac._rbac_db._mappings[rbac_table]
             table_inspect = inspect(table)
-            models.db.metadata.remove(table_inspect.mapped_table)
+            models.db.metadata.remove(table_inspect.persist_selectable)
 
         # Dispose the database engine to ensure proper test isolation
         # This forces a new in-memory database for each test

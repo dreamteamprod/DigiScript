@@ -21,7 +21,7 @@ class SessionsController(BaseAPIController):
         interval_schema = IntervalSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 sessions = (
                     session.query(ShowSession)
@@ -33,13 +33,11 @@ class SessionsController(BaseAPIController):
                 current_session = None
                 current_interval = None
                 if show.current_session_id:
-                    current_session = session.query(ShowSession).get(
-                        show.current_session_id
-                    )
+                    current_session = session.get(ShowSession, show.current_session_id)
 
                     if current_session.current_interval_id:
-                        current_interval = session.query(Interval).get(
-                            current_session.current_interval_id
+                        current_interval = session.get(
+                            Interval, current_session.current_interval_id
                         )
                         current_interval = interval_schema.dump(current_interval)
 
@@ -66,7 +64,7 @@ class SessionStartController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.EXECUTE)
                 if show.current_session_id:
@@ -81,7 +79,7 @@ class SessionStartController(BaseAPIController):
                         await self.finish({"message": "session_id missing"})
                         return
 
-                    user_session: Session = session.query(Session).get(session_id)
+                    user_session: Session = session.get(Session, session_id)
                     if not user_session:
                         self.set_status(400)
                         await self.finish(
@@ -122,15 +120,15 @@ class SessionStopController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.EXECUTE)
                 if not show.current_session_id:
                     self.set_status(409)
                     await self.finish({"message": "409 no active session"})
                 else:
-                    show_session: ShowSession = session.query(ShowSession).get(
-                        show.current_session_id
+                    show_session: ShowSession = session.get(
+                        ShowSession, show.current_session_id
                     )
                     show_session.end_date_time = datetime.utcnow()
                     show.current_session_id = None

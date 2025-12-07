@@ -57,7 +57,7 @@ def _get_mapping_columns(
         actor_inspect = inspect(actor)
         cols.update(
             {
-                f"{actor_inspect.mapper.mapped_table.fullname}_{col.key}": getattr(
+                f"{actor_inspect.mapper.persist_selectable.fullname}_{col.key}": getattr(
                     actor, col.key
                 )
                 for col in actor_inspect.mapper.primary_key
@@ -67,7 +67,7 @@ def _get_mapping_columns(
         resource_inspect = inspect(resource)
         cols.update(
             {
-                f"{resource_inspect.mapper.mapped_table.fullname}_{col.key}": getattr(
+                f"{resource_inspect.mapper.persist_selectable.fullname}_{col.key}": getattr(
                     resource, col.key
                 )
                 for col in resource_inspect.mapper.primary_key
@@ -93,32 +93,34 @@ class RBACDatabase:
         actor_inspect = inspect(actor)
         resource_inspect = inspect(resource)
 
-        if actor is not User and not self._has_link_to_show(actor_inspect.mapped_table):
+        if actor is not User and not self._has_link_to_show(
+            actor_inspect.persist_selectable
+        ):
             raise RBACException(
                 "actor class does not have a reference back to Show table"
             )
 
-        if not self._has_link_to_show(resource_inspect.mapped_table):
+        if not self._has_link_to_show(resource_inspect.persist_selectable):
             raise RBACException(
                 "resource class does not have a reference back to Show table"
             )
 
-        table_name = f"rbac_{actor_inspect.mapped_table.fullname}_{resource_inspect.mapped_table.fullname}"
+        table_name = f"rbac_{actor_inspect.persist_selectable.fullname}_{resource_inspect.persist_selectable.fullname}"
         if table_name in self._mappings:
             raise RBACException(f"RBAC mapping {table_name} already exists")
 
         actor_columns = {
-            f"{actor_inspect.mapped_table.fullname}_{col.key}": Column(
+            f"{actor_inspect.persist_selectable.fullname}_{col.key}": Column(
                 col.type,
-                ForeignKey(f"{actor_inspect.mapped_table.fullname}.{col.key}"),
+                ForeignKey(f"{actor_inspect.persist_selectable.fullname}.{col.key}"),
                 primary_key=True,
             )
             for col in actor_inspect.primary_key
         }
         resource_columns = {
-            f"{resource_inspect.mapped_table.fullname}_{col.key}": Column(
+            f"{resource_inspect.persist_selectable.fullname}_{col.key}": Column(
                 col.type,
-                ForeignKey(f"{resource_inspect.mapped_table.fullname}.{col.key}"),
+                ForeignKey(f"{resource_inspect.persist_selectable.fullname}.{col.key}"),
                 primary_key=True,
             )
             for col in resource_inspect.primary_key
@@ -130,7 +132,9 @@ class RBACDatabase:
 
         rbac_class = type(table_name, (db.Model,), attr_dict)
         self._mappings[table_name] = rbac_class
-        self._resource_mappings[actor_inspect.mapped_table.fullname].append(resource)
+        self._resource_mappings[actor_inspect.persist_selectable.fullname].append(
+            resource
+        )
         logger.info(f"Created RBAC mapping {table_name}")
 
     @property
@@ -139,7 +143,7 @@ class RBACDatabase:
         for _actor_table, resource_tables in self._resource_mappings.items():
             for resource_table in resource_tables:
                 resource_inspect = inspect(resource_table)
-                mapped_tables.add(resource_inspect.mapped_table.fullname)
+                mapped_tables.add(resource_inspect.persist_selectable.fullname)
         return list(mapped_tables)
 
     @property
@@ -148,7 +152,7 @@ class RBACDatabase:
         for actor_table, resource_tables in self._resource_mappings.items():
             for resource_table in resource_tables:
                 resource_inspect = inspect(resource_table)
-                output[resource_inspect.mapped_table.fullname].add(actor_table)
+                output[resource_inspect.persist_selectable.fullname].add(actor_table)
         real_output = {}
         for resource_table in output:
             real_output[resource_table] = list(output[resource_table])
@@ -156,7 +160,7 @@ class RBACDatabase:
 
     def check_object_deletion(self, _session: DigiDBSession, delete_object: db.Model):
         obj_inspect = inspect(delete_object)
-        table_name = obj_inspect.mapper.mapped_table.fullname
+        table_name = obj_inspect.mapper.persist_selectable.fullname
         if table_name in self._resource_mappings:
             self.delete_actor(delete_object)
         if table_name in self.mapped_resource_tables:
@@ -171,8 +175,8 @@ class RBACDatabase:
         actor_inspect = inspect(actor)
         resource_inspect = inspect(resource)
         table_name = (
-            f"rbac_{actor_inspect.mapper.mapped_table.fullname}_"
-            f"{resource_inspect.mapper.mapped_table.fullname}"
+            f"rbac_{actor_inspect.mapper.persist_selectable.fullname}_"
+            f"{resource_inspect.mapper.persist_selectable.fullname}"
         )
         if table_name not in self._mappings:
             raise RBACException("Mapping for actor and resource not created")
@@ -184,7 +188,7 @@ class RBACDatabase:
         cols = _get_mapping_columns(actor, resource)
 
         with self._db.sessionmaker() as session:
-            rbac_assignment = session.query(self._mappings[table_name]).get(cols)
+            rbac_assignment = session.get(self._mappings[table_name], cols)
             if rbac_assignment:
                 rbac_assignment.rbac_permissions |= role
             else:
@@ -198,7 +202,7 @@ class RBACDatabase:
         cols = _get_mapping_columns(actor, resource)
 
         with self._db.sessionmaker() as session:
-            rbac_assignment = session.query(self._mappings[table_name]).get(cols)
+            rbac_assignment = session.get(self._mappings[table_name], cols)
             if not rbac_assignment:
                 raise RBACException(
                     "actor does not have any roles assigned for the resource"
@@ -210,7 +214,7 @@ class RBACDatabase:
         table_name = self._validate_mapping(actor, resource)
         cols = _get_mapping_columns(actor, resource)
         with self._db.sessionmaker() as session:
-            rbac_assignment = session.query(self._mappings[table_name]).get(cols)
+            rbac_assignment = session.get(self._mappings[table_name], cols)
             if not rbac_assignment:
                 return False
             return role in rbac_assignment.rbac_permissions
@@ -219,7 +223,7 @@ class RBACDatabase:
         table_name = self._validate_mapping(actor, resource)
         cols = _get_mapping_columns(actor, resource)
         with self._db.sessionmaker() as session:
-            rbac_assignment = session.query(self._mappings[table_name]).get(cols)
+            rbac_assignment = session.get(self._mappings[table_name], cols)
             if not rbac_assignment:
                 return Role(0)
             return rbac_assignment.rbac_permissions
@@ -230,7 +234,7 @@ class RBACDatabase:
         for resource in resources:
             resource_inspect = inspect(resource)
             for rbac_object in self.get_objects_for_resource(resource):
-                roles[resource_inspect.mapped_table.fullname].append(
+                roles[resource_inspect.persist_selectable.fullname].append(
                     [rbac_object, self.get_roles(actor, rbac_object)]
                 )
         return roles
@@ -250,13 +254,13 @@ class RBACDatabase:
         actor_inspect = inspect(actor)
         actor_cols = _get_mapping_columns(actor=actor, resource=None)
         resource_mappings = self._resource_mappings.get(
-            actor_inspect.mapper.mapped_table.fullname, []
+            actor_inspect.mapper.persist_selectable.fullname, []
         )
         for resource in resource_mappings:
             resource_inspect = inspect(resource)
             table_name = (
-                f"rbac_{actor_inspect.mapper.mapped_table.fullname}_"
-                f"{resource_inspect.mapper.mapped_table.fullname}"
+                f"rbac_{actor_inspect.mapper.persist_selectable.fullname}_"
+                f"{resource_inspect.mapper.persist_selectable.fullname}"
             )
             self._delete_from_rbac_db(table_name, actor_cols)
 
@@ -264,10 +268,12 @@ class RBACDatabase:
         resource_inspect = inspect(resource)
         resource_cols = _get_mapping_columns(actor=None, resource=resource)
         actor_mappings = self.resource_table_mappings.get(
-            resource_inspect.mapper.mapped_table.fullname, []
+            resource_inspect.mapper.persist_selectable.fullname, []
         )
         for actor in actor_mappings:
-            table_name = f"rbac_{actor}_{resource_inspect.mapper.mapped_table.fullname}"
+            table_name = (
+                f"rbac_{actor}_{resource_inspect.mapper.persist_selectable.fullname}"
+            )
             self._delete_from_rbac_db(table_name, resource_cols)
 
     @functools.lru_cache()
@@ -277,7 +283,7 @@ class RBACDatabase:
     def __has_link_to_show(self, table: Table, checked_tables=None):
         if checked_tables is None:
             checked_tables = []
-        if table.fullname == self._show_inspect.mapped_table.fullname:
+        if table.fullname == self._show_inspect.persist_selectable.fullname:
             return True
         if table.foreign_key_constraints and table.fullname not in checked_tables:
             checked_tables.append(table.fullname)
@@ -299,7 +305,7 @@ class RBACDatabase:
     def __get_link_to_show(self, table: Table, root: Node, checked_tables=None):
         if checked_tables is None:
             checked_tables = []
-        if table.fullname == self._show_inspect.mapped_table.fullname:
+        if table.fullname == self._show_inspect.persist_selectable.fullname:
             if table.fullname in checked_tables:
                 checked_tables.remove(table.fullname)
             return
@@ -325,8 +331,8 @@ class RBACDatabase:
         if not isinstance(actor, type):
             raise RBACException("actor must be class object, not instance")
         actor_inspect = inspect(actor)
-        if actor_inspect.mapped_table.fullname in self._resource_mappings:
-            return self._resource_mappings[actor_inspect.mapped_table.fullname]
+        if actor_inspect.persist_selectable.fullname in self._resource_mappings:
+            return self._resource_mappings[actor_inspect.persist_selectable.fullname]
         return None
 
     def get_objects_for_resource(self, resource: db.Model) -> Optional[List[db.Model]]:
@@ -338,7 +344,7 @@ class RBACDatabase:
             return []
 
         resource_inspect = inspect(resource)
-        show_paths = self._get_link_to_show(resource_inspect.mapped_table)
+        show_paths = self._get_link_to_show(resource_inspect.persist_selectable)
         if show_paths is None:
             return []
 
@@ -367,7 +373,7 @@ class RBACDatabase:
                             fk_table = foreign_key.constraint.referred_table
                             if (
                                 fk_table.fullname
-                                == previous_inspect.mapper.mapped_table.fullname
+                                == previous_inspect.mapper.persist_selectable.fullname
                             ):
                                 cols[foreign_key.parent.key] = getattr(
                                     prev_entity, foreign_key.column.key

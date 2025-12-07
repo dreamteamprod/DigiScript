@@ -19,7 +19,7 @@ class SceneController(BaseAPIController):
         scene_schema = SceneSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 scenes: List[Scene] = (
                     session.query(Scene).filter(Scene.show_id == show.id).all()
@@ -38,7 +38,7 @@ class SceneController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -58,7 +58,7 @@ class SceneController(BaseAPIController):
                 previous_scene_id = data.get("previous_scene_id", None)
 
                 if previous_scene_id:
-                    previous_scene: Scene = session.query(Scene).get(previous_scene_id)
+                    previous_scene: Scene = session.get(Scene, previous_scene_id)
                     if not previous_scene:
                         self.set_status(400)
                         await self.finish({"message": "Previous scene not found"})
@@ -105,7 +105,7 @@ class SceneController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -149,7 +149,7 @@ class SceneController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -184,9 +184,7 @@ class SceneController(BaseAPIController):
                             )
                             return
 
-                        previous_scene: Scene = session.query(Scene).get(
-                            previous_scene_id
-                        )
+                        previous_scene: Scene = session.get(Scene, previous_scene_id)
                         if not previous_scene:
                             self.set_status(400)
                             await self.finish({"message": "Previous scene not found"})
