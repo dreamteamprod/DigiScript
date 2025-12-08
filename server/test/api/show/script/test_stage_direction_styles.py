@@ -1,4 +1,5 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.script import Script, ScriptRevision, StageDirectionStyle
 from models.show import Show
@@ -55,7 +56,7 @@ class TestStageDirectionStylesController(DigiScriptTestCase):
         """Test GET /api/v1/show/script/stage_direction_styles.
 
         This tests the query at line 24:
-        session.query(Script).filter(Script.show_id == show.id).first()
+        session.scalars(select(Script).where(Script.show_id == show.id)).first()
         """
         response = self.fetch("/api/v1/show/script/stage_direction_styles")
         self.assertEqual(200, response.code)

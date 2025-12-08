@@ -1,4 +1,5 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.session import Session
 from test.utils import DigiScriptTestCase
@@ -11,7 +12,7 @@ class TestWebsocketSessionsController(DigiScriptTestCase):
         """Test GET /api/v1/ws/sessions with no sessions.
 
         This tests the query at line 12 in controllers/api/websocket.py:
-        session.query(Session).all()
+        session.scalars(select(Session)).all()
         """
         response = self.fetch("/api/v1/ws/sessions")
         self.assertEqual(200, response.code)

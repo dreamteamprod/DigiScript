@@ -1,4 +1,5 @@
 import tornado.escape
+from sqlalchemy import func, select
 
 from models.script import Script, ScriptRevision
 from models.show import Show
@@ -55,7 +56,7 @@ class TestScriptRevisionsController(DigiScriptTestCase):
         """Test GET /api/v1/show/script/revisions.
 
         This tests the query at line 36:
-        session.query(Script).filter(Script.show_id == show.id).first()
+        session.scalars(select(Script).where(Script.show_id == show.id)).first()
         """
         response = self.fetch("/api/v1/show/script/revisions")
         self.assertEqual(200, response.code)
@@ -111,7 +112,7 @@ class TestScriptCurrentRevisionController(DigiScriptTestCase):
         """Test GET /api/v1/show/script/revisions/current.
 
         This tests the query at line 255:
-        session.query(Script).filter(Script.show_id == show.id).first()
+        session.scalars(select(Script).where(Script.show_id == show.id)).first()
         """
         response = self.fetch("/api/v1/show/script/revisions/current")
         self.assertEqual(200, response.code)
@@ -138,9 +139,10 @@ class TestScriptRevisionCreate(DigiScriptTestCase):
     """Test POST /api/v1/show/script/revisions endpoint.
 
     This tests the func.max() query at lines 89-93 in controllers/api/show/script/revisions.py:
-    session.query(func.max(ScriptRevision.revision))
-        .filter(ScriptRevision.script_id == script.id)
-        .one()[0]
+    session.scalar(
+        select(func.max(ScriptRevision.revision))
+        .where(ScriptRevision.script_id == script.id)
+    )
 
     The query is used to determine the next revision number when creating a new revision.
     """
@@ -215,9 +217,10 @@ class TestScriptRevisionDelete(DigiScriptTestCase):
     """Test DELETE /api/v1/show/script/revisions endpoint.
 
     This tests the "find revision 1" query at lines 206-213 in controllers/api/show/script/revisions.py:
-    session.query(ScriptRevision)
-        .filter(ScriptRevision.script_id == script.id, ScriptRevision.revision == 1)
-        .one()
+    session.scalars(
+        select(ScriptRevision)
+        .where(ScriptRevision.script_id == script.id, ScriptRevision.revision == 1)
+    ).one()
 
     The query is used as a fallback when deleting the current revision and it has no previous_revision_id.
     """

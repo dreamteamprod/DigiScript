@@ -16,8 +16,8 @@ class Microphone(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
 
-    name: Mapped[str | None] = mapped_column(String)
-    description: Mapped[str | None] = mapped_column(String)
+    name: Mapped[str | None] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(String(500))
 
     allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
         cascade="all, delete-orphan", back_populates="microphone"

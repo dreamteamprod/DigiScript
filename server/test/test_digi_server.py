@@ -1,5 +1,6 @@
 import tornado.escape
 from tornado.testing import gen_test
+from sqlalchemy import func, select
 
 from models.session import ShowSession
 from models.show import Show
@@ -92,7 +93,7 @@ class TestDigiScriptServer(DigiScriptTestCase):
         from models.session import Session
 
         with self._app.get_db().sessionmaker() as session:
-            count = session.query(Session).count()
+            count = session.scalar(select(func.count()).select_from(Session))
             self.assertEqual(0, count)
 
     def test_configure_jwt_creates_secret_if_missing(self):
@@ -109,11 +110,9 @@ class TestDigiScriptServer(DigiScriptTestCase):
         # The JWT service is already configured in setUp via __init__
         # Verify a secret was created in the database
         with self._app.get_db().sessionmaker() as session:
-            jwt_secret = (
-                session.query(SystemSettings)
-                .filter(SystemSettings.key == "jwt_secret")
-                .first()
-            )
+            jwt_secret = session.scalars(
+                select(SystemSettings).where(SystemSettings.key == "jwt_secret")
+            ).first()
             self.assertIsNotNone(jwt_secret)
             self.assertIsNotNone(jwt_secret.value)
             self.assertGreater(len(jwt_secret.value), 0)

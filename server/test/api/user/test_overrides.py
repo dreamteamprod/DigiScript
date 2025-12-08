@@ -1,6 +1,7 @@
 """Tests for /api/v1/user/settings/stage_direction_overrides endpoints."""
 
 import tornado.escape
+from sqlalchemy import select
 
 from models.script import Script, StageDirectionStyle
 from models.show import Show
@@ -60,10 +61,11 @@ class TestStageDirectionOverridesController(DigiScriptTestCase):
         """Test GET /api/v1/user/settings/stage_direction_overrides.
 
         This tests the query at lines 99-103 in models/user.py:
-        session.query(UserOverrides)
-            .filter_by(user_id=user_id)
-            .filter_by(settings_type=settings_type)
-            .all()
+        session.scalars(
+            select(UserOverrides)
+            .where(UserOverrides.user_id == user_id)
+            .where(UserOverrides.settings_type == settings_type)
+        ).all()
 
         When a user has overrides for stage direction styles, the endpoint should
         return them.

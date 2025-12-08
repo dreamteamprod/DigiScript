@@ -81,9 +81,11 @@ class TestScriptController(DigiScriptTestCase):
         """Test GET /api/v1/show/script?page=1 with empty script.
 
         This tests the query at line 59-66:
-        session.query(ScriptLineRevisionAssociation).filter(
-            ScriptLineRevisionAssociation.revision_id == revision.id,
-            ScriptLineRevisionAssociation.line.has(page=page),
+        session.scalars(
+            select(ScriptLineRevisionAssociation).where(
+                ScriptLineRevisionAssociation.revision_id == revision.id,
+                ScriptLineRevisionAssociation.line.has(page=page),
+            )
         ).all()
         """
         response = self.fetch("/api/v1/show/script?page=1")
@@ -191,11 +193,11 @@ class TestScriptController(DigiScriptTestCase):
             session.commit()
             line_id = line.id
 
-        # Test the composite dict .get() pattern (will be migrated to tuple)
+        # Test the composite key .get() pattern (SQLAlchemy 2.0 uses tuple)
         with self._app.get_db().sessionmaker() as session:
-            # This is the legacy pattern used throughout the controller
-            found_assoc = session.query(ScriptLineRevisionAssociation).get(
-                {"revision_id": self.revision_id, "line_id": line_id}
+            # SQLAlchemy 2.0 pattern for composite primary keys
+            found_assoc = session.get(
+                ScriptLineRevisionAssociation, (self.revision_id, line_id)
             )
             self.assertIsNotNone(found_assoc)
             self.assertEqual(self.revision_id, found_assoc.revision_id)
@@ -230,7 +232,7 @@ class TestCompiledScriptController(DigiScriptTestCase):
         """Test GET /api/v1/show/script/compiled.
 
         This tests the query at line 666:
-        session.query(Script).filter(Script.show_id == show.id).first()
+        session.scalars(select(Script).where(Script.show_id == show.id)).first()
         """
         response = self.fetch("/api/v1/show/script/compiled")
         # Empty script won't have compiled form yet, so expect 404
@@ -322,17 +324,15 @@ class TestScriptCutsController(DigiScriptTestCase):
         # Test the query patterns used in the controller
         with self._app.get_db().sessionmaker() as session:
             # Pattern 1: Get script by show_id (line 741)
-            script = (
-                session.query(Script).filter(Script.show_id == self.show_id).first()
-            )
+            script = session.scalars(
+                select(Script).where(Script.show_id == self.show_id)
+            ).first()
             self.assertIsNotNone(script)
 
             # Pattern 2: Get all cuts for revision (lines 766-770)
-            cuts = (
-                session.query(ScriptCuts)
-                .filter(ScriptCuts.revision_id == self.revision_id)
-                .all()
-            )
+            cuts = session.scalars(
+                select(ScriptCuts).where(ScriptCuts.revision_id == self.revision_id)
+            ).all()
             self.assertEqual(1, len(cuts))
             self.assertEqual(self.line_part_id, cuts[0].line_part_id)
 

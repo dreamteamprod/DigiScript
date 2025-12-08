@@ -1,4 +1,5 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.session import Session
 from test.utils import DigiScriptTestCase
@@ -11,7 +12,7 @@ class TestScriptStatusController(DigiScriptTestCase):
         """Test GET /api/v1/show/script/config with no editors.
 
         This tests the query at line 13:
-        session.query(Session).filter(Session.is_editor).all()
+        session.scalars(select(Session).where(Session.is_editor)).all()
         """
         response = self.fetch("/api/v1/show/script/config")
         self.assertEqual(200, response.code)
