@@ -122,11 +122,51 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     previous_line: Mapped["ScriptLine"] = relationship(foreign_keys=[previous_line_id])
 
     def pre_delete(self, session):
-        if self.line and len(self.line.revision_associations) == 1:
-            session.delete(self.line)
+        pass
 
     def post_delete(self, session):
-        pass
+        # Delete orphaned lines after association is removed
+        # Using post_delete avoids autoflush timing issues during cascade deletion
+        # Using no_autoflush prevents lazy loading from triggering premature flush
+        with session.no_autoflush:
+            if self.line:
+                # Check if line has any remaining references
+                # After this association is deleted, check all FK references
+                remaining_assocs = len(self.line.revision_associations)
+                cue_assocs = len(self.line.cue_associations)
+
+                # Check next_line_id and previous_line_id references
+                next_refs = (
+                    session.scalar(
+                        select(func.count())
+                        .select_from(ScriptLineRevisionAssociation)
+                        .where(
+                            ScriptLineRevisionAssociation.next_line_id == self.line.id
+                        )
+                    )
+                    or 0
+                )
+
+                prev_refs = (
+                    session.scalar(
+                        select(func.count())
+                        .select_from(ScriptLineRevisionAssociation)
+                        .where(
+                            ScriptLineRevisionAssociation.previous_line_id
+                            == self.line.id
+                        )
+                    )
+                    or 0
+                )
+
+                # Only delete if NO references remain
+                if (
+                    remaining_assocs == 0
+                    and cue_assocs == 0
+                    and next_refs == 0
+                    and prev_refs == 0
+                ):
+                    session.delete(self.line)
 
 
 class ScriptLinePart(db.Model):
