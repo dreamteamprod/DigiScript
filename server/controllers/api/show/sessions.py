@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from sqlalchemy import select
 from tornado import escape
 
 from models.session import Interval, Session, ShowSession
@@ -23,11 +24,9 @@ class SessionsController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                sessions = (
-                    session.query(ShowSession)
-                    .filter(ShowSession.show_id == show.id)
-                    .all()
-                )
+                sessions = session.scalars(
+                    select(ShowSession).where(ShowSession.show_id == show.id)
+                ).all()
                 sessions = [session_schema.dump(s) for s in sessions]
 
                 current_session = None

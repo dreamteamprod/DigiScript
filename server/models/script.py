@@ -5,7 +5,7 @@ import os
 from functools import partial
 from typing import TYPE_CHECKING, List
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from tornado.ioloop import IOLoop
 
@@ -201,11 +201,11 @@ class StageDirectionStyle(db.Model, DeleteMixin):
     )
 
     def pre_delete(self, session):
-        user_overrides = (
-            session.query(UserOverrides)
-            .filter(UserOverrides.settings_type == self.__tablename__)
-            .all()
-        )
+        user_overrides = session.scalars(
+            select(UserOverrides).where(
+                UserOverrides.settings_type == self.__tablename__
+            )
+        ).all()
         for override in user_overrides:
             session.delete(override)
 
@@ -239,17 +239,14 @@ class CompiledScript(db.Model):
             if not revision:
                 return
 
-            line_ids = (
-                session.query(ScriptLineRevisionAssociation)
-                .with_entities(ScriptLineRevisionAssociation.line_id)
-                .filter(ScriptLineRevisionAssociation.revision_id == revision.id)
+            line_ids_stmt = select(ScriptLineRevisionAssociation.line_id).where(
+                ScriptLineRevisionAssociation.revision_id == revision.id
             )
-            max_page = (
-                session.query(ScriptLine)
-                .with_entities(func.max(ScriptLine.page))
-                .where(ScriptLine.id.in_(line_ids))
-                .first()[0]
-            )
+            max_page = session.execute(
+                select(func.max(ScriptLine.page)).where(
+                    ScriptLine.id.in_(line_ids_stmt)
+                )
+            ).scalar()
 
             if max_page is None:
                 max_page = 0
@@ -258,14 +255,12 @@ class CompiledScript(db.Model):
             current_page = 0
             while current_page != max_page:
                 current_page += 1
-                revision_lines: List[ScriptLineRevisionAssociation] = (
-                    session.query(ScriptLineRevisionAssociation)
-                    .filter(
+                revision_lines: List[ScriptLineRevisionAssociation] = session.scalars(
+                    select(ScriptLineRevisionAssociation).where(
                         ScriptLineRevisionAssociation.revision_id == revision.id,
                         ScriptLineRevisionAssociation.line.has(page=current_page),
                     )
-                    .all()
-                )
+                ).all()
 
                 first_line = None
                 for line in revision_lines:
@@ -287,11 +282,9 @@ class CompiledScript(db.Model):
                         break
 
                     lines.append(line_schema.dump(line_revision.line))
-                    line_revision = session.query(ScriptLineRevisionAssociation).get(
-                        {
-                            "revision_id": revision.id,
-                            "line_id": line_revision.next_line_id,
-                        }
+                    line_revision = session.get(
+                        ScriptLineRevisionAssociation,
+                        (revision.id, line_revision.next_line_id),
                     )
                 page_info[current_page] = lines
 

@@ -2,6 +2,7 @@ import secrets
 from datetime import datetime, timezone
 
 import bcrypt
+from sqlalchemy import select
 from tornado import escape, gen
 from tornado.ioloop import IOLoop
 
@@ -45,9 +46,9 @@ class UserCreateController(BaseAPIController):
         is_admin = data.get("is_admin", False)
 
         with self.make_session() as session:
-            conflict_user = (
-                session.query(User).filter(User.username == username).first()
-            )
+            conflict_user = session.scalars(
+                select(User).where(User.username == username)
+            ).first()
             if conflict_user:
                 self.set_status(400)
                 await self.finish({"message": "Username already taken"})
@@ -111,11 +112,9 @@ class UserDeleteController(BaseAPIController):
                 # Then really make sure we have logged out the user for all sessions (basically,
                 # wait for the websocket ops to finish)
                 session_logout_attempts = 0
-                user_sessions = (
-                    session.query(Session)
-                    .filter(Session.user_id == user_to_delete.id)
-                    .all()
-                )
+                user_sessions = session.scalars(
+                    select(Session).where(Session.user_id == user_to_delete.id)
+                ).all()
                 while user_sessions and session_logout_attempts < 5:
                     for user_session in user_sessions:
                         ws_session = self.application.get_ws(user_session.internal_id)
@@ -124,11 +123,9 @@ class UserDeleteController(BaseAPIController):
                         )
                         ws_session.current_user_id = None
                     await gen.sleep(0.2)
-                    user_sessions = (
-                        session.query(Session)
-                        .filter(Session.user_id == user_to_delete.id)
-                        .all()
-                    )
+                    user_sessions = session.scalars(
+                        select(Session).where(Session.user_id == user_to_delete.id)
+                    ).all()
                     session_logout_attempts += 1
 
                 # Delete all RBAC associations for this user
@@ -162,7 +159,9 @@ class LoginHandler(BaseAPIController):
 
         with self.make_session() as session:
             async with NamedLockRegistry.acquire(f"UserLock::{username}"):
-                user = session.query(User).filter(User.username == username).first()
+                user = session.scalars(
+                    select(User).where(User.username == username)
+                ).first()
                 if not user:
                     self.set_status(401)
                     await self.finish({"message": "Invalid username/password"})
@@ -262,7 +261,7 @@ class UsersHandler(BaseAPIController):
     def get(self):
         user_schema = UserSchema()
         with self.make_session() as session:
-            users = session.query(User).all()
+            users = session.scalars(select(User)).all()
             self.set_status(200)
             self.finish({"users": [user_schema.dump(u) for u in users]})
 

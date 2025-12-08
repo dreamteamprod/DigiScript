@@ -1,6 +1,7 @@
 from tornado import escape
 
-from .test_utils import DigiScriptTestCase
+from models.user import User
+from test.utils import DigiScriptTestCase
 
 
 class TestAuthAPI(DigiScriptTestCase):
@@ -47,6 +48,39 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertEqual(200, response.code)
         self.assertTrue("message" in response_body)
         self.assertEqual("Successfully created user", response_body["message"])
+
+    def test_create_user_duplicate_username(self):
+        """Test POST /api/v1/auth/create with duplicate username.
+
+        This specifically tests the query at lines 48-49 in controllers/api/auth.py:
+        session.query(User).filter(User.username == username).first()
+
+        When a user with the same username already exists, the query should return
+        that user and the endpoint should return a 400 error.
+        """
+        # Create an existing user directly in the database
+        with self._app.get_db().sessionmaker() as session:
+            existing_user = User(username="duplicate_test", password="hashed_pw")
+            session.add(existing_user)
+            session.commit()
+
+        # Try to create a user with the same username
+        response = self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "duplicate_test",
+                    "password": "password123",
+                    "is_admin": False,
+                }
+            ),
+        )
+        response_body = escape.json_decode(response.body)
+
+        self.assertEqual(400, response.code)
+        self.assertTrue("message" in response_body)
+        self.assertEqual("Username already taken", response_body["message"])
 
     def test_login_success(self):
         self.fetch(
@@ -352,3 +386,152 @@ class TestAuthAPI(DigiScriptTestCase):
         response_body = escape.json_decode(response.body)
         self.assertEqual(200, response.code)
         self.assertTrue(response_body["has_token"])
+
+    def test_delete_user(self):
+        """Test DELETE /api/v1/auth/delete endpoint.
+
+        This tests the queries at lines 116-118 and 129-131 in controllers/api/auth.py:
+        session.query(Session).filter(Session.user_id == user_to_delete.id).all()
+
+        When deleting a user, the endpoint queries for all active WebSocket sessions
+        belonging to that user. In this test, there are no active sessions, so the
+        query returns an empty list and deletion proceeds normally.
+        """
+        # Create admin user for authentication
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "password", "is_admin": True}
+            ),
+        )
+
+        # Create a test show (required by @requires_show decorator)
+        with self._app.get_db().sessionmaker() as session:
+            from models.show import Show
+
+            show = Show(name="Test Show")
+            session.add(show)
+            session.flush()
+            show_id = show.id
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(show_id)
+
+        # Login as admin to get token
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "password"}),
+        )
+        response_body = escape.json_decode(response.body)
+        admin_token = response_body["access_token"]
+
+        # Create a non-admin user to delete
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "userToDelete", "password": "password", "is_admin": False}
+            ),
+        )
+
+        # Get the user ID
+        with self._app.get_db().sessionmaker() as session:
+            from models.user import User
+
+            user = session.query(User).filter(User.username == "userToDelete").first()
+            user_id = user.id
+
+        # Delete the user - the session query will return empty list
+        response = self.fetch(
+            "/api/v1/auth/delete",
+            method="POST",
+            body=escape.json_encode({"id": user_id}),
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        # Verify deletion was successful
+        self.assertEqual(200, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertEqual("Successfully deleted user", response_body["message"])
+
+        # Verify user was deleted
+        with self._app.get_db().sessionmaker() as session:
+            from models.user import User
+
+            deleted_user = session.query(User).filter(User.id == user_id).first()
+            self.assertIsNone(deleted_user)
+
+    def test_get_users(self):
+        """Test GET /api/v1/auth/users endpoint.
+
+        This tests the query at line 266 in controllers/api/auth.py:
+        session.query(User).all()
+
+        The endpoint retrieves all users in the system.
+        """
+        # Create admin user for authentication
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "password", "is_admin": True}
+            ),
+        )
+
+        # Create a test show (required by @requires_show decorator)
+        with self._app.get_db().sessionmaker() as session:
+            from models.show import Show
+
+            show = Show(name="Test Show")
+            session.add(show)
+            session.flush()
+            show_id = show.id
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(show_id)
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "password"}),
+        )
+        response_body = escape.json_decode(response.body)
+        admin_token = response_body["access_token"]
+
+        # Create additional users
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "user1", "password": "password", "is_admin": False}
+            ),
+        )
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "user2", "password": "password", "is_admin": False}
+            ),
+        )
+
+        # Get all users
+        response = self.fetch(
+            "/api/v1/auth/users",
+            method="GET",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        # Verify response
+        self.assertEqual(200, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertIn("users", response_body)
+        self.assertEqual(3, len(response_body["users"]))  # admin, user1, user2
+
+        # Verify usernames are in response
+        usernames = [u["username"] for u in response_body["users"]]
+        self.assertIn("admin", usernames)
+        self.assertIn("user1", usernames)
+        self.assertIn("user2", usernames)

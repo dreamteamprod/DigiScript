@@ -2,7 +2,7 @@ from tornado.testing import gen_test
 
 from digi_server.logger import get_logger
 
-from .test_utils import DigiScriptTestCase
+from test.utils import DigiScriptTestCase
 
 
 class TestSettings(DigiScriptTestCase):

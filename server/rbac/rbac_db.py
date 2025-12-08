@@ -4,7 +4,15 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from anytree import Node
-from sqlalchemy import Column, ForeignKey, Integer, Table, TypeDecorator, inspect
+from sqlalchemy import (
+    Column,
+    ForeignKey,
+    Integer,
+    Table,
+    TypeDecorator,
+    inspect,
+    select,
+)
 
 from digi_server.logger import get_logger
 from models.models import db
@@ -243,9 +251,9 @@ class RBACDatabase:
         if table_name not in self._mappings:
             raise RBACException("Could not get table for actor/resource")
         with self._db.sessionmaker() as session:
-            rbac_assignments = (
-                session.query(self._mappings[table_name]).filter_by(**cols).all()
-            )
+            rbac_assignments = session.scalars(
+                select(self._mappings[table_name]).filter_by(**cols)
+            ).all()
             for rbac_assignment in rbac_assignments:
                 session.delete(rbac_assignment)
             session.commit()
@@ -380,11 +388,11 @@ class RBACDatabase:
                                 )
                         if cols:
                             results.extend(
-                                session.query(
-                                    self._db.get_mapper_for_table(table.fullname)
-                                )
-                                .filter_by(**cols)
-                                .all()
+                                session.scalars(
+                                    select(
+                                        self._db.get_mapper_for_table(table.fullname)
+                                    ).filter_by(**cols)
+                                ).all()
                             )
                     previous_entities = results
                 if valid:

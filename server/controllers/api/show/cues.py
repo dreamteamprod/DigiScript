@@ -1,6 +1,7 @@
 import collections
 from typing import List
 
+from sqlalchemy import select
 from tornado import escape
 
 from models.cue import Cue, CueAssociation, CueType
@@ -173,9 +174,9 @@ class CueController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script.current_revision:
                     revision: ScriptRevision = session.get(
@@ -186,11 +187,11 @@ class CueController(BaseAPIController):
                     self.finish({"message": "Script does not have a current revision"})
                     return
 
-                revision_cues: List[CueAssociation] = (
-                    session.query(CueAssociation)
-                    .filter(CueAssociation.revision_id == revision.id)
-                    .all()
-                )
+                revision_cues: List[CueAssociation] = session.scalars(
+                    select(CueAssociation).where(
+                        CueAssociation.revision_id == revision.id
+                    )
+                ).all()
 
                 cues = collections.defaultdict(list)
                 for association in revision_cues:
@@ -210,9 +211,9 @@ class CueController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script.current_revision:
                     revision: ScriptRevision = session.get(
@@ -283,9 +284,9 @@ class CueController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script.current_revision:
                     revision: ScriptRevision = session.get(
@@ -387,9 +388,9 @@ class CueController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script.current_revision:
                     revision: ScriptRevision = session.get(
@@ -452,9 +453,9 @@ class CueStatsController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script.current_revision:
                     revision: ScriptRevision = session.get(

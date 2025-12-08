@@ -3,6 +3,7 @@ import json
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, Optional, Union
 from uuid import uuid4
 
+from sqlalchemy import select
 from tornado import gen
 from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
@@ -114,11 +115,11 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                             "internal_id"
                         )
                         session.flush()
-                        next_session: Session = (
-                            session.query(Session)
-                            .filter(Session.user_id == live_session.user_id)
-                            .first()
-                        )
+                        next_session: Session = session.scalars(
+                            select(Session).where(
+                                Session.user_id == live_session.user_id
+                            )
+                        ).first()
                         if next_session:
                             next_ws = self.application.get_ws(next_session.internal_id)
                             if not next_ws:
@@ -284,7 +285,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         "NOOP", "GET_SHOW_SESSION_DATA", {}
                     )
             elif ws_op == "REQUEST_SCRIPT_EDIT":
-                editors = session.query(Session).filter(Session.is_editor).all()
+                editors = session.scalars(
+                    select(Session).where(Session.is_editor)
+                ).all()
                 if len(editors) == 0:
                     entry.is_editor = True
                     session.commit()

@@ -1,3 +1,5 @@
+from sqlalchemy import select
+
 from models.session import Session
 from schemas.schemas import SessionSchema
 from utils.web.base_controller import BaseAPIController
@@ -9,7 +11,7 @@ class WebsocketSessionsController(BaseAPIController):
     def get(self):
         session_scheme = SessionSchema()
         with self.make_session() as session:
-            sessions = session.query(Session).all()
+            sessions = session.scalars(select(Session)).all()
             sessions = [session_scheme.dump(s) for s in sessions]
 
         self.set_status(200)

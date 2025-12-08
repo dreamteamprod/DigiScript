@@ -1,5 +1,6 @@
 from typing import List
 
+from sqlalchemy import select
 from tornado import escape
 
 from models.mics import Microphone, MicrophoneAllocation
@@ -22,11 +23,9 @@ class MicrophoneController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                mics: List[Microphone] = (
-                    session.query(Microphone)
-                    .filter(Microphone.show_id == show.id)
-                    .all()
-                )
+                mics: List[Microphone] = session.scalars(
+                    select(Microphone).where(Microphone.show_id == show.id)
+                ).all()
                 mics = [mic_schema.dump(c) for c in mics]
                 self.set_status(200)
                 self.finish({"microphones": mics})
@@ -52,11 +51,11 @@ class MicrophoneController(BaseAPIController):
                     await self.finish({"message": "Name missing"})
                     return
 
-                other_named = (
-                    session.query(Microphone)
-                    .filter(Microphone.show_id == show_id, Microphone.name == name)
-                    .first()
-                )
+                other_named = session.scalars(
+                    select(Microphone).where(
+                        Microphone.show_id == show_id, Microphone.name == name
+                    )
+                ).first()
                 if other_named:
                     self.set_status(400)
                     await self.finish({"message": "Name already taken"})
@@ -113,15 +112,13 @@ class MicrophoneController(BaseAPIController):
                     await self.finish({"message": "Name missing"})
                     return
 
-                other_named = (
-                    session.query(Microphone)
-                    .filter(
+                other_named = session.scalars(
+                    select(Microphone).where(
                         Microphone.show_id == show_id,
                         Microphone.name == name,
                         Microphone.id != microphone_id,
                     )
-                    .first()
-                )
+                ).first()
                 if other_named:
                     self.set_status(400)
                     await self.finish({"message": "Name already taken"})
@@ -189,11 +186,9 @@ class MicrophoneAllocationsController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                mics: List[Microphone] = (
-                    session.query(Microphone)
-                    .filter(Microphone.show_id == show.id)
-                    .all()
-                )
+                mics: List[Microphone] = session.scalars(
+                    select(Microphone).where(Microphone.show_id == show.id)
+                ).all()
 
                 allocations = {}
                 for mic in mics:
@@ -233,14 +228,12 @@ class MicrophoneAllocationsController(BaseAPIController):
                             await self.finish({"message": "404 scene not found"})
                             return
 
-                        existing_allocation: MicrophoneAllocation = (
-                            session.query(MicrophoneAllocation)
-                            .filter(
+                        existing_allocation: MicrophoneAllocation = session.scalars(
+                            select(MicrophoneAllocation).where(
                                 MicrophoneAllocation.scene_id == scene.id,
                                 MicrophoneAllocation.mic_id == mic.id,
                             )
-                            .first()
-                        )
+                        ).first()
 
                         character_id = data[microphone_id][scene_id]
                         if character_id:
