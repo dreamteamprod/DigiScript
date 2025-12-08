@@ -388,11 +388,11 @@ class RBACDatabase:
                                 )
                         if cols:
                             results.extend(
-                                session.query(
-                                    self._db.get_mapper_for_table(table.fullname)
-                                )
-                                .filter_by(**cols)
-                                .all()
+                                session.scalars(
+                                    select(
+                                        self._db.get_mapper_for_table(table.fullname)
+                                    ).filter_by(**cols)
+                                ).all()
                             )
                     previous_entities = results
                 if valid:
