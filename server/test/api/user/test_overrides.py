@@ -100,9 +100,7 @@ class TestStageDirectionOverridesController(DigiScriptTestCase):
             new_user_id = new_user.id
 
         # Create JWT token for the new user
-        token = self._app.jwt_service.create_access_token(
-            data={"user_id": new_user_id}
-        )
+        token = self._app.jwt_service.create_access_token(data={"user_id": new_user_id})
 
         # Get overrides - query should return empty list
         response = self.fetch(
