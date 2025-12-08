@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
 import bcrypt
+from sqlalchemy import select
 from tornado import escape, httputil
 from tornado.ioloop import IOLoop
 from tornado.web import HTTPError, RequestHandler
@@ -72,9 +73,9 @@ class BaseController(DatabaseMixin, RequestHandler):
                 api_key = self.request.headers.get("X-API-Key", "")
                 if api_key:
                     # Get all users with API tokens and check each one
-                    users_with_tokens = (
-                        session.query(User).filter(User.api_token.isnot(None)).all()
-                    )
+                    users_with_tokens = session.scalars(
+                        select(User).where(User.api_token.isnot(None))
+                    ).all()
 
                     authenticated_user = None
                     for user in users_with_tokens:
