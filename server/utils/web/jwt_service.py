@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 import jwt
 import tornado.locks
+from sqlalchemy import select
 
 from models.settings import SystemSettings
 
@@ -54,11 +55,9 @@ class JWTService:
             raise RuntimeError("No application or secret provided to JWT service")
 
         with self.application.get_db().sessionmaker() as session:
-            jwt_secret = (
-                session.query(SystemSettings)
-                .filter(SystemSettings.key == "jwt_secret")
-                .first()
-            )
+            jwt_secret = session.scalars(
+                select(SystemSettings).where(SystemSettings.key == "jwt_secret")
+            ).first()
 
             if not jwt_secret:
                 raise RuntimeError("JWT secret not initialized in database")
