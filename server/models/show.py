@@ -1,56 +1,63 @@
-from sqlalchemy import (
-    Boolean,
-    Column,
-    Date,
-    DateTime,
-    ForeignKey,
-    Integer,
-    String,
-    Table,
-)
-from sqlalchemy.orm import backref, relationship
+import datetime
+from typing import TYPE_CHECKING, List
+
+from sqlalchemy import Column, Date, ForeignKey, String, Table
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
+
+
+if TYPE_CHECKING:
+    from models.cue import CueType
+    from models.mics import MicrophoneAllocation
+    from models.script import ScriptLine
+    from models.session import ShowSession
 
 
 class Show(db.Model):
     __tablename__ = "shows"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(100))
-    start_date = Column(Date())
-    end_date = Column(Date())
-    created_at = Column(DateTime())
-    edited_at = Column(DateTime())
-    first_act_id = Column(Integer, ForeignKey("act.id"))
-    current_session_id = Column(Integer, ForeignKey("showsession.id"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(100))
+    start_date: Mapped[datetime.date | None] = mapped_column(Date())
+    end_date: Mapped[datetime.date | None] = mapped_column(Date())
+    created_at: Mapped[datetime.datetime | None] = mapped_column()
+    edited_at: Mapped[datetime.datetime | None] = mapped_column()
+    first_act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
+    current_session_id: Mapped[int | None] = mapped_column(ForeignKey("showsession.id"))
 
     # Relationships
-    first_act = relationship("Act", uselist=False, foreign_keys=[first_act_id])
-    current_session = relationship(
-        "ShowSession", uselist=False, foreign_keys=[current_session_id]
+    first_act: Mapped["Act"] = relationship(foreign_keys=[first_act_id])
+    current_session: Mapped["ShowSession"] = relationship(
+        foreign_keys=[current_session_id]
     )
 
-    cast_list = relationship("Cast", cascade="all, delete-orphan")
-    character_list = relationship("Character", cascade="all, delete-orphan")
-    character_group_list = relationship("CharacterGroup", cascade="all, delete-orphan")
-    act_list = relationship(
-        "Act", primaryjoin=lambda: Show.id == Act.show_id, cascade="all, delete-orphan"
+    cast_list: Mapped[List["Cast"]] = relationship(cascade="all, delete-orphan")
+    character_list: Mapped[List["Character"]] = relationship(
+        cascade="all, delete-orphan"
     )
-    scene_list = relationship("Scene", cascade="all, delete-orphan")
-    cue_type_list = relationship("CueType", cascade="all, delete-orphan")
+    character_group_list: Mapped[List["CharacterGroup"]] = relationship(
+        cascade="all, delete-orphan"
+    )
+    act_list: Mapped[List["Act"]] = relationship(
+        primaryjoin="Show.id == Act.show_id", cascade="all, delete-orphan"
+    )
+    scene_list: Mapped[List["Scene"]] = relationship(cascade="all, delete-orphan")
+    cue_type_list: Mapped[List["CueType"]] = relationship(cascade="all, delete-orphan")
 
 
 class Cast(db.Model):
     __tablename__ = "cast"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
-    first_name = Column(String)
-    last_name = Column(String)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    first_name: Mapped[str | None] = mapped_column()
+    last_name: Mapped[str | None] = mapped_column()
 
     # Relationships
-    character_list = relationship("Character", back_populates="cast_member")
+    character_list: Mapped[List["Character"]] = relationship(
+        back_populates="cast_member"
+    )
 
 
 character_group_association_table = Table(
@@ -64,31 +71,32 @@ character_group_association_table = Table(
 class Character(db.Model):
     __tablename__ = "character"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
-    played_by = Column(Integer, ForeignKey("cast.id"))
-    name = Column(String)
-    description = Column(String)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    played_by: Mapped[int | None] = mapped_column(ForeignKey("cast.id"))
+    name: Mapped[str | None] = mapped_column()
+    description: Mapped[str | None] = mapped_column()
 
-    cast_member = relationship("Cast", back_populates="character_list")
-    character_groups = relationship(
-        "CharacterGroup",
+    cast_member: Mapped["Cast"] = relationship(back_populates="character_list")
+    character_groups: Mapped[List["CharacterGroup"]] = relationship(
         secondary=character_group_association_table,
         back_populates="characters",
+    )
+    mic_allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
+        cascade="all, delete-orphan", back_populates="character"
     )
 
 
 class CharacterGroup(db.Model):
     __tablename__ = "character_group"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
 
-    name = Column(String)
-    description = Column(String)
+    name: Mapped[str | None] = mapped_column()
+    description: Mapped[str | None] = mapped_column()
 
-    characters = relationship(
-        "Character",
+    characters: Mapped[List["Character"]] = relationship(
         secondary=character_group_association_table,
         back_populates="character_groups",
     )
@@ -97,47 +105,59 @@ class CharacterGroup(db.Model):
 class Act(db.Model):
     __tablename__ = "act"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
-    name = Column(String)
-    interval_after = Column(Boolean)
-    first_scene_id = Column(Integer, ForeignKey("scene.id"))
-    previous_act_id = Column(Integer, ForeignKey("act.id"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    name: Mapped[str | None] = mapped_column()
+    interval_after: Mapped[bool | None] = mapped_column()
+    first_scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
+    previous_act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
 
-    first_scene = relationship("Scene", uselist=False, foreign_keys=[first_scene_id])
-    previous_act = relationship(
-        "Act",
-        uselist=False,
-        remote_side=[id],
-        backref=backref("next_act", uselist=False),
+    first_scene: Mapped["Scene"] = relationship(foreign_keys=[first_scene_id])
+    previous_act: Mapped["Act"] = relationship(
+        remote_side="[Act.id]",
+        back_populates="next_act",
+        foreign_keys=[previous_act_id],
     )
-    lines = relationship(
-        "ScriptLine", back_populates="act", cascade="all, delete-orphan"
+    next_act: Mapped["Act"] = relationship(
+        back_populates="previous_act",
+        foreign_keys="[Act.previous_act_id]",
+    )
+    scene_list: Mapped[List["Scene"]] = relationship(
+        back_populates="act",
+        cascade="all, delete-orphan",
+        foreign_keys="[Scene.act_id]",
+    )
+    lines: Mapped[List["ScriptLine"]] = relationship(
+        back_populates="act", cascade="all, delete-orphan"
     )
 
 
 class Scene(db.Model):
     __tablename__ = "scene"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
-    act_id = Column(Integer, ForeignKey("act.id"))
-    name = Column(String)
-    previous_scene_id = Column(Integer, ForeignKey("scene.id"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
+    name: Mapped[str | None] = mapped_column()
+    previous_scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
 
-    act = relationship(
-        "Act",
-        uselist=False,
-        backref=backref("scene_list", cascade="all, delete-orphan"),
+    act: Mapped["Act"] = relationship(
+        back_populates="scene_list",
         foreign_keys=[act_id],
         post_update=True,
     )
-    previous_scene = relationship(
-        "Scene",
-        uselist=False,
-        remote_side=[id],
-        backref=backref("next_scene", uselist=False),
+    previous_scene: Mapped["Scene"] = relationship(
+        remote_side="[Scene.id]",
+        back_populates="next_scene",
+        foreign_keys=[previous_scene_id],
     )
-    lines = relationship(
-        "ScriptLine", back_populates="scene", cascade="all, delete-orphan"
+    next_scene: Mapped["Scene"] = relationship(
+        back_populates="previous_scene",
+        foreign_keys="[Scene.previous_scene_id]",
+    )
+    lines: Mapped[List["ScriptLine"]] = relationship(
+        back_populates="scene", cascade="all, delete-orphan"
+    )
+    mic_allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
+        cascade="all, delete-orphan", back_populates="scene"
     )

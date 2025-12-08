@@ -29,7 +29,7 @@ class RBACUsersHandler(BaseAPIController):
         res = []
         for resource in resources:
             r_inspect = inspect(resource)
-            res.append(r_inspect.mapped_table.fullname)
+            res.append(r_inspect.persist_selectable.fullname)
         self.set_status(200)
         await self.finish({"resources": res})
 
@@ -67,7 +67,7 @@ class RBACObjectsHandler(BaseAPIController):
             )
         else:
             with self.make_session() as session:
-                user = session.query(User).get(int(user))
+                user = session.get(User, int(user))
                 if not user:
                     self.set_status(404)
                     await self.finish({"message": "user not found"})
@@ -98,7 +98,7 @@ class RBACUserRolesHandler(BaseAPIController):
     async def get(self):
         with self.make_session() as session:
             res = defaultdict(list)
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             roles = self.application.rbac.get_all_roles(user)
             for resource in roles:
                 for role in roles[resource]:
@@ -149,7 +149,7 @@ class RBACRolesGrantHandler(BaseAPIController):
             return
 
         with self.make_session() as session:
-            user = session.query(User).get(int(user))
+            user = session.get(User, int(user))
             if not user:
                 self.set_status(404)
                 await self.finish({"message": "user not found"})
@@ -159,7 +159,7 @@ class RBACRolesGrantHandler(BaseAPIController):
             cols.update(
                 {col.key: rbac_object.get(col.key) for col in resource.primary_key}
             )
-            rbac_object = session.query(mapper).get(cols)
+            rbac_object = session.get(mapper, cols)
             if not rbac_object:
                 self.set_status(404)
                 await self.finish({"message": "object not found"})
@@ -206,7 +206,7 @@ class RBACRolesRevokeHandler(BaseAPIController):
             return
 
         with self.make_session() as session:
-            user = session.query(User).get(int(user))
+            user = session.get(User, int(user))
             if not user:
                 self.set_status(404)
                 await self.finish({"message": "user not found"})
@@ -216,7 +216,7 @@ class RBACRolesRevokeHandler(BaseAPIController):
             cols.update(
                 {col.key: rbac_object.get(col.key) for col in resource.primary_key}
             )
-            rbac_object = session.query(mapper).get(cols)
+            rbac_object = session.get(mapper, cols)
             if not rbac_object:
                 self.set_status(404)
                 await self.finish({"message": "object not found"})

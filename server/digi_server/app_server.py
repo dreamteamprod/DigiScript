@@ -9,7 +9,7 @@ import sqlalchemy
 from alembic import command, script
 from alembic.config import Config
 from alembic.runtime import migration
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, delete, select
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado_prometheus import PrometheusMixIn
@@ -33,7 +33,7 @@ from utils.web.jwt_service import JWTService
 from utils.web.route import Route
 
 
-class DigiScriptServer(PrometheusMixIn, Application):  # pylint: disable=too-many-instance-attributes
+class DigiScriptServer(PrometheusMixIn, Application):
     def __init__(
         self,
         debug=False,
@@ -107,7 +107,7 @@ class DigiScriptServer(PrometheusMixIn, Application):  # pylint: disable=too-man
 
         # Check for presence of admin user, and update settings to match
         with self._db.sessionmaker() as session:
-            any_admin = session.query(User).filter(User.is_admin).first()
+            any_admin = session.scalars(select(User).where(User.is_admin)).first()
             has_admin = any_admin is not None
             self.digi_settings.settings["has_admin_user"].set_value(has_admin, False)
             self.digi_settings._save()
@@ -116,7 +116,7 @@ class DigiScriptServer(PrometheusMixIn, Application):  # pylint: disable=too-man
         with self._db.sessionmaker() as session:
             current_show = self.digi_settings.settings.get("current_show").get_value()
             if current_show:
-                show = session.query(Show).get(current_show)
+                show = session.get(Show, current_show)
                 if not show:
                     get_logger().warning(
                         "Current show from settings not found. Resetting."
@@ -128,10 +128,10 @@ class DigiScriptServer(PrometheusMixIn, Application):  # pylint: disable=too-man
         with self._db.sessionmaker() as session:
             current_show = self.digi_settings.settings.get("current_show").get_value()
             if current_show:
-                show = session.query(Show).get(current_show)
+                show = session.get(Show, current_show)
                 if show and show.current_session_id:
-                    show_session: ShowSession = session.query(ShowSession).get(
-                        show.current_session_id
+                    show_session: ShowSession = session.get(
+                        ShowSession, show.current_session_id
                     )
                     if show_session:
                         show_session.last_client_internal_id = (
@@ -147,7 +147,7 @@ class DigiScriptServer(PrometheusMixIn, Application):  # pylint: disable=too-man
         # Clear out all sessions since we are starting the app up
         with self._db.sessionmaker() as session:
             get_logger().debug("Emptying out sessions table!")
-            session.query(Session).delete()
+            session.execute(delete(Session))
             session.commit()
 
         # Get static files path - adjust for PyInstaller if needed
@@ -303,11 +303,9 @@ class DigiScriptServer(PrometheusMixIn, Application):  # pylint: disable=too-man
     def _configure_jwt(self) -> JWTService:
         get_logger().info("Configuring JWT service")
         with self._db.sessionmaker() as session:
-            jwt_secret = (
-                session.query(SystemSettings)
-                .filter(SystemSettings.key == "jwt_secret")
-                .first()
-            )
+            jwt_secret = session.scalars(
+                select(SystemSettings).where(SystemSettings.key == "jwt_secret")
+            ).first()
             if jwt_secret:
                 get_logger().info("Retrieved JWT secret from database")
             else:
@@ -346,7 +344,7 @@ class DigiScriptServer(PrometheusMixIn, Application):  # pylint: disable=too-man
 
     async def _validate_has_admin(self):
         with self.get_db().sessionmaker() as session:
-            any_admin = session.query(User).filter(User.is_admin).first()
+            any_admin = session.scalars(select(User).where(User.is_admin)).first()
             has_admin = any_admin is not None
             await self.digi_settings.set("has_admin_user", has_admin)
 

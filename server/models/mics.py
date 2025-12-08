@@ -1,38 +1,38 @@
-from sqlalchemy import Column, ForeignKey, Integer, String
-from sqlalchemy.orm import backref, relationship
+from typing import TYPE_CHECKING, List
+
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
+
+
+if TYPE_CHECKING:
+    from models.show import Character, Scene
 
 
 class Microphone(db.Model):
     __tablename__ = "microphones"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    show_id = Column(Integer, ForeignKey("shows.id"))
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
 
-    name = Column(String)
-    description = Column(String)
+    name: Mapped[str | None] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(String(500))
+
+    allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
+        cascade="all, delete-orphan", back_populates="microphone"
+    )
 
 
 class MicrophoneAllocation(db.Model):
     __tablename__ = "microphone_allocations"
 
-    mic_id = Column(Integer, ForeignKey("microphones.id"), primary_key=True)
-    scene_id = Column(Integer, ForeignKey("scene.id"), primary_key=True)
-    character_id = Column(Integer, ForeignKey("character.id"), primary_key=True)
+    mic_id: Mapped[int] = mapped_column(ForeignKey("microphones.id"), primary_key=True)
+    scene_id: Mapped[int] = mapped_column(ForeignKey("scene.id"), primary_key=True)
+    character_id: Mapped[int] = mapped_column(
+        ForeignKey("character.id"), primary_key=True
+    )
 
-    microphone = relationship(
-        "Microphone",
-        uselist=False,
-        backref=backref("allocations", uselist=True, cascade="all, delete-orphan"),
-    )
-    scene = relationship(
-        "Scene",
-        uselist=False,
-        backref=backref("mic_allocations", uselist=True, cascade="all, delete-orphan"),
-    )
-    character = relationship(
-        "Character",
-        uselist=False,
-        backref=backref("mic_allocations", uselist=True, cascade="all, delete-orphan"),
-    )
+    microphone: Mapped["Microphone"] = relationship(back_populates="allocations")
+    scene: Mapped["Scene"] = relationship(back_populates="mic_allocations")
+    character: Mapped["Character"] = relationship(back_populates="mic_allocations")

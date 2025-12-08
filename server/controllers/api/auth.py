@@ -2,6 +2,7 @@ import secrets
 from datetime import datetime, timezone
 
 import bcrypt
+from sqlalchemy import select
 from tornado import escape, gen
 from tornado.ioloop import IOLoop
 
@@ -45,9 +46,9 @@ class UserCreateController(BaseAPIController):
         is_admin = data.get("is_admin", False)
 
         with self.make_session() as session:
-            conflict_user = (
-                session.query(User).filter(User.username == username).first()
-            )
+            conflict_user = session.scalars(
+                select(User).where(User.username == username)
+            ).first()
             if conflict_user:
                 self.set_status(400)
                 await self.finish({"message": "Username already taken"})
@@ -89,7 +90,7 @@ class UserDeleteController(BaseAPIController):
             return
 
         with self.make_session() as session:
-            user_to_delete: User = session.query(User).get(int(user_to_delete))
+            user_to_delete: User = session.get(User, int(user_to_delete))
             if not user_to_delete:
                 self.set_status(400)
                 await self.finish({"message": "Could not find user to delete"})
@@ -111,11 +112,9 @@ class UserDeleteController(BaseAPIController):
                 # Then really make sure we have logged out the user for all sessions (basically,
                 # wait for the websocket ops to finish)
                 session_logout_attempts = 0
-                user_sessions = (
-                    session.query(Session)
-                    .filter(Session.user_id == user_to_delete.id)
-                    .all()
-                )
+                user_sessions = session.scalars(
+                    select(Session).where(Session.user_id == user_to_delete.id)
+                ).all()
                 while user_sessions and session_logout_attempts < 5:
                     for user_session in user_sessions:
                         ws_session = self.application.get_ws(user_session.internal_id)
@@ -124,11 +123,9 @@ class UserDeleteController(BaseAPIController):
                         )
                         ws_session.current_user_id = None
                     await gen.sleep(0.2)
-                    user_sessions = (
-                        session.query(Session)
-                        .filter(Session.user_id == user_to_delete.id)
-                        .all()
-                    )
+                    user_sessions = session.scalars(
+                        select(Session).where(Session.user_id == user_to_delete.id)
+                    ).all()
                     session_logout_attempts += 1
 
                 # Delete all RBAC associations for this user
@@ -162,7 +159,9 @@ class LoginHandler(BaseAPIController):
 
         with self.make_session() as session:
             async with NamedLockRegistry.acquire(f"UserLock::{username}"):
-                user = session.query(User).filter(User.username == username).first()
+                user = session.scalars(
+                    select(User).where(User.username == username)
+                ).first()
                 if not user:
                     self.set_status(401)
                     await self.finish({"message": "Invalid username/password"})
@@ -178,7 +177,7 @@ class LoginHandler(BaseAPIController):
                 if password_equal:
                     session_id = data.get("session_id", "")
                     if session_id:
-                        ws_session: Session = session.query(Session).get(session_id)
+                        ws_session: Session = session.get(Session, session_id)
                         if ws_session:
                             ws_session.user = user
                     user.last_login = datetime.now(tz=timezone.utc)
@@ -215,7 +214,7 @@ class LogoutHandler(BaseAPIController):
             session_id = data.get("session_id", "")
             if session_id:
                 with self.make_session() as session:
-                    ws_session: Session = session.query(Session).get(session_id)
+                    ws_session: Session = session.get(Session, session_id)
                     if ws_session:
                         ws_session.user = None
                         session.commit()
@@ -262,7 +261,7 @@ class UsersHandler(BaseAPIController):
     def get(self):
         user_schema = UserSchema()
         with self.make_session() as session:
-            users = session.query(User).all()
+            users = session.scalars(select(User)).all()
             self.set_status(200)
             self.finish({"users": [user_schema.dump(u) for u in users]})
 
@@ -280,7 +279,7 @@ class ApiTokenGenerateController(BaseAPIController):
     async def post(self):
         """Generate a new API token for the authenticated user"""
         with self.make_session() as session:
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             if not user:
                 self.set_status(404)
                 await self.finish({"message": "User not found"})
@@ -313,7 +312,7 @@ class ApiTokenRevokeController(BaseAPIController):
     async def post(self):
         """Revoke the API token for the authenticated user"""
         with self.make_session() as session:
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             if not user:
                 self.set_status(404)
                 await self.finish({"message": "User not found"})
@@ -337,7 +336,7 @@ class ApiTokenController(BaseAPIController):
     def get(self):
         """Check if the authenticated user has an API token"""
         with self.make_session() as session:
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             if not user:
                 self.set_status(404)
                 self.finish({"message": "User not found"})

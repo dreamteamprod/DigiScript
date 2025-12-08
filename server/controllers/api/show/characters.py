@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from sqlalchemy import select
 from tornado import escape
 
 from models.script import Script, ScriptLine, ScriptRevision
@@ -20,7 +21,7 @@ class CharacterController(BaseAPIController):
         character_schema = CharacterSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 characters = [character_schema.dump(c) for c in show.character_list]
                 self.set_status(200)
@@ -36,7 +37,7 @@ class CharacterController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -50,7 +51,7 @@ class CharacterController(BaseAPIController):
                 description = data.get("description", None)
                 played_by = data.get("played_by", None)
                 if played_by:
-                    cast_member = session.query(Cast).get(played_by)
+                    cast_member = session.get(Cast, played_by)
                     if not cast_member:
                         self.set_status(404)
                         await self.finish({"message": "404 cast member found"})
@@ -85,7 +86,7 @@ class CharacterController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -110,7 +111,7 @@ class CharacterController(BaseAPIController):
 
                     played_by = data.get("played_by", None)
                     if played_by:
-                        cast_member = session.query(Cast).get(played_by)
+                        cast_member = session.get(Cast, played_by)
                         if not cast_member:
                             self.set_status(404)
                             await self.finish({"message": "404 cast member found"})
@@ -140,7 +141,7 @@ class CharacterController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -177,15 +178,15 @@ class CharacterStatsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.query(ScriptRevision).get(
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)
@@ -228,7 +229,7 @@ class CharacterGroupController(BaseAPIController):
         character_group_schema = CharacterGroupSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 character_groups = [
                     character_group_schema.dump(c) for c in show.character_group_list
@@ -246,7 +247,7 @@ class CharacterGroupController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -262,7 +263,7 @@ class CharacterGroupController(BaseAPIController):
 
                 character_model_list = []
                 for character_id in character_list:
-                    character = session.query(Character).get(character_id)
+                    character = session.get(Character, character_id)
                     if not character:
                         self.set_status(404)
                         await self.finish(
@@ -299,7 +300,7 @@ class CharacterGroupController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -337,7 +338,7 @@ class CharacterGroupController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -362,7 +363,7 @@ class CharacterGroupController(BaseAPIController):
                     character_list = data.get("characters", [])
                     character_model_list = []
                     for character_id in character_list:
-                        character = session.query(Character).get(character_id)
+                        character = session.get(Character, character_id)
                         if not character:
                             self.set_status(404)
                             await self.finish(

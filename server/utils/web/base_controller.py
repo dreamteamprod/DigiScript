@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
 import bcrypt
+from sqlalchemy import select
 from tornado import escape, httputil
 from tornado.ioloop import IOLoop
 from tornado.web import HTTPError, RequestHandler
-from tornado_sqlalchemy import SessionMixin
 
 from digi_server.logger import get_logger
 from models.models import db
@@ -20,7 +20,20 @@ if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
-class BaseController(SessionMixin, RequestHandler):
+class DatabaseMixin:
+    """Mixin providing database session management (replaces tornado_sqlalchemy.SessionMixin)."""
+
+    @property
+    def db(self):
+        """Get database instance from application."""
+        return self.application.get_db()
+
+    def make_session(self):
+        """Create session context manager."""
+        return self.db.sessionmaker()
+
+
+class BaseController(DatabaseMixin, RequestHandler):
     def __init__(
         self,
         application: DigiScriptServer,
@@ -31,7 +44,6 @@ class BaseController(SessionMixin, RequestHandler):
         self.application: DigiScriptServer = self.application
         self.current_show: Optional[dict] = None
 
-    # pylint: disable=invalid-overridden-method
     async def prepare(
         self,
     ) -> Optional[Awaitable[None]]:
@@ -52,7 +64,7 @@ class BaseController(SessionMixin, RequestHandler):
 
                 payload = self.application.jwt_service.decode_access_token(token)
                 if payload and "user_id" in payload:
-                    user = session.query(User).get(int(payload["user_id"]))
+                    user = session.get(User, int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
 
@@ -61,9 +73,9 @@ class BaseController(SessionMixin, RequestHandler):
                 api_key = self.request.headers.get("X-API-Key", "")
                 if api_key:
                     # Get all users with API tokens and check each one
-                    users_with_tokens = (
-                        session.query(User).filter(User.api_token.isnot(None)).all()
-                    )
+                    users_with_tokens = session.scalars(
+                        select(User).where(User.api_token.isnot(None))
+                    ).all()
 
                     authenticated_user = None
                     for user in users_with_tokens:
@@ -85,7 +97,7 @@ class BaseController(SessionMixin, RequestHandler):
 
             current_show = await self.application.digi_settings.get("current_show")
             if current_show:
-                show = session.query(Show).get(current_show)
+                show = session.get(Show, current_show)
                 if show:
                     self.current_show = show_schema.dump(show)
         return
@@ -96,7 +108,7 @@ class BaseController(SessionMixin, RequestHandler):
         if self.current_user["is_admin"]:
             return
         with self.make_session() as session:
-            user = session.query(User).get(self.current_user["id"])
+            user = session.get(User, self.current_user["id"])
             if not user:
                 raise HTTPError(500)
             if not self.application.rbac.has_role(user, resource, role):

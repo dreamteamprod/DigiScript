@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from sqlalchemy import select
 from tornado import escape
 
 from models.script import Script, ScriptLine, ScriptRevision
@@ -20,7 +21,7 @@ class CastController(BaseAPIController):
         cast_schema = CastSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 cast = [cast_schema.dump(c) for c in show.cast_list]
                 self.set_status(200)
@@ -36,7 +37,7 @@ class CastController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -78,7 +79,7 @@ class CastController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -128,7 +129,7 @@ class CastController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -165,15 +166,15 @@ class CharacterStatsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script.current_revision:
-                    revision: ScriptRevision = session.query(ScriptRevision).get(
-                        script.current_revision
+                    revision: ScriptRevision = session.get(
+                        ScriptRevision, script.current_revision
                     )
                 else:
                     self.set_status(400)

@@ -60,7 +60,7 @@ class StageDirectionOverridesController(BaseAPIController):
             return
 
         with self.make_session() as session:
-            style_to_override = session.query(StageDirectionStyle).get(style_id)
+            style_to_override = session.get(StageDirectionStyle, style_id)
             if not style_to_override:
                 self.set_status(404)
                 await self.finish({"message": "Stage direction style not found"})

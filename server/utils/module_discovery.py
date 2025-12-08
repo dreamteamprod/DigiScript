@@ -8,7 +8,6 @@ from utils.pkg_utils import find_end_modules
 
 # Check if running in PyInstaller bundle
 try:
-    # pylint: disable=unused-import
     from utils.pyinstaller_utils import get_resource_path, is_frozen
 except ImportError:
 

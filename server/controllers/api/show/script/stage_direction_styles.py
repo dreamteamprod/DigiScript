@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from tornado import escape
 
 from models.script import Script, StageDirectionStyle
@@ -18,11 +19,11 @@ class StageDirectionStylesController(BaseAPIController):
 
         stage_direction_style_schema = StageDirectionStyleSchema()
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 stage_direction_styles = [
                     stage_direction_style_schema.dump(style)
                     for style in script.stage_direction_styles
@@ -42,11 +43,11 @@ class StageDirectionStylesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
@@ -117,11 +118,11 @@ class StageDirectionStylesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
@@ -131,9 +132,7 @@ class StageDirectionStylesController(BaseAPIController):
                     await self.finish({"message": "ID missing"})
                     return
 
-                style: StageDirectionStyle = session.query(StageDirectionStyle).get(
-                    style_id
-                )
+                style: StageDirectionStyle = session.get(StageDirectionStyle, style_id)
                 if not style:
                     self.set_status(404)
                     await self.finish(
@@ -201,11 +200,11 @@ class StageDirectionStylesController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 self.requires_role(script, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 

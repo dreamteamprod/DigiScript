@@ -1,44 +1,50 @@
 import datetime
 import json
 from functools import partial
-from typing import Union
+from typing import TYPE_CHECKING, List, Union
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Text, select
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
 from registry.user_overrides import UserOverridesRegistry
 
 
+if TYPE_CHECKING:
+    from models.session import Session
+
+
 class User(db.Model):
     __tablename__ = "user"
 
-    id = Column(Integer(), primary_key=True, autoincrement=True)
-    username = Column(String(), index=True)
-    password = Column(String())
-    is_admin = Column(Boolean())
-    last_login = Column(DateTime())
-    last_seen = Column(DateTime())
-    api_token = Column(String(), nullable=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str | None] = mapped_column(index=True)
+    password: Mapped[str | None] = mapped_column()
+    is_admin: Mapped[bool | None] = mapped_column()
+    last_login: Mapped[datetime.datetime | None] = mapped_column()
+    last_seen: Mapped[datetime.datetime | None] = mapped_column()
+    api_token: Mapped[str | None] = mapped_column(index=True)
+
+    sessions: Mapped[List["Session"]] = relationship(back_populates="user")
 
 
 class UserSettings(db.Model):
     __tablename__ = "user_settings"
 
     # User editable settings
-    enable_script_auto_save = Column(Boolean, default=True)
-    script_auto_save_interval = Column(Integer, default=10)
-    cue_position_right = Column(Boolean, default=False)
+    enable_script_auto_save: Mapped[bool | None] = mapped_column(default=True)
+    script_auto_save_interval: Mapped[int | None] = mapped_column(default=10)
+    cue_position_right: Mapped[bool | None] = mapped_column(default=False)
 
     # Hidden Properties (None user editable, marked with _)
     # Make sure to also mark these as hidden in the Schema for this in schemas/schemas.py
-    _user_id = Column(
-        Integer, ForeignKey("user.id", ondelete="CASCADE"), primary_key=True, index=True
+    _user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"), primary_key=True, index=True
     )
-    _created_at = Column(
-        DateTime, default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
+    _created_at: Mapped[datetime.datetime | None] = mapped_column(
+        default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
     )
-    _updated_at = Column(
-        DateTime,
+    _updated_at: Mapped[datetime.datetime | None] = mapped_column(
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc),
         onupdate=partial(datetime.datetime.now, tz=datetime.timezone.utc),
     )
@@ -47,17 +53,18 @@ class UserSettings(db.Model):
 class UserOverrides(db.Model):
     __tablename__ = "user_overrides"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), index=True)
-
-    settings_type = Column(String, index=True)
-    settings = Column(Text)
-
-    created_at = Column(
-        DateTime, default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"), index=True
     )
-    updated_at = Column(
-        DateTime,
+
+    settings_type: Mapped[str | None] = mapped_column(index=True)
+    settings: Mapped[str | None] = mapped_column(Text)
+
+    created_at: Mapped[datetime.datetime | None] = mapped_column(
+        default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
+    )
+    updated_at: Mapped[datetime.datetime | None] = mapped_column(
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc),
         onupdate=partial(datetime.datetime.now, tz=datetime.timezone.utc),
     )
@@ -88,12 +95,11 @@ class UserOverrides(db.Model):
             settings_type = settings_type.__tablename__
         if not UserOverridesRegistry.is_registered(settings_type):
             return []
-        return (
-            session.query(UserOverrides)
-            .filter_by(user_id=user_id)
-            .filter_by(settings_type=settings_type)
-            .all()
-        )
+        return session.scalars(
+            select(UserOverrides)
+            .where(UserOverrides.user_id == user_id)
+            .where(UserOverrides.settings_type == settings_type)
+        ).all()
 
     @classmethod
     def create_for_user(cls, user_id, settings_type, settings_data):

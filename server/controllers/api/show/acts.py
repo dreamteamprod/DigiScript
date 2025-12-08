@@ -1,5 +1,6 @@
 from typing import List
 
+from sqlalchemy import select
 from tornado import escape
 
 from models.show import Act, Scene, Show
@@ -19,11 +20,11 @@ class ActController(BaseAPIController):
         act_schema = ActSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
-                acts: List[Act] = (
-                    session.query(Act).filter(Act.show_id == show.id).all()
-                )
+                acts: List[Act] = session.scalars(
+                    select(Act).where(Act.show_id == show.id)
+                ).all()
                 acts = [act_schema.dump(c) for c in acts]
                 self.set_status(200)
                 self.finish({"acts": acts})
@@ -38,7 +39,7 @@ class ActController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -88,7 +89,7 @@ class ActController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -125,7 +126,7 @@ class ActController(BaseAPIController):
                             )
                             return
 
-                        previous_act: Act = session.query(Act).get(previous_act_id)
+                        previous_act: Act = session.get(Act, previous_act_id)
                         if not previous_act:
                             self.set_status(400)
                             await self.finish({"message": "Previous act not found"})
@@ -171,7 +172,7 @@ class ActController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -218,7 +219,7 @@ class FirstSceneController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -236,7 +237,7 @@ class FirstSceneController(BaseAPIController):
 
                 scene_id: int = data.get("scene_id", None)
                 if scene_id:
-                    scene: Scene = session.query(Scene).get(scene_id)
+                    scene: Scene = session.get(Scene, scene_id)
                     if not scene:
                         self.set_status(404)
                         await self.finish({"message": "404 scene not found"})
@@ -250,7 +251,7 @@ class FirstSceneController(BaseAPIController):
                         )
                         return
 
-                act: Act = session.query(Act).get(act_id)
+                act: Act = session.get(Act, act_id)
                 if not act:
                     self.set_status(404)
                     await self.finish({"message": "Act not found"})

@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from tornado import escape
 
 from digi_server.logger import get_logger
@@ -30,11 +30,11 @@ class ScriptRevisionsController(BaseAPIController):
         revisions_schema = ScriptRevisionsSchema()
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script:
                     revisions = [revisions_schema.dump(c) for c in script.revisions]
@@ -59,13 +59,13 @@ class ScriptRevisionsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 data = escape.json_decode(self.request.body)
 
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 if not script:
                     self.set_status(404)
                     await self.finish({"message": "404 script not found"})
@@ -78,18 +78,18 @@ class ScriptRevisionsController(BaseAPIController):
                     await self.finish({"message": "404 script revision not found"})
                     return
 
-                current_rev: ScriptRevision = session.query(ScriptRevision).get(
-                    current_rev_id
+                current_rev: ScriptRevision = session.get(
+                    ScriptRevision, current_rev_id
                 )
                 if not current_rev:
                     self.set_status(404)
                     await self.finish({"message": "404 script revision not found"})
                     return
 
-                max_rev = (
-                    session.query(func.max(ScriptRevision.revision))
-                    .filter(ScriptRevision.script_id == script.id)
-                    .one()[0]
+                max_rev = session.scalar(
+                    select(func.max(ScriptRevision.revision)).where(
+                        ScriptRevision.script_id == script.id
+                    )
                 )
 
                 description: str = data.get("description", None)
@@ -158,13 +158,13 @@ class ScriptRevisionsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
                 data = escape.json_decode(self.request.body)
 
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 if not script:
                     self.set_status(404)
                     await self.finish({"message": "404 script not found"})
@@ -177,7 +177,7 @@ class ScriptRevisionsController(BaseAPIController):
                     await self.finish({"message": "Revision missing"})
                     return
 
-                rev: ScriptRevision = session.query(ScriptRevision).get(rev_id)
+                rev: ScriptRevision = session.get(ScriptRevision, rev_id)
                 if not rev:
                     self.set_status(404)
                     await self.finish({"message": "Revision not found"})
@@ -203,14 +203,12 @@ class ScriptRevisionsController(BaseAPIController):
                     if rev.previous_revision_id:
                         script.current_revision = rev.previous_revision_id
                     else:
-                        first_rev: ScriptRevision = (
-                            session.query(ScriptRevision)
-                            .filter(
+                        first_rev: ScriptRevision = session.scalars(
+                            select(ScriptRevision).where(
                                 ScriptRevision.script_id == script.id,
                                 ScriptRevision.revision == 1,
                             )
-                            .one()
-                        )
+                        ).one()
                         script.current_revision = first_rev.id
 
                 session.delete(rev)
@@ -249,11 +247,11 @@ class ScriptCurrentRevisionController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show: Show = session.query(Show).get(show_id)
+            show: Show = session.get(Show, show_id)
             if show:
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
 
                 if script:
                     self.set_status(200)
@@ -276,14 +274,14 @@ class ScriptCurrentRevisionController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
-                script: Script = (
-                    session.query(Script).filter(Script.show_id == show.id).first()
-                )
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
                 if not script:
                     self.set_status(404)
                     await self.finish({"message": "404 script not found"})
@@ -295,7 +293,7 @@ class ScriptCurrentRevisionController(BaseAPIController):
                     await self.finish({"message": "New revision missing"})
                     return
 
-                new_rev: ScriptRevision = session.query(ScriptRevision).get(new_rev_id)
+                new_rev: ScriptRevision = session.get(ScriptRevision, new_rev_id)
                 if not new_rev:
                     self.set_status(404)
                     await self.finish({"message": "New revision not found"})
