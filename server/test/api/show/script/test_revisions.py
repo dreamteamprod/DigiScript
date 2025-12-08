@@ -1,9 +1,16 @@
+from test.utils import DigiScriptTestCase
+
 import tornado.escape
 from sqlalchemy import func, select
 
-from models.script import Script, ScriptRevision
-from models.show import Show
-from test.utils import DigiScriptTestCase
+from models.script import (
+    Script,
+    ScriptLine,
+    ScriptLinePart,
+    ScriptLineRevisionAssociation,
+    ScriptRevision,
+)
+from models.show import Act, Character, Scene, Show
 
 
 class TestScriptRevisionsController(DigiScriptTestCase):
@@ -301,3 +308,200 @@ class TestScriptRevisionDelete(DigiScriptTestCase):
         with self._app.get_db().sessionmaker() as session:
             script = session.get(Script, self.script_id)
             self.assertEqual(self.revision1_id, script.current_revision)
+
+
+class TestRevisionDeletionWithLines(DigiScriptTestCase):
+    """Test deleting revisions with script lines (Issue #670).
+
+    When deleting a revision, the post_delete hook in ScriptLineRevisionAssociation
+    must properly clean up orphaned lines without triggering FK constraint errors.
+    This tests the fix that uses session.no_autoflush to prevent lazy loading from
+    triggering premature autoflush during cascade deletion.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            from models.user import User
+
+            user = User(username="admin", password="hashed", is_admin=True)
+            session.add(user)
+            session.flush()
+            self.user_id = user.id
+
+            show = Show(name="Test Show")
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+            self.script_id = script.id
+
+            revision1 = ScriptRevision(
+                script_id=script.id, revision=1, description="Initial"
+            )
+            session.add(revision1)
+            session.flush()
+            self.revision1_id = revision1.id
+            script.current_revision = revision1.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            self.act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            self.scene_id = scene.id
+
+            character = Character(show_id=show.id, name="Test Character")
+            session.add(character)
+            session.flush()
+            self.character_id = character.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def test_delete_revision_with_multiple_lines(self):
+        """Test deleting a revision that has multiple script lines.
+
+        This test creates a revision with 5 lines (with next/previous pointers),
+        then creates a second revision via the API (which copies the lines),
+        then deletes the second revision. This should succeed without FK errors.
+        """
+        # Create lines in revision 1 via API
+        initial_lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": f"Line {i}",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+            for i in range(1, 6)
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(initial_lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Create revision 2 via API (copies all lines from revision 1)
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode({"description": "Second revision"}),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        revision2_id = response_body["id"]
+
+        # Now delete revision 2
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="DELETE",
+            body=tornado.escape.json_encode({"rev_id": revision2_id}),
+            headers={"Authorization": f"Bearer {self.token}"},
+            allow_nonstandard_methods=True,
+        )
+
+        # Should succeed without FK constraint error
+        self.assertEqual(200, response.code)
+
+        # Verify revision was actually deleted
+        with self._app.get_db().sessionmaker() as session:
+            deleted_rev = session.get(ScriptRevision, revision2_id)
+            self.assertIsNone(deleted_rev)
+
+    def test_delete_non_current_revision(self):
+        """Test deleting a non-current revision with lines.
+
+        This ensures the deletion works even when deleting an old revision
+        while a newer one is current.
+        """
+        # Create lines in revision 1
+        initial_lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Line 1",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(initial_lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Create revision 2
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode({"description": "Second"}),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+        revision2_id = tornado.escape.json_decode(response.body)["id"]
+
+        # Create revision 3 (now current)
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode({"description": "Third"}),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Delete revision 2 (non-current)
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="DELETE",
+            body=tornado.escape.json_encode({"rev_id": revision2_id}),
+            headers={"Authorization": f"Bearer {self.token}"},
+            allow_nonstandard_methods=True,
+        )
+
+        self.assertEqual(200, response.code)
+
+        # Verify deletion
+        with self._app.get_db().sessionmaker() as session:
+            deleted_rev = session.get(ScriptRevision, revision2_id)
+            self.assertIsNone(deleted_rev)

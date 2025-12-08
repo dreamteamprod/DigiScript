@@ -1,18 +1,20 @@
+from test.utils import DigiScriptTestCase
+
 import tornado.escape
 from sqlalchemy import select
 
+from models.cue import Cue, CueAssociation, CueType
 from models.script import (
     Script,
-    ScriptRevision,
-    ScriptLine,
-    ScriptLineRevisionAssociation,
-    ScriptLinePart,
     ScriptCuts,
+    ScriptLine,
+    ScriptLinePart,
+    ScriptLineRevisionAssociation,
+    ScriptRevision,
 )
-from models.show import Show, Act, Scene, Character
+from models.show import Act, Character, Scene, Show
 from models.user import User
 from rbac.role import Role
-from test.utils import DigiScriptTestCase
 
 
 class TestScriptController(DigiScriptTestCase):
@@ -419,3 +421,398 @@ class TestScriptMaxPageController(DigiScriptTestCase):
         self.assertEqual(200, response.code)
         response_body = tornado.escape.json_decode(response.body)
         self.assertEqual(2, response_body["max_page"])
+
+
+class TestScriptUpdateWithAssociations(DigiScriptTestCase):
+    """Test updating script lines with revision-scoped associations (Issue #670).
+
+    When updating a line via PATCH, DigiScript creates new ScriptLine and
+    ScriptLinePart objects. All revision-scoped associations (CueAssociation,
+    ScriptCuts) must be migrated to the new objects, not cascade deleted.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show")
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Initial"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
+            script.current_revision = revision.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            self.act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            self.scene_id = scene.id
+
+            character = Character(show_id=show.id, name="Test Character")
+            session.add(character)
+            session.flush()
+            self.character_id = character.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def test_update_line_with_cue_attached(self):
+        """Test updating a line that has a cue attached.
+
+        Verifies that CueAssociation is migrated to the new line object.
+        """
+        # Create initial line
+        initial_lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Original text",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(initial_lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Get created line ID
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="GET",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        page_data = tornado.escape.json_decode(response.body)
+        line_id = page_data["lines"][0]["id"]
+        line_part_id = page_data["lines"][0]["line_parts"][0]["id"]
+
+        # Add cue to the line
+        with self._app.get_db().sessionmaker() as session:
+            cue_type = CueType(
+                show_id=self.show_id,
+                prefix="LX",
+                description="Lighting",
+                colour="#ff0000",
+            )
+            session.add(cue_type)
+            session.flush()
+
+            cue = Cue(cue_type_id=cue_type.id, ident="LX 1")
+            session.add(cue)
+            session.flush()
+
+            cue_assoc = CueAssociation(
+                revision_id=self.revision_id, line_id=line_id, cue_id=cue.id
+            )
+            session.add(cue_assoc)
+            session.commit()
+
+        # Update the line
+        updated_lines = [
+            {
+                "id": line_id,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": line_part_id,
+                        "line_id": line_id,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Updated text",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        patch_data = {
+            "page": updated_lines,
+            "status": {"added": [], "updated": [0], "deleted": [], "inserted": []},
+        }
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_data),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code, "PATCH should succeed")
+
+        # Verify cue was migrated to new line
+        with self._app.get_db().sessionmaker() as session:
+            cue_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision_id
+                )
+            ).all()
+
+            self.assertEqual(1, len(cue_assocs), "Should have 1 cue association")
+            self.assertNotEqual(
+                line_id, cue_assocs[0].line_id, "Cue should point to NEW line"
+            )
+
+    def test_update_line_with_cut_attached(self):
+        """Test updating a line that has a line_part cut.
+
+        Verifies that ScriptCuts is migrated to the new line_part object.
+        """
+        # Create initial line
+        initial_lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "This line will be cut",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(initial_lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Get created line ID
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="GET",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        page_data = tornado.escape.json_decode(response.body)
+        line_id = page_data["lines"][0]["id"]
+        line_part_id = page_data["lines"][0]["line_parts"][0]["id"]
+
+        # Mark line_part as cut
+        with self._app.get_db().sessionmaker() as session:
+            cut = ScriptCuts(revision_id=self.revision_id, line_part_id=line_part_id)
+            session.add(cut)
+            session.commit()
+
+        # Update the line
+        updated_lines = [
+            {
+                "id": line_id,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": line_part_id,
+                        "line_id": line_id,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Updated cut line",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        patch_data = {
+            "page": updated_lines,
+            "status": {"added": [], "updated": [0], "deleted": [], "inserted": []},
+        }
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_data),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code, "PATCH should succeed")
+
+        # Verify cut was migrated to new line_part
+        with self._app.get_db().sessionmaker() as session:
+            cuts = session.scalars(
+                select(ScriptCuts).where(ScriptCuts.revision_id == self.revision_id)
+            ).all()
+
+            self.assertEqual(1, len(cuts), "Should have 1 cut")
+            self.assertNotEqual(
+                line_part_id, cuts[0].line_part_id, "Cut should point to NEW line_part"
+            )
+
+    def test_update_line_with_both_cue_and_cut(self):
+        """Test updating a line that has both a cue and a cut.
+
+        Comprehensive test ensuring both CueAssociation and ScriptCuts are migrated.
+        """
+        # Create initial line
+        initial_lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Line with cue and cut",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(initial_lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Get created line ID
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="GET",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        page_data = tornado.escape.json_decode(response.body)
+        line_id = page_data["lines"][0]["id"]
+        line_part_id = page_data["lines"][0]["line_parts"][0]["id"]
+
+        # Add both cue and cut
+        with self._app.get_db().sessionmaker() as session:
+            cue_type = CueType(
+                show_id=self.show_id,
+                prefix="LX",
+                description="Lighting",
+                colour="#ff0000",
+            )
+            session.add(cue_type)
+            session.flush()
+
+            cue = Cue(cue_type_id=cue_type.id, ident="LX 1")
+            session.add(cue)
+            session.flush()
+
+            cue_assoc = CueAssociation(
+                revision_id=self.revision_id, line_id=line_id, cue_id=cue.id
+            )
+            session.add(cue_assoc)
+
+            cut = ScriptCuts(revision_id=self.revision_id, line_part_id=line_part_id)
+            session.add(cut)
+
+            session.commit()
+
+        # Update the line
+        updated_lines = [
+            {
+                "id": line_id,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": line_part_id,
+                        "line_id": line_id,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Updated line with cue and cut",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        patch_data = {
+            "page": updated_lines,
+            "status": {"added": [], "updated": [0], "deleted": [], "inserted": []},
+        }
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_data),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code, "PATCH should succeed")
+
+        # Verify both cue and cut were migrated
+        with self._app.get_db().sessionmaker() as session:
+            cue_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision_id
+                )
+            ).all()
+            self.assertEqual(1, len(cue_assocs), "Should have 1 cue")
+            self.assertNotEqual(
+                line_id, cue_assocs[0].line_id, "Cue should point to NEW line"
+            )
+
+            cuts = session.scalars(
+                select(ScriptCuts).where(ScriptCuts.revision_id == self.revision_id)
+            ).all()
+            self.assertEqual(1, len(cuts), "Should have 1 cut")
+            self.assertNotEqual(
+                line_part_id, cuts[0].line_part_id, "Cut should point to NEW line_part"
+            )
