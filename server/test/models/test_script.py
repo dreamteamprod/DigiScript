@@ -2,6 +2,7 @@ import os
 import tempfile
 
 from tornado.testing import gen_test
+from sqlalchemy import func, select
 
 from models.script import CompiledScript, ScriptRevision, StageDirectionStyle, Script
 from models.show import Show
@@ -14,8 +15,10 @@ class TestScriptModels(DigiScriptTestCase):
         """Test that StageDirectionStyle.pre_delete() deletes associated user overrides.
 
         This tests the query at lines 204-207:
-        session.query(UserOverrides).filter(
-            UserOverrides.settings_type == self.__tablename__
+        session.scalars(
+            select(UserOverrides).where(
+                UserOverrides.settings_type == self.__tablename__
+            )
         ).all()
 
         We create a stage direction style, add user overrides for it, then delete
@@ -58,10 +61,10 @@ class TestScriptModels(DigiScriptTestCase):
 
         # Verify override exists
         with self._app.get_db().sessionmaker() as session:
-            override_count = (
-                session.query(UserOverrides)
-                .filter(UserOverrides.settings_type == "stage_direction_styles")
-                .count()
+            override_count = session.scalar(
+                select(func.count())
+                .select_from(UserOverrides)
+                .where(UserOverrides.settings_type == "stage_direction_styles")
             )
             self.assertEqual(1, override_count)
 
@@ -73,10 +76,10 @@ class TestScriptModels(DigiScriptTestCase):
 
         # Verify override was deleted by the hook
         with self._app.get_db().sessionmaker() as session:
-            override_count = (
-                session.query(UserOverrides)
-                .filter(UserOverrides.settings_type == "stage_direction_styles")
-                .count()
+            override_count = session.scalar(
+                select(func.count())
+                .select_from(UserOverrides)
+                .where(UserOverrides.settings_type == "stage_direction_styles")
             )
             self.assertEqual(0, override_count, "User override should be deleted")
 

@@ -1,4 +1,5 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.mics import Microphone
 from models.show import Show
@@ -24,7 +25,7 @@ class TestMicrophoneController(DigiScriptTestCase):
         """Test GET /api/v1/show/microphones with no microphones.
 
         This tests the query at line 25-28 in controllers/api/show/microphones.py:
-        session.query(Microphone).filter(Microphone.show_id == show.id).all()
+        session.scalars(select(Microphone).where(Microphone.show_id == show.id)).all()
         """
         response = self.fetch("/api/v1/show/microphones")
         self.assertEqual(200, response.code)
@@ -70,7 +71,7 @@ class TestMicrophoneAllocationsController(DigiScriptTestCase):
         """Test GET /api/v1/show/microphones/allocations with no microphones.
 
         This tests the query at line 192-195 in microphones.py:
-        session.query(Microphone).filter(Microphone.show_id == show.id).all()
+        session.scalars(select(Microphone).where(Microphone.show_id == show.id)).all()
         """
         response = self.fetch("/api/v1/show/microphones/allocations")
         self.assertEqual(200, response.code)

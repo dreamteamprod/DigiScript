@@ -1,4 +1,5 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.session import ShowSession
 from models.show import Show
@@ -24,7 +25,7 @@ class TestSessionsController(DigiScriptTestCase):
         """Test GET /api/v1/show/sessions with no sessions.
 
         This tests the query at line 26-29 in controllers/api/show/sessions.py:
-        session.query(ShowSession).filter(ShowSession.show_id == show.id).all()
+        session.scalars(select(ShowSession).where(ShowSession.show_id == show.id)).all()
         """
         response = self.fetch("/api/v1/show/sessions")
         self.assertEqual(200, response.code)

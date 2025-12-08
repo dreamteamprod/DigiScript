@@ -1,4 +1,5 @@
 from tornado import escape
+from sqlalchemy import select
 
 from models.user import User
 from test.utils import DigiScriptTestCase
@@ -53,7 +54,7 @@ class TestAuthAPI(DigiScriptTestCase):
         """Test POST /api/v1/auth/create with duplicate username.
 
         This specifically tests the query at lines 48-49 in controllers/api/auth.py:
-        session.query(User).filter(User.username == username).first()
+        session.scalars(select(User).where(User.username == username)).first()
 
         When a user with the same username already exists, the query should return
         that user and the endpoint should return a 400 error.
@@ -391,7 +392,7 @@ class TestAuthAPI(DigiScriptTestCase):
         """Test DELETE /api/v1/auth/delete endpoint.
 
         This tests the queries at lines 116-118 and 129-131 in controllers/api/auth.py:
-        session.query(Session).filter(Session.user_id == user_to_delete.id).all()
+        session.scalars(select(Session).where(Session.user_id == user_to_delete.id)).all()
 
         When deleting a user, the endpoint queries for all active WebSocket sessions
         belonging to that user. In this test, there are no active sessions, so the
@@ -440,7 +441,9 @@ class TestAuthAPI(DigiScriptTestCase):
         with self._app.get_db().sessionmaker() as session:
             from models.user import User
 
-            user = session.query(User).filter(User.username == "userToDelete").first()
+            user = session.scalars(
+                select(User).where(User.username == "userToDelete")
+            ).first()
             user_id = user.id
 
         # Delete the user - the session query will return empty list
@@ -460,14 +463,16 @@ class TestAuthAPI(DigiScriptTestCase):
         with self._app.get_db().sessionmaker() as session:
             from models.user import User
 
-            deleted_user = session.query(User).filter(User.id == user_id).first()
+            deleted_user = session.scalars(
+                select(User).where(User.id == user_id)
+            ).first()
             self.assertIsNone(deleted_user)
 
     def test_get_users(self):
         """Test GET /api/v1/auth/users endpoint.
 
         This tests the query at line 266 in controllers/api/auth.py:
-        session.query(User).all()
+        session.scalars(select(User)).all()
 
         The endpoint retrieves all users in the system.
         """

@@ -1,4 +1,5 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.script import Script
 from models.show import Show
@@ -12,7 +13,9 @@ class TestRBAC(DigiScriptTestCase):
         """Test that delete_actor removes all RBAC assignments for a user.
 
         This tests the query at line 247 in rbac/rbac_db.py:
-        session.query(self._mappings[table_name]).filter_by(**cols).all()
+        model = self._mappings[table_name]
+        conditions = [getattr(model, k) == v for k, v in cols.items()]
+        session.scalars(select(model).where(*conditions)).all()
 
         We create a user, assign them roles for resources, then call delete_actor
         and verify the RBAC table entries were deleted.
@@ -62,9 +65,9 @@ class TestRBAC(DigiScriptTestCase):
         """Test GET /api/v1/rbac/user/objects endpoint.
 
         This tests the query at lines 391-396 in rbac/rbac_db.py:
-        session.query(self._db.get_mapper_for_table(table.fullname))
-            .filter_by(**cols)
-            .all()
+        model = self._db.get_mapper_for_table(table.fullname)
+        conditions = [getattr(model, k) == v for k, v in cols.items()]
+        session.scalars(select(model).where(*conditions)).all()
 
         The query walks the database relationship graph to find all instances
         of a resource type that are related to the current show.
