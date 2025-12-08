@@ -3,7 +3,7 @@ import json
 from functools import partial
 from typing import TYPE_CHECKING, List, Union
 
-from sqlalchemy import ForeignKey, Text
+from sqlalchemy import ForeignKey, Text, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -95,12 +95,11 @@ class UserOverrides(db.Model):
             settings_type = settings_type.__tablename__
         if not UserOverridesRegistry.is_registered(settings_type):
             return []
-        return (
-            session.query(UserOverrides)
-            .filter_by(user_id=user_id)
-            .filter_by(settings_type=settings_type)
-            .all()
-        )
+        return session.scalars(
+            select(UserOverrides)
+            .where(UserOverrides.user_id == user_id)
+            .where(UserOverrides.settings_type == settings_type)
+        ).all()
 
     @classmethod
     def create_for_user(cls, user_id, settings_type, settings_data):
