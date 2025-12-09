@@ -2,7 +2,7 @@ from tornado import escape
 from sqlalchemy import select
 
 from models.user import User
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestAuthAPI(DigiScriptTestCase):
