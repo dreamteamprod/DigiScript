@@ -2,7 +2,7 @@ import tornado.escape
 from sqlalchemy import select
 
 from models.session import Session
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestWebsocketSessionsController(DigiScriptTestCase):

@@ -5,7 +5,7 @@ from models.script import Script
 from models.show import Show
 from models.user import User
 from rbac.role import Role
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestRBAC(DigiScriptTestCase):

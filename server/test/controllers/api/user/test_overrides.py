@@ -6,7 +6,7 @@ from sqlalchemy import select
 from models.script import Script, StageDirectionStyle
 from models.show import Show
 from models.user import User, UserOverrides
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestStageDirectionOverridesController(DigiScriptTestCase):

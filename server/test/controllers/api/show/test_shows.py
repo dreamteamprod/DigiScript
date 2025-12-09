@@ -2,7 +2,7 @@ import tornado.escape
 
 from models.script import Script, ScriptRevision
 from models.show import Show
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestShowsController(DigiScriptTestCase):

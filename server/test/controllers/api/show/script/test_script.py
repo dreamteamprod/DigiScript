@@ -1,4 +1,4 @@
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 import tornado.escape
 from sqlalchemy import select

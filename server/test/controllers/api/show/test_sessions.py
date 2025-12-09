@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from models.session import ShowSession
 from models.show import Show
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestSessionsController(DigiScriptTestCase):

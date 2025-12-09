@@ -13,7 +13,7 @@ from tornado.websocket import websocket_connect
 from models.session import Session, ShowSession
 from models.show import Show
 from models.user import User
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestWSControllerIntegration(DigiScriptTestCase):
