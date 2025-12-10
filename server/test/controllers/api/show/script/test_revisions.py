@@ -3,6 +3,7 @@ from test.conftest import DigiScriptTestCase
 import tornado.escape
 from sqlalchemy import func, select
 
+from models.cue import Cue, CueAssociation, CueType
 from models.script import (
     Script,
     ScriptLine,
@@ -430,10 +431,40 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
         # Should succeed without FK constraint error
         self.assertEqual(200, response.code)
 
-        # Verify revision was actually deleted
+        # Verify complete cascade deletion
         with self._app.get_db().sessionmaker() as session:
+            # 1. Revision should be deleted
             deleted_rev = session.get(ScriptRevision, revision2_id)
             self.assertIsNone(deleted_rev)
+
+            # 2. ScriptLineRevisionAssociation records for revision 2 should be deleted
+            rev2_assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == revision2_id
+                )
+            ).all()
+            self.assertEqual(
+                0,
+                len(rev2_assocs),
+                "All associations for revision 2 should be deleted",
+            )
+
+            # 3. Verify revision 1 still has its associations (shared lines should still exist)
+            rev1_assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision1_id
+                )
+            ).all()
+            self.assertEqual(
+                5, len(rev1_assocs), "Revision 1 associations should still exist"
+            )
+
+            # 4. ScriptLine objects should still exist (shared with revision 1)
+            # Note: When creating revision 2, lines are SHARED (same line_id), not duplicated
+            lines = session.scalars(select(ScriptLine)).all()
+            self.assertEqual(
+                5, len(lines), "Lines should still exist (shared with revision 1)"
+            )
 
     def test_delete_non_current_revision(self):
         """Test deleting a non-current revision with lines.
@@ -501,7 +532,153 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
 
         self.assertEqual(200, response.code)
 
-        # Verify deletion
+        # Verify complete cascade deletion
         with self._app.get_db().sessionmaker() as session:
+            # 1. Revision 2 should be deleted
             deleted_rev = session.get(ScriptRevision, revision2_id)
             self.assertIsNone(deleted_rev)
+
+            # 2. ScriptLineRevisionAssociation records for revision 2 should be deleted
+            rev2_assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == revision2_id
+                )
+            ).all()
+            self.assertEqual(
+                0,
+                len(rev2_assocs),
+                "All associations for revision 2 should be deleted",
+            )
+
+            # 3. Verify other revisions still have their associations
+            all_assocs = session.scalars(select(ScriptLineRevisionAssociation)).all()
+            self.assertGreater(
+                len(all_assocs),
+                0,
+                "Associations for other revisions should still exist",
+            )
+
+    def test_delete_revision_with_cues(self):
+        """Test deleting a revision that has cues attached to lines.
+
+        This ensures the CueAssociation.post_delete hook properly handles
+        cascade deletion without triggering FK constraint errors.
+        """
+        # Create lines in revision 1
+        initial_lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "stage_direction": False,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Line 1",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(initial_lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Create a cue type
+        with self._app.get_db().sessionmaker() as session:
+            cue_type = CueType(
+                show_id=self.show_id,
+                prefix="LX",
+                description="Lighting",
+                colour="#FF0000",
+            )
+            session.add(cue_type)
+            session.flush()
+            cue_type_id = cue_type.id
+            session.commit()
+
+        # Create a cue
+        with self._app.get_db().sessionmaker() as session:
+            cue = Cue(cue_type_id=cue_type_id, ident="1")
+            session.add(cue)
+            session.flush()
+            cue_id = cue.id
+
+            # Get the line we just created
+            line = session.scalars(
+                select(ScriptLine).where(ScriptLine.page == 1)
+            ).first()
+            line_id = line.id
+
+            # Create cue association
+            cue_assoc = CueAssociation(
+                revision_id=self.revision1_id, line_id=line_id, cue_id=cue_id
+            )
+            session.add(cue_assoc)
+            session.commit()
+
+        # Create revision 2 (copies lines and cue associations)
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode({"description": "Second"}),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+        revision2_id = tornado.escape.json_decode(response.body)["id"]
+
+        # Delete revision 2 (should not cause FK constraint error)
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="DELETE",
+            body=tornado.escape.json_encode({"rev_id": revision2_id}),
+            headers={"Authorization": f"Bearer {self.token}"},
+            allow_nonstandard_methods=True,
+        )
+
+        # Should succeed without FK constraint error
+        self.assertEqual(200, response.code)
+
+        # Verify complete cascade deletion
+        with self._app.get_db().sessionmaker() as session:
+            # 1. Revision should be deleted
+            deleted_rev = session.get(ScriptRevision, revision2_id)
+            self.assertIsNone(deleted_rev)
+
+            # 2. CueAssociation for revision 2 should be deleted
+            rev2_cue_assocs = session.scalars(
+                select(CueAssociation).where(CueAssociation.revision_id == revision2_id)
+            ).all()
+            self.assertEqual(
+                0,
+                len(rev2_cue_assocs),
+                "Cue associations for revision 2 should be deleted",
+            )
+
+            # 3. CueAssociation for revision 1 should still exist
+            rev1_cue_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision1_id
+                )
+            ).all()
+            self.assertEqual(
+                1,
+                len(rev1_cue_assocs),
+                "Cue associations for revision 1 should still exist",
+            )
+
+            # 4. Cue object should still exist (shared with revision 1)
+            cues = session.scalars(select(Cue)).all()
+            self.assertEqual(
+                1, len(cues), "Cue should still exist (shared with revision 1)"
+            )
