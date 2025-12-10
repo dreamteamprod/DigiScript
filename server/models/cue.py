@@ -69,12 +69,5 @@ class CueAssociation(db.Model, DeleteMixin):
         # Using post_delete avoids autoflush timing issues during cascade deletion
         # Using no_autoflush prevents lazy loading from triggering premature flush
         with session.no_autoflush:
-            if self.cue:
-                # Check if cue has any remaining associations
-                # After this association is deleted, if no other associations remain,
-                # the cue can be safely deleted
-                remaining_assocs = len(self.cue.revision_associations)
-
-                # Only delete if NO references remain
-                if remaining_assocs == 0:
-                    session.delete(self.cue)
+            if self.cue and not self.cue.revision_associations:
+                session.delete(self.cue)

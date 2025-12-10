@@ -130,11 +130,6 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
         # Using no_autoflush prevents lazy loading from triggering premature flush
         with session.no_autoflush:
             if self.line:
-                # Check if line has any remaining references
-                # After this association is deleted, check all FK references
-                remaining_assocs = len(self.line.revision_associations)
-                cue_assocs = len(self.line.cue_associations)
-
                 # Check next_line_id and previous_line_id references
                 next_refs = (
                     session.scalar(
@@ -161,10 +156,10 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
 
                 # Only delete if NO references remain
                 if (
-                    remaining_assocs == 0
-                    and cue_assocs == 0
-                    and next_refs == 0
-                    and prev_refs == 0
+                    not self.line.revision_associations
+                    and not self.line.cue_associations
+                    and not next_refs
+                    and not prev_refs
                 ):
                     session.delete(self.line)
 
