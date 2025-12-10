@@ -580,18 +580,35 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
 
         self.assertEqual(200, response.code, "PATCH should succeed")
 
-        # Verify cue was migrated to new line
+        # Verify cue was migrated and old objects cleaned up
         with self._app.get_db().sessionmaker() as session:
+            # 1. Should have exactly 1 cue association (old one deleted, new one created)
             cue_assocs = session.scalars(
                 select(CueAssociation).where(
                     CueAssociation.revision_id == self.revision_id
                 )
             ).all()
-
             self.assertEqual(1, len(cue_assocs), "Should have 1 cue association")
-            self.assertNotEqual(
-                line_id, cue_assocs[0].line_id, "Cue should point to NEW line"
-            )
+
+            # 2. Cue association should point to NEW line (not the old one)
+            new_line_id = cue_assocs[0].line_id
+            self.assertNotEqual(line_id, new_line_id, "Cue should point to NEW line")
+
+            # 3. Old line should be deleted
+            old_line = session.get(ScriptLine, line_id)
+            self.assertIsNone(old_line, "Old line should be deleted")
+
+            # 4. Old line_part should be deleted
+            old_line_part = session.get(ScriptLinePart, line_part_id)
+            self.assertIsNone(old_line_part, "Old line_part should be deleted")
+
+            # 5. New line should exist
+            new_line = session.get(ScriptLine, new_line_id)
+            self.assertIsNotNone(new_line, "New line should exist")
+
+            # 6. Exactly 1 line should exist (the new one)
+            all_lines = session.scalars(select(ScriptLine)).all()
+            self.assertEqual(1, len(all_lines), "Should have exactly 1 line")
 
     def test_update_line_with_cut_attached(self):
         """Test updating a line that has a line_part cut.
@@ -680,16 +697,35 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
 
         self.assertEqual(200, response.code, "PATCH should succeed")
 
-        # Verify cut was migrated to new line_part
+        # Verify cut was migrated and old objects cleaned up
         with self._app.get_db().sessionmaker() as session:
+            # 1. Should have exactly 1 cut (old one deleted, new one created)
             cuts = session.scalars(
                 select(ScriptCuts).where(ScriptCuts.revision_id == self.revision_id)
             ).all()
-
             self.assertEqual(1, len(cuts), "Should have 1 cut")
+
+            # 2. Cut should point to NEW line_part (not the old one)
+            new_line_part_id = cuts[0].line_part_id
             self.assertNotEqual(
-                line_part_id, cuts[0].line_part_id, "Cut should point to NEW line_part"
+                line_part_id, new_line_part_id, "Cut should point to NEW line_part"
             )
+
+            # 3. Old line_part should be deleted
+            old_line_part = session.get(ScriptLinePart, line_part_id)
+            self.assertIsNone(old_line_part, "Old line_part should be deleted")
+
+            # 4. Old line should be deleted
+            old_line = session.get(ScriptLine, line_id)
+            self.assertIsNone(old_line, "Old line should be deleted")
+
+            # 5. New line_part should exist
+            new_line_part = session.get(ScriptLinePart, new_line_part_id)
+            self.assertIsNotNone(new_line_part, "New line_part should exist")
+
+            # 6. Exactly 1 line should exist (the new one)
+            all_lines = session.scalars(select(ScriptLine)).all()
+            self.assertEqual(1, len(all_lines), "Should have exactly 1 line")
 
     def test_update_line_with_both_cue_and_cut(self):
         """Test updating a line that has both a cue and a cut.
@@ -797,22 +833,44 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
 
         self.assertEqual(200, response.code, "PATCH should succeed")
 
-        # Verify both cue and cut were migrated
+        # Verify both cue and cut were migrated and old objects cleaned up
         with self._app.get_db().sessionmaker() as session:
+            # 1. CueAssociation should be migrated
             cue_assocs = session.scalars(
                 select(CueAssociation).where(
                     CueAssociation.revision_id == self.revision_id
                 )
             ).all()
-            self.assertEqual(1, len(cue_assocs), "Should have 1 cue")
-            self.assertNotEqual(
-                line_id, cue_assocs[0].line_id, "Cue should point to NEW line"
-            )
+            self.assertEqual(1, len(cue_assocs), "Should have 1 cue association")
+            new_line_id = cue_assocs[0].line_id
+            self.assertNotEqual(line_id, new_line_id, "Cue should point to NEW line")
 
+            # 2. ScriptCuts should be migrated
             cuts = session.scalars(
                 select(ScriptCuts).where(ScriptCuts.revision_id == self.revision_id)
             ).all()
             self.assertEqual(1, len(cuts), "Should have 1 cut")
+            new_line_part_id = cuts[0].line_part_id
             self.assertNotEqual(
-                line_part_id, cuts[0].line_part_id, "Cut should point to NEW line_part"
+                line_part_id, new_line_part_id, "Cut should point to NEW line_part"
             )
+
+            # 3. Old line should be deleted
+            old_line = session.get(ScriptLine, line_id)
+            self.assertIsNone(old_line, "Old line should be deleted")
+
+            # 4. Old line_part should be deleted
+            old_line_part = session.get(ScriptLinePart, line_part_id)
+            self.assertIsNone(old_line_part, "Old line_part should be deleted")
+
+            # 5. New line should exist
+            new_line = session.get(ScriptLine, new_line_id)
+            self.assertIsNotNone(new_line, "New line should exist")
+
+            # 6. New line_part should exist
+            new_line_part = session.get(ScriptLinePart, new_line_part_id)
+            self.assertIsNotNone(new_line_part, "New line_part should exist")
+
+            # 7. Exactly 1 line should exist (the new one)
+            all_lines = session.scalars(select(ScriptLine)).all()
+            self.assertEqual(1, len(all_lines), "Should have exactly 1 line")

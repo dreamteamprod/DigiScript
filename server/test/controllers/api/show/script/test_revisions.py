@@ -431,10 +431,40 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
         # Should succeed without FK constraint error
         self.assertEqual(200, response.code)
 
-        # Verify revision was actually deleted
+        # Verify complete cascade deletion
         with self._app.get_db().sessionmaker() as session:
+            # 1. Revision should be deleted
             deleted_rev = session.get(ScriptRevision, revision2_id)
             self.assertIsNone(deleted_rev)
+
+            # 2. ScriptLineRevisionAssociation records for revision 2 should be deleted
+            rev2_assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == revision2_id
+                )
+            ).all()
+            self.assertEqual(
+                0,
+                len(rev2_assocs),
+                "All associations for revision 2 should be deleted",
+            )
+
+            # 3. Verify revision 1 still has its associations (shared lines should still exist)
+            rev1_assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision1_id
+                )
+            ).all()
+            self.assertEqual(
+                5, len(rev1_assocs), "Revision 1 associations should still exist"
+            )
+
+            # 4. ScriptLine objects should still exist (shared with revision 1)
+            # Note: When creating revision 2, lines are SHARED (same line_id), not duplicated
+            lines = session.scalars(select(ScriptLine)).all()
+            self.assertEqual(
+                5, len(lines), "Lines should still exist (shared with revision 1)"
+            )
 
     def test_delete_non_current_revision(self):
         """Test deleting a non-current revision with lines.
@@ -502,10 +532,31 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
 
         self.assertEqual(200, response.code)
 
-        # Verify deletion
+        # Verify complete cascade deletion
         with self._app.get_db().sessionmaker() as session:
+            # 1. Revision 2 should be deleted
             deleted_rev = session.get(ScriptRevision, revision2_id)
             self.assertIsNone(deleted_rev)
+
+            # 2. ScriptLineRevisionAssociation records for revision 2 should be deleted
+            rev2_assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == revision2_id
+                )
+            ).all()
+            self.assertEqual(
+                0,
+                len(rev2_assocs),
+                "All associations for revision 2 should be deleted",
+            )
+
+            # 3. Verify other revisions still have their associations
+            all_assocs = session.scalars(select(ScriptLineRevisionAssociation)).all()
+            self.assertGreater(
+                len(all_assocs),
+                0,
+                "Associations for other revisions should still exist",
+            )
 
     def test_delete_revision_with_cues(self):
         """Test deleting a revision that has cues attached to lines.
@@ -598,7 +649,36 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
         # Should succeed without FK constraint error
         self.assertEqual(200, response.code)
 
-        # Verify revision was actually deleted
+        # Verify complete cascade deletion
         with self._app.get_db().sessionmaker() as session:
+            # 1. Revision should be deleted
             deleted_rev = session.get(ScriptRevision, revision2_id)
             self.assertIsNone(deleted_rev)
+
+            # 2. CueAssociation for revision 2 should be deleted
+            rev2_cue_assocs = session.scalars(
+                select(CueAssociation).where(CueAssociation.revision_id == revision2_id)
+            ).all()
+            self.assertEqual(
+                0,
+                len(rev2_cue_assocs),
+                "Cue associations for revision 2 should be deleted",
+            )
+
+            # 3. CueAssociation for revision 1 should still exist
+            rev1_cue_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision1_id
+                )
+            ).all()
+            self.assertEqual(
+                1,
+                len(rev1_cue_assocs),
+                "Cue associations for revision 1 should still exist",
+            )
+
+            # 4. Cue object should still exist (shared with revision 1)
+            cues = session.scalars(select(Cue)).all()
+            self.assertEqual(
+                1, len(cues), "Cue should still exist (shared with revision 1)"
+            )
