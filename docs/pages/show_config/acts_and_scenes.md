@@ -2,28 +2,30 @@
 
 ### Acts and Scenes
 
-A show is made up of acts and scenes, so these are the next things to configure. Going to the
-**Configure Acts** tab will allow you to start this process.
+A show is made up of acts and scenes, so these are the next things to configure. Going to the **Configure Acts** tab will allow you to start this process. When you first access this page, you'll see an empty acts list:
 
-![](../../images/config_show/act_overview.png)
+![](../../images/config_show/acts_overview_empty.png)
 
-From here, you can Add, Edit and Delete acts. Be sure to set the **Previous Act** field to create the
-correct order of acts in the show.
+#### Adding Acts
 
-![](../../images/config_show/create_act.png)
+Click the **Add** button to create a new act. You'll need to provide an act name and can optionally set the **Previous Act** field to establish the correct ordering of acts in the show. You can also configure whether there is an interval after this act.
 
-With the acts configured, next step is to set up the scenes. Going to the **Configure Scenes** tab
-will bring up the overview page of all the scenes in the show.
+After adding acts, you'll see them listed in the acts overview:
 
-![](../../images/config_show/scene_overview.png)
+![](../../images/config_show/acts_overview.png)
 
-From this page, you can Add, Edit and Delete scenes. When creating a new scene, you will need to
-specify the *Act*, as well as the *Previous Scene* in order to create the correct ordering of
-scenes.
+You can use the **Edit** and **Delete** buttons to manage existing acts.
 
-![](../../images/config_show/create_scene.png)
+#### Configuring Scenes
 
-Finally, once all the acts and scenes are configured, you will need to set the first scene of each
-act using the table on the right hand side of the scenes table.
+With the acts configured, the next step is to set up the scenes. Going to the **Configure Scenes** tab will bring up the overview page of all scenes in the show. Initially, the scene list will be empty:
 
-![](../../images/config_show/set_first_scene.png)
+![](../../images/config_show/scenes_overview_empty.png)
+
+Click **Add** to create a new scene. When creating a scene, you must specify which **Act** it belongs to, and you should set the **Previous Scene** field to establish the correct ordering of scenes within that act.
+
+After adding scenes, they will appear in the scenes overview:
+
+![](../../images/config_show/scenes_overview.png)
+
+Scenes can be edited or deleted using the corresponding buttons. The scenes table displays which act each scene belongs to and their ordering within the show.
