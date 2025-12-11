@@ -295,11 +295,9 @@ class TestScriptRevisionDelete(DigiScriptTestCase):
 
         # Delete revision 2 - this triggers the "find revision 1" fallback query
         response = self.fetch(
-            "/api/v1/show/script/revisions",
+            f"/api/v1/show/script/revisions?rev_id={self.revision2_id}",
             method="DELETE",
-            body=tornado.escape.json_encode({"rev_id": self.revision2_id}),
             headers={"Authorization": f"Bearer {token}"},
-            allow_nonstandard_methods=True,
         )
 
         # Verify the deletion succeeded
@@ -421,11 +419,9 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
 
         # Now delete revision 2
         response = self.fetch(
-            "/api/v1/show/script/revisions",
+            f"/api/v1/show/script/revisions?rev_id={revision2_id}",
             method="DELETE",
-            body=tornado.escape.json_encode({"rev_id": revision2_id}),
             headers={"Authorization": f"Bearer {self.token}"},
-            allow_nonstandard_methods=True,
         )
 
         # Should succeed without FK constraint error
@@ -523,11 +519,9 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
 
         # Delete revision 2 (non-current)
         response = self.fetch(
-            "/api/v1/show/script/revisions",
+            f"/api/v1/show/script/revisions?rev_id={revision2_id}",
             method="DELETE",
-            body=tornado.escape.json_encode({"rev_id": revision2_id}),
             headers={"Authorization": f"Bearer {self.token}"},
-            allow_nonstandard_methods=True,
         )
 
         self.assertEqual(200, response.code)
@@ -639,11 +633,9 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
 
         # Delete revision 2 (should not cause FK constraint error)
         response = self.fetch(
-            "/api/v1/show/script/revisions",
+            f"/api/v1/show/script/revisions?rev_id={revision2_id}",
             method="DELETE",
-            body=tornado.escape.json_encode({"rev_id": revision2_id}),
             headers={"Authorization": f"Bearer {self.token}"},
-            allow_nonstandard_methods=True,
         )
 
         # Should succeed without FK constraint error
