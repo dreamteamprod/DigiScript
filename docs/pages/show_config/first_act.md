@@ -2,11 +2,14 @@
 
 ### Setting the First Act
 
-Finally, once all the acts and scenes are created, and the correct ordering of these specified, the
-final task is to go back to the **Configure Show** tab, and use the *Edit Show* option to configure the
-first act of the show.
+Once all acts and scenes have been created and their ordering configured, DigiScript needs to know which act is the first act of the show. This is vital for the correct ordering of the script.
 
-![](../../images/config_show/set_first_act.png)
+#### Automatic Configuration
 
-This final step ensures that there is the correct ordering of acts and scenes within those acts, to
-ensure that the script can be properly set up.
+DigiScript automatically sets the first act of the show to be the first act that was created. In most cases, if you create your acts in order (Act 1, then Act 2, etc.), this will be configured correctly without any manual intervention.
+
+#### Manual Configuration
+
+If you need to manually change the first act (for example, if you created acts out of order), you can do so by going to the **Configure Show** tab and using the **Edit Show** option. Here you can explicitly select which act should be the first act of the show.
+
+This configuration ensures proper script ordering and is essential for the script editor to function correctly.

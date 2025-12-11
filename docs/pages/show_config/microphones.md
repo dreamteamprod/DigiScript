@@ -2,46 +2,48 @@
 
 ### Microphone and Microphone Allocations
 
-Once Characters, Acts and Scenes have been configured, you can optionally choose to configure
-microphones used through the show, and assign them to characters too. This is done from the **Mics**
-tab in the **Show Config** page. Navigating to this tab will bring up a view like the following:
+Once Characters, Acts and Scenes have been configured, you can optionally choose to configure microphones used throughout the show and assign them to characters. This is done from the **Mics** tab in the **Show Config** page.
 
-![](../../images/config_show/mic_overview.png)
+#### Setting Up Microphones
 
-From here you can Add, Edit and Delete microphones. Each microphone must also have a unique name 
-for a given show.
+Navigating to the **Mics** tab will initially show an empty microphone list:
 
-![](../../images/config_show/create_mic.png)
+![](../../images/config_show/mics_empty.png)
 
-![](../../images/config_show/mic_overview_2.png)
+Click the **Add** button to create a new microphone. Each microphone must have a unique name for the show. After adding microphones, they will appear in the microphones overview:
 
-Once the microphones have been added, you can then configure their allocations by going to the
-**Allocations** tab. This displays a matrix of each character against each scene in the show, as
-shown here:
+![](../../images/config_show/mics_with_data.png)
 
-![](../../images/config_show/mic_allocation_overview.png)
+You can use the **Edit** and **Delete** buttons to manage existing microphones.
 
-In order to assign a microphone to a character, first select the microphone from the dropdown box
-and then the table will update to show you the allocation view:
+#### Configuring Microphone Allocations
 
-![](../../images/config_show/mic_allocation_config.png)
+Once microphones have been created, you can configure their allocations by going to the **Allocations** tab. This displays a matrix showing each character against each scene in the show:
 
-From here, clicking on each cell will either allocate, or de-allocate, the microphone selected to
-the character selected for that scene. You cannot allocate the same microphone to multiple 
-characters in the same scene, or allocate multiple microphones to a single character for a given
-scene.
+![](../../images/config_show/mics_allocations.png)
 
-In this example, we have allocated microphone 1 and 2 to characters at different points in the
-show:
+To assign a microphone to a character, follow these steps:
 
-![](../../images/config_show/mic_allocation_config_1.png)
+1. **Select a microphone** from the dropdown box at the top of the page
+2. The table will update to show the allocation view for that microphone:
 
-![](../../images/config_show/mic_allocation_config_1.png)
+![](../../images/config_show/mics_allocations_with_mic_selected.png)
 
-After making your allocations, press the **Save** button to confirm your changes.
+3. **Click on individual cells** in the matrix to allocate or de-allocate the selected microphone to a character for that specific scene
+4. Cells will highlight to show where the microphone is currently allocated:
 
-Finally, you can view the allocation for the show as a whole by pressing the **Save** button and
-this will update the table to show which microphone is assigned to which character and in which
-scene:
+![](../../images/config_show/mics_allocations_editing.png)
 
-![](../../images/config_show/mic_allocation_view.png)
+#### Allocation Constraints
+
+- You **cannot** allocate the same microphone to multiple characters in the same scene
+- You **cannot** allocate multiple microphones to a single character for a given scene
+- These constraints ensure practical microphone management during live shows
+
+#### Saving Allocations
+
+After making your allocations, click the **Save** button to confirm your changes. Once saved, the table will display the final allocation showing which microphone is assigned to which character in each scene:
+
+![](../../images/config_show/mics_allocations_saved.png)
+
+The saved view provides a clear overview of microphone usage throughout the entire show, helping sound engineers plan microphone management and character coverage.

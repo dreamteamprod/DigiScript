@@ -1,40 +1,49 @@
 ## Configuring Cues
 
-Go to the **Configure Cues** tab to both add new cue types, and add cues into the script.
+Go to the **Cues** section in the left sidebar to configure cue types and add cues to your script.
 
 ### Cue Types
 
-The **Cue Types** tab allows you to Add, Edit and Delete different cue types. An example of a cue
-type might be Lighting or Sound cues.
+The **Cue Types** tab allows you to Add, Edit, and Delete different cue types. Common examples include Lighting (LX), Sound (SND), or other technical cues specific to your production. When you first access this page, you'll see an empty cue types list:
 
-![](../images/config_cues/cue_type_overview.png)
+![](../images/config_show/cue_types_empty.png)
 
-When you add a new cue type, you specify the Prefix, Description and a Colour for that type.
+#### Creating Cue Types
 
-![](../images/config_cues/create_cue_type.png)
+Click **Add** to create a new cue type. For each cue type, you'll need to specify:
+- **Prefix**: A short identifier (e.g., "LX" for lighting, "SND" for sound)
+- **Description**: A full description of the cue type
+- **Color**: A color code to visually distinguish this cue type in the interface
+
+After adding cue types, they will appear in the cue types overview:
+
+![](../images/config_show/cue_types.png)
+
+The color you choose will be used throughout DigiScript to make different cue types instantly recognizable during configuration and live shows.
 
 ### Adding Cues to the Script
 
-The **Cue Configuration** tab allows you to add cues to the script. You will notice that this view
-is similar to the script configuration page in terms of layout and function. Again, you will need to
-request edit access in order to add cues.
+The **Cue Configuration** tab allows you to add cues to your script. This interface is similar to the script editing page in layout and function. When first accessed, you'll see your script without any cues:
 
-![](../images/config_cues/cue_script_overview.png)
+![](../images/config_show/cue_configuration_empty.png)
 
-To add a new cue, click on the green + button next to the script line the cue should be associated
-with. This will bring up a pop up box where you select the cue type, and give it an identifier.
+#### Configuring Cues
 
-![](../images/config_cues/create_cue.png)
+To add cues, click **Begin Editing** to request exclusive edit access.
 
-When the cue has been configured, it will show next to the + button in line with the script line.
+To add a new cue:
+1. Click the green **+** button next to the script line where the cue should occur
+2. A popup will appear where you select the cue type and provide a cue identifier (e.g., "1" for LX 1)
+3. Click **Add** to create the cue
 
-![](../images/config_cues/configured_cue.png)
+After adding cues, they will appear as colored buttons next to their associated script lines:
 
-Clicking on the cue button itself will allow you to Edit or Delete the cue.
+![](../images/config_show/cue_configuration_with_cues.png)
+
+Clicking on a cue button allows you to **Edit** or **Delete** that cue. The cue's color matches the color you defined for its cue type, making it easy to identify different types of cues at a glance.
 
 ### Cues and Script Revisions
 
-Cues are silently tied to script revisions, this means that new cues will only be added to the
-current script revision.
+Cues are tied to script revisions - when you add or modify cues, the changes only affect the currently loaded revision. This allows you to maintain different cue configurations for different versions of your script.
 
-Once any cues have been configured, you can then run a [Live Show](./live_show.md).
+Once you've configured your cues, you're ready to run a [Live Show](./live_show.md).
