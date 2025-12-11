@@ -160,7 +160,7 @@ class CastController(BaseAPIController):
 
 
 @ApiRoute("show/cast/stats", ApiVersion.V1)
-class CharacterStatsController(BaseAPIController):
+class CastStatsController(BaseAPIController):
     async def get(self):
         current_show = self.get_current_show()
         show_id = current_show["id"]
