@@ -1,12 +1,12 @@
 import tornado.escape
 
 from models.script import Script, ScriptRevision
-from models.show import Character, Show
-from test.utils import DigiScriptTestCase
+from models.show import Show
+from test.conftest import DigiScriptTestCase
 
 
-class TestCharacterStatsController(DigiScriptTestCase):
-    """Test suite for /api/v1/show/character/stats endpoint."""
+class TestCastStatsController(DigiScriptTestCase):
+    """Test suite for /api/v1/show/cast/stats endpoint."""
 
     def setUp(self):
         super().setUp()
@@ -33,18 +33,18 @@ class TestCharacterStatsController(DigiScriptTestCase):
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
 
-    def test_get_character_stats(self):
-        """Test GET /api/v1/show/character/stats.
+    def test_get_cast_stats(self):
+        """Test GET /api/v1/show/cast/stats.
 
-        This tests the query at line 183-184 in characters.py:
+        This tests the query at line 171-172 in cast.py:
         session.scalars(select(Script).where(Script.show_id == show.id)).first()
         """
-        response = self.fetch("/api/v1/show/character/stats")
+        response = self.fetch("/api/v1/show/cast/stats")
         self.assertEqual(200, response.code)
         response_body = tornado.escape.json_decode(response.body)
         self.assertIn("line_counts", response_body)
 
-    def test_get_character_stats_no_script(self):
+    def test_get_cast_stats_no_script(self):
         """Test GET returns error when no script exists."""
         # Create a show without a script
         with self._app.get_db().sessionmaker() as session:
@@ -56,6 +56,6 @@ class TestCharacterStatsController(DigiScriptTestCase):
 
         self._app.digi_settings.settings["current_show"].set_value(show2_id)
 
-        response = self.fetch("/api/v1/show/character/stats")
+        response = self.fetch("/api/v1/show/cast/stats")
         # Should get an error because there's no script
         self.assertNotEqual(200, response.code)

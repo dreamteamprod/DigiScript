@@ -60,14 +60,14 @@ export default {
       }
     },
     async DELETE_SCRIPT_REVISION(context, revisionID) {
-      const response = await fetch(`${makeURL('/api/v1/show/script/revisions')}`, {
+      const searchParams = new URLSearchParams({
+        rev_id: revisionID,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/script/revisions')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          rev_id: revisionID,
-        }),
       });
       if (response.ok) {
         context.dispatch('GET_SCRIPT_REVISIONS');

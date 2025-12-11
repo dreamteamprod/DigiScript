@@ -1,7 +1,7 @@
 import tornado.escape
 
 from models.show import Act, Scene, Show
-from test.utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestSceneController(DigiScriptTestCase):

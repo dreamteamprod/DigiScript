@@ -62,8 +62,12 @@ class CueAssociation(db.Model, DeleteMixin):
     )
 
     def pre_delete(self, session):
-        if len(self.cue.revision_associations) == 1:
-            session.delete(self.cue)
+        pass
 
     def post_delete(self, session):
-        pass
+        # Delete orphaned cues after association is removed
+        # Using post_delete avoids autoflush timing issues during cascade deletion
+        # Using no_autoflush prevents lazy loading from triggering premature flush
+        with session.no_autoflush:
+            if self.cue and not self.cue.revision_associations:
+                session.delete(self.cue)

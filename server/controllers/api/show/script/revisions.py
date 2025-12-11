@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import func, select
 from tornado import escape
+from tornado.web import MissingArgumentError
 
 from digi_server.logger import get_logger
 from models.cue import CueAssociation
@@ -160,8 +161,6 @@ class ScriptRevisionsController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.get(Show, show_id)
             if show:
-                data = escape.json_decode(self.request.body)
-
                 script: Script = session.scalars(
                     select(Script).where(Script.show_id == show.id)
                 ).first()
@@ -171,8 +170,9 @@ class ScriptRevisionsController(BaseAPIController):
                     return
                 self.requires_role(script, Role.WRITE)
 
-                rev_id: int = data.get("rev_id", None)
-                if not rev_id:
+                try:
+                    rev_id: int = int(self.get_query_argument("rev_id"))
+                except MissingArgumentError:
                     self.set_status(400)
                     await self.finish({"message": "Revision missing"})
                     return

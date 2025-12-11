@@ -1,6 +1,7 @@
 public/
 static/
 conf/
+conf.back/
 digiscript.sqlite
 digiscript.json
 

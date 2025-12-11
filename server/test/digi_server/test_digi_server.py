@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from models.session import ShowSession
 from models.show import Show
 from models.user import User
-from .utils import DigiScriptTestCase
+from test.conftest import DigiScriptTestCase
 
 
 class TestDigiScriptServer(DigiScriptTestCase):
