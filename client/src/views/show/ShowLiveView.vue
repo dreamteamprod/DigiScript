@@ -329,7 +329,7 @@ export default {
   computed: {
     pageIter() {
       // Generate 1-based page indices (DigiScript pages are numbered starting from 1, not 0)
-      return [...Array(this.currentMaxPage).keys()].map(i => i + 1);
+      return [...Array(this.currentMaxPage).keys()].map((i) => i + 1);
     },
     isScriptFollowing() {
       if (this.loadedSessionData) {
