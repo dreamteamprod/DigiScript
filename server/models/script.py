@@ -124,44 +124,80 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     def pre_delete(self, session):
         pass
 
+    @staticmethod
+    def cleanup_orphaned_line(session, line_id, flush=True):
+        """Helper method to check and delete orphaned ScriptLine objects.
+
+        Can be called explicitly after deleting associations to ensure
+        orphaned lines are cleaned up immediately.
+
+        Args:
+            session: Database session
+            line_id: ID of the line to check for orphan status
+            flush: Whether to flush before querying (default True).
+                   Set to False when called from post_delete hooks.
+        """
+        # Local import to avoid circular dependency
+        from models.cue import CueAssociation  # noqa: PLC0415
+
+        # Flush to ensure pending operations are executed (if requested)
+        if flush:
+            session.flush()
+
+        # Check all FK references using database queries
+        line_id_refs = (
+            session.scalar(
+                select(func.count())
+                .select_from(ScriptLineRevisionAssociation)
+                .where(ScriptLineRevisionAssociation.line_id == line_id)
+            )
+            or 0
+        )
+
+        cue_refs = (
+            session.scalar(
+                select(func.count())
+                .select_from(CueAssociation)
+                .where(CueAssociation.line_id == line_id)
+            )
+            or 0
+        )
+
+        next_refs = (
+            session.scalar(
+                select(func.count())
+                .select_from(ScriptLineRevisionAssociation)
+                .where(ScriptLineRevisionAssociation.next_line_id == line_id)
+            )
+            or 0
+        )
+
+        prev_refs = (
+            session.scalar(
+                select(func.count())
+                .select_from(ScriptLineRevisionAssociation)
+                .where(ScriptLineRevisionAssociation.previous_line_id == line_id)
+            )
+            or 0
+        )
+
+        # Only delete if NO references remain
+        if not line_id_refs and not cue_refs and not next_refs and not prev_refs:
+            line = session.get(ScriptLine, line_id)
+            if line:
+                session.delete(line)
+
     def post_delete(self, session):
         # Delete orphaned lines after association is removed
         # Using post_delete avoids autoflush timing issues during cascade deletion
         # Using no_autoflush prevents lazy loading from triggering premature flush
         with session.no_autoflush:
             if self.line:
-                # Check next_line_id and previous_line_id references
-                next_refs = (
-                    session.scalar(
-                        select(func.count())
-                        .select_from(ScriptLineRevisionAssociation)
-                        .where(
-                            ScriptLineRevisionAssociation.next_line_id == self.line.id
-                        )
-                    )
-                    or 0
+                # Use the static helper for consistent orphan cleanup logic
+                # Don't flush during post_delete to avoid FK constraint errors mid-cascade
+                ScriptLineRevisionAssociation.cleanup_orphaned_line(
+                    session, self.line.id, flush=False
                 )
-
-                prev_refs = (
-                    session.scalar(
-                        select(func.count())
-                        .select_from(ScriptLineRevisionAssociation)
-                        .where(
-                            ScriptLineRevisionAssociation.previous_line_id
-                            == self.line.id
-                        )
-                    )
-                    or 0
-                )
-
-                # Only delete if NO references remain
-                if (
-                    not self.line.revision_associations
-                    and not self.line.cue_associations
-                    and not next_refs
-                    and not prev_refs
-                ):
-                    session.delete(self.line)
 
 
 class ScriptLinePart(db.Model):
