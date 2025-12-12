@@ -1,6 +1,6 @@
 from typing import List
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -61,6 +61,39 @@ class CueAssociation(db.Model, DeleteMixin):
         foreign_keys=[cue_id], back_populates="revision_associations"
     )
 
+    @staticmethod
+    def cleanup_orphaned_cue(session, cue_id, flush=True):
+        """Helper method to check and delete orphaned Cue objects.
+
+        Can be called explicitly after deleting associations to ensure
+        orphaned cues are cleaned up immediately.
+
+        Args:
+            session: Database session
+            cue_id: ID of the cue to check for orphan status
+            flush: Whether to flush before querying (default True).
+                   Set to False when called from post_delete hooks.
+        """
+        # Flush to ensure pending operations are executed (if requested)
+        if flush:
+            session.flush()
+
+        # Check cue_id references using database query
+        cue_assoc_refs = (
+            session.scalar(
+                select(func.count())
+                .select_from(CueAssociation)
+                .where(CueAssociation.cue_id == cue_id)
+            )
+            or 0
+        )
+
+        # Only delete if NO references remain
+        if not cue_assoc_refs:
+            cue = session.get(Cue, cue_id)
+            if cue:
+                session.delete(cue)
+
     def pre_delete(self, session):
         pass
 
@@ -69,5 +102,7 @@ class CueAssociation(db.Model, DeleteMixin):
         # Using post_delete avoids autoflush timing issues during cascade deletion
         # Using no_autoflush prevents lazy loading from triggering premature flush
         with session.no_autoflush:
-            if self.cue and not self.cue.revision_associations:
-                session.delete(self.cue)
+            if self.cue:
+                # Use the static helper for consistent orphan cleanup logic
+                # Don't flush during post_delete to avoid FK constraint errors mid-cascade
+                CueAssociation.cleanup_orphaned_cue(session, self.cue.id, flush=False)
