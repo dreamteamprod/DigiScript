@@ -563,7 +563,31 @@ class ScriptController(BaseAPIController):
                             )
                             prev_association.next_line = None
                             session.flush()
+
+                        # Store line_id before deleting association for orphan cleanup
+                        line_id_to_cleanup = curr_association.line_id
+
+                        # Delete any cue associations for this (revision, line) before deleting the line association
+                        # CueAssociation is revision-scoped, so we need to explicitly clean it up
+                        cue_assocs = session.scalars(
+                            select(CueAssociation).where(
+                                CueAssociation.revision_id == revision.id,
+                                CueAssociation.line_id == line_id_to_cleanup,
+                            )
+                        ).all()
+                        cue_ids_to_cleanup = [ca.cue_id for ca in cue_assocs]
+                        for cue_assoc in cue_assocs:
+                            session.delete(cue_assoc)
+
                         session.delete(curr_association)
+
+                        # Explicitly cleanup orphaned objects after deletion
+                        # This ensures immediate cleanup in PATCH operations
+                        ScriptLineRevisionAssociation.cleanup_orphaned_line(
+                            session, line_id_to_cleanup
+                        )
+                        for cue_id in cue_ids_to_cleanup:
+                            CueAssociation.cleanup_orphaned_cue(session, cue_id)
                     elif index in status["updated"]:
                         # Validate the line
                         valid_status, valid_reason = self._validate_line(line)
