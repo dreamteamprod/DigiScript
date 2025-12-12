@@ -117,6 +117,10 @@ export default {
       required: true,
       type: Number,
     },
+    currentEditPage: {
+      required: true,
+      type: Number,
+    },
     acts: {
       required: true,
       type: Array,
@@ -167,6 +171,8 @@ export default {
       },
       previousLine: null,
       nextLine: null,
+      recalculationTimeout: null,
+      abortController: null,
     };
   },
   validations: {
@@ -205,7 +211,13 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID']),
+    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'TMP_SCRIPT', 'ALL_DELETED_LINES']),
+    currentPageScript() {
+      return this.TMP_SCRIPT[this.currentEditPage.toString()] || [];
+    },
+    currentPageDeletedLines() {
+      return this.ALL_DELETED_LINES[this.currentEditPage.toString()] || [];
+    },
     nextActs() {
       // Start act is either the first act for the show, or the act of the previous line if there
       // is one
@@ -273,6 +285,29 @@ export default {
       ];
     },
   },
+  watch: {
+    currentPageScript: {
+      handler() {
+        this.scheduleRecalculation();
+      },
+      deep: true,
+    },
+    currentPageDeletedLines: {
+      handler() {
+        this.scheduleRecalculation();
+      },
+      deep: true,
+    },
+    lineIndex() {
+      this.scheduleRecalculation();
+    },
+    ALL_DELETED_LINES: {
+      handler() {
+        this.scheduleRecalculation();
+      },
+      deep: true,
+    },
+  },
   async created() {
     this.previousLine = await this.previousLineFn(this.lineIndex);
     this.nextLine = await this.nextLineFn(this.lineIndex);
@@ -283,7 +318,51 @@ export default {
   mounted() {
     this.$v.state.$touch();
   },
+  beforeDestroy() {
+    if (this.recalculationTimeout) {
+      clearTimeout(this.recalculationTimeout);
+    }
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+  },
   methods: {
+    scheduleRecalculation() {
+      // Cancel any pending recalculation
+      if (this.recalculationTimeout) {
+        clearTimeout(this.recalculationTimeout);
+      }
+
+      // Debounce recalculation by 100ms
+      this.recalculationTimeout = setTimeout(() => {
+        this.recalculatePreviousNextLines();
+      }, 100);
+    },
+    async recalculatePreviousNextLines() {
+      // Cancel any in-flight async operations
+      if (this.abortController) {
+        this.abortController.abort();
+      }
+
+      // Create new abort controller for this operation
+      this.abortController = new AbortController();
+      const { signal } = this.abortController;
+
+      try {
+        const prevLine = await this.previousLineFn(this.lineIndex);
+        if (signal.aborted) return;
+        this.previousLine = prevLine;
+
+        const nxtLine = await this.nextLineFn(this.lineIndex);
+        if (signal.aborted) return;
+        this.nextLine = nxtLine;
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          // eslint-disable-next-line no-console
+          console.error('Error recalculating previous/next lines:', error);
+        }
+      }
+    },
     validateState(name) {
       const { $dirty, $error } = this.$v.state[name];
       return $dirty ? !$error : null;
