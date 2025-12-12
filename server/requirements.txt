@@ -1,4 +1,4 @@
-tornado==6.5.2
+tornado==6.5.3
 sqlalchemy>=2.0.0,<2.1.0  # Upgraded to SQLAlchemy 2.0 - tornado-sqlalchemy replaced with custom implementation
 datetime==4.9
 python-dateutil==2.9.0.post0

@@ -100,6 +100,7 @@
               v-if="editPages.includes(`page_${currentEditPage}_line_${index}`)"
               :key="`page_${currentEditPage}_line_${index}`"
               :line-index="index"
+              :current-edit-page="currentEditPage"
               :acts="ACT_LIST"
               :scenes="SCENE_LIST"
               :characters="CHARACTER_LIST"
@@ -587,9 +588,14 @@ export default {
       }
     },
     async getPreviousLineForIndex(lineIndex) {
-      if (lineIndex > 0) {
-        return this.TMP_SCRIPT[this.currentEditPage][lineIndex - 1];
+      // Search backwards from lineIndex - 1 on the current page, skipping deleted lines
+      for (let i = lineIndex - 1; i >= 0; i--) {
+        if (!this.DELETED_LINES(this.currentEditPage).includes(i)) {
+          return this.TMP_SCRIPT[this.currentEditPage][i];
+        }
       }
+
+      // No non-deleted lines before this index on current page, check previous pages
       if (this.currentEditPage > 1) {
         let loopPageNo = this.currentEditPage - 1;
         /* eslint-disable no-await-in-loop */
@@ -601,8 +607,12 @@ export default {
             await this.LOAD_SCRIPT_PAGE(loopPageNo);
             loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
           }
-          if (loopPage.length > 0) {
-            return loopPage[loopPage.length - 1];
+          // Find the last non-deleted line on this page
+          const deletedLines = this.DELETED_LINES(loopPageNo);
+          for (let i = loopPage.length - 1; i >= 0; i--) {
+            if (!deletedLines.includes(i)) {
+              return loopPage[i];
+            }
           }
           loopPageNo -= 1;
         }
@@ -611,31 +621,43 @@ export default {
       return null;
     },
     async getNextLineForIndex(lineIndex) {
-      // If there are lines after this one on the page, return the next line from the page
-      if (lineIndex < this.TMP_SCRIPT[this.currentEditPage].length - 1) {
-        return this.TMP_SCRIPT[this.currentEditPage][lineIndex + 1];
+      // Search forwards from lineIndex + 1 on the current page, skipping deleted lines
+      const currentPageLines = this.TMP_SCRIPT[this.currentEditPage];
+      const deletedLines = this.DELETED_LINES(this.currentEditPage);
+      for (let i = lineIndex + 1; i < currentPageLines.length; i++) {
+        if (!deletedLines.includes(i)) {
+          return currentPageLines[i];
+        }
       }
-      // See if there are any edit pages loaded which are after this page, and if so, return the
-      // first line from the first page which contains lines
+
+      // No non-deleted lines after this index on current page, check next pages
+      // See if there are any edit pages loaded which are after this page
       const editPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort();
       for (let i = 0; i < editPages.length; i++) {
         const editPage = editPages[i];
-        if (editPage <= this.currentEditPage) {
-          break;
-        }
-        const pageContent = this.TMP_SCRIPT[editPage.toString()];
-        if (pageContent.length > 0) {
-          return pageContent[0];
+        if (editPage > this.currentEditPage) {
+          const pageContent = this.TMP_SCRIPT[editPage.toString()];
+          const pageDeletedLines = this.DELETED_LINES(editPage);
+          // Find the first non-deleted line on this page
+          for (let j = 0; j < pageContent.length; j++) {
+            if (!pageDeletedLines.includes(j)) {
+              return pageContent[j];
+            }
+          }
         }
       }
-      // Edit pages do not have any lines we can use, so try loading script pages up to the max
-      // page that is saved
+
+      // Edit pages do not have any non-deleted lines, try loading script pages up to the max
       /* eslint-disable no-await-in-loop */
       for (let i = this.currentEditPage + 1; i <= this.currentMaxPage; i++) {
         await this.LOAD_SCRIPT_PAGE(i);
         const loopPage = this.GET_SCRIPT_PAGE(i);
-        if (loopPage.length > 0) {
-          return loopPage[0];
+        const loopPageDeletedLines = this.DELETED_LINES(i);
+        // Find the first non-deleted line on this page
+        for (let j = 0; j < loopPage.length; j++) {
+          if (!loopPageDeletedLines.includes(j)) {
+            return loopPage[j];
+          }
         }
       }
       /* eslint-enable no-await-in-loop */

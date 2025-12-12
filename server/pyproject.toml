@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "digiscript-server"
-version = "0.19.1"
+version = "0.20.0"
 description = "DigiScript server - Digital script management for theatrical shows"
 readme = "../README.md"
 requires-python = ">=3.13"
