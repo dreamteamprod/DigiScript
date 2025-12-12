@@ -276,12 +276,12 @@ export default {
     return {
       elapsedTime: 0,
       elapsedTimer: null,
-      currentLoadedPage: 0,
-      currentMaxPage: 0,
+      currentLoadedPage: 0, // Last loaded page number (1-based)
+      currentMaxPage: 0, // Total number of pages in script (1-based)
       stoppingSession: false,
       initialLoad: false,
-      currentFirstPage: 1,
-      currentLastPage: 1,
+      currentFirstPage: 1, // First visible page (1-based, initialized to page 1)
+      currentLastPage: 1, // Last visible page (1-based, initialized to page 1)
       pageBatchSize: 3,
       startTime: null,
       previousFirstPage: 1,
@@ -328,7 +328,8 @@ export default {
   },
   computed: {
     pageIter() {
-      return [...Array(this.currentMaxPage).keys()];
+      // Generate 1-based page indices (DigiScript pages are numbered starting from 1, not 0)
+      return [...Array(this.currentMaxPage).keys()].map(i => i + 1);
     },
     isScriptFollowing() {
       if (this.loadedSessionData) {
