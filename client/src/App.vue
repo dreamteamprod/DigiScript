@@ -73,6 +73,9 @@
           </b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
+          <b-nav-item to="/help">
+            Help
+          </b-nav-item>
           <b-nav-item to="/about">
             About
           </b-nav-item>
