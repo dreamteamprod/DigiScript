@@ -8,6 +8,7 @@ COPY /client/package-lock.json /client/package-lock.json
 WORKDIR /client
 RUN npm ci
 COPY /client /client
+COPY /docs /docs
 RUN npm run build
 
 COPY /server /server

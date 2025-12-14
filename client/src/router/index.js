@@ -108,6 +108,23 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/help',
+    component: () => import('../views/HelpView.vue'),
+    meta: { requiresAuth: false },
+    children: [
+      {
+        path: '',
+        redirect: 'getting-started',
+      },
+      {
+        name: 'help-doc',
+        path: ':slug(.*)',
+        component: () => import('../views/help/HelpDocView.vue'),
+        meta: { requiresAuth: false },
+      },
+    ],
+  },
+  {
     path: '*',
     name: '404',
     component: () => import('../views/404View.vue'),
