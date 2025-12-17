@@ -61,12 +61,11 @@ export default {
       }
     },
     async DELETE_STAGE_DIRECTION_STYLE_OVERRIDE(context, styleId) {
-      const response = await fetch(`${makeURL('/api/v1/user/settings/stage_direction_overrides')}`, {
+      const response = await fetch(`${makeURL('/api/v1/user/settings/stage_direction_overrides')}?id=${styleId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: styleId }),
       });
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLE_OVERRIDES');
