@@ -138,15 +138,14 @@ class StageDirectionOverridesController(BaseAPIController):
 
     @api_authenticated
     async def delete(self):
-        data = escape.json_decode(self.request.body)
-        with self.make_session() as session:
-            settings_id = data.get("id", None)
-            if not settings_id:
-                self.set_status(400)
-                await self.finish({"message": "ID missing"})
-                return
+        settings_id = self.get_argument("id", None)
+        if not settings_id:
+            self.set_status(400)
+            await self.finish({"message": "ID missing"})
+            return
 
-            entry: UserOverrides = session.get(UserOverrides, settings_id)
+        with self.make_session() as session:
+            entry: UserOverrides = session.get(UserOverrides, int(settings_id))
             if entry:
                 if entry.user_id != self.current_user["id"]:
                     self.set_status(403)
