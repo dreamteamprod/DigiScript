@@ -7,6 +7,7 @@ export default {
   state: {
     userSettings: {},
     stageDirectionStyleOverrides: [],
+    cueColourOverrides: [],
   },
   mutations: {
     SET_USER_SETTINGS(state, settings) {
@@ -14,6 +15,9 @@ export default {
     },
     SET_STAGE_DIRECTION_STYLE_OVERRIDES(state, overrides) {
       state.stageDirectionStyleOverrides = overrides;
+    },
+    SET_CUE_COLOUR_OVERRIDES(state, overrides) {
+      state.cueColourOverrides = overrides;
     },
   },
   actions: {
@@ -91,6 +95,67 @@ export default {
         Vue.$toast.error('Unable to edit stage direction style override');
       }
     },
+    async GET_CUE_COLOUR_OVERRIDES(context) {
+      const response = await fetch(`${makeURL('/api/v1/user/settings/cue_colour_overrides')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const respJson = await response.json();
+        context.commit('SET_CUE_COLOUR_OVERRIDES', respJson.overrides);
+      } else {
+        log.error('Unable to load cue colour overrides');
+      }
+    },
+    async ADD_CUE_COLOUR_OVERRIDE(context, override) {
+      const response = await fetch(`${makeURL('/api/v1/user/settings/cue_colour_overrides')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(override),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CUE_COLOUR_OVERRIDES');
+        Vue.$toast.success('Added new cue colour override!');
+      } else {
+        log.error('Unable to add new cue colour override');
+        Vue.$toast.error('Unable to add new cue colour override');
+      }
+    },
+    async DELETE_CUE_COLOUR_OVERRIDE(context, overrideId) {
+      const response = await fetch(`${makeURL(`/api/v1/user/settings/cue_colour_overrides?id=${overrideId}`)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        context.dispatch('GET_CUE_COLOUR_OVERRIDES');
+        Vue.$toast.success('Deleted cue colour override!');
+      } else {
+        log.error('Unable to delete cue colour override');
+        Vue.$toast.error('Unable to delete cue colour override');
+      }
+    },
+    async UPDATE_CUE_COLOUR_OVERRIDE(context, override) {
+      const response = await fetch(`${makeURL('/api/v1/user/settings/cue_colour_overrides')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(override),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CUE_COLOUR_OVERRIDES');
+        Vue.$toast.success('Updated cue colour override!');
+      } else {
+        log.error('Unable to edit cue colour override');
+        Vue.$toast.error('Unable to edit cue colour override');
+      }
+    },
   },
   getters: {
     USER_SETTINGS(state) {
@@ -98,6 +163,9 @@ export default {
     },
     STAGE_DIRECTION_STYLE_OVERRIDES(state) {
       return state.stageDirectionStyleOverrides;
+    },
+    CUE_COLOUR_OVERRIDES(state) {
+      return state.cueColourOverrides;
     },
   },
 };

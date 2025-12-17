@@ -391,7 +391,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['IS_CUE_EDITOR', 'RBAC_ROLES', 'CURRENT_USER_RBAC', 'IS_ADMIN_USER', 'SCRIPT_CUES']),
+    ...mapGetters(['IS_CUE_EDITOR', 'RBAC_ROLES', 'CURRENT_USER_RBAC', 'IS_ADMIN_USER', 'SCRIPT_CUES', 'CUE_COLOUR_OVERRIDES']),
     cueTypeOptions() {
       if (this.IS_ADMIN_USER) {
         return [
@@ -607,7 +607,16 @@ export default {
       return `${cueType.prefix} ${cue.ident}`;
     },
     cueBackgroundColour(cue) {
-      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
+      const cueType = this.cueTypes.find((ct) => ct.id === cue.cue_type_id);
+      if (!cueType) return '#000000'; // Fallback
+
+      // Check if user has an override for this cue type
+      const override = this.CUE_COLOUR_OVERRIDES.find((o) => o.settings.id === cueType.id);
+      if (override) {
+        return override.settings.colour;
+      }
+
+      return cueType.colour;
     },
     isWholeLineCut(line) {
       return line.line_parts.every((linePart) => (this.linePartCuts.includes(linePart.id)

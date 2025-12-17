@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, select
 
 from models.models import db
 
@@ -148,3 +148,26 @@ class UserOverridesRegistry:
         if isinstance(settings_type, db.Model):
             settings_type = settings_type.__tablename__
         return settings_type in cls._registry
+
+    @classmethod
+    def cleanup_overrides(cls, session, settings_type):
+        """Delete all user overrides for a given settings type.
+
+        This method is called from model pre_delete hooks to cascade
+        delete user overrides when the source object is deleted.
+
+        Args:
+            session: Database session
+            settings_type: The settings type (tablename) to clean up
+        """
+        from models.user import UserOverrides  # noqa: PLC0415
+
+        if not cls.is_registered(settings_type):
+            return
+
+        overrides = session.scalars(
+            select(UserOverrides).where(UserOverrides.settings_type == settings_type)
+        ).all()
+
+        for override in overrides:
+            session.delete(override)
