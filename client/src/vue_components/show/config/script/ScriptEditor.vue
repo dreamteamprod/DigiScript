@@ -433,6 +433,7 @@ export default {
     // User related stuff
     if (this.CURRENT_USER != null) {
       await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+      await this.GET_CUE_COLOUR_OVERRIDES();
     }
     // Handle script cuts
     await this.GET_CUTS();
@@ -1039,7 +1040,7 @@ export default {
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUTS', 'SAVE_SCRIPT_CUTS',
       'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
-      'GET_USER_SETTINGS']),
+      'GET_CUE_COLOUR_OVERRIDES', 'GET_USER_SETTINGS']),
   },
 };
 </script>

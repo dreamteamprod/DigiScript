@@ -5,10 +5,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
 from models.script import ScriptLine, ScriptRevision
+from registry.user_overrides import UserOverridesRegistry
 from utils.database import DeleteMixin
 
 
-class CueType(db.Model):
+@UserOverridesRegistry.register(settings_fields=["colour"])
+class CueType(db.Model, DeleteMixin):
     __tablename__ = "cuetypes"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -21,6 +23,12 @@ class CueType(db.Model):
     cues: Mapped[List["Cue"]] = relationship(
         back_populates="cue_type", cascade="all, delete-orphan"
     )
+
+    def pre_delete(self, session):
+        UserOverridesRegistry.cleanup_overrides(session, self.__tablename__)
+
+    def post_delete(self, session):
+        pass
 
 
 class Cue(db.Model):

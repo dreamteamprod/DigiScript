@@ -22,6 +22,11 @@
       >
         <stage-direction-styles />
       </b-tab>
+      <b-tab
+        title="Cue Colour Preferences"
+      >
+        <cue-colour-preferences />
+      </b-tab>
       <b-tab title="API Token">
         <api-token />
       </b-tab>
@@ -31,6 +36,7 @@
 
 <script>
 import StageDirectionStyles from '@/vue_components/user/settings/StageDirectionStyles.vue';
+import CueColourPreferences from '@/vue_components/user/settings/CueColourPreferences.vue';
 import AboutUser from '@/vue_components/user/settings/AboutUser.vue';
 import UserSettingsConfig from '@/vue_components/user/settings/Settings.vue';
 import ApiToken from '@/vue_components/user/settings/ApiToken.vue';
@@ -38,7 +44,7 @@ import ApiToken from '@/vue_components/user/settings/ApiToken.vue';
 export default {
   name: 'UserSettings',
   components: {
-    UserSettingsConfig, AboutUser, StageDirectionStyles, ApiToken,
+    UserSettingsConfig, AboutUser, StageDirectionStyles, CueColourPreferences, ApiToken,
   },
 };
 </script>
