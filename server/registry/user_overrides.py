@@ -166,9 +166,7 @@ class UserOverridesRegistry:
             return
 
         overrides = session.scalars(
-            select(UserOverrides).where(
-                UserOverrides.settings_type == settings_type
-            )
+            select(UserOverrides).where(UserOverrides.settings_type == settings_type)
         ).all()
 
         for override in overrides:

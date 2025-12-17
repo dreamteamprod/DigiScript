@@ -273,9 +273,7 @@ class CueColourOverridesController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish(
-                    {"message": "Cue colour override not found"}
-                )
+                await self.finish({"message": "Cue colour override not found"})
 
     @api_authenticated
     async def delete(self):
@@ -308,6 +306,4 @@ class CueColourOverridesController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish(
-                    {"message": "Cue colour override not found"}
-                )
+                await self.finish({"message": "Cue colour override not found"})

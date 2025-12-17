@@ -126,10 +126,12 @@ class TestCueColourOverridesController(DigiScriptTestCase):
             "/api/v1/user/settings/cue_colour_overrides",
             method="POST",
             headers={"Authorization": f"Bearer {token}"},
-            body=tornado.escape.json_encode({
-                "cueTypeId": new_cue_type_id,
-                "colour": "#FFFF00",
-            }),
+            body=tornado.escape.json_encode(
+                {
+                    "cueTypeId": new_cue_type_id,
+                    "colour": "#FFFF00",
+                }
+            ),
         )
 
         # Verify response
@@ -194,10 +196,12 @@ class TestCueColourOverridesController(DigiScriptTestCase):
             "/api/v1/user/settings/cue_colour_overrides",
             method="POST",
             headers={"Authorization": f"Bearer {token}"},
-            body=tornado.escape.json_encode({
-                "cueTypeId": 99999,  # Non-existent
-                "colour": "#FFFF00",
-            }),
+            body=tornado.escape.json_encode(
+                {
+                    "cueTypeId": 99999,  # Non-existent
+                    "colour": "#FFFF00",
+                }
+            ),
         )
 
         self.assertEqual(404, response.code)
@@ -215,10 +219,12 @@ class TestCueColourOverridesController(DigiScriptTestCase):
             "/api/v1/user/settings/cue_colour_overrides",
             method="PATCH",
             headers={"Authorization": f"Bearer {token}"},
-            body=tornado.escape.json_encode({
-                "id": self.override_id,
-                "colour": "#00FFFF",
-            }),
+            body=tornado.escape.json_encode(
+                {
+                    "id": self.override_id,
+                    "colour": "#00FFFF",
+                }
+            ),
         )
 
         # Verify response
@@ -248,10 +254,12 @@ class TestCueColourOverridesController(DigiScriptTestCase):
             "/api/v1/user/settings/cue_colour_overrides",
             method="PATCH",
             headers={"Authorization": f"Bearer {token}"},
-            body=tornado.escape.json_encode({
-                "id": self.override_id,
-                "colour": "#00FFFF",
-            }),
+            body=tornado.escape.json_encode(
+                {
+                    "id": self.override_id,
+                    "colour": "#00FFFF",
+                }
+            ),
         )
 
         self.assertEqual(403, response.code)
