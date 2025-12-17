@@ -179,7 +179,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
             debug=debug,
             db=self._db,
             websocket_ping_interval=5,
-            cookie_secret="DigiScriptSuperSecretValue123!",
+            cookie_secret=self._get_cookie_secret(),
             login_url="/login",
         )
 
@@ -324,6 +324,24 @@ class DigiScriptServer(PrometheusMixIn, Application):
                 session.commit()
                 get_logger().info("JWT secret generated and stored in database")
         return JWTService(application=self)
+
+    def _get_cookie_secret(self) -> str:
+        get_logger().info("Getting cookie secret")
+        with self._db.sessionmaker() as session:
+            cookie_secret = session.scalars(
+                select(SystemSettings).where(SystemSettings.key == "cookie_secret")
+            ).first()
+            if cookie_secret:
+                get_logger().info("Retrieved cookie secret from database")
+            else:
+                get_logger().info("Generating new cookie secret")
+                cookie_secret = SystemSettings(
+                    key="cookie_secret", value=secrets.token_urlsafe(32)
+                )
+                session.add(cookie_secret)
+                session.commit()
+                get_logger().info("Cookie secret generated and stored in database")
+        return cookie_secret.value
 
     def regen_logging(self):
         if not IOLoop.current():
