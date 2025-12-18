@@ -2,6 +2,7 @@ from typing import List
 
 from tornado import escape
 
+from models.cue import CueType
 from models.script import StageDirectionStyle
 from models.user import UserOverrides
 from utils.web.base_controller import BaseAPIController
@@ -138,15 +139,14 @@ class StageDirectionOverridesController(BaseAPIController):
 
     @api_authenticated
     async def delete(self):
-        data = escape.json_decode(self.request.body)
-        with self.make_session() as session:
-            settings_id = data.get("id", None)
-            if not settings_id:
-                self.set_status(400)
-                await self.finish({"message": "ID missing"})
-                return
+        settings_id = self.get_argument("id", None)
+        if not settings_id:
+            self.set_status(400)
+            await self.finish({"message": "ID missing"})
+            return
 
-            entry: UserOverrides = session.get(UserOverrides, settings_id)
+        with self.make_session() as session:
+            entry: UserOverrides = session.get(UserOverrides, int(settings_id))
             if entry:
                 if entry.user_id != self.current_user["id"]:
                     self.set_status(403)
@@ -171,3 +171,139 @@ class StageDirectionOverridesController(BaseAPIController):
                 await self.finish(
                     {"message": "Stage direction style override not found"}
                 )
+
+
+@ApiRoute("user/settings/cue_colour_overrides", ApiVersion.V1)
+class CueColourOverridesController(BaseAPIController):
+    @api_authenticated
+    def get(self):
+        with self.make_session() as session:
+            overrides: List[UserOverrides] = UserOverrides.get_by_type(
+                self.current_user["id"], CueType, session
+            )
+            self.set_status(200)
+            self.finish(
+                {
+                    "overrides": [
+                        {"id": override.id, "settings": override.settings_dict}
+                        for override in overrides
+                    ]
+                }
+            )
+
+    @api_authenticated
+    async def post(self):
+        data = escape.json_decode(self.request.body)
+        cue_type_id: str = data.get("cueTypeId", None)
+        if not cue_type_id:
+            self.set_status(400)
+            await self.finish({"message": "Cue type ID missing"})
+            return
+
+        colour: str = data.get("colour", None)
+        if not colour:
+            self.set_status(400)
+            await self.finish({"message": "Colour missing"})
+            return
+
+        with self.make_session() as session:
+            cue_type_to_override = session.get(CueType, cue_type_id)
+            if not cue_type_to_override:
+                self.set_status(404)
+                await self.finish({"message": "Cue type not found"})
+                return
+
+            user_override = UserOverrides.create_for_user(
+                user_id=self.current_user["id"],
+                settings_type="cuetypes",
+                settings_data={
+                    "id": cue_type_id,
+                    "colour": colour,
+                },
+            )
+            session.add(user_override)
+            session.commit()
+
+            self.set_status(200)
+            await self.finish(
+                {
+                    "id": user_override.id,
+                    "message": "Successfully added cue colour override",
+                }
+            )
+
+            await self.application.ws_send_to_user(
+                self.current_user["id"],
+                "NOOP",
+                "GET_CUE_COLOUR_OVERRIDES",
+                {},
+            )
+
+    @api_authenticated
+    async def patch(self):
+        data = escape.json_decode(self.request.body)
+        settings_id = data.get("id", None)
+        if not settings_id:
+            self.set_status(400)
+            await self.finish({"message": "ID missing"})
+            return
+
+        with self.make_session() as session:
+            entry: UserOverrides = session.get(UserOverrides, settings_id)
+            if entry:
+                if entry.user_id != self.current_user["id"]:
+                    self.set_status(403)
+                    await self.finish()
+
+                merge_settings = data.copy()
+                del merge_settings["id"]
+                entry.update_settings(merge_settings)
+                session.commit()
+
+                self.set_status(200)
+                await self.finish(
+                    {"message": "Successfully edited cue colour override"}
+                )
+
+                await self.application.ws_send_to_user(
+                    self.current_user["id"],
+                    "NOOP",
+                    "GET_CUE_COLOUR_OVERRIDES",
+                    {},
+                )
+            else:
+                self.set_status(404)
+                await self.finish({"message": "Cue colour override not found"})
+
+    @api_authenticated
+    async def delete(self):
+        settings_id = self.get_argument("id", None)
+        if not settings_id:
+            self.set_status(400)
+            await self.finish({"message": "ID missing"})
+            return
+
+        with self.make_session() as session:
+            entry: UserOverrides = session.get(UserOverrides, int(settings_id))
+            if entry:
+                if entry.user_id != self.current_user["id"]:
+                    self.set_status(403)
+                    await self.finish()
+
+                session.delete(entry)
+                session.commit()
+
+                self.set_status(200)
+                await self.finish(
+                    {"message": "Successfully deleted cue colour override"}
+                )
+
+                await self.application.ws_send_to_user(
+                    self.current_user["id"],
+                    "NOOP",
+                    "GET_CUE_COLOUR_OVERRIDES",
+                    {},
+                )
+            else:
+                self.set_status(404)
+                await self.finish({"message": "Cue colour override not found"})

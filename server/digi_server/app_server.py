@@ -153,18 +153,25 @@ class DigiScriptServer(PrometheusMixIn, Application):
         # Get static files path - adjust for PyInstaller if needed
         if is_frozen():
             static_files_path = get_resource_path(os.path.join("static", "assets"))
+            docs_files_path = get_resource_path(os.path.join("static", "docs"))
             get_logger().info(f"Using packaged static files path: {static_files_path}")
+            get_logger().info(f"Using packaged docs files path: {docs_files_path}")
         else:
             static_files_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static", "assets"
             )
+            docs_files_path = os.path.join(
+                os.path.abspath(os.path.dirname(__file__)), "..", "static", "docs"
+            )
             get_logger().info(f"Using relative static files path: {static_files_path}")
+            get_logger().info(f"Using relative docs files path: {docs_files_path}")
 
         handlers = Route.routes()
         handlers.append(("/favicon.ico", controllers.StaticController))
         handlers.append(
             (r"/assets/(.*)", StaticFileHandler, {"path": static_files_path})
         )
+        handlers.append((r"/docs/(.*)", StaticFileHandler, {"path": docs_files_path}))
         handlers.append((r"/api/.*", controllers.ApiFallback))
         handlers.append((r"/(.*)", controllers.RootController))
         super().__init__(
@@ -172,7 +179,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
             debug=debug,
             db=self._db,
             websocket_ping_interval=5,
-            cookie_secret="DigiScriptSuperSecretValue123!",
+            cookie_secret=self._get_cookie_secret(),
             login_url="/login",
         )
 
@@ -317,6 +324,24 @@ class DigiScriptServer(PrometheusMixIn, Application):
                 session.commit()
                 get_logger().info("JWT secret generated and stored in database")
         return JWTService(application=self)
+
+    def _get_cookie_secret(self) -> str:
+        get_logger().info("Getting cookie secret")
+        with self._db.sessionmaker() as session:
+            cookie_secret = session.scalars(
+                select(SystemSettings).where(SystemSettings.key == "cookie_secret")
+            ).first()
+            if cookie_secret:
+                get_logger().info("Retrieved cookie secret from database")
+            else:
+                get_logger().info("Generating new cookie secret")
+                cookie_secret = SystemSettings(
+                    key="cookie_secret", value=secrets.token_urlsafe(32)
+                )
+                session.add(cookie_secret)
+                session.commit()
+                get_logger().info("Cookie secret generated and stored in database")
+        return cookie_secret.value
 
     def regen_logging(self):
         if not IOLoop.current():

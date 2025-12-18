@@ -464,6 +464,7 @@ export default {
     // User related stuff
     if (this.CURRENT_USER != null) {
       await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+      await this.GET_CUE_COLOUR_OVERRIDES();
     }
 
     await this.GET_ACT_LIST();
@@ -1195,7 +1196,7 @@ export default {
     ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
       'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
       'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
-      'ADD_NEW_CUE']),
+      'GET_CUE_COLOUR_OVERRIDES', 'ADD_NEW_CUE']),
     ...mapMutations(['SET_SCRIPT_PAGE']),
   },
 };

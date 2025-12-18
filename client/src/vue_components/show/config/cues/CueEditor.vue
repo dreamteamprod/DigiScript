@@ -214,6 +214,7 @@ export default {
     // User related stuff
     if (this.CURRENT_USER != null) {
       await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+      await this.GET_CUE_COLOUR_OVERRIDES();
     }
 
     // Get the max page of the saved version of the script
@@ -296,7 +297,8 @@ export default {
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
       'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUE_TYPES', 'LOAD_CUES',
-      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES', 'GET_CURRENT_USER']),
+      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
+      'GET_CUE_COLOUR_OVERRIDES', 'GET_CURRENT_USER']),
   },
 };
 </script>

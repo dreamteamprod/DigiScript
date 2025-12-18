@@ -11,7 +11,6 @@ from tornado.ioloop import IOLoop
 
 from digi_server.logger import get_logger
 from models.models import db
-from models.user import UserOverrides
 from registry.schema import get_registry
 from registry.user_overrides import UserOverridesRegistry
 from utils.database import DeleteMixin
@@ -272,13 +271,11 @@ class StageDirectionStyle(db.Model, DeleteMixin):
     )
 
     def pre_delete(self, session):
-        user_overrides = session.scalars(
-            select(UserOverrides).where(
-                UserOverrides.settings_type == self.__tablename__
-            )
-        ).all()
-        for override in user_overrides:
-            session.delete(override)
+        from registry.user_overrides import (  # noqa: PLC0415
+            UserOverridesRegistry,
+        )
+
+        UserOverridesRegistry.cleanup_overrides(session, self.__tablename__)
 
     def post_delete(self, session):
         pass

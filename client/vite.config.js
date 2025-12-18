@@ -33,6 +33,10 @@ export default defineConfig({
             if (id.includes('vue-native-websocket')) {
               return 'websocket-vendor';
             }
+            // Documentation dependencies
+            if (id.includes('marked') || id.includes('dompurify') || id.includes('fuse.js')) {
+              return 'docs-vendor';
+            }
             // Everything else from node_modules goes to a general vendor chunk
             return 'vendor';
           }

@@ -440,7 +440,7 @@ export default {
       }
       return style;
     },
-    ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS', 'USER_SETTINGS']),
+    ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS', 'USER_SETTINGS', 'CUE_COLOUR_OVERRIDES']),
   },
   mounted() {
     /* eslint-disable no-restricted-syntax */
@@ -484,7 +484,16 @@ export default {
       return `${cueType.prefix} ${cue.ident}`;
     },
     cueBackgroundColour(cue) {
-      return this.cueTypes.find((cueType) => (cueType.id === cue.cue_type_id)).colour;
+      const cueType = this.cueTypes.find((ct) => ct.id === cue.cue_type_id);
+      if (!cueType) return '#000000'; // Fallback
+
+      // Check if user has an override for this cue type
+      const override = this.CUE_COLOUR_OVERRIDES.find((o) => o.settings.id === cueType.id);
+      if (override) {
+        return override.settings.colour;
+      }
+
+      return cueType.colour;
     },
     getPreviousLineForIndex(pageIndex, lineIndex) {
       if (lineIndex > 0) {
