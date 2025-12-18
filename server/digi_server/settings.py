@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 from tornado.locks import Lock
 
@@ -25,6 +25,7 @@ class SettingsObject:
         nullable=False,
         display_name: str = "",
         help_text: str = "",
+        hide_from_ui: bool = False,
     ):
         if val_type not in [str, bool, int]:
             raise RuntimeError(
@@ -42,6 +43,7 @@ class SettingsObject:
         self._loaded = False
         self.display_name = display_name
         self.help_text = help_text
+        self.hide_from_ui = hide_from_ui
 
     def set_to_default(self):
         self.value = self.default
@@ -83,6 +85,7 @@ class SettingsObject:
             "can_edit": self.can_edit,
             "display_name": self.display_name,
             "help_text": self.help_text,
+            "hide_from_ui": self.hide_from_ui,
         }
 
 
@@ -108,7 +111,7 @@ class Settings:
             )
             os.makedirs(os.path.dirname(self.settings_path))
 
-        self.settings = {}
+        self.settings: Dict[str, SettingsObject] = {}
 
         db_default = f"sqlite:///{os.path.join(os.path.dirname(__file__), '../conf/digiscript.sqlite')}"
         self.define(
@@ -118,7 +121,7 @@ class Settings:
             False,
             nullable=False,
             callback_fn=self._application.validate_has_admin,
-            display_name="Has Admin User",
+            hide_from_ui=True,
         )
         self.define(
             "db_path",
@@ -135,7 +138,7 @@ class Settings:
             False,
             nullable=True,
             callback_fn=self._application.show_changed,
-            display_name="Current Show ID",
+            hide_from_ui=True,
         )
         self.define("debug_mode", bool, False, True, display_name="Enable Debug Mode")
         self.define(
@@ -221,6 +224,7 @@ class Settings:
         nullable=False,
         display_name: str = "",
         help_text: str = "",
+        hide_from_ui: bool = False,
     ):
         self.settings[key] = SettingsObject(
             key,
@@ -231,6 +235,7 @@ class Settings:
             nullable,
             display_name,
             help_text,
+            hide_from_ui,
         )
 
     def file_deleted(self):
