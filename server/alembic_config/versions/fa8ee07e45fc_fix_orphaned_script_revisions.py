@@ -5,6 +5,7 @@ Revises: 42d0eaa5d07e
 Create Date: 2025-12-18 22:55:57.281038
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'fa8ee07e45fc'
-down_revision: Union[str, None] = '42d0eaa5d07e'
+revision: str = "fa8ee07e45fc"
+down_revision: Union[str, None] = "42d0eaa5d07e"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -45,7 +46,7 @@ def upgrade() -> None:
                 AND revision = 1
                 LIMIT 1
             """),
-            {"script_id": script_id}
+            {"script_id": script_id},
         ).fetchone()
 
         if initial_revision:
@@ -56,13 +57,17 @@ def upgrade() -> None:
                     SET previous_revision_id = :initial_id
                     WHERE id = :orphaned_id
                 """),
-                {"initial_id": initial_revision[0], "orphaned_id": orphaned_id}
+                {"initial_id": initial_revision[0], "orphaned_id": orphaned_id},
             )
-            print(f"Fixed orphaned revision {revision_number} (id: {orphaned_id}) "
-                  f"for script {script_id}, linked to initial revision (id: {initial_revision[0]})")
+            print(
+                f"Fixed orphaned revision {revision_number} (id: {orphaned_id}) "
+                f"for script {script_id}, linked to initial revision (id: {initial_revision[0]})"
+            )
         else:
-            print(f"WARNING: Could not find initial revision for script {script_id}, "
-                  f"orphaned revision {revision_number} (id: {orphaned_id}) remains unfixed")
+            print(
+                f"WARNING: Could not find initial revision for script {script_id}, "
+                f"orphaned revision {revision_number} (id: {orphaned_id}) remains unfixed"
+            )
 
 
 def downgrade() -> None:

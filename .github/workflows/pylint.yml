@@ -24,7 +24,7 @@ jobs:
           pip install -r requirements.txt -r test_requirements.txt
       - name: Run ruff linter
         run: |
-          ruff check $(git ls-files '*.py') --output-format github
+          ruff check . --output-format github
       - name: Run ruff formatter
         run: |
-          ruff format --check $(git ls-files '*.py')
+          ruff format --check .
