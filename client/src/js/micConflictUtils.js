@@ -1,22 +1,3 @@
-/**
- * Microphone Conflict Detection Utilities
- *
- * This module provides pure functions for detecting microphone allocation conflicts
- * between adjacent scenes in a theatrical production.
- *
- * @module micConflictUtils
- */
-
-/**
- * Builds a scene graph with adjacency information for conflict detection.
- * Traverses the linked list structure of acts and scenes to create a flat array
- * with position metadata and adjacency relationships.
- *
- * @param {Array} scenes - Array of scene objects
- * @param {Array} acts - Array of act objects
- * @param {Object} currentShow - Current show object with first_act_id
- * @returns {Array} Array of scene graph nodes with adjacency info
- */
 export function buildSceneGraph(scenes, acts, currentShow) {
   if (!currentShow?.first_act_id || !scenes?.length || !acts?.length) {
     return [];
@@ -101,13 +82,6 @@ export function buildSceneGraph(scenes, acts, currentShow) {
   return graph;
 }
 
-/**
- * Gets adjacent scenes for a given scene, distinguishing between same-act and cross-act adjacency.
- *
- * @param {number} sceneId - ID of the scene to find adjacency for
- * @param {Array} sceneGraph - Scene graph from buildSceneGraph()
- * @returns {Object} Object with adjacency info: { sameActPrev, sameActNext, crossActPrev, crossActNext }
- */
 export function getAdjacentScenes(sceneId, sceneGraph) {
   const node = sceneGraph.find((n) => n.sceneId === sceneId);
 
@@ -137,14 +111,6 @@ export function getAdjacentScenes(sceneId, sceneGraph) {
   };
 }
 
-/**
- * Checks if two scenes are in the same act.
- *
- * @param {number} sceneId1 - First scene ID
- * @param {number} sceneId2 - Second scene ID
- * @param {Array} sceneGraph - Scene graph from buildSceneGraph()
- * @returns {boolean} True if scenes are in the same act
- */
 export function areScenesInSameAct(sceneId1, sceneId2, sceneGraph) {
   const node1 = sceneGraph.find((n) => n.sceneId === sceneId1);
   const node2 = sceneGraph.find((n) => n.sceneId === sceneId2);
@@ -156,16 +122,6 @@ export function areScenesInSameAct(sceneId1, sceneId2, sceneGraph) {
   return node1.actId === node2.actId;
 }
 
-/**
- * Checks if two characters are played by the same cast member.
- * If either character has no cast assignment, returns false (conservative approach).
- *
- * @param {number} characterId1 - First character ID
- * @param {number} characterId2 - Second character ID
- * @param {Array} characters - Array of character objects
- * @param {Array} castList - Array of cast objects (optional, for future use)
- * @returns {boolean} True if same cast member plays both characters
- */
 export function isSameCastMember(characterId1, characterId2, characters, castList) {
   if (characterId1 === characterId2) {
     return true; // Same character, trivially same cast member
@@ -178,40 +134,23 @@ export function isSameCastMember(characterId1, characterId2, characters, castLis
     return false;
   }
 
-  // Check if both have cast assignments
-  if (!char1.played_by || !char2.played_by) {
+  // Check cast_member.id (nested relationship) instead of played_by
+  const castId1 = char1.cast_member?.id;
+  const castId2 = char2.cast_member?.id;
+
+  // Check if both have cast assignments (use == null to allow 0 as valid ID)
+  if (castId1 == null || castId2 == null) {
     return false; // Conservative: no cast assignment = different cast members
   }
 
-  return char1.played_by === char2.played_by;
+  return castId1 === castId2;
 }
 
-/**
- * Determines the severity of a conflict based on scene adjacency.
- *
- * @param {number} sceneId1 - First scene ID
- * @param {number} sceneId2 - Second scene ID (adjacent scene)
- * @param {Array} sceneGraph - Scene graph from buildSceneGraph()
- * @returns {string} 'WARNING' if same act, 'INFO' if cross-act
- */
 export function getConflictSeverity(sceneId1, sceneId2, sceneGraph) {
   const sameAct = areScenesInSameAct(sceneId1, sceneId2, sceneGraph);
   return sameAct ? 'WARNING' : 'INFO';
 }
 
-/**
- * Detects all microphone conflicts in the allocation data.
- * A conflict occurs when the same microphone is allocated to different cast members
- * in adjacent scenes (within act or across act boundaries).
- *
- * @param {Object} allocations - Mic allocations object: { [micId]: { [sceneId]: characterId } }
- * @param {Array} scenes - Array of scene objects
- * @param {Array} acts - Array of act objects
- * @param {Object} currentShow - Current show object
- * @param {Array} characters - Array of character objects
- * @param {Array} castList - Array of cast objects (optional)
- * @returns {Object} Object with conflicts array and indexed lookups
- */
 export function detectMicConflicts(allocations, scenes, acts, currentShow, characters, castList) {
   if (!allocations || !scenes?.length || !acts?.length || !currentShow) {
     return {
@@ -285,13 +224,13 @@ export function detectMicConflicts(allocations, scenes, acts, currentShow, chara
         const char1 = characters.find((c) => c.id === characterId);
         const char2 = characters.find((c) => c.id === adjacentCharacterId);
 
-        // Build conflict message
-        let message = `Same mic in adjacent scene "${adjacentSceneNode?.sceneName || 'Unknown'}"`;
+        // Build conflict message (shown on the destination scene being changed INTO)
+        let message = `Quick-change from "${currentSceneNode?.sceneName || 'Unknown'}"`;
         if (char1 && char2) {
           message += ` (${char1.name} → ${char2.name})`;
         }
         if (severity === 'WARNING') {
-          message += ' - Tight quick-change required';
+          message += ' - Tight changeover required';
         } else {
           message += ' - Interval provides changeover time';
         }
