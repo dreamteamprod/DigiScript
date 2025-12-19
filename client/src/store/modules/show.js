@@ -2,6 +2,7 @@ import Vue from 'vue';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
+import { buildSceneGraph, detectMicConflicts } from '@/js/micConflictUtils';
 
 export default {
   state: {
@@ -659,6 +660,102 @@ export default {
     },
     MIC_ALLOCATIONS(state) {
       return state.micAllocations;
+    },
+    ORDERED_SCENES(state, getters) {
+      if (!getters.CURRENT_SHOW?.first_act_id || !getters.SCENE_LIST?.length || !getters.ACT_LIST?.length) {
+        return [];
+      }
+
+      const scenes = [];
+      let currentAct = getters.ACT_BY_ID(getters.CURRENT_SHOW.first_act_id);
+
+      while (currentAct != null) {
+        let currentScene = getters.SCENE_BY_ID(currentAct.first_scene);
+        while (currentScene != null) {
+          scenes.push(currentScene);
+          currentScene = getters.SCENE_BY_ID(currentScene.next_scene);
+        }
+        currentAct = getters.ACT_BY_ID(currentAct.next_act);
+      }
+
+      return scenes;
+    },
+    SCENE_ADJACENCY_MAP(state, getters) {
+      return buildSceneGraph(
+        getters.SCENE_LIST,
+        getters.ACT_LIST,
+        getters.CURRENT_SHOW,
+      );
+    },
+    MIC_CONFLICTS(state, getters) {
+      // Transform MIC_ALLOCATIONS from array format to object format
+      const allocationsObj = {};
+      Object.keys(getters.MIC_ALLOCATIONS).forEach((micId) => {
+        const allocs = getters.MIC_ALLOCATIONS[micId];
+        const sceneData = {};
+        if (Array.isArray(allocs)) {
+          allocs.forEach((alloc) => {
+            sceneData[alloc.scene_id] = alloc.character_id;
+          });
+        }
+        allocationsObj[micId] = sceneData;
+      });
+
+      return detectMicConflicts(
+        allocationsObj,
+        getters.SCENE_LIST,
+        getters.ACT_LIST,
+        getters.CURRENT_SHOW,
+        getters.CHARACTER_LIST,
+        getters.CAST_LIST,
+      );
+    },
+    CONFLICTS_BY_SCENE(state, getters) {
+      return getters.MIC_CONFLICTS.conflictsByScene || {};
+    },
+    CONFLICTS_BY_MIC(state, getters) {
+      return getters.MIC_CONFLICTS.conflictsByMic || {};
+    },
+    MIC_TIMELINE_DATA(state, getters) {
+      const scenes = getters.ORDERED_SCENES;
+      const allocations = getters.MIC_ALLOCATIONS;
+      const conflicts = getters.MIC_CONFLICTS.conflicts || [];
+
+      return {
+        scenes,
+        allocations,
+        conflicts,
+        microphones: getters.MICROPHONES,
+        characters: getters.CHARACTER_LIST,
+      };
+    },
+    SCENE_DENSITY_DATA(state, getters) {
+      const scenes = getters.ORDERED_SCENES;
+      const allocations = getters.MIC_ALLOCATIONS;
+
+      return scenes.map((scene) => {
+        let micCount = 0;
+
+        // Count how many mics are allocated in this scene
+        Object.keys(allocations).forEach((micId) => {
+          const micAllocs = allocations[micId];
+          if (Array.isArray(micAllocs)) {
+            const hasAllocation = micAllocs.some((alloc) => alloc.scene_id === scene.id && alloc.character_id != null);
+            if (hasAllocation) {
+              micCount++;
+            }
+          }
+        });
+
+        const act = getters.ACT_BY_ID(scene.act);
+
+        return {
+          sceneId: scene.id,
+          sceneName: scene.name,
+          actName: act?.name || 'Unknown',
+          micCount,
+        };
+      });
     },
     NO_LEADER_TOAST(state) {
       return state.noLeaderToast;
