@@ -330,7 +330,7 @@ describe('micConflictUtils', () => {
   describe('isSameCastMember', () => {
     it('should return true for same character ID', () => {
       const characters = [
-        { id: 1, name: 'Hamlet', played_by: 10 },
+        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
       ];
       const result = isSameCastMember(1, 1, characters, []);
       expect(result).toBe(true);
@@ -338,7 +338,7 @@ describe('micConflictUtils', () => {
 
     it('should return false when first character not found', () => {
       const characters = [
-        { id: 1, name: 'Hamlet', played_by: 10 },
+        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
       ];
       const result = isSameCastMember(999, 1, characters, []);
       expect(result).toBe(false);
@@ -346,7 +346,7 @@ describe('micConflictUtils', () => {
 
     it('should return false when second character not found', () => {
       const characters = [
-        { id: 1, name: 'Hamlet', played_by: 10 },
+        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
       ];
       const result = isSameCastMember(1, 999, characters, []);
       expect(result).toBe(false);
@@ -354,8 +354,8 @@ describe('micConflictUtils', () => {
 
     it('should return false when first character has no cast assignment', () => {
       const characters = [
-        { id: 1, name: 'Hamlet', played_by: null },
-        { id: 2, name: 'Ophelia', played_by: 20 },
+        { id: 1, name: 'Hamlet', cast_member: null },
+        { id: 2, name: 'Ophelia', cast_member: { id: 20 } },
       ];
       const result = isSameCastMember(1, 2, characters, []);
       expect(result).toBe(false);
@@ -363,8 +363,8 @@ describe('micConflictUtils', () => {
 
     it('should return false when second character has no cast assignment', () => {
       const characters = [
-        { id: 1, name: 'Hamlet', played_by: 10 },
-        { id: 2, name: 'Ophelia', played_by: null },
+        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
+        { id: 2, name: 'Ophelia', cast_member: null },
       ];
       const result = isSameCastMember(1, 2, characters, []);
       expect(result).toBe(false);
@@ -372,8 +372,8 @@ describe('micConflictUtils', () => {
 
     it('should return true when same cast member plays both characters', () => {
       const characters = [
-        { id: 1, name: 'Hamlet', played_by: 10 },
-        { id: 2, name: 'Ghost', played_by: 10 }, // Same actor
+        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
+        { id: 2, name: 'Ghost', cast_member: { id: 10 } }, // Same actor
       ];
       const result = isSameCastMember(1, 2, characters, []);
       expect(result).toBe(true);
@@ -381,8 +381,8 @@ describe('micConflictUtils', () => {
 
     it('should return false when different cast members', () => {
       const characters = [
-        { id: 1, name: 'Hamlet', played_by: 10 },
-        { id: 2, name: 'Ophelia', played_by: 20 },
+        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
+        { id: 2, name: 'Ophelia', cast_member: { id: 20 } },
       ];
       const result = isSameCastMember(1, 2, characters, []);
       expect(result).toBe(false);
@@ -451,7 +451,7 @@ describe('micConflictUtils', () => {
       ];
       const currentShow = { first_act_id: 1 };
       const characters = [
-        { id: 10, name: 'Hamlet', played_by: 100 },
+        { id: 10, name: 'Hamlet', cast_member: { id: 100 } },
       ];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);
@@ -481,8 +481,8 @@ describe('micConflictUtils', () => {
       ];
       const currentShow = { first_act_id: 1 };
       const characters = [
-        { id: 10, name: 'Hamlet', played_by: 100 },
-        { id: 11, name: 'Ghost', played_by: 100 }, // Same actor
+        { id: 10, name: 'Hamlet', cast_member: { id: 100 } },
+        { id: 11, name: 'Ghost', cast_member: { id: 100 } }, // Same actor
       ];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);
@@ -512,8 +512,8 @@ describe('micConflictUtils', () => {
       ];
       const currentShow = { first_act_id: 1 };
       const characters = [
-        { id: 10, name: 'Hamlet', played_by: 100 },
-        { id: 11, name: 'Ophelia', played_by: 200 }, // Different actor
+        { id: 10, name: 'Hamlet', cast_member: { id: 100 } },
+        { id: 11, name: 'Ophelia', cast_member: { id: 200 } }, // Different actor
       ];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);
@@ -531,7 +531,8 @@ describe('micConflictUtils', () => {
         adjacentCharacterName: 'Ophelia',
         severity: 'WARNING', // Same act
       });
-      expect(result.conflicts[0].message).toContain('Tight quick-change required');
+      expect(result.conflicts[0].message).toContain('Tight changeover required');
+      expect(result.conflicts[0].message).toContain('Quick-change from "Scene 1"');
     });
 
     it('should detect conflict when different cast members across acts', () => {
@@ -559,8 +560,8 @@ describe('micConflictUtils', () => {
       ];
       const currentShow = { first_act_id: 1 };
       const characters = [
-        { id: 10, name: 'Hamlet', played_by: 100 },
-        { id: 11, name: 'Ophelia', played_by: 200 }, // Different actor
+        { id: 10, name: 'Hamlet', cast_member: { id: 100 } },
+        { id: 11, name: 'Ophelia', cast_member: { id: 200 } }, // Different actor
       ];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);
@@ -599,8 +600,8 @@ describe('micConflictUtils', () => {
       ];
       const currentShow = { first_act_id: 1 };
       const characters = [
-        { id: 10, name: 'Hamlet', played_by: 100 },
-        { id: 11, name: 'Ophelia', played_by: 200 },
+        { id: 10, name: 'Hamlet', cast_member: { id: 100 } },
+        { id: 11, name: 'Ophelia', cast_member: { id: 200 } },
       ];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);
@@ -628,8 +629,8 @@ describe('micConflictUtils', () => {
       ];
       const currentShow = { first_act_id: 1 };
       const characters = [
-        { id: 10, name: 'Hamlet', played_by: 100 },
-        { id: 11, name: 'Ophelia', played_by: 200 },
+        { id: 10, name: 'Hamlet', cast_member: { id: 100 } },
+        { id: 11, name: 'Ophelia', cast_member: { id: 200 } },
       ];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);
@@ -657,8 +658,8 @@ describe('micConflictUtils', () => {
       ];
       const currentShow = { first_act_id: 1 };
       const characters = [
-        { id: 10, name: 'Hamlet', played_by: 100 },
-        { id: 11, name: 'Ophelia', played_by: 200 },
+        { id: 10, name: 'Hamlet', cast_member: { id: 100 } },
+        { id: 11, name: 'Ophelia', cast_member: { id: 200 } },
       ];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);
@@ -686,8 +687,8 @@ describe('micConflictUtils', () => {
       ];
       const currentShow = { first_act_id: 1 };
       const characters = [
-        { id: 10, name: 'Hamlet', played_by: null }, // No cast
-        { id: 11, name: 'Ophelia', played_by: 200 },
+        { id: 10, name: 'Hamlet', cast_member: null }, // No cast
+        { id: 11, name: 'Ophelia', cast_member: { id: 200 } },
       ];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);

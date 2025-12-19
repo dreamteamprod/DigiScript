@@ -112,12 +112,26 @@
                 </b-button>
               </template>
               <template v-else>
-                <span
+                <div
                   v-if="allocationByCharacter[data.item.Character][scene.id] != null"
+                  :id="`cell-${data.item.Character}-${scene.id}`"
                   :key="scene.id"
+                  class="allocation-cell"
+                  :class="getConflictClass(getConflictForCell(data.item.Character, scene.id))"
                 >
                   {{ allocationByCharacter[data.item.Character][scene.id] }}
-                </span>
+                  <b-icon-exclamation-triangle
+                    v-if="getConflictForCell(data.item.Character, scene.id)"
+                    class="conflict-icon"
+                  />
+                  <b-tooltip
+                    v-if="getConflictForCell(data.item.Character, scene.id)"
+                    :target="`cell-${data.item.Character}-${scene.id}`"
+                    triggers="hover"
+                  >
+                    {{ getConflictForCell(data.item.Character, scene.id).message }}
+                  </b-tooltip>
+                </div>
               </template>
             </template>
           </b-table>
@@ -240,7 +254,8 @@ export default {
       return charData;
     },
     ...mapGetters(['MICROPHONES', 'CURRENT_SHOW', 'ACT_BY_ID', 'SCENE_BY_ID', 'CHARACTER_LIST',
-      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID', 'IS_SHOW_EDITOR']),
+      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID', 'IS_SHOW_EDITOR',
+      'CONFLICTS_BY_SCENE', 'CONFLICTS_BY_MIC']),
   },
   async mounted() {
     await this.resetToStoredAlloc();
@@ -305,15 +320,58 @@ export default {
       await this.resetToStoredAlloc();
       this.saving = false;
     },
+
+    getConflictForCell(characterId, sceneId) {
+      // Look through all scenes' conflicts to find one where the adjacent scene matches
+      const allConflicts = Object.values(this.CONFLICTS_BY_SCENE).flat();
+      if (!allConflicts || allConflicts.length === 0) {
+        return null;
+      }
+
+      // Find conflict where this scene is the "change INTO" scene
+      return allConflicts.find((c) => c.adjacentSceneId === sceneId
+        && c.adjacentCharacterId === characterId) || null;
+    },
+
+    getConflictClass(conflict) {
+      if (!conflict) return '';
+      return conflict.severity === 'WARNING' ? 'conflict-warning' : 'conflict-info';
+    },
     ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
   },
 };
 </script>
 
-<style>
+<style scoped>
 .act-header {
   border-left: .1rem solid;
   border-right: .1rem solid;
   border-color: inherit;
+}
+
+/* Conflict highlighting */
+.allocation-cell {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  min-width: 3rem;
+}
+
+.conflict-warning {
+  background-color: #ff9800;
+  color: #000;
+  font-weight: 500;
+}
+
+.conflict-info {
+  background-color: #2196f3;
+  color: #fff;
+  font-weight: 500;
+}
+
+.conflict-icon {
+  margin-left: 0.25rem;
+  font-size: 0.875rem;
 }
 </style>
