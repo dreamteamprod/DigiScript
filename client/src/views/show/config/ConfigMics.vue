@@ -17,6 +17,11 @@
           >
             <mic-allocations />
           </b-tab>
+          <b-tab
+            title="Timeline"
+          >
+            <mic-timeline :loading="!loaded" />
+          </b-tab>
         </b-tabs>
       </b-col>
       <b-col v-else>
@@ -37,10 +42,11 @@
 import { mapActions } from 'vuex';
 import MicList from '@/vue_components/show/config/mics/MicList.vue';
 import MicAllocations from '@/vue_components/show/config/mics/MicAllocations.vue';
+import MicTimeline from '@/vue_components/show/config/mics/MicTimeline.vue';
 
 export default {
   name: 'ConfigMics',
-  components: { MicAllocations, MicList },
+  components: { MicAllocations, MicList, MicTimeline },
   data() {
     return {
       loaded: false,
@@ -50,13 +56,14 @@ export default {
     await this.GET_SCENE_LIST();
     await this.GET_ACT_LIST();
     await this.GET_CHARACTER_LIST();
+    await this.GET_CAST_LIST();
     await this.GET_MICROPHONE_LIST();
     await this.GET_MIC_ALLOCATIONS();
     this.loaded = true;
   },
   methods: {
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
-      'GET_MICROPHONE_LIST', 'GET_MIC_ALLOCATIONS']),
+      'GET_CAST_LIST', 'GET_MICROPHONE_LIST', 'GET_MIC_ALLOCATIONS']),
   },
 };
 </script>
