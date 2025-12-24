@@ -27,6 +27,11 @@
           >
             <scene-density-heatmap :loading="!loaded" />
           </b-tab>
+          <b-tab
+            title="Availability"
+          >
+            <resource-availability :loading="!loaded" />
+          </b-tab>
         </b-tabs>
       </b-col>
       <b-col v-else>
@@ -49,11 +54,12 @@ import MicList from '@/vue_components/show/config/mics/MicList.vue';
 import MicAllocations from '@/vue_components/show/config/mics/MicAllocations.vue';
 import MicTimeline from '@/vue_components/show/config/mics/MicTimeline.vue';
 import SceneDensityHeatmap from '@/vue_components/show/config/mics/SceneDensityHeatmap.vue';
+import ResourceAvailability from '@/vue_components/show/config/mics/ResourceAvailability.vue';
 
 export default {
   name: 'ConfigMics',
   components: {
-    MicAllocations, MicList, MicTimeline, SceneDensityHeatmap,
+    MicAllocations, MicList, MicTimeline, SceneDensityHeatmap, ResourceAvailability,
   },
   data() {
     return {
