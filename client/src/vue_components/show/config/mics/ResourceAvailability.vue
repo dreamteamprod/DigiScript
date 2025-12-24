@@ -218,7 +218,7 @@ export default {
 
         // Get conflicts for this scene
         const allConflicts = this.MIC_CONFLICTS?.conflicts || [];
-        const sceneConflicts = allConflicts.filter((conflict) => conflict.scenes.some((s) => s.id === scene.id));
+        const sceneConflicts = allConflicts.filter((conflict) => conflict.sceneId === scene.id || conflict.adjacentSceneId === scene.id);
 
         this.microphones.forEach((mic) => {
           const micAllocs = this.allocations[mic.id];
@@ -238,7 +238,7 @@ export default {
             inUse += 1;
 
             // Check if this mic has a conflict in this scene
-            const hasConflict = sceneConflicts.some((conflict) => conflict.microphone.id === mic.id);
+            const hasConflict = sceneConflicts.some((conflict) => conflict.micId === mic.id);
             if (hasConflict) {
               status = 'conflict';
               statusClass = 'conflict';
