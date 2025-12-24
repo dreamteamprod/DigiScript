@@ -117,19 +117,18 @@
                   :id="`cell-${data.item.Character}-${scene.id}`"
                   :key="scene.id"
                   class="allocation-cell"
-                  :class="getConflictClass(getConflictForCell(data.item.Character, scene.id))"
+                  :class="getConflictClassForCell(data.item.Character, scene.id)"
                 >
                   {{ allocationByCharacter[data.item.Character][scene.id] }}
                   <b-icon-exclamation-triangle
-                    v-if="getConflictForCell(data.item.Character, scene.id)"
+                    v-if="getConflictsForCell(data.item.Character, scene.id).length > 0"
                     class="conflict-icon"
                   />
                   <b-tooltip
-                    v-if="getConflictForCell(data.item.Character, scene.id)"
                     :target="`cell-${data.item.Character}-${scene.id}`"
                     triggers="hover"
                   >
-                    {{ getConflictForCell(data.item.Character, scene.id).message }}
+                    {{ getTooltipText(data.item.Character, scene.id) }}
                   </b-tooltip>
                 </div>
               </template>
@@ -236,21 +235,30 @@ export default {
     },
     allocationByCharacter() {
       const charData = {};
+      // Initialize with empty arrays for each character/scene combination
       this.CHARACTER_LIST.map((character) => (character.id)).forEach((characterId) => {
         const sceneData = {};
         this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
-          sceneData[sceneId] = null;
+          sceneData[sceneId] = [];
         });
         charData[characterId] = sceneData;
       }, this);
+      // Collect all mics assigned to each character in each scene
       Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
         this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
           if (this.allAllocations[micId][sceneId] != null) {
-            charData[this.allAllocations[micId][sceneId]][
-              sceneId] = this.MICROPHONE_BY_ID(micId).name;
+            const characterId = this.allAllocations[micId][sceneId];
+            charData[characterId][sceneId].push(this.MICROPHONE_BY_ID(micId).name);
           }
         }, this);
       }, this);
+      // Convert arrays to comma-separated strings (or null if empty)
+      Object.keys(charData).forEach((characterId) => {
+        Object.keys(charData[characterId]).forEach((sceneId) => {
+          const mics = charData[characterId][sceneId];
+          charData[characterId][sceneId] = mics.length > 0 ? mics.join(', ') : null;
+        });
+      });
       return charData;
     },
     ...mapGetters(['MICROPHONES', 'CURRENT_SHOW', 'ACT_BY_ID', 'SCENE_BY_ID', 'CHARACTER_LIST',
@@ -291,21 +299,13 @@ export default {
         return true;
       }
 
-      let disabled = false;
       // Check this mic isn't allocated to anyone else for this scene
       if (this.internalState[micId][sceneId] != null
           && this.internalState[micId][sceneId] !== characterId) {
         return true;
       }
-      // Check another mic isn't already assigned for this scene
-      this.MICROPHONES.map((mic) => (mic.id)).forEach((innerMicId) => {
-        if (this.internalState[innerMicId][sceneId] != null
-            && this.internalState[innerMicId][sceneId] === characterId
-            && innerMicId !== micId) {
-          disabled = true;
-        }
-      }, this);
-      return disabled;
+
+      return false;
     },
     toggleAllocation(micId, sceneId, characterId) {
       if (this.internalState[micId][sceneId] === characterId) {
@@ -337,6 +337,56 @@ export default {
       if (!conflict) return '';
       return conflict.severity === 'WARNING' ? 'conflict-warning' : 'conflict-info';
     },
+
+    getConflictsForCell(characterId, sceneId) {
+      // Find all conflicts for this character in this scene (across all their mics)
+      const allConflicts = Object.values(this.CONFLICTS_BY_SCENE).flat();
+      if (!allConflicts || allConflicts.length === 0) {
+        return [];
+      }
+
+      // Find all conflicts where this scene is the "change INTO" scene for this character
+      return allConflicts.filter((c) => c.adjacentSceneId === sceneId
+        && c.adjacentCharacterId === characterId);
+    },
+
+    getConflictClassForCell(characterId, sceneId) {
+      const conflicts = this.getConflictsForCell(characterId, sceneId);
+      if (conflicts.length === 0) return '';
+
+      // Prioritize WARNING over INFO
+      const hasWarning = conflicts.some((c) => c.severity === 'WARNING');
+      return hasWarning ? 'conflict-warning' : 'conflict-info';
+    },
+
+    getTooltipText(characterId, sceneId) {
+      // Get all mics assigned to this character in this scene
+      const mics = [];
+      Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
+        if (this.allAllocations[micId][sceneId] === characterId) {
+          mics.push({
+            id: parseInt(micId, 10),
+            name: this.MICROPHONE_BY_ID(micId).name,
+          });
+        }
+      });
+
+      // Get conflicts for this character/scene
+      const conflicts = this.getConflictsForCell(characterId, sceneId);
+
+      // Build tooltip text
+      let tooltipText = `Assigned mics: ${mics.map((m) => m.name).join(', ')}`;
+
+      if (conflicts.length > 0) {
+        tooltipText += '\n\nConflicts:';
+        conflicts.forEach((conflict) => {
+          const micName = this.MICROPHONE_BY_ID(conflict.micId).name;
+          tooltipText += `\n• ${micName}: ${conflict.message}`;
+        });
+      }
+
+      return tooltipText;
+    },
     ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
   },
 };
@@ -356,6 +406,10 @@ export default {
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
   min-width: 3rem;
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .conflict-warning {

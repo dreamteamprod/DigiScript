@@ -438,12 +438,13 @@ export default {
     },
     generateBarsForCharacter(characterId, rowIndex, bars) {
       // Find all mics allocated to this character
-      const segments = [];
+      const segmentsByMic = new Map();
 
       Object.keys(this.allocations).forEach((micId) => {
         const micAllocs = this.allocations[micId];
         if (!Array.isArray(micAllocs)) return;
 
+        const segments = [];
         let currentSegment = null;
 
         this.scenes.forEach((scene, sceneIndex) => {
@@ -467,30 +468,41 @@ export default {
         });
 
         if (currentSegment) segments.push(currentSegment);
+
+        if (segments.length > 0) {
+          segmentsByMic.set(parseInt(micId, 10), segments);
+        }
       });
 
-      // Create bars
-      segments.forEach((segment, segmentIndex) => {
-        const mic = this.MICROPHONE_BY_ID(segment.micId);
-        const startX = this.getSceneX(segment.startIndex);
-        const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
+      // Create bars with vertical stacking for multiple mics
+      const micIds = Array.from(segmentsByMic.keys());
+      const barHeightPerMic = (this.rowHeight - 2 * this.barPadding) / Math.max(micIds.length, 1);
 
-        bars.push({
-          id: `char-${characterId}-seg-${segmentIndex}`,
-          x: startX,
-          y: this.getRowY(rowIndex) + this.barPadding,
-          width,
-          height: this.rowHeight - 2 * this.barPadding,
-          color: this.getColorForEntity(segment.micId, 'mic'),
-          cssClass: '',
-          label: mic?.name || `Mic ${segment.micId}`,
-          tooltip: `${mic?.name || `Mic ${segment.micId}`} (Scenes ${segment.startIndex + 1}-${segment.endIndex + 1})`,
-          data: {
-            characterId,
-            micId: segment.micId,
-            startScene: segment.startIndex,
-            endScene: segment.endIndex,
-          },
+      micIds.forEach((micId, micIndex) => {
+        const segments = segmentsByMic.get(micId);
+        segments.forEach((segment, segmentIndex) => {
+          const mic = this.MICROPHONE_BY_ID(segment.micId);
+          const startX = this.getSceneX(segment.startIndex);
+          const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
+          const yOffset = micIndex * barHeightPerMic;
+
+          bars.push({
+            id: `char-${characterId}-mic-${micId}-seg-${segmentIndex}`,
+            x: startX,
+            y: this.getRowY(rowIndex) + this.barPadding + yOffset,
+            width,
+            height: barHeightPerMic,
+            color: this.getColorForEntity(characterId, 'character'),
+            cssClass: '',
+            label: mic?.name || `Mic ${segment.micId}`,
+            tooltip: `${mic?.name || `Mic ${segment.micId}`} (Scenes ${segment.startIndex + 1}-${segment.endIndex + 1})`,
+            data: {
+              characterId,
+              micId: segment.micId,
+              startScene: segment.startIndex,
+              endScene: segment.endIndex,
+            },
+          });
         });
       });
     },
@@ -500,13 +512,14 @@ export default {
         (char) => char.cast_member?.id === castId,
       );
 
-      const segments = [];
+      const segmentsByMic = new Map();
 
       // For each mic, find allocations for any character played by this cast member
       Object.keys(this.allocations).forEach((micId) => {
         const micAllocs = this.allocations[micId];
         if (!Array.isArray(micAllocs)) return;
 
+        const segments = [];
         let currentSegment = null;
 
         this.scenes.forEach((scene, sceneIndex) => {
@@ -537,34 +550,45 @@ export default {
         });
 
         if (currentSegment) segments.push(currentSegment);
+
+        if (segments.length > 0) {
+          segmentsByMic.set(parseInt(micId, 10), segments);
+        }
       });
 
-      // Create bars
-      segments.forEach((segment, segmentIndex) => {
-        const mic = this.MICROPHONE_BY_ID(segment.micId);
-        const characterNames = Array.from(segment.characterIds)
-          .map((charId) => this.CHARACTER_BY_ID(charId)?.name || 'Unknown')
-          .join(', ');
-        const startX = this.getSceneX(segment.startIndex);
-        const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
+      // Create bars with vertical stacking for multiple mics
+      const micIds = Array.from(segmentsByMic.keys());
+      const barHeightPerMic = (this.rowHeight - 2 * this.barPadding) / Math.max(micIds.length, 1);
 
-        bars.push({
-          id: `cast-${castId}-seg-${segmentIndex}`,
-          x: startX,
-          y: this.getRowY(rowIndex) + this.barPadding,
-          width,
-          height: this.rowHeight - 2 * this.barPadding,
-          color: this.getColorForEntity(segment.micId, 'mic'),
-          cssClass: '',
-          label: mic?.name || `Mic ${segment.micId}`,
-          tooltip: `${mic?.name || `Mic ${segment.micId}`} - ${characterNames} (Scenes ${segment.startIndex + 1}-${segment.endIndex + 1})`,
-          data: {
-            castId,
-            micId: segment.micId,
-            characterIds: Array.from(segment.characterIds),
-            startScene: segment.startIndex,
-            endScene: segment.endIndex,
-          },
+      micIds.forEach((micId, micIndex) => {
+        const segments = segmentsByMic.get(micId);
+        segments.forEach((segment, segmentIndex) => {
+          const mic = this.MICROPHONE_BY_ID(segment.micId);
+          const characterNames = Array.from(segment.characterIds)
+            .map((charId) => this.CHARACTER_BY_ID(charId)?.name || 'Unknown')
+            .join(', ');
+          const startX = this.getSceneX(segment.startIndex);
+          const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
+          const yOffset = micIndex * barHeightPerMic;
+
+          bars.push({
+            id: `cast-${castId}-mic-${micId}-seg-${segmentIndex}`,
+            x: startX,
+            y: this.getRowY(rowIndex) + this.barPadding + yOffset,
+            width,
+            height: barHeightPerMic,
+            color: this.getColorForEntity(castId, 'cast'),
+            cssClass: '',
+            label: mic?.name || `Mic ${segment.micId}`,
+            tooltip: `${mic?.name || `Mic ${segment.micId}`} - ${characterNames} (Scenes ${segment.startIndex + 1}-${segment.endIndex + 1})`,
+            data: {
+              castId,
+              micId: segment.micId,
+              characterIds: Array.from(segment.characterIds),
+              startScene: segment.startIndex,
+              endScene: segment.endIndex,
+            },
+          });
         });
       });
     },

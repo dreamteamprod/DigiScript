@@ -37,8 +37,22 @@ To assign a microphone to a character, follow these steps:
 #### Allocation Constraints
 
 - You **cannot** allocate the same microphone to multiple characters in the same scene
-- You **cannot** allocate multiple microphones to a single character for a given scene
-- These constraints ensure practical microphone management during live shows
+  - This reflects the physical constraint that one microphone can only be worn by one person at a time
+
+#### Multiple Microphones Per Character
+
+DigiScript supports assigning multiple microphones to a single character in a scene. This is useful for:
+
+- **Primary + Backup Configuration**: Lead characters who aren't offstage long enough to swap out microphone packs can have both a primary and backup microphone assigned
+- **Redundancy**: Ensuring continuity in case of technical failures during performance
+- **Technical Flexibility**: Accommodating different microphone types or configurations for the same character
+
+To assign multiple microphones to a character:
+1. Select the first microphone from the dropdown and allocate it to the character
+2. Select the second microphone from the dropdown and allocate it to the same character
+3. The character will now show both microphones in the view mode (e.g., "Mic 1, Mic 2")
+
+In the Timeline view, characters with multiple microphones will display stacked bars showing all assigned microphones with consistent color-coding.
 
 #### Saving Allocations
 
@@ -50,14 +64,19 @@ The saved view provides a clear overview of microphone usage throughout the enti
 
 #### Conflict Detection
 
-DigiScript automatically detects potential microphone conflicts when the same microphone is allocated to different characters in adjacent scenes. Conflicts are highlighted in the allocations matrix to alert you to quick-changes that may require attention:
+DigiScript automatically detects potential microphone conflicts when the same microphone is allocated to different characters in adjacent scenes. Conflicts are tracked individually per microphone - a character with multiple microphones may have conflicts on some mics but not others. Conflicts are highlighted in the allocations matrix to alert you to quick-changes that may require attention:
 
 ![](../../images/config_show/mics_conflict_highlighting.png)
 
 - **Orange highlights** indicate conflicts within the same act (tight changeover required)
 - **Blue highlights** indicate conflicts across act boundaries (interval provides changeover time)
 
-Hovering over a highlighted allocation shows details about the conflict, including which scenes and characters are involved.
+Hovering over a highlighted allocation shows:
+- The full list of microphones assigned to that character in that scene
+- Details about which specific microphones have conflicts
+- Information about which scenes and characters are involved in each conflict
+
+When a character has multiple microphones, the tooltip will clearly indicate which microphone(s) have conflicts, allowing you to plan changeovers for specific microphones while others remain assigned.
 
 ### Microphone Timeline View
 
