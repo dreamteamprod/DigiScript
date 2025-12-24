@@ -6,6 +6,7 @@
     <b-row align-h="between">
       <b-col cols="3">
         <b-form-group
+          v-show="editMode"
           id="mic-input-group"
           label="Microphone"
           label-for="mic-input"
@@ -14,7 +15,7 @@
           <b-form-select
             id="mic-input"
             v-model="selectedMic"
-            name="act-input"
+            name="mic-input"
             :options="micOptions"
             :disabled="!editMode || !IS_SHOW_EDITOR"
           />
@@ -22,6 +23,7 @@
       </b-col>
       <b-col
         cols="3"
+        style="margin-bottom: 15px"
       >
         <b-button-group v-if="IS_SHOW_EDITOR">
           <b-button
@@ -37,6 +39,7 @@
             </span>
           </b-button>
           <b-button
+            v-if="editMode"
             :disabled="!needsSaving || saving || !editMode"
             variant="success"
             @click.stop="saveAllocations"
@@ -241,6 +244,9 @@ export default {
   },
   async mounted() {
     await this.resetToStoredAlloc();
+    if (this.micOptions.length > 1) {
+      this.selectedMic = this.micOptions[1].value;
+    }
     this.loaded = true;
   },
   methods: {
