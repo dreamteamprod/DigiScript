@@ -209,6 +209,13 @@ router.beforeEach(async (to, from, next) => {
     return showAllowed || scriptAllowed || cueTypesAllowed;
   };
 
+  // Check if we are navigating to the login page while already authenticated
+  // If so, redirect to where the user just was
+  if (to.path === '/login' && isAuthenticated) {
+    Vue.$toast.info('You are already logged in');
+    return next(from.fullPath);
+  }
+
   // Check authentication requirements
   if (requiresAuth && !isAuthenticated) {
     Vue.$toast.error('Please log in to access this page');

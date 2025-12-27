@@ -30,4 +30,5 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
+          check_name: 'Python Test Results'
           junit_files: '**/server/junit/*.xml'

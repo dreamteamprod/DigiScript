@@ -6,6 +6,7 @@
     <b-row align-h="between">
       <b-col cols="3">
         <b-form-group
+          v-show="editMode"
           id="mic-input-group"
           label="Microphone"
           label-for="mic-input"
@@ -14,7 +15,7 @@
           <b-form-select
             id="mic-input"
             v-model="selectedMic"
-            name="act-input"
+            name="mic-input"
             :options="micOptions"
             :disabled="!editMode || !IS_SHOW_EDITOR"
           />
@@ -22,6 +23,7 @@
       </b-col>
       <b-col
         cols="3"
+        style="margin-bottom: 15px"
       >
         <b-button-group v-if="IS_SHOW_EDITOR">
           <b-button
@@ -37,6 +39,7 @@
             </span>
           </b-button>
           <b-button
+            v-if="editMode"
             :disabled="!needsSaving || saving || !editMode"
             variant="success"
             @click.stop="saveAllocations"
@@ -109,12 +112,25 @@
                 </b-button>
               </template>
               <template v-else>
-                <span
+                <div
                   v-if="allocationByCharacter[data.item.Character][scene.id] != null"
+                  :id="`cell-${data.item.Character}-${scene.id}`"
                   :key="scene.id"
+                  class="allocation-cell"
+                  :class="getConflictClassForCell(data.item.Character, scene.id)"
                 >
                   {{ allocationByCharacter[data.item.Character][scene.id] }}
-                </span>
+                  <b-icon-exclamation-triangle
+                    v-if="getConflictsForCell(data.item.Character, scene.id).length > 0"
+                    class="conflict-icon"
+                  />
+                  <b-tooltip
+                    :target="`cell-${data.item.Character}-${scene.id}`"
+                    triggers="hover"
+                  >
+                    {{ getTooltipText(data.item.Character, scene.id) }}
+                  </b-tooltip>
+                </div>
               </template>
             </template>
           </b-table>
@@ -219,28 +235,41 @@ export default {
     },
     allocationByCharacter() {
       const charData = {};
+      // Initialize with empty arrays for each character/scene combination
       this.CHARACTER_LIST.map((character) => (character.id)).forEach((characterId) => {
         const sceneData = {};
         this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
-          sceneData[sceneId] = null;
+          sceneData[sceneId] = [];
         });
         charData[characterId] = sceneData;
       }, this);
+      // Collect all mics assigned to each character in each scene
       Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
         this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
           if (this.allAllocations[micId][sceneId] != null) {
-            charData[this.allAllocations[micId][sceneId]][
-              sceneId] = this.MICROPHONE_BY_ID(micId).name;
+            const characterId = this.allAllocations[micId][sceneId];
+            charData[characterId][sceneId].push(this.MICROPHONE_BY_ID(micId).name);
           }
         }, this);
       }, this);
+      // Convert arrays to comma-separated strings (or null if empty)
+      Object.keys(charData).forEach((characterId) => {
+        Object.keys(charData[characterId]).forEach((sceneId) => {
+          const mics = charData[characterId][sceneId];
+          charData[characterId][sceneId] = mics.length > 0 ? mics.join(', ') : null;
+        });
+      });
       return charData;
     },
     ...mapGetters(['MICROPHONES', 'CURRENT_SHOW', 'ACT_BY_ID', 'SCENE_BY_ID', 'CHARACTER_LIST',
-      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID', 'IS_SHOW_EDITOR']),
+      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID', 'IS_SHOW_EDITOR',
+      'CONFLICTS_BY_SCENE', 'CONFLICTS_BY_MIC']),
   },
   async mounted() {
     await this.resetToStoredAlloc();
+    if (this.micOptions.length > 1) {
+      this.selectedMic = this.micOptions[1].value;
+    }
     this.loaded = true;
   },
   methods: {
@@ -270,21 +299,13 @@ export default {
         return true;
       }
 
-      let disabled = false;
       // Check this mic isn't allocated to anyone else for this scene
       if (this.internalState[micId][sceneId] != null
           && this.internalState[micId][sceneId] !== characterId) {
         return true;
       }
-      // Check another mic isn't already assigned for this scene
-      this.MICROPHONES.map((mic) => (mic.id)).forEach((innerMicId) => {
-        if (this.internalState[innerMicId][sceneId] != null
-            && this.internalState[innerMicId][sceneId] === characterId
-            && innerMicId !== micId) {
-          disabled = true;
-        }
-      }, this);
-      return disabled;
+
+      return false;
     },
     toggleAllocation(micId, sceneId, characterId) {
       if (this.internalState[micId][sceneId] === characterId) {
@@ -299,15 +320,112 @@ export default {
       await this.resetToStoredAlloc();
       this.saving = false;
     },
+
+    getConflictForCell(characterId, sceneId) {
+      // Look through all scenes' conflicts to find one where the adjacent scene matches
+      const allConflicts = Object.values(this.CONFLICTS_BY_SCENE).flat();
+      if (!allConflicts || allConflicts.length === 0) {
+        return null;
+      }
+
+      // Find conflict where this scene is the "change INTO" scene
+      return allConflicts.find((c) => c.adjacentSceneId === sceneId
+        && c.adjacentCharacterId === characterId) || null;
+    },
+
+    getConflictClass(conflict) {
+      if (!conflict) return '';
+      return conflict.severity === 'WARNING' ? 'conflict-warning' : 'conflict-info';
+    },
+
+    getConflictsForCell(characterId, sceneId) {
+      // Find all conflicts for this character in this scene (across all their mics)
+      const allConflicts = Object.values(this.CONFLICTS_BY_SCENE).flat();
+      if (!allConflicts || allConflicts.length === 0) {
+        return [];
+      }
+
+      // Find all conflicts where this scene is the "change INTO" scene for this character
+      return allConflicts.filter((c) => c.adjacentSceneId === sceneId
+        && c.adjacentCharacterId === characterId);
+    },
+
+    getConflictClassForCell(characterId, sceneId) {
+      const conflicts = this.getConflictsForCell(characterId, sceneId);
+      if (conflicts.length === 0) return '';
+
+      // Prioritize WARNING over INFO
+      const hasWarning = conflicts.some((c) => c.severity === 'WARNING');
+      return hasWarning ? 'conflict-warning' : 'conflict-info';
+    },
+
+    getTooltipText(characterId, sceneId) {
+      // Get all mics assigned to this character in this scene
+      const mics = [];
+      Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
+        if (this.allAllocations[micId][sceneId] === characterId) {
+          mics.push({
+            id: parseInt(micId, 10),
+            name: this.MICROPHONE_BY_ID(micId).name,
+          });
+        }
+      });
+
+      // Get conflicts for this character/scene
+      const conflicts = this.getConflictsForCell(characterId, sceneId);
+
+      // Build tooltip text
+      let tooltipText = `Assigned mics: ${mics.map((m) => m.name).join(', ')}`;
+
+      if (conflicts.length > 0) {
+        tooltipText += '\n\nConflicts:';
+        conflicts.forEach((conflict) => {
+          const micName = this.MICROPHONE_BY_ID(conflict.micId).name;
+          tooltipText += `\n• ${micName}: ${conflict.message}`;
+        });
+      }
+
+      return tooltipText;
+    },
     ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
   },
 };
 </script>
 
-<style>
+<style scoped>
 .act-header {
   border-left: .1rem solid;
   border-right: .1rem solid;
   border-color: inherit;
+}
+
+/* Conflict highlighting */
+.allocation-cell {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  min-width: 3rem;
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conflict-warning {
+  background-color: #ff9800;
+  color: #000;
+  font-weight: 500;
+}
+
+.conflict-info {
+  background-color: #2196f3;
+  color: #fff;
+  font-weight: 500;
+}
+
+.conflict-icon {
+  margin-left: 0.25rem;
+  font-size: 0.875rem;
 }
 </style>

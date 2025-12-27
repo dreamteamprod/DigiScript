@@ -44,12 +44,26 @@ export default {
       }
     },
     async ADD_SCRIPT_REVISION(context, scriptRevision) {
+      const payload = {
+        description: scriptRevision.description,
+      };
+
+      // Add optional parent_revision_id if provided
+      if (scriptRevision.parent_revision_id != null) {
+        payload.parent_revision_id = scriptRevision.parent_revision_id;
+      }
+
+      // Add optional set_as_current if provided (defaults to true on backend)
+      if (scriptRevision.set_as_current != null) {
+        payload.set_as_current = scriptRevision.set_as_current;
+      }
+
       const response = await fetch(`${makeURL('/api/v1/show/script/revisions')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(scriptRevision),
+        body: JSON.stringify(payload),
       });
       if (response.ok) {
         context.dispatch('GET_SCRIPT_REVISIONS');

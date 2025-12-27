@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # Generated documentation (copied from /docs during build)
 public/docs/
+
+# Test output
+junit/

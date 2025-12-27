@@ -15,6 +15,49 @@ Script revisions function similar to version control systems like Git - they tra
 - Compare what has changed between revisions
 - Maintain different versions of the script for different performances
 
+#### Revision Branch Graph
+
+The **Revision Branch Graph** provides a visual representation of your script's revision history, showing how revisions branch and evolve over time.
+
+![](../images/config_show/script_revision_graph_branched.png)
+
+The graph displays:
+- **Blue nodes**: Regular revisions
+- **Green nodes**: The current active revision (with animated pulse effect)
+- **Lines with arrows**: Show the parent-child relationship between revisions
+
+##### Interacting with the Graph
+
+You can interact with the revision graph in several ways:
+
+**Clicking on Nodes**: Click any node in the graph to open a detailed modal showing:
+- Revision metadata (number, description, dates)
+- Previous (parent) revision
+- Child revisions (branches created from this revision)
+- Actions: Load This Revision, Create Branch From Here
+
+![](../images/config_show/script_revision_detail_modal.png)
+
+**Pan and Zoom**: Use your mouse or trackpad to pan around the graph and see all revisions. The zoom controls in the top-right corner allow you to:
+- Zoom in (+)
+- Zoom out (-)
+- Reset zoom (↻)
+
+**Collapse the Graph**: Click the chevron icon in the graph header to collapse/expand the graph card, saving screen space when not needed.
+
+##### Creating Branches
+
+You can create alternative versions of your script by branching from any revision:
+
+1. Click on the revision you want to branch from
+2. Click **Create Branch From Here** in the detail modal
+3. Enter a description for the new branch
+4. Click **OK**
+
+![](../images/config_show/script_create_branch_modal.png)
+
+**Important**: When creating a branch from the current revision, the new revision becomes the active revision. When branching from a non-current revision, the new branch is created as an alternative version without changing which revision is currently loaded.
+
 #### Creating a New Revision
 
 Click **New Revision** to create a new revision. You'll need to provide a description for the revision to help identify it later.

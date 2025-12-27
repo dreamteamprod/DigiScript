@@ -73,18 +73,32 @@ class ScriptRevisionsController(BaseAPIController):
                     return
                 self.requires_role(script, Role.WRITE)
 
-                current_rev_id = script.current_revision
-                if not current_rev_id:
+                # Get parent revision ID (defaults to current revision)
+                parent_rev_id = data.get("parent_revision_id", None)
+                if parent_rev_id is None:
+                    parent_rev_id = script.current_revision
+
+                if not parent_rev_id:
                     self.set_status(404)
                     await self.finish({"message": "404 script revision not found"})
                     return
 
-                current_rev: ScriptRevision = session.get(
-                    ScriptRevision, current_rev_id
-                )
-                if not current_rev:
+                # Get set_as_current flag (defaults to True for backward compatibility)
+                set_as_current = data.get("set_as_current", True)
+
+                # Validate parent revision exists
+                parent_rev: ScriptRevision = session.get(ScriptRevision, parent_rev_id)
+                if not parent_rev:
                     self.set_status(404)
-                    await self.finish({"message": "404 script revision not found"})
+                    await self.finish({"message": "404 parent revision not found"})
+                    return
+
+                # Validate parent belongs to this script
+                if parent_rev.script_id != script.id:
+                    self.set_status(400)
+                    await self.finish(
+                        {"message": "Parent revision belongs to different script"}
+                    )
                     return
 
                 max_rev = session.scalar(
@@ -106,11 +120,13 @@ class ScriptRevisionsController(BaseAPIController):
                     created_at=now_time,
                     edited_at=now_time,
                     description=description,
-                    previous_revision_id=current_rev.id,
+                    previous_revision_id=parent_rev.id,
                 )
                 session.add(new_rev)
                 session.flush()
-                for line_association in current_rev.line_associations:
+
+                # Copy associations from parent revision
+                for line_association in parent_rev.line_associations:
                     new_rev.line_associations.append(
                         ScriptLineRevisionAssociation(
                             revision_id=new_rev.id,
@@ -119,7 +135,7 @@ class ScriptRevisionsController(BaseAPIController):
                             previous_line_id=line_association.previous_line_id,
                         )
                     )
-                for cue_association in current_rev.cue_associations:
+                for cue_association in parent_rev.cue_associations:
                     new_rev.cue_associations.append(
                         CueAssociation(
                             revision_id=new_rev.id,
@@ -127,7 +143,7 @@ class ScriptRevisionsController(BaseAPIController):
                             cue_id=cue_association.cue_id,
                         )
                     )
-                for cut_association in current_rev.line_part_cuts:
+                for cut_association in parent_rev.line_part_cuts:
                     new_rev.line_part_cuts.append(
                         ScriptCuts(
                             revision_id=new_rev.id,
@@ -135,7 +151,10 @@ class ScriptRevisionsController(BaseAPIController):
                         )
                     )
 
-                script.current_revision = new_rev.id
+                # Only set as current if requested
+                if set_as_current:
+                    script.current_revision = new_rev.id
+
                 session.commit()
 
                 # Create a new compiled version of the script
@@ -210,6 +229,16 @@ class ScriptRevisionsController(BaseAPIController):
                             )
                         ).one()
                         script.current_revision = first_rev.id
+
+                # Update children to point to deleted revision's parent
+                # This prevents breaking the tree when deleting middle nodes
+                children = session.scalars(
+                    select(ScriptRevision).where(
+                        ScriptRevision.previous_revision_id == rev.id
+                    )
+                ).all()
+                for child in children:
+                    child.previous_revision_id = rev.previous_revision_id
 
                 session.delete(rev)
 
