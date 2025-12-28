@@ -280,13 +280,19 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
             show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-
                 data = escape.json_decode(self.request.body)
+
                 if "excluded_mics" not in data:
                     self.set_status(400)
                     await self.finish({"message": "excluded_mics missing"})
                     return
                 excluded_mics: List[int] = data["excluded_mics"]
+
+                if "static_characters" not in data:
+                    self.set_status(400)
+                    await self.finish({"message": "static_characters missing"})
+                    return
+                static_characters: List[int] = data["static_characters"]
 
                 # Get all scenes in the show, and construct a list of lists, where each inner list
                 # is a list of scenes in order which are not separated by an interval
@@ -390,11 +396,58 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                             (scene_index_map[alloc.scene_id], alloc.character_id)
                         )
 
-                # Assign mics per character (character-first approach)
                 new_allocations: List[Tuple[int, int, int]] = []
                 unassigned_hints = []
 
+                # Assign mics per static character allocation
+                static_mic_options = {
+                    mic_id
+                    for mic_id in available_mic_ids
+                    if mic_id not in mic_usage_tracker
+                }
+                static_sorted_characters = [
+                    char_id
+                    for char_id in sorted_characters
+                    if char_id in static_characters
+                ]
+                for character_id in static_sorted_characters:
+                    # Check if character already has an allocation, skip and record hint if so
+                    if any(
+                        alloc.character_id == character_id
+                        for alloc in existing_allocations
+                    ):
+                        unassigned_hints.append(
+                            {
+                                "character_id": character_id,
+                                "reason": "Character already has existing microphone allocation",
+                            }
+                        )
+                        continue
+
+                    # Try get next available static mic, if there are not any left, skip and record hint
+                    try:
+                        next_mic = static_mic_options.pop()
+                    except KeyError:
+                        unassigned_hints.append(
+                            {
+                                "character_id": character_id,
+                                "reason": "No available microphone for static assignment",
+                            }
+                        )
+                    else:
+                        # Record new allocation for each scene
+                        for scene_id in scene_index_map:
+                            new_allocations.append((next_mic, scene_id, character_id))
+                            mic_usage_tracker[next_mic].append(
+                                (scene_index, character_id)
+                            )
+
+                # Assign mics per character
                 for character_id in sorted_characters:
+                    # Skip static characters since they are already processed
+                    if character_id in static_sorted_characters:
+                        continue
+
                     # Get all scenes where this character needs a mic (sorted by scene order)
                     character_scenes = [
                         (scene_id, line_count)
@@ -434,6 +487,7 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                                 {
                                     "character_id": character_id,
                                     "scene_id": scene_id,
+                                    "reason": "No available microphone",
                                 }
                             )
 
@@ -452,9 +506,6 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                         suggestions[mic_id] = {}
                     suggestions[mic_id][scene_id] = character_id
 
-                # TEMPORARY: Log allocations with names for debugging
-                print_allocations(mics, ordered_acts, suggestions, session)
-
                 # Return response
                 self.set_status(200)
                 await self.finish(
@@ -467,50 +518,3 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})
-
-
-def print_allocations(mics, ordered_acts, suggestions, session):
-    print("\n" + "=" * 80)
-    print("MIC ALLOCATION SUGGESTIONS")
-    print("=" * 80)
-
-    # Build name mappings and scene order
-    mic_names = {mic.id: mic.name for mic in mics}
-    scene_to_act = {}
-    scene_order = []  # List of scene IDs in chronological order
-
-    for act in ordered_acts:
-        iter_scene = act.first_scene
-        while iter_scene:
-            scene_to_act[iter_scene.id] = act.name
-            scene_order.append(iter_scene.id)
-            iter_scene = iter_scene.next_scene
-
-    # Create a position map for sorting
-    scene_position = {scene_id: pos for pos, scene_id in enumerate(scene_order)}
-
-    for mic_id in sorted(suggestions.keys()):
-        mic_name = mic_names.get(mic_id, f"Unknown Mic {mic_id}")
-        print(f"\n{mic_name}:")
-
-        # Sort by actual scene order, not by scene_id
-        scene_ids_for_mic = sorted(
-            suggestions[mic_id].keys(),
-            key=lambda sid: scene_position.get(sid, float("inf")),
-        )
-
-        for scene_id in scene_ids_for_mic:
-            character_id = suggestions[mic_id][scene_id]
-
-            scene = session.get(Scene, scene_id)
-            act_name = scene_to_act.get(scene_id, "Unknown Act")
-            scene_name = scene.name if scene else f"Unknown Scene {scene_id}"
-
-            character = session.get(Character, character_id)
-            character_name = (
-                character.name if character else f"Unknown Character {character_id}"
-            )
-
-            print(f"  {act_name}: {scene_name} -> {character_name}")
-
-    print("\n" + "=" * 80 + "\n")

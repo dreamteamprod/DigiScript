@@ -22,6 +22,12 @@
           label="Excluded Microphones"
           label-for="mic-exclusion-input"
         >
+          <b-alert
+            variant="secondary"
+            show
+          >
+            Excluded microphones will not be assigned to any characters during auto-population.
+          </b-alert>
           <multi-select
             id="mic-exclusion-input"
             v-model="excludedMics"
@@ -31,7 +37,30 @@
             track-by="id"
             label="name"
             :state="validateState('excludedMics')"
-            @input="newSelectChanged"
+            @input="newExcludedMicSelectChanged"
+          />
+        </b-form-group>
+        <b-form-group
+          id="static-characters-group"
+          label="Static Allocations"
+          label-for="static-characters-input"
+        >
+          <b-alert
+            variant="secondary"
+            show
+          >
+            Assign a static microphone to these characters; they will have the same mic for all scenes in the show.
+          </b-alert>
+          <multi-select
+            id="static-characters-input"
+            v-model="staticCharacters"
+            name="static-characters-input"
+            :multiple="true"
+            :options="CHARACTER_LIST"
+            track-by="id"
+            label="name"
+            :state="validateState('staticCharacters')"
+            @input="newStaticCharacterSelectChanged"
           />
         </b-form-group>
       </b-form>
@@ -74,18 +103,21 @@ export default {
     return {
       submitting: false,
       excludedMics: [],
+      staticCharacters: [],
       formState: {
         excludedMics: [],
+        staticCharacters: [],
       },
     };
   },
   validations: {
     formState: {
       excludedMics: {},
+      staticCharacters: {},
     },
   },
   computed: {
-    ...mapGetters(['MICROPHONES']),
+    ...mapGetters(['MICROPHONES', 'CHARACTER_LIST']),
   },
   methods: {
     async performGeneration() {
@@ -95,6 +127,7 @@ export default {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           excluded_mics: this.formState.excludedMics,
+          static_characters: this.formState.staticCharacters,
         }),
       });
       if (response.ok) {
@@ -110,13 +143,18 @@ export default {
       const { $dirty, $error } = this.$v.formState[name];
       return $dirty ? !$error : null;
     },
-    newSelectChanged(value, id) {
+    newExcludedMicSelectChanged(value, id) {
       this.$v.formState.excludedMics.$model = value.map((mic) => (mic.id));
+    },
+    newStaticCharacterSelectChanged(value, id) {
+      this.$v.formState.staticCharacters.$model = value.map((char) => (char.id));
     },
     resetForm() {
       this.excludedMics = [];
+      this.staticCharacters = [];
       this.formState = {
         excludedMics: [],
+        staticCharacters: [],
       };
       this.$nextTick(() => {
         this.$v.$reset();
