@@ -22,10 +22,64 @@
         </b-form-group>
       </b-col>
       <b-col
-        cols="3"
+        cols="6"
+        class="text-right"
         style="margin-bottom: 15px"
       >
         <b-button-group v-if="IS_SHOW_EDITOR">
+          <b-dropdown
+            v-if="editMode"
+            right
+            text="Options"
+            variant="secondary"
+          >
+            <b-dropdown-item-btn
+              :disabled="needsSaving || saving"
+              variant="info"
+              @click.stop="$bvModal.show('mic-auto-populate-modal')"
+            >
+              Auto-Allocate
+              <mic-auto-populate-modal @autoPopulateResult="onAutoPopulateResult" />
+            </b-dropdown-item-btn>
+            <b-dropdown-divider />
+            <b-dropdown-item-btn
+              variant="warning"
+              :disabled="changes[selectedMic] == null || saving"
+              @click.stop="resetSelectedToStoredAlloc"
+            >
+              Reset Current
+            </b-dropdown-item-btn>
+            <b-dropdown-item-btn
+              variant="warning"
+              :disabled="!needsSaving || saving"
+              @click.stop="resetToStoredAlloc"
+            >
+              Reset All
+            </b-dropdown-item-btn>
+            <b-dropdown-divider />
+            <b-dropdown-item-btn
+              variant="danger"
+              :disabled="saving"
+              @click.stop="clearSelectedMicAllocations"
+            >
+              Clear Current
+            </b-dropdown-item-btn>
+            <b-dropdown-item-btn
+              variant="danger"
+              :disabled="saving"
+              @click.stop="clearMicAllocations"
+            >
+              Clear All
+            </b-dropdown-item-btn>
+          </b-dropdown>
+          <b-button
+            v-if="editMode"
+            :disabled="!needsSaving || saving || !editMode"
+            variant="success"
+            @click.stop="saveAllocations"
+          >
+            Save
+          </b-button>
           <b-button
             :disabled="needsSaving || saving"
             variant="primary"
@@ -37,14 +91,6 @@
             <span v-else>
               Edit
             </span>
-          </b-button>
-          <b-button
-            v-if="editMode"
-            :disabled="!needsSaving || saving || !editMode"
-            variant="success"
-            @click.stop="saveAllocations"
-          >
-            Save
           </b-button>
         </b-button-group>
       </b-col>
@@ -144,9 +190,11 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import { diff } from 'deep-object-diff';
+import MicAutoPopulateModal from '@/vue_components/show/config/mics/MicAutoPopulateModal.vue';
 
 export default {
   name: 'MicAllocations',
+  components: { MicAutoPopulateModal },
   data() {
     return {
       selectedMic: null,
@@ -285,6 +333,36 @@ export default {
       }, this);
       this.internalState = internalState;
     },
+    async resetSelectedToStoredAlloc() {
+      if (this.selectedMic == null) {
+        return;
+      }
+      await this.GET_MIC_ALLOCATIONS();
+      const micData = {};
+      this.sortedScenes.forEach((scene) => {
+        micData[scene.id] = this.allAllocations[this.selectedMic][scene.id];
+      }, this);
+      this.internalState[this.selectedMic] = micData;
+    },
+    clearMicAllocations() {
+      const micData = {};
+      this.sortedScenes.forEach((scene) => {
+        micData[scene.id] = null;
+      }, this);
+      Object.keys(this.internalState).forEach((micId) => {
+        this.internalState[micId] = micData;
+      }, this);
+    },
+    clearSelectedMicAllocations() {
+      if (this.selectedMic == null) {
+        return;
+      }
+      const micData = {};
+      this.sortedScenes.forEach((scene) => {
+        micData[scene.id] = null;
+      }, this);
+      this.internalState[this.selectedMic] = micData;
+    },
     numScenesPerAct(actId) {
       return this.sortedScenes.filter((scene) => scene.act === actId).length;
     },
@@ -320,24 +398,6 @@ export default {
       await this.resetToStoredAlloc();
       this.saving = false;
     },
-
-    getConflictForCell(characterId, sceneId) {
-      // Look through all scenes' conflicts to find one where the adjacent scene matches
-      const allConflicts = Object.values(this.CONFLICTS_BY_SCENE).flat();
-      if (!allConflicts || allConflicts.length === 0) {
-        return null;
-      }
-
-      // Find conflict where this scene is the "change INTO" scene
-      return allConflicts.find((c) => c.adjacentSceneId === sceneId
-        && c.adjacentCharacterId === characterId) || null;
-    },
-
-    getConflictClass(conflict) {
-      if (!conflict) return '';
-      return conflict.severity === 'WARNING' ? 'conflict-warning' : 'conflict-info';
-    },
-
     getConflictsForCell(characterId, sceneId) {
       // Find all conflicts for this character in this scene (across all their mics)
       const allConflicts = Object.values(this.CONFLICTS_BY_SCENE).flat();
@@ -349,7 +409,6 @@ export default {
       return allConflicts.filter((c) => c.adjacentSceneId === sceneId
         && c.adjacentCharacterId === characterId);
     },
-
     getConflictClassForCell(characterId, sceneId) {
       const conflicts = this.getConflictsForCell(characterId, sceneId);
       if (conflicts.length === 0) return '';
@@ -358,7 +417,6 @@ export default {
       const hasWarning = conflicts.some((c) => c.severity === 'WARNING');
       return hasWarning ? 'conflict-warning' : 'conflict-info';
     },
-
     getTooltipText(characterId, sceneId) {
       // Get all mics assigned to this character in this scene
       const mics = [];
@@ -386,6 +444,9 @@ export default {
       }
 
       return tooltipText;
+    },
+    onAutoPopulateResult(data) {
+      this.internalState = data.allocations;
     },
     ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
   },
