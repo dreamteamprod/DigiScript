@@ -294,6 +294,16 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                     return
                 static_characters: List[int] = data["static_characters"]
 
+                if "gap_mode" not in data:
+                    self.set_status(400)
+                    await self.finish({"message": "gap_mode missing"})
+                    return
+                gap_mode: str = data["gap_mode"]
+                if gap_mode not in ["leave_gaps", "no_gaps"]:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid gap_mode value"})
+                    return
+
                 # Get all scenes in the show, and construct a list of lists, where each inner list
                 # is a list of scenes in order which are not separated by an interval
                 ordered_acts: List[Act] = []
@@ -505,6 +515,28 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                     if mic_id not in suggestions:
                         suggestions[mic_id] = {}
                     suggestions[mic_id][scene_id] = character_id
+
+                # Process gap mode if needed
+                if gap_mode == "no_gaps":
+                    for mic_id, mic_allocations in suggestions.items():
+                        seen_scenes = []
+                        single_character = True
+                        character_id = None
+                        # For each scene, see whether the same character is assigned to the mic
+                        for scene_id, char_id in mic_allocations.items():
+                            seen_scenes.append(scene_id)
+                            if character_id is not None and char_id != character_id:
+                                single_character = False
+                                break
+                            character_id = char_id
+
+                        # Only proceed if a single character is assigned to this mic
+                        if not single_character:
+                            continue
+
+                        # Fill in gaps for scenes where the character wasn't assigned a mic
+                        for scene_id in set(scene_index_map.keys()) - set(seen_scenes):
+                            mic_allocations[scene_id] = character_id
 
                 # Return response
                 self.set_status(200)

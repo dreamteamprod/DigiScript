@@ -65,6 +65,47 @@
         </b-form-group>
       </b-form>
     </div>
+    <hr>
+    <div>
+      <b-button v-b-toggle.advanced-options-collapse>
+        <b-icon icon="gear-wide-connected" /> Advanced Options
+      </b-button>
+      <b-collapse
+        id="advanced-options-collapse"
+        style="margin-top: 0.5rem;"
+      >
+        <b-card>
+          <b-form-group
+            id="allocation-gap-group"
+            label="Single Allocation Gap Mode"
+            label-for="allocation-gap-input"
+          >
+            <b-alert
+              variant="secondary"
+              show
+            >
+              <p>
+                Change allocation behaviour for microphones which are only ever assigned to a
+                single character during the whole show.
+              </p>
+              <p>
+                Two modes of operations: <b>Leave Gaps</b> (default) - only allocate microphones
+                for the scenes the character has lines in. <b>No Gaps</b> - allocate the
+                microphone to the character for all scenes.
+              </p>
+            </b-alert>
+            <b-form-select v-model="formState.gapMode">
+              <b-form-select-option value="leave_gaps">
+                Leave Gaps
+              </b-form-select-option>
+              <b-form-select-option value="no_gaps">
+                No Gaps
+              </b-form-select-option>
+            </b-form-select>
+          </b-form-group>
+        </b-card>
+      </b-collapse>
+    </div>
     <template #modal-footer>
       <b-button
         variant="secondary"
@@ -107,6 +148,7 @@ export default {
       formState: {
         excludedMics: [],
         staticCharacters: [],
+        gapMode: 'leave_gaps',
       },
     };
   },
@@ -114,6 +156,7 @@ export default {
     formState: {
       excludedMics: {},
       staticCharacters: {},
+      gapMode: {},
     },
   },
   computed: {
@@ -128,6 +171,7 @@ export default {
         body: JSON.stringify({
           excluded_mics: this.formState.excludedMics,
           static_characters: this.formState.staticCharacters,
+          gap_mode: this.formState.gapMode,
         }),
       });
       if (response.ok) {
@@ -155,6 +199,7 @@ export default {
       this.formState = {
         excludedMics: [],
         staticCharacters: [],
+        gapMode: 'leave_gaps',
       };
       this.$nextTick(() => {
         this.$v.$reset();
