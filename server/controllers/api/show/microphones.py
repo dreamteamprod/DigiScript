@@ -412,7 +412,7 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                 # Assign mics per static character allocation
                 static_mic_options = {
                     mic_id
-                    for mic_id in available_mic_ids
+                    for mic_id in allocatable_mic_ids
                     if mic_id not in mic_usage_tracker
                 }
                 static_sorted_characters = [
