@@ -165,21 +165,26 @@ export default {
   methods: {
     async performGeneration() {
       this.submitting = true;
-      const response = await fetch(`${makeURL('/api/v1/show/microphones/suggest')}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          excluded_mics: this.formState.excludedMics,
-          static_characters: this.formState.staticCharacters,
-          gap_mode: this.formState.gapMode,
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        this.$emit('autoPopulateResult', data);
-      } else {
-        log.error('Unable to auto populate microphones');
-        this.$toast.error('Unable to auto populate microphones');
+      try {
+        const response = await fetch(`${makeURL('/api/v1/show/microphones/suggest')}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            excluded_mics: this.formState.excludedMics,
+            static_characters: this.formState.staticCharacters,
+            gap_mode: this.formState.gapMode,
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          this.$emit('autoPopulateResult', data);
+        } else {
+          log.error('Unable to auto populate microphones');
+          this.$toast.error('Unable to auto populate microphones');
+        }
+      } catch (error) {
+        log.error('Error during microphone auto-population:', error);
+        this.$toast.error('Error during microphone auto-population');
       }
       this.submitting = false;
     },
