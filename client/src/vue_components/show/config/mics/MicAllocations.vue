@@ -446,7 +446,7 @@ export default {
       return tooltipText;
     },
     onAutoPopulateResult(data) {
-      this.internalState = data.allocations;
+      this.internalState = data;
     },
     ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
   },

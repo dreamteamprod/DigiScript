@@ -407,7 +407,7 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                         )
 
                 new_allocations: List[Tuple[int, int, int]] = []
-                unassigned_hints = []
+                hints = []
 
                 # Assign mics per static character allocation
                 static_mic_options = {
@@ -426,10 +426,11 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                         alloc.character_id == character_id
                         for alloc in existing_allocations
                     ):
-                        unassigned_hints.append(
+                        hints.append(
                             {
                                 "character_id": character_id,
                                 "reason": "Character already has existing microphone allocation",
+                                "type": "static",
                             }
                         )
                         continue
@@ -438,10 +439,11 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                     try:
                         next_mic = static_mic_options.pop()
                     except KeyError:
-                        unassigned_hints.append(
+                        hints.append(
                             {
                                 "character_id": character_id,
                                 "reason": "No available microphone for static assignment",
+                                "type": "static",
                             }
                         )
                     else:
@@ -493,11 +495,12 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                             )
                         else:
                             # No available mic - record hint
-                            unassigned_hints.append(
+                            hints.append(
                                 {
                                     "character_id": character_id,
                                     "scene_id": scene_id,
                                     "reason": "No available microphone",
+                                    "type": "allocation",
                                 }
                             )
 
@@ -535,15 +538,25 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                             continue
 
                         # Fill in gaps for scenes where the character wasn't assigned a mic
-                        for scene_id in set(scene_index_map.keys()) - set(seen_scenes):
-                            mic_allocations[scene_id] = character_id
+                        gapped_scenes = set(scene_index_map.keys()) - set(seen_scenes)
+                        if gapped_scenes:
+                            hints.append(
+                                {
+                                    "character_id": character_id,
+                                    "reason": "Filled gap in microphone assignment",
+                                    "type": "gap_fill",
+                                    "scenes": list(gapped_scenes),
+                                }
+                            )
+                            for scene_id in gapped_scenes:
+                                mic_allocations[scene_id] = character_id
 
                 # Return response
                 self.set_status(200)
                 await self.finish(
                     {
                         "allocations": suggestions,
-                        "hints": unassigned_hints,
+                        "hints": hints,
                     }
                 )
 
