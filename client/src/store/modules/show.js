@@ -680,13 +680,6 @@ export default {
 
       return scenes;
     },
-    SCENE_ADJACENCY_MAP(state, getters) {
-      return buildSceneGraph(
-        getters.SCENE_LIST,
-        getters.ACT_LIST,
-        getters.CURRENT_SHOW,
-      );
-    },
     MIC_CONFLICTS(state, getters) {
       // Transform MIC_ALLOCATIONS from array format to object format
       const allocationsObj = {};
@@ -728,34 +721,6 @@ export default {
         microphones: getters.MICROPHONES,
         characters: getters.CHARACTER_LIST,
       };
-    },
-    SCENE_DENSITY_DATA(state, getters) {
-      const scenes = getters.ORDERED_SCENES;
-      const allocations = getters.MIC_ALLOCATIONS;
-
-      return scenes.map((scene) => {
-        let micCount = 0;
-
-        // Count how many mics are allocated in this scene
-        Object.keys(allocations).forEach((micId) => {
-          const micAllocs = allocations[micId];
-          if (Array.isArray(micAllocs)) {
-            const hasAllocation = micAllocs.some((alloc) => alloc.scene_id === scene.id && alloc.character_id != null);
-            if (hasAllocation) {
-              micCount++;
-            }
-          }
-        });
-
-        const act = getters.ACT_BY_ID(scene.act);
-
-        return {
-          sceneId: scene.id,
-          sceneName: scene.name,
-          actName: act?.name || 'Unknown',
-          micCount,
-        };
-      });
     },
     NO_LEADER_TOAST(state) {
       return state.noLeaderToast;
