@@ -14,7 +14,7 @@
       <div class="heatmap-header">
         <h5>Scene Microphone Density</h5>
         <p class="text-muted small">
-          Shows the number of active microphones per scene. Darker colors indicate higher technical complexity.
+          Shows the number of active microphones per scene.
         </p>
       </div>
 

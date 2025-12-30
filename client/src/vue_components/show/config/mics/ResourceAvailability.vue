@@ -14,7 +14,7 @@
       <div class="availability-header">
         <h5>Microphone Resource Availability</h5>
         <p class="text-muted small">
-          Shows microphone allocation status across all scenes. Helps with resource planning and inventory management.
+          Shows microphone allocation status across all scenes.
         </p>
       </div>
 
