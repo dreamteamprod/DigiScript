@@ -1,6 +1,6 @@
 {
   "name": "client",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "private": true,
   "scripts": {
     "prebuild": "scripts/copy-docs.sh && node scripts/generate-doc-manifest.js",
