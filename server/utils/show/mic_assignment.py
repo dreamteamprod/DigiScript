@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from models.mics import MicrophoneAllocation
 from models.script import ScriptLine, ScriptRevision
-from models.show import Character, CharacterGroup
+from models.show import Character, CharacterGroup, Scene
 
 
 def swap_cost(scene_index_1: int, scene_index_2: int) -> float:
@@ -38,34 +38,50 @@ def calculate_swap_cost_with_cast(
     session: Session,
     character_id_1: int,
     character_id_2: int,
-    scene_index_1: int,
-    scene_index_2: int,
+    scene_id_1: int,
+    scene_id_2: int,
+    ordered_scenes: List[List[Scene]],
 ) -> float:
     """
-    Calculate swap cost considering cast member assignments.
+    Calculate swap cost considering cast members and intervals.
 
-    If both characters are played by the same cast member, the swap cost is ZERO
-    because the mic physically stays on the same person. Otherwise, uses distance-based cost.
+    Returns zero cost if:
+    - Scenes are in different groups (separated by interval - actors can swap during break)
+    - Both characters are played by the same cast member (mic stays on same person)
+
+    Otherwise, uses distance-based cost within the same scene group.
 
     :param session: SQLAlchemy session for querying cast assignments
     :param character_id_1: First character ID
     :param character_id_2: Second character ID
-    :param scene_index_1: Scene index for first character
-    :param scene_index_2: Scene index for second character
-    :return: Swap cost (0 if same cast member, distance-based otherwise)
+    :param scene_id_1: Scene ID for first character
+    :param scene_id_2: Scene ID for second character
+    :param ordered_scenes: List of scene groups (scenes between intervals)
+    :return: Swap cost (0 if different groups/same cast, distance-based otherwise)
     """
-    # Get cast assignments for both characters
+    # Look up scene info from ordered_scenes
+    group_1, idx_1 = find_scene_info(ordered_scenes, scene_id_1)
+    group_2, idx_2 = find_scene_info(ordered_scenes, scene_id_2)
+
+    # If scenes not found, return high penalty
+    if group_1 is None or group_2 is None:
+        return 100.0
+
+    # Different groups (separated by interval) = zero cost
+    if group_1 != group_2:
+        return 0.0
+
+    # Same group - check if same cast member
     char1: Character = session.get(Character, character_id_1)
     char2: Character = session.get(Character, character_id_2)
 
-    # If both characters have cast assignments and they're the same person
     if char1 and char2 and char1.played_by and char2.played_by:
         if char1.played_by == char2.played_by:
             # Same cast member = zero cost (mic stays on same person)
             return 0.0
 
-    # Different cast members (or no cast assignment) = distance-based cost
-    return swap_cost(scene_index_1, scene_index_2)
+    # Different cast members in same group = distance-based cost
+    return swap_cost(idx_1, idx_2)
 
 
 def collect_character_appearances(
@@ -133,31 +149,52 @@ def collect_character_appearances(
     return unallocated_appearances, dict(character_total_lines)
 
 
+def find_scene_info(
+    ordered_scenes: List[List[Scene]], scene_id: int
+) -> Tuple[Optional[int], Optional[int]]:
+    """
+    Find a scene's group index and position within that group.
+
+    Args:
+        ordered_scenes: List of scene groups (scenes between intervals)
+        scene_id: Scene ID to find
+
+    Returns:
+        (group_idx, scene_idx_in_group) or (None, None) if not found
+    """
+    for group_idx, scene_group in enumerate(ordered_scenes):
+        for scene_idx, scene in enumerate(scene_group):
+            if scene.id == scene_id:
+                return group_idx, scene_idx
+    return None, None
+
+
 def find_best_mic(
     session: Session,
     character_id: int,
     scene_id: int,
-    scene_index: int,
     available_mics: List[int],
     mic_usage_tracker: Dict[int, List[Tuple[int, int]]],
     existing_allocations: List[MicrophoneAllocation],
     new_allocations: List[Tuple[int, int, int]],
+    ordered_scenes: List[List[Scene]],
 ) -> Optional[int]:
     """
     Find the best microphone for a character in a specific scene.
 
     Uses scoring criteria to select the optimal mic, preferring continuity and
-    minimizing swap costs. Considers cast member assignments to eliminate swap
-    costs when the same person plays multiple characters.
+    minimizing swap costs. Considers cast member assignments and intervals to
+    eliminate swap costs when the same person plays multiple characters or when
+    scenes are separated by intervals.
 
     :param session: SQLAlchemy session for querying cast assignments
     :param character_id: ID of the character needing a mic
     :param scene_id: ID of the scene
-    :param scene_index: Index of the scene within its scene group
     :param available_mics: List of available microphone IDs
-    :param mic_usage_tracker: Dict mapping mic_id to list of (scene_index, character_id) tuples
+    :param mic_usage_tracker: Dict mapping mic_id to list of (scene_id, character_id) tuples
     :param existing_allocations: List of existing manual allocations
     :param new_allocations: List of (mic_id, scene_id, character_id) tuples for new allocations
+    :param ordered_scenes: List of scene groups (scenes between intervals)
     :return: Best microphone ID, or None if no mic available
     """
     best_mic: Optional[int] = None
@@ -187,11 +224,16 @@ def find_best_mic(
 
         # PENALTY: Swap costs from existing and new allocations (considering cast assignments)
         if mic_id in mic_usage_tracker:
-            for prev_scene_idx, prev_char_id in mic_usage_tracker[mic_id]:
+            for prev_scene_id, prev_char_id in mic_usage_tracker[mic_id]:
                 if prev_char_id != character_id:
-                    # Different character used this mic - calculate swap cost with cast awareness
+                    # Different character used this mic - calculate swap cost with cast and interval awareness
                     score += calculate_swap_cost_with_cast(
-                        session, prev_char_id, character_id, prev_scene_idx, scene_index
+                        session,
+                        prev_char_id,
+                        character_id,
+                        prev_scene_id,
+                        scene_id,
+                        ordered_scenes,
                     )
 
         if score < best_score:

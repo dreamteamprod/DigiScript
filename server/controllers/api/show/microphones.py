@@ -392,19 +392,25 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                     reverse=True,
                 )
 
-                # Build scene index map for swap cost calculations
-                scene_index_map: Dict[int, int] = {}
+                # Build set of all scene IDs for static character allocation
+                all_scene_ids = {
+                    scene.id for scene_group in ordered_scenes for scene in scene_group
+                }
+
+                # Build scene position map for sorting (continuous indices across all groups)
+                scene_position_map: Dict[int, int] = {}
+                position = 0
                 for scene_group in ordered_scenes:
-                    for scene_index, scene in enumerate(scene_group):
-                        scene_index_map[scene.id] = scene_index
+                    for scene in scene_group:
+                        scene_position_map[scene.id] = position
+                        position += 1
 
                 # Initialize mic usage tracker with existing allocations
                 mic_usage_tracker: Dict[int, List[Tuple[int, int]]] = defaultdict(list)
                 for alloc in existing_allocations:
-                    if alloc.scene_id in scene_index_map:
-                        mic_usage_tracker[alloc.mic_id].append(
-                            (scene_index_map[alloc.scene_id], alloc.character_id)
-                        )
+                    mic_usage_tracker[alloc.mic_id].append(
+                        (alloc.scene_id, alloc.character_id)
+                    )
 
                 new_allocations: List[Tuple[int, int, int]] = []
                 hints = []
@@ -448,11 +454,9 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                         )
                     else:
                         # Record new allocation for each scene
-                        for scene_id in scene_index_map:
+                        for scene_id in all_scene_ids:
                             new_allocations.append((next_mic, scene_id, character_id))
-                            mic_usage_tracker[next_mic].append(
-                                (scene_index, character_id)
-                            )
+                            mic_usage_tracker[next_mic].append((scene_id, character_id))
 
                 # Assign mics per character
                 for character_id in sorted_characters:
@@ -469,30 +473,26 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                         ), line_count in unallocated_appearances.items()
                         if char_id == character_id
                     ]
-                    # Sort by scene index
-                    character_scenes.sort(key=lambda x: scene_index_map.get(x[0], 0))
+                    # Sort by scene position (chronological order)
+                    character_scenes.sort(key=lambda x: scene_position_map.get(x[0], 0))
 
                     # Assign mic for each scene
                     for scene_id, line_count in character_scenes:
-                        scene_index = scene_index_map.get(scene_id, 0)
-
                         best_mic = find_best_mic(
                             session,
                             character_id,
                             scene_id,
-                            scene_index,
                             allocatable_mic_ids,
                             mic_usage_tracker,
                             existing_allocations,
                             new_allocations,
+                            ordered_scenes,
                         )
 
                         if best_mic:
                             # Record new allocation
                             new_allocations.append((best_mic, scene_id, character_id))
-                            mic_usage_tracker[best_mic].append(
-                                (scene_index, character_id)
-                            )
+                            mic_usage_tracker[best_mic].append((scene_id, character_id))
                         else:
                             # No available mic - record hint
                             hints.append(
@@ -538,7 +538,7 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                             continue
 
                         # Fill in gaps for scenes where the character wasn't assigned a mic
-                        gapped_scenes = set(scene_index_map.keys()) - set(seen_scenes)
+                        gapped_scenes = all_scene_ids - set(seen_scenes)
                         if gapped_scenes:
                             hints.append(
                                 {
