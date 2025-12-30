@@ -9,7 +9,11 @@ from models.script import Script, ScriptRevision
 from models.show import Act, Character, Scene, Show
 from rbac.role import Role
 from schemas.schemas import MicrophoneAllocationSchema, MicrophoneSchema
-from utils.show.mic_assignment import collect_character_appearances, find_best_mic
+from utils.show.mic_assignment import (
+    SceneMetadata,
+    collect_character_appearances,
+    find_best_mic,
+)
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
@@ -392,18 +396,21 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                     reverse=True,
                 )
 
-                # Build set of all scene IDs for static character allocation
-                all_scene_ids = {
-                    scene.id for scene_group in ordered_scenes for scene in scene_group
-                }
-
-                # Build scene position map for sorting (continuous indices across all groups)
-                scene_position_map: Dict[int, int] = {}
+                # Build comprehensive scene metadata (replaces all_scene_ids and scene_position_map)
+                scene_metadata: Dict[int, SceneMetadata] = {}
                 position = 0
-                for scene_group in ordered_scenes:
-                    for scene in scene_group:
-                        scene_position_map[scene.id] = position
+                for group_idx, scene_group in enumerate(ordered_scenes):
+                    for scene_idx, scene in enumerate(scene_group):
+                        scene_metadata[scene.id] = SceneMetadata(
+                            scene_id=scene.id,
+                            group_idx=group_idx,
+                            scene_idx=scene_idx,
+                            position=position,
+                        )
                         position += 1
+
+                # Derive other structures from metadata
+                all_scene_ids = set(scene_metadata.keys())
 
                 # Initialize mic usage tracker with existing allocations
                 mic_usage_tracker: Dict[int, List[Tuple[int, int]]] = defaultdict(list)
@@ -474,7 +481,11 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                         if char_id == character_id
                     ]
                     # Sort by scene position (chronological order)
-                    character_scenes.sort(key=lambda x: scene_position_map.get(x[0], 0))
+                    character_scenes.sort(
+                        key=lambda x: scene_metadata[x[0]].position
+                        if x[0] in scene_metadata
+                        else 0
+                    )
 
                     # Assign mic for each scene
                     for scene_id, line_count in character_scenes:
@@ -486,7 +497,7 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                             mic_usage_tracker,
                             existing_allocations,
                             new_allocations,
-                            ordered_scenes,
+                            scene_metadata,
                         )
 
                         if best_mic:

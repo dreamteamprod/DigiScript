@@ -7,13 +7,24 @@ cost function.
 """
 
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
 from models.mics import MicrophoneAllocation
 from models.script import ScriptLine, ScriptRevision
-from models.show import Character, CharacterGroup, Scene
+from models.show import Character, CharacterGroup
+
+
+@dataclass(frozen=True)
+class SceneMetadata:
+    """Metadata about a scene's position and grouping."""
+
+    scene_id: int
+    group_idx: int
+    scene_idx: int
+    position: int
 
 
 def swap_cost(scene_index_1: int, scene_index_2: int) -> float:
@@ -40,7 +51,7 @@ def calculate_swap_cost_with_cast(
     character_id_2: int,
     scene_id_1: int,
     scene_id_2: int,
-    ordered_scenes: List[List[Scene]],
+    scene_metadata: Dict[int, SceneMetadata],
 ) -> float:
     """
     Calculate swap cost considering cast members and intervals.
@@ -56,19 +67,19 @@ def calculate_swap_cost_with_cast(
     :param character_id_2: Second character ID
     :param scene_id_1: Scene ID for first character
     :param scene_id_2: Scene ID for second character
-    :param ordered_scenes: List of scene groups (scenes between intervals)
+    :param scene_metadata: Dict mapping scene_id to SceneMetadata
     :return: Swap cost (0 if different groups/same cast, distance-based otherwise)
     """
-    # Look up scene info from ordered_scenes
-    group_1, idx_1 = find_scene_info(ordered_scenes, scene_id_1)
-    group_2, idx_2 = find_scene_info(ordered_scenes, scene_id_2)
+    # Direct O(1) lookup instead of O(G×S) nested iteration
+    meta_1 = scene_metadata.get(scene_id_1)
+    meta_2 = scene_metadata.get(scene_id_2)
 
     # If scenes not found, return high penalty
-    if group_1 is None or group_2 is None:
+    if meta_1 is None or meta_2 is None:
         return 100.0
 
     # Different groups (separated by interval) = zero cost
-    if group_1 != group_2:
+    if meta_1.group_idx != meta_2.group_idx:
         return 0.0
 
     # Same group - check if same cast member
@@ -81,7 +92,7 @@ def calculate_swap_cost_with_cast(
             return 0.0
 
     # Different cast members in same group = distance-based cost
-    return swap_cost(idx_1, idx_2)
+    return swap_cost(meta_1.scene_idx, meta_2.scene_idx)
 
 
 def collect_character_appearances(
@@ -149,26 +160,6 @@ def collect_character_appearances(
     return unallocated_appearances, dict(character_total_lines)
 
 
-def find_scene_info(
-    ordered_scenes: List[List[Scene]], scene_id: int
-) -> Tuple[Optional[int], Optional[int]]:
-    """
-    Find a scene's group index and position within that group.
-
-    Args:
-        ordered_scenes: List of scene groups (scenes between intervals)
-        scene_id: Scene ID to find
-
-    Returns:
-        (group_idx, scene_idx_in_group) or (None, None) if not found
-    """
-    for group_idx, scene_group in enumerate(ordered_scenes):
-        for scene_idx, scene in enumerate(scene_group):
-            if scene.id == scene_id:
-                return group_idx, scene_idx
-    return None, None
-
-
 def find_best_mic(
     session: Session,
     character_id: int,
@@ -177,7 +168,7 @@ def find_best_mic(
     mic_usage_tracker: Dict[int, List[Tuple[int, int]]],
     existing_allocations: List[MicrophoneAllocation],
     new_allocations: List[Tuple[int, int, int]],
-    ordered_scenes: List[List[Scene]],
+    scene_metadata: Dict[int, SceneMetadata],
 ) -> Optional[int]:
     """
     Find the best microphone for a character in a specific scene.
@@ -194,7 +185,7 @@ def find_best_mic(
     :param mic_usage_tracker: Dict mapping mic_id to list of (scene_id, character_id) tuples
     :param existing_allocations: List of existing manual allocations
     :param new_allocations: List of (mic_id, scene_id, character_id) tuples for new allocations
-    :param ordered_scenes: List of scene groups (scenes between intervals)
+    :param scene_metadata: Dict mapping scene_id to SceneMetadata
     :return: Best microphone ID, or None if no mic available
     """
     best_mic: Optional[int] = None
@@ -233,7 +224,7 @@ def find_best_mic(
                         character_id,
                         prev_scene_id,
                         scene_id,
-                        ordered_scenes,
+                        scene_metadata,
                     )
 
         if score < best_score:

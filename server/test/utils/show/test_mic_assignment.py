@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 from collections import defaultdict
 
 from utils.show.mic_assignment import (
+    SceneMetadata,
     swap_cost,
     calculate_swap_cost_with_cast,
     collect_character_appearances,
@@ -18,6 +19,24 @@ from utils.show.mic_assignment import (
     _mic_manually_allocated_to_character,
     _mic_used_by_character_in_new_allocations,
 )
+
+
+def make_scene_metadata(num_scenes: int, group_idx: int = 0):
+    """
+    Helper function to create mock scene_metadata for tests.
+
+    Creates a single scene group with sequential scene IDs starting from 1.
+    """
+    metadata = {}
+    for i in range(num_scenes):
+        scene_id = i + 1
+        metadata[scene_id] = SceneMetadata(
+            scene_id=scene_id,
+            group_idx=group_idx,
+            scene_idx=i,
+            position=i,
+        )
+    return metadata
 
 
 class TestSwapCost:
@@ -237,16 +256,17 @@ class TestFindBestMic:
         mic_usage_tracker = defaultdict(list)
         existing_allocations = []
         new_allocations = []
+        scene_metadata = make_scene_metadata(3)
 
         best_mic = find_best_mic(
             session,
             character_id=10,
             scene_id=1,
-            scene_index=0,
             available_mics=available_mics,
             mic_usage_tracker=mic_usage_tracker,
             existing_allocations=existing_allocations,
             new_allocations=new_allocations,
+            scene_metadata=scene_metadata,
         )
 
         # Should return one of the available mics
@@ -257,6 +277,7 @@ class TestFindBestMic:
         session = MagicMock()
         available_mics = [1, 2]
         mic_usage_tracker = defaultdict(list)
+        scene_metadata = make_scene_metadata(3)
 
         # Character 10 already has Mic 1 manually allocated in scene 2
         existing_alloc = MagicMock()
@@ -271,11 +292,11 @@ class TestFindBestMic:
             session,
             character_id=10,
             scene_id=3,
-            scene_index=2,
             available_mics=available_mics,
             mic_usage_tracker=mic_usage_tracker,
             existing_allocations=existing_allocations,
             new_allocations=new_allocations,
+            scene_metadata=scene_metadata,
         )
 
         # Should prefer Mic 1 due to manual allocation bonus (-100 points)
@@ -287,6 +308,7 @@ class TestFindBestMic:
         available_mics = [1, 2]
         mic_usage_tracker = defaultdict(list)
         existing_allocations = []
+        scene_metadata = make_scene_metadata(3)
 
         # Character 10 was already assigned Mic 1 in scene 1 by algorithm
         new_allocations = [(1, 1, 10)]
@@ -295,11 +317,11 @@ class TestFindBestMic:
             session,
             character_id=10,
             scene_id=2,
-            scene_index=1,
             available_mics=available_mics,
             mic_usage_tracker=mic_usage_tracker,
             existing_allocations=existing_allocations,
             new_allocations=new_allocations,
+            scene_metadata=scene_metadata,
         )
 
         # Should prefer Mic 1 due to continuity bonus (-50 points)
@@ -319,20 +341,22 @@ class TestFindBestMic:
 
         session.get.side_effect = lambda model, id: char10 if id == 10 else char20
 
-        # Mic 1 was used by a different character in adjacent scene
-        mic_usage_tracker = {1: [(0, 20)], 2: []}
+        # Mic 1 was used by a different character in scene 1 (scene_idx 0)
+        # Current scene is scene 2 (scene_idx 1) - adjacent scenes
+        mic_usage_tracker = {1: [(1, 20)], 2: []}
         existing_allocations = []
         new_allocations = []
+        scene_metadata = make_scene_metadata(3)
 
         best_mic = find_best_mic(
             session,
             character_id=10,
             scene_id=2,
-            scene_index=1,
             available_mics=available_mics,
             mic_usage_tracker=mic_usage_tracker,
             existing_allocations=existing_allocations,
             new_allocations=new_allocations,
+            scene_metadata=scene_metadata,
         )
 
         # Should prefer Mic 2 to avoid high swap cost (100) from adjacent scene
@@ -343,6 +367,7 @@ class TestFindBestMic:
         session = MagicMock()
         available_mics = [1]
         mic_usage_tracker = defaultdict(list)
+        scene_metadata = make_scene_metadata(5)
 
         # Mic 1 already used by someone else in this scene
         existing_alloc = MagicMock()
@@ -357,11 +382,11 @@ class TestFindBestMic:
             session,
             character_id=10,
             scene_id=5,
-            scene_index=0,
             available_mics=available_mics,
             mic_usage_tracker=mic_usage_tracker,
             existing_allocations=existing_allocations,
             new_allocations=new_allocations,
+            scene_metadata=scene_metadata,
         )
 
         # Should return None (no available mic)
@@ -449,8 +474,11 @@ class TestCastMemberSwapCost:
         # Mock session.get to return our characters
         session.get.side_effect = lambda model, id: char1 if id == 10 else char2
 
+        # Adjacent scenes in same group
+        scene_metadata = make_scene_metadata(2)
+
         # Adjacent scenes would normally cost 100, but same cast member = 0
-        cost = calculate_swap_cost_with_cast(session, 10, 20, 0, 1)
+        cost = calculate_swap_cost_with_cast(session, 10, 20, 1, 2, scene_metadata)
         assert cost == 0.0
 
     def test_different_cast_members_distance_cost(self):
@@ -466,12 +494,15 @@ class TestCastMemberSwapCost:
 
         session.get.side_effect = lambda model, id: char1 if id == 10 else char2
 
+        # Create metadata for 6 scenes in same group
+        scene_metadata = make_scene_metadata(6)
+
         # Adjacent scenes should cost 100 (distance-based)
-        cost = calculate_swap_cost_with_cast(session, 10, 20, 0, 1)
+        cost = calculate_swap_cost_with_cast(session, 10, 20, 1, 2, scene_metadata)
         assert cost == 100.0
 
-        # Distant scenes should cost less
-        cost = calculate_swap_cost_with_cast(session, 10, 20, 0, 5)
+        # Distant scenes should cost less (scene 1 to scene 6, distance 5)
+        cost = calculate_swap_cost_with_cast(session, 10, 20, 1, 6, scene_metadata)
         assert cost == 20.0
 
     def test_no_cast_assignment_distance_cost(self):
@@ -487,8 +518,11 @@ class TestCastMemberSwapCost:
 
         session.get.side_effect = lambda model, id: char1 if id == 10 else char2
 
+        # Create metadata for 2 scenes
+        scene_metadata = make_scene_metadata(2)
+
         # Should fall back to distance-based cost
-        cost = calculate_swap_cost_with_cast(session, 10, 20, 0, 1)
+        cost = calculate_swap_cost_with_cast(session, 10, 20, 1, 2, scene_metadata)
         assert cost == 100.0
 
     def test_one_cast_assignment_distance_cost(self):
@@ -504,8 +538,11 @@ class TestCastMemberSwapCost:
 
         session.get.side_effect = lambda model, id: char1 if id == 10 else char2
 
+        # Create metadata for 2 scenes
+        scene_metadata = make_scene_metadata(2)
+
         # Should fall back to distance-based cost
-        cost = calculate_swap_cost_with_cast(session, 10, 20, 0, 1)
+        cost = calculate_swap_cost_with_cast(session, 10, 20, 1, 2, scene_metadata)
         assert cost == 100.0
 
     def test_cast_aware_mic_selection(self):
@@ -522,24 +559,25 @@ class TestCastMemberSwapCost:
 
         session.get.side_effect = lambda model, id: char10 if id == 10 else char20
 
-        # Mic 1 was used by character 20 (same cast member as 10) in previous scene
+        # Mic 1 was used by character 20 (same cast member as 10) in scene 1
         # Mic 2 is unused
         mic_usage_tracker = {
-            1: [(0, 20)],  # Character 20 in scene 0
+            1: [(1, 20)],  # Character 20 in scene 1
             2: [],
         }
         existing_allocations = []
         new_allocations = []
+        scene_metadata = make_scene_metadata(3)
 
         best_mic = find_best_mic(
             session,
             character_id=10,
             scene_id=2,
-            scene_index=1,
             available_mics=available_mics,
             mic_usage_tracker=mic_usage_tracker,
             existing_allocations=existing_allocations,
             new_allocations=new_allocations,
+            scene_metadata=scene_metadata,
         )
 
         # Should prefer Mic 1 because same cast member = zero swap cost
