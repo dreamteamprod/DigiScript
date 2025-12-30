@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "digiscript-server"
-version = "0.20.1"
+version = "0.20.2"
 description = "DigiScript server - Digital script management for theatrical shows"
 readme = "../README.md"
 requires-python = ">=3.13"
@@ -62,11 +62,6 @@ markers = [
 # Same line length as black (88)
 line-length = 88
 target-version = "py313"
-
-# Exclude alembic migrations and other generated files
-extend-exclude = [
-    "alembic_config/versions",
-]
 
 [tool.ruff.format]
 # Use black-compatible formatting

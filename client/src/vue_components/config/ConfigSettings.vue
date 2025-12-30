@@ -9,11 +9,11 @@
           <b-form
             :key="`settings-${toggle}`"
             @submit.stop.prevent="handleSubmit"
-            @reset.stop.prevent="resetForm"
+            @reset.stop.prevent="resetForm(true)"
           >
             <div>
               <b-form-group
-                v-for="(setting, key) in RAW_SETTINGS"
+                v-for="(setting, key) in visibleSettings"
                 :id="`${key}-input-group`"
                 :key="key"
                 :label-for="`${key}-input`"
@@ -109,16 +109,26 @@ export default {
   },
   computed: {
     ...mapGetters(['RAW_SETTINGS']),
+    visibleSettings() {
+      const visibleSettings = {};
+      Object.keys(this.RAW_SETTINGS).forEach((x) => {
+        if (!this.RAW_SETTINGS[x].hide_from_ui) {
+          visibleSettings[x] = this.RAW_SETTINGS[x];
+        }
+      });
+      return visibleSettings;
+    },
   },
   watch: {
     RAW_SETTINGS() {
-      this.resetForm();
+      this.loaded = false;
+      this.resetForm(false);
+      this.resetEditSettings();
+      this.loaded = true;
     },
   },
   mounted() {
-    Object.keys(this.RAW_SETTINGS).forEach(function setEditSettings(x) {
-      this.editSettings[x] = this.RAW_SETTINGS[x].value;
-    }, this);
+    this.resetEditSettings();
     this.loaded = true;
   },
   validations() {
@@ -165,13 +175,22 @@ export default {
         this.$toast.success('Saved settings');
       }
     },
-    resetForm() {
-      this.loaded = false;
+    resetEditSettings() {
+      Object.keys(this.visibleSettings).forEach(function setEditSettings(x) {
+        this.editSettings[x] = this.visibleSettings[x].value;
+      }, this);
+    },
+    resetForm(toggleLoaded) {
+      if (toggleLoaded) {
+        this.loaded = false;
+      }
       this.toggle = !this.toggle;
       Object.keys(this.RAW_SETTINGS).forEach(function resetEditSettings(x) {
         this.editSettings[x] = this.RAW_SETTINGS[x].value;
       }, this);
-      this.loaded = true;
+      if (toggleLoaded) {
+        this.loaded = true;
+      }
     },
   },
 };

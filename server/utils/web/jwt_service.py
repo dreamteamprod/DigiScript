@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-import jwt
 import tornado.locks
+from jwt import PyJWS, PyJWT, PyJWTError
 from sqlalchemy import select
 
 from models.settings import SystemSettings
@@ -20,6 +20,12 @@ class JWTService:
         Initialize JWT service with either application instance or direct secret
         """
         self.application = application
+        self._jwt = PyJWT()
+        self._jws = PyJWS()
+        if jwt_algorithm not in self._jws.get_algorithms():
+            raise ValueError(
+                f"Unsupported JWT algorithm: {jwt_algorithm}. Supported algorithms: {self._jws.get_algorithms()}"
+            )
         self._secret = secret
         self._jwt_algorithm = jwt_algorithm
         self._default_expiry = default_expiry
@@ -27,7 +33,7 @@ class JWTService:
         self._revoked_token_lock = tornado.locks.Lock()
 
     async def revoke_token(self, token: str):
-        headers = jwt.get_unverified_header(token)
+        headers = self._jws.get_unverified_header(token)
         expiry = headers.get("exp", -1)
         async with self._revoked_token_lock:
             self._revoked_tokens[token] = expiry
@@ -78,7 +84,7 @@ class JWTService:
             expire = datetime.now(tz=timezone.utc) + self._default_expiry
 
         to_encode.update({"exp": expire, "iat": datetime.now(tz=timezone.utc)})
-        encoded_jwt = jwt.encode(
+        encoded_jwt = self._jwt.encode(
             to_encode, self.get_secret(), algorithm=self._jwt_algorithm
         )
 
@@ -89,14 +95,14 @@ class JWTService:
         Decode and validate a JWT token
         """
         try:
-            payload = jwt.decode(
+            payload = self._jwt.decode(
                 token,
                 self.get_secret(),
                 options={"require": ["exp"]},
                 algorithms=[self._jwt_algorithm],
             )
             return payload
-        except jwt.PyJWTError:
+        except PyJWTError:
             return None
 
     @staticmethod

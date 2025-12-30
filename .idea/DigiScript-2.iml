@@ -16,6 +16,8 @@
       <excludeFolder url="file://$MODULE_DIR$/dist/output" />
       <excludeFolder url="file://$MODULE_DIR$/server/app/conf" />
       <excludeFolder url="file://$MODULE_DIR$/server/app/static" />
+      <excludeFolder url="file://$MODULE_DIR$/client/junit" />
+      <excludeFolder url="file://$MODULE_DIR$/client/public/docs" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.13 virtualenv at ~/.pyenv/versions/venv313-digiscript" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
