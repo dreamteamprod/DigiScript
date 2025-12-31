@@ -409,9 +409,9 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Create a test show (required by @requires_show decorator)
         with self._app.get_db().sessionmaker() as session:
-            from models.show import Show
+            from models.show import Show, ShowScriptType
 
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             show_id = show.id
@@ -487,9 +487,9 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Create a test show (required by @requires_show decorator)
         with self._app.get_db().sessionmaker() as session:
-            from models.show import Show
+            from models.show import Show, ShowScriptType
 
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             show_id = show.id

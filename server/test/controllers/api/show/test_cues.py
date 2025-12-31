@@ -1,7 +1,7 @@
 import tornado.escape
 
 from models.script import Script, ScriptRevision
-from models.show import Show
+from models.show import Show, ShowScriptType
 from test.conftest import DigiScriptTestCase
 
 
@@ -12,7 +12,7 @@ class TestCueController(DigiScriptTestCase):
         super().setUp()
         # Create a test show with script
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -51,7 +51,7 @@ class TestCueController(DigiScriptTestCase):
         """Test GET returns error when no script exists."""
         # Create a show without a script
         with self._app.get_db().sessionmaker() as session:
-            show2 = Show(name="Show 2")
+            show2 = Show(name="Show 2", script_mode=ShowScriptType.FULL)
             session.add(show2)
             session.flush()
             show2_id = show2.id
@@ -71,7 +71,7 @@ class TestCueStatsController(DigiScriptTestCase):
         super().setUp()
         # Create a test show with script
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id

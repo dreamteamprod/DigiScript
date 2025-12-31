@@ -11,7 +11,7 @@ from tornado.testing import gen_test
 from tornado.websocket import websocket_connect
 
 from models.session import Session, ShowSession
-from models.show import Show
+from models.show import Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
 
@@ -124,7 +124,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         """
         # Create a show with a live session
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             show_id = show.id
@@ -196,7 +196,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         """
         # Create a show with a live session
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             show_id = show.id

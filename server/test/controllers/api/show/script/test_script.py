@@ -12,7 +12,7 @@ from models.script import (
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
-from models.show import Act, Character, Scene, Show
+from models.show import Act, Character, Scene, Show, ShowScriptType
 from models.user import User
 from rbac.role import Role
 
@@ -25,7 +25,7 @@ class TestScriptController(DigiScriptTestCase):
         # Create base test data that many tests will need
         with self._app.get_db().sessionmaker() as session:
             # Create a test show
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -212,7 +212,7 @@ class TestCompiledScriptController(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -247,7 +247,7 @@ class TestScriptCutsController(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -345,7 +345,7 @@ class TestScriptMaxPageController(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -434,7 +434,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id

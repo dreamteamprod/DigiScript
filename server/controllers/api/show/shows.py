@@ -6,7 +6,7 @@ from tornado import escape
 
 from digi_server.logger import get_logger
 from models.script import Script, ScriptRevision
-from models.show import Show
+from models.show import Show, ShowScriptType
 from rbac.role import Role
 from schemas.schemas import ShowSchema
 from utils.web.base_controller import BaseAPIController
@@ -69,12 +69,27 @@ class ShowController(BaseAPIController):
             )
             return
 
+        # Script mode (required)
+        script_mode_value = data.get("script_mode", None)
+        if not script_mode_value:
+            self.set_status(400)
+            self.write({"message": "Script mode missing"})
+            return
+
+        try:
+            script_mode = ShowScriptType(int(script_mode_value))
+        except (ValueError, KeyError):
+            self.set_status(400)
+            self.write({"message": "Invalid script mode value"})
+            return
+
         with self.make_session() as session:
             now_time = datetime.utcnow()
             show = Show(
                 name=show_name,
                 start_date=start_date,
                 end_date=end_date,
+                script_mode=script_mode,
                 created_at=now_time,
                 edited_at=now_time,
             )
@@ -203,6 +218,19 @@ class ShowController(BaseAPIController):
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})
+
+
+@ApiRoute("show/script_modes", ApiVersion.V1)
+class ShowScriptModesController(BaseAPIController):
+    async def get(self):
+        self.set_status(200)
+        await self.finish(
+            {
+                "script_modes": [
+                    {"text": mode.name, "value": mode.value} for mode in ShowScriptType
+                ]
+            }
+        )
 
 
 @ApiRoute("shows", ApiVersion.V1)
