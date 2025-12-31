@@ -104,34 +104,66 @@
             />
           </div>
           <template v-else>
-            <template v-for="page in pageIter">
-              <script-line-viewer
-                v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-                v-show="!isWholeLineCut(line)"
-                v-once
-                :id="`page_${page}_line_${index}`"
-                :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
-                class="script-item"
-                :line-index="index"
-                :line="line"
-                :acts="ACT_LIST"
-                :scenes="SCENE_LIST"
-                :characters="CHARACTER_LIST"
-                :character-groups="CHARACTER_GROUP_LIST"
-                :previous-line="getPreviousLineForIndex(page, index)"
-                :previous-line-index="getPreviousLineIndex(page, index)"
-                :cue-types="CUE_TYPES"
-                :cues="getCuesForLine(line)"
-                :cuts="SCRIPT_CUTS"
-                :stage-direction-styles="STAGE_DIRECTION_STYLES"
-                :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
-                :is-script-leader="isScriptLeader"
-                :cue-add-mode="cueAddMode"
-                @last-line-change="handleLastLineChange"
-                @first-line-change="handleFirstLineChange"
-                @start-interval="configureInterval"
-                @add-cue="openNewCueModal"
-              />
+            <template v-if="CURRENT_SHOW.script_mode === 2">
+              <template v-for="page in pageIter">
+                <script-line-viewer-compact
+                  v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+                  v-show="!isWholeLineCut(line)"
+                  v-once
+                  :id="`page_${page}_line_${index}`"
+                  :key="`page_${page}_line_${index}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
+                  class="script-item"
+                  :line-index="index"
+                  :line="line"
+                  :acts="ACT_LIST"
+                  :scenes="SCENE_LIST"
+                  :characters="CHARACTER_LIST"
+                  :character-groups="CHARACTER_GROUP_LIST"
+                  :previous-line="getPreviousLineForIndex(page, index)"
+                  :previous-line-index="getPreviousLineIndex(page, index)"
+                  :cue-types="CUE_TYPES"
+                  :cues="getCuesForLine(line)"
+                  :cuts="SCRIPT_CUTS"
+                  :stage-direction-styles="STAGE_DIRECTION_STYLES"
+                  :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
+                  :is-script-leader="isScriptLeader"
+                  :cue-add-mode="false"
+                  @last-line-change="handleLastLineChange"
+                  @first-line-change="handleFirstLineChange"
+                  @start-interval="configureInterval"
+                />
+              </template>
+            </template>
+            <template v-else>
+              <template v-for="page in pageIter">
+                <script-line-viewer
+                  v-for="(line, index) in GET_SCRIPT_PAGE(page)"
+                  v-show="!isWholeLineCut(line)"
+                  v-once
+                  :id="`page_${page}_line_${index}`"
+                  :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
+                  class="script-item"
+                  :line-index="index"
+                  :line="line"
+                  :acts="ACT_LIST"
+                  :scenes="SCENE_LIST"
+                  :characters="CHARACTER_LIST"
+                  :character-groups="CHARACTER_GROUP_LIST"
+                  :previous-line="getPreviousLineForIndex(page, index)"
+                  :previous-line-index="getPreviousLineIndex(page, index)"
+                  :cue-types="CUE_TYPES"
+                  :cues="getCuesForLine(line)"
+                  :cuts="SCRIPT_CUTS"
+                  :stage-direction-styles="STAGE_DIRECTION_STYLES"
+                  :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
+                  :is-script-leader="isScriptLeader"
+                  :cue-add-mode="cueAddMode"
+                  @last-line-change="handleLastLineChange"
+                  @first-line-change="handleFirstLineChange"
+                  @start-interval="configureInterval"
+                  @add-cue="openNewCueModal"
+                />
+              </template>
             </template>
             <b-row
               v-show="initialLoad"
@@ -266,11 +298,13 @@ import {
   formatTimerParts, makeURL, msToTimerParts, msToTimerString,
 } from '@/js/utils';
 import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
+import ScriptLineViewerCompact from '@/vue_components/show/live/ScriptLineViewerCompact.vue';
 
 export default {
   name: 'ShowLiveView',
   components: {
     ScriptLineViewer,
+    ScriptLineViewerCompact,
   },
   data() {
     return {
