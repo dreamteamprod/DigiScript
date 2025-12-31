@@ -111,7 +111,7 @@
                   v-show="!isWholeLineCut(line)"
                   v-once
                   :id="`page_${page}_line_${index}`"
-                  :key="`page_${page}_line_${index}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
+                  :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
                   class="script-item"
                   :line-index="index"
                   :line="line"
@@ -127,10 +127,11 @@
                   :stage-direction-styles="STAGE_DIRECTION_STYLES"
                   :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
                   :is-script-leader="isScriptLeader"
-                  :cue-add-mode="false"
+                  :cue-add-mode="cueAddMode"
                   @last-line-change="handleLastLineChange"
                   @first-line-change="handleFirstLineChange"
                   @start-interval="configureInterval"
+                  @add-cue="openNewCueModal"
                 />
               </template>
             </template>

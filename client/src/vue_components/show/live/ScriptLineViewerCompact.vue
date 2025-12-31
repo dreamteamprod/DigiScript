@@ -46,9 +46,17 @@
       >
         <span>{{ actLabel }}</span>
       </b-col>
-      <b-col class="line-part text-left font-weight-bold cue">
+      <b-col
+        :cols="cueAddMode ? 9 : 10"
+        class="line-part text-left font-weight-bold cue"
+      >
         <span>{{ sceneLabel }}</span>
       </b-col>
+      <b-col
+        v-if="cueAddMode"
+        cols="1"
+        class="cue-add-column"
+      />
     </b-row>
     <template v-for="cue in cues">
       <b-row :key="`cue_${cue.id}`">
@@ -62,7 +70,7 @@
           </span>
         </b-col>
         <b-col
-          cols="10"
+          :cols="cueAddMode ? 9 : 10"
           class="line-part text-left font-weight-bold cue"
           :style="{color: cueBackgroundColour(cue)}"
         >
@@ -70,6 +78,11 @@
             {{ cue.ident }}
           </span>
         </b-col>
+        <b-col
+          v-if="cueAddMode"
+          cols="1"
+          class="cue-add-column"
+        />
       </b-row>
     </template>
     <b-row>
@@ -80,6 +93,7 @@
         />
         <b-col
           :key="`line_${lineIndex}_stage_direction`"
+          :cols="cueAddMode ? 9 : 10"
           class="line-part text-left"
         >
           <i
@@ -100,6 +114,19 @@
               {{ line.line_parts[0].line_text }}
             </template>
           </i>
+        </b-col>
+        <b-col
+          v-if="cueAddMode"
+          cols="1"
+          class="cue-add-column d-flex align-items-center justify-content-center"
+        >
+          <b-button
+            variant="success"
+            size="sm"
+            @click.stop="addNewCue"
+          >
+            <b-icon-plus-square-fill />
+          </b-button>
         </b-col>
       </template>
       <template v-else>
@@ -127,7 +154,7 @@
           </b-col>
           <b-col
             :key="`text_${lineIndex}_part_${index}`"
-            cols="10"
+            :cols="cueAddMode ? 9 : 10"
             class="line-part text-left"
             :class="{
               'cut-line-part': cuts.indexOf(part.id) !== -1,
@@ -140,6 +167,19 @@
             </p>
           </b-col>
         </template>
+        <b-col
+          v-if="cueAddMode && !isWholeLineCut(line)"
+          cols="1"
+          class="cue-add-column d-flex align-items-center justify-content-center"
+        >
+          <b-button
+            variant="success"
+            size="sm"
+            @click.stop="addNewCue"
+          >
+            <b-icon-plus-square-fill />
+          </b-button>
+        </b-col>
       </template>
     </b-row>
   </b-container>
@@ -216,6 +256,11 @@ export default {
       type: Boolean,
     },
   },
+  methods: {
+    addNewCue() {
+      this.$emit('add-cue', this.line.id);
+    },
+  },
 };
 </script>
 
@@ -263,5 +308,9 @@ export default {
     margin-bottom: -1rem;
     padding-top: 1rem;
     padding-bottom: 1rem;
+  }
+
+  .cue-add-column {
+    border-left: .1rem solid #3498db;
   }
 </style>
