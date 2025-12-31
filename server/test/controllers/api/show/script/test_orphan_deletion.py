@@ -18,7 +18,7 @@ from models.script import (
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
-from models.show import Act, Character, Scene, Show
+from models.show import Act, Character, Scene, Show, ShowScriptType
 
 
 class TestOrphanedLineDeletion(DigiScriptTestCase):
@@ -38,7 +38,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
             session.flush()
             self.user_id = user.id
 
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id

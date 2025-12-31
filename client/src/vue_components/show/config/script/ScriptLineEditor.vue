@@ -65,7 +65,7 @@
         :focus-input="index === 0"
         :characters="characters"
         :character-groups="characterGroups"
-        :show-add-button="index === state.line_parts.length - 1 && !isStageDirection"
+        :show-add-button="index === state.line_parts.length - 1 && !isStageDirection && CURRENT_SHOW.script_mode === 1"
         :enable-add-button="state.line_parts.length < 4 && !isStageDirection"
         :is-stage-direction="isStageDirection"
         :line-parts="state.line_parts"
@@ -211,7 +211,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'TMP_SCRIPT', 'ALL_DELETED_LINES']),
+    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'TMP_SCRIPT', 'ALL_DELETED_LINES', 'CURRENT_SHOW']),
     currentPageScript() {
       return this.TMP_SCRIPT[this.currentEditPage.toString()] || [];
     },

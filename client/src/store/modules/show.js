@@ -19,6 +19,7 @@ export default {
     microphones: [],
     micAllocations: [],
     noLeaderToast: null,
+    scriptModes: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -65,6 +66,9 @@ export default {
     },
     SET_TOAST_INSTANCE(state, toast) {
       state.noLeaderToast = toast;
+    },
+    UPDATE_SCRIPT_MODES(state, modes) {
+      state.scriptModes = modes;
     },
   },
   actions: {
@@ -545,6 +549,15 @@ export default {
         Vue.$toast.error('Unable to edit microphone allocations');
       }
     },
+    async GET_SCRIPT_MODES(context) {
+      const response = await fetch(makeURL('/api/v1/show/script_modes'));
+      if (response.ok) {
+        const rbac = await response.json();
+        await context.commit('UPDATE_SCRIPT_MODES', rbac.script_modes);
+      } else {
+        log.error('Unable to fetch script modes');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -725,6 +738,8 @@ export default {
     NO_LEADER_TOAST(state) {
       return state.noLeaderToast;
     },
-  }
-  ,
+    SCRIPT_MODES(state) {
+      return state.scriptModes;
+    },
+  },
 };

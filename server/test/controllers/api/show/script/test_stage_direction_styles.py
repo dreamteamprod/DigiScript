@@ -2,7 +2,7 @@ import tornado.escape
 from sqlalchemy import select
 
 from models.script import Script, ScriptRevision, StageDirectionStyle
-from models.show import Show
+from models.show import Show, ShowScriptType
 from test.conftest import DigiScriptTestCase
 
 
@@ -14,7 +14,7 @@ class TestStageDirectionStylesController(DigiScriptTestCase):
         # Create base test data
         with self._app.get_db().sessionmaker() as session:
             # Create a test show
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -69,7 +69,7 @@ class TestStageDirectionStylesController(DigiScriptTestCase):
         """Test GET returns empty list when no styles exist."""
         # Create a show with a script but no styles
         with self._app.get_db().sessionmaker() as session:
-            show2 = Show(name="Show 2")
+            show2 = Show(name="Show 2", script_mode=ShowScriptType.FULL)
             session.add(show2)
             session.flush()
 

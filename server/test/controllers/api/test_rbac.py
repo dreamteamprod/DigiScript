@@ -2,7 +2,7 @@ import tornado.escape
 from sqlalchemy import select
 
 from models.script import Script
-from models.show import Show
+from models.show import Show, ShowScriptType
 from models.user import User
 from rbac.role import Role
 from test.conftest import DigiScriptTestCase
@@ -23,7 +23,7 @@ class TestRBAC(DigiScriptTestCase):
         # Create test data
         with self._app.get_db().sessionmaker() as session:
             # Create a show (resource)
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
 
@@ -75,7 +75,7 @@ class TestRBAC(DigiScriptTestCase):
         # Create test data: show with a script
         with self._app.get_db().sessionmaker() as session:
             # Create show
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             show_id = show.id

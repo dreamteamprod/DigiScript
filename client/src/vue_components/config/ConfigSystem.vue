@@ -1,5 +1,8 @@
 <template>
-  <div class="config">
+  <div
+    v-if="!loading"
+    class="config"
+  >
     <b-table-simple>
       <b-tbody>
         <b-tr>
@@ -57,70 +60,105 @@
       @hidden="resetForm"
       @ok="onSubmit"
     >
-      <b-form
-        ref="form"
-        @submit.stop.prevent="onSubmit"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
+      <div>
+        <b-form
+          ref="form"
+          @submit.stop.prevent="onSubmit"
         >
-          <b-form-input
-            id="name-input"
-            v-model="$v.formState.name.$model"
-            name="name-input"
-            :state="validateState('name')"
-            aria-describedby="name-feedback"
-          />
-
-          <b-form-invalid-feedback
-            id="name-feedback"
+          <b-form-group
+            id="name-input-group"
+            label="Name"
+            label-for="name-input"
           >
-            This is a required field and must be less than 100 characters.
-          </b-form-invalid-feedback>
-        </b-form-group>
+            <b-form-input
+              id="name-input"
+              v-model="$v.formState.name.$model"
+              name="name-input"
+              :state="validateState('name')"
+              aria-describedby="name-feedback"
+            />
 
-        <b-form-group
-          id="start-input-group"
-          label="Start Date"
-          label-for="start-input"
+            <b-form-invalid-feedback
+              id="name-feedback"
+            >
+              This is a required field and must be less than 100 characters.
+            </b-form-invalid-feedback>
+          </b-form-group>
+
+          <b-form-group
+            id="start-input-group"
+            label="Start Date"
+            label-for="start-input"
+          >
+            <b-form-input
+              id="start-input"
+              v-model="$v.formState.start.$model"
+              name="start-input"
+              type="date"
+              :state="validateState('start')"
+              aria-describedby="start-feedback"
+            />
+            <b-form-invalid-feedback
+              id="start-feedback"
+            >
+              This is a required field and must be before or the same as the end date.
+            </b-form-invalid-feedback>
+          </b-form-group>
+
+          <b-form-group
+            id="end-input-group"
+            label="End Date"
+            label-for="end-input"
+          >
+            <b-form-input
+              id="end-input"
+              v-model="$v.formState.end.$model"
+              name="end-input"
+              type="date"
+              :state="validateState('end')"
+              aria-describedby="end-feedback"
+            />
+            <b-form-invalid-feedback
+              id="end-feedback"
+            >
+              This is a required field and must be after or the same as the start date.
+            </b-form-invalid-feedback>
+          </b-form-group>
+        </b-form>
+      </div>
+      <hr>
+      <div>
+        <b-button v-b-toggle.advanced-options-collapse>
+          <b-icon icon="gear-wide-connected" /> Advanced Options
+        </b-button>
+        <b-collapse
+          id="advanced-options-collapse"
+          style="margin-top: 0.5rem;"
         >
-          <b-form-input
-            id="start-input"
-            v-model="$v.formState.start.$model"
-            name="start-input"
-            type="date"
-            :state="validateState('start')"
-            aria-describedby="start-feedback"
-          />
-          <b-form-invalid-feedback
-            id="start-feedback"
-          >
-            This is a required field and must be before or the same as the end date.
-          </b-form-invalid-feedback>
-        </b-form-group>
-
-        <b-form-group
-          id="end-input-group"
-          label="End Date"
-          label-for="end-input"
-        >
-          <b-form-input
-            id="end-input"
-            v-model="$v.formState.end.$model"
-            name="end-input"
-            type="date"
-            :state="validateState('end')"
-            aria-describedby="end-feedback"
-          />
-          <b-form-invalid-feedback
-            id="end-feedback"
-          >
-            This is a required field and must be after or the same as the start date.
-          </b-form-invalid-feedback>
-        </b-form-group>
-      </b-form>
+          <b-card>
+            <b-form-group
+              id="script-mode-group"
+              label="Script Mode"
+              label-for="script-mode-input"
+            >
+              <b-alert
+                variant="secondary"
+                show
+              >
+                <p>
+                  Change the type of script for this show.
+                </p>
+              </b-alert>
+              <b-form-select
+                id="script-mode-input"
+                v-model="$v.formState.script_mode.$model"
+                :options="SCRIPT_MODES"
+                :state="validateState('script_mode')"
+              />
+            </b-form-group>
+          </b-card>
+        </b-collapse>
+      </div>
       <template #modal-footer="{ ok, cancel }">
         <b-button
           variant="secondary"
@@ -201,11 +239,20 @@
       />
     </b-modal>
   </div>
+  <div
+    v-else
+    class="text-center center-spinner"
+  >
+    <b-spinner
+      style="width: 10rem; height: 10rem;"
+      variant="info"
+    />
+  </div>
 </template>
 
 <script>
 import { required, maxLength } from 'vuelidate/lib/validators';
-import { mapMutations } from 'vuex';
+import { mapMutations, mapActions, mapGetters } from 'vuex';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
@@ -222,6 +269,7 @@ export default {
         name: null,
         start: null,
         end: null,
+        script_mode: null,
       },
       showFields: [
         { key: 'id', label: 'ID' },
@@ -241,6 +289,7 @@ export default {
         'last_pong',
       ],
       clientTimeout: null,
+      loading: true,
     };
   },
   validations: {
@@ -259,6 +308,9 @@ export default {
         afterStart: (value, vm) => (value == null && vm.start != null ? false
           : new Date(value) >= new Date(vm.start)),
       },
+      script_mode: {
+        required,
+      },
     },
   },
   computed: {
@@ -266,10 +318,13 @@ export default {
       return (this.$store.state.system.settings.current_show != null
         && this.$store.state.currentShow != null);
     },
+    ...mapGetters(['SCRIPT_MODES']),
   },
   async mounted() {
     await this.getAvailableShows();
     await this.getConnectedClients();
+    await this.GET_SCRIPT_MODES();
+    this.loading = false;
   },
   destroyed() {
     clearTimeout(this.clientTimeout);
@@ -303,6 +358,7 @@ export default {
         name: null,
         start: null,
         end: null,
+        script_mode: this.SCRIPT_MODES[0].value,
       };
       this.isSubmittingShow = false;
 
@@ -392,6 +448,7 @@ export default {
       }
     },
     ...mapMutations(['UPDATE_SHOWS']),
+    ...mapActions(['GET_SCRIPT_MODES']),
   },
 };
 </script>
