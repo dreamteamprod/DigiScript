@@ -2,7 +2,7 @@ import tornado.escape
 from sqlalchemy import select
 
 from models.session import ShowSession
-from models.show import Show
+from models.show import Show, ShowScriptType
 from test.conftest import DigiScriptTestCase
 
 
@@ -13,7 +13,7 @@ class TestSessionsController(DigiScriptTestCase):
         super().setUp()
         # Create a test show
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id

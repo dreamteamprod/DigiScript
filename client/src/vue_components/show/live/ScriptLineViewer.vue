@@ -274,10 +274,13 @@
 
 <script>
 import { mapGetters, mapActions } from 'vuex';
-import { contrastColor } from 'contrast-color';
+import cueDisplayMixin from '@/mixins/cueDisplayMixin';
+import scriptNavigationMixin from '@/mixins/scriptNavigationMixin';
+import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 
 export default {
   name: 'ScriptLineViewer',
+  mixins: [cueDisplayMixin, scriptNavigationMixin, scriptDisplayMixin],
   events: ['last-line-change', 'first-line-change', 'start-interval'],
   props: {
     line: {
@@ -341,181 +344,16 @@ export default {
       type: Boolean,
     },
   },
-  data() {
-    return {
-      observer: null,
-    };
-  },
   computed: {
-    needsHeadings() {
-      let { previousLine } = this;
-      let lineIndex = this.previousLineIndex;
-      while (previousLine != null && (previousLine.stage_direction === true
-          || this.isWholeLineCut(previousLine))) {
-        [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
-      }
-
-      const ret = [];
-      this.line.line_parts.forEach(function checkLinePartNeedsHeading(part) {
-        if (previousLine == null
-          || previousLine.line_parts.length !== this.line.line_parts.length) {
-          ret.push(true);
-        } else if (previousLine.act_id !== this.line.act_id || previousLine.scene_id !== this.line.scene_id) {
-          ret.push(true);
-        } else {
-          const matchingIndex = previousLine.line_parts.find((prevPart) => (
-            prevPart.part_index === part.part_index));
-          if (matchingIndex == null) {
-            ret.push(true);
-          } else {
-            ret.push(!(matchingIndex.character_id === part.character_id
-              && matchingIndex.character_group_id === part.character_group_id));
-          }
-        }
-      }, this);
-      return ret;
-    },
     needsHeadingsAny() {
       return this.needsHeadings.some((x) => (x === true));
     },
     needsHeadingsAll() {
       return this.needsHeadings.every((x) => (x === true));
     },
-    needsActSceneLabel() {
-      let { previousLine, lineIndex } = this;
-      while (previousLine != null && this.isWholeLineCut(previousLine)) {
-        [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
-      }
-      if (previousLine == null) {
-        return true;
-      }
-      return !(previousLine.act_id === this.line.act_id
-        && previousLine.scene_id === this.line.scene_id);
-    },
-    needsIntervalBanner() {
-      let { previousLine, lineIndex } = this;
-      while (previousLine != null && this.isWholeLineCut(previousLine)) {
-        [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
-      }
-      if (previousLine == null) {
-        return false;
-      }
-      return previousLine.act_id !== this.line.act_id;
-    },
-    previousActLabel() {
-      return this.acts.find((act) => (act.id === this.previousLine.act_id)).name;
-    },
-    actLabel() {
-      return this.acts.find((act) => (act.id === this.line.act_id)).name;
-    },
-    sceneLabel() {
-      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
-    },
-    stageDirectionStyle() {
-      const sdStyle = this.stageDirectionStyles.find(
-        (style) => (style.id === this.line.stage_direction_style_id),
-      );
-      const override = this.stageDirectionStyleOverrides
-        .find((elem) => elem.settings.id === sdStyle.id);
-      if (this.line.stage_direction) {
-        return override ? override.settings : sdStyle;
-      }
-      return null;
-    },
-    stageDirectionStyling() {
-      if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
-        return {
-          'background-color': 'darkslateblue',
-          'font-style': 'italic',
-        };
-      }
-      const style = {
-        'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
-        'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
-        'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
-        color: this.stageDirectionStyle.text_colour,
-      };
-      if (this.stageDirectionStyle.enable_background_colour) {
-        style['background-color'] = this.stageDirectionStyle.background_colour;
-      }
-      return style;
-    },
-    ...mapGetters(['GET_SCRIPT_PAGE', 'SCRIPT_CUTS', 'USER_SETTINGS', 'CUE_COLOUR_OVERRIDES']),
-  },
-  mounted() {
-    /* eslint-disable no-restricted-syntax */
-    this.observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        const newValue = m.target.getAttribute(m.attributeName);
-        this.$nextTick(() => {
-          this.onClassChange(newValue, m.oldValue);
-        });
-      }
-    });
-    /* eslint-enable no-restricted-syntax */
-
-    this.observer.observe(this.$refs.lineContainer, {
-      attributes: true,
-      attributeOldValue: true,
-      attributeFilter: ['class'],
-    });
-  },
-  destroyed() {
-    this.observer.disconnect();
+    ...mapGetters(['USER_SETTINGS']),
   },
   methods: {
-    contrastColor,
-    onClassChange(classAttrValue, oldClassAttrValue) {
-      const classList = classAttrValue.split(' ');
-      const oldClassList = oldClassAttrValue.split(' ');
-      if (classList.includes('last-script-element') && !oldClassList.includes('last-script-element')) {
-        this.$emit('last-line-change', this.line.page, this.lineIndex);
-      }
-      if (classList.includes('first-script-element') && !oldClassList.includes('first-script-element')) {
-        let previousLine = null;
-        if (this.previousLine != null) {
-          previousLine = `page_${this.previousLine.page}_line_${this.previousLineIndex}`;
-        }
-        this.$emit('first-line-change', this.line.page, this.lineIndex, previousLine);
-      }
-    },
-    cueLabel(cue) {
-      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
-      return `${cueType.prefix} ${cue.ident}`;
-    },
-    cueBackgroundColour(cue) {
-      const cueType = this.cueTypes.find((ct) => ct.id === cue.cue_type_id);
-      if (!cueType) return '#000000'; // Fallback
-
-      // Check if user has an override for this cue type
-      const override = this.CUE_COLOUR_OVERRIDES.find((o) => o.settings.id === cueType.id);
-      if (override) {
-        return override.settings.colour;
-      }
-
-      return cueType.colour;
-    },
-    getPreviousLineForIndex(pageIndex, lineIndex) {
-      if (lineIndex > 0) {
-        return [lineIndex - 1, this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1]];
-      }
-      let loopPageNo = pageIndex - 1;
-      while (loopPageNo >= 1) {
-        const loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
-        if (loopPage.length > 0) {
-          return [loopPage.length - 1, loopPage[loopPage.length - 1]];
-        }
-        loopPageNo -= 1;
-      }
-      return [null, null];
-    },
-    isWholeLineCut(line) {
-      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
-    },
-    startInterval() {
-      this.$emit('start-interval', this.acts.find((act) => (act.id === this.previousLine.act_id)).id);
-    },
     addNewCue() {
       this.$emit('add-cue', this.line.id);
     },

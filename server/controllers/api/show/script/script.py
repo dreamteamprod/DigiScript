@@ -16,7 +16,7 @@ from models.script import (
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
-from models.show import Show
+from models.show import Show, ShowScriptType
 from rbac.role import Role
 from schemas.schemas import ScriptLineSchema
 from utils.web.base_controller import BaseAPIController
@@ -100,7 +100,7 @@ class ScriptController(BaseAPIController):
                 return
 
     @staticmethod
-    def _validate_line(line_json):
+    def _validate_line(show, line_json):
         if line_json["stage_direction"]:
             if len(line_json["line_parts"]) > 1:
                 return False, "Stage directions can only have 1 line part"
@@ -112,6 +112,14 @@ class ScriptController(BaseAPIController):
             if line_part["line_text"] is None:
                 return False, "Stage directions must contain text"
         else:
+            if (
+                show.script_mode == ShowScriptType.COMPACT
+                and len(line_json["line_parts"]) > 1
+            ):
+                return (
+                    False,
+                    "Lines can only have 1 line part in compact script mode",
+                )
             for line_part in line_json["line_parts"]:
                 if line_part["line_text"] is None:
                     if len(line_json["line_parts"]) == 1:
@@ -174,7 +182,7 @@ class ScriptController(BaseAPIController):
                 previous_line: Optional[ScriptLineRevisionAssociation] = None
                 for index, line in enumerate(lines):
                     # Validate each line before we do anything with it
-                    valid_status, valid_reason = self._validate_line(line)
+                    valid_status, valid_reason = self._validate_line(show, line)
                     if not valid_status:
                         session.rollback()
                         self.set_status(400)
@@ -463,7 +471,7 @@ class ScriptController(BaseAPIController):
                 for index, line in enumerate(lines):
                     if index in status["added"]:
                         # Validate the line
-                        valid_status, valid_reason = self._validate_line(line)
+                        valid_status, valid_reason = self._validate_line(show, line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)
@@ -476,7 +484,7 @@ class ScriptController(BaseAPIController):
                         previous_line = line_association
                     elif index in status["inserted"]:
                         # Validate the line
-                        valid_status, valid_reason = self._validate_line(line)
+                        valid_status, valid_reason = self._validate_line(show, line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)
@@ -590,7 +598,7 @@ class ScriptController(BaseAPIController):
                             CueAssociation.cleanup_orphaned_cue(session, cue_id)
                     elif index in status["updated"]:
                         # Validate the line
-                        valid_status, valid_reason = self._validate_line(line)
+                        valid_status, valid_reason = self._validate_line(show, line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)
