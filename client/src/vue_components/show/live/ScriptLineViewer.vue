@@ -5,6 +5,7 @@
     class="mx-0"
     style="margin: 0; padding: 0"
     fluid
+    :style="{paddingTop: spacingBefore + 'rem', '--spacing-before': spacingBefore + 'rem'}"
   >
     <b-row
       v-if="needsIntervalBanner"
@@ -25,7 +26,7 @@
         </b-col>
         <b-col
           cols="3"
-          class="cue-column-right d-flex align-items-center justify-content-center"
+          :class="['cue-column-right', 'd-flex', 'align-items-center', 'justify-content-center', {'first-row': isFirstRowIntervalBanner}]"
         >
           <b-button
             v-if="isScriptLeader"
@@ -39,7 +40,7 @@
       <template v-else>
         <b-col
           cols="3"
-          class="cue-column d-flex align-items-center justify-content-center"
+          :class="['cue-column', 'd-flex', 'align-items-center', 'justify-content-center', {'first-row': isFirstRowIntervalBanner}]"
         >
           <b-button
             v-if="isScriptLeader"
@@ -73,13 +74,13 @@
         </b-col>
         <b-col
           cols="3"
-          class="cue-column-right"
+          :class="['cue-column-right', {'first-row': isFirstRowActScene}]"
         />
       </template>
       <template v-else>
         <b-col
           cols="3"
-          class="cue-column"
+          :class="['cue-column', {'first-row': isFirstRowActScene}]"
         />
         <b-col cols="9">
           <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
@@ -88,37 +89,12 @@
     </b-row>
     <b-row
       :class="{
-        'stage-direction': line.stage_direction,
-        'heading-padding': !line.stage_direction && needsHeadingsAll
+        'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
+        'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll
       }"
     >
       <template v-if="USER_SETTINGS.cue_position_right">
-        <template v-if="line.stage_direction">
-          <b-col
-            :key="`line_${lineIndex}_stage_direction`"
-            style="text-align: center"
-          >
-            <i
-              class="viewable-line"
-              :style="stageDirectionStyling"
-            >
-              <template
-                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
-              >
-                {{ line.line_parts[0].line_text | uppercase }}
-              </template>
-              <template
-                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
-              >
-                {{ line.line_parts[0].line_text | lowercase }}
-              </template>
-              <template v-else>
-                {{ line.line_parts[0].line_text }}
-              </template>
-            </i>
-          </b-col>
-        </template>
-        <template v-else>
+        <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
           <b-col>
             <b-row v-if="needsHeadingsAny">
               <b-col
@@ -155,9 +131,40 @@
             </b-row>
           </b-col>
         </template>
+        <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
+          <b-col
+            :key="`line_${lineIndex}_stage_direction`"
+            style="text-align: center"
+          >
+            <i
+              class="viewable-line"
+              :style="stageDirectionStyling"
+            >
+              <template
+                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+              >
+                {{ line.line_parts[0].line_text | uppercase }}
+              </template>
+              <template
+                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+              >
+                {{ line.line_parts[0].line_text | lowercase }}
+              </template>
+              <template v-else>
+                {{ line.line_parts[0].line_text }}
+              </template>
+            </i>
+          </b-col>
+        </template>
+        <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
+          <b-col
+            :key="`line_${lineIndex}_cue_line`"
+            style="text-align: center"
+          />
+        </template>
         <b-col
           cols="3"
-          class="cue-column-right"
+          :class="['cue-column-right', {'first-row': isFirstRowContent}]"
         >
           <b-button-group>
             <b-button
@@ -183,7 +190,7 @@
       <template v-else>
         <b-col
           cols="3"
-          class="cue-column"
+          :class="['cue-column', {'first-row': isFirstRowContent}]"
         >
           <b-button-group>
             <b-button
@@ -205,32 +212,7 @@
             </b-button>
           </b-button-group>
         </b-col>
-        <template v-if="line.stage_direction">
-          <b-col
-            :key="`line_${lineIndex}_stage_direction`"
-            style="text-align: center"
-          >
-            <i
-              class="viewable-line"
-              :style="stageDirectionStyling"
-            >
-              <template
-                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
-              >
-                {{ line.line_parts[0].line_text | uppercase }}
-              </template>
-              <template
-                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
-              >
-                {{ line.line_parts[0].line_text | lowercase }}
-              </template>
-              <template v-else>
-                {{ line.line_parts[0].line_text }}
-              </template>
-            </i>
-          </b-col>
-        </template>
-        <template v-else>
+        <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
           <b-col>
             <b-row v-if="needsHeadingsAny">
               <b-col
@@ -266,6 +248,37 @@
               </b-col>
             </b-row>
           </b-col>
+        </template>
+        <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
+          <b-col
+            :key="`line_${lineIndex}_stage_direction`"
+            style="text-align: center"
+          >
+            <i
+              class="viewable-line"
+              :style="stageDirectionStyling"
+            >
+              <template
+                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+              >
+                {{ line.line_parts[0].line_text | uppercase }}
+              </template>
+              <template
+                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+              >
+                {{ line.line_parts[0].line_text | lowercase }}
+              </template>
+              <template v-else>
+                {{ line.line_parts[0].line_text }}
+              </template>
+            </i>
+          </b-col>
+        </template>
+        <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
+          <b-col
+            :key="`line_${lineIndex}_cue_line`"
+            style="text-align: center"
+          />
         </template>
       </template>
     </b-row>
@@ -277,6 +290,7 @@ import { mapGetters, mapActions } from 'vuex';
 import cueDisplayMixin from '@/mixins/cueDisplayMixin';
 import scriptNavigationMixin from '@/mixins/scriptNavigationMixin';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptLineViewer',
@@ -343,6 +357,16 @@ export default {
       required: true,
       type: Boolean,
     },
+    spacingBefore: {
+      required: false,
+      type: Number,
+      default: 0,
+    },
+  },
+  data() {
+    return {
+      LINE_TYPES,
+    };
   },
   computed: {
     needsHeadingsAny() {
@@ -350,6 +374,15 @@ export default {
     },
     needsHeadingsAll() {
       return this.needsHeadings.every((x) => (x === true));
+    },
+    isFirstRowIntervalBanner() {
+      return this.needsIntervalBanner;
+    },
+    isFirstRowActScene() {
+      return !this.needsIntervalBanner && this.needsActSceneLabel;
+    },
+    isFirstRowContent() {
+      return !this.needsIntervalBanner && !this.needsActSceneLabel;
     },
     ...mapGetters(['USER_SETTINGS']),
   },
@@ -370,6 +403,11 @@ export default {
     padding-bottom: 1rem;
   }
 
+  .cue-column.first-row {
+    margin-top: calc(-1rem - var(--spacing-before, 0rem));
+    padding-top: calc(1rem + var(--spacing-before, 0rem));
+  }
+
   .cue-column-right {
     border-left: .1rem solid #3498db;
     margin-top: -1rem;
@@ -377,22 +415,32 @@ export default {
     padding-top: 1rem;
     padding-bottom: 1rem;
   }
+
+  .cue-column-right.first-row {
+    margin-top: calc(-1rem - var(--spacing-before, 0rem));
+    padding-top: calc(1rem + var(--spacing-before, 0rem));
+  }
+
   .interval-banner {
     margin-top: -1rem;
     margin-bottom: -1rem;
     padding-top: 1rem;
     padding-bottom: 1rem;
   }
+
   .cue-button {
     padding: .2rem;
   }
+
   .stage-direction {
     margin-top: 1rem;
     margin-bottom: 1rem;
   }
+
   .heading-padding {
     margin-top: .5rem;
   }
+
   .cut-line-part {
     text-decoration: line-through;
   }
@@ -404,6 +452,7 @@ export default {
   .interval-header, .act-scene-header {
     background: var(--body-background);
   }
+
   .interval-header {
     margin-top: 1rem;
     padding-bottom: 1rem;

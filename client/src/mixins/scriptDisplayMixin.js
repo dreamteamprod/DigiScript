@@ -1,3 +1,5 @@
+import { LINE_TYPES } from '@/constants/lineTypes';
+
 /**
  * Shared mixin for script display presentation logic.
  * Handles stage directions, act/scene labels, intervals, and viewport tracking.
@@ -52,7 +54,7 @@ export default {
       );
       const override = this.stageDirectionStyleOverrides
         .find((elem) => elem.settings.id === sdStyle.id);
-      if (this.line.stage_direction) {
+      if (this.line.line_type === LINE_TYPES.STAGE_DIRECTION) {
         return override ? override.settings : sdStyle;
       }
       return null;
