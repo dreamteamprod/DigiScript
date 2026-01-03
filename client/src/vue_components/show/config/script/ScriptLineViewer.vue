@@ -157,6 +157,8 @@
         v-show="canEdit && !IS_CUT_MODE"
         split
         text="Edit"
+        right
+        boundary="window"
         style="padding: 0"
         variant="link"
         @click.prevent.stop="editLine"
