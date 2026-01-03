@@ -1329,3 +1329,350 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
             line_part_texts = {lp.line_text for lp in line_parts}
             self.assertIn("First character speaks", line_part_texts)
             self.assertIn("Second character speaks", line_part_texts)
+
+
+class TestLineTypeValidation(DigiScriptTestCase):
+    """Test suite for line type validation in POST/PATCH endpoints."""
+
+    def setUp(self):
+        super().setUp()
+        # Create base test data
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Rev"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
+            script.current_revision = revision.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            self.act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            self.scene_id = scene.id
+
+            character = Character(show_id=show.id, name="Test Character")
+            session.add(character)
+            session.flush()
+            self.character_id = character.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def test_post_cue_line_succeeds_with_no_parts(self):
+        """Test creating a CUE_LINE with no line_parts succeeds."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 3,
+                "line_parts": [],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code)
+
+        # Verify in database
+        with self._app.get_db().sessionmaker() as session:
+            script_lines = session.scalars(
+                select(ScriptLine).where(
+                    ScriptLine.line_type == ScriptLineType.CUE_LINE
+                )
+            ).all()
+            self.assertEqual(1, len(script_lines))
+            self.assertEqual(ScriptLineType.CUE_LINE, script_lines[0].line_type)
+
+            # Verify no line_parts created
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(0, len(line_parts))
+
+    def test_post_cue_line_rejects_with_line_parts(self):
+        """Test creating a CUE_LINE with line_parts returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 3,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "This should fail",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("cannot have line parts", response_body["message"])
+
+    def test_post_spacing_line_succeeds_with_no_parts(self):
+        """Test creating a SPACING line with no line_parts succeeds."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 4,
+                "line_parts": [],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code)
+
+        # Verify in database
+        with self._app.get_db().sessionmaker() as session:
+            script_lines = session.scalars(
+                select(ScriptLine).where(ScriptLine.line_type == ScriptLineType.SPACING)
+            ).all()
+            self.assertEqual(1, len(script_lines))
+            self.assertEqual(ScriptLineType.SPACING, script_lines[0].line_type)
+
+            # Verify no line_parts created
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(0, len(line_parts))
+
+    def test_post_spacing_line_rejects_with_line_parts(self):
+        """Test creating a SPACING line with line_parts returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 4,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "This should fail",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("cannot have line parts", response_body["message"])
+
+    def test_post_stage_direction_succeeds(self):
+        """Test creating a STAGE_DIRECTION with valid data succeeds."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "Enter stage left",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code)
+
+        # Verify in database
+        with self._app.get_db().sessionmaker() as session:
+            script_lines = session.scalars(
+                select(ScriptLine).where(
+                    ScriptLine.line_type == ScriptLineType.STAGE_DIRECTION
+                )
+            ).all()
+            self.assertEqual(1, len(script_lines))
+            self.assertEqual(ScriptLineType.STAGE_DIRECTION, script_lines[0].line_type)
+
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(1, len(line_parts))
+            self.assertEqual("Enter stage left", line_parts[0].line_text)
+
+    def test_post_stage_direction_rejects_multiple_parts(self):
+        """Test STAGE_DIRECTION with >1 line_part returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "Enter",
+                    },
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 1,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "Exit",
+                    },
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("must have exactly 1 line part", response_body["message"])
+
+    def test_post_stage_direction_rejects_with_character(self):
+        """Test STAGE_DIRECTION with character_id returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Enter",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("cannot have characters", response_body["message"])
+
+    def test_post_stage_direction_rejects_empty_text(self):
+        """Test STAGE_DIRECTION with empty/whitespace text returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "   ",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("must contain text", response_body["message"])
