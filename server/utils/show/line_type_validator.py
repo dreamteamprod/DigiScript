@@ -39,6 +39,12 @@ class DialogueValidator(BaseLineTypeValidator):
     def validate(self, line_json: dict, show) -> LineTypeValidationResult:
         line_parts = line_json.get("line_parts", [])
 
+        if len(line_parts) == 0:
+            return LineTypeValidationResult(
+                is_valid=False,
+                error_message="Dialogue lines must have at least one line part",
+            )
+
         if show.script_mode == ShowScriptType.COMPACT and len(line_parts) > 1:
             return LineTypeValidationResult(
                 is_valid=False,
