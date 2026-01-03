@@ -5,6 +5,7 @@
     class="mx-0"
     style="margin: 0; padding: 0"
     fluid
+    :style="{paddingTop: spacingBefore + 'rem', '--spacing-before': spacingBefore + 'rem'}"
   >
     <b-row
       v-if="needsIntervalBanner"
@@ -42,7 +43,7 @@
     >
       <b-col
         cols="2"
-        class="cue-column text-right font-weight-bold cue"
+        :class="['cue-column', 'text-right', 'font-weight-bold', 'cue', {'first-row': isFirstRowActScene}]"
       >
         <span>{{ actLabel }}</span>
       </b-col>
@@ -58,11 +59,11 @@
         class="cue-add-column"
       />
     </b-row>
-    <template v-for="cue in cues">
+    <template v-for="(cue, cueIndex) in cues">
       <b-row :key="`cue_${cue.id}`">
         <b-col
           cols="2"
-          class="cue-column line-part text-right font-weight-bold cue"
+          :class="['cue-column', 'line-part', 'text-right', 'font-weight-bold', 'cue', {'first-row': isFirstRowCues && cueIndex === 0}]"
           :style="{color: cueBackgroundColour(cue)}"
         >
           <span>
@@ -86,7 +87,60 @@
       </b-row>
     </template>
     <b-row>
-      <template v-if="line.stage_direction">
+      <template v-if="line.line_type === 1">
+        <template
+          v-for="(part, index) in line.line_parts"
+        >
+          <b-col
+            :key="`char_${lineIndex}_part_${index}`"
+            cols="2"
+            class="cue-column line-part text-right"
+            :class="{
+              'cut-line-part': cuts.indexOf(part.id) !== -1,
+              'line-part-a': lineIndex%2===0,
+              'line-part-b': lineIndex%2===1,
+              'first-row': isFirstRowContent && index === 0
+            }"
+          >
+            <p v-if="needsHeadings[index]">
+              <template v-if="part.character_id != null">
+                {{ characters.find((char) => (char.id === part.character_id)).name }}
+              </template>
+              <template v-else>
+                {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+              </template>
+            </p>
+          </b-col>
+          <b-col
+            :key="`text_${lineIndex}_part_${index}`"
+            :cols="cueAddMode ? 9 : 10"
+            class="line-part text-left"
+            :class="{
+              'cut-line-part': cuts.indexOf(part.id) !== -1,
+              'line-part-a': lineIndex%2===0,
+              'line-part-b': lineIndex%2===1
+            }"
+          >
+            <p class="viewable-line">
+              {{ part.line_text }}
+            </p>
+          </b-col>
+        </template>
+        <b-col
+          v-if="cueAddMode && !isWholeLineCut(line)"
+          cols="1"
+          class="cue-add-column d-flex align-items-center justify-content-center"
+        >
+          <b-button
+            variant="success"
+            size="sm"
+            @click.stop="addNewCue"
+          >
+            <b-icon-plus-square-fill />
+          </b-button>
+        </b-col>
+      </template>
+      <template v-else-if="line.line_type === 2">
         <b-col
           cols="2"
           class="cue-column"
@@ -129,46 +183,18 @@
           </b-button>
         </b-col>
       </template>
-      <template v-else>
-        <template
-          v-for="(part, index) in line.line_parts"
-        >
-          <b-col
-            :key="`char_${lineIndex}_part_${index}`"
-            cols="2"
-            class="cue-column line-part text-right"
-            :class="{
-              'cut-line-part': cuts.indexOf(part.id) !== -1,
-              'line-part-a': lineIndex%2==0,
-              'line-part-b': lineIndex%2==1
-            }"
-          >
-            <p v-if="needsHeadings[index]">
-              <template v-if="part.character_id != null">
-                {{ characters.find((char) => (char.id === part.character_id)).name }}
-              </template>
-              <template v-else>
-                {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
-              </template>
-            </p>
-          </b-col>
-          <b-col
-            :key="`text_${lineIndex}_part_${index}`"
-            :cols="cueAddMode ? 9 : 10"
-            class="line-part text-left"
-            :class="{
-              'cut-line-part': cuts.indexOf(part.id) !== -1,
-              'line-part-a': lineIndex%2==0,
-              'line-part-b': lineIndex%2==1
-            }"
-          >
-            <p class="viewable-line">
-              {{ part.line_text }}
-            </p>
-          </b-col>
-        </template>
+      <template v-else-if="line.line_type === 3">
         <b-col
-          v-if="cueAddMode && !isWholeLineCut(line)"
+          cols="2"
+          class="cue-column"
+        />
+        <b-col
+          :key="`line_${lineIndex}_cue_line`"
+          :cols="cueAddMode ? 9 : 10"
+          class="line-part text-left"
+        />
+        <b-col
+          v-if="cueAddMode"
           cols="1"
           class="cue-add-column d-flex align-items-center justify-content-center"
         >
@@ -255,6 +281,22 @@ export default {
       required: true,
       type: Boolean,
     },
+    spacingBefore: {
+      required: false,
+      type: Number,
+      default: 0,
+    },
+  },
+  computed: {
+    isFirstRowActScene() {
+      return this.needsActSceneLabel;
+    },
+    isFirstRowCues() {
+      return !this.needsActSceneLabel && this.cues.length > 0;
+    },
+    isFirstRowContent() {
+      return !this.needsActSceneLabel && this.cues.length === 0;
+    },
   },
   methods: {
     addNewCue() {
@@ -267,6 +309,15 @@ export default {
 <style scoped>
   .cue-column {
     border-right: .1rem solid #3498db;
+    margin-top: -1rem;
+    margin-bottom: -1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .cue-column.first-row {
+    margin-top: calc(-1rem - var(--spacing-before, 0rem));
+    padding-top: calc(1rem + var(--spacing-before, 0rem));
   }
 
   .cut-line-part {

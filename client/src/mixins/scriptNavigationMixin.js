@@ -9,7 +9,7 @@ export default {
     needsHeadings() {
       let { previousLine } = this;
       let lineIndex = this.previousLineIndex;
-      while (previousLine != null && (previousLine.stage_direction === true
+      while (previousLine != null && (previousLine.line_type === 2
           || this.isWholeLineCut(previousLine))) {
         [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
       }
@@ -52,6 +52,12 @@ export default {
       return [null, null];
     },
     isWholeLineCut(line) {
+      if (line.line_type === 3) {
+        return false;
+      }
+      if (line.line_type === 4) {
+        return true;
+      }
       return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
           || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
     },

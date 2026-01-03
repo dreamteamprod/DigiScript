@@ -108,7 +108,7 @@
               <template v-for="page in pageIter">
                 <script-line-viewer-compact
                   v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-                  v-show="!isWholeLineCut(line)"
+                  v-show="!isWholeLineCut(line) && line.line_type !== 4"
                   v-once
                   :id="`page_${page}_line_${index}`"
                   :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
@@ -128,6 +128,7 @@
                   :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
                   :is-script-leader="isScriptLeader"
                   :cue-add-mode="cueAddMode"
+                  :spacing-before="getSpacingBefore(page, index)"
                   @last-line-change="handleLastLineChange"
                   @first-line-change="handleFirstLineChange"
                   @start-interval="configureInterval"
@@ -139,7 +140,7 @@
               <template v-for="page in pageIter">
                 <script-line-viewer
                   v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-                  v-show="!isWholeLineCut(line)"
+                  v-show="!isWholeLineCut(line) && line.line_type !== 4"
                   v-once
                   :id="`page_${page}_line_${index}`"
                   :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
@@ -159,6 +160,7 @@
                   :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
                   :is-script-leader="isScriptLeader"
                   :cue-add-mode="cueAddMode"
+                  :spacing-before="getSpacingBefore(page, index)"
                   @last-line-change="handleLastLineChange"
                   @first-line-change="handleFirstLineChange"
                   @start-interval="configureInterval"
@@ -1125,8 +1127,53 @@ export default {
       return [];
     },
     isWholeLineCut(line) {
+      if (line.line_type === 3) {
+        return false;
+      }
+      if (line.line_type === 4) {
+        return true;
+      }
       return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
           || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+    },
+    getSpacingBefore(page, index) {
+      // Count consecutive SPACING lines (line_type === 4) before this line
+      let spacingCount = 0;
+      let currentPage = page;
+      let currentIndex = index - 1;
+
+      // Walk backwards through lines, counting consecutive SPACING lines
+      while (currentPage >= 1) {
+        const pageLines = this.GET_SCRIPT_PAGE(currentPage);
+
+        // If we've gone before the first line on this page, move to previous page
+        if (currentIndex < 0) {
+          currentPage--;
+          if (currentPage < 1) break;
+
+          const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
+          if (!prevPageLines || prevPageLines.length === 0) break;
+          currentIndex = prevPageLines.length - 1;
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+
+        // Check if this line exists
+        if (!pageLines || currentIndex >= pageLines.length) break;
+
+        const line = pageLines[currentIndex];
+
+        // If this line is a SPACING line, count it and continue backwards
+        if (line.line_type === 4) {
+          spacingCount++;
+          currentIndex--;
+        } else {
+          // Stop when we hit a non-SPACING line
+          break;
+        }
+      }
+
+      return spacingCount;
     },
     configureInterval(actId) {
       this.intervalActId = actId;

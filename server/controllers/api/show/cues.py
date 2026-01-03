@@ -5,7 +5,7 @@ from sqlalchemy import select
 from tornado import escape
 
 from models.cue import Cue, CueAssociation, CueType
-from models.script import Script, ScriptLine, ScriptRevision
+from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import CueSchema, CueTypeSchema
@@ -253,6 +253,16 @@ class CueController(BaseAPIController):
                 if not line_id:
                     self.set_status(400)
                     await self.finish({"message": "Line ID missing"})
+                    return
+
+                line: ScriptLine = session.get(ScriptLine, line_id)
+                if not line:
+                    self.set_status(400)
+                    await self.finish({"message": "Line ID is not valid"})
+                    return
+                if line.line_type == ScriptLineType.SPACING:
+                    self.set_status(400)
+                    await self.finish({"message": "Cannot add cues to spacing lines"})
                     return
 
                 cue = Cue(cue_type_id=cue_type_id, ident=ident)

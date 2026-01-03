@@ -52,7 +52,7 @@ export default {
       );
       const override = this.stageDirectionStyleOverrides
         .find((elem) => elem.settings.id === sdStyle.id);
-      if (this.line.stage_direction) {
+      if (this.line.line_type === 2) {
         return override ? override.settings : sdStyle;
       }
       return null;
