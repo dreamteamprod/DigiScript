@@ -87,7 +87,7 @@
       </b-row>
     </template>
     <b-row>
-      <template v-if="line.line_type === 1">
+      <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
         <template
           v-for="(part, index) in line.line_parts"
         >
@@ -140,7 +140,7 @@
           </b-button>
         </b-col>
       </template>
-      <template v-else-if="line.line_type === 2">
+      <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
         <b-col
           cols="2"
           class="cue-column"
@@ -183,7 +183,7 @@
           </b-button>
         </b-col>
       </template>
-      <template v-else-if="line.line_type === 3">
+      <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
         <b-col
           cols="2"
           class="cue-column"
@@ -215,6 +215,7 @@
 import cueDisplayMixin from '@/mixins/cueDisplayMixin';
 import scriptNavigationMixin from '@/mixins/scriptNavigationMixin';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptLineViewerCompact',
@@ -286,6 +287,11 @@ export default {
       type: Number,
       default: 0,
     },
+  },
+  data() {
+    return {
+      LINE_TYPES,
+    };
   },
   computed: {
     isFirstRowActScene() {

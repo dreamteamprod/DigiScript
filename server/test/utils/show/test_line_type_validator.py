@@ -12,11 +12,10 @@ from models.script import ScriptLineType
 from models.show import ShowScriptType
 from utils.show.line_type_validator import (
     DialogueValidator,
-    StageDirectionValidator,
-    CueLineValidator,
-    SpacingValidator,
+    EmptyLineValidator,
     LineTypeValidatorRegistry,
     LineTypeValidationResult,
+    StageDirectionValidator,
 )
 
 
@@ -223,86 +222,53 @@ class TestStageDirectionValidator:
         assert "must contain text" in result.error_message
 
 
-class TestCueLineValidator:
-    """Test suite for CueLineValidator."""
-
-    @pytest.fixture
-    def validator(self):
-        """Create a CueLineValidator instance."""
-        return CueLineValidator()
+class TestEmptyLineValidator:
+    """Test suite for EmptyLineValidator (used for CUE_LINE and SPACING)."""
 
     @pytest.fixture
     def mock_show(self):
         """Create a mock show."""
         return MagicMock()
 
-    def test_valid_with_no_parts(self, validator, mock_show):
-        """Test cue line with no line_parts is valid."""
+    def test_cue_line_valid_with_no_parts(self, mock_show):
+        """Test cue line validator with no line_parts is valid."""
+        validator = EmptyLineValidator("Cue")
         line_json = {"line_type": 3, "line_parts": []}
         result = validator.validate(line_json, mock_show)
         assert result.is_valid is True
         assert result.error_message == ""
 
-    def test_rejects_with_one_line_part(self, validator, mock_show):
-        """Test cue line with one line_part is rejected."""
+    def test_cue_line_rejects_with_line_parts(self, mock_show):
+        """Test cue line validator rejects line_parts."""
+        validator = EmptyLineValidator("Cue")
         line_json = {"line_type": 3, "line_parts": [{"line_text": "Some text"}]}
         result = validator.validate(line_json, mock_show)
         assert result.is_valid is False
-        assert "cannot have line parts" in result.error_message
+        assert "Cue lines cannot have line parts" == result.error_message
 
-    def test_rejects_with_multiple_line_parts(self, validator, mock_show):
-        """Test cue line with multiple line_parts is rejected."""
-        line_json = {
-            "line_type": 3,
-            "line_parts": [
-                {"character_id": 1, "line_text": "Text 1"},
-                {"character_id": 2, "line_text": "Text 2"},
-            ],
-        }
-        result = validator.validate(line_json, mock_show)
-        assert result.is_valid is False
-        assert "cannot have line parts" in result.error_message
-
-
-class TestSpacingValidator:
-    """Test suite for SpacingValidator."""
-
-    @pytest.fixture
-    def validator(self):
-        """Create a SpacingValidator instance."""
-        return SpacingValidator()
-
-    @pytest.fixture
-    def mock_show(self):
-        """Create a mock show."""
-        return MagicMock()
-
-    def test_valid_with_no_parts(self, validator, mock_show):
-        """Test spacing line with no line_parts is valid."""
+    def test_spacing_line_valid_with_no_parts(self, mock_show):
+        """Test spacing line validator with no line_parts is valid."""
+        validator = EmptyLineValidator("Spacing")
         line_json = {"line_type": 4, "line_parts": []}
         result = validator.validate(line_json, mock_show)
         assert result.is_valid is True
         assert result.error_message == ""
 
-    def test_rejects_with_one_line_part(self, validator, mock_show):
-        """Test spacing line with one line_part is rejected."""
+    def test_spacing_line_rejects_with_line_parts(self, mock_show):
+        """Test spacing line validator rejects line_parts."""
+        validator = EmptyLineValidator("Spacing")
         line_json = {"line_type": 4, "line_parts": [{"line_text": "Some text"}]}
         result = validator.validate(line_json, mock_show)
         assert result.is_valid is False
-        assert "cannot have line parts" in result.error_message
+        assert "Spacing lines cannot have line parts" == result.error_message
 
-    def test_rejects_with_multiple_line_parts(self, validator, mock_show):
-        """Test spacing line with multiple line_parts is rejected."""
-        line_json = {
-            "line_type": 4,
-            "line_parts": [
-                {"character_id": 1, "line_text": "Text 1"},
-                {"character_id": 2, "line_text": "Text 2"},
-            ],
-        }
+    def test_custom_line_type_name_in_error(self, mock_show):
+        """Test that custom line type name appears in error message."""
+        validator = EmptyLineValidator("CustomType")
+        line_json = {"line_parts": [{"line_text": "Text"}]}
         result = validator.validate(line_json, mock_show)
         assert result.is_valid is False
-        assert "cannot have line parts" in result.error_message
+        assert "CustomType lines cannot have line parts" == result.error_message
 
 
 class TestLineTypeValidatorRegistry:

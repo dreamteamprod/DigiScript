@@ -115,29 +115,22 @@ class StageDirectionValidator(BaseLineTypeValidator):
         return LineTypeValidationResult(is_valid=True)
 
 
-class CueLineValidator(BaseLineTypeValidator):
-    """Validator for CUE_LINE lines."""
+class EmptyLineValidator(BaseLineTypeValidator):
+    """Validator for lines that must have no line parts (CUE_LINE, SPACING).
+
+    :param line_type_name: Human-readable name for the line type (e.g., "Cue", "Spacing")
+    """
+
+    def __init__(self, line_type_name: str):
+        self.line_type_name = line_type_name
 
     def validate(self, line_json: dict, show) -> LineTypeValidationResult:
         line_parts = line_json.get("line_parts", [])
 
         if len(line_parts) > 0:
             return LineTypeValidationResult(
-                is_valid=False, error_message="Cue lines cannot have line parts"
-            )
-
-        return LineTypeValidationResult(is_valid=True)
-
-
-class SpacingValidator(BaseLineTypeValidator):
-    """Validator for SPACING lines."""
-
-    def validate(self, line_json: dict, show) -> LineTypeValidationResult:
-        line_parts = line_json.get("line_parts", [])
-
-        if len(line_parts) > 0:
-            return LineTypeValidationResult(
-                is_valid=False, error_message="Spacing lines cannot have line parts"
+                is_valid=False,
+                error_message=f"{self.line_type_name} lines cannot have line parts",
             )
 
         return LineTypeValidationResult(is_valid=True)
@@ -150,8 +143,8 @@ class LineTypeValidatorRegistry:
         self._validators = {
             ScriptLineType.DIALOGUE: DialogueValidator(),
             ScriptLineType.STAGE_DIRECTION: StageDirectionValidator(),
-            ScriptLineType.CUE_LINE: CueLineValidator(),
-            ScriptLineType.SPACING: SpacingValidator(),
+            ScriptLineType.CUE_LINE: EmptyLineValidator("Cue"),
+            ScriptLineType.SPACING: EmptyLineValidator("Spacing"),
         }
 
     def validate_line(self, line_json: dict, show) -> LineTypeValidationResult:

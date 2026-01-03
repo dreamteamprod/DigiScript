@@ -1,6 +1,6 @@
 <template>
   <b-col>
-    <b-form-row v-if="lineType === 1">
+    <b-form-row v-if="lineType === LINE_TYPES.DIALOGUE">
       <b-col v-show="$v.state.character_group_id.$model == null">
         <b-form-group
           id="character-input-group"
@@ -46,7 +46,7 @@
           @keydown.enter.native="handleEnterPress"
         />
         <b-button
-          v-if="showAddButton && lineType === 1"
+          v-if="showAddButton && lineType === LINE_TYPES.DIALOGUE"
           v-b-popover.hover.top="'Add line part'"
           :disabled="!enableAddButton"
           style="margin-left: 0.5em; float: right"
@@ -61,6 +61,7 @@
 
 <script>
 import { required, requiredIf } from 'vuelidate/lib/validators';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptLinePart',
@@ -103,12 +104,12 @@ export default {
     state: {
       character_id: {
         required: requiredIf(function isCharacterRequired() {
-          return this.lineType === 1 && this.state.character_group_id == null;
+          return this.lineType === LINE_TYPES.DIALOGUE && this.state.character_group_id == null;
         }),
       },
       character_group_id: {
         required: requiredIf(function isCharacterGroupRequired() {
-          return this.lineType === 1 && this.state.character_id == null;
+          return this.lineType === LINE_TYPES.DIALOGUE && this.state.character_id == null;
         }),
       },
       line_text: {
@@ -120,6 +121,7 @@ export default {
   },
   data() {
     return {
+      LINE_TYPES,
       state: this.value,
     };
   },

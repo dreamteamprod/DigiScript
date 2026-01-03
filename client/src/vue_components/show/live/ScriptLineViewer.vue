@@ -89,12 +89,12 @@
     </b-row>
     <b-row
       :class="{
-        'stage-direction': line.line_type === 2,
-        'heading-padding': line.line_type === 1 && needsHeadingsAll
+        'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
+        'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll
       }"
     >
       <template v-if="USER_SETTINGS.cue_position_right">
-        <template v-if="line.line_type === 1">
+        <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
           <b-col>
             <b-row v-if="needsHeadingsAny">
               <b-col
@@ -131,7 +131,7 @@
             </b-row>
           </b-col>
         </template>
-        <template v-else-if="line.line_type === 2">
+        <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <b-col
             :key="`line_${lineIndex}_stage_direction`"
             style="text-align: center"
@@ -156,7 +156,7 @@
             </i>
           </b-col>
         </template>
-        <template v-else-if="line.line_type === 3">
+        <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
           <b-col
             :key="`line_${lineIndex}_cue_line`"
             style="text-align: center"
@@ -212,7 +212,7 @@
             </b-button>
           </b-button-group>
         </b-col>
-        <template v-if="line.line_type === 1">
+        <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
           <b-col>
             <b-row v-if="needsHeadingsAny">
               <b-col
@@ -249,7 +249,7 @@
             </b-row>
           </b-col>
         </template>
-        <template v-else-if="line.line_type === 2">
+        <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <b-col
             :key="`line_${lineIndex}_stage_direction`"
             style="text-align: center"
@@ -274,7 +274,7 @@
             </i>
           </b-col>
         </template>
-        <template v-else-if="line.line_type === 3">
+        <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
           <b-col
             :key="`line_${lineIndex}_cue_line`"
             style="text-align: center"
@@ -290,6 +290,7 @@ import { mapGetters, mapActions } from 'vuex';
 import cueDisplayMixin from '@/mixins/cueDisplayMixin';
 import scriptNavigationMixin from '@/mixins/scriptNavigationMixin';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptLineViewer',
@@ -361,6 +362,11 @@ export default {
       type: Number,
       default: 0,
     },
+  },
+  data() {
+    return {
+      LINE_TYPES,
+    };
   },
   computed: {
     needsHeadingsAny() {

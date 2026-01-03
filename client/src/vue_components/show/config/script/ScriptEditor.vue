@@ -308,6 +308,7 @@ import ScriptLineEditor from '@/vue_components/show/config/script/ScriptLineEdit
 import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineViewer.vue';
 import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptConfig',
@@ -321,7 +322,7 @@ export default {
         act_id: null,
         scene_id: null,
         page: null,
-        line_type: 1, // DIALOGUE
+        line_type: LINE_TYPES.DIALOGUE,
         line_parts: [],
         stage_direction_style_id: null,
       },
@@ -562,7 +563,7 @@ export default {
     },
     async addStageDirection() {
       const stageDirectionObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      stageDirectionObject.line_type = 2; // STAGE_DIRECTION
+      stageDirectionObject.line_type = LINE_TYPES.STAGE_DIRECTION;
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: stageDirectionObject,
@@ -577,7 +578,7 @@ export default {
     },
     async addCueLine() {
       const cueLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      cueLineObject.line_type = 3; // CUE_LINE
+      cueLineObject.line_type = LINE_TYPES.CUE_LINE;
       cueLineObject.line_parts = [];
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
@@ -593,7 +594,7 @@ export default {
     },
     async addSpacing() {
       const spacingObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      spacingObject.line_type = 4; // SPACING
+      spacingObject.line_type = LINE_TYPES.SPACING;
       spacingObject.line_parts = [];
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
@@ -780,7 +781,7 @@ export default {
 
       const newLineIndex = lineIndex + 1;
       const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      newLineObject.line_type = 2; // STAGE_DIRECTION
+      newLineObject.line_type = LINE_TYPES.STAGE_DIRECTION;
       this.INSERT_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineIndex: newLineIndex,
@@ -811,7 +812,7 @@ export default {
 
       const newLineIndex = lineIndex + 1;
       const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      newLineObject.line_type = 3; // CUE_LINE
+      newLineObject.line_type = LINE_TYPES.CUE_LINE;
       newLineObject.line_parts = [];
       this.INSERT_BLANK_LINE({
         pageNo: this.currentEditPage,
@@ -843,7 +844,7 @@ export default {
 
       const newLineIndex = lineIndex + 1;
       const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      newLineObject.line_type = 4; // SPACING
+      newLineObject.line_type = LINE_TYPES.SPACING;
       newLineObject.line_parts = [];
       this.INSERT_BLANK_LINE({
         pageNo: this.currentEditPage,

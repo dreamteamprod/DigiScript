@@ -1,8 +1,8 @@
 <template>
   <b-row
     :class="{
-      'stage-direction': line.line_type === 2,
-      'heading-padding': line.line_type === 1 && needsHeadingsAll
+      'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
+      'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll
     }"
   >
     <b-col cols="1">
@@ -21,7 +21,7 @@
         {{ sceneLabel }}
       </p>
     </b-col>
-    <template v-if="line.line_type === 1">
+    <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
       <b-col>
         <b-row v-if="needsHeadingsAny">
           <b-col
@@ -67,7 +67,7 @@
         </b-row>
       </b-col>
     </template>
-    <template v-else-if="line.line_type === 2">
+    <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
       <b-col
         :key="`line_${lineIndex}_stage_direction`"
         style="text-align: center"
@@ -113,7 +113,7 @@
         </a>
       </b-col>
     </template>
-    <template v-else-if="line.line_type === 3">
+    <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
       <b-col
         :key="`line_${lineIndex}_cue_line`"
         style="text-align: center"
@@ -131,7 +131,7 @@
         </b-alert>
       </b-col>
     </template>
-    <template v-else-if="line.line_type === 4">
+    <template v-else-if="line.line_type === LINE_TYPES.SPACING">
       <b-col
         :key="`line_${lineIndex}_spacing`"
         style="text-align: center"
@@ -186,6 +186,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptLineViewer',
@@ -240,11 +241,16 @@ export default {
       type: Array,
     },
   },
+  data() {
+    return {
+      LINE_TYPES,
+    };
+  },
   computed: {
     needsHeadings() {
       let { previousLine } = this;
       let previousLineIndex = this.lineIndex - 1;
-      while (previousLine != null && previousLine.line_type === 2) {
+      while (previousLine != null && previousLine.line_type === LINE_TYPES.STAGE_DIRECTION) {
         if (previousLineIndex === 0) {
           break;
         }
@@ -295,7 +301,7 @@ export default {
       );
       const override = this.stageDirectionStyleOverrides
         .find((elem) => elem.settings.id === sdStyle.id);
-      if (this.line.line_type === 2) {
+      if (this.line.line_type === LINE_TYPES.STAGE_DIRECTION) {
         return override ? override.settings : sdStyle;
       }
       return null;

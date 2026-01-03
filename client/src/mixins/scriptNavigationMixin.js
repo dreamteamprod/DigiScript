@@ -1,4 +1,5 @@
 import { mapGetters } from 'vuex';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 /**
  * Shared mixin for script navigation and filtering logic.
@@ -9,7 +10,7 @@ export default {
     needsHeadings() {
       let { previousLine } = this;
       let lineIndex = this.previousLineIndex;
-      while (previousLine != null && (previousLine.line_type === 2
+      while (previousLine != null && (previousLine.line_type === LINE_TYPES.STAGE_DIRECTION
           || this.isWholeLineCut(previousLine))) {
         [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
       }
@@ -52,10 +53,10 @@ export default {
       return [null, null];
     },
     isWholeLineCut(line) {
-      if (line.line_type === 3) {
+      if (line.line_type === LINE_TYPES.CUE_LINE) {
         return false;
       }
-      if (line.line_type === 4) {
+      if (line.line_type === LINE_TYPES.SPACING) {
         return true;
       }
       return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)

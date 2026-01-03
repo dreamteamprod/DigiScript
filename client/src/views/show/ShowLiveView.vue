@@ -108,7 +108,7 @@
               <template v-for="page in pageIter">
                 <script-line-viewer-compact
                   v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-                  v-show="!isWholeLineCut(line) && line.line_type !== 4"
+                  v-show="!isWholeLineCut(line) && line.line_type !== LINE_TYPES.SPACING"
                   v-once
                   :id="`page_${page}_line_${index}`"
                   :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
@@ -140,7 +140,7 @@
               <template v-for="page in pageIter">
                 <script-line-viewer
                   v-for="(line, index) in GET_SCRIPT_PAGE(page)"
-                  v-show="!isWholeLineCut(line) && line.line_type !== 4"
+                  v-show="!isWholeLineCut(line) && line.line_type !== LINE_TYPES.SPACING"
                   v-once
                   :id="`page_${page}_line_${index}`"
                   :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${SCRIPT_CUES[line.id.toString()]?.length || 0}`"
@@ -302,6 +302,7 @@ import {
 } from '@/js/utils';
 import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
 import ScriptLineViewerCompact from '@/vue_components/show/live/ScriptLineViewerCompact.vue';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ShowLiveView',
@@ -311,6 +312,7 @@ export default {
   },
   data() {
     return {
+      LINE_TYPES,
       elapsedTime: 0,
       elapsedTimer: null,
       currentLoadedPage: 0, // Last loaded page number (1-based)
@@ -1127,17 +1129,17 @@ export default {
       return [];
     },
     isWholeLineCut(line) {
-      if (line.line_type === 3) {
+      if (line.line_type === LINE_TYPES.CUE_LINE) {
         return false;
       }
-      if (line.line_type === 4) {
+      if (line.line_type === LINE_TYPES.SPACING) {
         return true;
       }
       return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
           || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
     },
     getSpacingBefore(page, index) {
-      // Count consecutive SPACING lines (line_type === 4) before this line
+      // Count consecutive SPACING lines before this line
       let spacingCount = 0;
       let currentPage = page;
       let currentIndex = index - 1;
@@ -1164,7 +1166,7 @@ export default {
         const line = pageLines[currentIndex];
 
         // If this line is a SPACING line, count it and continue backwards
-        if (line.line_type === 4) {
+        if (line.line_type === LINE_TYPES.SPACING) {
           spacingCount++;
           currentIndex--;
         } else {

@@ -57,7 +57,7 @@
         </b-col>
       </b-form-row>
     </b-col>
-    <template v-if="(lineType === 1 || lineType === 2)">
+    <template v-if="(lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION)">
       <template v-if="state.line_parts.length > 0">
         <script-line-part
           v-for="(part, index) in state.line_parts"
@@ -66,8 +66,8 @@
           :focus-input="index === 0"
           :characters="characters"
           :character-groups="characterGroups"
-          :show-add-button="index === state.line_parts.length - 1 && lineType === 1 && CURRENT_SHOW.script_mode === 1"
-          :enable-add-button="state.line_parts.length < 4 && lineType === 1"
+          :show-add-button="index === state.line_parts.length - 1 && lineType === LINE_TYPES.DIALOGUE && CURRENT_SHOW.script_mode === 1"
+          :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
           :line-type="lineType"
           :line-parts="state.line_parts"
           @input="stateChange"
@@ -75,7 +75,7 @@
           @tryFinishLine="tryFinishLine"
         />
         <b-col
-          v-if="lineType === 2 && stageDirectionStyles.length > 0"
+          v-if="lineType === LINE_TYPES.STAGE_DIRECTION && stageDirectionStyles.length > 0"
           cols="2"
         >
           <b-form-select
@@ -111,10 +111,10 @@
             class="text-muted small"
             style="margin: 0"
           >
-            <template v-if="lineType === 3">
+            <template v-if="lineType === LINE_TYPES.CUE_LINE">
               Cue Lines have no editable content.
             </template>
-            <template v-else-if="lineType === 4">
+            <template v-else-if="lineType === LINE_TYPES.SPACING">
               Spacing Lines have no editable content.
             </template>
             <template v-else>
@@ -132,6 +132,7 @@ import { mapGetters } from 'vuex';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptLineEditor',
@@ -185,6 +186,7 @@ export default {
   },
   data() {
     return {
+      LINE_TYPES,
       state: this.value,
       blankLinePartObj: {
         id: null,
@@ -214,22 +216,22 @@ export default {
       },
       line_parts: {
         required: requiredIf(function isLinePartsRequired() {
-          return this.lineType === 1 || this.lineType === 2;
+          return this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION;
         }),
         $each: {
           character_id: {
             required: requiredIf(function isCharacterRequired(m) {
-              return this.lineType === 1 && m.character_group_id == null;
+              return this.lineType === LINE_TYPES.DIALOGUE && m.character_group_id == null;
             }),
           },
           character_group_id: {
             required: requiredIf(function isCharacterGroupRequired(m) {
-              return this.lineType === 1 && m.character_id == null;
+              return this.lineType === LINE_TYPES.DIALOGUE && m.character_id == null;
             }),
           },
           line_text: {
             required: requiredIf(function isLineTextRequired() {
-              return (this.lineType === 1 || this.lineType === 2) && (this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== ''));
+              return (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION) && (this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== ''));
             }),
           },
         },
@@ -338,7 +340,7 @@ export default {
   async created() {
     this.previousLine = await this.previousLineFn(this.lineIndex);
     this.nextLine = await this.nextLineFn(this.lineIndex);
-    if (this.state.line_parts.length === 0 && (this.lineType === 1 || this.lineType === 2)) {
+    if (this.state.line_parts.length === 0 && (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION)) {
       this.addLinePart();
     }
   },
@@ -406,7 +408,7 @@ export default {
       blankLine.line_id = this.state.id;
       blankLine.part_index = this.state.line_parts.length;
       this.state.line_parts.push(blankLine);
-      if (this.lineType === 1 && this.previousLine != null) {
+      if (this.lineType === LINE_TYPES.DIALOGUE && this.previousLine != null) {
         const newPartIndex = this.state.line_parts.length - 1;
         const newPart = this.state.line_parts[newPartIndex];
         if (this.previousLine.line_parts.length >= newPartIndex + 1) {
