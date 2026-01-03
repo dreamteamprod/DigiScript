@@ -87,7 +87,60 @@
       </b-row>
     </template>
     <b-row>
-      <template v-if="line.line_type === 2">
+      <template v-if="line.line_type === 1">
+        <template
+          v-for="(part, index) in line.line_parts"
+        >
+          <b-col
+            :key="`char_${lineIndex}_part_${index}`"
+            cols="2"
+            class="cue-column line-part text-right"
+            :class="{
+              'cut-line-part': cuts.indexOf(part.id) !== -1,
+              'line-part-a': lineIndex%2===0,
+              'line-part-b': lineIndex%2===1,
+              'first-row': isFirstRowContent && index === 0
+            }"
+          >
+            <p v-if="needsHeadings[index]">
+              <template v-if="part.character_id != null">
+                {{ characters.find((char) => (char.id === part.character_id)).name }}
+              </template>
+              <template v-else>
+                {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+              </template>
+            </p>
+          </b-col>
+          <b-col
+            :key="`text_${lineIndex}_part_${index}`"
+            :cols="cueAddMode ? 9 : 10"
+            class="line-part text-left"
+            :class="{
+              'cut-line-part': cuts.indexOf(part.id) !== -1,
+              'line-part-a': lineIndex%2===0,
+              'line-part-b': lineIndex%2===1
+            }"
+          >
+            <p class="viewable-line">
+              {{ part.line_text }}
+            </p>
+          </b-col>
+        </template>
+        <b-col
+          v-if="cueAddMode && !isWholeLineCut(line)"
+          cols="1"
+          class="cue-add-column d-flex align-items-center justify-content-center"
+        >
+          <b-button
+            variant="success"
+            size="sm"
+            @click.stop="addNewCue"
+          >
+            <b-icon-plus-square-fill />
+          </b-button>
+        </b-col>
+      </template>
+      <template v-else-if="line.line_type === 2">
         <b-col
           cols="2"
           class="cue-column"
@@ -142,59 +195,6 @@
         />
         <b-col
           v-if="cueAddMode"
-          cols="1"
-          class="cue-add-column d-flex align-items-center justify-content-center"
-        >
-          <b-button
-            variant="success"
-            size="sm"
-            @click.stop="addNewCue"
-          >
-            <b-icon-plus-square-fill />
-          </b-button>
-        </b-col>
-      </template>
-      <template v-else-if="line.line_type === 1">
-        <template
-          v-for="(part, index) in line.line_parts"
-        >
-          <b-col
-            :key="`char_${lineIndex}_part_${index}`"
-            cols="2"
-            class="cue-column line-part text-right"
-            :class="{
-              'cut-line-part': cuts.indexOf(part.id) !== -1,
-              'line-part-a': lineIndex%2===0,
-              'line-part-b': lineIndex%2===1,
-              'first-row': isFirstRowContent && index === 0
-            }"
-          >
-            <p v-if="needsHeadings[index]">
-              <template v-if="part.character_id != null">
-                {{ characters.find((char) => (char.id === part.character_id)).name }}
-              </template>
-              <template v-else>
-                {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
-              </template>
-            </p>
-          </b-col>
-          <b-col
-            :key="`text_${lineIndex}_part_${index}`"
-            :cols="cueAddMode ? 9 : 10"
-            class="line-part text-left"
-            :class="{
-              'cut-line-part': cuts.indexOf(part.id) !== -1,
-              'line-part-a': lineIndex%2===0,
-              'line-part-b': lineIndex%2===1
-            }"
-          >
-            <p class="viewable-line">
-              {{ part.line_text }}
-            </p>
-          </b-col>
-        </template>
-        <b-col
-          v-if="cueAddMode && !isWholeLineCut(line)"
           cols="1"
           class="cue-add-column d-flex align-items-center justify-content-center"
         >

@@ -94,38 +94,7 @@
       }"
     >
       <template v-if="USER_SETTINGS.cue_position_right">
-        <template v-if="line.line_type === 2">
-          <b-col
-            :key="`line_${lineIndex}_stage_direction`"
-            style="text-align: center"
-          >
-            <i
-              class="viewable-line"
-              :style="stageDirectionStyling"
-            >
-              <template
-                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
-              >
-                {{ line.line_parts[0].line_text | uppercase }}
-              </template>
-              <template
-                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
-              >
-                {{ line.line_parts[0].line_text | lowercase }}
-              </template>
-              <template v-else>
-                {{ line.line_parts[0].line_text }}
-              </template>
-            </i>
-          </b-col>
-        </template>
-        <template v-else-if="line.line_type === 3">
-          <b-col
-            :key="`line_${lineIndex}_cue_line`"
-            style="text-align: center"
-          />
-        </template>
-        <template v-else-if="line.line_type === 1">
+        <template v-if="line.line_type === 1">
           <b-col>
             <b-row v-if="needsHeadingsAny">
               <b-col
@@ -161,6 +130,37 @@
               </b-col>
             </b-row>
           </b-col>
+        </template>
+        <template v-else-if="line.line_type === 2">
+          <b-col
+            :key="`line_${lineIndex}_stage_direction`"
+            style="text-align: center"
+          >
+            <i
+              class="viewable-line"
+              :style="stageDirectionStyling"
+            >
+              <template
+                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+              >
+                {{ line.line_parts[0].line_text | uppercase }}
+              </template>
+              <template
+                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+              >
+                {{ line.line_parts[0].line_text | lowercase }}
+              </template>
+              <template v-else>
+                {{ line.line_parts[0].line_text }}
+              </template>
+            </i>
+          </b-col>
+        </template>
+        <template v-else-if="line.line_type === 3">
+          <b-col
+            :key="`line_${lineIndex}_cue_line`"
+            style="text-align: center"
+          />
         </template>
         <b-col
           cols="3"
@@ -212,38 +212,7 @@
             </b-button>
           </b-button-group>
         </b-col>
-        <template v-if="line.line_type === 2">
-          <b-col
-            :key="`line_${lineIndex}_stage_direction`"
-            style="text-align: center"
-          >
-            <i
-              class="viewable-line"
-              :style="stageDirectionStyling"
-            >
-              <template
-                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
-              >
-                {{ line.line_parts[0].line_text | uppercase }}
-              </template>
-              <template
-                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
-              >
-                {{ line.line_parts[0].line_text | lowercase }}
-              </template>
-              <template v-else>
-                {{ line.line_parts[0].line_text }}
-              </template>
-            </i>
-          </b-col>
-        </template>
-        <template v-else-if="line.line_type === 3">
-          <b-col
-            :key="`line_${lineIndex}_cue_line`"
-            style="text-align: center"
-          />
-        </template>
-        <template v-else-if="line.line_type === 1">
+        <template v-if="line.line_type === 1">
           <b-col>
             <b-row v-if="needsHeadingsAny">
               <b-col
@@ -279,6 +248,37 @@
               </b-col>
             </b-row>
           </b-col>
+        </template>
+        <template v-else-if="line.line_type === 2">
+          <b-col
+            :key="`line_${lineIndex}_stage_direction`"
+            style="text-align: center"
+          >
+            <i
+              class="viewable-line"
+              :style="stageDirectionStyling"
+            >
+              <template
+                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+              >
+                {{ line.line_parts[0].line_text | uppercase }}
+              </template>
+              <template
+                v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+              >
+                {{ line.line_parts[0].line_text | lowercase }}
+              </template>
+              <template v-else>
+                {{ line.line_parts[0].line_text }}
+              </template>
+            </i>
+          </b-col>
+        </template>
+        <template v-else-if="line.line_type === 3">
+          <b-col
+            :key="`line_${lineIndex}_cue_line`"
+            style="text-align: center"
+          />
         </template>
       </template>
     </b-row>
