@@ -1,5 +1,6 @@
 import { mapGetters } from 'vuex';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
 
 /**
  * Shared mixin for script navigation and filtering logic.
@@ -53,14 +54,7 @@ export default {
       return [null, null];
     },
     isWholeLineCut(line) {
-      if (line.line_type === LINE_TYPES.CUE_LINE) {
-        return false;
-      }
-      if (line.line_type === LINE_TYPES.SPACING) {
-        return true;
-      }
-      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+      return isWholeLineCutUtil(line, this.SCRIPT_CUTS);
     },
   },
 };

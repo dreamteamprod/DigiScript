@@ -331,6 +331,7 @@ import { mapActions, mapGetters } from 'vuex';
 import { contrastColor } from 'contrast-color';
 import log from 'loglevel';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
 
 export default {
   name: 'ScriptLineCueEditor',
@@ -659,14 +660,7 @@ export default {
       return cueType.colour;
     },
     isWholeLineCut(line) {
-      if (line.line_type === LINE_TYPES.CUE_LINE) {
-        return false;
-      }
-      if (line.line_type === LINE_TYPES.SPACING) {
-        return true;
-      }
-      return line.line_parts.every((linePart) => (this.linePartCuts.includes(linePart.id)
-            || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+      return isWholeLineCutUtil(line, this.linePartCuts);
     },
     ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE']),
   },

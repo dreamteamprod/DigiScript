@@ -303,6 +303,7 @@ import {
 import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
 import ScriptLineViewerCompact from '@/vue_components/show/live/ScriptLineViewerCompact.vue';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
 
 export default {
   name: 'ShowLiveView',
@@ -1129,14 +1130,7 @@ export default {
       return [];
     },
     isWholeLineCut(line) {
-      if (line.line_type === LINE_TYPES.CUE_LINE) {
-        return false;
-      }
-      if (line.line_type === LINE_TYPES.SPACING) {
-        return true;
-      }
-      return line.line_parts.every((linePart) => (this.SCRIPT_CUTS.includes(linePart.id)
-          || linePart.line_text == null || linePart.line_text.trim().length === 0), this);
+      return isWholeLineCutUtil(line, this.SCRIPT_CUTS);
     },
     getSpacingBefore(page, index) {
       // Count consecutive SPACING lines before this line

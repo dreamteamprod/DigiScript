@@ -743,19 +743,39 @@ export default {
         this.linePartCuts.splice(index, 1);
       }
     },
-    async insertDialogueAt(pageIndex, lineIndex) {
+    async insertLineAt(pageIndex, lineIndex, lineType) {
+      // Map line types to their corresponding add methods
+      const addMethodMap = {
+        [LINE_TYPES.DIALOGUE]: () => this.addNewLine(),
+        [LINE_TYPES.STAGE_DIRECTION]: () => this.addStageDirection(),
+        [LINE_TYPES.CUE_LINE]: () => this.addCueLine(),
+        [LINE_TYPES.SPACING]: () => this.addSpacing(),
+      };
+
+      // If we're inserting at the end of the page, use the add method instead
       if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
-        await this.addNewLine();
+        await addMethodMap[lineType]();
         return;
       }
 
+      // Create new line object with appropriate configuration
       const newLineIndex = lineIndex + 1;
       const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
+      newLineObject.line_type = lineType;
+
+      // CUE_LINE and SPACING types need empty line_parts array
+      if (lineType === LINE_TYPES.CUE_LINE || lineType === LINE_TYPES.SPACING) {
+        newLineObject.line_parts = [];
+      }
+
+      // Insert the blank line
       this.INSERT_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineIndex: newLineIndex,
         lineObj: newLineObject,
       });
+
+      // Update existing edit page indices
       this.editPages.forEach(function updateEditPage(editPage, index) {
         const editParts = editPage.split('_');
         const editPageIndex = parseInt(editParts[1], 10);
@@ -765,108 +785,28 @@ export default {
         }
       }, this);
 
+      // Add new line to edit pages
       const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
       this.editPages.push(lineIdent);
+
+      // Inherit act and scene from previous line
       const prevLine = await this.getPreviousLineForIndex(newLineIndex);
       if (prevLine != null) {
         this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
         this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
       }
+    },
+    async insertDialogueAt(pageIndex, lineIndex) {
+      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
     },
     async insertStageDirectionAt(pageIndex, lineIndex) {
-      if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
-        await this.addStageDirection();
-        return;
-      }
-
-      const newLineIndex = lineIndex + 1;
-      const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      newLineObject.line_type = LINE_TYPES.STAGE_DIRECTION;
-      this.INSERT_BLANK_LINE({
-        pageNo: this.currentEditPage,
-        lineIndex: newLineIndex,
-        lineObj: newLineObject,
-      });
-      this.editPages.forEach(function updateEditPage(editPage, index) {
-        const editParts = editPage.split('_');
-        const editPageIndex = parseInt(editParts[1], 10);
-        const editIndex = parseInt(editParts[3], 10);
-        if (editPageIndex === pageIndex && editIndex >= newLineIndex) {
-          this.editPages[index] = `page_${editPageIndex}_line_${editIndex + 1}`;
-        }
-      }, this);
-
-      const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
-      this.editPages.push(lineIdent);
-      const prevLine = await this.getPreviousLineForIndex(newLineIndex);
-      if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
-      }
+      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.STAGE_DIRECTION);
     },
     async insertCueLineAt(pageIndex, lineIndex) {
-      if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
-        await this.addCueLine();
-        return;
-      }
-
-      const newLineIndex = lineIndex + 1;
-      const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      newLineObject.line_type = LINE_TYPES.CUE_LINE;
-      newLineObject.line_parts = [];
-      this.INSERT_BLANK_LINE({
-        pageNo: this.currentEditPage,
-        lineIndex: newLineIndex,
-        lineObj: newLineObject,
-      });
-      this.editPages.forEach(function updateEditPage(editPage, index) {
-        const editParts = editPage.split('_');
-        const editPageIndex = parseInt(editParts[1], 10);
-        const editIndex = parseInt(editParts[3], 10);
-        if (editPageIndex === pageIndex && editIndex >= newLineIndex) {
-          this.editPages[index] = `page_${editPageIndex}_line_${editIndex + 1}`;
-        }
-      }, this);
-
-      const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
-      this.editPages.push(lineIdent);
-      const prevLine = await this.getPreviousLineForIndex(newLineIndex);
-      if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
-      }
+      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.CUE_LINE);
     },
     async insertSpacingAt(pageIndex, lineIndex) {
-      if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
-        await this.addSpacing();
-        return;
-      }
-
-      const newLineIndex = lineIndex + 1;
-      const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      newLineObject.line_type = LINE_TYPES.SPACING;
-      newLineObject.line_parts = [];
-      this.INSERT_BLANK_LINE({
-        pageNo: this.currentEditPage,
-        lineIndex: newLineIndex,
-        lineObj: newLineObject,
-      });
-      this.editPages.forEach(function updateEditPage(editPage, index) {
-        const editParts = editPage.split('_');
-        const editPageIndex = parseInt(editParts[1], 10);
-        const editIndex = parseInt(editParts[3], 10);
-        if (editPageIndex === pageIndex && editIndex >= newLineIndex) {
-          this.editPages[index] = `page_${editPageIndex}_line_${editIndex + 1}`;
-        }
-      }, this);
-
-      const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
-      this.editPages.push(lineIdent);
-      const prevLine = await this.getPreviousLineForIndex(newLineIndex);
-      if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
-      }
+      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.SPACING);
     },
     async saveScript() {
       if (!this.IS_CUT_MODE) {
