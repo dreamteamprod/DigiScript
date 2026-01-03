@@ -1,11 +1,21 @@
 import datetime
+import enum
 import gzip
 import json
 import os
 from functools import partial
 from typing import TYPE_CHECKING, List
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func, select
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    TypeDecorator,
+    func,
+    select,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from tornado.ioloop import IOLoop
 
@@ -71,6 +81,43 @@ class ScriptRevision(db.Model):
     )
 
 
+class ScriptLineType(enum.IntEnum):
+    """Enumeration of script line types."""
+
+    DIALOGUE = enum.auto()
+    STAGE_DIRECTION = enum.auto()
+    CUE_LINE = enum.auto()
+    SPACING = enum.auto()
+
+
+class LineTypeCol(TypeDecorator):
+    impl = Integer
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None and not isinstance(value, ScriptLineType):
+            raise Exception(
+                f"LineTypeCol data type is incorrect. "
+                f"Got {type(value)} but should be LineType"
+            )
+        return value.value if value is not None else None
+
+    def process_literal_param(self, value, dialect):
+        if value is not None and not isinstance(value, ScriptLineType):
+            raise Exception(
+                f"LineTypeCol data type is incorrect. "
+                f"Got {type(value)} but should be LineType"
+            )
+        return value.value if value is not None else None
+
+    @property
+    def python_type(self):
+        return ScriptLineType
+
+    def process_result_value(self, value, dialect):
+        return ScriptLineType(value) if value is not None else None
+
+
 class ScriptLine(db.Model):
     __tablename__ = "script_lines"
 
@@ -78,7 +125,7 @@ class ScriptLine(db.Model):
     act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
     scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
     page: Mapped[int | None] = mapped_column(index=True)
-    stage_direction: Mapped[bool | None] = mapped_column(Boolean)
+    line_type: Mapped[ScriptLineType] = mapped_column(LineTypeCol, nullable=False)
     stage_direction_style_id: Mapped[int | None] = mapped_column(
         ForeignKey("stage_direction_styles.id", ondelete="SET NULL")
     )

@@ -1,8 +1,8 @@
 <template>
   <b-row
     :class="{
-      'stage-direction': line.stage_direction,
-      'heading-padding': !line.stage_direction && needsHeadingsAll
+      'stage-direction': line.line_type === 2,
+      'heading-padding': line.line_type === 1 && needsHeadingsAll
     }"
   >
     <b-col cols="1">
@@ -21,7 +21,7 @@
         {{ sceneLabel }}
       </p>
     </b-col>
-    <template v-if="!line.stage_direction">
+    <template v-if="line.line_type === 1">
       <b-col>
         <b-row v-if="needsHeadingsAny">
           <b-col
@@ -67,7 +67,7 @@
         </b-row>
       </b-col>
     </template>
-    <template v-else>
+    <template v-else-if="line.line_type === 2">
       <b-col
         :key="`line_${lineIndex}_stage_direction`"
         style="text-align: center"
@@ -113,26 +113,73 @@
         </a>
       </b-col>
     </template>
+    <template v-else-if="line.line_type === 3">
+      <b-col
+        :key="`line_${lineIndex}_cue_line`"
+        style="text-align: center"
+      >
+        <b-alert
+          variant="secondary"
+          show
+        >
+          <p
+            class="text-muted small"
+            style="margin: 0"
+          >
+            Cue Line
+          </p>
+        </b-alert>
+      </b-col>
+    </template>
+    <template v-else-if="line.line_type === 4">
+      <b-col
+        :key="`line_${lineIndex}_spacing`"
+        style="text-align: center"
+      >
+        <b-alert
+          variant="secondary"
+          show
+        >
+          <p
+            class="text-muted small"
+            style="margin: 0"
+          >
+            Spacing Line
+          </p>
+        </b-alert>
+      </b-col>
+    </template>
     <b-col
       cols="1"
       align-self="end"
     >
-      <b-button
+      <b-dropdown
         v-show="canEdit && !IS_CUT_MODE"
-        variant="link"
+        split
+        text="Edit"
         style="padding: 0"
+        variant="link"
         @click.prevent.stop="editLine"
       >
-        <template v-if="insertMode">
-          Insert
-        </template>
-        <template v-else-if="insertSDMode">
+        <b-dropdown-item-btn @click.prevent.stop="insertDialogue">
+          Insert Dialogue
+        </b-dropdown-item-btn>
+        <b-dropdown-item-btn @click.prevent.stop="insertStageDirection">
           Insert Stage Direction
-        </template>
-        <template v-else>
-          Edit
-        </template>
-      </b-button>
+        </b-dropdown-item-btn>
+        <b-dropdown-item-btn @click.prevent.stop="insertCueLine">
+          Insert Cue Line
+        </b-dropdown-item-btn>
+        <b-dropdown-item-btn @click.prevent.stop="insertSpacing">
+          Insert Spacing
+        </b-dropdown-item-btn>
+        <b-dropdown-item-btn
+          variant="danger"
+          @click.prevent.stop="deleteLine"
+        >
+          Delete
+        </b-dropdown-item-btn>
+      </b-dropdown>
     </b-col>
   </b-row>
 </template>
@@ -142,7 +189,7 @@ import { mapGetters } from 'vuex';
 
 export default {
   name: 'ScriptLineViewer',
-  events: ['editLine', 'cutLinePart', 'insertLine', 'insertStageDirection'],
+  events: ['editLine', 'cutLinePart', 'insertDialogue', 'insertStageDirection', 'insertCueLine', 'insertSpacing', 'deleteLine'],
   props: {
     line: {
       required: true,
@@ -184,16 +231,6 @@ export default {
       required: true,
       type: Array,
     },
-    insertMode: {
-      required: true,
-      type: Boolean,
-      default: false,
-    },
-    insertSDMode: {
-      required: true,
-      type: Boolean,
-      default: false,
-    },
     stageDirectionStyles: {
       required: true,
       type: Array,
@@ -207,7 +244,7 @@ export default {
     needsHeadings() {
       let { previousLine } = this;
       let previousLineIndex = this.lineIndex - 1;
-      while (previousLine != null && previousLine.stage_direction === true) {
+      while (previousLine != null && previousLine.line_type === 2) {
         if (previousLineIndex === 0) {
           break;
         }
@@ -258,7 +295,7 @@ export default {
       );
       const override = this.stageDirectionStyleOverrides
         .find((elem) => elem.settings.id === sdStyle.id);
-      if (this.line.stage_direction) {
+      if (this.line.line_type === 2) {
         return override ? override.settings : sdStyle;
       }
       return null;
@@ -292,13 +329,22 @@ export default {
   },
   methods: {
     editLine() {
-      if (this.insertMode) {
-        this.$emit('insertLine');
-      } else if (this.insertSDMode) {
-        this.$emit('insertStageDirection');
-      } else {
-        this.$emit('editLine');
-      }
+      this.$emit('editLine');
+    },
+    insertDialogue() {
+      this.$emit('insertDialogue');
+    },
+    insertStageDirection() {
+      this.$emit('insertStageDirection');
+    },
+    insertCueLine() {
+      this.$emit('insertCueLine');
+    },
+    insertSpacing() {
+      this.$emit('insertSpacing');
+    },
+    deleteLine() {
+      this.$emit('deleteLine');
     },
     cutLinePart(partIndex) {
       if (partIndex < this.line.line_parts.length && this.line.line_parts[partIndex] != null) {

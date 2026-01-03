@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from models.cue import Cue, CueAssociation, CueType
 from models.script import (
+    ScriptLineType,
     Script,
     ScriptCuts,
     ScriptLine,
@@ -92,7 +93,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -110,7 +111,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -156,7 +157,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": page_data["lines"][0]["line_parts"][0]["id"],
@@ -174,7 +175,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": page_data["lines"][1]["line_parts"],
                 "stage_direction_style_id": None,
             },
@@ -227,7 +228,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -278,7 +279,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": page_data["lines"][0]["line_parts"],
                 "stage_direction_style_id": None,
             }
@@ -344,7 +345,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -401,7 +402,7 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": page_data["lines"][0]["line_parts"],
                 "stage_direction_style_id": None,
             }

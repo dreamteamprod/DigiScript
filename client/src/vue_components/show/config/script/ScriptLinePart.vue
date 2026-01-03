@@ -1,6 +1,6 @@
 <template>
   <b-col>
-    <b-form-row v-if="!isStageDirection">
+    <b-form-row v-if="lineType === 1">
       <b-col v-show="$v.state.character_group_id.$model == null">
         <b-form-group
           id="character-input-group"
@@ -46,7 +46,7 @@
           @keydown.enter.native="handleEnterPress"
         />
         <b-button
-          v-if="showAddButton && !isStageDirection"
+          v-if="showAddButton && lineType === 1"
           v-b-popover.hover.top="'Add line part'"
           :disabled="!enableAddButton"
           style="margin-left: 0.5em; float: right"
@@ -86,9 +86,9 @@ export default {
       required: true,
       type: Boolean,
     },
-    isStageDirection: {
+    lineType: {
       required: true,
-      type: Boolean,
+      type: Number,
     },
     lineParts: {
       required: true,
@@ -103,12 +103,12 @@ export default {
     state: {
       character_id: {
         required: requiredIf(function isCharacterRequired() {
-          return this.isStageDirection === false && this.state.character_group_id == null;
+          return this.lineType === 1 && this.state.character_group_id == null;
         }),
       },
       character_group_id: {
         required: requiredIf(function isCharacterGroupRequired() {
-          return this.isStageDirection === false && this.state.character_id == null;
+          return this.lineType === 1 && this.state.character_id == null;
         }),
       },
       line_text: {

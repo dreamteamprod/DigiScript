@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from models.cue import Cue, CueAssociation, CueType
 from models.script import (
+    ScriptLineType,
     Script,
     ScriptCuts,
     ScriptLine,
@@ -113,7 +114,7 @@ class TestScriptController(DigiScriptTestCase):
                 act_id=self.act_id,
                 scene_id=self.scene_id,
                 page=1,
-                stage_direction=False,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line1)
             session.flush()
@@ -137,7 +138,7 @@ class TestScriptController(DigiScriptTestCase):
                 act_id=self.act_id,
                 scene_id=self.scene_id,
                 page=1,
-                stage_direction=False,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line2)
             session.flush()
@@ -183,7 +184,7 @@ class TestScriptController(DigiScriptTestCase):
                 act_id=self.act_id,
                 scene_id=self.scene_id,
                 page=1,
-                stage_direction=False,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line)
             session.flush()
@@ -277,7 +278,10 @@ class TestScriptCutsController(DigiScriptTestCase):
             session.flush()
 
             line = ScriptLine(
-                act_id=act.id, scene_id=scene.id, page=1, stage_direction=False
+                act_id=act.id,
+                scene_id=scene.id,
+                page=1,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line)
             session.flush()
@@ -393,7 +397,10 @@ class TestScriptMaxPageController(DigiScriptTestCase):
 
             # Page 1 line
             line1 = ScriptLine(
-                act_id=act.id, scene_id=scene.id, page=1, stage_direction=False
+                act_id=act.id,
+                scene_id=scene.id,
+                page=1,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line1)
             session.flush()
@@ -405,7 +412,10 @@ class TestScriptMaxPageController(DigiScriptTestCase):
 
             # Page 2 line
             line2 = ScriptLine(
-                act_id=act.id, scene_id=scene.id, page=2, stage_direction=False
+                act_id=act.id,
+                scene_id=scene.id,
+                page=2,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line2)
             session.flush()
@@ -490,7 +500,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -551,7 +561,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": line_part_id,
@@ -622,7 +632,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -668,7 +678,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": line_part_id,
@@ -739,7 +749,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -804,7 +814,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": line_part_id,
@@ -936,7 +946,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": act_id,
                 "scene_id": scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -1034,7 +1044,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": act_id,
                 "scene_id": scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -1129,7 +1139,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": act_id,
                 "scene_id": scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -1164,7 +1174,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": act_id,
                 "scene_id": scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -1275,7 +1285,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": act_id,
                 "scene_id": scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,

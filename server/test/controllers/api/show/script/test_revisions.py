@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 
 from models.cue import Cue, CueAssociation, CueType
 from models.script import (
+    ScriptLineType,
     Script,
     ScriptLine,
     ScriptLinePart,
@@ -382,7 +383,7 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -475,7 +476,7 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -565,7 +566,7 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -966,7 +967,7 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -1007,7 +1008,7 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
