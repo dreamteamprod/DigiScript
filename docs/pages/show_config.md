@@ -22,9 +22,28 @@ The recommended workflow for configuring a new show is:
 
 1. Add [Cast and Characters](./show_config/cast_and_characters.md)
 2. Create [Acts and Scenes](./show_config/acts_and_scenes.md)
-3. [Set the First Act](./show_config/first_act.md) (vital for script ordering - usually handled automatically)
-4. Move on to [Script Configuration](./script_config.md)
-5. Configure [Cues](./cue_config.md)
-6. Optionally set up [Microphones](./show_config/microphones.md)
+3. (Optional) Select Script Mode for your show
+4. [Set the First Act](./show_config/first_act.md) (vital for script ordering - usually handled automatically)
+5. Move on to [Script Configuration](./script_config.md)
+6. Configure [Cues](./cue_config.md)
+7. Optionally set up [Microphones](./show_config/microphones.md)
+
+### Script Display Modes
+
+DigiScript supports two script display modes that affect how your script appears during editing and live performances. This setting is chosen when creating a new show in the Advanced Options section.
+
+![](../images/config_show/config_system_new_show_advanced_options.png)
+
+#### FULL Mode (Default)
+
+The traditional multi-column layout. This mode is ideal for:
+- Shows with frequent multi-part dialogue (up to 4 simultaneous speakers)
+
+#### COMPACT Mode
+
+A streamlined single-column layout. This mode is ideal for:
+- Simple dialogue-heavy shows
+
+**Note**: The script mode is set during show creation and affects the entire show. It cannot be changed after the fact.
 
 Once your show is fully configured, you're ready to [run a live show](./live_show.md)!

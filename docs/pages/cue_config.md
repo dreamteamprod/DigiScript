@@ -31,6 +31,18 @@ The **Cue Configuration** tab allows you to add cues to your script. This interf
 
 To add cues, click **Begin Editing** to request exclusive edit access.
 
+##### Cue Placement on Line Types
+
+Cues can be attached to most line types in your script:
+
+- **Dialogue Lines**: Standard placement for cues that occur during character speech
+- **Stage Direction Lines**: Useful for cues that occur during action sequences or scene changes
+- **Cue Lines**: Dedicated lines for placing cues without associated dialogue, particularly useful for cues between dialogue
+
+**Note**: Spacing lines do not support cues, as they are designed purely for visual spacing and are hidden during live shows.
+
+##### Adding Cues
+
 To add a new cue:
 1. Click the green **+** button next to the script line where the cue should occur
 2. A popup will appear where you select the cue type and provide a cue identifier (e.g., "1" for LX 1)
