@@ -5,7 +5,7 @@ from tornado.testing import gen_test
 from sqlalchemy import func, select
 
 from models.script import CompiledScript, ScriptRevision, StageDirectionStyle, Script
-from models.show import Show
+from models.show import Show, ShowScriptType
 from models.user import User, UserOverrides
 from test.conftest import DigiScriptTestCase
 
@@ -27,7 +27,7 @@ class TestScriptModels(DigiScriptTestCase):
         # Create test data
         with self._app.get_db().sessionmaker() as session:
             # Create show and script
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
 
@@ -104,7 +104,7 @@ class TestScriptModels(DigiScriptTestCase):
             # Create test data - we don't need actual script content,
             # just enough structure for the method to run
             with self._app.get_db().sessionmaker() as session:
-                show = Show(name="Test Show")
+                show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
                 session.add(show)
                 session.flush()
 
@@ -143,7 +143,7 @@ class TestScriptModels(DigiScriptTestCase):
         """
         # Setup: Create a revision (compile_script will be called automatically)
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
 

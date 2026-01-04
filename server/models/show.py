@@ -1,7 +1,8 @@
 import datetime
+import enum
 from typing import TYPE_CHECKING, List
 
-from sqlalchemy import Column, Date, ForeignKey, String, Table
+from sqlalchemy import Column, Date, ForeignKey, Integer, String, Table, TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -12,6 +13,37 @@ if TYPE_CHECKING:
     from models.mics import MicrophoneAllocation
     from models.script import ScriptLine
     from models.session import ShowSession
+
+
+class ShowScriptType(enum.IntEnum):
+    FULL = enum.auto()
+    COMPACT = enum.auto()
+
+
+class ShowScriptTypeCol(TypeDecorator):
+    impl = Integer
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if not isinstance(value, ShowScriptType):
+            raise Exception(
+                f"ShowScriptTypeCol data type is incorrect. Got {type(value)} but should be ShowScriptType"
+            )
+        return value.value if value is not None else None
+
+    def process_literal_param(self, value, dialect):
+        if not isinstance(value, ShowScriptType):
+            raise Exception(
+                f"ShowScriptTypeCol data type is incorrect. Got {type(value)} but should be ShowScriptType"
+            )
+        return value.value if value is not None else None
+
+    @property
+    def python_type(self):
+        return ShowScriptType
+
+    def process_result_value(self, value, dialect):
+        return ShowScriptType(value)
 
 
 class Show(db.Model):
@@ -25,6 +57,7 @@ class Show(db.Model):
     edited_at: Mapped[datetime.datetime | None] = mapped_column()
     first_act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
     current_session_id: Mapped[int | None] = mapped_column(ForeignKey("showsession.id"))
+    script_mode: Mapped[ShowScriptType] = mapped_column(ShowScriptTypeCol)
 
     # Relationships
     first_act: Mapped["Act"] = relationship(foreign_keys=[first_act_id])

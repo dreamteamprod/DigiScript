@@ -5,13 +5,14 @@ from sqlalchemy import func, select
 
 from models.cue import Cue, CueAssociation, CueType
 from models.script import (
+    ScriptLineType,
     Script,
     ScriptLine,
     ScriptLinePart,
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
-from models.show import Act, Character, Scene, Show
+from models.show import Act, Character, Scene, Show, ShowScriptType
 
 
 class TestScriptRevisionsController(DigiScriptTestCase):
@@ -22,7 +23,7 @@ class TestScriptRevisionsController(DigiScriptTestCase):
         # Create base test data
         with self._app.get_db().sessionmaker() as session:
             # Create a test show
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -76,7 +77,7 @@ class TestScriptRevisionsController(DigiScriptTestCase):
         """Test GET /api/v1/show/script/revisions returns 404 when no script exists."""
         # Create a show with no script
         with self._app.get_db().sessionmaker() as session:
-            show2 = Show(name="Empty Show")
+            show2 = Show(name="Empty Show", script_mode=ShowScriptType.FULL)
             session.add(show2)
             session.commit()
             empty_show_id = show2.id
@@ -95,7 +96,7 @@ class TestScriptCurrentRevisionController(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -130,7 +131,7 @@ class TestScriptCurrentRevisionController(DigiScriptTestCase):
     def test_get_current_revision_no_script(self):
         """Test GET returns 404 when no script exists."""
         with self._app.get_db().sessionmaker() as session:
-            show2 = Show(name="Empty Show")
+            show2 = Show(name="Empty Show", script_mode=ShowScriptType.FULL)
             session.add(show2)
             session.commit()
             empty_show_id = show2.id
@@ -167,7 +168,7 @@ class TestScriptRevisionCreate(DigiScriptTestCase):
             self.user_id = user.id
 
             # Create show
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -245,7 +246,7 @@ class TestScriptRevisionDelete(DigiScriptTestCase):
             self.user_id = user.id
 
             # Create show
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -328,7 +329,7 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
             session.flush()
             self.user_id = user.id
 
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -382,7 +383,7 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -475,7 +476,7 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -565,7 +566,7 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -693,7 +694,7 @@ class TestScriptRevisionBranching(DigiScriptTestCase):
             session.flush()
             self.user_id = user.id
 
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -857,7 +858,7 @@ class TestScriptRevisionBranching(DigiScriptTestCase):
         """Test that parent_revision_id must belong to the same script."""
         # Create a second show with its own script and revision
         with self._app.get_db().sessionmaker() as session:
-            show2 = Show(name="Second Show")
+            show2 = Show(name="Second Show", script_mode=ShowScriptType.FULL)
             session.add(show2)
             session.flush()
             show2_id = show2.id
@@ -913,7 +914,7 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
             session.flush()
             self.user_id = user.id
 
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -966,7 +967,7 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -1007,7 +1008,7 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -1091,7 +1092,7 @@ class TestScriptRevisionDeletionTreeIntegrity(DigiScriptTestCase):
             session.flush()
             self.user_id = user.id
 
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id

@@ -57,48 +57,73 @@
         </b-col>
       </b-form-row>
     </b-col>
-    <template v-if="state.line_parts.length > 0">
-      <script-line-part
-        v-for="(part, index) in state.line_parts"
-        :key="`line_${lineIndex}_part_${index}`"
-        v-model="$v.state.line_parts.$model[index]"
-        :focus-input="index === 0"
-        :characters="characters"
-        :character-groups="characterGroups"
-        :show-add-button="index === state.line_parts.length - 1 && !isStageDirection"
-        :enable-add-button="state.line_parts.length < 4 && !isStageDirection"
-        :is-stage-direction="isStageDirection"
-        :line-parts="state.line_parts"
-        @input="stateChange"
-        @addLinePart="addLinePart"
-        @tryFinishLine="tryFinishLine"
-      />
-      <b-col
-        v-if="isStageDirection && stageDirectionStyles.length > 0"
-        cols="2"
-      >
-        <b-form-select
-          id="stage-direction-style"
-          v-model="$v.state.stage_direction_style_id.$model"
-          name="stage-direction-style"
-          :options="stageDirectionStylesOptions"
-          :state="validateState('stage_direction_style_id')"
-          @change="stateChange"
+    <template v-if="(lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION)">
+      <template v-if="state.line_parts.length > 0">
+        <script-line-part
+          v-for="(part, index) in state.line_parts"
+          :key="`line_${lineIndex}_part_${index}`"
+          v-model="$v.state.line_parts.$model[index]"
+          :focus-input="index === 0"
+          :characters="characters"
+          :character-groups="characterGroups"
+          :show-add-button="index === state.line_parts.length - 1 && lineType === LINE_TYPES.DIALOGUE && CURRENT_SHOW.script_mode === 1"
+          :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
+          :line-type="lineType"
+          :line-parts="state.line_parts"
+          @input="stateChange"
+          @addLinePart="addLinePart"
+          @tryFinishLine="tryFinishLine"
         />
+        <b-col
+          v-if="lineType === LINE_TYPES.STAGE_DIRECTION && stageDirectionStyles.length > 0"
+          cols="2"
+        >
+          <b-form-select
+            id="stage-direction-style"
+            v-model="$v.state.stage_direction_style_id.$model"
+            name="stage-direction-style"
+            :options="stageDirectionStylesOptions"
+            :state="validateState('stage_direction_style_id')"
+            @change="stateChange"
+          />
+        </b-col>
+      </template>
+      <b-col
+        v-else
+        cols="10"
+        style="text-align: right"
+      >
+        <b-button
+          v-b-popover.hover.top="'Add line part'"
+          @click="addLinePart"
+        >
+          <b-icon-plus-square-fill variant="success" />
+        </b-button>
       </b-col>
     </template>
-    <b-col
-      v-else
-      cols="10"
-      style="text-align: right"
-    >
-      <b-button
-        v-b-popover.hover.top="'Add line part'"
-        @click="addLinePart"
-      >
-        <b-icon-plus-square-fill variant="success" />
-      </b-button>
-    </b-col>
+    <template v-else>
+      <b-col>
+        <b-alert
+          variant="secondary"
+          show
+        >
+          <p
+            class="text-muted small"
+            style="margin: 0"
+          >
+            <template v-if="lineType === LINE_TYPES.CUE_LINE">
+              Cue Lines have no editable content.
+            </template>
+            <template v-else-if="lineType === LINE_TYPES.SPACING">
+              Spacing Lines have no editable content.
+            </template>
+            <template v-else>
+              This line type is not recognized.
+            </template>
+          </p>
+        </b-alert>
+      </b-col>
+    </template>
   </b-form-row>
 </template>
 
@@ -107,6 +132,7 @@ import { mapGetters } from 'vuex';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptLineEditor',
@@ -145,9 +171,9 @@ export default {
       required: true,
       type: Function,
     },
-    isStageDirection: {
+    lineType: {
       required: true,
-      type: Boolean,
+      type: Number,
     },
     stageDirectionStyles: {
       required: true,
@@ -160,6 +186,7 @@ export default {
   },
   data() {
     return {
+      LINE_TYPES,
       state: this.value,
       blankLinePartObj: {
         id: null,
@@ -188,21 +215,23 @@ export default {
         notNullAndGreaterThanZero,
       },
       line_parts: {
-        required,
+        required: requiredIf(function isLinePartsRequired() {
+          return this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION;
+        }),
         $each: {
           character_id: {
             required: requiredIf(function isCharacterRequired(m) {
-              return this.isStageDirection === false && m.character_group_id == null;
+              return this.lineType === LINE_TYPES.DIALOGUE && m.character_group_id == null;
             }),
           },
           character_group_id: {
             required: requiredIf(function isCharacterGroupRequired(m) {
-              return this.isStageDirection === false && m.character_id == null;
+              return this.lineType === LINE_TYPES.DIALOGUE && m.character_id == null;
             }),
           },
           line_text: {
             required: requiredIf(function isLineTextRequired() {
-              return this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== '');
+              return (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION) && (this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== ''));
             }),
           },
         },
@@ -211,7 +240,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'TMP_SCRIPT', 'ALL_DELETED_LINES']),
+    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'TMP_SCRIPT', 'ALL_DELETED_LINES', 'CURRENT_SHOW']),
     currentPageScript() {
       return this.TMP_SCRIPT[this.currentEditPage.toString()] || [];
     },
@@ -311,7 +340,7 @@ export default {
   async created() {
     this.previousLine = await this.previousLineFn(this.lineIndex);
     this.nextLine = await this.nextLineFn(this.lineIndex);
-    if (this.state.line_parts.length === 0) {
+    if (this.state.line_parts.length === 0 && (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION)) {
       this.addLinePart();
     }
   },
@@ -379,7 +408,7 @@ export default {
       blankLine.line_id = this.state.id;
       blankLine.part_index = this.state.line_parts.length;
       this.state.line_parts.push(blankLine);
-      if (!this.isStageDirection && this.previousLine != null) {
+      if (this.lineType === LINE_TYPES.DIALOGUE && this.previousLine != null) {
         const newPartIndex = this.state.line_parts.length - 1;
         const newPart = this.state.line_parts[newPartIndex];
         if (this.previousLine.line_parts.length >= newPartIndex + 1) {

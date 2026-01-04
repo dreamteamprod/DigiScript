@@ -74,30 +74,75 @@ The **Script** tab is where you edit the actual script content. When you first n
 
 To begin editing, click the **Begin Editing** button. This requests exclusive edit access from the backend, ensuring only one person can edit the script at a time to prevent conflicting changes.
 
-Once you have edit access, you'll see options to **Save** the script, along with buttons for **Add Line** and **Add Stage Direction**.
+Once you have edit access, you'll see options to **Save** the script, along with a dropdown button for **Add Dialogue** that provides access to all line types.
 
-#### Adding Lines
+#### Line Types
 
-Click **Add Line** to create a new script line. For each line, you'll need to:
-1. Select the **Act** and **Scene** where the line occurs
-2. Choose the **Character** or **Character Group** speaking the line
-3. Enter the line content itself
-4. Click **Done** to finish editing the line
+DigiScript supports four types of script lines, each serving a specific purpose:
+
+![](../images/config_show/script_add_dialogue_dropdown.png)
+
+##### Dialogue Lines
+
+The default line type for character speech. Dialogue lines:
+- Require a character or character group assignment
+- Can contain up to 4 parts (multi-part lines) in FULL mode
+
+![](../images/config_show/script_dialogue_line_editing.png)
+
+To create a dialogue line:
+1. Click **Add Dialogue** (or select it from the dropdown)
+2. Select the **Act** and **Scene** where the line occurs
+3. Choose the **Character** or **Character Group** speaking the line
+4. Enter the line content
+5. Click **Done** to finish editing the line
+
+##### Stage Direction Lines
+
+Non-dialogue text for describing actions, movements, or technical directions. Stage direction lines:
+- Contain a single text field (no character assignment)
+- Display in italic formatting with customizable styling
+- Can be styled with Stage Direction Styles (system-level or user preferences)
+
+![](../images/config_show/script_stage_direction_editing.png)
+
+To create a stage direction, select **Add Stage Direction** from the dropdown menu.
+
+##### Cue Lines
+
+Special lines designed for placing technical cues without associated dialogue. Cue lines:
+- Have no editable content (displayed as "Cue Lines have no editable content")
+- Provide a clean attachment point for cues (LX, SND, etc.)
+- Are useful for cues that occur between dialogue or during pauses
+
+![](../images/config_show/script_cue_line_editing.png)
+
+To create a cue line, select **Add Cue Line** from the dropdown menu.
+
+##### Spacing Lines
+
+Blank lines that add vertical spacing in your script. Spacing lines:
+- Have no editable content (displayed as "Spacing Lines have no editable content")
+- Are automatically hidden in live shows
+
+![](../images/config_show/script_spacing_line_editing.png)
+
+To create a spacing line, select **Add Spacing** from the dropdown menu.
 
 **Important**: After clicking **Done**, DigiScript automatically creates a new empty line. If you don't need this line, click **Delete** before adding your next line. The script cannot be saved while lines are in edit mode.
 
-After adding content, your script will display the lines you've created:
-
-![](../images/config_show/script_with_content.png)
-
 #### Multi-Part Lines
 
-Lines can be made up of multiple parts (up to 4 per line). This is useful for:
+Dialogue lines can be made up of multiple parts (up to 4 per line) in **FULL mode**. This is useful for:
 - Songs where multiple characters sing simultaneously
 - Scenes where characters talk over each other
 - Parallel dialogue
 
 Click the green plus button in the line editor to add additional line parts. These will display as multiple columns in the script view.
+
+![](../images/config_show/script_multi_part_dialogue_full_mode.png)
+
+**Note**: In COMPACT mode, multi-part lines are not available as the layout is optimized for single-column display. The add button for additional parts will not be visible when editing shows configured with COMPACT mode.
 
 #### Page Navigation
 

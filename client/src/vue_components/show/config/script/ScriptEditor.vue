@@ -108,7 +108,7 @@
               :value="TMP_SCRIPT[currentEditPage][index]"
               :previous-line-fn="getPreviousLineForIndex"
               :next-line-fn="getNextLineForIndex"
-              :is-stage-direction="line.stage_direction"
+              :line-type="line.line_type"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
               @input="lineChange(line, index)"
               @doneEditing="doneEditingLine(currentEditPage, index)"
@@ -127,14 +127,15 @@
               :previous-line="TMP_SCRIPT[currentEditPage][index - 1]"
               :can-edit="canEdit"
               :line-part-cuts="linePartCuts"
-              :insert-mode="insertMode"
-              :insert-s-d-mode="insertSDMode"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
               :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
               @editLine="beginEditingLine(currentEditPage, index)"
               @cutLinePart="cutLinePart"
-              @insertLine="insertLineAt(currentEditPage, index, false)"
-              @insertStageDirection="insertLineAt(currentEditPage, index, true)"
+              @insertDialogue="insertDialogueAt(currentEditPage, index)"
+              @insertStageDirection="insertStageDirectionAt(currentEditPage, index)"
+              @insertCueLine="insertCueLineAt(currentEditPage, index)"
+              @insertSpacing="insertSpacingAt(currentEditPage, index)"
+              @deleteLine="deleteLine(currentEditPage, index)"
             />
           </template>
         </template>
@@ -156,12 +157,22 @@
           >
             Debug Script
           </b-button>
-          <b-button @click="addNewLine">
-            Add line
-          </b-button>
-          <b-button @click="addStageDirection">
-            Add Stage Direction
-          </b-button>
+          <b-dropdown
+            split
+            text="Add Dialogue"
+            variant="primary"
+            @click="addNewLine"
+          >
+            <b-dropdown-item @click="addStageDirection">
+              Add Stage Direction
+            </b-dropdown-item>
+            <b-dropdown-item @click="addCueLine">
+              Add Cue Line
+            </b-dropdown-item>
+            <b-dropdown-item @click="addSpacing">
+              Add Spacing
+            </b-dropdown-item>
+          </b-dropdown>
         </b-button-group>
       </b-col>
     </b-row>
@@ -297,6 +308,7 @@ import ScriptLineEditor from '@/vue_components/show/config/script/ScriptLineEdit
 import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineViewer.vue';
 import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptConfig',
@@ -310,7 +322,7 @@ export default {
         act_id: null,
         scene_id: null,
         page: null,
-        stage_direction: false,
+        line_type: LINE_TYPES.DIALOGUE,
         line_parts: [],
         stage_direction_style_id: null,
       },
@@ -330,8 +342,6 @@ export default {
       loaded: false,
       latestAddedLine: null,
       linePartCuts: [],
-      insertMode: false,
-      insertSDMode: false,
       autoSaveInterval: null,
       isAutoSaving: false,
       navbarHeight: 0,
@@ -454,37 +464,15 @@ export default {
     this.calculateNavbarHeight();
   },
   created() {
-    window.addEventListener('keydown', this.handleKeyDown);
-    window.addEventListener('keyup', this.handleKeyUp);
     window.addEventListener('resize', this.calculateNavbarHeight);
   },
   destroyed() {
-    window.removeEventListener('keydown', this.handleKeyDown);
-    window.removeEventListener('keyup', this.handleKeyUp);
     window.removeEventListener('resize', this.calculateNavbarHeight);
     if (this.autoSaveInterval != null) {
       clearInterval(this.autoSaveInterval);
     }
   },
   methods: {
-    handleKeyDown(e) {
-      if (e.shiftKey && e.altKey && this.canEdit) {
-        this.insertSDMode = true;
-        this.insertMode = false;
-      } else if (e.shiftKey && this.canEdit) {
-        this.insertMode = true;
-        this.insertSDMode = false;
-      }
-    },
-    handleKeyUp(e) {
-      if (e.key === 'Alt' && e.shiftKey && this.insertSDMode && this.canEdit) {
-        this.insertSDMode = false;
-        this.insertMode = true;
-      } else if (e.key === 'Shift' && (this.insertMode || this.insertSDMode) && this.canEdit) {
-        this.insertMode = false;
-        this.insertSDMode = false;
-      }
-    },
     async getMaxScriptPage() {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
         method: 'GET',
@@ -575,10 +563,42 @@ export default {
     },
     async addStageDirection() {
       const stageDirectionObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      stageDirectionObject.stage_direction = true;
+      stageDirectionObject.line_type = LINE_TYPES.STAGE_DIRECTION;
       this.ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: stageDirectionObject,
+      });
+      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
+      const prevLine = await this.getPreviousLineForIndex(lineIndex);
+      if (prevLine != null) {
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+      }
+    },
+    async addCueLine() {
+      const cueLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
+      cueLineObject.line_type = LINE_TYPES.CUE_LINE;
+      cueLineObject.line_parts = [];
+      this.ADD_BLANK_LINE({
+        pageNo: this.currentEditPage,
+        lineObj: cueLineObject,
+      });
+      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
+      const prevLine = await this.getPreviousLineForIndex(lineIndex);
+      if (prevLine != null) {
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
+        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+      }
+    },
+    async addSpacing() {
+      const spacingObject = JSON.parse(JSON.stringify(this.blankLineObj));
+      spacingObject.line_type = LINE_TYPES.SPACING;
+      spacingObject.line_parts = [];
+      this.ADD_BLANK_LINE({
+        pageNo: this.currentEditPage,
+        lineObj: spacingObject,
       });
       const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
       this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
@@ -723,26 +743,39 @@ export default {
         this.linePartCuts.splice(index, 1);
       }
     },
-    async insertLineAt(pageIndex, lineIndex, isStageDirection) {
+    async insertLineAt(pageIndex, lineIndex, lineType) {
+      // Map line types to their corresponding add methods
+      const addMethodMap = {
+        [LINE_TYPES.DIALOGUE]: () => this.addNewLine(),
+        [LINE_TYPES.STAGE_DIRECTION]: () => this.addStageDirection(),
+        [LINE_TYPES.CUE_LINE]: () => this.addCueLine(),
+        [LINE_TYPES.SPACING]: () => this.addSpacing(),
+      };
+
+      // If we're inserting at the end of the page, use the add method instead
       if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
-        if (isStageDirection) {
-          await this.addStageDirection();
-        } else {
-          await this.addNewLine();
-        }
+        await addMethodMap[lineType]();
         return;
       }
 
+      // Create new line object with appropriate configuration
       const newLineIndex = lineIndex + 1;
-      const blackLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
-      if (isStageDirection) {
-        blackLineObject.stage_direction = true;
+      const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
+      newLineObject.line_type = lineType;
+
+      // CUE_LINE and SPACING types need empty line_parts array
+      if (lineType === LINE_TYPES.CUE_LINE || lineType === LINE_TYPES.SPACING) {
+        newLineObject.line_parts = [];
       }
+
+      // Insert the blank line
       this.INSERT_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineIndex: newLineIndex,
-        lineObj: blackLineObject,
+        lineObj: newLineObject,
       });
+
+      // Update existing edit page indices
       this.editPages.forEach(function updateEditPage(editPage, index) {
         const editParts = editPage.split('_');
         const editPageIndex = parseInt(editParts[1], 10);
@@ -752,13 +785,28 @@ export default {
         }
       }, this);
 
+      // Add new line to edit pages
       const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
       this.editPages.push(lineIdent);
+
+      // Inherit act and scene from previous line
       const prevLine = await this.getPreviousLineForIndex(newLineIndex);
       if (prevLine != null) {
         this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
         this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
       }
+    },
+    async insertDialogueAt(pageIndex, lineIndex) {
+      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
+    },
+    async insertStageDirectionAt(pageIndex, lineIndex) {
+      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.STAGE_DIRECTION);
+    },
+    async insertCueLineAt(pageIndex, lineIndex) {
+      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.CUE_LINE);
+    },
+    async insertSpacingAt(pageIndex, lineIndex) {
+      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.SPACING);
     },
     async saveScript() {
       if (!this.IS_CUT_MODE) {

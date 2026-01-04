@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from models.cue import CueType
 from models.script import Script, StageDirectionStyle
-from models.show import Show
+from models.show import Show, ShowScriptType
 from models.user import User, UserOverrides
 from test.conftest import DigiScriptTestCase
 
@@ -24,7 +24,7 @@ class TestStageDirectionOverridesController(DigiScriptTestCase):
             self.user_id = user.id
 
             # Create show (required by some decorators)
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -450,7 +450,7 @@ class TestCueColourOverridesController(DigiScriptTestCase):
             self.user_id = user.id
 
             # Create show
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id

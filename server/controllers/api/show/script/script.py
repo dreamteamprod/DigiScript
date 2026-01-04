@@ -14,11 +14,13 @@ from models.script import (
     ScriptLine,
     ScriptLinePart,
     ScriptLineRevisionAssociation,
+    ScriptLineType,
     ScriptRevision,
 )
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import ScriptLineSchema
+from utils.show.line_type_validator import LineTypeValidatorRegistry
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
@@ -100,44 +102,10 @@ class ScriptController(BaseAPIController):
                 return
 
     @staticmethod
-    def _validate_line(line_json):
-        if line_json["stage_direction"]:
-            if len(line_json["line_parts"]) > 1:
-                return False, "Stage directions can only have 1 line part"
-            line_part = line_json["line_parts"][0]
-            if line_part["character_id"] is not None:
-                return False, "Stage directions cannot have characters"
-            if line_part["character_group_id"] is not None:
-                return False, "Stage directions cannot have character groups"
-            if line_part["line_text"] is None:
-                return False, "Stage directions must contain text"
-        else:
-            for line_part in line_json["line_parts"]:
-                if line_part["line_text"] is None:
-                    if len(line_json["line_parts"]) == 1:
-                        return False, "Line parts must contain text"
-                    if not any(
-                        lp["line_text"] is not None for lp in line_json["line_parts"]
-                    ):
-                        return False, (
-                            "At least one line part in a multi part line must "
-                            "contain text"
-                        )
-                if (
-                    line_part["character_id"] is None
-                    and line_part["character_group_id"] is None
-                ):
-                    return (
-                        False,
-                        "Line parts must contain a character or character group",
-                    )
-                if line_part["character_id"] and line_part["character_group_id"]:
-                    return (
-                        False,
-                        "Line parts cannot contain both a character and character group",
-                    )
-
-        return True, ""
+    def _validate_line(show, line_json):
+        validator_registry = LineTypeValidatorRegistry()
+        result = validator_registry.validate_line(line_json, show)
+        return result.is_valid, result.error_message
 
     @requires_show
     @no_live_session
@@ -174,7 +142,7 @@ class ScriptController(BaseAPIController):
                 previous_line: Optional[ScriptLineRevisionAssociation] = None
                 for index, line in enumerate(lines):
                     # Validate each line before we do anything with it
-                    valid_status, valid_reason = self._validate_line(line)
+                    valid_status, valid_reason = self._validate_line(show, line)
                     if not valid_status:
                         session.rollback()
                         self.set_status(400)
@@ -187,7 +155,7 @@ class ScriptController(BaseAPIController):
                         act_id=line["act_id"],
                         scene_id=line["scene_id"],
                         page=line["page"],
-                        stage_direction=line["stage_direction"],
+                        line_type=ScriptLineType(line["line_type"]),
                         stage_direction_style_id=line["stage_direction_style_id"],
                     )
                     session.add(line_obj)
@@ -312,7 +280,7 @@ class ScriptController(BaseAPIController):
             act_id=line["act_id"],
             scene_id=line["scene_id"],
             page=line["page"],
-            stage_direction=line["stage_direction"],
+            line_type=ScriptLineType(line["line_type"]),
             stage_direction_style_id=line["stage_direction_style_id"],
         )
         session.add(line_obj)
@@ -463,7 +431,7 @@ class ScriptController(BaseAPIController):
                 for index, line in enumerate(lines):
                     if index in status["added"]:
                         # Validate the line
-                        valid_status, valid_reason = self._validate_line(line)
+                        valid_status, valid_reason = self._validate_line(show, line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)
@@ -476,7 +444,7 @@ class ScriptController(BaseAPIController):
                         previous_line = line_association
                     elif index in status["inserted"]:
                         # Validate the line
-                        valid_status, valid_reason = self._validate_line(line)
+                        valid_status, valid_reason = self._validate_line(show, line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)
@@ -590,7 +558,7 @@ class ScriptController(BaseAPIController):
                             CueAssociation.cleanup_orphaned_cue(session, cue_id)
                     elif index in status["updated"]:
                         # Validate the line
-                        valid_status, valid_reason = self._validate_line(line)
+                        valid_status, valid_reason = self._validate_line(show, line)
                         if not valid_status:
                             session.rollback()
                             self.set_status(400)

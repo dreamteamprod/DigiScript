@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from models.cue import Cue, CueAssociation, CueType
 from models.script import (
+    ScriptLineType,
     Script,
     ScriptCuts,
     ScriptLine,
@@ -12,7 +13,7 @@ from models.script import (
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
-from models.show import Act, Character, Scene, Show
+from models.show import Act, Character, Scene, Show, ShowScriptType
 from models.user import User
 from rbac.role import Role
 
@@ -25,7 +26,7 @@ class TestScriptController(DigiScriptTestCase):
         # Create base test data that many tests will need
         with self._app.get_db().sessionmaker() as session:
             # Create a test show
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -113,7 +114,7 @@ class TestScriptController(DigiScriptTestCase):
                 act_id=self.act_id,
                 scene_id=self.scene_id,
                 page=1,
-                stage_direction=False,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line1)
             session.flush()
@@ -137,7 +138,7 @@ class TestScriptController(DigiScriptTestCase):
                 act_id=self.act_id,
                 scene_id=self.scene_id,
                 page=1,
-                stage_direction=False,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line2)
             session.flush()
@@ -183,7 +184,7 @@ class TestScriptController(DigiScriptTestCase):
                 act_id=self.act_id,
                 scene_id=self.scene_id,
                 page=1,
-                stage_direction=False,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line)
             session.flush()
@@ -212,7 +213,7 @@ class TestCompiledScriptController(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -247,7 +248,7 @@ class TestScriptCutsController(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -277,7 +278,10 @@ class TestScriptCutsController(DigiScriptTestCase):
             session.flush()
 
             line = ScriptLine(
-                act_id=act.id, scene_id=scene.id, page=1, stage_direction=False
+                act_id=act.id,
+                scene_id=scene.id,
+                page=1,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line)
             session.flush()
@@ -345,7 +349,7 @@ class TestScriptMaxPageController(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -393,7 +397,10 @@ class TestScriptMaxPageController(DigiScriptTestCase):
 
             # Page 1 line
             line1 = ScriptLine(
-                act_id=act.id, scene_id=scene.id, page=1, stage_direction=False
+                act_id=act.id,
+                scene_id=scene.id,
+                page=1,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line1)
             session.flush()
@@ -405,7 +412,10 @@ class TestScriptMaxPageController(DigiScriptTestCase):
 
             # Page 2 line
             line2 = ScriptLine(
-                act_id=act.id, scene_id=scene.id, page=2, stage_direction=False
+                act_id=act.id,
+                scene_id=scene.id,
+                page=2,
+                line_type=ScriptLineType.DIALOGUE,
             )
             session.add(line2)
             session.flush()
@@ -434,7 +444,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
@@ -490,7 +500,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -551,7 +561,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": line_part_id,
@@ -622,7 +632,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -668,7 +678,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": line_part_id,
@@ -739,7 +749,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": None,
@@ -804,7 +814,7 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
                 "act_id": self.act_id,
                 "scene_id": self.scene_id,
                 "page": 1,
-                "stage_direction": False,
+                "line_type": 1,
                 "line_parts": [
                     {
                         "id": line_part_id,
@@ -874,3 +884,795 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
             # 7. Exactly 1 line should exist (the new one)
             all_lines = session.scalars(select(ScriptLine)).all()
             self.assertEqual(1, len(all_lines), "Should have exactly 1 line")
+
+    def test_post_compact_mode_rejects_multiple_line_parts(self):
+        """Test that POST rejects multiple line_parts in COMPACT mode."""
+        # Create show with COMPACT mode
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Compact Show", script_mode=ShowScriptType.COMPACT)
+            session.add(show)
+            session.flush()
+            show_id = show.id
+
+            # Create script and revision
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Rev"
+            )
+            session.add(revision)
+            session.flush()
+            revision_id = revision.id
+            script.current_revision = revision_id
+
+            # Create act and scene
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            scene_id = scene.id
+
+            # Create TWO characters for multi-part line
+            char1 = Character(show_id=show.id, name="Character 1")
+            char2 = Character(show_id=show.id, name="Character 2")
+            session.add_all([char1, char2])
+            session.flush()
+            char1_id = char1.id
+            char2_id = char2.id
+
+            # Create admin user
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            user_id = admin.id
+            session.commit()
+
+        # Set current show
+        self._app.digi_settings.settings["current_show"].set_value(show_id)
+
+        # Create JWT token
+        token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
+
+        # Prepare line with MULTIPLE line_parts (should fail)
+        lines = [
+            {
+                "id": None,
+                "act_id": act_id,
+                "scene_id": scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": char1_id,
+                        "character_group_id": None,
+                        "line_text": "First character speaks",
+                    },
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 1,
+                        "character_id": char2_id,
+                        "character_group_id": None,
+                        "line_text": "Second character speaks",
+                    },
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        # Make POST request
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        # Verify error response
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn(
+            "Lines can only have 1 line part in compact script mode",
+            response_body["message"],
+        )
+
+    def test_post_compact_mode_accepts_single_line_part(self):
+        """Test that POST accepts single line_part in COMPACT mode."""
+        # Create show with COMPACT mode
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Compact Show", script_mode=ShowScriptType.COMPACT)
+            session.add(show)
+            session.flush()
+            show_id = show.id
+
+            # Create script and revision
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Rev"
+            )
+            session.add(revision)
+            session.flush()
+            revision_id = revision.id
+            script.current_revision = revision_id
+
+            # Create act and scene
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            scene_id = scene.id
+
+            # Create one character
+            char = Character(show_id=show.id, name="Character 1")
+            session.add(char)
+            session.flush()
+            char_id = char.id
+
+            # Create admin user
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            user_id = admin.id
+            session.commit()
+
+        # Set current show
+        self._app.digi_settings.settings["current_show"].set_value(show_id)
+
+        # Create JWT token
+        token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
+
+        # Prepare line with SINGLE line_part (should succeed)
+        lines = [
+            {
+                "id": None,
+                "act_id": act_id,
+                "scene_id": scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": char_id,
+                        "character_group_id": None,
+                        "line_text": "Character speaks",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        # Make POST request
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        # Verify success response
+        self.assertEqual(200, response.code)
+
+        # Verify in database that line exists with exactly 1 line_part
+        with self._app.get_db().sessionmaker() as session:
+            script_lines = session.scalars(select(ScriptLine)).all()
+            self.assertEqual(1, len(script_lines), "Should have exactly 1 line")
+
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(1, len(line_parts), "Should have exactly 1 line_part")
+
+    def test_patch_compact_mode_rejects_multiple_line_parts(self):
+        """Test that PATCH rejects updating line to have multiple line_parts in COMPACT mode."""
+        # Create show with COMPACT mode and initial line
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Compact Show", script_mode=ShowScriptType.COMPACT)
+            session.add(show)
+            session.flush()
+            show_id = show.id
+
+            # Create script and revision
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Rev"
+            )
+            session.add(revision)
+            session.flush()
+            revision_id = revision.id
+            script.current_revision = revision_id
+
+            # Create act and scene
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            scene_id = scene.id
+
+            # Create TWO characters
+            char1 = Character(show_id=show.id, name="Character 1")
+            char2 = Character(show_id=show.id, name="Character 2")
+            session.add_all([char1, char2])
+            session.flush()
+            char1_id = char1.id
+            char2_id = char2.id
+
+            # Create admin user
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            user_id = admin.id
+            session.commit()
+
+        # Set current show
+        self._app.digi_settings.settings["current_show"].set_value(show_id)
+
+        # Create JWT token
+        token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
+
+        # First, create a line with single line_part (should succeed)
+        initial_lines = [
+            {
+                "id": None,
+                "act_id": act_id,
+                "scene_id": scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": char1_id,
+                        "character_group_id": None,
+                        "line_text": "Original line",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(initial_lines),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Get the line ID
+        with self._app.get_db().sessionmaker() as session:
+            line = session.scalar(select(ScriptLine))
+            line_id = line.id
+
+        # Now try to PATCH the line to have multiple line_parts (should fail)
+        updated_lines = [
+            {
+                "id": line_id,
+                "act_id": act_id,
+                "scene_id": scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": line_id,
+                        "part_index": 0,
+                        "character_id": char1_id,
+                        "character_group_id": None,
+                        "line_text": "First part",
+                    },
+                    {
+                        "id": None,
+                        "line_id": line_id,
+                        "part_index": 1,
+                        "character_id": char2_id,
+                        "character_group_id": None,
+                        "line_text": "Second part",
+                    },
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        patch_data = {
+            "page": updated_lines,
+            "status": {"added": [], "updated": [0], "deleted": [], "inserted": []},
+        }
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_data),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        # Verify error response
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn(
+            "Lines can only have 1 line part in compact script mode",
+            response_body["message"],
+        )
+
+        # Verify original line unchanged in database
+        with self._app.get_db().sessionmaker() as session:
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(
+                1, len(line_parts), "Should still have exactly 1 line_part"
+            )
+
+    def test_full_mode_allows_multiple_line_parts(self):
+        """Test that FULL mode allows multiple line_parts (regression test)."""
+        # Create show with FULL mode
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Full Mode Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            show_id = show.id
+
+            # Create script and revision
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Revision"
+            )
+            session.add(revision)
+            session.flush()
+            revision_id = revision.id
+            script.current_revision = revision_id
+
+            # Create act and scene
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            scene_id = scene.id
+
+            # Create TWO characters for multi-part line
+            char1 = Character(show_id=show.id, name="Character 1")
+            char2 = Character(show_id=show.id, name="Character 2")
+            session.add_all([char1, char2])
+            session.flush()
+            char1_id = char1.id
+            char2_id = char2.id
+
+            # Create admin user
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            user_id = admin.id
+            session.commit()
+
+        # Set current show
+        self._app.digi_settings.settings["current_show"].set_value(show_id)
+
+        # Create JWT token
+        token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
+
+        # Prepare line with MULTIPLE line_parts (should succeed in FULL mode)
+        lines = [
+            {
+                "id": None,
+                "act_id": act_id,
+                "scene_id": scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": char1_id,
+                        "character_group_id": None,
+                        "line_text": "First character speaks",
+                    },
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 1,
+                        "character_id": char2_id,
+                        "character_group_id": None,
+                        "line_text": "Second character speaks",
+                    },
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        # Make POST request
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        # Verify success response
+        self.assertEqual(200, response.code)
+
+        # Verify both line_parts were created in database
+        with self._app.get_db().sessionmaker() as session:
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(
+                2, len(line_parts), "Should have exactly 2 line_parts in FULL mode"
+            )
+            # Verify the line_parts have correct text
+            line_part_texts = {lp.line_text for lp in line_parts}
+            self.assertIn("First character speaks", line_part_texts)
+            self.assertIn("Second character speaks", line_part_texts)
+
+
+class TestLineTypeValidation(DigiScriptTestCase):
+    """Test suite for line type validation in POST/PATCH endpoints."""
+
+    def setUp(self):
+        super().setUp()
+        # Create base test data
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Rev"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
+            script.current_revision = revision.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            self.act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            self.scene_id = scene.id
+
+            character = Character(show_id=show.id, name="Test Character")
+            session.add(character)
+            session.flush()
+            self.character_id = character.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def test_post_cue_line_succeeds_with_no_parts(self):
+        """Test creating a CUE_LINE with no line_parts succeeds."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 3,
+                "line_parts": [],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code)
+
+        # Verify in database
+        with self._app.get_db().sessionmaker() as session:
+            script_lines = session.scalars(
+                select(ScriptLine).where(
+                    ScriptLine.line_type == ScriptLineType.CUE_LINE
+                )
+            ).all()
+            self.assertEqual(1, len(script_lines))
+            self.assertEqual(ScriptLineType.CUE_LINE, script_lines[0].line_type)
+
+            # Verify no line_parts created
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(0, len(line_parts))
+
+    def test_post_cue_line_rejects_with_line_parts(self):
+        """Test creating a CUE_LINE with line_parts returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 3,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "This should fail",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("cannot have line parts", response_body["message"])
+
+    def test_post_spacing_line_succeeds_with_no_parts(self):
+        """Test creating a SPACING line with no line_parts succeeds."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 4,
+                "line_parts": [],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code)
+
+        # Verify in database
+        with self._app.get_db().sessionmaker() as session:
+            script_lines = session.scalars(
+                select(ScriptLine).where(ScriptLine.line_type == ScriptLineType.SPACING)
+            ).all()
+            self.assertEqual(1, len(script_lines))
+            self.assertEqual(ScriptLineType.SPACING, script_lines[0].line_type)
+
+            # Verify no line_parts created
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(0, len(line_parts))
+
+    def test_post_spacing_line_rejects_with_line_parts(self):
+        """Test creating a SPACING line with line_parts returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 4,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "This should fail",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("cannot have line parts", response_body["message"])
+
+    def test_post_stage_direction_succeeds(self):
+        """Test creating a STAGE_DIRECTION with valid data succeeds."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "Enter stage left",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code)
+
+        # Verify in database
+        with self._app.get_db().sessionmaker() as session:
+            script_lines = session.scalars(
+                select(ScriptLine).where(
+                    ScriptLine.line_type == ScriptLineType.STAGE_DIRECTION
+                )
+            ).all()
+            self.assertEqual(1, len(script_lines))
+            self.assertEqual(ScriptLineType.STAGE_DIRECTION, script_lines[0].line_type)
+
+            line_parts = session.scalars(select(ScriptLinePart)).all()
+            self.assertEqual(1, len(line_parts))
+            self.assertEqual("Enter stage left", line_parts[0].line_text)
+
+    def test_post_stage_direction_rejects_multiple_parts(self):
+        """Test STAGE_DIRECTION with >1 line_part returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "Enter",
+                    },
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 1,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "Exit",
+                    },
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("must have exactly 1 line part", response_body["message"])
+
+    def test_post_stage_direction_rejects_with_character(self):
+        """Test STAGE_DIRECTION with character_id returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Enter",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("cannot have characters", response_body["message"])
+
+    def test_post_stage_direction_rejects_empty_text(self):
+        """Test STAGE_DIRECTION with empty/whitespace text returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": None,
+                        "character_group_id": None,
+                        "line_text": "   ",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("must contain text", response_body["message"])

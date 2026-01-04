@@ -1,6 +1,6 @@
 import tornado.escape
 
-from models.show import Act, Show
+from models.show import Act, Show, ShowScriptType
 from test.conftest import DigiScriptTestCase
 
 
@@ -11,7 +11,7 @@ class TestActController(DigiScriptTestCase):
         super().setUp()
         # Create a test show
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show")
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
             self.show_id = show.id
