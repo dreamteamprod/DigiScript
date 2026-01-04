@@ -161,6 +161,8 @@
             split
             text="Add Dialogue"
             variant="primary"
+            right
+            boundary="window"
             @click="addNewLine"
           >
             <b-dropdown-item @click="addStageDirection">
