@@ -155,12 +155,18 @@ class MicrophoneController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                microphone_id = data.get("id", None)
-                if not microphone_id:
+                microphone_id_str = self.get_argument("id", None)
+                if not microphone_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    microphone_id = int(microphone_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry: Microphone = session.get(Microphone, microphone_id)

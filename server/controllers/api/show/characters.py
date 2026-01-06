@@ -3,7 +3,7 @@ from collections import defaultdict
 from sqlalchemy import select
 from tornado import escape
 
-from models.script import Script, ScriptLine, ScriptRevision
+from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
 from models.show import Cast, Character, CharacterGroup, Show
 from rbac.role import Role
 from schemas.schemas import CharacterGroupSchema, CharacterSchema
@@ -144,12 +144,18 @@ class CharacterController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                character_id = data.get("id", None)
-                if not character_id:
+                character_id_str = self.get_argument("id", None)
+                if not character_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    character_id = int(character_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry: Character = session.get(Character, character_id)
@@ -198,7 +204,7 @@ class CharacterStatsController(BaseAPIController):
                 line_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
                 for line_association in revision.line_associations:
                     line: ScriptLine = line_association.line
-                    if line.stage_direction:
+                    if line.line_type != ScriptLineType.DIALOGUE:
                         continue
                     for line_part in line.line_parts:
                         if line_part.line_part_cuts is not None:
@@ -303,12 +309,18 @@ class CharacterGroupController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                character_group_id = data.get("id", None)
-                if not character_group_id:
+                character_group_id_str = self.get_argument("id", None)
+                if not character_group_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    character_group_id = int(character_group_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry: CharacterGroup = session.get(CharacterGroup, character_group_id)

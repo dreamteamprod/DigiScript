@@ -11,7 +11,7 @@
       <b-row class="script-row">
         <b-col cols="2">
           <b-button
-            v-b-modal.go-to-page
+            v-b-modal.go-to-page-script-editor
             variant="success"
           >
             Go to Page
@@ -206,8 +206,8 @@
       </div>
     </b-modal>
     <b-modal
-      id="go-to-page"
-      ref="go-to-page"
+      id="go-to-page-script-editor"
+      ref="go-to-page-script-editor"
       title="Go to Page"
       size="sm"
       :hide-header-close="changingPage"

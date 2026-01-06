@@ -187,12 +187,15 @@ export default {
       }
     },
     async DELETE_CUE(context, cue) {
-      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+      const searchParams = new URLSearchParams({
+        cueId: cue.cueId,
+        lineId: cue.lineId,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(cue),
       });
       if (response.ok) {
         context.dispatch('LOAD_CUES');
@@ -201,6 +204,25 @@ export default {
         log.error('Unable to delete cue');
         Vue.$toast.error('Unable to delete cue');
       }
+    },
+    async SEARCH_CUES(context, { identifier, cueTypeId }) {
+      const params = new URLSearchParams();
+      params.append('identifier', identifier);
+      params.append('cue_type_id', cueTypeId);
+
+      const response = await fetch(`${makeURL('/api/v1/show/cues/search')}?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return result;
+      }
+      log.error('Unable to search for cue');
+      throw new Error('Cue search failed');
     },
     async GET_CUTS(context) {
       const response = await fetch(`${makeURL('/api/v1/show/script/cuts')}`, {
@@ -265,12 +287,14 @@ export default {
       }
     },
     async DELETE_STAGE_DIRECTION_STYLE(context, styleId) {
-      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
+      const searchParams = new URLSearchParams({
+        id: styleId,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: styleId }),
       });
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLES');
