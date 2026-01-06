@@ -205,6 +205,25 @@ export default {
         Vue.$toast.error('Unable to delete cue');
       }
     },
+    async SEARCH_CUES(context, { identifier, cueTypeId }) {
+      const params = new URLSearchParams();
+      params.append('identifier', identifier);
+      params.append('cue_type_id', cueTypeId);
+
+      const response = await fetch(`${makeURL('/api/v1/show/cues/search')}?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return result;
+      }
+      log.error('Unable to search for cue');
+      throw new Error('Cue search failed');
+    },
     async GET_CUTS(context) {
       const response = await fetch(`${makeURL('/api/v1/show/script/cuts')}`, {
         method: 'GET',

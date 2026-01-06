@@ -1,7 +1,8 @@
 import collections
+import difflib
 from typing import List
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from tornado import escape
 
 from models.cue import Cue, CueAssociation, CueType
@@ -512,3 +513,150 @@ class CueStatsController(BaseAPIController):
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})
+
+
+@ApiRoute("show/cues/search", ApiVersion.V1)
+class CueSearchController(BaseAPIController):
+    @requires_show
+    async def get(self):
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+
+        # Extract query parameters
+        identifier = self.get_query_argument("identifier", None)
+        if not identifier or identifier.strip() == "":
+            self.set_status(400)
+            await self.finish({"message": "Identifier parameter is required"})
+            return
+        identifier = identifier.strip()
+
+        cue_type_id = self.get_query_argument("cue_type_id", None)
+        if not cue_type_id:
+            self.set_status(400)
+            await self.finish({"message": "Cue type ID parameter is required"})
+            return
+
+        try:
+            cue_type_id = int(cue_type_id)
+        except ValueError:
+            self.set_status(400)
+            await self.finish({"message": "Invalid cue_type_id parameter"})
+            return
+
+        with self.make_session() as session:
+            show: Show = session.get(Show, show_id)
+            if not show:
+                self.set_status(404)
+                await self.finish({"message": "404 show not found"})
+                return
+
+            script: Script = session.scalars(
+                select(Script).where(Script.show_id == show.id)
+            ).first()
+
+            if not script or not script.current_revision:
+                self.set_status(400)
+                await self.finish(
+                    {"message": "Script does not have a current revision"}
+                )
+                return
+
+            revision: ScriptRevision = session.get(
+                ScriptRevision, script.current_revision
+            )
+
+            # Query for exact matches (case-insensitive)
+            exact_match_stmt = (
+                select(CueAssociation, Cue, CueType, ScriptLine)
+                .join(CueAssociation.cue)
+                .join(CueAssociation.line)
+                .join(Cue.cue_type)
+                .where(
+                    CueAssociation.revision_id == revision.id,
+                    Cue.cue_type_id == cue_type_id,
+                    func.lower(Cue.ident) == identifier.lower(),
+                )
+            )
+            exact_results = session.execute(exact_match_stmt).all()
+
+            cue_schema = CueSchema()
+            cue_type_schema = CueTypeSchema()
+
+            # If exact matches found, return them
+            if exact_results:
+                exact_matches = []
+                for cue_assoc, cue, cue_type, line in exact_results:
+                    exact_matches.append(
+                        {
+                            "cue": cue_schema.dump(cue),
+                            "cue_type": cue_type_schema.dump(cue_type),
+                            "location": {
+                                "page": line.page,
+                                "line_id": line.id,
+                                "act_id": line.act_id,
+                                "scene_id": line.scene_id,
+                            },
+                        }
+                    )
+                self.set_status(200)
+                await self.finish(
+                    {
+                        "exact_matches": exact_matches,
+                        "suggestions": [],
+                    }
+                )
+                return
+
+            # No exact matches - calculate fuzzy matches
+            # Query all cues of this type in the current revision
+            all_cues_stmt = (
+                select(CueAssociation, Cue, CueType, ScriptLine)
+                .join(CueAssociation.cue)
+                .join(CueAssociation.line)
+                .join(Cue.cue_type)
+                .where(
+                    CueAssociation.revision_id == revision.id,
+                    Cue.cue_type_id == cue_type_id,
+                )
+            )
+
+            all_cues = session.execute(all_cues_stmt).all()
+
+            # Calculate similarity scores
+            suggestions_with_scores = []
+            search_lower = identifier.lower()
+
+            for cue_assoc, cue, cue_type, line in all_cues:
+                if cue.ident:
+                    ratio = difflib.SequenceMatcher(
+                        None, search_lower, cue.ident.lower()
+                    ).ratio()
+
+                    if ratio > 0.3:  # Minimum similarity threshold
+                        suggestions_with_scores.append(
+                            {
+                                "cue": cue_schema.dump(cue),
+                                "cue_type": cue_type_schema.dump(cue_type),
+                                "location": {
+                                    "page": line.page,
+                                    "line_id": line.id,
+                                    "act_id": line.act_id,
+                                    "scene_id": line.scene_id,
+                                },
+                                "similarity_score": ratio,
+                            }
+                        )
+
+            # Sort by score descending, take top 5
+            suggestions_with_scores.sort(
+                key=lambda x: x["similarity_score"], reverse=True
+            )
+            suggestions = suggestions_with_scores[:5]
+
+            self.set_status(200)
+            await self.finish(
+                {
+                    "exact_matches": [],
+                    "suggestions": suggestions,
+                }
+            )
