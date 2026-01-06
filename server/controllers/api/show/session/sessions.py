@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from tornado import escape
@@ -88,7 +88,7 @@ class SessionStartController(BaseAPIController):
 
                     show_session = ShowSession(
                         show_id=show_id,
-                        start_date_time=datetime.utcnow(),
+                        start_date_time=datetime.now(UTC),
                         end_date_time=None,
                         client_internal_id=user_session.internal_id,
                         user_id=user_session.user.id,
@@ -129,7 +129,7 @@ class SessionStopController(BaseAPIController):
                     show_session: ShowSession = session.get(
                         ShowSession, show.current_session_id
                     )
-                    show_session.end_date_time = datetime.utcnow()
+                    show_session.end_date_time = datetime.now(UTC)
                     show.current_session_id = None
                     session.commit()
 

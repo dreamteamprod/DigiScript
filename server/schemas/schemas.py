@@ -11,7 +11,7 @@ from models.script import (
     ScriptRevision,
     StageDirectionStyle,
 )
-from models.session import Interval, Session, ShowSession
+from models.session import Interval, Session, SessionTag, ShowSession
 from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
 from models.user import User, UserSettings
 from registry.schema import get_registry
@@ -175,8 +175,19 @@ class StageDirectionStyleSchema(SQLAlchemyAutoSchema):
 
 @schema
 class ShowSessionSchema(SQLAlchemyAutoSchema):
+    tags = Nested(lambda: ShowSessionTagSchema, many=True)
+
     class Meta:
         model = ShowSession
+        load_instance = True
+        include_fk = True
+        include_relationships = True
+
+
+@schema
+class ShowSessionTagSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = SessionTag
         load_instance = True
         include_fk = True
 

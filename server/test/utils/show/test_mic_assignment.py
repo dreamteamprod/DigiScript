@@ -9,6 +9,7 @@ import pytest
 from unittest.mock import MagicMock
 from collections import defaultdict
 
+from models.script import ScriptLineType
 from utils.show.mic_assignment import (
     SceneMetadata,
     swap_cost,
@@ -81,7 +82,7 @@ class TestCollectCharacterAppearances:
         # Create mock line associations
         line1 = MagicMock()
         line1.scene_id = 1
-        line1.stage_direction = False
+        line1.line_type = ScriptLineType.DIALOGUE
 
         line_part1 = MagicMock()
         line_part1.character_id = 10
@@ -96,7 +97,7 @@ class TestCollectCharacterAppearances:
         # Line 2 - same character in different scene
         line2 = MagicMock()
         line2.scene_id = 2
-        line2.stage_direction = False
+        line2.line_type = ScriptLineType.DIALOGUE
 
         line_part2 = MagicMock()
         line_part2.character_id = 10
@@ -156,7 +157,7 @@ class TestCollectCharacterAppearances:
         # Create stage direction line
         line = MagicMock()
         line.scene_id = 1
-        line.stage_direction = True
+        line.line_type = ScriptLineType.STAGE_DIRECTION
 
         line_part = MagicMock()
         line_part.character_id = 10
@@ -184,7 +185,7 @@ class TestCollectCharacterAppearances:
         # Create cut line
         line = MagicMock()
         line.scene_id = 1
-        line.stage_direction = False
+        line.line_type = ScriptLineType.DIALOGUE
 
         line_part = MagicMock()
         line_part.character_id = 10
@@ -212,7 +213,7 @@ class TestCollectCharacterAppearances:
         # Create line with character group
         line = MagicMock()
         line.scene_id = 1
-        line.stage_direction = False
+        line.line_type = ScriptLineType.DIALOGUE
 
         line_part = MagicMock()
         line_part.character_id = None

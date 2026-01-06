@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from models.mics import MicrophoneAllocation
-from models.script import ScriptLine, ScriptRevision
+from models.script import ScriptLine, ScriptLineType, ScriptRevision
 from models.show import Character, CharacterGroup
 
 
@@ -124,7 +124,7 @@ def collect_character_appearances(
         line: ScriptLine = line_assoc.line
 
         # Skip stage directions
-        if line.stage_direction:
+        if line.line_type != ScriptLineType.DIALOGUE:
             continue
 
         # Count lines per character
