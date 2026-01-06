@@ -144,12 +144,18 @@ class CharacterController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                character_id = data.get("id", None)
-                if not character_id:
+                character_id_str = self.get_argument("id", None)
+                if not character_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    character_id = int(character_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry: Character = session.get(Character, character_id)
@@ -303,12 +309,18 @@ class CharacterGroupController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                character_group_id = data.get("id", None)
-                if not character_group_id:
+                character_group_id_str = self.get_argument("id", None)
+                if not character_group_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    character_group_id = int(character_group_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry: CharacterGroup = session.get(CharacterGroup, character_group_id)

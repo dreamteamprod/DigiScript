@@ -187,12 +187,15 @@ export default {
       }
     },
     async DELETE_CUE(context, cue) {
-      const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
+      const searchParams = new URLSearchParams({
+        cueId: cue.cueId,
+        lineId: cue.lineId,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(cue),
       });
       if (response.ok) {
         context.dispatch('LOAD_CUES');
@@ -284,12 +287,14 @@ export default {
       }
     },
     async DELETE_STAGE_DIRECTION_STYLE(context, styleId) {
-      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
+      const searchParams = new URLSearchParams({
+        id: styleId,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: styleId }),
       });
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLES');
