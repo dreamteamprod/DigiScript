@@ -5,12 +5,20 @@
   >
     <b-row class="script-row">
       <b-col cols="2">
-        <b-button
-          v-b-modal.go-to-page
-          variant="success"
-        >
-          Go to Page
-        </b-button>
+        <b-button-group>
+          <b-button
+            v-b-modal.go-to-page-cue-editor
+            variant="success"
+          >
+            Go to Page
+          </b-button>
+          <b-button
+            v-b-modal.jump-to-cue
+            variant="success"
+          >
+            Go to Cue
+          </b-button>
+        </b-button-group>
       </b-col>
       <b-col
         cols="2"
@@ -95,9 +103,10 @@
         />
       </div>
     </b-modal>
+    <jump-to-cue-modal @navigate="handleJumpToCue" />
     <b-modal
-      id="go-to-page"
-      ref="go-to-page"
+      id="go-to-page-cue-editor"
+      ref="go-to-page-cue-editor"
       title="Go to Page"
       size="sm"
       :hide-header-close="changingPage"
@@ -138,12 +147,13 @@ import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 import ScriptLineCueEditor from '@/vue_components/show/config/cues/ScriptLineCueEditor.vue';
+import JumpToCueModal from '@/vue_components/show/config/cues/JumpToCueModal.vue';
 import { minValue, required } from 'vuelidate/lib/validators';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 
 export default {
   name: 'CueEditor',
-  components: { ScriptLineCueEditor },
+  components: { ScriptLineCueEditor, JumpToCueModal },
   data() {
     return {
       currentEditPage: 1,
@@ -292,6 +302,10 @@ export default {
       await this.LOAD_SCRIPT_PAGE(pageNo);
       this.currentEditPage = pageNo;
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
+    },
+    async handleJumpToCue(pageNumber) {
+      await this.goToPageInner(pageNumber);
+      this.$bvModal.hide('jump-to-cue');
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
