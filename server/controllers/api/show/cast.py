@@ -132,12 +132,18 @@ class CastController(BaseAPIController):
             show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                cast_id = data.get("id", None)
-                if not cast_id:
+                cast_id_str = self.get_argument("id", None)
+                if not cast_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    cast_id = int(cast_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry = session.get(Cast, cast_id)

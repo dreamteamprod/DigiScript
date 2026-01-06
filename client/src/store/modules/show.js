@@ -98,12 +98,14 @@ export default {
       }
     },
     async DELETE_CAST_MEMBER(context, castID) {
-      const response = await fetch(`${makeURL('/api/v1/show/cast')}`, {
+      const searchParams = new URLSearchParams({
+        id: castID,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/cast')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: castID }),
       });
       if (response.ok) {
         context.dispatch('GET_CAST_LIST');
@@ -155,12 +157,14 @@ export default {
       }
     },
     async DELETE_CHARACTER(context, characterID) {
-      const response = await fetch(`${makeURL('/api/v1/show/character')}`, {
+      const searchParams = new URLSearchParams({
+        id: characterID,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/character')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: characterID }),
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_LIST');
@@ -213,12 +217,14 @@ export default {
       }
     },
     async DELETE_CHARACTER_GROUP(context, characterGroupID) {
-      const response = await fetch(`${makeURL('/api/v1/show/character/group')}`, {
+      const searchParams = new URLSearchParams({
+        id: characterGroupID,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/character/group')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: characterGroupID }),
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_GROUP_LIST');
@@ -270,12 +276,14 @@ export default {
       }
     },
     async DELETE_ACT(context, actID) {
-      const response = await fetch(`${makeURL('/api/v1/show/act')}`, {
+      const searchParams = new URLSearchParams({
+        id: actID,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/act')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: actID }),
       });
       if (response.ok) {
         context.dispatch('GET_ACT_LIST');
@@ -344,12 +352,14 @@ export default {
       }
     },
     async DELETE_SCENE(context, sceneID) {
-      const response = await fetch(`${makeURL('/api/v1/show/scene')}`, {
+      const searchParams = new URLSearchParams({
+        id: sceneID,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/scene')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: sceneID }),
       });
       if (response.ok) {
         context.dispatch('GET_SCENE_LIST');
@@ -403,12 +413,14 @@ export default {
       }
     },
     async DELETE_CUE_TYPE(context, cueTypeID) {
-      const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`, {
+      const searchParams = new URLSearchParams({
+        id: cueTypeID,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: cueTypeID }),
       });
       if (response.ok) {
         context.dispatch('GET_CUE_TYPES');
@@ -493,12 +505,14 @@ export default {
       }
     },
     async DELETE_MICROPHONE(context, microphoneId) {
-      const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
+      const searchParams = new URLSearchParams({
+        id: microphoneId,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/microphones')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: microphoneId }),
       });
       if (response.ok) {
         context.dispatch('GET_MICROPHONE_LIST');

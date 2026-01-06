@@ -109,12 +109,18 @@ class SceneController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                scene_id = data.get("id", None)
-                if not scene_id:
+                scene_id_str = self.get_argument("id", None)
+                if not scene_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    scene_id = int(scene_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry: Scene = session.get(Scene, scene_id)
