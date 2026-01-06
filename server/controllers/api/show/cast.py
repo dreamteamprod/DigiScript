@@ -3,7 +3,7 @@ from collections import defaultdict
 from sqlalchemy import select
 from tornado import escape
 
-from models.script import Script, ScriptLine, ScriptRevision
+from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
 from models.show import Cast, Character, Show
 from rbac.role import Role
 from schemas.schemas import CastSchema
@@ -192,7 +192,7 @@ class CastStatsController(BaseAPIController):
                 line_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
                 for line_association in revision.line_associations:
                     line: ScriptLine = line_association.line
-                    if line.stage_direction:
+                    if line.line_type != ScriptLineType.DIALOGUE:
                         continue
                     for line_part in line.line_parts:
                         if line_part.line_part_cuts is not None:
