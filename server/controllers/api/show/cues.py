@@ -138,12 +138,18 @@ class CueTypesController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                cue_type_id = data.get("id", None)
-                if not cue_type_id:
+                cue_type_id_str = self.get_argument("id", None)
+                if not cue_type_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    cue_type_id = int(cue_type_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry: CueType = session.get(CueType, cue_type_id)
@@ -413,22 +419,34 @@ class CueController(BaseAPIController):
                     )
                     return
 
-                data = escape.json_decode(self.request.body)
-
-                cue_id: int = data.get("cueId")
-                if not cue_id:
+                cue_id_str = self.get_argument("cueId", None)
+                if not cue_id_str:
                     self.set_status(400)
                     await self.finish({"message": "Cue ID missing"})
+                    return
+
+                try:
+                    cue_id = int(cue_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid Cue ID"})
                     return
 
                 cue = session.get(Cue, cue_id)
                 cue_type = session.get(CueType, cue.cue_type_id)
                 self.requires_role(cue_type, Role.WRITE)
 
-                line_id: int = data.get("lineId")
-                if not line_id:
+                line_id_str = self.get_argument("lineId", None)
+                if not line_id_str:
                     self.set_status(400)
                     await self.finish({"message": "Line ID missing"})
+                    return
+
+                try:
+                    line_id = int(line_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid Line ID"})
                     return
 
                 association_object = session.get(

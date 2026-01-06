@@ -175,12 +175,18 @@ class ActController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                act_id = data.get("id", None)
-                if not act_id:
+                act_id_str = self.get_argument("id", None)
+                if not act_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    act_id = int(act_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry: Act = session.get(Act, act_id)
