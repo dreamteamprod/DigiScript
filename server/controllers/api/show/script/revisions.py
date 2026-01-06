@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from tornado import escape
@@ -113,7 +113,7 @@ class ScriptRevisionsController(BaseAPIController):
                     await self.finish({"message": "Description missing"})
                     return
 
-                now_time = datetime.utcnow()
+                now_time = datetime.now(UTC)
                 new_rev = ScriptRevision(
                     script_id=script.id,
                     revision=max_rev + 1,

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import partial
 from typing import List, Optional
 
@@ -257,7 +257,7 @@ class ScriptController(BaseAPIController):
                     previous_line = line_revision
 
                 # Update the revision edit time
-                revision.edited_at = datetime.utcnow()
+                revision.edited_at = datetime.now(UTC)
 
                 # Save everything to the DB
                 session.commit()
