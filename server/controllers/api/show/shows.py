@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from dateutil import parser
 from sqlalchemy import select
@@ -84,7 +84,7 @@ class ShowController(BaseAPIController):
             return
 
         with self.make_session() as session:
-            now_time = datetime.utcnow()
+            now_time = datetime.now(UTC)
             show = Show(
                 name=show_name,
                 start_date=start_date,
@@ -208,7 +208,7 @@ class ShowController(BaseAPIController):
                 # First act
                 show.first_act_id = data.get("first_act_id", None)
 
-                show.edited_at = datetime.utcnow()
+                show.edited_at = datetime.now(UTC)
                 session.commit()
 
                 self.set_status(200)
