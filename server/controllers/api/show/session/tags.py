@@ -1,5 +1,3 @@
-"""SessionTag CRUD API controller."""
-
 from sqlalchemy import func, select
 from tornado import escape
 
@@ -14,8 +12,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/session/tags", ApiVersion.V1)
 class SessionTagsController(BaseAPIController):
-    """Controller for SessionTag CRUD operations."""
-
     @requires_show
     def get(self):
         """List all session tags for the current show."""
@@ -157,6 +153,9 @@ class SessionTagsController(BaseAPIController):
                 await self.finish({"message": "Successfully updated session tag"})
 
                 await self.application.ws_send_to_all("NOOP", "GET_SESSION_TAGS", {})
+                await self.application.ws_send_to_all(
+                    "NOOP", "GET_SHOW_SESSION_DATA", {}
+                )
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})
@@ -181,10 +180,9 @@ class SessionTagsController(BaseAPIController):
                     await self.finish({"message": "ID missing"})
                     return
 
-                # Fetch tag
+                # Fetch tag and delete
                 tag_obj = session.get(SessionTag, tag_id)
                 if tag_obj:
-                    # Delete tag (associations cascade automatically)
                     session.delete(tag_obj)
                     session.commit()
 
@@ -193,6 +191,9 @@ class SessionTagsController(BaseAPIController):
 
                     await self.application.ws_send_to_all(
                         "NOOP", "GET_SESSION_TAGS", {}
+                    )
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_SHOW_SESSION_DATA", {}
                     )
                 else:
                     self.set_status(404)

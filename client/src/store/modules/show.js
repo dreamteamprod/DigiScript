@@ -20,6 +20,7 @@ export default {
     micAllocations: [],
     noLeaderToast: null,
     scriptModes: [],
+    sessionTags: [],
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -45,6 +46,7 @@ export default {
       state.characterList = [];
       state.actList = [];
       state.sceneList = [];
+      state.sessionTags = [];
     },
     SET_SESSIONS_LIST(state, sessions) {
       state.sessions = sessions;
@@ -69,6 +71,9 @@ export default {
     },
     UPDATE_SCRIPT_MODES(state, modes) {
       state.scriptModes = modes;
+    },
+    SET_SESSION_TAGS(state, tags) {
+      state.sessionTags = tags;
     },
   },
   actions: {
@@ -558,6 +563,83 @@ export default {
         log.error('Unable to fetch script modes');
       }
     },
+    async GET_SESSION_TAGS(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/session/tags')}`);
+      if (response.ok) {
+        const data = await response.json();
+        context.commit('SET_SESSION_TAGS', data.tags);
+      } else {
+        log.error('Unable to get session tags');
+      }
+    },
+    async ADD_SESSION_TAG(context, tag) {
+      const response = await fetch(`${makeURL('/api/v1/show/session/tags')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tag),
+      });
+      if (response.ok) {
+        context.dispatch('GET_SESSION_TAGS');
+        Vue.$toast.success('Added new session tag!');
+      } else {
+        log.error('Unable to add session tag');
+        Vue.$toast.error('Unable to add session tag');
+      }
+    },
+    async UPDATE_SESSION_TAG(context, tag) {
+      const response = await fetch(`${makeURL('/api/v1/show/session/tags')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tag),
+      });
+      if (response.ok) {
+        context.dispatch('GET_SESSION_TAGS');
+        Vue.$toast.success('Updated session tag!');
+      } else {
+        log.error('Unable to edit session tag');
+        Vue.$toast.error('Unable to edit session tag');
+      }
+    },
+    async DELETE_SESSION_TAG(context, tagId) {
+      const response = await fetch(`${makeURL('/api/v1/show/session/tags')}?id=${tagId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        context.dispatch('GET_SESSION_TAGS');
+        Vue.$toast.success('Deleted session tag!');
+      } else {
+        log.error('Unable to delete session tag');
+        Vue.$toast.error('Unable to delete session tag');
+      }
+    },
+    async UPDATE_SESSION_TAGS(context, { sessionId, tagIds }) {
+      const response = await fetch(`${makeURL('/api/v1/show/sessions/assign-tags')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          tag_ids: tagIds,
+        }),
+      });
+      if (response.ok) {
+        await context.dispatch('GET_SHOW_SESSION_DATA');
+        Vue.$toast.success('Updated session tags!');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        log.error('Unable to update session tags:', errorData);
+        Vue.$toast.error(errorData.message || 'Unable to update session tags');
+        throw new Error('Failed to update session tags');
+      }
+    },
   },
   getters: {
     CAST_LIST(state) {
@@ -740,6 +822,22 @@ export default {
     },
     SCRIPT_MODES(state) {
       return state.scriptModes;
+    },
+    SESSION_TAGS(state) {
+      return state.sessionTags;
+    },
+    SESSION_TAGS_DICT(state) {
+      return Object.fromEntries(state.sessionTags.map((tag) => [tag.id, tag]));
+    },
+    SESSION_TAG_BY_ID: (state, getters) => (tagId) => {
+      if (tagId == null) {
+        return null;
+      }
+      const tagStr = tagId.toString();
+      if (Object.keys(getters.SESSION_TAGS_DICT).includes(tagStr)) {
+        return getters.SESSION_TAGS_DICT[tagStr];
+      }
+      return null;
     },
   },
 };

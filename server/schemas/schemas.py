@@ -175,10 +175,13 @@ class StageDirectionStyleSchema(SQLAlchemyAutoSchema):
 
 @schema
 class ShowSessionSchema(SQLAlchemyAutoSchema):
+    tags = Nested(lambda: ShowSessionTagSchema, many=True)
+
     class Meta:
         model = ShowSession
         load_instance = True
         include_fk = True
+        include_relationships = True
 
 
 @schema
