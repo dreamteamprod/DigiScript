@@ -2,7 +2,7 @@ import datetime
 from functools import partial
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Column, ForeignKey, String, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -32,6 +32,18 @@ class Session(db.Model):
     )
 
 
+session_tag_association_table = Table(
+    "session_tag_associations",
+    db.Model.metadata,
+    Column(
+        "session_id", ForeignKey("showsession.id", ondelete="CASCADE"), primary_key=True
+    ),
+    Column(
+        "tag_id", ForeignKey("session_tags.id", ondelete="CASCADE"), primary_key=True
+    ),
+)
+
+
 class ShowSession(db.Model):
     __tablename__ = "showsession"
 
@@ -58,6 +70,9 @@ class ShowSession(db.Model):
         foreign_keys=[client_internal_id],
         back_populates="live_session",
     )
+    tags: Mapped[list["SessionTag"]] = relationship(
+        secondary=session_tag_association_table, back_populates="sessions"
+    )
 
 
 class Interval(db.Model):
@@ -73,3 +88,19 @@ class Interval(db.Model):
     )
     end_datetime: Mapped[datetime.datetime | None] = mapped_column(default=None)
     initial_length: Mapped[float | None] = mapped_column(default=0)
+
+
+class SessionTag(db.Model):
+    __tablename__ = "session_tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    show_id: Mapped[int | None] = mapped_column(
+        ForeignKey("shows.id", ondelete="CASCADE")
+    )
+    tag: Mapped[str] = mapped_column(String(255))
+    colour: Mapped[str] = mapped_column(String(16))
+
+    show: Mapped["Show"] = relationship(uselist=False, foreign_keys=[show_id])
+    sessions: Mapped[list["ShowSession"]] = relationship(
+        secondary=session_tag_association_table, back_populates="tags"
+    )
