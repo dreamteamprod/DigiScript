@@ -1,6 +1,6 @@
-FROM node:22-bookworm AS node_build
+FROM node:24-bookworm AS node_build
 
-RUN npm install npm@10 -g
+# npm 11 bundled with Node 24, no separate install needed
 RUN mkdir -p /server/static
 
 COPY /client/package.json /client/package.json
