@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [
     vue(),
   ],
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+  },
   build: {
     outDir: '../server/static/',
     assetsDir: './assets',
@@ -79,5 +82,17 @@ export default defineConfig({
       },
     },
     devSourcemap: true,
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/api/v1/ws': {
+        target: 'ws://localhost:8080',
+        ws: true,
+      },
+    },
   },
 });
