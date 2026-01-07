@@ -267,7 +267,7 @@ export default {
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
         let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
         while (act != null) {
-          // eslint-disable-next-line no-loop-func
+           
           ret.push(this.ACT_BY_ID(act.id));
           act = this.ACT_BY_ID(act.next_act);
         }

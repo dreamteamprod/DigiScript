@@ -6,10 +6,15 @@ export default defineConfig({
   plugins: [
     vue(),
   ],
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+  },
   build: {
     outDir: '../server/static/',
     assetsDir: './assets',
     emptyOutDir: true,
+    minify: 'esbuild',
+    cssMinify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -41,8 +46,24 @@ export default defineConfig({
             return 'vendor';
           }
         },
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
+  },
+  optimizeDeps: {
+    include: [
+      'vue',
+      'vue-router',
+      'vuex',
+      'bootstrap-vue',
+      'jquery',
+      'lodash',
+    ],
+    exclude: [
+      'fuse.js',
+    ],
   },
   resolve: {
     alias: [
@@ -51,5 +72,27 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'src'),
       },
     ],
+    extensions: ['.js', '.vue', '.json'],
+  },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: 'modern-compiler',
+        loadPaths: [path.resolve(__dirname, 'node_modules')],
+      },
+    },
+    devSourcemap: true,
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/api/v1/ws': {
+        target: 'ws://localhost:8080',
+        ws: true,
+      },
+    },
   },
 });
