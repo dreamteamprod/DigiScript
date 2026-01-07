@@ -57,7 +57,7 @@
     "eslint-plugin-vuejs-accessibility": "1.2.0",
     "jsdom": "^27.4.0",
     "sass": "1.97.1",
-    "vite": "4.5.5",
+    "vite": "4.5.14",
     "vitest": "^4.0.16"
   },
   "browserslist": [
