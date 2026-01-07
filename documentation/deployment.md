@@ -9,7 +9,7 @@ cd server
 ./main.py
 ```
 
-## Running using docker
+## Running using Docker
 
 This will start DigiScript running, and map port 8080 locally to 8080 on the container
 
