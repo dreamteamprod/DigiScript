@@ -13,8 +13,8 @@
     "test:run": "vitest run"
   },
   "engines": {
-    "npm": ">=10.0.0 <11",
-    "node": ">=22.0.0 <23"
+    "npm": ">=11.0.0 <12",
+    "node": ">=24.0.0 <25"
   },
   "dependencies": {
     "bootstrap": "4.6.2",
