@@ -352,7 +352,7 @@ export default {
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
         let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
         while (act != null) {
-          // eslint-disable-next-line no-loop-func
+           
           acts.push(act.id);
           act = this.ACT_BY_ID(act.next_act);
         }
@@ -368,7 +368,7 @@ export default {
         if (act.first_scene != null) {
           let scene = this.SCENE_BY_ID(act.first_scene);
           while (scene != null) {
-            // eslint-disable-next-line no-loop-func
+             
             ret.push(this.SCENE_BY_ID(scene.id));
             scene = this.SCENE_BY_ID(scene.next_scene);
           }

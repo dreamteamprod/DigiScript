@@ -193,17 +193,17 @@ router.beforeEach(async (to, from, next) => {
 
     // Bitwise check if user has READ, WRITE or EXECUTE permission for shows
     const showAllowed = userRbac.shows && userRbac.shows[0]
-      // eslint-disable-next-line no-bitwise
+       
       && ((userRbac.shows[0][1] & (writeMask | executeMask | readMask)) !== 0);
 
     // Bitwise check if user has READ or WRITE permission for script
     const scriptAllowed = userRbac.script && userRbac.script[0]
-      // eslint-disable-next-line no-bitwise
+       
       && ((userRbac.script[0][1] & (writeMask | readMask)) !== 0);
 
     // Bitwise check if user has READ or WRITE permission for any cue types
     const cueTypesAllowed = userRbac.cuetypes
-      // eslint-disable-next-line no-bitwise
+       
       && userRbac.cuetypes.filter((x) => (x[1] & (writeMask | readMask)) !== 0).length > 0;
 
     return showAllowed || scriptAllowed || cueTypesAllowed;

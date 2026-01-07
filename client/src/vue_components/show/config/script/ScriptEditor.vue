@@ -621,7 +621,7 @@ export default {
       // No non-deleted lines before this index on current page, check previous pages
       if (this.currentEditPage > 1) {
         let loopPageNo = this.currentEditPage - 1;
-        /* eslint-disable no-await-in-loop */
+         
         while (loopPageNo >= 1) {
           let loopPage = null;
           if (Object.keys(this.TMP_SCRIPT).includes(loopPageNo.toString())) {
@@ -639,7 +639,7 @@ export default {
           }
           loopPageNo -= 1;
         }
-        /* eslint-enable no-await-in-loop */
+         
       }
       return null;
     },
@@ -671,7 +671,7 @@ export default {
       }
 
       // Edit pages do not have any non-deleted lines, try loading script pages up to the max
-      /* eslint-disable no-await-in-loop */
+       
       for (let i = this.currentEditPage + 1; i <= this.currentMaxPage; i++) {
         await this.LOAD_SCRIPT_PAGE(i);
         const loopPage = this.GET_SCRIPT_PAGE(i);
@@ -683,7 +683,7 @@ export default {
           }
         }
       }
-      /* eslint-enable no-await-in-loop */
+       
       return null;
     },
     lineChange(line, index) {
@@ -822,7 +822,7 @@ export default {
             (a, b) => a - b,
           );
 
-          /* eslint-disable no-await-in-loop, no-restricted-syntax */
+           
           for (const pageNo of orderedPages) {
             this.curSavePage = pageNo;
             // Check whether the page actually has any lines on it, and if not then skip
@@ -863,7 +863,7 @@ export default {
               }
             }
           }
-          /* eslint-enable no-await-in-loop, no-restricted-syntax */
+           
           this.savingInProgress = false;
           // Re-setup autosave (to reset the timer since we have just saved)
           this.setupAutoSave();
@@ -911,7 +911,7 @@ export default {
       }
 
       let currentAct = firstAct;
-      /* eslint-disable no-await-in-loop */
+       
       while (currentAct != null) {
         let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
         while (currentScene != null) {
@@ -941,7 +941,7 @@ export default {
           }
           currentScene = this.SCENE_BY_ID(currentScene.next_scene);
         }
-        /* eslint-enable no-await-in-loop */
+         
         if (currentAct.next_act != null) {
           currentAct = this.ACT_BY_ID(currentAct.next_act);
         } else {
@@ -1006,7 +1006,7 @@ export default {
           );
           let saveFailure = false;
 
-          /* eslint-disable no-await-in-loop, no-restricted-syntax */
+           
           for (const pageNo of orderedPages) {
             curSavePage = pageNo;
             // If the page we are trying to save currently has edits, then stop
@@ -1052,7 +1052,7 @@ export default {
               }
             }
           }
-          /* eslint-enable no-await-in-loop, no-restricted-syntax */
+           
           if (saveFailure) {
             toastInstance.message = 'Autosave failed.';
             toastInstance.type = 'danger';
