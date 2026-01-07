@@ -441,7 +441,7 @@ export default {
         ];
       }
       const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
-      // eslint-disable-next-line no-bitwise
+       
       const allowableCueTypes = this.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & writeMask) !== 0).map((x) => x[0].id);
       return [
         { value: null, text: 'N/A' },

@@ -76,7 +76,7 @@ export default new Vuex.Store({
       }
       const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
       return getters.CURRENT_USER != null
-        // eslint-disable-next-line no-bitwise
+         
         && (getters.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
     },
     IS_SHOW_READER(state, getters) {
@@ -91,7 +91,7 @@ export default new Vuex.Store({
       }
       const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
       return getters.CURRENT_USER != null
-        // eslint-disable-next-line no-bitwise
+         
         && (getters.CURRENT_USER_RBAC.shows[0][1] & readMask) !== 0;
     },
     IS_SHOW_EXECUTOR(state, getters) {
@@ -105,7 +105,7 @@ export default new Vuex.Store({
         return false;
       }
       const execMask = getters.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value;
-      // eslint-disable-next-line no-bitwise
+       
       return getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.shows[0][1] & execMask) !== 0;
     },
     IS_SCRIPT_EDITOR(state, getters) {
@@ -120,7 +120,7 @@ export default new Vuex.Store({
       }
       const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
       return getters.CURRENT_USER != null
-        // eslint-disable-next-line no-bitwise
+         
         && (getters.CURRENT_USER_RBAC.script[0][1] & writeMask) !== 0;
     },
     IS_SCRIPT_READER(state, getters) {
@@ -135,7 +135,7 @@ export default new Vuex.Store({
       }
       const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
       return getters.CURRENT_USER != null
-        // eslint-disable-next-line no-bitwise
+         
         && (getters.CURRENT_USER_RBAC.script[0][1] & readMask) !== 0;
     },
     IS_CUE_EDITOR(state, getters) {
@@ -150,7 +150,7 @@ export default new Vuex.Store({
       }
       const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
       return getters.CURRENT_USER != null
-        // eslint-disable-next-line no-bitwise
+         
         && (getters.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & writeMask) !== 0)).length > 0;
     },
     IS_CUE_READER(state, getters) {
@@ -165,7 +165,7 @@ export default new Vuex.Store({
       }
       const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
       return getters.CURRENT_USER != null
-        // eslint-disable-next-line no-bitwise
+         
         && (getters.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & readMask) !== 0)).length > 0;
     },
   },

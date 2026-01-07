@@ -534,7 +534,7 @@ export default {
         if (!loadedCompiledScript) {
           this.currentMinLoadedPage = 1;
           for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-            // eslint-disable-next-line no-await-in-loop
+             
             await this.loadNextPage();
           }
           this.currentFirstPage = loadCurrentPage;
@@ -555,7 +555,7 @@ export default {
         if (!loadedCompiledScript) {
           this.currentMinLoadedPage = 1;
           for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-            // eslint-disable-next-line no-await-in-loop
+             
             await this.loadNextPage();
           }
         }
@@ -567,7 +567,7 @@ export default {
       if (!loadedCompiledScript) {
         this.currentMinLoadedPage = 1;
         for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-          // eslint-disable-next-line no-await-in-loop
+           
           await this.loadNextPage();
         }
       }
@@ -702,7 +702,7 @@ export default {
           const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
           if (!prevPageLines || prevPageLines.length === 0) {
             // Skip empty pages
-            // eslint-disable-next-line no-continue
+             
             continue;
           }
 
@@ -1049,15 +1049,15 @@ export default {
       const cutoffPage = this.currentLoadedPage - this.pageBatchSize;
       if (lastPage >= cutoffPage && this.currentLoadedPage < this.currentMaxPage) {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
-          // eslint-disable-next-line no-await-in-loop
+           
           await this.loadNextPage();
         }
         this.computeScriptBoundaries();
         while (!this.assignedLastLine && this.currentLoadedPage <= this.currentMaxPage) {
-          // eslint-disable-next-line no-await-in-loop
+           
           await this.loadNextPage();
           this.computeScriptBoundaries();
-          // eslint-disable-next-line no-await-in-loop
+           
           await this.$nextTick();
         }
       }
@@ -1074,7 +1074,7 @@ export default {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
           if (this.currentMinLoadedPage > 1) {
             this.currentMinLoadedPage -= 1;
-            // eslint-disable-next-line no-await-in-loop
+             
             await this.LOAD_SCRIPT_PAGE(this.currentMinLoadedPage);
           }
         }
@@ -1150,7 +1150,7 @@ export default {
           const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
           if (!prevPageLines || prevPageLines.length === 0) break;
           currentIndex = prevPageLines.length - 1;
-          // eslint-disable-next-line no-continue
+           
           continue;
         }
 

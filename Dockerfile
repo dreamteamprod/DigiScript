@@ -5,6 +5,7 @@ RUN mkdir -p /server/static
 
 COPY /client/package.json /client/package.json
 COPY /client/package-lock.json /client/package-lock.json
+COPY /client/.npmrc /client/.npmrc
 WORKDIR /client
 RUN npm ci
 COPY /client /client

@@ -11,6 +11,10 @@ export default defineConfig({
     outputFile: {
       junit: './junit/test-results.xml',
     },
+    isolate: true,
+    pool: 'threads',
+    css: false,
+    clearMocks: true,
   },
   resolve: {
     alias: {

@@ -387,7 +387,7 @@ export default {
         this.nextLine = nxtLine;
       } catch (error) {
         if (error.name !== 'AbortError') {
-          // eslint-disable-next-line no-console
+           
           console.error('Error recalculating previous/next lines:', error);
         }
       }
