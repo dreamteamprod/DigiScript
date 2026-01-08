@@ -1,6 +1,5 @@
 """Tests for /api/v1/user/settings/stage_direction_overrides endpoints."""
 
-import pytest
 import tornado.escape
 from sqlalchemy import select
 

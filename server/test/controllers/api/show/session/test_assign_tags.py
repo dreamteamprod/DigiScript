@@ -1,6 +1,5 @@
 """Tests for Session Tag Assignment API controller."""
 
-from sqlalchemy import select
 from tornado import escape
 
 from models.script import Script, ScriptRevision

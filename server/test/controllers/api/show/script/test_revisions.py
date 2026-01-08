@@ -1,18 +1,16 @@
-from test.conftest import DigiScriptTestCase
-
 import tornado.escape
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from models.cue import Cue, CueAssociation, CueType
 from models.script import (
-    ScriptLineType,
     Script,
     ScriptLine,
-    ScriptLinePart,
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
 from models.show import Act, Character, Scene, Show, ShowScriptType
+from models.user import User
+from test.conftest import DigiScriptTestCase
 
 
 class TestScriptRevisionsController(DigiScriptTestCase):
@@ -159,8 +157,6 @@ class TestScriptRevisionCreate(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             # Create admin user for authentication
             user = User(username="admin", password="hashed", is_admin=True)
             session.add(user)
@@ -237,8 +233,6 @@ class TestScriptRevisionDelete(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             # Create admin user for authentication
             user = User(username="admin", password="hashed", is_admin=True)
             session.add(user)
@@ -322,8 +316,6 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             user = User(username="admin", password="hashed", is_admin=True)
             session.add(user)
             session.flush()
@@ -687,8 +679,6 @@ class TestScriptRevisionBranching(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             user = User(username="admin", password="hashed", is_admin=True)
             session.add(user)
             session.flush()
@@ -861,7 +851,6 @@ class TestScriptRevisionBranching(DigiScriptTestCase):
             show2 = Show(name="Second Show", script_mode=ShowScriptType.FULL)
             session.add(show2)
             session.flush()
-            show2_id = show2.id
 
             script2 = Script(show_id=show2.id)
             session.add(script2)
@@ -907,8 +896,6 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             user = User(username="admin", password="hashed", is_admin=True)
             session.add(user)
             session.flush()
@@ -1085,8 +1072,6 @@ class TestScriptRevisionDeletionTreeIntegrity(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             user = User(username="admin", password="hashed", is_admin=True)
             session.add(user)
             session.flush()

@@ -4,22 +4,20 @@ This module tests that orphaned script lines, line parts, cuts, and cues
 are properly deleted when all references are removed.
 """
 
-from test.conftest import DigiScriptTestCase
-
 import tornado.escape
 from sqlalchemy import select
 
 from models.cue import Cue, CueAssociation, CueType
 from models.script import (
-    ScriptLineType,
     Script,
     ScriptCuts,
     ScriptLine,
     ScriptLinePart,
-    ScriptLineRevisionAssociation,
     ScriptRevision,
 )
 from models.show import Act, Character, Scene, Show, ShowScriptType
+from models.user import User
+from test.conftest import DigiScriptTestCase
 
 
 class TestOrphanedLineDeletion(DigiScriptTestCase):
@@ -32,8 +30,6 @@ class TestOrphanedLineDeletion(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             user = User(username="admin", password="hashed", is_admin=True)
             session.add(user)
             session.flush()

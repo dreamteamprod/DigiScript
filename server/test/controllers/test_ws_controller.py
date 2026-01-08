@@ -92,7 +92,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         # Receive initial messages
         msg1 = await ws.read_message()
-        msg2 = await ws.read_message()
+        await ws.read_message()  # Consume GET_SETTINGS
 
         # Send REQUEST_SCRIPT_EDIT message
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))

@@ -1,10 +1,10 @@
 import os
 import tempfile
 
-from tornado.testing import gen_test
 from sqlalchemy import func, select
+from tornado.testing import gen_test
 
-from models.script import CompiledScript, ScriptRevision, StageDirectionStyle, Script
+from models.script import CompiledScript, Script, ScriptRevision, StageDirectionStyle
 from models.show import Show, ShowScriptType
 from models.user import User, UserOverrides
 from test.conftest import DigiScriptTestCase
