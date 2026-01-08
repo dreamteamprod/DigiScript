@@ -10,6 +10,7 @@ from sqlalchemy import select
 from tornado.testing import gen_test
 from tornado.websocket import websocket_connect
 
+from models.script import Script, ScriptRevision
 from models.session import Session, ShowSession
 from models.show import Show, ShowScriptType
 from models.user import User
@@ -128,6 +129,17 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             session.add(show)
             session.flush()
             show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Revision"
+            )
+            session.add(revision)
+            session.flush()
+            revision_id = revision.id
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(show_id)
@@ -159,6 +171,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             # The live_session relationship is auto-populated via client_internal_id
             show_session = ShowSession(
                 show_id=show_id,
+                script_revision_id=revision_id,
                 user_id=self.user_id,
                 client_internal_id=ws1_uuid,
             )
@@ -200,6 +213,17 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             session.add(show)
             session.flush()
             show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Revision"
+            )
+            session.add(revision)
+            session.flush()
+            revision_id = revision.id
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(show_id)
@@ -227,6 +251,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             # Create show session - live_session relationship auto-populated
             show_session = ShowSession(
                 show_id=show_id,
+                script_revision_id=revision_id,
                 user_id=self.user_id,
                 client_internal_id=ws1_uuid,
             )

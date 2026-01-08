@@ -1,6 +1,7 @@
 import tornado.escape
 from sqlalchemy import select
 
+from models.script import Script, ScriptRevision
 from models.session import ShowSession
 from models.show import Show, ShowScriptType
 from test.conftest import DigiScriptTestCase
@@ -17,6 +18,17 @@ class TestSessionsController(DigiScriptTestCase):
             session.add(show)
             session.flush()
             self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Revision"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
@@ -37,8 +49,16 @@ class TestSessionsController(DigiScriptTestCase):
         """Test GET /api/v1/show/sessions with existing sessions."""
         # Create test show sessions
         with self._app.get_db().sessionmaker() as session:
-            show_session1 = ShowSession(show_id=self.show_id, user_id=None)
-            show_session2 = ShowSession(show_id=self.show_id, user_id=None)
+            show_session1 = ShowSession(
+                show_id=self.show_id,
+                script_revision_id=self.revision_id,
+                user_id=None,
+            )
+            show_session2 = ShowSession(
+                show_id=self.show_id,
+                script_revision_id=self.revision_id,
+                user_id=None,
+            )
             session.add(show_session1)
             session.add(show_session2)
             session.commit()

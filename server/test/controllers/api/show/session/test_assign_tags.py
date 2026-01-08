@@ -3,6 +3,7 @@
 from sqlalchemy import select
 from tornado import escape
 
+from models.script import Script, ScriptRevision
 from models.session import SessionTag, ShowSession
 from models.show import Show, ShowScriptType
 from models.user import User
@@ -20,6 +21,17 @@ class TestSessionTagAssignmentController(DigiScriptTestCase):
             session.add(show)
             session.flush()
             self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Revision"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
 
             admin = User(username="admin", is_admin=True, password="test")
             session.add(admin)
@@ -45,7 +57,9 @@ class TestSessionTagAssignmentController(DigiScriptTestCase):
     def create_session(self):
         """Helper to create a ShowSession."""
         with self._app.get_db().sessionmaker() as session:
-            show_session = ShowSession(show_id=self.show_id)
+            show_session = ShowSession(
+                show_id=self.show_id, script_revision_id=self.revision_id
+            )
             session.add(show_session)
             session.flush()
             session_id = show_session.id
@@ -284,7 +298,19 @@ class TestSessionTagAssignmentController(DigiScriptTestCase):
             session.add(other_show)
             session.flush()
 
-            other_session = ShowSession(show_id=other_show.id)
+            other_script = Script(show_id=other_show.id)
+            session.add(other_script)
+            session.flush()
+
+            other_revision = ScriptRevision(
+                script_id=other_script.id, revision=1, description="Other Revision"
+            )
+            session.add(other_revision)
+            session.flush()
+
+            other_session = ShowSession(
+                show_id=other_show.id, script_revision_id=other_revision.id
+            )
             session.add(other_session)
             session.flush()
             other_session_id = other_session.id
