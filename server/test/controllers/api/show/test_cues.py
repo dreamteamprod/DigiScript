@@ -234,8 +234,6 @@ class TestSpacingLineCueRestriction(DigiScriptTestCase):
 
         # Verify no cue was created
         with self._app.get_db().sessionmaker() as session:
-            from models.cue import CueAssociation
-
             cue_assocs = session.scalars(select(CueAssociation)).all()
             self.assertEqual(
                 0,
@@ -266,8 +264,6 @@ class TestSpacingLineCueRestriction(DigiScriptTestCase):
 
         # Verify cue was created
         with self._app.get_db().sessionmaker() as session:
-            from models.cue import CueAssociation
-
             cue_assocs = session.scalars(select(CueAssociation)).all()
             self.assertEqual(
                 1,

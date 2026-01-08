@@ -47,10 +47,11 @@ export default {
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();
     await this.GET_SESSION_TAGS();
+    await this.GET_SCRIPT_REVISIONS();
     this.loaded = true;
   },
   methods: {
-    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_SESSION_TAGS']),
+    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_SESSION_TAGS', 'GET_SCRIPT_REVISIONS']),
   },
 };
 </script>

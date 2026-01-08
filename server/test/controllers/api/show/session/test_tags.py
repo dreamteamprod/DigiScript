@@ -3,6 +3,7 @@
 from sqlalchemy import insert, select
 from tornado import escape
 
+from models.script import Script, ScriptRevision
 from models.session import SessionTag, ShowSession, session_tag_association_table
 from models.show import Show, ShowScriptType
 from models.user import User
@@ -21,6 +22,17 @@ class TestSessionTagsController(DigiScriptTestCase):
             session.add(show)
             session.flush()
             self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Revision"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
 
             # Create admin user
             admin = User(username="admin", is_admin=True, password="test")
@@ -374,7 +386,9 @@ class TestSessionTagsController(DigiScriptTestCase):
 
         # Create a ShowSession and associate the tag
         with self._app.get_db().sessionmaker() as session:
-            show_session = ShowSession(show_id=self.show_id)
+            show_session = ShowSession(
+                show_id=self.show_id, script_revision_id=self.revision_id
+            )
             session.add(show_session)
             session.flush()
             session_id = show_session.id

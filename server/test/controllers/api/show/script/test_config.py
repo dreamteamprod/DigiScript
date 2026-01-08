@@ -1,5 +1,4 @@
 import tornado.escape
-from sqlalchemy import select
 
 from models.session import Session
 from test.conftest import DigiScriptTestCase

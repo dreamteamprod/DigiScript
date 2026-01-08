@@ -1,6 +1,7 @@
-from tornado import escape
 from sqlalchemy import select
+from tornado import escape
 
+from models.show import Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
 
@@ -376,7 +377,6 @@ class TestAuthAPI(DigiScriptTestCase):
             headers={"Authorization": f"Bearer {token}"},
         )
         response_body = escape.json_decode(response.body)
-        api_token = response_body["api_token"]
 
         # Check that token exists (but can't retrieve it)
         response = self.fetch(
@@ -409,8 +409,6 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Create a test show (required by @requires_show decorator)
         with self._app.get_db().sessionmaker() as session:
-            from models.show import Show, ShowScriptType
-
             show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
@@ -439,8 +437,6 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Get the user ID
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             user = session.scalars(
                 select(User).where(User.username == "userToDelete")
             ).first()
@@ -461,8 +457,6 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Verify user was deleted
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             deleted_user = session.scalars(
                 select(User).where(User.id == user_id)
             ).first()
@@ -487,8 +481,6 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Create a test show (required by @requires_show decorator)
         with self._app.get_db().sessionmaker() as session:
-            from models.show import Show, ShowScriptType
-
             show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
