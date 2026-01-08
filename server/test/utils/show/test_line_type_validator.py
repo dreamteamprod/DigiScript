@@ -5,8 +5,9 @@ Tests cover all four line type validators (DIALOGUE, STAGE_DIRECTION, CUE_LINE, 
 and the LineTypeValidatorRegistry.
 """
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from models.script import ScriptLineType
 from models.show import ShowScriptType
@@ -14,7 +15,6 @@ from utils.show.line_type_validator import (
     DialogueValidator,
     EmptyLineValidator,
     LineTypeValidatorRegistry,
-    LineTypeValidationResult,
     StageDirectionValidator,
 )
 

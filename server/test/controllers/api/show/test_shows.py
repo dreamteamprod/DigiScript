@@ -1,7 +1,9 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.script import Script, ScriptRevision
 from models.show import Show, ShowScriptType
+from models.user import User
 from test.conftest import DigiScriptTestCase
 
 
@@ -12,8 +14,6 @@ class TestShowsController(DigiScriptTestCase):
         super().setUp()
         # Create admin user and token for authenticated requests
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             admin = User(username="admin", is_admin=True, password="test")
             session.add(admin)
             session.flush()
@@ -91,8 +91,6 @@ class TestShowsController(DigiScriptTestCase):
 
         # Verify in database
         with self._app.get_db().sessionmaker() as session:
-            from sqlalchemy import select
-
             show = session.scalar(select(Show).where(Show.name == "Test Show"))
             self.assertIsNotNone(show)
             self.assertEqual(ShowScriptType.FULL, show.script_mode)

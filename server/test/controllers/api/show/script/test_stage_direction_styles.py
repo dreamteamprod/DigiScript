@@ -1,5 +1,4 @@
 import tornado.escape
-from sqlalchemy import select
 
 from models.script import Script, ScriptRevision, StageDirectionStyle
 from models.show import Show, ShowScriptType

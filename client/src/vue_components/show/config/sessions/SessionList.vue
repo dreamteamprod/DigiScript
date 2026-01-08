@@ -39,6 +39,14 @@
             </p>
           </template>
 
+          <template #cell(script_revision_id)="data">
+            <p>
+              {{
+                scriptRevisionLabel(data.item.script_revision_id)
+              }}
+            </p>
+          </template>
+
           <template #cell(tags)="data">
             <div class="tags-cell">
               <div class="tags-pills-container">
@@ -86,6 +94,7 @@ export default {
         { key: 'start_date_time', label: 'Start Time' },
         { key: 'end_date_time', label: 'End Time' },
         { key: 'run_time', label: 'Run Time' },
+        { key: 'script_revision_id', label: 'Script Revision' },
         { key: 'tags', label: 'Tags' },
       ],
       startingSession: false,
@@ -93,7 +102,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID', 'IS_SHOW_EXECUTOR', 'IS_SHOW_EDITOR']),
+    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID', 'IS_SHOW_EXECUTOR', 'IS_SHOW_EDITOR', 'SCRIPT_REVISIONS']),
   },
   methods: {
     contrastColor,
@@ -136,6 +145,13 @@ export default {
       const diff = endDate - startDate;
       return msToTimerString(diff);
     },
+    scriptRevisionLabel(revisionId) {
+      const revision = this.SCRIPT_REVISIONS.find((rev) => rev.id === revisionId);
+      if (revision) {
+        return `${revision.revision}: ${revision.description}`;
+      }
+      return 'N/A';
+    }
   },
 };
 </script>

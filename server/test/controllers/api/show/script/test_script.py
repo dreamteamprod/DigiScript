@@ -1,21 +1,19 @@
-from test.conftest import DigiScriptTestCase
-
 import tornado.escape
 from sqlalchemy import select
 
 from models.cue import Cue, CueAssociation, CueType
 from models.script import (
-    ScriptLineType,
     Script,
     ScriptCuts,
     ScriptLine,
     ScriptLinePart,
     ScriptLineRevisionAssociation,
+    ScriptLineType,
     ScriptRevision,
 )
 from models.show import Act, Character, Scene, Show, ShowScriptType
 from models.user import User
-from rbac.role import Role
+from test.conftest import DigiScriptTestCase
 
 
 class TestScriptController(DigiScriptTestCase):

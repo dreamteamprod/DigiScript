@@ -105,15 +105,15 @@ class DigiScriptServer(PrometheusMixIn, Application):
         # Configure the JWT service once we have set up the database
         self.jwt_service = self._configure_jwt()
 
-        # Check for presence of admin user, and update settings to match
+        # On startup, perform the following checks/operations with the database:
         with self._db.sessionmaker() as session:
+            # 1. Check for presence of admin user, and update settings to match
             any_admin = session.scalars(select(User).where(User.is_admin)).first()
             has_admin = any_admin is not None
             self.digi_settings.settings["has_admin_user"].set_value(has_admin, False)
             self.digi_settings._save()
 
-        # Check the show we are expecting to be loaded exists
-        with self._db.sessionmaker() as session:
+            # 2. Check the show we are expecting to be loaded exists
             current_show = self.digi_settings.settings.get("current_show").get_value()
             if current_show:
                 show = session.get(Show, current_show)
@@ -123,13 +123,15 @@ class DigiScriptServer(PrometheusMixIn, Application):
                     )
                     self.digi_settings.settings["current_show"].set_to_default()
                     self.digi_settings._save()
+                    current_show = None
 
-        # If there is a live session in progress, clean up the current client ID
-        with self._db.sessionmaker() as session:
-            current_show = self.digi_settings.settings.get("current_show").get_value()
+            # 3. If there is a live session in progress:
+            # 3.1. Clean up the current client ID
+            # 3.2. Check that the revision of the script matches the current one,
+            #      if not then load the revision being used
             if current_show:
                 show = session.get(Show, current_show)
-                if show and show.current_session_id:
+                if show.current_session_id:
                     show_session: ShowSession = session.get(
                         ShowSession, show.current_session_id
                     )
@@ -137,15 +139,36 @@ class DigiScriptServer(PrometheusMixIn, Application):
                         show_session.last_client_internal_id = (
                             show_session.client_internal_id
                         )
+
+                        scripts: List[Script] = session.scalars(
+                            select(Script).where(Script.show_id == show.id)
+                        ).all()
+                        if len(scripts) != 1:
+                            get_logger().error(
+                                "Unable to validate live session script revision, "
+                                "show does not have exactly one script. Resetting."
+                            )
+                            show.current_session_id = None
+                        else:
+                            current_script: Script = scripts[0]
+                            if (
+                                show_session.script_revision_id
+                                != current_script.current_revision
+                            ):
+                                get_logger().warning(
+                                    "Live session script revision does not match "
+                                    "current script revision. Updating to use "
+                                    "current script revision."
+                                )
+                                current_script.current_revision = (
+                                    show_session.script_revision_id
+                                )
                     else:
-                        get_logger().warning(
-                            "Current show session not found. Resetting."
-                        )
+                        get_logger().error("Current show session not found. Resetting.")
                         show.current_session_id = None
                     session.commit()
 
-        # Clear out all sessions since we are starting the app up
-        with self._db.sessionmaker() as session:
+            # 4. Clear out all sessions since we are starting the app up
             get_logger().debug("Emptying out sessions table!")
             session.execute(delete(Session))
             session.commit()

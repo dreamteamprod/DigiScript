@@ -1,8 +1,10 @@
 from datetime import UTC, datetime
+from typing import List
 
 from sqlalchemy import select
 from tornado import escape
 
+from models.script import Script
 from models.session import Interval, Session, ShowSession
 from models.show import Show
 from rbac.role import Role
@@ -86,8 +88,19 @@ class SessionStartController(BaseAPIController):
                         )
                         return
 
+                    scripts: List[Script] = session.scalars(
+                        select(Script).where(Script.show_id == show.id)
+                    ).all()
+                    if len(scripts) != 1:
+                        self.set_status(400)
+                        await self.finish(
+                            {"message": "Unable to start show session without a script"}
+                        )
+                        return
+
                     show_session = ShowSession(
                         show_id=show_id,
+                        script_revision_id=scripts[0].current_revision,
                         start_date_time=datetime.now(UTC),
                         end_date_time=None,
                         client_internal_id=user_session.internal_id,

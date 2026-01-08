@@ -132,11 +132,6 @@ ignore = [
     "TD003",    # Missing TODO link
 ]
 
-[tool.ruff.lint.per-file-ignores]
-# Ignore test directory (matching pylint's ignore-paths)
-"test/**" = ["ALL"]
-"alembic_config/**" = ["ALL"]
-
 [tool.ruff.lint.isort]
 # Match isort configuration
 known-first-party = ["digi_server", "models", "controllers", "utils", "schemas", "rbac", "registry"]
