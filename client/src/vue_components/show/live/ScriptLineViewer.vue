@@ -100,7 +100,7 @@
               <b-col
                 v-for="(part, index) in line.line_parts"
                 :key="`heading_${lineIndex}_part_${index}`"
-                style="text-align: center"
+                :style="headingStyle"
               >
                 <template v-if="needsHeadings[index]">
                   <b>
@@ -119,7 +119,7 @@
               <b-col
                 v-for="(part, index) in line.line_parts"
                 :key="`line_${lineIndex}_part_${index}`"
-                style="text-align: center"
+                :style="dialogueStyle"
               >
                 <p
                   class="viewable-line"
@@ -134,7 +134,7 @@
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <b-col
             :key="`line_${lineIndex}_stage_direction`"
-            style="text-align: center"
+            :style="{ textAlign: scriptTextAlign }"
           >
             <i
               class="viewable-line"
@@ -159,7 +159,7 @@
         <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
           <b-col
             :key="`line_${lineIndex}_cue_line`"
-            style="text-align: center"
+            :style="dialogueStyle"
           />
         </template>
         <b-col
@@ -218,7 +218,7 @@
               <b-col
                 v-for="(part, index) in line.line_parts"
                 :key="`heading_${lineIndex}_part_${index}`"
-                style="text-align: center"
+                :style="headingStyle"
               >
                 <template v-if="needsHeadings[index]">
                   <b>
@@ -237,7 +237,7 @@
               <b-col
                 v-for="(part, index) in line.line_parts"
                 :key="`line_${lineIndex}_part_${index}`"
-                style="text-align: center"
+                :style="dialogueStyle"
               >
                 <p
                   class="viewable-line"
@@ -252,7 +252,7 @@
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <b-col
             :key="`line_${lineIndex}_stage_direction`"
-            style="text-align: center"
+            :style="{ textAlign: scriptTextAlign }"
           >
             <i
               class="viewable-line"
@@ -277,7 +277,7 @@
         <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
           <b-col
             :key="`line_${lineIndex}_cue_line`"
-            style="text-align: center"
+            :style="dialogueStyle"
           />
         </template>
       </template>
@@ -369,12 +369,6 @@ export default {
     };
   },
   computed: {
-    needsHeadingsAny() {
-      return this.needsHeadings.some((x) => (x === true));
-    },
-    needsHeadingsAll() {
-      return this.needsHeadings.every((x) => (x === true));
-    },
     isFirstRowIntervalBanner() {
       return this.needsIntervalBanner;
     },

@@ -50,6 +50,19 @@
                   :switch="true"
                 />
               </b-form-group>
+              <b-form-group
+                :label-cols="true"
+                label="Script Text Alignment"
+                label-for="text-alignment-input"
+              >
+                <b-form-select
+                  id="text-alignment-input"
+                  v-model="$v.editSettings.script_text_alignment.$model"
+                  name="text-alignment-input"
+                  :options="textAlignmentOptions"
+                  :state="validateState('script_text_alignment')"
+                />
+              </b-form-group>
               <b-button-group
                 size="md"
                 style="float: right"
@@ -92,6 +105,7 @@ import { required, integer, minValue } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
+import { TEXT_ALIGNMENT } from '@/constants/textAlignment';
 
 export default {
   name: 'UserSettingsConfig',
@@ -102,7 +116,13 @@ export default {
         enable_script_auto_save: false,
         script_auto_save_interval: 10,
         cue_position_right: false,
+        script_text_alignment: TEXT_ALIGNMENT.CENTER,
       },
+      textAlignmentOptions: [
+        { value: TEXT_ALIGNMENT.LEFT, text: 'Left' },
+        { value: TEXT_ALIGNMENT.CENTER, text: 'Center' },
+        { value: TEXT_ALIGNMENT.RIGHT, text: 'Right' },
+      ],
       toggle: 0,
     };
   },
@@ -125,6 +145,10 @@ export default {
         minValue: minValue(1),
       },
       cue_position_right: {},
+      script_text_alignment: {
+        required,
+        integer,
+      },
     },
   },
   mounted() {
