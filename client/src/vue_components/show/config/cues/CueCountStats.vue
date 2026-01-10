@@ -68,12 +68,14 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
+import { mapGetters } from 'vuex';
 import { makeURL } from '@/js/utils';
 import log from 'loglevel';
+import statsTableMixin from '@/mixins/statsTableMixin';
 
 export default {
   name: 'CueCountStats',
+  mixins: [statsTableMixin],
   data() {
     return {
       loaded: false,
@@ -92,61 +94,10 @@ export default {
     tableFields() {
       return ['Cues', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
     },
-    sortedActs() {
-      if (this.CURRENT_SHOW.first_act_id == null) {
-        return [];
-      }
-      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
-      if (currentAct == null) {
-        return [];
-      }
-      const acts = [];
-      while (currentAct != null) {
-        acts.push(currentAct);
-        currentAct = this.ACT_BY_ID(currentAct.next_act);
-      }
-      return acts;
-    },
-    sortedScenes() {
-      if (this.CURRENT_SHOW.first_act_id == null) {
-        return [];
-      }
-
-      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
-      if (currentAct == null || currentAct.first_scene == null) {
-        return [];
-      }
-
-      const scenes = [];
-      while (currentAct != null) {
-        let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
-        while (currentScene != null) {
-          scenes.push(currentScene);
-          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
-        }
-        currentAct = this.ACT_BY_ID(currentAct.next_act);
-      }
-      return scenes;
-    },
-    ...mapGetters(['ACT_BY_ID', 'SCENE_BY_ID', 'CURRENT_SHOW', 'CUE_TYPES', 'CUE_TYPE_BY_ID']),
-  },
-  async mounted() {
-    await this.GET_ACT_LIST();
-    await this.GET_SCENE_LIST();
-    await this.getCueStats();
-    this.loaded = true;
+    ...mapGetters(['CUE_TYPES', 'CUE_TYPE_BY_ID']),
   },
   methods: {
-    numScenesPerAct(actId) {
-      return this.sortedScenes.filter((scene) => scene.act === actId).length;
-    },
-    getHeaderName(sceneId) {
-      return `head(${sceneId})`;
-    },
-    getCellName(sceneId) {
-      return `cell(${sceneId})`;
-    },
-    async getCueStats() {
+    async getStats() {
       const response = await fetch(`${makeURL('/api/v1/show/cues/stats')}`);
       if (response.ok) {
         this.cueStats = await response.json();
@@ -170,7 +121,6 @@ export default {
       }
       return 0;
     },
-    ...mapActions(['GET_ACT_LIST', 'GET_SCENE_LIST']),
   },
 };
 </script>
