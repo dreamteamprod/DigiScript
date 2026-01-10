@@ -1,14 +1,21 @@
+import { mapGetters } from 'vuex';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { TEXT_ALIGNMENT_CSS } from '@/constants/textAlignment';
 
 /**
  * Shared mixin for script display presentation logic.
  * Handles stage directions, act/scene labels, intervals, and viewport tracking.
  *
  * This mixin assumes the component has:
- * - Props: line, lineIndex, previousLine, previousLineIndex, acts, scenes,
+ * - Props: line, lineIndex, previousLine, acts, scenes,
  *          stageDirectionStyles, stageDirectionStyleOverrides
- * - Refs: lineContainer
- * - Methods: isWholeLineCut, getPreviousLineForIndex (from scriptNavigationMixin)
+ * - Optional props: previousLineIndex (required for interval/cut-aware features)
+ * - Optional refs: lineContainer (required for viewport tracking in live view)
+ * - Optional methods: isWholeLineCut, getPreviousLineForIndex (from scriptNavigationMixin,
+ *                     required for interval/cut-aware features)
+ *
+ * Components using only the alignment/styling features (headingStyle, dialogueStyle,
+ * scriptTextAlign, stageDirectionStyling) do not need the optional dependencies.
  */
 export default {
   data() {
@@ -77,27 +84,48 @@ export default {
       }
       return style;
     },
+    scriptTextAlign() {
+      const alignment = this.USER_SETTINGS.script_text_alignment || 2;
+      return TEXT_ALIGNMENT_CSS[alignment] || 'center';
+    },
+    headingStyle() {
+      return { textAlign: this.scriptTextAlign };
+    },
+    dialogueStyle() {
+      return { textAlign: this.scriptTextAlign };
+    },
+    needsHeadingsAny() {
+      return this.needsHeadings.some((x) => (x === true));
+    },
+    needsHeadingsAll() {
+      return this.needsHeadings.every((x) => (x === true));
+    },
+    ...mapGetters(['USER_SETTINGS']),
   },
   mounted() {
-     
-    this.observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        const newValue = m.target.getAttribute(m.attributeName);
-        this.$nextTick(() => {
-          this.onClassChange(newValue, m.oldValue);
-        });
-      }
-    });
-     
+    // Only set up viewport observer if lineContainer ref exists
+    // (e.g., live view needs this, but editor view does not)
+    if (this.$refs.lineContainer) {
+      this.observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          const newValue = m.target.getAttribute(m.attributeName);
+          this.$nextTick(() => {
+            this.onClassChange(newValue, m.oldValue);
+          });
+        }
+      });
 
-    this.observer.observe(this.$refs.lineContainer, {
-      attributes: true,
-      attributeOldValue: true,
-      attributeFilter: ['class'],
-    });
+      this.observer.observe(this.$refs.lineContainer, {
+        attributes: true,
+        attributeOldValue: true,
+        attributeFilter: ['class'],
+      });
+    }
   },
   destroyed() {
-    this.observer.disconnect();
+    if (this.observer) {
+      this.observer.disconnect();
+    }
   },
   methods: {
     onClassChange(classAttrValue, oldClassAttrValue) {

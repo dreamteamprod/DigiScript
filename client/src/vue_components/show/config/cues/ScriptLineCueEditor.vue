@@ -5,7 +5,7 @@
     style="margin: 0; padding: 0 0 .2rem;"
     fluid
   >
-    <b-row v-if="needsActSceneLabel">
+    <b-row v-if="needsActSceneLabelSimple">
       <b-col cols="3" />
       <b-col cols="9">
         <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
@@ -43,7 +43,7 @@
         <b-col
           v-for="(part, index) in line.line_parts"
           :key="`line_${lineIndex}_part_${index}`"
-          style="text-align: center"
+          :style="headingStyle"
         >
           <template v-if="needsHeadings[index]">
             <b v-if="part.character_id != null">
@@ -65,7 +65,7 @@
       <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
         <b-col
           :key="`line_${lineIndex}_stage_direction`"
-          style="text-align: center"
+          :style="{ textAlign: scriptTextAlign }"
         >
           <i
             class="viewable-line"
@@ -91,7 +91,7 @@
       <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
         <b-col
           :key="`line_${lineIndex}_cue_line`"
-          style="text-align: center"
+          :style="dialogueStyle"
         >
           <b-alert
             variant="secondary"
@@ -109,7 +109,7 @@
       <template v-else-if="line.line_type === LINE_TYPES.SPACING">
         <b-col
           :key="`line_${lineIndex}_spacing`"
-          style="text-align: center"
+          :style="dialogueStyle"
         >
           <b-alert
             variant="secondary"
@@ -193,7 +193,7 @@
                 <template v-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
                   <b-col
                     :key="`line_${lineIndex}_stage_direction`"
-                    style="text-align: center"
+                    :style="{ textAlign: scriptTextAlign }"
                   >
                     <i
                       class="viewable-line"
@@ -220,7 +220,7 @@
                   <b-col
                     v-for="(part, index) in line.line_parts"
                     :key="`line_${lineIndex}_part_${index}`"
-                    style="text-align: center"
+                    :style="headingStyle"
                   >
                     <b v-if="part.character_id != null">
                       {{ characters.find((char) => (char.id === part.character_id)).name }}
@@ -332,9 +332,11 @@ import { contrastColor } from 'contrast-color';
 import log from 'loglevel';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
+import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 
 export default {
   name: 'ScriptLineCueEditor',
+  mixins: [scriptDisplayMixin],
   props: {
     line: {
       required: true,
@@ -467,50 +469,12 @@ export default {
       }, this);
       return ret;
     },
-    needsHeadingsAny() {
-      return this.needsHeadings.some((x) => (x === true));
-    },
-    needsActSceneLabel() {
+    needsActSceneLabelSimple() {
       if (this.previousLine == null) {
         return true;
       }
       return !(this.previousLine.act_id === this.line.act_id
         && this.previousLine.scene_id === this.line.scene_id);
-    },
-    actLabel() {
-      return this.acts.find((act) => (act.id === this.line.act_id)).name;
-    },
-    sceneLabel() {
-      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
-    },
-    stageDirectionStyle() {
-      const sdStyle = this.stageDirectionStyles.find(
-        (style) => (style.id === this.line.stage_direction_style_id),
-      );
-      const override = this.stageDirectionStyleOverrides
-        .find((elem) => elem.settings.id === sdStyle.id);
-      if (this.line.line_type === LINE_TYPES.STAGE_DIRECTION) {
-        return override ? override.settings : sdStyle;
-      }
-      return null;
-    },
-    stageDirectionStyling() {
-      if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
-        return {
-          'background-color': 'darkslateblue',
-          'font-style': 'italic',
-        };
-      }
-      const style = {
-        'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
-        'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
-        'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
-        color: this.stageDirectionStyle.text_colour,
-      };
-      if (this.stageDirectionStyle.enable_background_colour) {
-        style['background-color'] = this.stageDirectionStyle.background_colour;
-      }
-      return style;
     },
     flatScriptCues() {
       return Object.keys(this.SCRIPT_CUES).map((key) => this.SCRIPT_CUES[key]).flat();
