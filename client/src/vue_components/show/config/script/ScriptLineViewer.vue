@@ -7,7 +7,7 @@
   >
     <b-col cols="1">
       <p
-        v-if="needsActSceneLabel"
+        v-if="needsActSceneLabelSimple"
         class="viewable-line"
       >
         {{ actLabel }}
@@ -15,7 +15,7 @@
     </b-col>
     <b-col cols="1">
       <p
-        v-if="needsActSceneLabel"
+        v-if="needsActSceneLabelSimple"
         class="viewable-line"
       >
         {{ sceneLabel }}
@@ -27,7 +27,7 @@
           <b-col
             v-for="(part, index) in line.line_parts"
             :key="`heading_${lineIndex}_part_${index}`"
-            style="text-align: center"
+            :style="headingStyle"
           >
             <template v-if="needsHeadings[index]">
               <b>
@@ -46,7 +46,7 @@
           <b-col
             v-for="(part, index) in line.line_parts"
             :key="`line_${lineIndex}_part_${index}`"
-            style="text-align: center"
+            :style="dialogueStyle"
           >
             <p
               v-if="(canEdit && !IS_CUT_MODE) || !canEdit"
@@ -70,12 +70,12 @@
     <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
       <b-col
         :key="`line_${lineIndex}_stage_direction`"
-        style="text-align: center"
+        :style="{ textAlign: scriptTextAlign }"
       >
         <i
           v-if="(canEdit && !IS_CUT_MODE) || !canEdit"
           class="viewable-line"
-          :style="stageDirectionStyling"
+          :style="stageDirectionStylingWithCuts"
         >
           <template
             v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
@@ -94,7 +94,7 @@
         <a
           v-else
           class="viewable-line-cut"
-          :style="stageDirectionStyling"
+          :style="stageDirectionStylingWithCuts"
           @click.stop="cutLinePart(0)"
         >
           <template
@@ -189,9 +189,11 @@
 <script>
 import { mapGetters } from 'vuex';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 
 export default {
   name: 'ScriptLineViewer',
+  mixins: [scriptDisplayMixin],
   events: ['editLine', 'cutLinePart', 'insertDialogue', 'insertStageDirection', 'insertCueLine', 'insertSpacing', 'deleteLine'],
   props: {
     line: {
@@ -278,37 +280,14 @@ export default {
       }, this);
       return ret;
     },
-    needsHeadingsAny() {
-      return this.needsHeadings.some((x) => (x === true));
-    },
-    needsHeadingsAll() {
-      return this.needsHeadings.every((x) => (x === true));
-    },
-    needsActSceneLabel() {
+    needsActSceneLabelSimple() {
       if (this.previousLine == null) {
         return true;
       }
       return !(this.previousLine.act_id === this.line.act_id
         && this.previousLine.scene_id === this.line.scene_id);
     },
-    actLabel() {
-      return this.acts.find((act) => (act.id === this.line.act_id)).name;
-    },
-    sceneLabel() {
-      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
-    },
-    stageDirectionStyle() {
-      const sdStyle = this.stageDirectionStyles.find(
-        (style) => (style.id === this.line.stage_direction_style_id),
-      );
-      const override = this.stageDirectionStyleOverrides
-        .find((elem) => elem.settings.id === sdStyle.id);
-      if (this.line.line_type === LINE_TYPES.STAGE_DIRECTION) {
-        return override ? override.settings : sdStyle;
-      }
-      return null;
-    },
-    stageDirectionStyling() {
+    stageDirectionStylingWithCuts() {
       if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
         const style = {
           'background-color': 'darkslateblue',
