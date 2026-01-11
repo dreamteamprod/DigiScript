@@ -82,6 +82,12 @@ const routes = [
         meta: { requiresAuth: true, requiresShowAccess: true },
       },
       {
+        name: 'show-config-script-revisions',
+        path: 'script-revisions',
+        component: () => import('../views/show/config/ConfigScriptRevisions.vue'),
+        meta: { requiresAuth: true, requiresShowAccess: true },
+      },
+      {
         name: 'show-sessions',
         path: 'sessions',
         component: () => import('../views/show/config/ConfigSessions.vue'),

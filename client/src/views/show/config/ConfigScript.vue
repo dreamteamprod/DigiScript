@@ -7,16 +7,13 @@
       <b-col>
         <b-tabs content-class="mt-3">
           <b-tab
-            title="Revisions"
+            title="Script"
             active
           >
-            <script-revisions />
+            <script-config />
           </b-tab>
           <b-tab title="Stage Direction Styles">
             <stage-direction-configs />
-          </b-tab>
-          <b-tab title="Script">
-            <script-config />
           </b-tab>
         </b-tabs>
       </b-col>
@@ -27,15 +24,13 @@
 <script>
 import ScriptConfig from '@/vue_components/show/config/script/ScriptEditor.vue';
 import StageDirectionStyles from '@/vue_components/show/config/script/StageDirectionStyles.vue';
-import ScriptRevisions from "@/vue_components/show/config/script/ScriptRevisions.vue";
 
 export default {
   name: 'ConfigScript',
   components: {
-    ScriptRevisions,
     ScriptConfig,
     StageDirectionConfigs: StageDirectionStyles,
-  },
+  }
 };
 </script>
 
