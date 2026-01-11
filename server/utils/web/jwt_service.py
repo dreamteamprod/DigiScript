@@ -6,6 +6,7 @@ from jwt import PyJWS, PyJWT, PyJWTError
 from sqlalchemy import select
 
 from models.settings import SystemSettings
+from models.user import User
 
 
 class JWTService:
@@ -74,7 +75,7 @@ class JWTService:
         self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
     ) -> str:
         """
-        Create a new JWT access token
+        Create a new JWT access token with user token_version
         """
         to_encode = data.copy()
 
@@ -82,6 +83,13 @@ class JWTService:
             expire = datetime.now(tz=timezone.utc) + expires_delta
         else:
             expire = datetime.now(tz=timezone.utc) + self._default_expiry
+
+        # Add token version if user_id is provided
+        if "user_id" in data and self.application:
+            with self.application.get_db().sessionmaker() as session:
+                user = session.get(User, data["user_id"])
+                if user:
+                    to_encode["token_version"] = user.token_version
 
         to_encode.update({"exp": expire, "iat": datetime.now(tz=timezone.utc)})
         encoded_jwt = self._jwt.encode(
@@ -104,6 +112,29 @@ class JWTService:
             return payload
         except PyJWTError:
             return None
+
+    def is_token_version_valid(self, payload: Dict[str, Any]) -> bool:
+        """
+        Validate that token version matches current user token version
+
+        :param payload: Decoded JWT payload
+        :type payload: Dict[str, Any]
+        :return: True if token version is valid, False otherwise
+        :rtype: bool
+        """
+        user_id = payload.get("user_id")
+        token_version = payload.get("token_version")
+
+        if user_id is None or token_version is None:
+            # Old tokens without version or missing user_id
+            return False
+
+        with self.application.get_db().sessionmaker() as session:
+            user = session.get(User, user_id)
+            if not user:
+                return False
+
+            return user.token_version == token_version
 
     @staticmethod
     def get_token_from_authorization_header(auth_header: str) -> Optional[str]:

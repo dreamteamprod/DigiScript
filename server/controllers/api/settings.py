@@ -4,11 +4,17 @@ from digi_server.logger import get_logger
 from digi_server.settings import Settings
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import api_authenticated, no_live_session, require_admin
+from utils.web.web_decorators import (
+    allow_when_password_required,
+    api_authenticated,
+    no_live_session,
+    require_admin,
+)
 
 
 @ApiRoute("settings", ApiVersion.V1)
 class SettingsController(BaseAPIController):
+    @allow_when_password_required
     async def get(self):
         settings: Settings = self.application.digi_settings
         settings_json = await settings.as_json()

@@ -5,12 +5,13 @@ from models.user import UserSettings
 from schemas.schemas import UserSettingsSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import api_authenticated
+from utils.web.web_decorators import allow_when_password_required, api_authenticated
 
 
 @ApiRoute("user/settings", ApiVersion.V1)
 class UserSettingsController(BaseAPIController):
     @api_authenticated
+    @allow_when_password_required
     async def get(self):
         schema = UserSettingsSchema()
         with self.make_session() as session:

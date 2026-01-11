@@ -64,6 +64,10 @@ class BaseController(DatabaseMixin, RequestHandler):
 
                 payload = self.application.jwt_service.decode_access_token(token)
                 if payload and "user_id" in payload:
+                    # Validate token version to check if token is still valid
+                    if not self.application.jwt_service.is_token_version_valid(payload):
+                        raise HTTPError(401, log_message="JWT token version invalid")
+
                     user = session.get(User, int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
@@ -94,6 +98,21 @@ class BaseController(DatabaseMixin, RequestHandler):
                         self.current_user = user_schema.dump(authenticated_user)
                     else:
                         raise HTTPError(401, log_message="Invalid API key")
+
+            # Enforce password change requirement
+            if self.current_user and self.current_user.get("requires_password_change"):
+                # Check if the current HTTP method is marked as exempt
+                method_name = self.request.method.lower()
+                handler_method = getattr(self, method_name, None)
+                is_exempt = getattr(
+                    handler_method, "_allow_when_password_required", False
+                )
+
+                if not is_exempt:
+                    raise HTTPError(
+                        403,
+                        log_message="Password change required before accessing this resource",
+                    )
 
             current_show = await self.application.digi_settings.get("current_show")
             if current_show:

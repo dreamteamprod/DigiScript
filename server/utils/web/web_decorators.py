@@ -53,3 +53,27 @@ def api_authenticated(
         return method(self, *args, **kwargs)
 
     return wrapper
+
+
+def allow_when_password_required(
+    method: Callable[..., Optional[Awaitable[None]]],
+) -> Callable[..., Optional[Awaitable[None]]]:
+    """
+    Decorator to mark a handler method as accessible even when user has requires_password_change=True.
+
+    Apply this to specific HTTP methods (get, post, patch, etc.) that should be accessible
+    during forced password change, such as change-password and logout endpoints.
+
+    Example:
+        @allow_when_password_required
+        async def patch(self):
+            # Password change logic
+    """
+
+    @functools.wraps(method)
+    def wrapper(self: BaseController, *args, **kwargs) -> Optional[Awaitable[None]]:
+        return method(self, *args, **kwargs)
+
+    # Mark the wrapper with an attribute so prepare() can detect it
+    wrapper._allow_when_password_required = True  # type: ignore
+    return wrapper

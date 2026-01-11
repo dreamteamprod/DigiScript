@@ -27,6 +27,9 @@
       >
         <cue-colour-preferences />
       </b-tab>
+      <b-tab title="Change Password">
+        <change-password />
+      </b-tab>
       <b-tab title="API Token">
         <api-token />
       </b-tab>
@@ -40,11 +43,17 @@ import CueColourPreferences from '@/vue_components/user/settings/CueColourPrefer
 import AboutUser from '@/vue_components/user/settings/AboutUser.vue';
 import UserSettingsConfig from '@/vue_components/user/settings/Settings.vue';
 import ApiToken from '@/vue_components/user/settings/ApiToken.vue';
+import ChangePassword from '@/vue_components/user/settings/ChangePassword.vue';
 
 export default {
   name: 'UserSettings',
   components: {
-    UserSettingsConfig, AboutUser, StageDirectionStyles, CueColourPreferences, ApiToken,
+    UserSettingsConfig,
+    AboutUser,
+    StageDirectionStyles,
+    CueColourPreferences,
+    ApiToken,
+    ChangePassword,
   },
 };
 </script>
