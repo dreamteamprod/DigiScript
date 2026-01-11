@@ -1,18 +1,9 @@
 <template>
-  <b-container
-    class="mx-0 px-0"
-    fluid
-  >
+  <b-container class="mx-0 px-0" fluid>
     <b-row>
       <b-col>
-        <div
-          v-if="!loaded"
-          class="text-center center-spinner"
-        >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
+        <div v-if="!loaded" class="text-center center-spinner">
+          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
         </div>
         <template v-else-if="sortedScenes.length > 0">
           <b-table
@@ -40,22 +31,14 @@
                 </template>
               </b-tr>
             </template>
-            <template
-              v-for="scene in sortedScenes"
-              #[getHeaderName(scene.id)]="data"
-            >
+            <template v-for="scene in sortedScenes" #[getHeaderName(scene.id)]="data">
               {{ scene.name }}
             </template>
             <template #cell(Cast)="data">
               {{ CAST_BY_ID(data.item.Cast).first_name }} {{ CAST_BY_ID(data.item.Cast).last_name }}
             </template>
-            <template
-              v-for="scene in sortedScenes"
-              #[getCellName(scene.id)]="data"
-            >
-              <template
-                v-if="getLineCountForCast(data.item.Cast, scene.act, scene.id) > 0"
-              >
+            <template v-for="scene in sortedScenes" #[getCellName(scene.id)]="data">
+              <template v-if="getLineCountForCast(data.item.Cast, scene.act, scene.id) > 0">
                 {{ getLineCountForCast(data.item.Cast, scene.act, scene.id) }}
               </template>
             </template>
@@ -87,12 +70,15 @@ export default {
       if (!this.loaded) {
         return [];
       }
-      return this.CAST_LIST.map((cast) => ({
-        Cast: cast.id,
-      }), this);
+      return this.CAST_LIST.map(
+        (cast) => ({
+          Cast: cast.id,
+        }),
+        this
+      );
     },
     tableFields() {
-      return ['Cast', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
+      return ['Cast', ...this.sortedScenes.map((scene) => scene.id.toString())];
     },
     ...mapGetters(['CAST_BY_ID', 'CAST_LIST']),
   },

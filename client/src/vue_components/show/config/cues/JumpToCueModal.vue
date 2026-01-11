@@ -12,11 +12,7 @@
     @hidden="resetCueSearch"
   >
     <!-- Search Form -->
-    <b-form
-      v-if="!showResults"
-      v-show="!searching"
-      @submit.stop.prevent="performCueSearch"
-    >
+    <b-form v-if="!showResults" v-show="!searching" @submit.stop.prevent="performCueSearch">
       <b-form-group
         label="Cue Type"
         label-for="cue-type-input"
@@ -48,32 +44,24 @@
       </b-form-group>
 
       <!-- General Error Message -->
-      <b-alert
-        v-if="generalError"
-        variant="danger"
-        show
-      >
+      <b-alert v-if="generalError" variant="danger" show>
         {{ generalError }}
       </b-alert>
     </b-form>
 
     <!-- Loading Spinner -->
-    <div
-      v-if="searching"
-      class="text-center"
-    >
-      <b-spinner
-        variant="primary"
-        label="Searching..."
-      />
-      <p class="mt-2">
-        Searching for cue...
-      </p>
+    <div v-if="searching" class="text-center">
+      <b-spinner variant="primary" label="Searching..." />
+      <p class="mt-2">Searching for cue...</p>
     </div>
 
     <!-- Multiple Matches - Selection List -->
     <div v-else-if="multipleMatches">
-      <p>Found {{ cueSearchResults.exact_matches.length }} cues matching "{{ cueSearchForm.identifier }}":</p>
+      <p>
+        Found {{ cueSearchResults.exact_matches.length }} cues matching "{{
+          cueSearchForm.identifier
+        }}":
+      </p>
       <b-list-group>
         <b-list-group-item
           v-for="(match, idx) in cueSearchResults.exact_matches"
@@ -89,10 +77,7 @@
 
     <!-- Suggestions (No Exact Match) -->
     <div v-else-if="showSuggestions">
-      <b-alert
-        variant="warning"
-        show
-      >
+      <b-alert variant="warning" show>
         No exact match found for "{{ cueSearchForm.identifier }}"
       </b-alert>
       <p>Did you mean one of these?</p>
@@ -105,10 +90,7 @@
         >
           <strong>{{ suggestion.cue_type.prefix }} {{ suggestion.cue.ident }}</strong>
           - Page {{ suggestion.location.page }}
-          <b-badge
-            variant="secondary"
-            class="float-right"
-          >
+          <b-badge variant="secondary" class="float-right">
             {{ Math.round(suggestion.similarity_score * 100) }}% match
           </b-badge>
         </b-list-group-item>
@@ -117,31 +99,15 @@
 
     <!-- No Matches At All -->
     <div v-else-if="noMatches">
-      <b-alert
-        variant="danger"
-        show
-      >
+      <b-alert variant="danger" show>
         No cues found matching "{{ cueSearchForm.identifier }}" for the selected cue type.
       </b-alert>
     </div>
 
     <!-- Footer for results -->
-    <template
-      v-if="showResults"
-      #modal-footer
-    >
-      <b-button
-        variant="secondary"
-        @click="resetCueSearch"
-      >
-        New Search
-      </b-button>
-      <b-button
-        variant="primary"
-        @click="$bvModal.hide('jump-to-cue')"
-      >
-        Cancel
-      </b-button>
+    <template v-if="showResults" #modal-footer>
+      <b-button variant="secondary" @click="resetCueSearch"> New Search </b-button>
+      <b-button variant="primary" @click="$bvModal.hide('jump-to-cue')"> Cancel </b-button>
     </template>
   </b-modal>
 </template>
@@ -195,14 +161,14 @@ export default {
     },
     showSuggestions() {
       return (
-        this.cueSearchResults?.exact_matches?.length === 0
-        && this.cueSearchResults?.suggestions?.length > 0
+        this.cueSearchResults?.exact_matches?.length === 0 &&
+        this.cueSearchResults?.suggestions?.length > 0
       );
     },
     noMatches() {
       return (
-        this.cueSearchResults?.exact_matches?.length === 0
-        && this.cueSearchResults?.suggestions?.length === 0
+        this.cueSearchResults?.exact_matches?.length === 0 &&
+        this.cueSearchResults?.suggestions?.length === 0
       );
     },
     cueTypeErrorState() {
@@ -265,7 +231,7 @@ export default {
       const targetPage = match.location.page;
       this.$emit('navigate', targetPage);
       Vue.$toast.success(
-        `Jumped to ${match.cue_type.prefix} ${match.cue.ident} on page ${targetPage}`,
+        `Jumped to ${match.cue_type.prefix} ${match.cue.ident} on page ${targetPage}`
       );
     },
     resetCueSearch() {

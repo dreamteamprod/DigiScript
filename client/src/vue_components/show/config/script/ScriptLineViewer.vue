@@ -2,22 +2,16 @@
   <b-row
     :class="{
       'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
-      'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll
+      'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
     }"
   >
     <b-col cols="1">
-      <p
-        v-if="needsActSceneLabelSimple"
-        class="viewable-line"
-      >
+      <p v-if="needsActSceneLabelSimple" class="viewable-line">
         {{ actLabel }}
       </p>
     </b-col>
     <b-col cols="1">
-      <p
-        v-if="needsActSceneLabelSimple"
-        class="viewable-line"
-      >
+      <p v-if="needsActSceneLabelSimple" class="viewable-line">
         {{ sceneLabel }}
       </p>
     </b-col>
@@ -32,10 +26,10 @@
             <template v-if="needsHeadings[index]">
               <b>
                 <template v-if="part.character_id != null">
-                  {{ characters.find((char) => (char.id === part.character_id)).name }}
+                  {{ characters.find((char) => char.id === part.character_id).name }}
                 </template>
                 <template v-else>
-                  {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+                  {{ characterGroups.find((char) => char.id === part.character_group_id).name }}
                 </template>
               </b>
             </template>
@@ -51,14 +45,14 @@
             <p
               v-if="(canEdit && !IS_CUT_MODE) || !canEdit"
               class="viewable-line"
-              :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"
+              :class="{ 'cut-line-part': linePartCuts.indexOf(part.id) !== -1 }"
             >
               {{ part.line_text }}
             </p>
             <a
               v-else
               class="viewable-line-cut"
-              :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"
+              :class="{ 'cut-line-part': linePartCuts.indexOf(part.id) !== -1 }"
               @click.stop="cutLinePart(index)"
             >
               {{ part.line_text }}
@@ -68,10 +62,7 @@
       </b-col>
     </template>
     <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
-      <b-col
-        :key="`line_${lineIndex}_stage_direction`"
-        :style="{ textAlign: scriptTextAlign }"
-      >
+      <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
         <i
           v-if="(canEdit && !IS_CUT_MODE) || !canEdit"
           class="viewable-line"
@@ -114,45 +105,20 @@
       </b-col>
     </template>
     <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
-      <b-col
-        :key="`line_${lineIndex}_cue_line`"
-        style="text-align: center"
-      >
-        <b-alert
-          variant="secondary"
-          show
-        >
-          <p
-            class="text-muted small"
-            style="margin: 0"
-          >
-            Cue Line
-          </p>
+      <b-col :key="`line_${lineIndex}_cue_line`" style="text-align: center">
+        <b-alert variant="secondary" show>
+          <p class="text-muted small" style="margin: 0">Cue Line</p>
         </b-alert>
       </b-col>
     </template>
     <template v-else-if="line.line_type === LINE_TYPES.SPACING">
-      <b-col
-        :key="`line_${lineIndex}_spacing`"
-        style="text-align: center"
-      >
-        <b-alert
-          variant="secondary"
-          show
-        >
-          <p
-            class="text-muted small"
-            style="margin: 0"
-          >
-            Spacing Line
-          </p>
+      <b-col :key="`line_${lineIndex}_spacing`" style="text-align: center">
+        <b-alert variant="secondary" show>
+          <p class="text-muted small" style="margin: 0">Spacing Line</p>
         </b-alert>
       </b-col>
     </template>
-    <b-col
-      cols="1"
-      align-self="end"
-    >
+    <b-col cols="1" align-self="end">
       <b-dropdown
         v-show="canEdit && !IS_CUT_MODE"
         split
@@ -175,10 +141,7 @@
         <b-dropdown-item-btn @click.prevent.stop="insertSpacing">
           Insert Spacing
         </b-dropdown-item-btn>
-        <b-dropdown-item-btn
-          variant="danger"
-          @click.prevent.stop="deleteLine"
-        >
+        <b-dropdown-item-btn variant="danger" @click.prevent.stop="deleteLine">
           Delete
         </b-dropdown-item-btn>
       </b-dropdown>
@@ -194,7 +157,15 @@ import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 export default {
   name: 'ScriptLineViewer',
   mixins: [scriptDisplayMixin],
-  events: ['editLine', 'cutLinePart', 'insertDialogue', 'insertStageDirection', 'insertCueLine', 'insertSpacing', 'deleteLine'],
+  events: [
+    'editLine',
+    'cutLinePart',
+    'insertDialogue',
+    'insertStageDirection',
+    'insertCueLine',
+    'insertSpacing',
+    'deleteLine',
+  ],
   props: {
     line: {
       required: true,
@@ -264,17 +235,24 @@ export default {
 
       const ret = [];
       this.line.line_parts.forEach(function checkLinePartNeedsHeading(part) {
-        if (previousLine == null
-          || previousLine.line_parts.length !== this.line.line_parts.length) {
+        if (
+          previousLine == null ||
+          previousLine.line_parts.length !== this.line.line_parts.length
+        ) {
           ret.push(true);
         } else {
-          const matchingIndex = previousLine.line_parts.find((prevPart) => (
-            prevPart.part_index === part.part_index));
+          const matchingIndex = previousLine.line_parts.find(
+            (prevPart) => prevPart.part_index === part.part_index
+          );
           if (matchingIndex == null) {
             ret.push(true);
           } else {
-            ret.push(!(matchingIndex.character_id === part.character_id
-              && matchingIndex.character_group_id === part.character_group_id));
+            ret.push(
+              !(
+                matchingIndex.character_id === part.character_id &&
+                matchingIndex.character_group_id === part.character_group_id
+              )
+            );
           }
         }
       }, this);
@@ -284,8 +262,10 @@ export default {
       if (this.previousLine == null) {
         return true;
       }
-      return !(this.previousLine.act_id === this.line.act_id
-        && this.previousLine.scene_id === this.line.scene_id);
+      return !(
+        this.previousLine.act_id === this.line.act_id &&
+        this.previousLine.scene_id === this.line.scene_id
+      );
     },
     stageDirectionStylingWithCuts() {
       if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
@@ -360,7 +340,7 @@ export default {
   margin-bottom: 1rem;
 }
 .heading-padding {
-  margin-top: .5rem;
+  margin-top: 0.5rem;
 }
 .cut-line-part {
   text-decoration: line-through;

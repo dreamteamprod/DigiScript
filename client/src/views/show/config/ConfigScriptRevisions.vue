@@ -1,15 +1,9 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row v-if="!loading">
       <b-col>
         <b-tabs content-class="mt-3">
-          <b-tab
-            title="Revisions"
-            active
-          >
+          <b-tab title="Revisions" active>
             <script-revisions />
           </b-tab>
           <b-tab title="Compiled Scripts">
@@ -20,10 +14,7 @@
     </b-row>
     <b-row v-else>
       <b-col>
-        <div
-          v-if="loading"
-          class="text-center py-5"
-        >
+        <div v-if="loading" class="text-center py-5">
           <b-spinner label="Loading" />
         </div>
       </b-col>
@@ -32,14 +23,14 @@
 </template>
 
 <script>
-import {mapActions} from 'vuex';
+import { mapActions } from 'vuex';
 
-import ScriptRevisions from "@/vue_components/show/config/script/ScriptRevisions.vue";
-import CompiledScripts from "@/vue_components/show/config/script/CompiledScripts.vue";
+import ScriptRevisions from '@/vue_components/show/config/script/ScriptRevisions.vue';
+import CompiledScripts from '@/vue_components/show/config/script/CompiledScripts.vue';
 
 export default {
-  name: "ConfigScriptRevisions",
-  components: {CompiledScripts, ScriptRevisions},
+  name: 'ConfigScriptRevisions',
+  components: { CompiledScripts, ScriptRevisions },
   data() {
     return {
       loading: true,
@@ -50,11 +41,9 @@ export default {
     this.loading = false;
   },
   methods: {
-    ...mapActions(['GET_SCRIPT_REVISIONS',])
-  }
-}
+    ...mapActions(['GET_SCRIPT_REVISIONS']),
+  },
+};
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

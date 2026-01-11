@@ -1,15 +1,9 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <b-tabs content-class="mt-3">
-          <b-tab
-            title="Script"
-            active
-          >
+          <b-tab title="Script" active>
             <script-config />
           </b-tab>
           <b-tab title="Stage Direction Styles">
@@ -30,10 +24,8 @@ export default {
   components: {
     ScriptConfig,
     StageDirectionConfigs: StageDirectionStyles,
-  }
+  },
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

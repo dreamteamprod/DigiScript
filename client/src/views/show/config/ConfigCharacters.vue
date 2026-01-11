@@ -1,15 +1,9 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <b-tabs content-class="mt-3">
-          <b-tab
-            title="Characters"
-            active
-          >
+          <b-tab title="Characters" active>
             <b-table
               id="character-table"
               :items="CHARACTER_LIST"
@@ -19,11 +13,7 @@
               show-empty
             >
               <template #head(btn)="data">
-                <b-button
-                  v-if="IS_SHOW_EDITOR"
-                  v-b-modal.new-character
-                  variant="outline-success"
-                >
+                <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-character variant="outline-success">
                   New Character
                 </b-button>
               </template>
@@ -32,9 +22,7 @@
                   {{ data.item.cast_member.first_name }} {{ data.item.cast_member.last_name }}
                 </template>
                 <template v-else-if="IS_SHOW_EDITOR">
-                  <b-link @click="openEditForm(data)">
-                    Set Cast Member
-                  </b-link>
+                  <b-link @click="openEditForm(data)"> Set Cast Member </b-link>
                 </template>
               </template>
               <template #cell(btn)="data">
@@ -81,15 +69,8 @@
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
-      <b-form
-        ref="new-character-form"
-        @submit.stop.prevent="onSubmitNew"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="new-character-form" @submit.stop.prevent="onSubmitNew">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.newFormState.name.$model"
@@ -97,9 +78,7 @@
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -115,11 +94,7 @@
             :state="validateNewState('description')"
           />
         </b-form-group>
-        <b-form-group
-          id="played-by-input-group"
-          label="Played By"
-          label-for="played-by-input"
-        >
+        <b-form-group id="played-by-input-group" label="Played By" label-for="played-by-input">
           <b-form-select
             v-model="$v.newFormState.played_by.$model"
             :options="castOptions"
@@ -137,15 +112,8 @@
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form
-        ref="edit-character-form"
-        @submit.stop.prevent="onSubmitEdit"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="edit-character-form" @submit.stop.prevent="onSubmitEdit">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.editFormState.name.$model"
@@ -153,9 +121,7 @@
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -171,11 +137,7 @@
             :state="validateEditState('description')"
           />
         </b-form-group>
-        <b-form-group
-          id="played-by-input-group"
-          label="Played By"
-          label-for="played-by-input"
-        >
+        <b-form-group id="played-by-input-group" label="Played By" label-for="played-by-input">
           <b-form-select
             v-model="$v.editFormState.played_by.$model"
             :options="castOptions"
@@ -228,19 +190,15 @@ export default {
       name: {
         required,
       },
-      description: {
-      },
-      played_by: {
-      },
+      description: {},
+      played_by: {},
     },
     editFormState: {
       name: {
         required,
       },
-      description: {
-      },
-      played_by: {
-      },
+      description: {},
+      played_by: {},
     },
   },
   computed: {
@@ -248,7 +206,10 @@ export default {
     castOptions() {
       return [
         { value: null, text: 'Please select an option', disabled: true },
-        ...this.CAST_LIST.map((castMember) => ({ value: castMember.id, text: `${castMember.first_name} ${castMember.last_name}` })),
+        ...this.CAST_LIST.map((castMember) => ({
+          value: castMember.id,
+          text: `${castMember.first_name} ${castMember.last_name}`,
+        })),
       ];
     },
   },
@@ -358,11 +319,15 @@ export default {
         }
       }
     },
-    ...mapActions(['GET_CHARACTER_LIST', 'GET_CAST_LIST', 'ADD_CHARACTER', 'UPDATE_CHARACTER', 'DELETE_CHARACTER']),
+    ...mapActions([
+      'GET_CHARACTER_LIST',
+      'GET_CAST_LIST',
+      'ADD_CHARACTER',
+      'UPDATE_CHARACTER',
+      'DELETE_CHARACTER',
+    ]),
   },
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

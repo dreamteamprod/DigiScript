@@ -36,12 +36,18 @@ describe('micConflictUtils', () => {
     it('should build graph for single act with single scene', () => {
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: null,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -66,18 +72,30 @@ describe('micConflictUtils', () => {
     it('should link multiple scenes within same act', () => {
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: 3,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: 3,
         },
         {
-          id: 3, act: 1, name: 'Scene 3', next_scene: null,
+          id: 3,
+          act: 1,
+          name: 'Scene 3',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -117,21 +135,36 @@ describe('micConflictUtils', () => {
     it('should link scenes across act boundaries', () => {
       const scenes = [
         {
-          id: 1, act: 1, name: 'Act 1 Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Act 1 Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Act 1 Scene 2', next_scene: null,
+          id: 2,
+          act: 1,
+          name: 'Act 1 Scene 2',
+          next_scene: null,
         },
         {
-          id: 3, act: 2, name: 'Act 2 Scene 1', next_scene: null,
+          id: 3,
+          act: 2,
+          name: 'Act 2 Scene 1',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: 2,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: 2,
         },
         {
-          id: 2, name: 'Act 2', first_scene: 3, next_act: null,
+          id: 2,
+          name: 'Act 2',
+          first_scene: 3,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -160,21 +193,36 @@ describe('micConflictUtils', () => {
     it('should set correct global positions', () => {
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: null,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: null,
         },
         {
-          id: 3, act: 2, name: 'Scene 3', next_scene: null,
+          id: 3,
+          act: 2,
+          name: 'Scene 3',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: 2,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: 2,
         },
         {
-          id: 2, name: 'Act 2', first_scene: 3, next_act: null,
+          id: 2,
+          name: 'Act 2',
+          first_scene: 3,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -329,25 +377,19 @@ describe('micConflictUtils', () => {
 
   describe('isSameCastMember', () => {
     it('should return true for same character ID', () => {
-      const characters = [
-        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
-      ];
+      const characters = [{ id: 1, name: 'Hamlet', cast_member: { id: 10 } }];
       const result = isSameCastMember(1, 1, characters, []);
       expect(result).toBe(true);
     });
 
     it('should return false when first character not found', () => {
-      const characters = [
-        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
-      ];
+      const characters = [{ id: 1, name: 'Hamlet', cast_member: { id: 10 } }];
       const result = isSameCastMember(999, 1, characters, []);
       expect(result).toBe(false);
     });
 
     it('should return false when second character not found', () => {
-      const characters = [
-        { id: 1, name: 'Hamlet', cast_member: { id: 10 } },
-      ];
+      const characters = [{ id: 1, name: 'Hamlet', cast_member: { id: 10 } }];
       const result = isSameCastMember(1, 999, characters, []);
       expect(result).toBe(false);
     });
@@ -431,28 +473,36 @@ describe('micConflictUtils', () => {
 
     it('should not detect conflict when same character in adjacent scenes', () => {
       const allocations = {
-        1: { // Mic 1
+        1: {
+          // Mic 1
           1: 10, // Scene 1 -> Character 10
           2: 10, // Scene 2 -> Same character
         },
       };
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: null,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
-      const characters = [
-        { id: 10, name: 'Hamlet', cast_member: { id: 100 } },
-      ];
+      const characters = [{ id: 10, name: 'Hamlet', cast_member: { id: 100 } }];
 
       const result = detectMicConflicts(allocations, scenes, acts, currentShow, characters, []);
 
@@ -461,22 +511,32 @@ describe('micConflictUtils', () => {
 
     it('should not detect conflict when same cast member plays different characters', () => {
       const allocations = {
-        1: { // Mic 1
+        1: {
+          // Mic 1
           1: 10, // Scene 1 -> Hamlet
           2: 11, // Scene 2 -> Ghost (same actor)
         },
       };
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: null,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -492,22 +552,32 @@ describe('micConflictUtils', () => {
 
     it('should detect conflict when different cast members in same act', () => {
       const allocations = {
-        1: { // Mic 1
+        1: {
+          // Mic 1
           1: 10, // Scene 1 -> Hamlet
           2: 11, // Scene 2 -> Ophelia (different actor)
         },
       };
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: null,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -537,25 +607,38 @@ describe('micConflictUtils', () => {
 
     it('should detect conflict when different cast members across acts', () => {
       const allocations = {
-        1: { // Mic 1
+        1: {
+          // Mic 1
           1: 10, // Last scene of Act 1 -> Hamlet
           2: 11, // First scene of Act 2 -> Ophelia (different actor)
         },
       };
       const scenes = [
         {
-          id: 1, act: 1, name: 'Act 1 Scene 1', next_scene: null,
+          id: 1,
+          act: 1,
+          name: 'Act 1 Scene 1',
+          next_scene: null,
         },
         {
-          id: 2, act: 2, name: 'Act 2 Scene 1', next_scene: null,
+          id: 2,
+          act: 2,
+          name: 'Act 2 Scene 1',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: 2,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: 2,
         },
         {
-          id: 2, name: 'Act 2', first_scene: 2, next_act: null,
+          id: 2,
+          name: 'Act 2',
+          first_scene: 2,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -576,7 +659,8 @@ describe('micConflictUtils', () => {
 
     it('should avoid duplicate conflicts', () => {
       const allocations = {
-        1: { // Mic 1
+        1: {
+          // Mic 1
           1: 10, // Scene 1 -> Hamlet
           2: 11, // Scene 2 -> Ophelia
           3: 10, // Scene 3 -> Hamlet again
@@ -584,18 +668,30 @@ describe('micConflictUtils', () => {
       };
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: 3,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: 3,
         },
         {
-          id: 3, act: 1, name: 'Scene 3', next_scene: null,
+          id: 3,
+          act: 1,
+          name: 'Scene 3',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -616,15 +712,24 @@ describe('micConflictUtils', () => {
       };
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: null,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -645,15 +750,24 @@ describe('micConflictUtils', () => {
       };
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: null,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };
@@ -674,15 +788,24 @@ describe('micConflictUtils', () => {
       };
       const scenes = [
         {
-          id: 1, act: 1, name: 'Scene 1', next_scene: 2,
+          id: 1,
+          act: 1,
+          name: 'Scene 1',
+          next_scene: 2,
         },
         {
-          id: 2, act: 1, name: 'Scene 2', next_scene: null,
+          id: 2,
+          act: 1,
+          name: 'Scene 2',
+          next_scene: null,
         },
       ];
       const acts = [
         {
-          id: 1, name: 'Act 1', first_scene: 1, next_act: null,
+          id: 1,
+          name: 'Act 1',
+          first_scene: 1,
+          next_act: null,
         },
       ];
       const currentShow = { first_act_id: 1 };

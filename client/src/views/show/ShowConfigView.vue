@@ -1,21 +1,14 @@
 <template>
   <div class="show">
-    <h1>{{ $store.state.currentShow["name"] }}</h1>
-    <b-container
-      class="mx-0 show-config-container"
-      fluid
-    >
+    <h1>{{ $store.state.currentShow['name'] }}</h1>
+    <b-container class="mx-0 show-config-container" fluid>
       <b-row>
         <b-col cols="1">
-          <b-button-group
-            vertical
-            class="sticky-nav"
-            :style="{ top: navbarHeight + 'px' }"
-          >
+          <b-button-group vertical class="sticky-nav" :style="{ top: navbarHeight + 'px' }">
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{'name': 'show-config'}"
+              :to="{ name: 'show-config' }"
               variant="outline-info"
               exact-active-class="active"
             >
@@ -24,7 +17,7 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{'name': 'show-config-cast'}"
+              :to="{ name: 'show-config-cast' }"
               variant="outline-info"
               active-class="active"
             >
@@ -33,7 +26,7 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{'name': 'show-config-characters'}"
+              :to="{ name: 'show-config-characters' }"
               variant="outline-info"
               active-class="active"
             >
@@ -42,7 +35,7 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{'name': 'show-config-character-groups'}"
+              :to="{ name: 'show-config-character-groups' }"
               variant="outline-info"
               active-class="active"
             >
@@ -51,7 +44,7 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{'name': 'show-config-acts'}"
+              :to="{ name: 'show-config-acts' }"
               variant="outline-info"
               active-class="active"
             >
@@ -60,7 +53,7 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{'name': 'show-config-scenes'}"
+              :to="{ name: 'show-config-scenes' }"
               variant="outline-info"
               active-class="active"
             >
@@ -69,7 +62,7 @@
             <b-button
               :disabled="!shouldShowScriptConfig"
               replace
-              :to="{'name': 'show-config-script-revisions'}"
+              :to="{ name: 'show-config-script-revisions' }"
               variant="outline-info"
               active-class="active"
             >
@@ -78,7 +71,7 @@
             <b-button
               :disabled="!shouldShowScriptConfig"
               replace
-              :to="{'name': 'show-config-script'}"
+              :to="{ name: 'show-config-script' }"
               variant="outline-info"
               active-class="active"
             >
@@ -87,7 +80,7 @@
             <b-button
               :disabled="!shouldShowCueConfig"
               replace
-              :to="{'name': 'show-config-cues'}"
+              :to="{ name: 'show-config-cues' }"
               variant="outline-info"
               active-class="active"
             >
@@ -96,7 +89,7 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{'name': 'show-config-mics'}"
+              :to="{ name: 'show-config-mics' }"
               variant="outline-info"
               active-class="active"
             >
@@ -105,7 +98,7 @@
             <b-button
               :disabled="!shouldShowSessionConfig"
               replace
-              :to="{'name': 'show-sessions'}"
+              :to="{ name: 'show-sessions' }"
               variant="outline-info"
               active-class="active"
             >
@@ -132,7 +125,15 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['IS_SHOW_EDITOR', 'IS_SHOW_READER', 'IS_CUE_EDITOR', 'IS_CUE_READER', 'IS_SCRIPT_EDITOR', 'IS_SCRIPT_READER', 'IS_SHOW_EXECUTOR']),
+    ...mapGetters([
+      'IS_SHOW_EDITOR',
+      'IS_SHOW_READER',
+      'IS_CUE_EDITOR',
+      'IS_CUE_READER',
+      'IS_SCRIPT_EDITOR',
+      'IS_SCRIPT_READER',
+      'IS_SHOW_EXECUTOR',
+    ]),
     shouldViewShowConfig() {
       return this.IS_SHOW_EDITOR || this.IS_SHOW_READER;
     },
@@ -146,7 +147,12 @@ export default {
       return this.shouldViewShowConfig || this.IS_SHOW_EXECUTOR;
     },
     requiresRedirect() {
-      return !this.shouldViewShowConfig && !this.shouldShowCueConfig && !this.shouldShowScriptConfig && !this.shouldShowSessionConfig;
+      return (
+        !this.shouldViewShowConfig &&
+        !this.shouldShowCueConfig &&
+        !this.shouldShowScriptConfig &&
+        !this.shouldShowSessionConfig
+      );
     },
   },
   watch: {

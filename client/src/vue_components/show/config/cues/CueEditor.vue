@@ -1,60 +1,30 @@
 <template>
-  <b-container
-    class="mx-0 px-0"
-    fluid
-  >
+  <b-container class="mx-0 px-0" fluid>
     <b-row class="script-row">
       <b-col cols="2">
         <b-button-group>
-          <b-button
-            v-b-modal.go-to-page-cue-editor
-            variant="success"
-          >
-            Go to Page
-          </b-button>
-          <b-button
-            v-b-modal.jump-to-cue
-            variant="success"
-          >
-            Go to Cue
-          </b-button>
+          <b-button v-b-modal.go-to-page-cue-editor variant="success"> Go to Page </b-button>
+          <b-button v-b-modal.jump-to-cue variant="success"> Go to Cue </b-button>
         </b-button-group>
       </b-col>
-      <b-col
-        cols="2"
-        style="text-align: right"
-      >
-        <b-button
-          variant="success"
-          :disabled="currentEditPage === 1"
-          @click="decrPage"
-        >
+      <b-col cols="2" style="text-align: right">
+        <b-button variant="success" :disabled="currentEditPage === 1" @click="decrPage">
           Prev Page
         </b-button>
       </b-col>
       <b-col cols="4">
         <p>Current Page: {{ currentEditPage }}</p>
       </b-col>
-      <b-col
-        cols="2"
-        style="text-align: left"
-      >
-        <b-button
-          variant="success"
-          @click="incrPage"
-        >
-          Next Page
-        </b-button>
+      <b-col cols="2" style="text-align: left">
+        <b-button variant="success" @click="incrPage"> Next Page </b-button>
       </b-col>
       <b-col cols="2" />
     </b-row>
     <b-row class="script-row">
-      <b-col cols="3">
-        Cues
-      </b-col>
+      <b-col cols="3"> Cues </b-col>
       <b-col>Script</b-col>
     </b-row>
-    <hr>
+    <hr />
     <b-row class="script-row">
       <b-col cols="12">
         <template v-for="(line, index) in GET_SCRIPT_PAGE(currentEditPage)">
@@ -116,12 +86,7 @@
       @ok="goToPage"
     >
       <b-form @submit.stop.prevent="">
-        <b-form-group
-          id="page-input-group"
-          label="Page"
-          label-for="page-input"
-          label-cols="auto"
-        >
+        <b-form-group id="page-input-group" label="Page" label-for="page-input" label-cols="auto">
           <b-form-input
             id="page-input"
             v-model="$v.pageInputFormState.pageNo.$model"
@@ -130,9 +95,7 @@
             :state="validatePageState('pageNo')"
             aria-describedby="page-feedback"
           />
-          <b-form-invalid-feedback
-            id="page-feedback"
-          >
+          <b-form-invalid-feedback id="page-feedback">
             This is a required field, and must be greater than 0.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -196,10 +159,24 @@ export default {
       }
       return 'primary';
     },
-    ...mapGetters(['CURRENT_SHOW', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
-      'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'CUE_TYPES', 'SCRIPT_CUES', 'SCRIPT_CUTS',
-      'STAGE_DIRECTION_STYLES', 'STAGE_DIRECTION_STYLE_OVERRIDES', 'CURRENT_USER']),
+    ...mapGetters([
+      'CURRENT_SHOW',
+      'ACT_LIST',
+      'SCENE_LIST',
+      'CHARACTER_LIST',
+      'CHARACTER_GROUP_LIST',
+      'CAN_REQUEST_EDIT',
+      'CURRENT_EDITOR',
+      'INTERNAL_UUID',
+      'GET_SCRIPT_PAGE',
+      'DEBUG_MODE_ENABLED',
+      'CUE_TYPES',
+      'SCRIPT_CUES',
+      'SCRIPT_CUTS',
+      'STAGE_DIRECTION_STYLES',
+      'STAGE_DIRECTION_STYLE_OVERRIDES',
+      'CURRENT_USER',
+    ]),
   },
   watch: {
     currentEditPage(val) {
@@ -308,11 +285,25 @@ export default {
       this.$bvModal.hide('jump-to-cue');
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
-    ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
-      'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUE_TYPES', 'LOAD_CUES',
-      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
-      'GET_CUE_COLOUR_OVERRIDES', 'GET_CURRENT_USER']),
+    ...mapActions([
+      'GET_SCENE_LIST',
+      'GET_ACT_LIST',
+      'GET_CHARACTER_LIST',
+      'GET_CHARACTER_GROUP_LIST',
+      'LOAD_SCRIPT_PAGE',
+      'ADD_BLANK_PAGE',
+      'GET_SCRIPT_CONFIG_STATUS',
+      'RESET_TO_SAVED',
+      'SAVE_NEW_PAGE',
+      'SAVE_CHANGED_PAGE',
+      'GET_CUE_TYPES',
+      'LOAD_CUES',
+      'GET_CUTS',
+      'GET_STAGE_DIRECTION_STYLES',
+      'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
+      'GET_CUE_COLOUR_OVERRIDES',
+      'GET_CURRENT_USER',
+    ]),
   },
 };
 </script>

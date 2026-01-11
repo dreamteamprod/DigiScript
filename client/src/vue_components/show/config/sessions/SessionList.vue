@@ -1,11 +1,6 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
-    <b-row
-      style="margin-bottom: .5rem"
-    >
+  <b-container class="mx-0" fluid>
+    <b-row style="margin-bottom: 0.5rem">
       <b-col class="text-left pl-0">
         <b-button-group v-if="IS_SHOW_EXECUTOR">
           <b-button
@@ -27,12 +22,7 @@
     </b-row>
     <b-row>
       <b-col>
-        <b-table
-          id="acts-table"
-          :items="SHOW_SESSIONS_LIST"
-          :fields="sessionFields"
-          show-empty
-        >
+        <b-table id="acts-table" :items="SHOW_SESSIONS_LIST" :fields="sessionFields" show-empty>
           <template #cell(run_time)="data">
             <p v-if="data.item.end_date_time">
               {{ runTimeCalc(data.item.start_date_time, data.item.end_date_time) }}
@@ -41,9 +31,7 @@
 
           <template #cell(script_revision_id)="data">
             <p>
-              {{
-                scriptRevisionLabel(data.item.script_revision_id)
-              }}
+              {{ scriptRevisionLabel(data.item.script_revision_id) }}
             </p>
           </template>
 
@@ -56,7 +44,7 @@
                   class="tag-pill"
                   :style="{
                     backgroundColor: tag.colour,
-                    color: contrastColor({bgColor: tag.colour})
+                    color: contrastColor({ bgColor: tag.colour }),
                   }"
                 >
                   {{ tag.tag }}
@@ -65,7 +53,7 @@
               <session-tag-dropdown
                 v-if="IS_SHOW_EDITOR"
                 :session-id="data.item.id"
-                :current-tag-ids="data.item.tags.map(t => t.id)"
+                :current-tag-ids="data.item.tags.map((t) => t.id)"
               />
             </div>
           </template>
@@ -102,7 +90,14 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['SHOW_SESSIONS_LIST', 'CURRENT_SHOW_SESSION', 'INTERNAL_UUID', 'IS_SHOW_EXECUTOR', 'IS_SHOW_EDITOR', 'SCRIPT_REVISIONS']),
+    ...mapGetters([
+      'SHOW_SESSIONS_LIST',
+      'CURRENT_SHOW_SESSION',
+      'INTERNAL_UUID',
+      'IS_SHOW_EXECUTOR',
+      'IS_SHOW_EDITOR',
+      'SCRIPT_REVISIONS',
+    ]),
   },
   methods: {
     contrastColor,
@@ -151,7 +146,7 @@ export default {
         return `${revision.revision}: ${revision.description}`;
       }
       return 'N/A';
-    }
+    },
   },
 };
 </script>

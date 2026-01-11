@@ -1,15 +1,9 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <b-tabs content-class="mt-3">
-          <b-tab
-            title="Cast List"
-            active
-          >
+          <b-tab title="Cast List" active>
             <b-table
               id="cast-table"
               :items="CAST_LIST"
@@ -19,11 +13,7 @@
               show-empty
             >
               <template #head(btn)="data">
-                <b-button
-                  v-if="IS_SHOW_EDITOR"
-                  v-b-modal.new-cast
-                  variant="outline-success"
-                >
+                <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-cast variant="outline-success">
                   New Cast Member
                 </b-button>
               </template>
@@ -71,15 +61,8 @@
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
-      <b-form
-        ref="new-cast-form"
-        @submit.stop.prevent="onSubmitNew"
-      >
-        <b-form-group
-          id="first-name-input-group"
-          label="First Name"
-          label-for="first-name-input"
-        >
+      <b-form ref="new-cast-form" @submit.stop.prevent="onSubmitNew">
+        <b-form-group id="first-name-input-group" label="First Name" label-for="first-name-input">
           <b-form-input
             id="first-name-input"
             v-model="$v.newFormState.firstName.$model"
@@ -87,17 +70,11 @@
             :state="validateNewState('firstName')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="first-name-feedback"
-          >
+          <b-form-invalid-feedback id="first-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="last-name-input-group"
-          label="Last Name"
-          label-for="last-name-input"
-        >
+        <b-form-group id="last-name-input-group" label="Last Name" label-for="last-name-input">
           <b-form-input
             id="last-name-input"
             v-model="$v.newFormState.lastName.$model"
@@ -105,9 +82,7 @@
             :state="validateNewState('lastName')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="last-name-feedback"
-          >
+          <b-form-invalid-feedback id="last-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -122,15 +97,8 @@
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form
-        ref="edit-cast-form"
-        @submit.stop.prevent="onSubmitEdit"
-      >
-        <b-form-group
-          id="first-name-input-group"
-          label="First Name"
-          label-for="first-name-input"
-        >
+      <b-form ref="edit-cast-form" @submit.stop.prevent="onSubmitEdit">
+        <b-form-group id="first-name-input-group" label="First Name" label-for="first-name-input">
           <b-form-input
             id="first-name-input"
             v-model="$v.editFormState.firstName.$model"
@@ -138,17 +106,11 @@
             :state="validateEditState('firstName')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="first-name-feedback"
-          >
+          <b-form-invalid-feedback id="first-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="last-name-input-group"
-          label="Last Name"
-          label-for="last-name-input"
-        >
+        <b-form-group id="last-name-input-group" label="Last Name" label-for="last-name-input">
           <b-form-input
             id="last-name-input"
             v-model="$v.editFormState.lastName.$model"
@@ -156,9 +118,7 @@
             :state="validateEditState('lastName')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="last-name-feedback"
-          >
+          <b-form-invalid-feedback id="last-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -178,11 +138,7 @@ export default {
   components: { CastLineStats },
   data() {
     return {
-      castFields: [
-        'first_name',
-        'last_name',
-        { key: 'btn', label: '' },
-      ],
+      castFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
       newFormState: {
         firstName: '',
         lastName: '',
@@ -328,6 +284,4 @@ export default {
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

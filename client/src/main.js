@@ -27,45 +27,56 @@ Vue.use(ToastPlugin, {
   position: 'top-right',
 });
 
-Vue.use(VueNativeSock, `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:${window.location.port}/api/v1/ws`, {
-  reconnection: true,
-  format: 'json',
-  store,
-  passToStoreHandler(eventName, event, next) {
-    // Ignore anything that doesn't start with SOCKET_ as per
-    // https://www.npmjs.com/package/vue-native-websocket
-    if (!eventName.startsWith('SOCKET_')) {
-      return;
-    }
-    // Custom message handling here
-    if (this.format === 'json' && event.data) {
-      const msg = JSON.parse(event.data);
-      // If the message contains an OP key, then this is going to be something we care about
-      if (msg.OP) {
-        // Always call the commit function here, as we care about it
-        if (msg.OP !== 'NOOP') {
-          this.store.commit(eventName.toUpperCase(), msg);
-        }
-        if (msg.ACTION) {
-          // If we have an action, then call the corresponding action too, this means a single
-          // WS message can do two things (commit a mutation, AND perform an action)
-          if (msg.ACTION !== 'NOOP') {
-            this.store.dispatch([msg.namespace || '', msg.ACTION].filter((e) => !!e).join('/'), msg);
-          }
-        }
+Vue.use(
+  VueNativeSock,
+  `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:${window.location.port}/api/v1/ws`,
+  {
+    reconnection: true,
+    format: 'json',
+    store,
+    passToStoreHandler(eventName, event, next) {
+      // Ignore anything that doesn't start with SOCKET_ as per
+      // https://www.npmjs.com/package/vue-native-websocket
+      if (!eventName.startsWith('SOCKET_')) {
         return;
       }
-    }
-    next(eventName, event);
-  },
-});
+      // Custom message handling here
+      if (this.format === 'json' && event.data) {
+        const msg = JSON.parse(event.data);
+        // If the message contains an OP key, then this is going to be something we care about
+        if (msg.OP) {
+          // Always call the commit function here, as we care about it
+          if (msg.OP !== 'NOOP') {
+            this.store.commit(eventName.toUpperCase(), msg);
+          }
+          if (msg.ACTION) {
+            // If we have an action, then call the corresponding action too, this means a single
+            // WS message can do two things (commit a mutation, AND perform an action)
+            if (msg.ACTION !== 'NOOP') {
+              this.store.dispatch(
+                [msg.namespace || '', msg.ACTION].filter((e) => !!e).join('/'),
+                msg
+              );
+            }
+          }
+          return;
+        }
+      }
+      next(eventName, event);
+    },
+  }
+);
 
 Vue.config.productionTip = false;
 Vue.config.devtools = import.meta.env.MODE === 'development';
 
 Vue.filter('capitalize', (value) => {
   if (!value) return '';
-  return value.toString().split(' ').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  return value
+    .toString()
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 });
 Vue.filter('uppercase', (value) => {
   if (!value) return '';

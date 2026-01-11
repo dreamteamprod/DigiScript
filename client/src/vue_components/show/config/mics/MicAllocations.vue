@@ -1,8 +1,5 @@
 <template>
-  <b-container
-    class="mx-0 px-0"
-    fluid
-  >
+  <b-container class="mx-0 px-0" fluid>
     <b-row align-h="between">
       <b-col cols="3">
         <b-form-group
@@ -21,18 +18,9 @@
           />
         </b-form-group>
       </b-col>
-      <b-col
-        cols="6"
-        class="text-right"
-        style="margin-bottom: 15px"
-      >
+      <b-col cols="6" class="text-right" style="margin-bottom: 15px">
         <b-button-group v-if="IS_SHOW_EDITOR">
-          <b-dropdown
-            v-if="editMode"
-            right
-            text="Options"
-            variant="secondary"
-          >
+          <b-dropdown v-if="editMode" right text="Options" variant="secondary">
             <b-dropdown-item-btn
               :disabled="needsSaving || saving"
               variant="info"
@@ -85,12 +73,8 @@
             variant="primary"
             @click.stop="editMode = !editMode"
           >
-            <span v-if="editMode">
-              View
-            </span>
-            <span v-else>
-              Edit
-            </span>
+            <span v-if="editMode"> View </span>
+            <span v-else> Edit </span>
           </b-button>
         </b-button-group>
       </b-col>
@@ -123,26 +107,15 @@
                 </template>
               </b-tr>
             </template>
-            <template
-              v-for="scene in sortedScenes"
-              #[getHeaderName(scene.id)]="data"
-            >
+            <template v-for="scene in sortedScenes" #[getHeaderName(scene.id)]="data">
               {{ scene.name }}
             </template>
             <template #cell(Character)="data">
               {{ CHARACTER_BY_ID(data.item.Character).name }}
             </template>
-            <template
-              v-for="scene in sortedScenes"
-              #[getCellName(scene.id)]="data"
-            >
+            <template v-for="scene in sortedScenes" #[getCellName(scene.id)]="data">
               <template v-if="editMode && IS_SHOW_EDITOR">
-                <span
-                  v-if="selectedMic == null"
-                  :key="scene.id"
-                >
-                  N/A
-                </span>
+                <span v-if="selectedMic == null" :key="scene.id"> N/A </span>
                 <b-button
                   v-else
                   :key="scene.id"
@@ -170,10 +143,7 @@
                     v-if="getConflictsForCell(data.item.Character, scene.id).length > 0"
                     class="conflict-icon"
                   />
-                  <b-tooltip
-                    :target="`cell-${data.item.Character}-${scene.id}`"
-                    triggers="hover"
-                  >
+                  <b-tooltip :target="`cell-${data.item.Character}-${scene.id}`" triggers="hover">
                     {{ getTooltipText(data.item.Character, scene.id) }}
                   </b-tooltip>
                 </div>
@@ -212,7 +182,7 @@ export default {
       ];
     },
     tableFields() {
-      return ['Character', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
+      return ['Character', ...this.sortedScenes.map((scene) => scene.id.toString())];
     },
     sortedActs() {
       if (this.CURRENT_SHOW.first_act_id == null) {
@@ -254,9 +224,12 @@ export default {
       if (!this.loaded) {
         return [];
       }
-      return this.CHARACTER_LIST.map((character) => ({
-        Character: character.id,
-      }), this);
+      return this.CHARACTER_LIST.map(
+        (character) => ({
+          Character: character.id,
+        }),
+        this
+      );
     },
     allAllocations() {
       const micData = {};
@@ -266,11 +239,13 @@ export default {
         allocations.forEach((allocation) => {
           sceneData[allocation.scene_id] = allocation.character_id;
         });
-        this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
-          if (!Object.keys(sceneData).includes(sceneId.toString())) {
-            sceneData[sceneId] = null;
-          }
-        });
+        this.sortedScenes
+          .map((scene) => scene.id)
+          .forEach((sceneId) => {
+            if (!Object.keys(sceneData).includes(sceneId.toString())) {
+              sceneData[sceneId] = null;
+            }
+          });
         micData[micId] = sceneData;
       }, this);
       return micData;
@@ -284,21 +259,25 @@ export default {
     allocationByCharacter() {
       const charData = {};
       // Initialize with empty arrays for each character/scene combination
-      this.CHARACTER_LIST.map((character) => (character.id)).forEach((characterId) => {
+      this.CHARACTER_LIST.map((character) => character.id).forEach((characterId) => {
         const sceneData = {};
-        this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
-          sceneData[sceneId] = [];
-        });
+        this.sortedScenes
+          .map((scene) => scene.id)
+          .forEach((sceneId) => {
+            sceneData[sceneId] = [];
+          });
         charData[characterId] = sceneData;
       }, this);
       // Collect all mics assigned to each character in each scene
       Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
-        this.sortedScenes.map((scene) => (scene.id)).forEach((sceneId) => {
-          if (this.allAllocations[micId][sceneId] != null) {
-            const characterId = this.allAllocations[micId][sceneId];
-            charData[characterId][sceneId].push(this.MICROPHONE_BY_ID(micId).name);
-          }
-        }, this);
+        this.sortedScenes
+          .map((scene) => scene.id)
+          .forEach((sceneId) => {
+            if (this.allAllocations[micId][sceneId] != null) {
+              const characterId = this.allAllocations[micId][sceneId];
+              charData[characterId][sceneId].push(this.MICROPHONE_BY_ID(micId).name);
+            }
+          }, this);
       }, this);
       // Convert arrays to comma-separated strings (or null if empty)
       Object.keys(charData).forEach((characterId) => {
@@ -309,9 +288,19 @@ export default {
       });
       return charData;
     },
-    ...mapGetters(['MICROPHONES', 'CURRENT_SHOW', 'ACT_BY_ID', 'SCENE_BY_ID', 'CHARACTER_LIST',
-      'CHARACTER_BY_ID', 'MIC_ALLOCATIONS', 'MICROPHONE_BY_ID', 'IS_SHOW_EDITOR',
-      'CONFLICTS_BY_SCENE', 'CONFLICTS_BY_MIC']),
+    ...mapGetters([
+      'MICROPHONES',
+      'CURRENT_SHOW',
+      'ACT_BY_ID',
+      'SCENE_BY_ID',
+      'CHARACTER_LIST',
+      'CHARACTER_BY_ID',
+      'MIC_ALLOCATIONS',
+      'MICROPHONE_BY_ID',
+      'IS_SHOW_EDITOR',
+      'CONFLICTS_BY_SCENE',
+      'CONFLICTS_BY_MIC',
+    ]),
   },
   async mounted() {
     await this.resetToStoredAlloc();
@@ -378,8 +367,10 @@ export default {
       }
 
       // Check this mic isn't allocated to anyone else for this scene
-      if (this.internalState[micId][sceneId] != null
-          && this.internalState[micId][sceneId] !== characterId) {
+      if (
+        this.internalState[micId][sceneId] != null &&
+        this.internalState[micId][sceneId] !== characterId
+      ) {
         return true;
       }
 
@@ -406,8 +397,9 @@ export default {
       }
 
       // Find all conflicts where this scene is the "change INTO" scene for this character
-      return allConflicts.filter((c) => c.adjacentSceneId === sceneId
-        && c.adjacentCharacterId === characterId);
+      return allConflicts.filter(
+        (c) => c.adjacentSceneId === sceneId && c.adjacentCharacterId === characterId
+      );
     },
     getConflictClassForCell(characterId, sceneId) {
       const conflicts = this.getConflictsForCell(characterId, sceneId);
@@ -455,8 +447,8 @@ export default {
 
 <style scoped>
 .act-header {
-  border-left: .1rem solid;
-  border-right: .1rem solid;
+  border-left: 0.1rem solid;
+  border-right: 0.1rem solid;
   border-color: inherit;
 }
 

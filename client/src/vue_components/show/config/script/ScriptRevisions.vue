@@ -1,29 +1,16 @@
 <template>
   <span>
-    <b-card
-      class="mb-3"
-      :class="{ 'collapsed-card': !graphCollapsed }"
-      header-tag="header"
-    >
+    <b-card class="mb-3" :class="{ 'collapsed-card': !graphCollapsed }" header-tag="header">
       <template #header>
         <div class="d-flex justify-content-between align-items-center">
-          <h6 class="mb-0">
-            Revision Branch Graph
-          </h6>
-          <b-button
-            size="sm"
-            variant="secondary"
-            @click="graphCollapsed = !graphCollapsed"
-          >
+          <h6 class="mb-0">Revision Branch Graph</h6>
+          <b-button size="sm" variant="secondary" @click="graphCollapsed = !graphCollapsed">
             <b-icon-chevron-up v-if="!graphCollapsed" />
             <b-icon-chevron-down v-else />
           </b-button>
         </div>
       </template>
-      <b-collapse
-        v-model="graphCollapsed"
-        visible
-      >
+      <b-collapse v-model="graphCollapsed" visible>
         <revision-graph
           v-show="graphCollapsed"
           :revisions="SCRIPT_REVISIONS"
@@ -35,12 +22,7 @@
       </b-collapse>
     </b-card>
 
-    <b-table
-      id="revisions-table"
-      :items="SCRIPT_REVISIONS"
-      :fields="revisionColumns"
-      show-empty
-    >
+    <b-table id="revisions-table" :items="SCRIPT_REVISIONS" :fields="revisionColumns" show-empty>
       <template #cell(current)="data">
         <b-icon-check-square-fill
           v-if="data.item.id === $store.state.script.currentRevision"
@@ -50,9 +32,13 @@
           <b-button
             v-if="IS_SCRIPT_EDITOR"
             variant="warning"
-            :disabled="!canChangeRevisions ||
+            :disabled="
+              !canChangeRevisions ||
               data.item.id === $store.state.script.currentRevision ||
-              submittingLoadRevision || submittingNewRevision || deletingRevision"
+              submittingLoadRevision ||
+              submittingNewRevision ||
+              deletingRevision
+            "
             @click="loadRevision(data)"
           >
             Load
@@ -61,27 +47,32 @@
       </template>
       <template #cell(previous_revision_id)="data">
         <p v-if="data.item.previous_revision_id != null">
-          {{
-            SCRIPT_REVISIONS.find((rev) => (
-              rev.id === data.item.previous_revision_id)).revision
-          }}
+          {{ SCRIPT_REVISIONS.find((rev) => rev.id === data.item.previous_revision_id).revision }}
         </p>
-        <p v-else>
-          N/A
-        </p>
+        <p v-else>N/A</p>
       </template>
       <template #cell(btn)="data">
         <b-button-group v-if="IS_SCRIPT_EDITOR && data.item.revision !== 1">
           <b-button
             variant="warning"
-            :disabled="!canChangeRevisions || submittingLoadRevision || submittingNewRevision || deletingRevision"
+            :disabled="
+              !canChangeRevisions ||
+              submittingLoadRevision ||
+              submittingNewRevision ||
+              deletingRevision
+            "
             @click="openEditRevForm(data)"
           >
             Edit
           </b-button>
           <b-button
             variant="danger"
-            :disabled="!canChangeRevisions || submittingLoadRevision || submittingNewRevision || deletingRevision"
+            :disabled="
+              !canChangeRevisions ||
+              submittingLoadRevision ||
+              submittingNewRevision ||
+              deletingRevision
+            "
             @click="deleteRev(data)"
           >
             Delete
@@ -95,7 +86,12 @@
               v-if="IS_SCRIPT_EDITOR"
               v-b-modal.new-revision
               variant="outline-success"
-              :disabled="!canChangeRevisions || submittingLoadRevision || submittingNewRevision || deletingRevision"
+              :disabled="
+                !canChangeRevisions ||
+                submittingLoadRevision ||
+                submittingNewRevision ||
+                deletingRevision
+              "
             >
               New Revision
             </b-button>
@@ -121,14 +117,11 @@
     >
       <b-alert show>
         <p>
-          This will create a new revision of the script based on the current revision, and set it
-          as the new current revision.
+          This will create a new revision of the script based on the current revision, and set it as
+          the new current revision.
         </p>
       </b-alert>
-      <b-form
-        ref="new-revision-form"
-        @submit.stop.prevent="onSubmitNewRev"
-      >
+      <b-form ref="new-revision-form" @submit.stop.prevent="onSubmitNewRev">
         <b-form-group
           id="description-input-group"
           label="Description"
@@ -141,9 +134,7 @@
             :state="validateNewRevState('description')"
             aria-describedby="description-feedback"
           />
-          <b-form-invalid-feedback
-            id="description-feedback"
-          >
+          <b-form-invalid-feedback id="description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -175,23 +166,17 @@
       @hidden="resetBranchForm"
       @ok="onSubmitBranch"
     >
-      <b-alert
-        show
-        :variant="branchFormState.isCurrentRevision ? 'info' : 'warning'"
-      >
+      <b-alert show :variant="branchFormState.isCurrentRevision ? 'info' : 'warning'">
         <p v-if="branchFormState.isCurrentRevision">
           This will create a new revision based on revision {{ branchFormState.sourceRevision }}
           (current revision) and set it as the new current revision.
         </p>
         <p v-else>
-          This will create a new branch from revision {{ branchFormState.sourceRevision }}.
-          The new revision will NOT be set as current.
+          This will create a new branch from revision {{ branchFormState.sourceRevision }}. The new
+          revision will NOT be set as current.
         </p>
       </b-alert>
-      <b-form
-        ref="branch-form"
-        @submit.stop.prevent="onSubmitBranch"
-      >
+      <b-form ref="branch-form" @submit.stop.prevent="onSubmitBranch">
         <b-form-group
           id="branch-description-input-group"
           label="Description"
@@ -204,9 +189,7 @@
             :state="validateBranchState('description')"
             aria-describedby="branch-description-feedback"
           />
-          <b-form-invalid-feedback
-            id="branch-description-feedback"
-          >
+          <b-form-invalid-feedback id="branch-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -219,12 +202,12 @@
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
-import RevisionGraph from "@/vue_components/show/config/script/RevisionGraph.vue";
-import RevisionDetailModal from "@/vue_components/show/config/script/RevisionDetailModal.vue";
+import RevisionGraph from '@/vue_components/show/config/script/RevisionGraph.vue';
+import RevisionDetailModal from '@/vue_components/show/config/script/RevisionDetailModal.vue';
 
 export default {
-  name: "ScriptRevisions",
-  components: {RevisionDetailModal, RevisionGraph},
+  name: 'ScriptRevisions',
+  components: { RevisionDetailModal, RevisionGraph },
   data() {
     return {
       revisionColumns: [
@@ -269,7 +252,13 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCRIPT_REVISIONS', 'CURRENT_REVISION', 'CURRENT_EDITOR', 'INTERNAL_UUID', 'IS_SCRIPT_EDITOR']),
+    ...mapGetters([
+      'SCRIPT_REVISIONS',
+      'CURRENT_REVISION',
+      'CURRENT_EDITOR',
+      'INTERNAL_UUID',
+      'IS_SCRIPT_EDITOR',
+    ]),
     canChangeRevisions() {
       return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
     },
@@ -334,9 +323,7 @@ export default {
         }
       }
     },
-    openEditRevForm(revision) {
-
-    },
+    openEditRevForm(revision) {},
     async deleteRev(revision) {
       if (this.deletingRevision) {
         return;
@@ -451,10 +438,14 @@ export default {
       this.selectedRevision = null;
       this.modalSubmitting = false;
     },
-    ...mapActions(['ADD_SCRIPT_REVISION', 'LOAD_SCRIPT_REVISION',
-      'DELETE_SCRIPT_REVISION', 'GET_SCRIPT_CONFIG_STATUS']),
+    ...mapActions([
+      'ADD_SCRIPT_REVISION',
+      'LOAD_SCRIPT_REVISION',
+      'DELETE_SCRIPT_REVISION',
+      'GET_SCRIPT_CONFIG_STATUS',
+    ]),
   },
-}
+};
 </script>
 
 <style scoped>

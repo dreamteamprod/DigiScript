@@ -2,6 +2,8 @@ import js from '@eslint/js';
 import pluginVue from 'eslint-plugin-vue';
 import globals from 'globals';
 import babelParser from '@babel/eslint-parser';
+import prettierConfig from 'eslint-config-prettier';
+import prettierPlugin from 'eslint-plugin-prettier';
 
 export default [
   {
@@ -11,12 +13,16 @@ export default [
       '../server/static/**',
       'junit/**',
       '*.backup',
+      'src/docs/**',
     ],
   },
   js.configs.recommended,
   ...pluginVue.configs['flat/vue2-recommended'],
   {
     files: ['**/*.{js,vue}'],
+    plugins: {
+      prettier: prettierPlugin,
+    },
     languageOptions: {
       ecmaVersion: 2021,
       sourceType: 'module',
@@ -37,27 +43,24 @@ export default [
       },
     },
     rules: {
+      // Prettier integration - runs Prettier as an ESLint rule
+      'prettier/prettier': 'error',
+
+      // Disable formatting rules that conflict with Prettier
+      ...prettierConfig.rules,
+
+      // Let Prettier handle line length (via printWidth config)
+      'max-len': 'off',
+
+      // Custom linting rules (non-formatting)
       'no-unused-vars': 'off',
       'vue/no-unused-vars': 'off',
       'no-plusplus': 'off',
-      'no-param-reassign': ['error', {
-        props: true,
-        ignorePropertyModificationsFor: [
-          'state',
-          'acc',
-          'e',
-        ],
-      }],
-      'max-len': [
+      'no-param-reassign': [
         'error',
-        150,
-        2,
         {
-          ignoreUrls: true,
-          ignoreComments: false,
-          ignoreRegExpLiterals: true,
-          ignoreStrings: true,
-          ignoreTemplateLiterals: true,
+          props: true,
+          ignorePropertyModificationsFor: ['state', 'acc', 'e'],
         },
       ],
     },

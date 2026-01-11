@@ -1,35 +1,18 @@
 <template>
   <div class="force-password-change-container">
-    <b-container
-      fluid
-      class="h-100 d-flex align-items-center justify-content-center"
-    >
+    <b-container fluid class="h-100 d-flex align-items-center justify-content-center">
       <b-row class="w-100 justify-content-center">
-        <b-col
-          cols="12"
-          md="6"
-          lg="4"
-        >
+        <b-col cols="12" md="6" lg="4">
           <b-card class="shadow-lg">
             <template #header>
               <h4 class="mb-0 text-center">
-                <b-icon
-                  icon="shield-lock"
-                  class="mr-2"
-                />
+                <b-icon icon="shield-lock" class="mr-2" />
                 Password Change Required
               </h4>
             </template>
 
-            <b-alert
-              show
-              variant="warning"
-              class="mb-4"
-            >
-              <b-icon
-                icon="exclamation-triangle-fill"
-                class="mr-2"
-              />
+            <b-alert show variant="warning" class="mb-4">
+              <b-icon icon="exclamation-triangle-fill" class="mr-2" />
               Your password must be changed before you can continue.
             </b-alert>
 
@@ -74,33 +57,14 @@
               </b-form-group>
 
               <div class="d-flex justify-content-between align-items-center mt-4">
-                <b-button
-                  variant="outline-secondary"
-                  :disabled="loading"
-                  @click="handleLogout"
-                >
-                  <b-icon
-                    icon="box-arrow-left"
-                    class="mr-1"
-                  />
+                <b-button variant="outline-secondary" :disabled="loading" @click="handleLogout">
+                  <b-icon icon="box-arrow-left" class="mr-1" />
                   Logout
                 </b-button>
 
-                <b-button
-                  type="submit"
-                  variant="primary"
-                  :disabled="isDisabled || loading"
-                >
-                  <b-spinner
-                    v-if="loading"
-                    small
-                    class="mr-1"
-                  />
-                  <b-icon
-                    v-else
-                    icon="check-circle"
-                    class="mr-1"
-                  />
+                <b-button type="submit" variant="primary" :disabled="isDisabled || loading">
+                  <b-spinner v-if="loading" small class="mr-1" />
+                  <b-icon v-else icon="check-circle" class="mr-1" />
                   Change Password
                 </b-button>
               </div>

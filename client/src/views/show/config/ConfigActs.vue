@@ -1,8 +1,5 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <h5>Act List</h5>
@@ -15,39 +12,25 @@
           show-empty
         >
           <template #head(btn)="data">
-            <b-button
-              v-if="IS_SHOW_EDITOR"
-              v-b-modal.new-act
-              variant="outline-success"
-            >
+            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-act variant="outline-success">
               New Act
             </b-button>
           </template>
           <template #cell(interval_after)="data">
-            <b-icon-check-square-fill
-              v-if="data.item.interval_after"
-              variant="success"
-            />
-            <b-icon-x-square-fill
-              v-else
-              variant="danger"
-            />
+            <b-icon-check-square-fill v-if="data.item.interval_after" variant="success" />
+            <b-icon-x-square-fill v-else variant="danger" />
           </template>
           <template #cell(next_act)="data">
             <p v-if="data.item.next_act">
               {{ ACT_BY_ID(data.item.next_act).name }}
             </p>
-            <p v-else>
-              N/A
-            </p>
+            <p v-else>N/A</p>
           </template>
           <template #cell(previous_act)="data">
             <p v-if="data.item.previous_act">
               {{ ACT_BY_ID(data.item.previous_act).name }}
             </p>
-            <p v-else>
-              N/A
-            </p>
+            <p v-else>N/A</p>
           </template>
           <template #cell(btn)="data">
             <b-button-group v-if="IS_SHOW_EDITOR">
@@ -88,15 +71,8 @@
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
-      <b-form
-        ref="new-act-form"
-        @submit.stop.prevent="onSubmitNew"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="new-act-form" @submit.stop.prevent="onSubmitNew">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.newFormState.name.$model"
@@ -104,17 +80,11 @@
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="interval-input-group"
-          label="Interval After"
-          label-for="interval-input"
-        >
+        <b-form-group id="interval-input-group" label="Interval After" label-for="interval-input">
           <b-form-checkbox
             id="interval-input"
             v-model="newFormState.interval_after"
@@ -144,15 +114,8 @@
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form
-        ref="edit-act-form"
-        @submit.stop.prevent="onSubmitEdit"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="edit-act-form" @submit.stop.prevent="onSubmitEdit">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.editFormState.name.$model"
@@ -160,17 +123,11 @@
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="interval-input-group"
-          label="Interval After"
-          label-for="interval-input"
-        >
+        <b-form-group id="interval-input-group" label="Interval After" label-for="interval-input">
           <b-form-checkbox
             id="interval-input"
             v-model="editFormState.interval_after"
@@ -189,9 +146,7 @@
             :state="validateEditState('previous_act_id')"
             aria-describedby="previous-act-feedback"
           />
-          <b-form-invalid-feedback
-            id="previous-act-feedback"
-          >
+          <b-form-invalid-feedback id="previous-act-feedback">
             This cannot form a circular dependency between acts.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -267,12 +222,11 @@ export default {
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
         let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
         while (act != null) {
-           
           ret.push(this.ACT_BY_ID(act.id));
           act = this.ACT_BY_ID(act.next_act);
         }
       }
-      const actIds = ret.map((x) => (x.id));
+      const actIds = ret.map((x) => x.id);
       this.ACT_LIST.forEach((act) => {
         if (!actIds.includes(act.id)) {
           ret.push(act);
@@ -283,7 +237,7 @@ export default {
     previousActOptions() {
       return [
         { value: null, text: 'None', disabled: false },
-        ...this.ACT_LIST.filter((act) => (act.next_act == null), this).map((act) => ({
+        ...this.ACT_LIST.filter((act) => act.next_act == null, this).map((act) => ({
           value: act.id,
           text: act.name,
         })),
@@ -291,9 +245,9 @@ export default {
     },
     editFormActOptions() {
       const ret = [];
-      ret.push(...this.previousActOptions.filter((act) => (act.value !== this.editFormState.id)));
+      ret.push(...this.previousActOptions.filter((act) => act.value !== this.editFormState.id));
       if (this.editFormState.previous_act_id != null) {
-        const act = this.ACT_LIST.find((a) => (a.id === this.editFormState.previous_act_id));
+        const act = this.ACT_LIST.find((a) => a.id === this.editFormState.previous_act_id);
         ret.push({
           value: this.editFormState.previous_act_id,
           text: act.name,
@@ -416,6 +370,4 @@ export default {
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

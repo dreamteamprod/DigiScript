@@ -9,13 +9,10 @@
   >
     <template v-if="modalMode === 'create'">
       <div>
-        <b-alert
-          variant="info"
-          show
-        >
-          This will attempt to allocate microphones to characters based on priority given to
-          those characters with the most lines, whilst attempting to minimise the number of
-          swaps needed to be made during the show.
+        <b-alert variant="info" show>
+          This will attempt to allocate microphones to characters based on priority given to those
+          characters with the most lines, whilst attempting to minimise the number of swaps needed
+          to be made during the show.
         </b-alert>
         <b-form>
           <b-form-group
@@ -23,10 +20,7 @@
             label="Excluded Microphones"
             label-for="mic-exclusion-input"
           >
-            <b-alert
-              variant="secondary"
-              show
-            >
+            <b-alert variant="secondary" show>
               Excluded microphones will not be assigned to any characters during auto-population.
             </b-alert>
             <multi-select
@@ -46,11 +40,9 @@
             label="Static Allocations"
             label-for="static-characters-input"
           >
-            <b-alert
-              variant="secondary"
-              show
-            >
-              Assign a static microphone to these characters; they will have the same mic for all scenes in the show.
+            <b-alert variant="secondary" show>
+              Assign a static microphone to these characters; they will have the same mic for all
+              scenes in the show.
             </b-alert>
             <multi-select
               id="static-characters-input"
@@ -66,25 +58,19 @@
           </b-form-group>
         </b-form>
       </div>
-      <hr>
+      <hr />
       <div>
         <b-button v-b-toggle.advanced-options-collapse>
           <b-icon icon="gear-wide-connected" /> Advanced Options
         </b-button>
-        <b-collapse
-          id="advanced-options-collapse"
-          style="margin-top: 0.5rem;"
-        >
+        <b-collapse id="advanced-options-collapse" style="margin-top: 0.5rem">
           <b-card>
             <b-form-group
               id="allocation-gap-group"
               label="Single Allocation Gap Mode"
               label-for="allocation-gap-input"
             >
-              <b-alert
-                variant="secondary"
-                show
-              >
+              <b-alert variant="secondary" show>
                 <p>
                   Change allocation behaviour for microphones which are only ever assigned to a
                   single character during the whole show.
@@ -96,12 +82,8 @@
                 </p>
               </b-alert>
               <b-form-select v-model="formState.gapMode">
-                <b-form-select-option value="leave_gaps">
-                  Leave Gaps
-                </b-form-select-option>
-                <b-form-select-option value="no_gaps">
-                  No Gaps
-                </b-form-select-option>
+                <b-form-select-option value="leave_gaps"> Leave Gaps </b-form-select-option>
+                <b-form-select-option value="no_gaps"> No Gaps </b-form-select-option>
               </b-form-select>
             </b-form-group>
           </b-card>
@@ -110,28 +92,15 @@
     </template>
     <template v-else-if="modalMode === 'review'">
       <div>
-        <b-alert
-          variant="success"
-          show
-        >
+        <b-alert variant="success" show>
           Microphone allocations have been successfully generated. Check for info or warnings below.
         </b-alert>
         <b-tabs content-class="mt-3">
-          <b-tab
-            title="Allocations"
-            active
-          >
-            <b-alert
-              v-if="allocationHints.length === 0"
-              variant="info"
-              show
-            >
+          <b-tab title="Allocations" active>
+            <b-alert v-if="allocationHints.length === 0" variant="info" show>
               No warnings or info for microphone allocations.
             </b-alert>
-            <div
-              v-else
-              style="overflow-y: scroll; max-height: 50vh;"
-            >
+            <div v-else style="overflow-y: scroll; max-height: 50vh">
               <b-alert
                 v-for="(hint, index) in allocationHints"
                 :key="`allocation-hint-${index}`"
@@ -142,23 +111,20 @@
                 <p><b>Message: </b>{{ hint.reason }}</p>
                 <p>
                   <b>Scene: </b>
-                  {{ `${ACT_BY_ID(SCENE_BY_ID(hint.scene_id).act).name}: ${SCENE_BY_ID(hint.scene_id).name}` }}
+                  {{
+                    `${ACT_BY_ID(SCENE_BY_ID(hint.scene_id).act).name}: ${
+                      SCENE_BY_ID(hint.scene_id).name
+                    }`
+                  }}
                 </p>
               </b-alert>
             </div>
           </b-tab>
           <b-tab title="Static Allocations">
-            <b-alert
-              v-if="staticAllocationHints.length === 0"
-              variant="info"
-              show
-            >
+            <b-alert v-if="staticAllocationHints.length === 0" variant="info" show>
               No warnings or info for static microphone allocations.
             </b-alert>
-            <div
-              v-else
-              style="overflow-y: scroll; max-height: 50vh;"
-            >
+            <div v-else style="overflow-y: scroll; max-height: 50vh">
               <b-alert
                 v-for="(hint, index) in staticAllocationHints"
                 :key="`static-allocation-hint-${index}`"
@@ -170,24 +136,13 @@
               </b-alert>
             </div>
           </b-tab>
-          <b-tab
-            v-if="formState.gapMode === 'no_gaps'"
-            title="Gap Fill"
-          >
-            <b-alert
-              v-if="gapFillHints.length === 0"
-              variant="success"
-              show
-            >
+          <b-tab v-if="formState.gapMode === 'no_gaps'" title="Gap Fill">
+            <b-alert v-if="gapFillHints.length === 0" variant="success" show>
               No warnings or info for gap fill microphone allocations.
             </b-alert>
-            <div
-              v-else
-              style="overflow-y: scroll; max-height: 50vh;"
-            >
+            <div v-else style="overflow-y: scroll; max-height: 50vh">
               <b-alert
                 v-for="(hint, index) in gapFillHints"
-
                 :key="`gap-fill-hint-${index}`"
                 variant="info"
                 show
@@ -196,7 +151,14 @@
                 <p><b>Message: </b>{{ hint.reason }}</p>
                 <p>
                   <b>Scenes: </b>
-                  {{ hint.scenes.map((scene) => (`${ACT_BY_ID(SCENE_BY_ID(scene).act).name}: ${SCENE_BY_ID(scene).name}`)).join(', ') }}
+                  {{
+                    hint.scenes
+                      .map(
+                        (scene) =>
+                          `${ACT_BY_ID(SCENE_BY_ID(scene).act).name}: ${SCENE_BY_ID(scene).name}`
+                      )
+                      .join(', ')
+                  }}
                 </p>
               </b-alert>
             </div>
@@ -205,10 +167,7 @@
       </div>
     </template>
     <template v-else>
-      <b-alert
-        variant="danger"
-        show
-      >
+      <b-alert variant="danger" show>
         Error occurred while generating mic allocations. Please try again.
       </b-alert>
     </template>
@@ -226,20 +185,10 @@
         :disabled="submitting"
         @click="performGeneration"
       >
-        <b-spinner
-          v-if="submitting"
-          variant="info"
-          style="width: auto; height: inherit;"
-        />
-        <template v-else>
-          Generate
-        </template>
+        <b-spinner v-if="submitting" variant="info" style="width: auto; height: inherit" />
+        <template v-else> Generate </template>
       </b-button>
-      <b-button
-        v-else-if="modalMode === 'review'"
-        variant="primary"
-        @click="applyPendingChanges"
-      >
+      <b-button v-else-if="modalMode === 'review'" variant="primary" @click="applyPendingChanges">
         Apply Changes
       </b-button>
     </template>
@@ -323,10 +272,10 @@ export default {
       return $dirty ? !$error : null;
     },
     newExcludedMicSelectChanged(value, id) {
-      this.$v.formState.excludedMics.$model = value.map((mic) => (mic.id));
+      this.$v.formState.excludedMics.$model = value.map((mic) => mic.id);
     },
     newStaticCharacterSelectChanged(value, id) {
-      this.$v.formState.staticCharacters.$model = value.map((char) => (char.id));
+      this.$v.formState.staticCharacters.$model = value.map((char) => char.id);
     },
     resetState() {
       this.modalMode = 'create';
@@ -351,6 +300,4 @@ export default {
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

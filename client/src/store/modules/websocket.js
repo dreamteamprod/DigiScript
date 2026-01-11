@@ -4,9 +4,13 @@ import { debounce } from 'lodash';
 
 import router from '@/router';
 
-const settingsToast = debounce(() => {
-  Vue.$toast.info('Settings synced from server');
-}, 1000, { leading: true, trailing: false });
+const settingsToast = debounce(
+  () => {
+    Vue.$toast.info('Settings synced from server');
+  },
+  1000,
+  { leading: true, trailing: false }
+);
 
 export default {
   state: {
@@ -142,10 +146,12 @@ export default {
         await context.dispatch('HANDLE_WS_AUTH_SUCCESS');
         await context.commit('CLEAR_AUTH_SUCCEEDED');
       }
-      if (context.state.newConnection
-          && !context.state.pendingAuthentication
-          && !context.state.authenticationInProgress
-          && !context.state.authSucceeded) {
+      if (
+        context.state.newConnection &&
+        !context.state.pendingAuthentication &&
+        !context.state.authenticationInProgress &&
+        !context.state.authSucceeded
+      ) {
         if (Vue.prototype.$socket && Vue.prototype.$socket.readyState === WebSocket.OPEN) {
           Vue.prototype.$socket.sendObj({
             OP: 'NEW_CLIENT',
@@ -156,8 +162,11 @@ export default {
       }
     },
     async AUTHENTICATE_WEBSOCKET(context) {
-      if (!context.rootGetters.AUTH_TOKEN || !Vue.prototype.$socket
-          || Vue.prototype.$socket.readyState !== WebSocket.OPEN) {
+      if (
+        !context.rootGetters.AUTH_TOKEN ||
+        !Vue.prototype.$socket ||
+        Vue.prototype.$socket.readyState !== WebSocket.OPEN
+      ) {
         return;
       }
       await context.commit('SET_WS_AUTHENTICATION_IN_PROGRESS', true);
@@ -183,8 +192,11 @@ export default {
       }
     },
     async REFRESH_WEBSOCKET_TOKEN(context) {
-      if (!context.rootGetters.AUTH_TOKEN || !Vue.prototype.$socket
-          || Vue.prototype.$socket.readyState !== WebSocket.OPEN) {
+      if (
+        !context.rootGetters.AUTH_TOKEN ||
+        !Vue.prototype.$socket ||
+        Vue.prototype.$socket.readyState !== WebSocket.OPEN
+      ) {
         return;
       }
       Vue.prototype.$socket.sendObj({

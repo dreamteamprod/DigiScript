@@ -3,12 +3,7 @@
     <b-col cols="2">
       <b-form-row>
         <b-col cols="6">
-          <b-form-group
-            id="act-input-group"
-            label-size="sm"
-            label=" "
-            label-for="act-input"
-          >
+          <b-form-group id="act-input-group" label-size="sm" label=" " label-for="act-input">
             <b-form-select
               id="act-input"
               v-model="$v.state.act_id.$model"
@@ -20,12 +15,7 @@
           </b-form-group>
         </b-col>
         <b-col cols="6">
-          <b-form-group
-            id="scene-input-group"
-            label-size="sm"
-            label=" "
-            label-for="scene-input"
-          >
+          <b-form-group id="scene-input-group" label-size="sm" label=" " label-for="scene-input">
             <b-form-select
               id="scene-input"
               v-model="$v.state.scene_id.$model"
@@ -40,24 +30,15 @@
       <b-form-row>
         <b-col style="align-content: center">
           <b-button-group>
-            <b-button
-              variant="success"
-              :disabled="!lineValid"
-              @click="doneEditing"
-            >
+            <b-button variant="success" :disabled="!lineValid" @click="doneEditing">
               Done
             </b-button>
-            <b-button
-              variant="danger"
-              @click.stop.prevent="deleteLine"
-            >
-              Delete
-            </b-button>
+            <b-button variant="danger" @click.stop.prevent="deleteLine"> Delete </b-button>
           </b-button-group>
         </b-col>
       </b-form-row>
     </b-col>
-    <template v-if="(lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION)">
+    <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
       <template v-if="state.line_parts.length > 0">
         <script-line-part
           v-for="(part, index) in state.line_parts"
@@ -66,7 +47,11 @@
           :focus-input="index === 0"
           :characters="characters"
           :character-groups="characterGroups"
-          :show-add-button="index === state.line_parts.length - 1 && lineType === LINE_TYPES.DIALOGUE && CURRENT_SHOW.script_mode === 1"
+          :show-add-button="
+            index === state.line_parts.length - 1 &&
+            lineType === LINE_TYPES.DIALOGUE &&
+            CURRENT_SHOW.script_mode === 1
+          "
           :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
           :line-type="lineType"
           :line-parts="state.line_parts"
@@ -88,38 +73,23 @@
           />
         </b-col>
       </template>
-      <b-col
-        v-else
-        cols="10"
-        style="text-align: right"
-      >
-        <b-button
-          v-b-popover.hover.top="'Add line part'"
-          @click="addLinePart"
-        >
+      <b-col v-else cols="10" style="text-align: right">
+        <b-button v-b-popover.hover.top="'Add line part'" @click="addLinePart">
           <b-icon-plus-square-fill variant="success" />
         </b-button>
       </b-col>
     </template>
     <template v-else>
       <b-col>
-        <b-alert
-          variant="secondary"
-          show
-        >
-          <p
-            class="text-muted small"
-            style="margin: 0"
-          >
+        <b-alert variant="secondary" show>
+          <p class="text-muted small" style="margin: 0">
             <template v-if="lineType === LINE_TYPES.CUE_LINE">
               Cue Lines have no editable content.
             </template>
             <template v-else-if="lineType === LINE_TYPES.SPACING">
               Spacing Lines have no editable content.
             </template>
-            <template v-else>
-              This line type is not recognized.
-            </template>
+            <template v-else> This line type is not recognized. </template>
           </p>
         </b-alert>
       </b-col>
@@ -216,7 +186,9 @@ export default {
       },
       line_parts: {
         required: requiredIf(function isLinePartsRequired() {
-          return this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION;
+          return (
+            this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION
+          );
         }),
         $each: {
           character_id: {
@@ -231,7 +203,12 @@ export default {
           },
           line_text: {
             required: requiredIf(function isLineTextRequired() {
-              return (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION) && (this.state.line_parts.length <= 1 || !this.state.line_parts.some((x) => x.line_text !== ''));
+              return (
+                (this.lineType === LINE_TYPES.DIALOGUE ||
+                  this.lineType === LINE_TYPES.STAGE_DIRECTION) &&
+                (this.state.line_parts.length <= 1 ||
+                  !this.state.line_parts.some((x) => x.line_text !== ''))
+              );
             }),
           },
         },
@@ -250,9 +227,9 @@ export default {
     nextActs() {
       // Start act is either the first act for the show, or the act of the previous line if there
       // is one
-      let startAct = this.acts.find((act) => (act.previous_act == null));
+      let startAct = this.acts.find((act) => act.previous_act == null);
       if (this.previousLine != null) {
-        startAct = this.acts.find((act) => (act.id === this.previousLine.act_id));
+        startAct = this.acts.find((act) => act.id === this.previousLine.act_id);
       }
       const validActs = [];
       let nextAct = startAct;
@@ -277,12 +254,12 @@ export default {
       if (this.state.act_id == null) {
         return [];
       }
-      const scenes = this.scenes.filter((scene) => (scene.act === this.state.act_id));
+      const scenes = this.scenes.filter((scene) => scene.act === this.state.act_id);
       // Start scene is either the first scene of the act, or the scene of the previous line if
       // there is one
-      let startScene = scenes.find((scene) => (scene.previous_scene == null));
+      let startScene = scenes.find((scene) => scene.previous_scene == null);
       if (this.previousLine != null && this.previousLine.act_id === this.state.act_id) {
-        startScene = scenes.find((scene) => (scene.id === this.previousLine.scene_id));
+        startScene = scenes.find((scene) => scene.id === this.previousLine.scene_id);
       }
       const validScenes = [];
       let nextScene = startScene;
@@ -340,7 +317,10 @@ export default {
   async created() {
     this.previousLine = await this.previousLineFn(this.lineIndex);
     this.nextLine = await this.nextLineFn(this.lineIndex);
-    if (this.state.line_parts.length === 0 && (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION)) {
+    if (
+      this.state.line_parts.length === 0 &&
+      (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION)
+    ) {
       this.addLinePart();
     }
   },
@@ -387,7 +367,6 @@ export default {
         this.nextLine = nxtLine;
       } catch (error) {
         if (error.name !== 'AbortError') {
-           
           console.error('Error recalculating previous/next lines:', error);
         }
       }
@@ -435,6 +414,4 @@ export default {
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

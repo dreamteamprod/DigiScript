@@ -1,23 +1,10 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
-        <b-table
-          id="cast-table"
-          :items="SHOW_USERS"
-          :fields="userFields"
-          show-empty
-        >
+        <b-table id="cast-table" :items="SHOW_USERS" :fields="userFields" show-empty>
           <template #head(btn)="data">
-            <b-button
-              v-b-modal.new-user
-              variant="outline-success"
-            >
-              New User
-            </b-button>
+            <b-button v-b-modal.new-user variant="outline-success"> New User </b-button>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
@@ -49,25 +36,10 @@
         </b-table>
       </b-col>
     </b-row>
-    <b-modal
-      id="new-user"
-      ref="new-user"
-      title="Add New User"
-      size="md"
-      hide-footer
-    >
-      <create-user
-        :is_first_admin="false"
-        @created_user="resetNewForm"
-      />
+    <b-modal id="new-user" ref="new-user" title="Add New User" size="md" hide-footer>
+      <create-user :is_first_admin="false" @created_user="resetNewForm" />
     </b-modal>
-    <b-modal
-      id="user-rbac"
-      ref="user-rbac"
-      title="User RBAC Config"
-      size="xl"
-      hide-footer
-    >
+    <b-modal id="user-rbac" ref="user-rbac" title="User RBAC Config" size="xl" hide-footer>
       <config-rbac :user-id="editUser" />
     </b-modal>
     <b-modal
@@ -101,13 +73,7 @@ export default {
   components: { CreateUser, ConfigRbac, ResetPassword },
   data() {
     return {
-      userFields: [
-        'username',
-        'last_login',
-        'last_seen',
-        'is_admin',
-        { key: 'btn', label: '' },
-      ],
+      userFields: ['username', 'last_login', 'last_seen', 'is_admin', { key: 'btn', label: '' }],
       editUser: null,
       resetUser: null,
       clientTimeout: null,

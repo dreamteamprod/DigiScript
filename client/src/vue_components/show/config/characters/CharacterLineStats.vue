@@ -1,18 +1,9 @@
 <template>
-  <b-container
-    class="mx-0 px-0"
-    fluid
-  >
+  <b-container class="mx-0 px-0" fluid>
     <b-row>
       <b-col>
-        <div
-          v-if="!loaded"
-          class="text-center center-spinner"
-        >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
+        <div v-if="!loaded" class="text-center center-spinner">
+          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
         </div>
         <template v-else-if="sortedScenes.length > 0">
           <b-table
@@ -40,19 +31,13 @@
                 </template>
               </b-tr>
             </template>
-            <template
-              v-for="scene in sortedScenes"
-              #[getHeaderName(scene.id)]="data"
-            >
+            <template v-for="scene in sortedScenes" #[getHeaderName(scene.id)]="data">
               {{ scene.name }}
             </template>
             <template #cell(Character)="data">
               {{ CHARACTER_BY_ID(data.item.Character).name }}
             </template>
-            <template
-              v-for="scene in sortedScenes"
-              #[getCellName(scene.id)]="data"
-            >
+            <template v-for="scene in sortedScenes" #[getCellName(scene.id)]="data">
               <template
                 v-if="getLineCountForCharacter(data.item.Character, scene.act, scene.id) > 0"
               >
@@ -87,12 +72,15 @@ export default {
       if (!this.loaded) {
         return [];
       }
-      return this.CHARACTER_LIST.map((character) => ({
-        Character: character.id,
-      }), this);
+      return this.CHARACTER_LIST.map(
+        (character) => ({
+          Character: character.id,
+        }),
+        this
+      );
     },
     tableFields() {
-      return ['Character', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
+      return ['Character', ...this.sortedScenes.map((scene) => scene.id.toString())];
     },
     ...mapGetters(['CHARACTER_BY_ID', 'CHARACTER_LIST']),
   },

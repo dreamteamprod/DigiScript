@@ -33,8 +33,9 @@ export default {
       if (previousLine == null) {
         return true;
       }
-      return !(previousLine.act_id === this.line.act_id
-        && previousLine.scene_id === this.line.scene_id);
+      return !(
+        previousLine.act_id === this.line.act_id && previousLine.scene_id === this.line.scene_id
+      );
     },
     needsIntervalBanner() {
       let { previousLine, lineIndex } = this;
@@ -47,20 +48,21 @@ export default {
       return previousLine.act_id !== this.line.act_id;
     },
     previousActLabel() {
-      return this.acts.find((act) => (act.id === this.previousLine.act_id)).name;
+      return this.acts.find((act) => act.id === this.previousLine.act_id).name;
     },
     actLabel() {
-      return this.acts.find((act) => (act.id === this.line.act_id)).name;
+      return this.acts.find((act) => act.id === this.line.act_id).name;
     },
     sceneLabel() {
-      return this.scenes.find((scene) => (scene.id === this.line.scene_id)).name;
+      return this.scenes.find((scene) => scene.id === this.line.scene_id).name;
     },
     stageDirectionStyle() {
       const sdStyle = this.stageDirectionStyles.find(
-        (style) => (style.id === this.line.stage_direction_style_id),
+        (style) => style.id === this.line.stage_direction_style_id
       );
-      const override = this.stageDirectionStyleOverrides
-        .find((elem) => elem.settings.id === sdStyle.id);
+      const override = this.stageDirectionStyleOverrides.find(
+        (elem) => elem.settings.id === sdStyle.id
+      );
       if (this.line.line_type === LINE_TYPES.STAGE_DIRECTION) {
         return override ? override.settings : sdStyle;
       }
@@ -95,10 +97,10 @@ export default {
       return { textAlign: this.scriptTextAlign };
     },
     needsHeadingsAny() {
-      return this.needsHeadings.some((x) => (x === true));
+      return this.needsHeadings.some((x) => x === true);
     },
     needsHeadingsAll() {
-      return this.needsHeadings.every((x) => (x === true));
+      return this.needsHeadings.every((x) => x === true);
     },
     ...mapGetters(['USER_SETTINGS']),
   },
@@ -131,10 +133,16 @@ export default {
     onClassChange(classAttrValue, oldClassAttrValue) {
       const classList = classAttrValue.split(' ');
       const oldClassList = oldClassAttrValue.split(' ');
-      if (classList.includes('last-script-element') && !oldClassList.includes('last-script-element')) {
+      if (
+        classList.includes('last-script-element') &&
+        !oldClassList.includes('last-script-element')
+      ) {
         this.$emit('last-line-change', this.line.page, this.lineIndex);
       }
-      if (classList.includes('first-script-element') && !oldClassList.includes('first-script-element')) {
+      if (
+        classList.includes('first-script-element') &&
+        !oldClassList.includes('first-script-element')
+      ) {
         let previousLine = null;
         if (this.previousLine != null) {
           previousLine = `page_${this.previousLine.page}_line_${this.previousLineIndex}`;
@@ -143,7 +151,7 @@ export default {
       }
     },
     startInterval() {
-      this.$emit('start-interval', this.acts.find((act) => (act.id === this.previousLine.act_id)).id);
+      this.$emit('start-interval', this.acts.find((act) => act.id === this.previousLine.act_id).id);
     },
   },
 };

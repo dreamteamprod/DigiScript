@@ -19,11 +19,12 @@ export function isWholeLineCut(line, cuts) {
   }
 
   // For other line types, check if all line parts are cut or empty
-  return line.line_parts.every((linePart) => (
-    cuts.includes(linePart.id)
-    || linePart.line_text == null
-    || linePart.line_text.trim().length === 0
-  ));
+  return line.line_parts.every(
+    (linePart) =>
+      cuts.includes(linePart.id) ||
+      linePart.line_text == null ||
+      linePart.line_text.trim().length === 0
+  );
 }
 
 export default { isWholeLineCut };

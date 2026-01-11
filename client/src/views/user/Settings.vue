@@ -1,30 +1,17 @@
 <template>
-  <b-container
-    fluid
-    class="mx-0"
-  >
+  <b-container fluid class="mx-0">
     <h1>User Settings</h1>
-    <b-tabs
-      pills
-      vertical
-    >
-      <b-tab
-        active
-        title="About"
-      >
+    <b-tabs pills vertical>
+      <b-tab active title="About">
         <about-user />
       </b-tab>
       <b-tab title="Settings">
         <user-settings-config />
       </b-tab>
-      <b-tab
-        title="Stage Direction Styles"
-      >
+      <b-tab title="Stage Direction Styles">
         <stage-direction-styles />
       </b-tab>
-      <b-tab
-        title="Cue Colour Preferences"
-      >
+      <b-tab title="Cue Colour Preferences">
         <cue-colour-preferences />
       </b-tab>
       <b-tab title="Change Password">

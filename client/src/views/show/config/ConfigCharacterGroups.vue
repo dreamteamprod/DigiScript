@@ -1,8 +1,5 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <h5>Character Groups</h5>
@@ -15,19 +12,18 @@
           show-empty
         >
           <template #head(btn)="data">
-            <b-button
-              v-if="IS_SHOW_EDITOR"
-              v-b-modal.new-character-group
-              variant="outline-success"
-            >
+            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-character-group variant="outline-success">
               New Character Group
             </b-button>
           </template>
           <template #cell(characters)="data">
             <div style="overflow-wrap: break-word">
               <p>
-                {{ CHARACTER_LIST.filter((c) => (
-                  data.item.characters.includes(c.id))).map((c) => (c.name)).join(', ') }}
+                {{
+                  CHARACTER_LIST.filter((c) => data.item.characters.includes(c.id))
+                    .map((c) => c.name)
+                    .join(', ')
+                }}
               </p>
             </div>
           </template>
@@ -70,15 +66,8 @@
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
-      <b-form
-        ref="new-character-form"
-        @submit.stop.prevent="onSubmitNew"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="new-character-form" @submit.stop.prevent="onSubmitNew">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.newFormState.name.$model"
@@ -86,9 +75,7 @@
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -104,11 +91,7 @@
             :state="validateNewState('description')"
           />
         </b-form-group>
-        <b-form-group
-          id="characters-input-group"
-          label="Characters"
-          label-for="characters-input"
-        >
+        <b-form-group id="characters-input-group" label="Characters" label-for="characters-input">
           <multi-select
             id="characters-input"
             v-model="tempCharacterList"
@@ -132,15 +115,8 @@
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form
-        ref="edit-character-form"
-        @submit.stop.prevent="onSubmitEdit"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="edit-character-form" @submit.stop.prevent="onSubmitEdit">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.editFormState.name.$model"
@@ -148,9 +124,7 @@
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -166,11 +140,7 @@
             :state="validateEditState('description')"
           />
         </b-form-group>
-        <b-form-group
-          id="characters-input-group"
-          label="Characters"
-          label-for="characters-input"
-        >
+        <b-form-group id="characters-input-group" label="Characters" label-for="characters-input">
           <multi-select
             id="characters-input"
             v-model="tempEditCharacterList"
@@ -197,12 +167,7 @@ export default {
   name: 'ConfigCharacterGroups',
   data() {
     return {
-      characterGroupFields: [
-        'name',
-        'description',
-        'characters',
-        { key: 'btn', label: '' },
-      ],
+      characterGroupFields: ['name', 'description', 'characters', { key: 'btn', label: '' }],
       rowsPerPage: 15,
       currentPage: 1,
       tempCharacterList: [],
@@ -248,7 +213,7 @@ export default {
   },
   methods: {
     newSelectChanged(value, id) {
-      this.$v.newFormState.characters.$model = value.map((character) => (character.id));
+      this.$v.newFormState.characters.$model = value.map((character) => character.id);
     },
     resetNewForm() {
       this.tempCharacterList = [];
@@ -311,8 +276,11 @@ export default {
         this.editFormState.description = characterGroup.item.description;
         this.editFormState.characters = characterGroup.item.characters;
 
-        this.tempEditCharacterList.push(...this.CHARACTER_LIST.filter((character) => (
-          this.editFormState.characters.includes(character.id))));
+        this.tempEditCharacterList.push(
+          ...this.CHARACTER_LIST.filter((character) =>
+            this.editFormState.characters.includes(character.id)
+          )
+        );
 
         this.$bvModal.show('edit-character-group');
       }
@@ -333,7 +301,7 @@ export default {
       });
     },
     editSelectChanged(value, id) {
-      this.$v.editFormState.characters.$model = value.map((character) => (character.id));
+      this.$v.editFormState.characters.$model = value.map((character) => character.id);
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
@@ -358,12 +326,15 @@ export default {
       const { $dirty, $error } = this.$v.editFormState[name];
       return $dirty ? !$error : null;
     },
-    ...mapActions(['GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'ADD_CHARACTER_GROUP',
-      'DELETE_CHARACTER_GROUP', 'UPDATE_CHARACTER_GROUP']),
+    ...mapActions([
+      'GET_CHARACTER_LIST',
+      'GET_CHARACTER_GROUP_LIST',
+      'ADD_CHARACTER_GROUP',
+      'DELETE_CHARACTER_GROUP',
+      'UPDATE_CHARACTER_GROUP',
+    ]),
   },
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

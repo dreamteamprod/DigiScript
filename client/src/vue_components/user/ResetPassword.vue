@@ -1,28 +1,15 @@
 <template>
   <div>
-    <b-alert
-      v-if="!temporaryPassword"
-      show
-      variant="warning"
-    >
-      <b-icon
-        icon="exclamation-triangle-fill"
-        class="mr-2"
-      />
-      This will reset <strong>{{ username }}</strong>'s password to a randomly generated temporary password.
-      The user will be forced to change it on their next login.
+    <b-alert v-if="!temporaryPassword" show variant="warning">
+      <b-icon icon="exclamation-triangle-fill" class="mr-2" />
+      This will reset <strong>{{ username }}</strong
+      >'s password to a randomly generated temporary password. The user will be forced to change it
+      on their next login.
     </b-alert>
 
-    <b-alert
-      v-if="temporaryPassword"
-      show
-      variant="success"
-    >
+    <b-alert v-if="temporaryPassword" show variant="success">
       <h5 class="alert-heading">
-        <b-icon
-          icon="check-circle-fill"
-          class="mr-2"
-        />
+        <b-icon icon="check-circle-fill" class="mr-2" />
         Password Reset Successfully
       </h5>
       <p class="mb-3">
@@ -36,16 +23,10 @@
             :type="showPassword ? 'text' : 'password'"
           />
           <b-input-group-append>
-            <b-button
-              variant="outline-secondary"
-              @click="showPassword = !showPassword"
-            >
+            <b-button variant="outline-secondary" @click="showPassword = !showPassword">
               <b-icon :icon="showPassword ? 'eye-slash' : 'eye'" />
             </b-button>
-            <b-button
-              variant="outline-secondary"
-              @click="copyToClipboard"
-            >
+            <b-button variant="outline-secondary" @click="copyToClipboard">
               <b-icon icon="clipboard" />
               Copy
             </b-button>
@@ -53,11 +34,9 @@
         </b-input-group>
       </b-form-group>
       <p class="mb-0 small">
-        <b-icon
-          icon="info-circle"
-          class="mr-1"
-        />
-        Make sure to share this password with the user securely. They will need to change it on their next login.
+        <b-icon icon="info-circle" class="mr-1" />
+        Make sure to share this password with the user securely. They will need to change it on
+        their next login.
       </p>
     </b-alert>
 
@@ -70,31 +49,12 @@
       >
         Cancel
       </b-button>
-      <b-button
-        v-if="!temporaryPassword"
-        variant="danger"
-        :disabled="loading"
-        @click="handleReset"
-      >
-        <b-spinner
-          v-if="loading"
-          small
-          class="mr-1"
-        />
-        <b-icon
-          v-else
-          icon="arrow-clockwise"
-          class="mr-1"
-        />
+      <b-button v-if="!temporaryPassword" variant="danger" :disabled="loading" @click="handleReset">
+        <b-spinner v-if="loading" small class="mr-1" />
+        <b-icon v-else icon="arrow-clockwise" class="mr-1" />
         Reset Password
       </b-button>
-      <b-button
-        v-if="temporaryPassword"
-        variant="primary"
-        @click="$emit('done')"
-      >
-        Done
-      </b-button>
+      <b-button v-if="temporaryPassword" variant="primary" @click="$emit('done')"> Done </b-button>
     </div>
   </div>
 </template>

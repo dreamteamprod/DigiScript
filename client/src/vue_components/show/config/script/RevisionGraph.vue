@@ -1,50 +1,18 @@
 <template>
   <div class="revision-graph-container">
-    <div
-      v-if="loading"
-      class="text-center py-5"
-    >
+    <div v-if="loading" class="text-center py-5">
       <b-spinner label="Loading graph..." />
     </div>
-    <div
-      v-else-if="!hasRevisions"
-      class="text-center py-5 text-muted"
-    >
-      No revisions to display
-    </div>
-    <div
-      v-else
-      class="graph-wrapper"
-    >
-      <svg
-        ref="svg"
-        :width="width"
-        :height="height"
-        class="revision-graph"
-      >
+    <div v-else-if="!hasRevisions" class="text-center py-5 text-muted">No revisions to display</div>
+    <div v-else class="graph-wrapper">
+      <svg ref="svg" :width="width" :height="height" class="revision-graph">
         <defs>
-          <marker
-            id="arrowhead"
-            markerWidth="10"
-            markerHeight="10"
-            refX="9"
-            refY="3"
-            orient="auto"
-          >
-            <polygon
-              points="0 0, 10 3, 0 6"
-              fill="#6c757d"
-            />
+          <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#6c757d" />
           </marker>
         </defs>
-        <g
-          ref="zoomGroup"
-          class="zoom-group"
-        >
-          <g
-            ref="contentGroup"
-            :transform="`translate(${margin.left},${margin.top})`"
-          >
+        <g ref="zoomGroup" class="zoom-group">
+          <g ref="contentGroup" :transform="`translate(${margin.left},${margin.top})`">
             <!-- Links (edges) -->
             <g class="links">
               <path
@@ -65,15 +33,8 @@
                 @click="handleNodeClick(node)"
               >
                 <title>{{ nodeTooltip(node) }}</title>
-                <circle
-                  :r="nodeRadius"
-                  :class="nodeClass(node)"
-                />
-                <text
-                  class="node-label"
-                  dy=".35em"
-                  :x="nodeRadius + 5"
-                >
+                <circle :r="nodeRadius" :class="nodeClass(node)" />
+                <text class="node-label" dy=".35em" :x="nodeRadius + 5">
                   Rev {{ node.data.revision }}
                 </text>
                 <!-- Current revision indicator -->
@@ -90,25 +51,13 @@
       <!-- Zoom controls -->
       <div class="zoom-controls">
         <b-button-group vertical>
-          <b-button
-            size="sm"
-            variant="outline-secondary"
-            @click="zoomIn"
-          >
+          <b-button size="sm" variant="outline-secondary" @click="zoomIn">
             <b-icon-zoom-in />
           </b-button>
-          <b-button
-            size="sm"
-            variant="outline-secondary"
-            @click="zoomOut"
-          >
+          <b-button size="sm" variant="outline-secondary" @click="zoomOut">
             <b-icon-zoom-out />
           </b-button>
-          <b-button
-            size="sm"
-            variant="outline-secondary"
-            @click="resetZoom"
-          >
+          <b-button size="sm" variant="outline-secondary" @click="resetZoom">
             <b-icon-arrow-clockwise />
           </b-button>
         </b-button-group>
@@ -147,7 +96,10 @@ export default {
       width: 0,
       height: 400,
       margin: {
-        top: 20, right: 120, bottom: 20, left: 40,
+        top: 20,
+        right: 120,
+        bottom: 20,
+        left: 40,
       },
       nodeRadius: 8,
       zoomBehavior: null,
@@ -189,9 +141,10 @@ export default {
       if (!this.treeData) return null;
 
       const root = hierarchy(this.treeData);
-      const treeLayout = tree()
-        .size([this.height - this.margin.top - this.margin.bottom,
-          this.width - this.margin.left - this.margin.right]);
+      const treeLayout = tree().size([
+        this.height - this.margin.top - this.margin.bottom,
+        this.width - this.margin.left - this.margin.right,
+      ]);
 
       return treeLayout(root);
     },
@@ -306,10 +259,7 @@ export default {
         this.initZoom();
       }
       const svg = select(this.$refs.svg);
-      svg.transition().duration(300).call(
-        this.zoomBehavior.transform,
-        zoomIdentity,
-      );
+      svg.transition().duration(300).call(this.zoomBehavior.transform, zoomIdentity);
     },
     /**
      * Fit graph to content
@@ -330,21 +280,16 @@ export default {
       const scale = Math.min(
         (this.width - this.margin.left - this.margin.right) / contentWidth,
         (this.height - this.margin.top - this.margin.bottom) / contentHeight,
-        1, // Don't zoom in beyond 1x
+        1 // Don't zoom in beyond 1x
       );
 
       const translateX = (this.width - contentWidth * scale) / 2 - minY * scale;
       const translateY = (this.height - contentHeight * scale) / 2 - minX * scale;
 
       const svg = select(this.$refs.svg);
-      const transform = zoomIdentity
-        .translate(translateX, translateY)
-        .scale(scale);
+      const transform = zoomIdentity.translate(translateX, translateY).scale(scale);
 
-      svg.transition().duration(500).call(
-        this.zoomBehavior.transform,
-        transform,
-      );
+      svg.transition().duration(500).call(this.zoomBehavior.transform, transform);
     },
     /**
      * Generate SVG path for link (using cubic Bezier curve)
@@ -493,7 +438,8 @@ export default {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

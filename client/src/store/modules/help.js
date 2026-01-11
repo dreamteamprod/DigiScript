@@ -107,7 +107,10 @@ export default {
       }
 
       const results = context.state.searchIndex.search(query);
-      context.commit('SET_SEARCH_RESULTS', results.map((r) => r.item));
+      context.commit(
+        'SET_SEARCH_RESULTS',
+        results.map((r) => r.item)
+      );
     },
 
     CLEAR_SEARCH(context) {
@@ -116,9 +119,8 @@ export default {
   },
   getters: {
     DOCUMENTATION_MANIFEST: (state) => state.manifest,
-    CURRENT_DOCUMENT_CONTENT: (state) => (state.currentDocument
-      ? state.documents[state.currentDocument]
-      : null),
+    CURRENT_DOCUMENT_CONTENT: (state) =>
+      state.currentDocument ? state.documents[state.currentDocument] : null,
     IS_LOADING: (state) => state.loading,
     ERROR: (state) => state.error,
     SEARCH_RESULTS: (state) => state.searchResults,

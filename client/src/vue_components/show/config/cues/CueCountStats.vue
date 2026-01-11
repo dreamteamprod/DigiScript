@@ -1,18 +1,9 @@
 <template>
-  <b-container
-    class="mx-0 px-0"
-    fluid
-  >
+  <b-container class="mx-0 px-0" fluid>
     <b-row>
       <b-col>
-        <div
-          v-if="!loaded"
-          class="text-center center-spinner"
-        >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
+        <div v-if="!loaded" class="text-center center-spinner">
+          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
         </div>
         <template v-else-if="sortedScenes.length > 0">
           <b-table
@@ -40,22 +31,14 @@
                 </template>
               </b-tr>
             </template>
-            <template
-              v-for="scene in sortedScenes"
-              #[getHeaderName(scene.id)]="data"
-            >
+            <template v-for="scene in sortedScenes" #[getHeaderName(scene.id)]="data">
               {{ scene.name }}
             </template>
             <template #cell(Cues)="data">
               {{ CUE_TYPE_BY_ID(data.item.CueType).prefix }}
             </template>
-            <template
-              v-for="scene in sortedScenes"
-              #[getCellName(scene.id)]="data"
-            >
-              <template
-                v-if="getCountForCueType(data.item.CueType, scene.act, scene.id) > 0"
-              >
+            <template v-for="scene in sortedScenes" #[getCellName(scene.id)]="data">
+              <template v-if="getCountForCueType(data.item.CueType, scene.act, scene.id) > 0">
                 {{ getCountForCueType(data.item.CueType, scene.act, scene.id) }}
               </template>
             </template>
@@ -87,12 +70,15 @@ export default {
       if (!this.loaded) {
         return [];
       }
-      return this.CUE_TYPES.map((cueType) => ({
-        CueType: cueType.id,
-      }), this);
+      return this.CUE_TYPES.map(
+        (cueType) => ({
+          CueType: cueType.id,
+        }),
+        this
+      );
     },
     tableFields() {
-      return ['Cues', ...this.sortedScenes.map((scene) => (scene.id.toString()))];
+      return ['Cues', ...this.sortedScenes.map((scene) => scene.id.toString())];
     },
     ...mapGetters(['CUE_TYPES', 'CUE_TYPE_BY_ID']),
   },

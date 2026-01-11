@@ -195,7 +195,13 @@ router.beforeEach(async (to, from, next) => {
     const rbacRoles = router.app.$store.getters.RBAC_ROLES;
     const userRbac = router.app.$store.getters.CURRENT_USER_RBAC;
 
-    if (!rbacRoles.length || !userRbac || (!Object.keys(userRbac).includes('shows') && !Object.keys(userRbac).includes('script') && !Object.keys(userRbac).includes('cuetypes'))) {
+    if (
+      !rbacRoles.length ||
+      !userRbac ||
+      (!Object.keys(userRbac).includes('shows') &&
+        !Object.keys(userRbac).includes('script') &&
+        !Object.keys(userRbac).includes('cuetypes'))
+    ) {
       return false;
     }
 
@@ -204,19 +210,21 @@ router.beforeEach(async (to, from, next) => {
     const executeMask = rbacRoles.find((x) => x.key === 'EXECUTE')?.value || 0;
 
     // Bitwise check if user has READ, WRITE or EXECUTE permission for shows
-    const showAllowed = userRbac.shows && userRbac.shows[0]
-       
-      && ((userRbac.shows[0][1] & (writeMask | executeMask | readMask)) !== 0);
+    const showAllowed =
+      userRbac.shows &&
+      userRbac.shows[0] &&
+      (userRbac.shows[0][1] & (writeMask | executeMask | readMask)) !== 0;
 
     // Bitwise check if user has READ or WRITE permission for script
-    const scriptAllowed = userRbac.script && userRbac.script[0]
-       
-      && ((userRbac.script[0][1] & (writeMask | readMask)) !== 0);
+    const scriptAllowed =
+      userRbac.script &&
+      userRbac.script[0] &&
+      (userRbac.script[0][1] & (writeMask | readMask)) !== 0;
 
     // Bitwise check if user has READ or WRITE permission for any cue types
-    const cueTypesAllowed = userRbac.cuetypes
-       
-      && userRbac.cuetypes.filter((x) => (x[1] & (writeMask | readMask)) !== 0).length > 0;
+    const cueTypesAllowed =
+      userRbac.cuetypes &&
+      userRbac.cuetypes.filter((x) => (x[1] & (writeMask | readMask)) !== 0).length > 0;
 
     return showAllowed || scriptAllowed || cueTypesAllowed;
   };

@@ -11,26 +11,38 @@ export default {
     needsHeadings() {
       let { previousLine } = this;
       let lineIndex = this.previousLineIndex;
-      while (previousLine != null && (previousLine.line_type === LINE_TYPES.STAGE_DIRECTION
-          || this.isWholeLineCut(previousLine))) {
+      while (
+        previousLine != null &&
+        (previousLine.line_type === LINE_TYPES.STAGE_DIRECTION || this.isWholeLineCut(previousLine))
+      ) {
         [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex);
       }
 
       const ret = [];
       this.line.line_parts.forEach(function checkLinePartNeedsHeading(part) {
-        if (previousLine == null
-          || previousLine.line_parts.length !== this.line.line_parts.length) {
+        if (
+          previousLine == null ||
+          previousLine.line_parts.length !== this.line.line_parts.length
+        ) {
           ret.push(true);
-        } else if (previousLine.act_id !== this.line.act_id || previousLine.scene_id !== this.line.scene_id) {
+        } else if (
+          previousLine.act_id !== this.line.act_id ||
+          previousLine.scene_id !== this.line.scene_id
+        ) {
           ret.push(true);
         } else {
-          const matchingIndex = previousLine.line_parts.find((prevPart) => (
-            prevPart.part_index === part.part_index));
+          const matchingIndex = previousLine.line_parts.find(
+            (prevPart) => prevPart.part_index === part.part_index
+          );
           if (matchingIndex == null) {
             ret.push(true);
           } else {
-            ret.push(!(matchingIndex.character_id === part.character_id
-              && matchingIndex.character_group_id === part.character_group_id));
+            ret.push(
+              !(
+                matchingIndex.character_id === part.character_id &&
+                matchingIndex.character_group_id === part.character_group_id
+              )
+            );
           }
         }
       }, this);

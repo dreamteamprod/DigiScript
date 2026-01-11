@@ -12,10 +12,7 @@
       <b-icon-pencil-fill />
     </template>
 
-    <b-dropdown-form
-      class="tag-dropdown-form"
-      @click.stop
-    >
+    <b-dropdown-form class="tag-dropdown-form" @click.stop>
       <!-- Search/Filter Input -->
       <b-form-input
         v-model="searchQuery"
@@ -39,30 +36,21 @@
             class="tag-pill-small"
             :style="{
               backgroundColor: tag.colour,
-              color: contrastColor({bgColor: tag.colour})
+              color: contrastColor({ bgColor: tag.colour }),
             }"
           >
             {{ tag.tag }}
           </span>
         </b-form-checkbox>
 
-        <div
-          v-if="filteredTags.length === 0"
-          class="text-muted small p-2"
-        >
+        <div v-if="filteredTags.length === 0" class="text-muted small p-2">
           No tags match your search
         </div>
       </div>
 
       <!-- Loading State -->
-      <div
-        v-if="saving"
-        class="text-center p-2 border-top mt-2"
-      >
-        <b-spinner
-          small
-          variant="primary"
-        />
+      <div v-if="saving" class="text-center p-2 border-top mt-2">
+        <b-spinner small variant="primary" />
         <span class="ml-2 small">Saving...</span>
       </div>
     </b-dropdown-form>

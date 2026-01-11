@@ -1,21 +1,11 @@
 <template>
-  <div
-    v-if="!loaded"
-    class="text-center center-spinner"
-  >
-    <b-spinner
-      style="width: 10rem; height: 10rem;"
-      variant="info"
-    />
+  <div v-if="!loaded" class="text-center center-spinner">
+    <b-spinner style="width: 10rem; height: 10rem" variant="info" />
   </div>
   <div v-else-if="loaded && error">
     <b>Unable to load RBAC config, please try again!</b>
   </div>
-  <b-container
-    v-else
-    class="mx-0"
-    fluid
-  >
+  <b-container v-else class="mx-0" fluid>
     <b-row>
       <b-col>
         <b-tabs content-class="mt-3">
@@ -25,10 +15,7 @@
             :active="index === 0"
             :title="resource | capitalize"
           >
-            <rbac-resource
-              :resource="resource"
-              :user-id="userId"
-            />
+            <rbac-resource :resource="resource" :user-id="userId" />
           </b-tab>
         </b-tabs>
       </b-col>

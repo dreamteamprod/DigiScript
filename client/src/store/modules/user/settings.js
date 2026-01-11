@@ -35,12 +35,15 @@ export default {
       await context.dispatch('SETTINGS_CHANGED');
     },
     async GET_STAGE_DIRECTION_STYLE_OVERRIDES(context) {
-      const response = await fetch(`${makeURL('/api/v1/user/settings/stage_direction_overrides')}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${makeURL('/api/v1/user/settings/stage_direction_overrides')}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
       if (response.ok) {
         const respJson = await response.json();
         context.commit('SET_STAGE_DIRECTION_STYLE_OVERRIDES', respJson.overrides);
@@ -49,13 +52,16 @@ export default {
       }
     },
     async ADD_STAGE_DIRECTION_STYLE_OVERRIDE(context, style) {
-      const response = await fetch(`${makeURL('/api/v1/user/settings/stage_direction_overrides')}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(style),
-      });
+      const response = await fetch(
+        `${makeURL('/api/v1/user/settings/stage_direction_overrides')}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(style),
+        }
+      );
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLE_OVERRIDES');
         Vue.$toast.success('Added new stage direction style override!');
@@ -65,12 +71,15 @@ export default {
       }
     },
     async DELETE_STAGE_DIRECTION_STYLE_OVERRIDE(context, styleId) {
-      const response = await fetch(`${makeURL('/api/v1/user/settings/stage_direction_overrides')}?id=${styleId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${makeURL('/api/v1/user/settings/stage_direction_overrides')}?id=${styleId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLE_OVERRIDES');
         Vue.$toast.success('Deleted stage direction style override!');
@@ -80,13 +89,16 @@ export default {
       }
     },
     async UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE(context, style) {
-      const response = await fetch(`${makeURL('/api/v1/user/settings/stage_direction_overrides')}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(style),
-      });
+      const response = await fetch(
+        `${makeURL('/api/v1/user/settings/stage_direction_overrides')}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(style),
+        }
+      );
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLE_OVERRIDES');
         Vue.$toast.success('Updated stage direction style override!');
@@ -126,12 +138,15 @@ export default {
       }
     },
     async DELETE_CUE_COLOUR_OVERRIDE(context, overrideId) {
-      const response = await fetch(`${makeURL(`/api/v1/user/settings/cue_colour_overrides?id=${overrideId}`)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${makeURL(`/api/v1/user/settings/cue_colour_overrides?id=${overrideId}`)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
       if (response.ok) {
         context.dispatch('GET_CUE_COLOUR_OVERRIDES');
         Vue.$toast.success('Deleted cue colour override!');

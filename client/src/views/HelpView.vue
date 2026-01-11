@@ -1,16 +1,10 @@
 <template>
   <div class="help">
     <h1>DigiScript Documentation</h1>
-    <b-container
-      class="mx-0 help-container"
-      fluid
-    >
+    <b-container class="mx-0 help-container" fluid>
       <b-row>
         <b-col cols="2">
-          <div
-            class="sticky-nav"
-            :style="{ top: navbarHeight + 'px' }"
-          >
+          <div class="sticky-nav" :style="{ top: navbarHeight + 'px' }">
             <!-- Search Input -->
             <b-form-input
               v-model="searchQuery"
@@ -20,10 +14,7 @@
             />
 
             <!-- Navigation Buttons -->
-            <b-button-group
-              vertical
-              class="w-100"
-            >
+            <b-button-group vertical class="w-100">
               <b-button
                 v-for="doc in displayedDocs"
                 :key="doc.slug"
@@ -57,10 +48,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters([
-      'DOCUMENTATION_MANIFEST',
-      'SEARCH_RESULTS',
-    ]),
+    ...mapGetters(['DOCUMENTATION_MANIFEST', 'SEARCH_RESULTS']),
     displayedDocs() {
       if (this.searchQuery && this.SEARCH_RESULTS.length > 0) {
         return this.SEARCH_RESULTS;
@@ -84,11 +72,7 @@ export default {
     window.removeEventListener('resize', this.calculateNavbarHeight);
   },
   methods: {
-    ...mapActions([
-      'LOAD_MANIFEST',
-      'SEARCH_DOCUMENTS',
-      'CLEAR_SEARCH',
-    ]),
+    ...mapActions(['LOAD_MANIFEST', 'SEARCH_DOCUMENTS', 'CLEAR_SEARCH']),
     calculateNavbarHeight() {
       const navbar = document.querySelector('.navbar');
       if (navbar) {

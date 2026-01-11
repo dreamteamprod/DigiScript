@@ -25,10 +25,7 @@
         @ok="openNewOverrideModal"
       >
         <b-form>
-          <b-form-select
-            v-model="newStyleFormState.styleId"
-            :options="overrideChoices"
-          />
+          <b-form-select v-model="newStyleFormState.styleId" :options="overrideChoices" />
         </b-form>
       </b-modal>
       <b-modal
@@ -42,10 +39,7 @@
       >
         <div>
           <h4>Example Stage Direction</h4>
-          <i
-            class="example-stage-direction"
-            :style="newFormExampleCss"
-          >
+          <i class="example-stage-direction" :style="newFormExampleCss">
             <template v-if="newStyleFormState.textFormat === 'upper'">
               {{ exampleText | uppercase }}
             </template>
@@ -59,15 +53,8 @@
         </div>
         <div>
           <h4>Configuration Options</h4>
-          <b-form
-            ref="new-config-form"
-            @ok="onSubmitNewOverride"
-          >
-            <b-form-group
-              id="styling-group"
-              label="Default Styles"
-              label-for="styling-input"
-            >
+          <b-form ref="new-config-form" @ok="onSubmitNewOverride">
+            <b-form-group id="styling-group" label="Default Styles" label-for="styling-input">
               <b-button-group id="styling-input">
                 <b-button
                   v-for="(btn, idx) in $v.newStyleFormState.styleOptions.$model"
@@ -88,21 +75,9 @@
                 id="text-format-input"
                 v-model="$v.newStyleFormState.textFormat.$model"
               >
-                <b-form-select-option
-                  value="default"
-                >
-                  Default
-                </b-form-select-option>
-                <b-form-select-option
-                  value="upper"
-                >
-                  Uppercase
-                </b-form-select-option>
-                <b-form-select-option
-                  value="lower"
-                >
-                  Lowercase
-                </b-form-select-option>
+                <b-form-select-option value="default"> Default </b-form-select-option>
+                <b-form-select-option value="upper"> Uppercase </b-form-select-option>
+                <b-form-select-option value="lower"> Lowercase </b-form-select-option>
               </b-form-select>
             </b-form-group>
             <b-form-group
@@ -118,9 +93,7 @@
                 :state="validateNewStyleState('textColour')"
                 aria-describedby="colour-feedback"
               />
-              <b-form-invalid-feedback
-                id="colour-feedback"
-              >
+              <b-form-invalid-feedback id="colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -161,10 +134,7 @@
       >
         <div>
           <h4>Example Stage Direction</h4>
-          <i
-            class="example-stage-direction"
-            :style="editFormExampleCss"
-          >
+          <i class="example-stage-direction" :style="editFormExampleCss">
             <template v-if="editStyleFormState.textFormat === 'upper'">
               {{ exampleText | uppercase }}
             </template>
@@ -178,15 +148,8 @@
         </div>
         <div>
           <h4>Configuration Options</h4>
-          <b-form
-            ref="edit-config-form"
-            @ok="onSubmitEditOverride"
-          >
-            <b-form-group
-              id="styling-group"
-              label="Default Styles"
-              label-for="styling-input"
-            >
+          <b-form ref="edit-config-form" @ok="onSubmitEditOverride">
+            <b-form-group id="styling-group" label="Default Styles" label-for="styling-input">
               <b-button-group id="styling-input">
                 <b-button
                   v-for="(btn, idx) in $v.editStyleFormState.styleOptions.$model"
@@ -207,21 +170,9 @@
                 id="text-format-input"
                 v-model="$v.editStyleFormState.textFormat.$model"
               >
-                <b-form-select-option
-                  value="default"
-                >
-                  Default
-                </b-form-select-option>
-                <b-form-select-option
-                  value="upper"
-                >
-                  Uppercase
-                </b-form-select-option>
-                <b-form-select-option
-                  value="lower"
-                >
-                  Lowercase
-                </b-form-select-option>
+                <b-form-select-option value="default"> Default </b-form-select-option>
+                <b-form-select-option value="upper"> Uppercase </b-form-select-option>
+                <b-form-select-option value="lower"> Lowercase </b-form-select-option>
               </b-form-select>
             </b-form-group>
             <b-form-group
@@ -237,9 +188,7 @@
                 :state="validateEditStyleState('textColour')"
                 aria-describedby="colour-feedback"
               />
-              <b-form-invalid-feedback
-                id="colour-feedback"
-              >
+              <b-form-invalid-feedback id="colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -274,10 +223,7 @@
       {{ STAGE_DIRECTION_STYLES.find((elem) => elem.id === data.item.settings.id).description }}
     </template>
     <template #cell(example)="data">
-      <i
-        class="example-stage-direction"
-        :style="exampleCss(data.item.settings)"
-      >
+      <i class="example-stage-direction" :style="exampleCss(data.item.settings)">
         <template v-if="data.item.settings.text_format === 'upper'">
           {{ exampleText | uppercase }}
         </template>
@@ -308,12 +254,7 @@
       </b-button-group>
     </template>
   </b-table>
-  <b-alert
-    v-else
-    variant="danger"
-  >
-    No show loaded.
-  </b-alert>
+  <b-alert v-else variant="danger"> No show loaded. </b-alert>
 </template>
 
 <script>
@@ -366,21 +307,33 @@ export default {
     overrideChoices() {
       return [
         { value: null, text: 'Please select an option', disabled: true },
-        ...this.STAGE_DIRECTION_STYLES.filter((item) => !this.STAGE_DIRECTION_STYLE_OVERRIDES.map(
-          (elem) => elem.settings.id,
-        ).includes(item.id), this).map((item) => ({ value: item.id, text: item.description })),
+        ...this.STAGE_DIRECTION_STYLES.filter(
+          (item) =>
+            !this.STAGE_DIRECTION_STYLE_OVERRIDES.map((elem) => elem.settings.id).includes(item.id),
+          this
+        ).map((item) => ({ value: item.id, text: item.description })),
       ];
     },
     tableData() {
-      return this.STAGE_DIRECTION_STYLE_OVERRIDES
-        .filter((item) => this.STAGE_DIRECTION_STYLES
-          .map((elem) => elem.id).includes(item.settings.id), this);
+      return this.STAGE_DIRECTION_STYLE_OVERRIDES.filter(
+        (item) => this.STAGE_DIRECTION_STYLES.map((elem) => elem.id).includes(item.settings.id),
+        this
+      );
     },
     newFormExampleCss() {
       const style = {
-        'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state ? 'bold' : 'normal',
-        'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state ? 'italic' : 'normal',
-        'text-decoration-line': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state ? 'underline' : 'none',
+        'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state
+          ? 'bold'
+          : 'normal',
+        'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic')
+          .state
+          ? 'italic'
+          : 'normal',
+        'text-decoration-line': this.newStyleFormState.styleOptions.find(
+          (el) => el.caption === 'Underline'
+        ).state
+          ? 'underline'
+          : 'none',
         color: this.newStyleFormState.textColour,
       };
       if (this.newStyleFormState.enableBackgroundColour) {
@@ -390,9 +343,19 @@ export default {
     },
     editFormExampleCss() {
       const style = {
-        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state ? 'bold' : 'normal',
-        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state ? 'italic' : 'normal',
-        'text-decoration-line': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state ? 'underline' : 'none',
+        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold')
+          .state
+          ? 'bold'
+          : 'normal',
+        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic')
+          .state
+          ? 'italic'
+          : 'normal',
+        'text-decoration-line': this.editStyleFormState.styleOptions.find(
+          (el) => el.caption === 'Underline'
+        ).state
+          ? 'underline'
+          : 'none',
         color: this.editStyleFormState.textColour,
       };
       if (this.editStyleFormState.enableBackgroundColour) {
@@ -405,7 +368,8 @@ export default {
         styleId: this.newStyleFormState.styleId,
         bold: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
         italic: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
-        underline: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state,
+        underline: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline')
+          .state,
         textFormat: this.newStyleFormState.textFormat,
         textColour: this.newStyleFormState.textColour,
         enableBackgroundColour: this.newStyleFormState.enableBackgroundColour,
@@ -417,7 +381,8 @@ export default {
         id: this.editStyleFormState.id,
         bold: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
         italic: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
-        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state,
+        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline')
+          .state,
         text_format: this.editStyleFormState.textFormat,
         text_colour: this.editStyleFormState.textColour,
         enable_background_colour: this.editStyleFormState.enableBackgroundColour,
@@ -450,8 +415,10 @@ export default {
       this.newStyleFormState.styleId = null;
     },
     openNewOverrideModal(event) {
-      const styleToOverride = this.STAGE_DIRECTION_STYLES
-        .find((item) => item.id === this.newStyleFormState.styleId, this);
+      const styleToOverride = this.STAGE_DIRECTION_STYLES.find(
+        (item) => item.id === this.newStyleFormState.styleId,
+        this
+      );
       if (styleToOverride == null) {
         log.error('Could not find style to override!');
         this.$toast.error('Could not find style to override!');
@@ -600,9 +567,14 @@ export default {
         this.$bvModal.show('edit-override-modal');
       }
     },
-    ...mapActions(['GET_SHOW_DETAILS', 'GET_STAGE_DIRECTION_STYLES',
-      'GET_STAGE_DIRECTION_STYLE_OVERRIDES', 'ADD_STAGE_DIRECTION_STYLE_OVERRIDE',
-      'DELETE_STAGE_DIRECTION_STYLE_OVERRIDE', 'UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE']),
+    ...mapActions([
+      'GET_SHOW_DETAILS',
+      'GET_STAGE_DIRECTION_STYLES',
+      'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
+      'ADD_STAGE_DIRECTION_STYLE_OVERRIDE',
+      'DELETE_STAGE_DIRECTION_STYLE_OVERRIDE',
+      'UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE',
+    ]),
   },
   validations: {
     newStyleFormState: {

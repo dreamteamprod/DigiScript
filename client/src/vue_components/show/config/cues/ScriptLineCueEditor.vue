@@ -1,30 +1,23 @@
 <template>
-  <b-container
-    ref="lineContainer"
-    class="mx-0"
-    style="margin: 0; padding: 0 0 .2rem;"
-    fluid
-  >
+  <b-container ref="lineContainer" class="mx-0" style="margin: 0; padding: 0 0 0.2rem" fluid>
     <b-row v-if="needsActSceneLabelSimple">
       <b-col cols="3" />
       <b-col cols="9">
-        <h4> {{ actLabel }} - {{ sceneLabel }}</h4>
+        <h4>{{ actLabel }} - {{ sceneLabel }}</h4>
       </b-col>
     </b-row>
-    <b-row :class="{'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION}">
-      <b-col
-        cols="3"
-        class="cue-column"
-        style="text-align: right"
-      >
+    <b-row :class="{ 'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION }">
+      <b-col cols="3" class="cue-column" style="text-align: right">
         <b-button-group v-if="line.line_type !== LINE_TYPES.SPACING">
           <b-button
             v-for="cue in cues"
             :key="cue.id"
             :disabled="!IS_CUE_EDITOR"
             class="cue-button"
-            :style="{backgroundColor: cueBackgroundColour(cue),
-                     color: contrastColor({'bgColor': cueBackgroundColour(cue)})}"
+            :style="{
+              backgroundColor: cueBackgroundColour(cue),
+              color: contrastColor({ bgColor: cueBackgroundColour(cue) }),
+            }"
             @click.stop="openEditForm(cue)"
           >
             {{ cueLabel(cue) }}
@@ -47,29 +40,26 @@
         >
           <template v-if="needsHeadings[index]">
             <b v-if="part.character_id != null">
-              {{ characters.find((char) => (char.id === part.character_id)).name }}
+              {{ characters.find((char) => char.id === part.character_id).name }}
             </b>
             <b v-else>
-              {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+              {{ characterGroups.find((char) => char.id === part.character_group_id).name }}
             </b>
           </template>
           <b v-else-if="needsHeadingsAny">&nbsp;</b>
           <p
             class="viewable-line"
-            :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"
+            :class="{ 'cut-line-part': linePartCuts.indexOf(part.id) !== -1 }"
           >
             {{ part.line_text }}
           </p>
         </b-col>
       </template>
       <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
-        <b-col
-          :key="`line_${lineIndex}_stage_direction`"
-          :style="{ textAlign: scriptTextAlign }"
-        >
+        <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
           <i
             class="viewable-line"
-            :class="{'cut-line-part': linePartCuts.indexOf(line.line_parts[0].id) !== -1}"
+            :class="{ 'cut-line-part': linePartCuts.indexOf(line.line_parts[0].id) !== -1 }"
             :style="stageDirectionStyling"
           >
             <template
@@ -89,38 +79,16 @@
         </b-col>
       </template>
       <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
-        <b-col
-          :key="`line_${lineIndex}_cue_line`"
-          :style="dialogueStyle"
-        >
-          <b-alert
-            variant="secondary"
-            show
-          >
-            <p
-              class="text-muted small"
-              style="margin: 0"
-            >
-              Cue Line
-            </p>
+        <b-col :key="`line_${lineIndex}_cue_line`" :style="dialogueStyle">
+          <b-alert variant="secondary" show>
+            <p class="text-muted small" style="margin: 0">Cue Line</p>
           </b-alert>
         </b-col>
       </template>
       <template v-else-if="line.line_type === LINE_TYPES.SPACING">
-        <b-col
-          :key="`line_${lineIndex}_spacing`"
-          :style="dialogueStyle"
-        >
-          <b-alert
-            variant="secondary"
-            show
-          >
-            <p
-              class="text-muted small"
-              style="margin: 0"
-            >
-              Spacing Line
-            </p>
+        <b-col :key="`line_${lineIndex}_spacing`" :style="dialogueStyle">
+          <b-alert variant="secondary" show>
+            <p class="text-muted small" style="margin: 0">Spacing Line</p>
           </b-alert>
         </b-col>
       </template>
@@ -133,15 +101,8 @@
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
-      <b-form
-        ref="new-cue-form"
-        @submit.stop.prevent="onSubmitNew"
-      >
-        <b-form-group
-          id="type-input-group"
-          label="Cue Type"
-          label-for="type-input"
-        >
+      <b-form ref="new-cue-form" @submit.stop.prevent="onSubmitNew">
+        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
           <b-form-select
             id="act-input"
             v-model="$v.newFormState.cueType.$model"
@@ -149,17 +110,11 @@
             :state="validateNewState('cueType')"
             aria-describedby="cue-type-feedback"
           />
-          <b-form-invalid-feedback
-            id="cue-type-feedback"
-          >
+          <b-form-invalid-feedback id="cue-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="ident-input-group"
-          label="Identifier"
-          label-for="ident-input"
-        >
+        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
           <b-form-input
             id="ident-input"
             v-model="$v.newFormState.ident.$model"
@@ -167,27 +122,22 @@
             :state="validateNewState('ident')"
             aria-describedby="ident-feedback"
           />
-          <b-form-invalid-feedback
-            id="ident-feedback"
-          >
+          <b-form-invalid-feedback id="ident-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group>
-          <b-form-text
-            v-if="isDuplicateNewCue"
-            class="text-warning"
-          >
+          <b-form-text v-if="isDuplicateNewCue" class="text-warning">
             ⚠️ A cue with this identifier already exists for this cue type
           </b-form-text>
         </b-form-group>
-        <template v-if="line.line_type === LINE_TYPES.DIALOGUE || line.line_type === LINE_TYPES.STAGE_DIRECTION">
-          <hr>
-          <b-form-group
-            id="line-render-group"
-            label="Script Line"
-            label-for="line-render"
-          >
+        <template
+          v-if="
+            line.line_type === LINE_TYPES.DIALOGUE || line.line_type === LINE_TYPES.STAGE_DIRECTION
+          "
+        >
+          <hr />
+          <b-form-group id="line-render-group" label="Script Line" label-for="line-render">
             <b-form-text id="line-render">
               <b-row>
                 <template v-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
@@ -197,16 +147,22 @@
                   >
                     <i
                       class="viewable-line"
-                      :class="{'cut-line-part': linePartCuts.indexOf(line.line_parts[0].id) !== -1}"
+                      :class="{
+                        'cut-line-part': linePartCuts.indexOf(line.line_parts[0].id) !== -1,
+                      }"
                       :style="stageDirectionStyling"
                     >
                       <template
-                        v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+                        v-if="
+                          stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'
+                        "
                       >
                         {{ line.line_parts[0].line_text | uppercase }}
                       </template>
                       <template
-                        v-else-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'"
+                        v-else-if="
+                          stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'
+                        "
                       >
                         {{ line.line_parts[0].line_text | lowercase }}
                       </template>
@@ -223,15 +179,15 @@
                     :style="headingStyle"
                   >
                     <b v-if="part.character_id != null">
-                      {{ characters.find((char) => (char.id === part.character_id)).name }}
+                      {{ characters.find((char) => char.id === part.character_id).name }}
                     </b>
                     <b v-else>
-                      {{ characterGroups.find((char) => (char.id === part.character_group_id)).name }}
+                      {{ characterGroups.find((char) => char.id === part.character_group_id).name }}
                     </b>
 
                     <p
                       class="viewable-line"
-                      :class="{'cut-line-part': linePartCuts.indexOf(part.id) !== -1}"
+                      :class="{ 'cut-line-part': linePartCuts.indexOf(part.id) !== -1 }"
                     >
                       {{ part.line_text }}
                     </p>
@@ -251,15 +207,8 @@
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form
-        ref="edit-cue-form"
-        @submit.stop.prevent="onSubmitEdit"
-      >
-        <b-form-group
-          id="type-input-group"
-          label="Cue Type"
-          label-for="type-input"
-        >
+      <b-form ref="edit-cue-form" @submit.stop.prevent="onSubmitEdit">
+        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
           <b-form-select
             id="act-input"
             v-model="$v.editFormState.cueType.$model"
@@ -267,17 +216,11 @@
             :state="validateEditState('cueType')"
             aria-describedby="cue-type-feedback"
           />
-          <b-form-invalid-feedback
-            id="cue-type-feedback"
-          >
+          <b-form-invalid-feedback id="cue-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="ident-input-group"
-          label="Identifier"
-          label-for="ident-input"
-        >
+        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
           <b-form-input
             id="ident-input"
             v-model="$v.editFormState.ident.$model"
@@ -285,15 +228,10 @@
             :state="validateEditState('ident')"
             aria-describedby="ident-feedback"
           />
-          <b-form-invalid-feedback
-            id="ident-feedback"
-          >
+          <b-form-invalid-feedback id="ident-feedback">
             This is a required field.
           </b-form-invalid-feedback>
-          <b-form-text
-            v-if="isDuplicateEditCue"
-            class="text-warning"
-          >
+          <b-form-text v-if="isDuplicateEditCue" class="text-warning">
             ⚠️ A cue with this identifier already exists for this cue type
           </b-form-text>
         </b-form-group>
@@ -434,36 +372,60 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['IS_CUE_EDITOR', 'RBAC_ROLES', 'CURRENT_USER_RBAC', 'IS_ADMIN_USER', 'SCRIPT_CUES', 'CUE_COLOUR_OVERRIDES']),
+    ...mapGetters([
+      'IS_CUE_EDITOR',
+      'RBAC_ROLES',
+      'CURRENT_USER_RBAC',
+      'IS_ADMIN_USER',
+      'SCRIPT_CUES',
+      'CUE_COLOUR_OVERRIDES',
+    ]),
     cueTypeOptions() {
       if (this.IS_ADMIN_USER) {
         return [
           { value: null, text: 'N/A' },
-          ...this.cueTypes.map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
+          ...this.cueTypes.map((cueType) => ({
+            value: cueType.id,
+            text: `${cueType.prefix}: ${cueType.description}`,
+          })),
         ];
       }
       const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
-       
-      const allowableCueTypes = this.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & writeMask) !== 0).map((x) => x[0].id);
+
+      const allowableCueTypes = this.CURRENT_USER_RBAC.cuetypes
+        .filter((x) => (x[1] & writeMask) !== 0)
+        .map((x) => x[0].id);
       return [
         { value: null, text: 'N/A' },
-        ...this.cueTypes.filter((cueType) => allowableCueTypes.includes(cueType.id)).map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
+        ...this.cueTypes
+          .filter((cueType) => allowableCueTypes.includes(cueType.id))
+          .map((cueType) => ({
+            value: cueType.id,
+            text: `${cueType.prefix}: ${cueType.description}`,
+          })),
       ];
     },
     needsHeadings() {
       const ret = [];
       this.line.line_parts.forEach(function checkLinePartNeedsHeading(part) {
-        if (this.previousLine == null
-          || this.previousLine.line_parts.length !== this.line.line_parts.length) {
+        if (
+          this.previousLine == null ||
+          this.previousLine.line_parts.length !== this.line.line_parts.length
+        ) {
           ret.push(true);
         } else {
-          const matchingIndex = this.previousLine.line_parts.find((prevPart) => (
-            prevPart.part_index === part.part_index));
+          const matchingIndex = this.previousLine.line_parts.find(
+            (prevPart) => prevPart.part_index === part.part_index
+          );
           if (matchingIndex == null) {
             ret.push(true);
           } else {
-            ret.push(!(matchingIndex.character_id === part.character_id
-              && matchingIndex.character_group_id === part.character_group_id));
+            ret.push(
+              !(
+                matchingIndex.character_id === part.character_id &&
+                matchingIndex.character_group_id === part.character_group_id
+              )
+            );
           }
         }
       }, this);
@@ -473,26 +435,35 @@ export default {
       if (this.previousLine == null) {
         return true;
       }
-      return !(this.previousLine.act_id === this.line.act_id
-        && this.previousLine.scene_id === this.line.scene_id);
+      return !(
+        this.previousLine.act_id === this.line.act_id &&
+        this.previousLine.scene_id === this.line.scene_id
+      );
     },
     flatScriptCues() {
-      return Object.keys(this.SCRIPT_CUES).map((key) => this.SCRIPT_CUES[key]).flat();
+      return Object.keys(this.SCRIPT_CUES)
+        .map((key) => this.SCRIPT_CUES[key])
+        .flat();
     },
     isDuplicateNewCue() {
       if (this.newFormState.ident == null || this.newFormState.cueType == null) {
         return false;
       }
-      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.newFormState.cueType
-        && cue.ident === this.newFormState.ident);
+      return this.flatScriptCues.some(
+        (cue) =>
+          cue.cue_type_id === this.newFormState.cueType && cue.ident === this.newFormState.ident
+      );
     },
     isDuplicateEditCue() {
       if (this.editFormState.ident == null || this.editFormState.cueType == null) {
         return false;
       }
-      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.editFormState.cueType
-        && cue.ident === this.editFormState.ident
-        && cue.id !== this.editFormState.cueId);
+      return this.flatScriptCues.some(
+        (cue) =>
+          cue.cue_type_id === this.editFormState.cueType &&
+          cue.ident === this.editFormState.ident &&
+          cue.id !== this.editFormState.cueId
+      );
     },
   },
   methods: {
@@ -608,7 +579,7 @@ export default {
       }
     },
     cueLabel(cue) {
-      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
+      const cueType = this.cueTypes.find((cT) => cT.id === cue.cue_type_id);
       return `${cueType.prefix} ${cue.ident}`;
     },
     cueBackgroundColour(cue) {
@@ -632,17 +603,17 @@ export default {
 </script>
 
 <style scoped>
-  .viewable-line {
-    margin: 0;
-  }
-  .cue-button {
-    padding: .2rem;
-  }
-  .stage-direction {
-    margin-top: 1rem;
-    margin-bottom: 1rem;
-  }
-  .cut-line-part {
-    text-decoration: line-through;
-  }
+.viewable-line {
+  margin: 0;
+}
+.cue-button {
+  padding: 0.2rem;
+}
+.stage-direction {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+.cut-line-part {
+  text-decoration: line-through;
+}
 </style>

@@ -1,8 +1,5 @@
 <template>
-  <div
-    v-if="!loading"
-    class="config"
-  >
+  <div v-if="!loading" class="config">
     <b-table-simple>
       <b-tbody>
         <b-tr>
@@ -24,12 +21,7 @@
               >
                 Load Show
               </b-button>
-              <b-button
-                v-b-modal.show-config
-                variant="outline-success"
-              >
-                Setup New Show
-              </b-button>
+              <b-button v-b-modal.show-config variant="outline-success"> Setup New Show </b-button>
             </b-button-group>
           </b-td>
         </b-tr>
@@ -41,10 +33,7 @@
             {{ connectedClients.length }}
           </b-td>
           <b-td>
-            <b-button
-              v-b-modal.connected-clients
-              variant="outline-success"
-            >
+            <b-button v-b-modal.connected-clients variant="outline-success">
               View Clients
             </b-button>
           </b-td>
@@ -61,15 +50,8 @@
       @ok="onSubmit"
     >
       <div>
-        <b-form
-          ref="form"
-          @submit.stop.prevent="onSubmit"
-        >
-          <b-form-group
-            id="name-input-group"
-            label="Name"
-            label-for="name-input"
-          >
+        <b-form ref="form" @submit.stop.prevent="onSubmit">
+          <b-form-group id="name-input-group" label="Name" label-for="name-input">
             <b-form-input
               id="name-input"
               v-model="$v.formState.name.$model"
@@ -78,18 +60,12 @@
               aria-describedby="name-feedback"
             />
 
-            <b-form-invalid-feedback
-              id="name-feedback"
-            >
+            <b-form-invalid-feedback id="name-feedback">
               This is a required field and must be less than 100 characters.
             </b-form-invalid-feedback>
           </b-form-group>
 
-          <b-form-group
-            id="start-input-group"
-            label="Start Date"
-            label-for="start-input"
-          >
+          <b-form-group id="start-input-group" label="Start Date" label-for="start-input">
             <b-form-input
               id="start-input"
               v-model="$v.formState.start.$model"
@@ -98,18 +74,12 @@
               :state="validateState('start')"
               aria-describedby="start-feedback"
             />
-            <b-form-invalid-feedback
-              id="start-feedback"
-            >
+            <b-form-invalid-feedback id="start-feedback">
               This is a required field and must be before or the same as the end date.
             </b-form-invalid-feedback>
           </b-form-group>
 
-          <b-form-group
-            id="end-input-group"
-            label="End Date"
-            label-for="end-input"
-          >
+          <b-form-group id="end-input-group" label="End Date" label-for="end-input">
             <b-form-input
               id="end-input"
               v-model="$v.formState.end.$model"
@@ -118,36 +88,22 @@
               :state="validateState('end')"
               aria-describedby="end-feedback"
             />
-            <b-form-invalid-feedback
-              id="end-feedback"
-            >
+            <b-form-invalid-feedback id="end-feedback">
               This is a required field and must be after or the same as the start date.
             </b-form-invalid-feedback>
           </b-form-group>
         </b-form>
       </div>
-      <hr>
+      <hr />
       <div>
         <b-button v-b-toggle.advanced-options-collapse>
           <b-icon icon="gear-wide-connected" /> Advanced Options
         </b-button>
-        <b-collapse
-          id="advanced-options-collapse"
-          style="margin-top: 0.5rem;"
-        >
+        <b-collapse id="advanced-options-collapse" style="margin-top: 0.5rem">
           <b-card>
-            <b-form-group
-              id="script-mode-group"
-              label="Script Mode"
-              label-for="script-mode-input"
-            >
-              <b-alert
-                variant="secondary"
-                show
-              >
-                <p>
-                  Change the type of script for this show.
-                </p>
+            <b-form-group id="script-mode-group" label="Script Mode" label-for="script-mode-input">
+              <b-alert variant="secondary" show>
+                <p>Change the type of script for this show.</p>
               </b-alert>
               <b-form-select
                 id="script-mode-input"
@@ -160,34 +116,16 @@
         </b-collapse>
       </div>
       <template #modal-footer="{ ok, cancel }">
-        <b-button
-          variant="secondary"
-          @click.stop="cancel()"
-        >
-          Cancel
-        </b-button>
-        <b-button
-          variant="primary"
-          :disabled="isSubmittingShow"
-          @click.stop="saveAndLoad"
-        >
+        <b-button variant="secondary" @click.stop="cancel()"> Cancel </b-button>
+        <b-button variant="primary" :disabled="isSubmittingShow" @click.stop="saveAndLoad">
           Save and Load
         </b-button>
-        <b-button
-          variant="primary"
-          :disabled="isSubmittingShow"
-          @click.stop="ok()"
-        >
+        <b-button variant="primary" :disabled="isSubmittingShow" @click.stop="ok()">
           Save
         </b-button>
       </template>
     </b-modal>
-    <b-modal
-      id="show-load"
-      ref="load-modal"
-      title="Load Show"
-      size="lg"
-    >
+    <b-modal id="show-load" ref="load-modal" title="Load Show" size="lg">
       <div class="overflow-auto">
         <b-table
           id="shows-table"
@@ -198,11 +136,7 @@
           small
         >
           <template #cell(btn)="data">
-            <b-button
-              variant="primary"
-              :disabled="isSubmittingLoad"
-              @click="loadShow(data.item)"
-            >
+            <b-button variant="primary" :disabled="isSubmittingLoad" @click="loadShow(data.item)">
               Load Show
             </b-button>
           </template>
@@ -239,14 +173,8 @@
       />
     </b-modal>
   </div>
-  <div
-    v-else
-    class="text-center center-spinner"
-  >
-    <b-spinner
-      style="width: 10rem; height: 10rem;"
-      variant="info"
-    />
+  <div v-else class="text-center center-spinner">
+    <b-spinner style="width: 10rem; height: 10rem" variant="info" />
   </div>
 </template>
 
@@ -300,13 +228,13 @@ export default {
       },
       start: {
         required,
-        beforeEnd: (value, vm) => (value == null && vm.end != null ? false
-          : new Date(value) <= new Date(vm.end)),
+        beforeEnd: (value, vm) =>
+          value == null && vm.end != null ? false : new Date(value) <= new Date(vm.end),
       },
       end: {
         required,
-        afterStart: (value, vm) => (value == null && vm.start != null ? false
-          : new Date(value) >= new Date(vm.start)),
+        afterStart: (value, vm) =>
+          value == null && vm.start != null ? false : new Date(value) >= new Date(vm.start),
       },
       script_mode: {
         required,
@@ -315,8 +243,10 @@ export default {
   },
   computed: {
     currentShowLoaded() {
-      return (this.$store.state.system.settings.current_show != null
-        && this.$store.state.currentShow != null);
+      return (
+        this.$store.state.system.settings.current_show != null &&
+        this.$store.state.currentShow != null
+      );
     },
     ...mapGetters(['SCRIPT_MODES']),
   },

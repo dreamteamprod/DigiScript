@@ -1,27 +1,14 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row style="margin-top: 1rem">
-      <b-col
-        cols="4"
-        offset="4"
-      >
+      <b-col cols="4" offset="4">
         <h3>Login to DigiScript</h3>
       </b-col>
     </b-row>
     <b-row style="margin-top: 1rem">
-      <b-col
-        cols="4"
-        offset="4"
-      >
+      <b-col cols="4" offset="4">
         <b-form>
-          <b-form-group
-            id="username-input-group"
-            label="Username"
-            label-for="username-input"
-          >
+          <b-form-group id="username-input-group" label="Username" label-for="username-input">
             <b-form-input
               id="username-input"
               v-model="$v.state.username.$model"
@@ -30,17 +17,11 @@
               aria-describedby="username-feedback"
               @keydown.enter.native="doLogin"
             />
-            <b-form-invalid-feedback
-              id="username-feedback"
-            >
+            <b-form-invalid-feedback id="username-feedback">
               This is a required field.
             </b-form-invalid-feedback>
           </b-form-group>
-          <b-form-group
-            id="password-input-group"
-            label="Password"
-            label-for="password-input"
-          >
+          <b-form-group id="password-input-group" label="Password" label-for="password-input">
             <b-form-input
               id="password-input"
               v-model="$v.state.password.$model"
@@ -50,26 +31,17 @@
               type="password"
               @keydown.enter.native="doLogin"
             />
-            <b-form-invalid-feedback
-              id="password-feedback"
-            >
+            <b-form-invalid-feedback id="password-feedback">
               This is a required field.
             </b-form-invalid-feedback>
           </b-form-group>
-          <b-button
-            :disabled="isDisabled"
-            @click="doLogin"
-          >
-            Login
-          </b-button>
+          <b-button :disabled="isDisabled" @click="doLogin"> Login </b-button>
         </b-form>
       </b-col>
     </b-row>
     <b-row v-if="showLoginFeedback">
       <b-col>
-        <b style="color: darkred">
-          Login unsuccessful.
-        </b>
+        <b style="color: darkred"> Login unsuccessful. </b>
       </b-col>
     </b-row>
   </b-container>
@@ -129,6 +101,4 @@ export default {
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

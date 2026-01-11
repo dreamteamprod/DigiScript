@@ -1,8 +1,5 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <template v-if="loaded">
@@ -63,36 +60,17 @@
                   :state="validateState('script_text_alignment')"
                 />
               </b-form-group>
-              <b-button-group
-                size="md"
-                style="float: right"
-              >
-                <b-button
-                  type="reset"
-                  variant="danger"
-                  :disabled="!$v.$anyDirty"
-                >
-                  Reset
-                </b-button>
-                <b-button
-                  type="submit"
-                  variant="primary"
-                  :disabled="!$v.$anyDirty || $v.$anyError"
-                >
+              <b-button-group size="md" style="float: right">
+                <b-button type="reset" variant="danger" :disabled="!$v.$anyDirty"> Reset </b-button>
+                <b-button type="submit" variant="primary" :disabled="!$v.$anyDirty || $v.$anyError">
                   Submit
                 </b-button>
               </b-button-group>
             </div>
           </b-form>
         </template>
-        <div
-          v-else
-          class="text-center center-spinner"
-        >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
+        <div v-else class="text-center center-spinner">
+          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
         </div>
       </b-col>
     </b-row>
@@ -185,6 +163,4 @@ export default {
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

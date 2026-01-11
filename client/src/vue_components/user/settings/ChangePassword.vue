@@ -59,21 +59,9 @@
         </b-form-invalid-feedback>
       </b-form-group>
 
-      <b-button
-        type="submit"
-        variant="primary"
-        :disabled="isDisabled || loading"
-      >
-        <b-spinner
-          v-if="loading"
-          small
-          class="mr-1"
-        />
-        <b-icon
-          v-else
-          icon="key"
-          class="mr-1"
-        />
+      <b-button type="submit" variant="primary" :disabled="isDisabled || loading">
+        <b-spinner v-if="loading" small class="mr-1" />
+        <b-icon v-else icon="key" class="mr-1" />
         Change Password
       </b-button>
     </b-form>

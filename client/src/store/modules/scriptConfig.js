@@ -33,8 +33,10 @@ export default {
     INSERT_BLANK_LINE(state, { pageNo, lineIndex, lineObj }) {
       const pageNoStr = pageNo.toString();
 
-      if (Object.keys(state.deletedLines).includes(pageNoStr)
-          && state.deletedLines[pageNoStr].includes(lineIndex)) {
+      if (
+        Object.keys(state.deletedLines).includes(pageNoStr) &&
+        state.deletedLines[pageNoStr].includes(lineIndex)
+      ) {
         const lineId = state.tmpScript[pageNoStr][lineIndex].id;
         const line = JSON.parse(JSON.stringify(lineObj));
         line.page = pageNo;
@@ -64,8 +66,10 @@ export default {
       } else {
         state.tmpScript[pageNoStr].splice(lineIndex, 1);
       }
-      if (Object.keys(state.insertedLines).includes(pageNoStr)
-          && state.insertedLines[pageNoStr].includes(lineIndex)) {
+      if (
+        Object.keys(state.insertedLines).includes(pageNoStr) &&
+        state.insertedLines[pageNoStr].includes(lineIndex)
+      ) {
         state.insertedLines[pageNoStr].splice(lineIndex, 1);
       }
     },
@@ -146,7 +150,7 @@ export default {
           actualScriptPage.splice(
             lineIndex,
             0,
-            JSON.parse(JSON.stringify(tmpScriptPage[lineIndex])),
+            JSON.parse(JSON.stringify(tmpScriptPage[lineIndex]))
           );
         });
 

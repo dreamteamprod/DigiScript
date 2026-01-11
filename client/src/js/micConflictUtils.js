@@ -237,9 +237,10 @@ export function detectMicConflicts(allocations, scenes, acts, currentShow, chara
 
         // Avoid duplicate conflicts (if scene A→B is a conflict, don't also add B→A)
         const isDuplicate = conflicts.some(
-          (c) => c.micId === parseInt(micId, 10)
-            && c.sceneId === adjacentSceneId
-            && c.adjacentSceneId === sceneIdNum,
+          (c) =>
+            c.micId === parseInt(micId, 10) &&
+            c.sceneId === adjacentSceneId &&
+            c.adjacentSceneId === sceneIdNum
         );
 
         if (!isDuplicate) {

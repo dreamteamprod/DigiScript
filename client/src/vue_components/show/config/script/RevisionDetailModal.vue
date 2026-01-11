@@ -8,11 +8,7 @@
     <div v-if="revision">
       <b-row>
         <b-col cols="12">
-          <b-alert
-            v-if="isCurrentRevision"
-            show
-            variant="success"
-          >
+          <b-alert v-if="isCurrentRevision" show variant="success">
             <b-icon-check-circle-fill />
             This is the current active revision
           </b-alert>
@@ -20,10 +16,7 @@
       </b-row>
 
       <b-row>
-        <b-col
-          cols="12"
-          md="6"
-        >
+        <b-col cols="12" md="6">
           <dl>
             <dt>Revision Number</dt>
             <dd>{{ revision.revision }}</dd>
@@ -39,15 +32,12 @@
           </dl>
         </b-col>
 
-        <b-col
-          cols="12"
-          md="6"
-        >
+        <b-col cols="12" md="6">
           <dl>
             <dt>Previous Revision</dt>
             <dd v-if="previousRevision">
               Revision {{ previousRevision.revision }}
-              <br>
+              <br />
               <small class="text-muted">{{ previousRevision.description }}</small>
             </dd>
             <dd v-else>
@@ -57,10 +47,7 @@
             <dt>Child Revisions</dt>
             <dd v-if="childRevisions.length > 0">
               <ul class="list-unstyled">
-                <li
-                  v-for="child in childRevisions"
-                  :key="child.id"
-                >
+                <li v-for="child in childRevisions" :key="child.id">
                   Revision {{ child.revision }}: {{ child.description }}
                 </li>
               </ul>
@@ -82,10 +69,7 @@
             :disabled="submitting"
             @click="handleLoadRevision"
           >
-            <b-spinner
-              v-if="submitting === 'load'"
-              small
-            />
+            <b-spinner v-if="submitting === 'load'" small />
             Load This Revision
           </b-button>
         </div>
@@ -96,19 +80,10 @@
             :disabled="submitting"
             @click="handleCreateFrom"
           >
-            <b-spinner
-              v-if="submitting === 'create'"
-              small
-            />
+            <b-spinner v-if="submitting === 'create'" small />
             Create Branch From Here
           </b-button>
-          <b-button
-            variant="secondary"
-            class="ml-2"
-            @click="handleClose"
-          >
-            Close
-          </b-button>
+          <b-button variant="secondary" class="ml-2" @click="handleClose"> Close </b-button>
         </div>
       </div>
     </template>

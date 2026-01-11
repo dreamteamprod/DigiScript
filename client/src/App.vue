@@ -1,55 +1,56 @@
 <template>
   <div id="app">
-    <b-navbar
-      toggleable="lg"
-      type="dark"
-      variant="info"
-      :sticky="true"
-    >
-      <b-navbar-brand to="/">
-        DigiScript
-      </b-navbar-brand>
+    <b-navbar toggleable="lg" type="dark" variant="info" :sticky="true">
+      <b-navbar-brand to="/"> DigiScript </b-navbar-brand>
       <b-navbar-toggle target="nav-collapse" />
-      <b-collapse
-        id="nav-collapse"
-        is-nav
-      >
+      <b-collapse id="nav-collapse" is-nav>
         <b-navbar-nav>
           <template v-if="$store.state.currentShow != null">
-            <b-nav-item
-              to="/live"
-              :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY"
-            >
+            <b-nav-item to="/live" :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY">
               Live
             </b-nav-item>
-            <b-nav-item-dropdown
-              v-if="IS_SHOW_EXECUTOR || IS_ADMIN_USER"
-              text="Live Config"
-            >
+            <b-nav-item-dropdown v-if="IS_SHOW_EXECUTOR || IS_ADMIN_USER" text="Live Config">
               <b-dropdown-item-button
-                :disabled="CURRENT_SHOW_SESSION != null || !WEBSOCKET_HEALTHY || stoppingSession ||
-                  startingSession"
+                :disabled="
+                  CURRENT_SHOW_SESSION != null ||
+                  !WEBSOCKET_HEALTHY ||
+                  stoppingSession ||
+                  startingSession
+                "
                 @click.stop.prevent="startShowSession"
               >
                 Start Session
               </b-dropdown-item-button>
               <b-dropdown-item-button
-                :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY || stoppingSession ||
-                  startingSession"
+                :disabled="
+                  CURRENT_SHOW_SESSION == null ||
+                  !WEBSOCKET_HEALTHY ||
+                  stoppingSession ||
+                  startingSession
+                "
                 @click.stop.prevent="stopShowSession"
               >
                 Stop Session
               </b-dropdown-item-button>
               <b-dropdown-item-btn
-                :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY || stoppingSession ||
-                  startingSession"
+                :disabled="
+                  CURRENT_SHOW_SESSION == null ||
+                  !WEBSOCKET_HEALTHY ||
+                  stoppingSession ||
+                  startingSession
+                "
                 @click.stop.prevent="reloadClients"
               >
                 Reload Clients
               </b-dropdown-item-btn>
               <b-dropdown-item
                 v-b-modal.go-to-page
-                :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY || stoppingSession || startingSession"
+                :disabled="
+                  CURRENT_SHOW_SESSION == null ||
+                  !WEBSOCKET_HEALTHY ||
+                  stoppingSession ||
+                  startingSession
+                "
               >
                 Jump To Page
               </b-dropdown-item>
@@ -73,59 +74,32 @@
           </b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
-          <b-nav-item to="/help">
-            Help
-          </b-nav-item>
-          <b-nav-item to="/about">
-            About
-          </b-nav-item>
-          <b-nav-item
-            v-if="CURRENT_USER == null"
-            to="/login"
-          >
-            Login
-          </b-nav-item>
+          <b-nav-item to="/help"> Help </b-nav-item>
+          <b-nav-item to="/about"> About </b-nav-item>
+          <b-nav-item v-if="CURRENT_USER == null" to="/login"> Login </b-nav-item>
           <b-nav-item-dropdown v-else>
             <template #button-content>
               <em>{{ CURRENT_USER.username }}</em>
             </template>
-            <b-dropdown-item to="/me">
-              Settings
-            </b-dropdown-item>
+            <b-dropdown-item to="/me"> Settings </b-dropdown-item>
             <b-dropdown-item-button @click.stop.prevent="USER_LOGOUT">
               Sign Out
             </b-dropdown-item-button>
           </b-nav-item-dropdown>
-          <b-nav-text
-            id="connection-status"
-            :class="{ healthy: WEBSOCKET_HEALTHY }"
-            right
-          >
-            <template v-if="WEBSOCKET_HEALTHY">
-              Connected
-            </template>
-            <template v-else>
-              Disconnected
-            </template>
+          <b-nav-text id="connection-status" :class="{ healthy: WEBSOCKET_HEALTHY }" right>
+            <template v-if="WEBSOCKET_HEALTHY"> Connected </template>
+            <template v-else> Disconnected </template>
           </b-nav-text>
         </b-navbar-nav>
       </b-collapse>
     </b-navbar>
     <template v-if="!loaded">
-      <div
-        class="text-center center-spinner"
-      >
-        <b-spinner
-          style="width: 10rem; height: 10rem;"
-          variant="info"
-        />
+      <div class="text-center center-spinner">
+        <b-spinner style="width: 10rem; height: 10rem" variant="info" />
       </div>
     </template>
     <template v-else-if="SETTINGS.has_admin_user === false">
-      <b-container
-        class="mx-0"
-        fluid
-      >
+      <b-container class="mx-0" fluid>
         <b-row>
           <b-col>
             <h2>Welcome to DigiScript</h2>
@@ -133,10 +107,7 @@
           </b-col>
         </b-row>
         <b-row style="margin-top: 1rem">
-          <b-col
-            cols="6"
-            offset="3"
-          >
+          <b-col cols="6" offset="3">
             <create-user :is-first-admin="true" />
           </b-col>
         </b-row>
@@ -155,12 +126,7 @@
       @ok="goToLivePage"
     >
       <b-form @submit.stop.prevent="">
-        <b-form-group
-          id="page-input-group"
-          label="Page"
-          label-for="page-input"
-          label-cols="auto"
-        >
+        <b-form-group id="page-input-group" label="Page" label-for="page-input" label-cols="auto">
           <b-form-input
             id="page-input"
             v-model="$v.pageInputFormState.pageNo.$model"
@@ -169,9 +135,7 @@
             :state="validatePageState('pageNo')"
             aria-describedby="page-feedback"
           />
-          <b-form-invalid-feedback
-            id="page-feedback"
-          >
+          <b-form-invalid-feedback id="page-feedback">
             This is a required field, and must be greater than 0.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -215,14 +179,16 @@ export default {
   },
   computed: {
     isAllowedScriptConfig() {
-      return (this.IS_ADMIN_USER
-        || this.IS_SHOW_EDITOR
-        || this.IS_SHOW_READER
-        || this.IS_SHOW_EXECUTOR
-        || this.IS_SCRIPT_READER
-        || this.IS_SCRIPT_EDITOR
-        || this.IS_CUE_READER
-        || this.IS_CUE_EDITOR);
+      return (
+        this.IS_ADMIN_USER ||
+        this.IS_SHOW_EDITOR ||
+        this.IS_SHOW_READER ||
+        this.IS_SHOW_EXECUTOR ||
+        this.IS_SCRIPT_READER ||
+        this.IS_SCRIPT_EDITOR ||
+        this.IS_CUE_READER ||
+        this.IS_CUE_EDITOR
+      );
     },
     ...mapGetters([
       'IS_ADMIN_USER',

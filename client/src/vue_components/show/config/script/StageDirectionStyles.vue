@@ -8,11 +8,7 @@
     show-empty
   >
     <template #head(btn)="data">
-      <b-button
-        v-if="IS_SCRIPT_EDITOR"
-        v-b-modal.new-config-modal
-        variant="outline-success"
-      >
+      <b-button v-if="IS_SCRIPT_EDITOR" v-b-modal.new-config-modal variant="outline-success">
         New Style
       </b-button>
       <b-modal
@@ -27,10 +23,7 @@
       >
         <div>
           <h4>Example Stage Direction</h4>
-          <i
-            class="example-stage-direction"
-            :style="newFormExampleCss"
-          >
+          <i class="example-stage-direction" :style="newFormExampleCss">
             <template v-if="newStyleFormState.textFormat === 'upper'">
               {{ exampleText | uppercase }}
             </template>
@@ -44,10 +37,7 @@
         </div>
         <div>
           <h4>Configuration Options</h4>
-          <b-form
-            ref="new-config-form"
-            @ok="onSubmitNewStyle"
-          >
+          <b-form ref="new-config-form" @ok="onSubmitNewStyle">
             <b-form-group
               id="description-input-group"
               label="Description"
@@ -60,17 +50,11 @@
                 :state="validateNewStyleState('description')"
                 aria-describedby="description-feedback"
               />
-              <b-form-invalid-feedback
-                id="description-feedback"
-              >
+              <b-form-invalid-feedback id="description-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
-            <b-form-group
-              id="styling-group"
-              label="Default Styles"
-              label-for="styling-input"
-            >
+            <b-form-group id="styling-group" label="Default Styles" label-for="styling-input">
               <b-button-group id="styling-input">
                 <b-button
                   v-for="(btn, idx) in $v.newStyleFormState.styleOptions.$model"
@@ -91,21 +75,9 @@
                 id="text-format-input"
                 v-model="$v.newStyleFormState.textFormat.$model"
               >
-                <b-form-select-option
-                  value="default"
-                >
-                  Default
-                </b-form-select-option>
-                <b-form-select-option
-                  value="upper"
-                >
-                  Uppercase
-                </b-form-select-option>
-                <b-form-select-option
-                  value="lower"
-                >
-                  Lowercase
-                </b-form-select-option>
+                <b-form-select-option value="default"> Default </b-form-select-option>
+                <b-form-select-option value="upper"> Uppercase </b-form-select-option>
+                <b-form-select-option value="lower"> Lowercase </b-form-select-option>
               </b-form-select>
             </b-form-group>
             <b-form-group
@@ -121,9 +93,7 @@
                 :state="validateNewStyleState('textColour')"
                 aria-describedby="colour-feedback"
               />
-              <b-form-invalid-feedback
-                id="colour-feedback"
-              >
+              <b-form-invalid-feedback id="colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -164,10 +134,7 @@
       >
         <div>
           <h4>Example Stage Direction</h4>
-          <i
-            class="example-stage-direction"
-            :style="editFormExampleCss"
-          >
+          <i class="example-stage-direction" :style="editFormExampleCss">
             <template v-if="editStyleFormState.textFormat === 'upper'">
               {{ exampleText | uppercase }}
             </template>
@@ -181,10 +148,7 @@
         </div>
         <div>
           <h4>Configuration Options</h4>
-          <b-form
-            ref="edit-config-form"
-            @ok="onSubmitEditStyle"
-          >
+          <b-form ref="edit-config-form" @ok="onSubmitEditStyle">
             <b-form-group
               id="description-input-group"
               label="Description"
@@ -197,17 +161,11 @@
                 :state="validateEditStyleState('description')"
                 aria-describedby="description-feedback"
               />
-              <b-form-invalid-feedback
-                id="description-feedback"
-              >
+              <b-form-invalid-feedback id="description-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
-            <b-form-group
-              id="styling-group"
-              label="Default Styles"
-              label-for="styling-input"
-            >
+            <b-form-group id="styling-group" label="Default Styles" label-for="styling-input">
               <b-button-group id="styling-input">
                 <b-button
                   v-for="(btn, idx) in $v.editStyleFormState.styleOptions.$model"
@@ -228,21 +186,9 @@
                 id="text-format-input"
                 v-model="$v.editStyleFormState.textFormat.$model"
               >
-                <b-form-select-option
-                  value="default"
-                >
-                  Default
-                </b-form-select-option>
-                <b-form-select-option
-                  value="upper"
-                >
-                  Uppercase
-                </b-form-select-option>
-                <b-form-select-option
-                  value="lower"
-                >
-                  Lowercase
-                </b-form-select-option>
+                <b-form-select-option value="default"> Default </b-form-select-option>
+                <b-form-select-option value="upper"> Uppercase </b-form-select-option>
+                <b-form-select-option value="lower"> Lowercase </b-form-select-option>
               </b-form-select>
             </b-form-group>
             <b-form-group
@@ -258,9 +204,7 @@
                 :state="validateEditStyleState('textColour')"
                 aria-describedby="colour-feedback"
               />
-              <b-form-invalid-feedback
-                id="colour-feedback"
-              >
+              <b-form-invalid-feedback id="colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -292,10 +236,7 @@
       </b-modal>
     </template>
     <template #cell(example)="data">
-      <i
-        class="example-stage-direction"
-        :style="exampleCss(data.item)"
-      >
+      <i class="example-stage-direction" :style="exampleCss(data.item)">
         <template v-if="data.item.text_format === 'upper'">
           {{ exampleText | uppercase }}
         </template>
@@ -379,9 +320,18 @@ export default {
     ...mapGetters(['STAGE_DIRECTION_STYLES', 'IS_SCRIPT_EDITOR']),
     newFormExampleCss() {
       const style = {
-        'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state ? 'bold' : 'normal',
-        'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state ? 'italic' : 'normal',
-        'text-decoration-line': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state ? 'underline' : 'none',
+        'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state
+          ? 'bold'
+          : 'normal',
+        'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic')
+          .state
+          ? 'italic'
+          : 'normal',
+        'text-decoration-line': this.newStyleFormState.styleOptions.find(
+          (el) => el.caption === 'Underline'
+        ).state
+          ? 'underline'
+          : 'none',
         color: this.newStyleFormState.textColour,
       };
       if (this.newStyleFormState.enableBackgroundColour) {
@@ -391,9 +341,19 @@ export default {
     },
     editFormExampleCss() {
       const style = {
-        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state ? 'bold' : 'normal',
-        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state ? 'italic' : 'normal',
-        'text-decoration-line': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state ? 'underline' : 'none',
+        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold')
+          .state
+          ? 'bold'
+          : 'normal',
+        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic')
+          .state
+          ? 'italic'
+          : 'normal',
+        'text-decoration-line': this.editStyleFormState.styleOptions.find(
+          (el) => el.caption === 'Underline'
+        ).state
+          ? 'underline'
+          : 'none',
         color: this.editStyleFormState.textColour,
       };
       if (this.editStyleFormState.enableBackgroundColour) {
@@ -406,7 +366,8 @@ export default {
         description: this.newStyleFormState.description,
         bold: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
         italic: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
-        underline: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state,
+        underline: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline')
+          .state,
         textFormat: this.newStyleFormState.textFormat,
         textColour: this.newStyleFormState.textColour,
         enableBackgroundColour: this.newStyleFormState.enableBackgroundColour,
@@ -419,7 +380,8 @@ export default {
         description: this.editStyleFormState.description,
         bold: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
         italic: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
-        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline').state,
+        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline')
+          .state,
         textFormat: this.editStyleFormState.textFormat,
         textColour: this.editStyleFormState.textColour,
         enableBackgroundColour: this.editStyleFormState.enableBackgroundColour,
@@ -617,7 +579,12 @@ export default {
       }
       return style;
     },
-    ...mapActions(['GET_STAGE_DIRECTION_STYLES', 'ADD_STAGE_DIRECTION_STYLE', 'DELETE_STAGE_DIRECTION_STYLE', 'UPDATE_STAGE_DIRECTION_STYLE']),
+    ...mapActions([
+      'GET_STAGE_DIRECTION_STYLES',
+      'ADD_STAGE_DIRECTION_STYLE',
+      'DELETE_STAGE_DIRECTION_STYLE',
+      'UPDATE_STAGE_DIRECTION_STYLE',
+    ]),
   },
 };
 </script>

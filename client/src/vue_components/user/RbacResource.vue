@@ -1,21 +1,11 @@
 <template>
-  <div
-    v-if="!loaded"
-    class="text-center center-spinner"
-  >
-    <b-spinner
-      style="width: 10rem; height: 10rem;"
-      variant="info"
-    />
+  <div v-if="!loaded" class="text-center center-spinner">
+    <b-spinner style="width: 10rem; height: 10rem" variant="info" />
   </div>
   <div v-else-if="loaded && error">
     <b>Unable to load RBAC config, please try again!</b>
   </div>
-  <b-container
-    v-else
-    class="mx-0"
-    fluid
-  >
+  <b-container v-else class="mx-0" fluid>
     <b-row>
       <b-col>
         <b-table
@@ -24,10 +14,7 @@
           :fields="[...displayFields, ...rbacRoles]"
           show-empty
         >
-          <template
-            v-for="role in rbacRoles"
-            #[getCellName(role)]="data"
-          >
+          <template v-for="role in rbacRoles" #[getCellName(role)]="data">
             <b-button
               v-if="(rbacObjects[data.index][1] & rbacRolesDict[role]) === 0"
               :key="role"
