@@ -1,6 +1,6 @@
 <template>
   <b-container
-    v-show="loaded"
+    v-if="loaded"
     class="mx-0 px-0 script-editor-container"
     fluid
   >
@@ -296,6 +296,21 @@
         </b-form-group>
       </b-form>
     </b-modal>
+  </b-container>
+  <b-container
+    v-else
+    class="mx-0 px-0 script-editor-container"
+    fluid
+  >
+    <b-row>
+      <b-col>
+        <div
+          class="text-center py-5"
+        >
+          <b-spinner label="Loading" />
+        </div>
+      </b-col>
+    </b-row>
   </b-container>
 </template>
 
