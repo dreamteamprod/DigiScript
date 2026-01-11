@@ -11,6 +11,7 @@ export default {
     cues: {},
     cuts: [],
     stageDirectionStyles: [],
+    compiledScripts: [],
   },
   mutations: {
     SET_REVISIONS(state, revisions) {
@@ -31,6 +32,9 @@ export default {
     SET_STAGE_DIRECTION_STYLES(state, styles) {
       state.stageDirectionStyles = styles;
     },
+    SET_COMPILED_SCRIPTS(state, compiledScripts) {
+      state.compiledScripts = compiledScripts;
+    }
   },
   actions: {
     async GET_SCRIPT_REVISIONS(context) {
@@ -320,6 +324,20 @@ export default {
         Vue.$toast.error('Unable to edit stage direction style');
       }
     },
+    async GET_COMPILED_SCRIPTS(context) {
+        const response = await fetch(`${makeURL('/api/v1/show/script/compiled_scripts')}`, {
+          method: 'GET',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+        });
+        if (response.ok) {
+          const respJson = await response.json();
+          context.commit('SET_COMPILED_SCRIPTS', respJson.scripts);
+        } else {
+          log.error('Unable to load compiled scripts');
+        }
+    }
   },
   getters: {
     SCRIPT_REVISIONS(state) {
@@ -344,5 +362,8 @@ export default {
     STAGE_DIRECTION_STYLES(state) {
       return state.stageDirectionStyles;
     },
+    COMPILED_SCRIPTS(state) {
+      return state.compiledScripts;
+    }
   },
 };

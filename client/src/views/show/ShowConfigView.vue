@@ -69,6 +69,15 @@
             <b-button
               :disabled="!shouldShowScriptConfig"
               replace
+              :to="{'name': 'show-config-script-revisions'}"
+              variant="outline-info"
+              active-class="active"
+            >
+              Revisions
+            </b-button>
+            <b-button
+              :disabled="!shouldShowScriptConfig"
+              replace
               :to="{'name': 'show-config-script'}"
               variant="outline-info"
               active-class="active"
@@ -154,6 +163,7 @@ export default {
         this.$router.replace({ name: 'show-config-cues' });
       } else if (this.shouldShowScriptConfig) {
         this.$router.replace({ name: 'show-config-script' });
+        this.$router.replace({ name: 'show-config-script-revisions' });
       } else if (this.shouldShowSessionConfig) {
         this.$router.replace({ name: 'show-sessions' });
       } else {
