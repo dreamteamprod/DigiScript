@@ -2,7 +2,10 @@
   <p v-if="!loading">
     <b-table id="compiled-script-table" :items="tableData" :fields="tableColumns" show-empty>
       <template #cell(revision_id)="data">
-        <span>{{ data.item.revision }}</span>
+        <span v-if="data.item.revision_id === CURRENT_REVISION"
+          >{{ data.item.revision }} <b-icon-check-square-fill variant="success"
+        /></span>
+        <span v-else>{{ data.item.revision }}</span>
       </template>
       <template #cell(btn)="data">
         <b-button-group v-if="data.item.revision_id !== pendingRevisionId && IS_SCRIPT_EDITOR">
@@ -75,7 +78,7 @@ export default {
       });
       return data;
     },
-    ...mapGetters(['COMPILED_SCRIPTS', 'SCRIPT_REVISIONS', 'IS_SCRIPT_EDITOR']),
+    ...mapGetters(['COMPILED_SCRIPTS', 'SCRIPT_REVISIONS', 'IS_SCRIPT_EDITOR', 'CURRENT_REVISION']),
   },
   async mounted() {
     await this.GET_COMPILED_SCRIPTS();
