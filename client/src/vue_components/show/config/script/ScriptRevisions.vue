@@ -24,17 +24,14 @@
 
     <b-table id="revisions-table" :items="SCRIPT_REVISIONS" :fields="revisionColumns" show-empty>
       <template #cell(current)="data">
-        <b-icon-check-square-fill
-          v-if="data.item.id === $store.state.script.currentRevision"
-          variant="success"
-        />
+        <b-icon-check-square-fill v-if="data.item.id === CURRENT_REVISION" variant="success" />
         <b-button-group v-else>
           <b-button
             v-if="IS_SCRIPT_EDITOR"
             variant="warning"
             :disabled="
               !canChangeRevisions ||
-              data.item.id === $store.state.script.currentRevision ||
+              data.item.id === CURRENT_REVISION ||
               submittingLoadRevision ||
               submittingNewRevision ||
               deletingRevision
