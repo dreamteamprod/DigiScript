@@ -1,3 +1,4 @@
+import glob
 import os
 import secrets
 import shutil
@@ -20,7 +21,7 @@ from digi_server.logger import configure_db_logging, configure_file_logging, get
 from digi_server.settings import Settings
 from models import models
 from models.cue import CueType
-from models.script import Script
+from models.script import CompiledScript, Script
 from models.session import Session, ShowSession
 from models.settings import SystemSettings
 from models.show import Show
@@ -168,7 +169,50 @@ class DigiScriptServer(PrometheusMixIn, Application):
                         show.current_session_id = None
                     session.commit()
 
-            # 4. Clear out all sessions since we are starting the app up
+            # 4. Tidy up compiled scripts
+            # 4.1. Remove any compiled scripts objects where the data file is missing
+            # 4.2. Remove any compiled script files on disk that are not referenced
+            removed_compiled_scripts = []
+            compiled_scripts: List[CompiledScript] = session.scalars(
+                select(CompiledScript)
+            ).all()
+            for compiled_script in compiled_scripts:
+                if not os.path.exists(compiled_script.data_path):
+                    get_logger().info(
+                        f"Removing compiled script for revision {compiled_script.revision_id} "
+                        f"as data file not found at {compiled_script.data_path}"
+                    )
+                    session.delete(compiled_script)
+                    removed_compiled_scripts.append(compiled_script)
+            if removed_compiled_scripts:
+                session.commit()
+                get_logger().info(
+                    f"Removed {len(removed_compiled_scripts)} compiled script objects from the database."
+                )
+
+            compiled_script_path = self.digi_settings.settings.get(
+                "compiled_script_path"
+            ).get_value()
+            for ds_file in glob.glob(f"{compiled_script_path}/*.ds"):
+                found = False
+                for compiled_script in compiled_scripts:
+                    if compiled_script in removed_compiled_scripts:
+                        continue
+                    if compiled_script.data_path == ds_file:
+                        found = True
+                        break
+                if not found:
+                    get_logger().info(
+                        f"Removing unreferenced compiled script file: {ds_file}"
+                    )
+                    try:
+                        os.remove(ds_file)
+                    except Exception:
+                        get_logger().exception(
+                            f"Failed to remove compiled script file: {ds_file}"
+                        )
+
+            # 5. Clear out all sessions since we are starting the app up
             get_logger().debug("Emptying out sessions table!")
             session.execute(delete(Session))
             session.commit()
