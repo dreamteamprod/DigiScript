@@ -113,9 +113,6 @@
     <b-row class="script-row pt-1">
       <b-col cols="10" class="ml-auto">
         <b-button-group v-show="canEdit && !IS_CUT_MODE" style="float: right">
-          <b-button v-if="canGenerateDebugScript" v-b-modal.debug-generate variant="warning">
-            Debug Script
-          </b-button>
           <b-dropdown
             split
             text="Add Dialogue"
@@ -185,56 +182,6 @@
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal
-      id="debug-generate"
-      ref="debug-generate"
-      title="Generate Debug Script"
-      size="md"
-      :hide-header-close="savingInProgress"
-      :hide-footer="savingInProgress"
-      :no-close-on-backdrop="savingInProgress"
-      :no-close-on-esc="savingInProgress"
-      @ok="generateDebugScript"
-    >
-      <b-form ref="debug-script-form" @submit.stop.prevent="generateDebugScript">
-        <b-form-group
-          id="pages-input-group"
-          label="Pages per Scene"
-          label-for="pages-input"
-          label-cols="auto"
-        >
-          <b-form-input
-            id="pages-input"
-            v-model="$v.debugFormState.pages.$model"
-            name="pages-input"
-            type="number"
-            :state="validateDebugState('pages')"
-            aria-describedby="pages-feedback"
-          />
-          <b-form-invalid-feedback id="pages-feedback">
-            This is a required field, and must be greater than 0.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
-          id="lines-input-group"
-          label="Lines per Page"
-          label-for="lines-input"
-          label-cols="auto"
-        >
-          <b-form-input
-            id="lines-input"
-            v-model="$v.debugFormState.linesPerPage.$model"
-            name="lines-input"
-            type="number"
-            :state="validateDebugState('linesPerPage')"
-            aria-describedby="lines-feedback"
-          />
-          <b-form-invalid-feedback id="lines-feedback">
-            This is a required field, and must be greater than 0.
-          </b-form-invalid-feedback>
-        </b-form-group>
-      </b-form>
-    </b-modal>
   </b-container>
   <b-container v-else class="mx-0 px-0 script-editor-container" fluid>
     <b-row>
@@ -281,10 +228,6 @@ export default {
       savingInProgress: false,
       saveError: false,
       currentMaxPage: 1,
-      debugFormState: {
-        pages: 1,
-        linesPerPage: 1,
-      },
       pageInputFormState: {
         pageNo: 1,
       },
@@ -298,20 +241,6 @@ export default {
     };
   },
   validations: {
-    debugFormState: {
-      pages: {
-        required,
-        notNull,
-        notNullAndGreaterThanZero,
-        minValue: minValue(1),
-      },
-      linesPerPage: {
-        required,
-        notNull,
-        notNullAndGreaterThanZero,
-        minValue: minValue(1),
-      },
-    },
     pageInputFormState: {
       pageNo: {
         required,
@@ -322,9 +251,6 @@ export default {
     },
   },
   computed: {
-    canGenerateDebugScript() {
-      return this.DEBUG_MODE_ENABLED && this.currentMaxPage === 0 && !this.scriptChanges;
-    },
     currentEditPageKey() {
       return this.currentEditPage.toString();
     },
@@ -374,7 +300,6 @@ export default {
       'CURRENT_EDITOR',
       'INTERNAL_UUID',
       'GET_SCRIPT_PAGE',
-      'DEBUG_MODE_ENABLED',
       'DELETED_LINES',
       'SCENE_BY_ID',
       'ACT_BY_ID',
@@ -853,77 +778,6 @@ export default {
         this.setupAutoSave();
         this.savingInProgress = false;
       }
-    },
-    validateDebugState(name) {
-      const { $dirty, $error } = this.$v.debugFormState[name];
-      return $dirty ? !$error : null;
-    },
-    async generateDebugScript(event) {
-      this.$v.debugFormState.$touch();
-      if (this.$v.debugFormState.$anyError) {
-        event.preventDefault();
-        return;
-      }
-
-      const firstActId = this.CURRENT_SHOW.first_act_id;
-      if (firstActId == null) {
-        this.$toast.error('Unable to generate script as first act has not been set!');
-        return;
-      }
-
-      const firstAct = this.ACT_LIST.find((act) => act.id === firstActId);
-      if (firstAct == null) {
-        log.error(`Could not find act with ID ${firstActId}`);
-        this.$toast.error('Unable to generate script!');
-        return;
-      }
-
-      if (this.CHARACTER_LIST.length === 0 && this.CHARACTER_GROUP_LIST.length === 0) {
-        this.$toast.error(
-          'Unable to generate script as no characters or ' + 'character groups created!'
-        );
-        return;
-      }
-
-      let currentAct = firstAct;
-
-      while (currentAct != null) {
-        let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
-        while (currentScene != null) {
-          for (let pageIter = 0; pageIter < this.debugFormState.pages; pageIter++) {
-            for (let linesIter = 0; linesIter < this.debugFormState.linesPerPage; linesIter++) {
-              this.addNewLine();
-              const scriptAtPage = this.TMP_SCRIPT[this.currentEditPageKey];
-              const line = scriptAtPage[scriptAtPage.length - 1];
-              line.act_id = currentAct.id;
-              line.scene_id = currentScene.id;
-              const totalCharacters = this.CHARACTER_GROUP_LIST.length + this.CHARACTER_LIST.length;
-              const partLength = (randInt(0, 100) % Math.min(totalCharacters, 4)) + 1;
-              for (let partIter = 0; partIter < partLength; partIter++) {
-                const characterGroup = this.CHARACTER_GROUP_LIST.length > 0 && randInt(0, 100) > 75;
-                line.line_parts.push({
-                  id: null,
-                  line_id: null,
-                  part_index: partIter,
-                  character_id: characterGroup ? null : sample(this.CHARACTER_LIST).id,
-                  character_group_id: characterGroup ? sample(this.CHARACTER_GROUP_LIST).id : null,
-                  line_text: `Act: ${currentAct.name}. Scene: ${currentScene.name}. Page: ${this.currentEditPage}. Line: ${linesIter + 1}. Part: ${partIter + 1}`,
-                });
-              }
-              this.doneEditingLine(this.currentEditPage, scriptAtPage.length - 1);
-            }
-            await this.incrPage();
-          }
-          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
-        }
-
-        if (currentAct.next_act != null) {
-          currentAct = this.ACT_BY_ID(currentAct.next_act);
-        } else {
-          currentAct = null;
-        }
-      }
-      this.decrPage();
     },
     validatePageState(name) {
       const { $dirty, $error } = this.$v.pageInputFormState[name];

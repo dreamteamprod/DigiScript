@@ -169,7 +169,6 @@ export default {
       'CURRENT_EDITOR',
       'INTERNAL_UUID',
       'GET_SCRIPT_PAGE',
-      'DEBUG_MODE_ENABLED',
       'CUE_TYPES',
       'SCRIPT_CUES',
       'SCRIPT_CUTS',
