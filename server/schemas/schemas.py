@@ -4,6 +4,7 @@ from marshmallow_sqlalchemy.fields import Nested
 from models.cue import Cue, CueType
 from models.mics import Microphone, MicrophoneAllocation
 from models.script import (
+    CompiledScript,
     Script,
     ScriptCuts,
     ScriptLine,
@@ -134,6 +135,14 @@ class ScriptRevisionsSchema(SQLAlchemyAutoSchema):
         load_instance = True
 
     previous_revision_id = auto_field()
+
+
+@schema
+class CompiledScriptSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = CompiledScript
+        load_instance = True
+        include_fk = True
 
 
 @schema
