@@ -8,11 +8,16 @@ from rbac.role import Role
 from registry.schema import get_registry
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import api_authenticated, require_admin
+from utils.web.web_decorators import (
+    allow_when_password_required,
+    api_authenticated,
+    require_admin,
+)
 
 
 @ApiRoute("rbac/roles", ApiVersion.V1)
 class RBACRolesHandler(BaseAPIController):
+    @allow_when_password_required
     async def get(self):
         self.set_status(200)
         await self.finish(
@@ -95,6 +100,7 @@ class RBACObjectsHandler(BaseAPIController):
 @ApiRoute("rbac/user/roles", ApiVersion.V1)
 class RBACUserRolesHandler(BaseAPIController):
     @api_authenticated
+    @allow_when_password_required
     async def get(self):
         with self.make_session() as session:
             res = defaultdict(list)

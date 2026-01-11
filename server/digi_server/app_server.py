@@ -27,6 +27,7 @@ from models.settings import SystemSettings
 from models.show import Show
 from models.user import User
 from rbac.rbac import RBACController
+from services.user_service import UserService
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.module_discovery import get_resource_path, is_frozen
@@ -105,6 +106,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         # Configure the JWT service once we have set up the database
         self.jwt_service = self._configure_jwt()
+
+        # Configure the User service
+        self.user_service = UserService(self)
 
         # On startup, perform the following checks/operations with the database:
         with self._db.sessionmaker() as session:

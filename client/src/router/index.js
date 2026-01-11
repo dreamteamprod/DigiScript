@@ -114,6 +114,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/force-password-change',
+    name: 'force_password_change',
+    component: () => import('../views/user/ForcePasswordChangeView.vue'),
+    meta: { requiresAuth: true, requiresPasswordChange: true },
+  },
+  {
     path: '/help',
     component: () => import('../views/HelpView.vue'),
     meta: { requiresAuth: false },
@@ -226,6 +232,22 @@ router.beforeEach(async (to, from, next) => {
   if (requiresAuth && !isAuthenticated) {
     Vue.$toast.error('Please log in to access this page');
     return next('/login');
+  }
+
+  // Check if user requires password change
+  const requiresPasswordChange = currentUser?.requires_password_change === true;
+  const isPasswordChangePage = to.path === '/force-password-change';
+
+  if (isAuthenticated && requiresPasswordChange && !isPasswordChangePage) {
+    // User needs to change password, redirect to force password change page
+    Vue.$toast.warning('You must change your password before continuing');
+    return next('/force-password-change');
+  }
+
+  if (isPasswordChangePage && !requiresPasswordChange) {
+    // User is trying to access password change page but doesn't need to
+    // Redirect to home page
+    return next('/');
   }
 
   // Check admin requirements

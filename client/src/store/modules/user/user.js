@@ -115,6 +115,15 @@ export default {
       Vue.$toast.error(`Unable to log in! ${responseBody.message}.`);
       return false;
     },
+    async TOKEN_REFRESH(context, payload) {
+      log.info('Received token refresh from server');
+      const newToken = payload.DATA.access_token;
+      if (newToken) {
+        await context.commit('SET_AUTH_TOKEN', newToken);
+        await context.dispatch('REFRESH_WEBSOCKET_TOKEN');
+        log.info('Auth token updated from server');
+      }
+    },
     async USER_LOGOUT(context) {
       if (context.state.tokenRefreshInterval) {
         clearInterval(context.state.tokenRefreshInterval);

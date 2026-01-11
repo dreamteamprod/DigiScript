@@ -1,18 +1,17 @@
-import secrets
 from datetime import datetime, timezone
 
-import bcrypt
 from sqlalchemy import select
-from tornado import escape, gen
-from tornado.ioloop import IOLoop
+from tornado import escape
 
 from models.session import Session
 from models.user import User
 from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
+from services.password_service import PasswordService
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import (
+    allow_when_password_required,
     api_authenticated,
     no_live_session,
     require_admin,
@@ -36,11 +35,12 @@ class UserCreateController(BaseAPIController):
             self.set_status(400)
             await self.finish({"message": "Password missing"})
             return
-        if len(password) < 6:
+
+        # Validate password strength
+        is_valid, error_msg = PasswordService.validate_password_strength(password)
+        if not is_valid:
             self.set_status(400)
-            await self.finish(
-                {"message": "Password must be at least 6 characters long"}
-            )
+            await self.finish({"message": error_msg})
             return
 
         is_admin = data.get("is_admin", False)
@@ -54,10 +54,7 @@ class UserCreateController(BaseAPIController):
                 await self.finish({"message": "Username already taken"})
                 return
 
-            hashed_password = await IOLoop.current().run_in_executor(
-                None, bcrypt.hashpw, escape.utf8(password), bcrypt.gensalt()
-            )
-            hashed_password = escape.to_unicode(hashed_password)
+            hashed_password = await PasswordService.hash_password(password)
 
             session.add(
                 User(
@@ -104,29 +101,10 @@ class UserDeleteController(BaseAPIController):
             async with NamedLockRegistry.acquire(
                 f"UserLock::{user_to_delete.username}"
             ):
-                # First, log out all sessions for this user
-                await self.application.ws_send_to_user(
-                    user_to_delete.id, "NOOP", "USER_LOGOUT", {}
+                # Force logout all sessions using UserService
+                await self.application.user_service.force_logout_all_sessions(
+                    session, user_to_delete
                 )
-
-                # Then really make sure we have logged out the user for all sessions (basically,
-                # wait for the websocket ops to finish)
-                session_logout_attempts = 0
-                user_sessions = session.scalars(
-                    select(Session).where(Session.user_id == user_to_delete.id)
-                ).all()
-                while user_sessions and session_logout_attempts < 5:
-                    for user_session in user_sessions:
-                        ws_session = self.application.get_ws(user_session.internal_id)
-                        await ws_session.write_message(
-                            {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
-                        )
-                        ws_session.current_user_id = None
-                    await gen.sleep(0.2)
-                    user_sessions = session.scalars(
-                        select(Session).where(Session.user_id == user_to_delete.id)
-                    ).all()
-                    session_logout_attempts += 1
 
                 # Delete all RBAC associations for this user
                 self.application.rbac.delete_actor(user_to_delete)
@@ -167,11 +145,8 @@ class LoginHandler(BaseAPIController):
                     await self.finish({"message": "Invalid username/password"})
                     return
 
-                password_equal = await IOLoop.current().run_in_executor(
-                    None,
-                    bcrypt.checkpw,
-                    escape.utf8(password),
-                    escape.utf8(user.password),
+                password_equal = await PasswordService.verify_password(
+                    password, user.password
                 )
 
                 if password_equal:
@@ -207,6 +182,7 @@ class LoginHandler(BaseAPIController):
 @ApiRoute("auth/logout", ApiVersion.V1)
 class LogoutHandler(BaseAPIController):
     @api_authenticated
+    @allow_when_password_required
     async def post(self):
         data = escape.json_decode(self.request.body)
 
@@ -268,16 +244,36 @@ class UsersHandler(BaseAPIController):
 
 @ApiRoute("auth", ApiVersion.V1)
 class AuthHandler(BaseAPIController):
+    @allow_when_password_required
     def get(self):
         self.set_status(200)
         self.finish(self.current_user if self.current_user else {})
 
 
-@ApiRoute("auth/api-token/generate", ApiVersion.V1)
-class ApiTokenGenerateController(BaseAPIController):
+@ApiRoute("auth/change-password", ApiVersion.V1)
+class PasswordChangeController(BaseAPIController):
+    """Self-service password change endpoint"""
+
     @api_authenticated
-    async def post(self):
-        """Generate a new API token for the authenticated user"""
+    @allow_when_password_required
+    async def patch(self):
+        """
+        Change authenticated user's password.
+
+        Request body: {old_password: str, new_password: str}
+        old_password is optional if requires_password_change=True
+
+        :return: 200 on success, 401 if old password wrong, 400 if new password invalid
+        """
+        data = escape.json_decode(self.request.body)
+        old_password = data.get("old_password", "")
+        new_password = data.get("new_password", "")
+
+        if not new_password:
+            self.set_status(400)
+            await self.finish({"message": "New password is required"})
+            return
+
         with self.make_session() as session:
             user = session.get(User, self.current_user["id"])
             if not user:
@@ -285,62 +281,115 @@ class ApiTokenGenerateController(BaseAPIController):
                 await self.finish({"message": "User not found"})
                 return
 
-            # Generate a secure random token (plain text to return to user)
-            new_token = secrets.token_urlsafe(32)
+            if not user.requires_password_change:
+                if not old_password:
+                    self.set_status(400)
+                    await self.finish({"message": "Old password is required"})
+                    return
 
-            # Hash the token before storing (like passwords)
-            hashed_token = await IOLoop.current().run_in_executor(
-                None, bcrypt.hashpw, escape.utf8(new_token), bcrypt.gensalt()
+                password_matches = await PasswordService.verify_password(
+                    old_password, user.password
+                )
+                if not password_matches:
+                    self.set_status(401)
+                    await self.finish({"message": "Current password is incorrect"})
+                    return
+
+            try:
+                # Increment token_version to invalidate old tokens, but don't
+                # broadcast logout since we're providing a new token for all sessions
+                await self.application.user_service.change_password(
+                    session,
+                    user,
+                    new_password,
+                    invalidate_tokens=True,
+                    force_logout_sessions=False,
+                )
+            except ValueError as e:
+                self.set_status(400)
+                await self.finish({"message": str(e)})
+                return
+
+            # Generate new JWT token with updated token_version
+            new_token = self.application.jwt_service.create_access_token(
+                data={"user_id": user.id}
             )
-            hashed_token = escape.to_unicode(hashed_token)
 
-            user.api_token = hashed_token
+            # Broadcast new token to all user's sessions for seamless re-auth
+            await self.application.user_service.refresh_token_all_sessions(
+                user, new_token
+            )
+
+            self.set_status(200)
+            await self.finish(
+                {
+                    "message": "Password changed successfully",
+                    "access_token": new_token,
+                    "token_type": "bearer",
+                }
+            )
+
+
+@ApiRoute("auth/reset-password", ApiVersion.V1)
+class AdminPasswordResetController(BaseAPIController):
+    """Admin-initiated password reset endpoint"""
+
+    @api_authenticated
+    @require_admin
+    async def post(self):
+        """
+        Reset a user's password to a temporary password (admin only).
+
+        Generates a temporary password and forces the user to change it on next login.
+        Admins cannot reset their own password via this endpoint.
+
+        Request body: {user_id: int}
+
+        :return: 200 with temporary password on success, 400 if validation fails
+        """
+        data = escape.json_decode(self.request.body)
+        user_id = data.get("user_id")
+
+        if not user_id:
+            self.set_status(400)
+            await self.finish({"message": "user_id is required"})
+            return
+
+        with self.make_session() as session:
+            target_user = session.get(User, int(user_id))
+            if not target_user:
+                self.set_status(404)
+                await self.finish({"message": "User not found"})
+                return
+
+            if target_user.id == self.current_user["id"]:
+                self.set_status(400)
+                await self.finish(
+                    {"message": "Cannot reset your own password via admin endpoint"}
+                )
+                return
+
+            # Generate temporary password
+            temp_password = PasswordService.generate_temporary_password()
+
+            # Change the password and force password change on next login
+            try:
+                await self.application.user_service.change_password(
+                    session, target_user, temp_password, invalidate_tokens=True
+                )
+            except ValueError as e:
+                self.set_status(400)
+                await self.finish({"message": str(e)})
+                return
+
+            # Ensure requires_password_change is set
+            target_user.requires_password_change = True
             session.commit()
 
             self.set_status(200)
             await self.finish(
                 {
-                    "message": "API token generated successfully",
-                    "api_token": new_token,
+                    "message": "Password reset successfully",
+                    "temporary_password": temp_password,
                 }
             )
-
-
-@ApiRoute("auth/api-token/revoke", ApiVersion.V1)
-class ApiTokenRevokeController(BaseAPIController):
-    @api_authenticated
-    async def post(self):
-        """Revoke the API token for the authenticated user"""
-        with self.make_session() as session:
-            user = session.get(User, self.current_user["id"])
-            if not user:
-                self.set_status(404)
-                await self.finish({"message": "User not found"})
-                return
-
-            if not user.api_token:
-                self.set_status(400)
-                await self.finish({"message": "No API token to revoke"})
-                return
-
-            user.api_token = None
-            session.commit()
-
-            self.set_status(200)
-            await self.finish({"message": "API token revoked successfully"})
-
-
-@ApiRoute("auth/api-token", ApiVersion.V1)
-class ApiTokenController(BaseAPIController):
-    @api_authenticated
-    def get(self):
-        """Check if the authenticated user has an API token"""
-        with self.make_session() as session:
-            user = session.get(User, self.current_user["id"])
-            if not user:
-                self.set_status(404)
-                self.finish({"message": "User not found"})
-                return
-
-            self.set_status(200)
-            self.finish({"has_token": user.api_token is not None})
