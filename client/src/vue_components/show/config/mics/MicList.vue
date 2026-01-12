@@ -9,18 +9,21 @@
       show-empty
     >
       <template #head(btn)="data">
-        <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-microphone variant="outline-success">
+        <b-button
+          v-if="IS_SHOW_EDITOR"
+          v-b-modal.new-microphone
+          variant="outline-success"
+          :disabled="disableButtons"
+        >
           New Microphone
         </b-button>
       </template>
       <template #cell(btn)="data">
         <b-button-group v-if="IS_SHOW_EDITOR">
-          <b-button variant="warning" @click="openEditMicForm(data)"> Edit </b-button>
-          <b-button
-            variant="danger"
-            :disabled="isSubmittingDeleteMicrophone"
-            @click="deleteMic(data)"
-          >
+          <b-button variant="warning" :disabled="disableButtons" @click="openEditMicForm(data)">
+            Edit
+          </b-button>
+          <b-button variant="danger" :disabled="disableButtons" @click="deleteMic(data)">
             Delete
           </b-button>
         </b-button-group>
@@ -177,6 +180,13 @@ export default {
     },
   },
   computed: {
+    disableButtons() {
+      return (
+        this.isSubmittingNewMicrophone ||
+        this.isSubmittingEditMicrophone ||
+        this.isSubmittingDeleteMicrophone
+      );
+    },
     ...mapGetters(['MICROPHONES', 'IS_SHOW_EDITOR']),
   },
   methods: {
