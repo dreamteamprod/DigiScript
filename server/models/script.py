@@ -422,6 +422,8 @@ class CompiledScript(db.Model):
                 entry.updated_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
 
+            await application.ws_send_to_all("NOOP", "GET_COMPILED_SCRIPTS", {})
+
     @classmethod
     def load_compiled_script(cls, application, revision_id):
         with application.get_db().sessionmaker() as session:

@@ -14,9 +14,7 @@
         aria-describedby="username-feedback"
         :disabled="isFirstAdmin"
       />
-      <b-form-invalid-feedback
-        id="username-feedback"
-      >
+      <b-form-invalid-feedback id="username-feedback">
         This is a required field.
       </b-form-invalid-feedback>
     </b-form-group>
@@ -34,9 +32,7 @@
         aria-describedby="password-feedback"
         type="password"
       />
-      <b-form-invalid-feedback
-        id="password-feedback"
-      >
+      <b-form-invalid-feedback id="password-feedback">
         This is a required field and must be at least 6 characters.
       </b-form-invalid-feedback>
     </b-form-group>
@@ -54,18 +50,12 @@
         aria-describedby="confirm-password-feedback"
         type="password"
       />
-      <b-form-invalid-feedback
-        id="confirm-password-feedback"
-      >
+      <b-form-invalid-feedback id="confirm-password-feedback">
         Passwords to not match.
       </b-form-invalid-feedback>
     </b-form-group>
     <b-button-group>
-      <b-button
-        variant="success"
-        :disabled="isDisabled"
-        @click.stop.prevent="createUser"
-      >
+      <b-button variant="success" :disabled="isDisabled" @click.stop.prevent="createUser">
         Save
       </b-button>
     </b-button-group>

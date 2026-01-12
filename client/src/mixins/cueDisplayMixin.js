@@ -12,7 +12,7 @@ export default {
   methods: {
     contrastColor,
     cuePrefix(cue) {
-      const cueType = this.cueTypes.find((cT) => (cT.id === cue.cue_type_id));
+      const cueType = this.cueTypes.find((cT) => cT.id === cue.cue_type_id);
       return cueType.prefix;
     },
     cueLabel(cue) {

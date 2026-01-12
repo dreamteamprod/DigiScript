@@ -1,21 +1,13 @@
 <template>
   <div class="resource-availability">
-    <div
-      v-if="loading"
-      class="text-center py-5"
-    >
+    <div v-if="loading" class="text-center py-5">
       <b-spinner label="Loading resource data..." />
     </div>
-    <div
-      v-else
-      class="availability-wrapper"
-    >
+    <div v-else class="availability-wrapper">
       <!-- Header -->
       <div class="availability-header">
         <h5>Microphone Resource Availability</h5>
-        <p class="text-muted small">
-          Shows microphone allocation status across all scenes.
-        </p>
+        <p class="text-muted small">Shows microphone allocation status across all scenes.</p>
       </div>
 
       <!-- Summary Stats -->
@@ -24,33 +16,23 @@
           <div class="stat-value">
             {{ totalMicrophones }}
           </div>
-          <div class="stat-label">
-            Total Microphones
-          </div>
+          <div class="stat-label">Total Microphones</div>
         </div>
         <div class="stat-card">
           <div class="stat-value">
             {{ peakUsage }}
           </div>
-          <div class="stat-label">
-            Peak Simultaneous Usage
-          </div>
+          <div class="stat-label">Peak Simultaneous Usage</div>
         </div>
         <div class="stat-card">
           <div class="stat-value">
             {{ conflictCount }}
           </div>
-          <div class="stat-label">
-            Total Conflicts
-          </div>
+          <div class="stat-label">Total Conflicts</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">
-            {{ utilizationRate }}%
-          </div>
-          <div class="stat-label">
-            Average Utilization
-          </div>
+          <div class="stat-value">{{ utilizationRate }}%</div>
+          <div class="stat-label">Average Utilization</div>
         </div>
       </div>
 
@@ -71,18 +53,12 @@
       </div>
 
       <!-- No Data Message -->
-      <div
-        v-if="!hasData"
-        class="text-center py-5 text-muted"
-      >
+      <div v-if="!hasData" class="text-center py-5 text-muted">
         No microphone allocation data to display
       </div>
 
       <!-- Availability Grid -->
-      <div
-        v-else
-        class="availability-grid"
-      >
+      <div v-else class="availability-grid">
         <!-- Scene-by-scene breakdown -->
         <div
           v-for="sceneData in sceneAvailability"
@@ -92,16 +68,9 @@
           <div class="scene-header">
             <h6>{{ sceneData.scene.name }}</h6>
             <div class="scene-stats">
-              <span class="stat-badge available">
-                {{ sceneData.available }} free
-              </span>
-              <span class="stat-badge in-use">
-                {{ sceneData.inUse }} in use
-              </span>
-              <span
-                v-if="sceneData.conflicts > 0"
-                class="stat-badge conflict"
-              >
+              <span class="stat-badge available"> {{ sceneData.available }} free </span>
+              <span class="stat-badge in-use"> {{ sceneData.inUse }} in use </span>
+              <span v-if="sceneData.conflicts > 0" class="stat-badge conflict">
                 {{ sceneData.conflicts }} conflicts
               </span>
             </div>
@@ -120,10 +89,7 @@
               <div class="mic-name">
                 {{ micStatus.mic.name || `Mic ${micStatus.mic.id}` }}
               </div>
-              <div
-                v-if="micStatus.character"
-                class="mic-character"
-              >
+              <div v-if="micStatus.character" class="mic-character">
                 {{ micStatus.character.name }}
               </div>
             </div>
@@ -146,12 +112,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters([
-      'MIC_TIMELINE_DATA',
-      'MICROPHONE_BY_ID',
-      'CHARACTER_BY_ID',
-      'MIC_CONFLICTS',
-    ]),
+    ...mapGetters(['MIC_TIMELINE_DATA', 'MICROPHONE_BY_ID', 'CHARACTER_BY_ID', 'MIC_CONFLICTS']),
     hasData() {
       return this.scenes.length > 0 && this.microphones.length > 0;
     },
@@ -218,7 +179,9 @@ export default {
 
         // Get conflicts for this scene
         const allConflicts = this.MIC_CONFLICTS?.conflicts || [];
-        const sceneConflicts = allConflicts.filter((conflict) => conflict.sceneId === scene.id || conflict.adjacentSceneId === scene.id);
+        const sceneConflicts = allConflicts.filter(
+          (conflict) => conflict.sceneId === scene.id || conflict.adjacentSceneId === scene.id
+        );
 
         this.microphones.forEach((mic) => {
           const micAllocs = this.allocations[mic.id];
@@ -503,7 +466,8 @@ export default {
 }
 
 @keyframes pulse-conflict {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
   }
   50% {

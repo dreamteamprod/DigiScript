@@ -25,10 +25,7 @@
         @ok="openNewOverrideModal"
       >
         <b-form>
-          <b-form-select
-            v-model="newFormState.cueTypeId"
-            :options="overrideChoices"
-          />
+          <b-form-select v-model="newFormState.cueTypeId" :options="overrideChoices" />
         </b-form>
       </b-modal>
       <b-modal
@@ -44,18 +41,17 @@
           <h4>Example Cue Button</h4>
           <button
             class="cue-button-example"
-            :style="{'background-color': newFormState.colour,
-                     color: contrastColor({'bgColor': newFormState.colour})}"
+            :style="{
+              'background-color': newFormState.colour,
+              color: contrastColor({ bgColor: newFormState.colour }),
+            }"
           >
             {{ newFormCueTypePrefix }}
           </button>
         </div>
         <div>
           <h4>Configuration Options</h4>
-          <b-form
-            ref="new-config-form"
-            @ok="onSubmitNewOverride"
-          >
+          <b-form ref="new-config-form" @ok="onSubmitNewOverride">
             <b-form-group
               id="colour-input-group"
               label="Cue Button Colour"
@@ -69,9 +65,7 @@
                 :state="validateNewState('colour')"
                 aria-describedby="colour-feedback"
               />
-              <b-form-invalid-feedback
-                id="colour-feedback"
-              >
+              <b-form-invalid-feedback id="colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -91,18 +85,17 @@
           <h4>Example Cue Button</h4>
           <button
             class="cue-button-example"
-            :style="{'background-color': editFormState.colour,
-                     color: contrastColor({'bgColor': editFormState.colour})}"
+            :style="{
+              'background-color': editFormState.colour,
+              color: contrastColor({ bgColor: editFormState.colour }),
+            }"
           >
             {{ editFormCueTypePrefix }}
           </button>
         </div>
         <div>
           <h4>Configuration Options</h4>
-          <b-form
-            ref="edit-config-form"
-            @ok="onSubmitEditOverride"
-          >
+          <b-form ref="edit-config-form" @ok="onSubmitEditOverride">
             <b-form-group
               id="colour-input-group"
               label="Cue Button Colour"
@@ -116,9 +109,7 @@
                 :state="validateEditState('colour')"
                 aria-describedby="colour-feedback"
               />
-              <b-form-invalid-feedback
-                id="colour-feedback"
-              >
+              <b-form-invalid-feedback id="colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -132,8 +123,10 @@
     <template #cell(example)="data">
       <button
         class="cue-button-example"
-        :style="{'background-color': data.item.settings.colour,
-                 color: contrastColor({'bgColor': data.item.settings.colour})}"
+        :style="{
+          'background-color': data.item.settings.colour,
+          color: contrastColor({ bgColor: data.item.settings.colour }),
+        }"
       >
         {{ CUE_TYPES.find((elem) => elem.id === data.item.settings.id).prefix }}
       </button>
@@ -157,12 +150,7 @@
       </b-button-group>
     </template>
   </b-table>
-  <b-alert
-    v-else
-    variant="danger"
-  >
-    No show loaded.
-  </b-alert>
+  <b-alert v-else variant="danger"> No show loaded. </b-alert>
 </template>
 
 <script>
@@ -200,15 +188,17 @@ export default {
     overrideChoices() {
       return [
         { value: null, text: 'Please select a cue type', disabled: true },
-        ...this.CUE_TYPES.filter((item) => !this.CUE_COLOUR_OVERRIDES.map(
-          (elem) => elem.settings.id,
-        ).includes(item.id), this).map((item) => ({ value: item.id, text: `${item.prefix} - ${item.description}` })),
+        ...this.CUE_TYPES.filter(
+          (item) => !this.CUE_COLOUR_OVERRIDES.map((elem) => elem.settings.id).includes(item.id),
+          this
+        ).map((item) => ({ value: item.id, text: `${item.prefix} - ${item.description}` })),
       ];
     },
     tableData() {
-      return this.CUE_COLOUR_OVERRIDES
-        .filter((item) => this.CUE_TYPES
-          .map((elem) => elem.id).includes(item.settings.id), this);
+      return this.CUE_COLOUR_OVERRIDES.filter(
+        (item) => this.CUE_TYPES.map((elem) => elem.id).includes(item.settings.id),
+        this
+      );
     },
     newFormCueTypePrefix() {
       if (this.newFormState.cueTypeId) {
@@ -251,8 +241,10 @@ export default {
       this.newFormState.cueTypeId = null;
     },
     openNewOverrideModal(event) {
-      const cueTypeToOverride = this.CUE_TYPES
-        .find((item) => item.id === this.newFormState.cueTypeId, this);
+      const cueTypeToOverride = this.CUE_TYPES.find(
+        (item) => item.id === this.newFormState.cueTypeId,
+        this
+      );
       if (cueTypeToOverride == null) {
         log.error('Could not find cue type to override!');
         this.$toast.error('Could not find cue type to override!');
@@ -371,9 +363,14 @@ export default {
         this.$bvModal.show('cue-colour-edit-override-modal');
       }
     },
-    ...mapActions(['GET_SHOW_DETAILS', 'GET_CUE_TYPES',
-      'GET_CUE_COLOUR_OVERRIDES', 'ADD_CUE_COLOUR_OVERRIDE',
-      'DELETE_CUE_COLOUR_OVERRIDE', 'UPDATE_CUE_COLOUR_OVERRIDE']),
+    ...mapActions([
+      'GET_SHOW_DETAILS',
+      'GET_CUE_TYPES',
+      'GET_CUE_COLOUR_OVERRIDES',
+      'ADD_CUE_COLOUR_OVERRIDE',
+      'DELETE_CUE_COLOUR_OVERRIDE',
+      'UPDATE_CUE_COLOUR_OVERRIDE',
+    ]),
   },
   validations: {
     newFormState: {

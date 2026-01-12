@@ -1,47 +1,20 @@
 <template>
-  <b-container
-    v-show="loaded"
-    class="mx-0 px-0 script-editor-container"
-    fluid
-  >
-    <div
-      class="sticky-header"
-      :style="{ top: navbarHeight + 'px' }"
-    >
+  <b-container v-if="loaded" class="mx-0 px-0 script-editor-container" fluid>
+    <div class="sticky-header" :style="{ top: navbarHeight + 'px' }">
       <b-row class="script-row">
         <b-col cols="2">
-          <b-button
-            v-b-modal.go-to-page-script-editor
-            variant="success"
-          >
-            Go to Page
-          </b-button>
+          <b-button v-b-modal.go-to-page-script-editor variant="success"> Go to Page </b-button>
         </b-col>
-        <b-col
-          cols="2"
-          style="text-align: right"
-        >
-          <b-button
-            variant="success"
-            :disabled="currentEditPage === 1"
-            @click="decrPage"
-          >
+        <b-col cols="2" style="text-align: right">
+          <b-button variant="success" :disabled="currentEditPage === 1" @click="decrPage">
             Prev Page
           </b-button>
         </b-col>
         <b-col cols="4">
           <p>Current Page: {{ currentEditPage }}</p>
         </b-col>
-        <b-col
-          cols="2"
-          style="text-align: left"
-        >
-          <b-button
-            variant="success"
-            @click="incrPage"
-          >
-            Next Page
-          </b-button>
+        <b-col cols="2" style="text-align: left">
+          <b-button variant="success" @click="incrPage"> Next Page </b-button>
         </b-col>
         <b-col cols="2">
           <b-button-group v-if="IS_SCRIPT_EDITOR">
@@ -81,17 +54,13 @@
         </b-col>
       </b-row>
       <b-row class="script-row">
-        <b-col cols="1">
-          Act
-        </b-col>
-        <b-col cols="1">
-          Scene
-        </b-col>
+        <b-col cols="1"> Act </b-col>
+        <b-col cols="1"> Scene </b-col>
         <b-col>Line</b-col>
         <b-col cols="1" />
       </b-row>
     </div>
-    <hr>
+    <hr />
     <b-row class="script-row">
       <b-col cols="12">
         <template v-for="(line, index) in TMP_SCRIPT[currentEditPage]">
@@ -142,21 +111,8 @@
       </b-col>
     </b-row>
     <b-row class="script-row pt-1">
-      <b-col
-        cols="10"
-        class="ml-auto"
-      >
-        <b-button-group
-          v-show="canEdit && !IS_CUT_MODE"
-          style="float: right"
-        >
-          <b-button
-            v-if="canGenerateDebugScript"
-            v-b-modal.debug-generate
-            variant="warning"
-          >
-            Debug Script
-          </b-button>
+      <b-col cols="10" class="ml-auto">
+        <b-button-group v-show="canEdit && !IS_CUT_MODE" style="float: right">
           <b-dropdown
             split
             text="Add Dialogue"
@@ -165,15 +121,9 @@
             boundary="window"
             @click="addNewLine"
           >
-            <b-dropdown-item @click="addStageDirection">
-              Add Stage Direction
-            </b-dropdown-item>
-            <b-dropdown-item @click="addCueLine">
-              Add Cue Line
-            </b-dropdown-item>
-            <b-dropdown-item @click="addSpacing">
-              Add Spacing
-            </b-dropdown-item>
+            <b-dropdown-item @click="addStageDirection"> Add Stage Direction </b-dropdown-item>
+            <b-dropdown-item @click="addCueLine"> Add Cue Line </b-dropdown-item>
+            <b-dropdown-item @click="addSpacing"> Add Spacing </b-dropdown-item>
           </b-dropdown>
         </b-button-group>
       </b-col>
@@ -217,12 +167,7 @@
       @ok="goToPage"
     >
       <b-form @submit.stop.prevent="">
-        <b-form-group
-          id="page-input-group"
-          label="Page"
-          label-for="page-input"
-          label-cols="auto"
-        >
+        <b-form-group id="page-input-group" label="Page" label-for="page-input" label-cols="auto">
           <b-form-input
             id="page-input"
             v-model="$v.pageInputFormState.pageNo.$model"
@@ -231,71 +176,21 @@
             :state="validatePageState('pageNo')"
             aria-describedby="page-feedback"
           />
-          <b-form-invalid-feedback
-            id="page-feedback"
-          >
+          <b-form-invalid-feedback id="page-feedback">
             This is a required field, and must be greater than 0.
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
     </b-modal>
-    <b-modal
-      id="debug-generate"
-      ref="debug-generate"
-      title="Generate Debug Script"
-      size="md"
-      :hide-header-close="savingInProgress"
-      :hide-footer="savingInProgress"
-      :no-close-on-backdrop="savingInProgress"
-      :no-close-on-esc="savingInProgress"
-      @ok="generateDebugScript"
-    >
-      <b-form
-        ref="debug-script-form"
-        @submit.stop.prevent="generateDebugScript"
-      >
-        <b-form-group
-          id="pages-input-group"
-          label="Pages per Scene"
-          label-for="pages-input"
-          label-cols="auto"
-        >
-          <b-form-input
-            id="pages-input"
-            v-model="$v.debugFormState.pages.$model"
-            name="pages-input"
-            type="number"
-            :state="validateDebugState('pages')"
-            aria-describedby="pages-feedback"
-          />
-          <b-form-invalid-feedback
-            id="pages-feedback"
-          >
-            This is a required field, and must be greater than 0.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
-          id="lines-input-group"
-          label="Lines per Page"
-          label-for="lines-input"
-          label-cols="auto"
-        >
-          <b-form-input
-            id="lines-input"
-            v-model="$v.debugFormState.linesPerPage.$model"
-            name="lines-input"
-            type="number"
-            :state="validateDebugState('linesPerPage')"
-            aria-describedby="lines-feedback"
-          />
-          <b-form-invalid-feedback
-            id="lines-feedback"
-          >
-            This is a required field, and must be greater than 0.
-          </b-form-invalid-feedback>
-        </b-form-group>
-      </b-form>
-    </b-modal>
+  </b-container>
+  <b-container v-else class="mx-0 px-0 script-editor-container" fluid>
+    <b-row>
+      <b-col>
+        <div class="text-center py-5">
+          <b-spinner label="Loading" />
+        </div>
+      </b-col>
+    </b-row>
   </b-container>
 </template>
 
@@ -333,10 +228,6 @@ export default {
       savingInProgress: false,
       saveError: false,
       currentMaxPage: 1,
-      debugFormState: {
-        pages: 1,
-        linesPerPage: 1,
-      },
       pageInputFormState: {
         pageNo: 1,
       },
@@ -350,20 +241,6 @@ export default {
     };
   },
   validations: {
-    debugFormState: {
-      pages: {
-        required,
-        notNull,
-        notNullAndGreaterThanZero,
-        minValue: minValue(1),
-      },
-      linesPerPage: {
-        required,
-        notNull,
-        notNullAndGreaterThanZero,
-        minValue: minValue(1),
-      },
-    },
     pageInputFormState: {
       pageNo: {
         required,
@@ -374,9 +251,6 @@ export default {
     },
   },
   computed: {
-    canGenerateDebugScript() {
-      return this.DEBUG_MODE_ENABLED && this.currentMaxPage === 0 && !this.scriptChanges;
-    },
     currentEditPageKey() {
       return this.currentEditPage.toString();
     },
@@ -387,8 +261,11 @@ export default {
       let hasChanges = false;
       Object.keys(this.TMP_SCRIPT).forEach(function checkPageHasChanges(pageNo) {
         const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
-        if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
-            || this.INSERTED_LINES(pageNo).length > 0) {
+        if (
+          Object.keys(lineDiff).length > 0 ||
+          this.DELETED_LINES(pageNo).length > 0 ||
+          this.INSERTED_LINES(pageNo).length > 0
+        ) {
           hasChanges = true;
         }
       }, this);
@@ -407,16 +284,34 @@ export default {
       if (this.IS_CUT_MODE) {
         return this.scriptChanges;
       }
-      return (this.scriptChanges && this.editPages.length === 0);
+      return this.scriptChanges && this.editPages.length === 0;
     },
     pagesWithOpenChanges() {
       return [...new Set(this.editPages.map((x) => parseInt(x.split('_')[1], 10)))];
     },
-    ...mapGetters(['CURRENT_SHOW', 'TMP_SCRIPT', 'ACT_LIST', 'SCENE_LIST', 'CHARACTER_LIST',
-      'CHARACTER_GROUP_LIST', 'CAN_REQUEST_EDIT', 'CURRENT_EDITOR', 'INTERNAL_UUID',
-      'GET_SCRIPT_PAGE', 'DEBUG_MODE_ENABLED', 'DELETED_LINES', 'SCENE_BY_ID', 'ACT_BY_ID',
-      'IS_CUT_MODE', 'SCRIPT_CUTS', 'INSERTED_LINES', 'STAGE_DIRECTION_STYLES', 'CURRENT_USER',
-      'STAGE_DIRECTION_STYLE_OVERRIDES', 'USER_SETTINGS', 'IS_SCRIPT_EDITOR']),
+    ...mapGetters([
+      'CURRENT_SHOW',
+      'TMP_SCRIPT',
+      'ACT_LIST',
+      'SCENE_LIST',
+      'CHARACTER_LIST',
+      'CHARACTER_GROUP_LIST',
+      'CAN_REQUEST_EDIT',
+      'CURRENT_EDITOR',
+      'INTERNAL_UUID',
+      'GET_SCRIPT_PAGE',
+      'DELETED_LINES',
+      'SCENE_BY_ID',
+      'ACT_BY_ID',
+      'IS_CUT_MODE',
+      'SCRIPT_CUTS',
+      'INSERTED_LINES',
+      'STAGE_DIRECTION_STYLES',
+      'CURRENT_USER',
+      'STAGE_DIRECTION_STYLE_OVERRIDES',
+      'USER_SETTINGS',
+      'IS_SCRIPT_EDITOR',
+    ]),
   },
   watch: {
     currentEditPage(val) {
@@ -507,8 +402,9 @@ export default {
     },
     async stopEditing() {
       if (this.scriptChanges) {
-        const msg = 'Are you sure you want to stop editing the script? '
-          + 'This will cause all unsaved changes to be lost';
+        const msg =
+          'Are you sure you want to stop editing the script? ' +
+          'This will cause all unsaved changes to be lost';
         const action = await this.$bvModal.msgBoxConfirm(msg, {});
         if (action === false) {
           return;
@@ -621,7 +517,7 @@ export default {
       // No non-deleted lines before this index on current page, check previous pages
       if (this.currentEditPage > 1) {
         let loopPageNo = this.currentEditPage - 1;
-         
+
         while (loopPageNo >= 1) {
           let loopPage = null;
           if (Object.keys(this.TMP_SCRIPT).includes(loopPageNo.toString())) {
@@ -639,7 +535,6 @@ export default {
           }
           loopPageNo -= 1;
         }
-         
       }
       return null;
     },
@@ -655,7 +550,9 @@ export default {
 
       // No non-deleted lines after this index on current page, check next pages
       // See if there are any edit pages loaded which are after this page
-      const editPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort();
+      const editPages = Object.keys(this.TMP_SCRIPT)
+        .map((x) => parseInt(x, 10))
+        .sort();
       for (let i = 0; i < editPages.length; i++) {
         const editPage = editPages[i];
         if (editPage > this.currentEditPage) {
@@ -671,7 +568,7 @@ export default {
       }
 
       // Edit pages do not have any non-deleted lines, try loading script pages up to the max
-       
+
       for (let i = this.currentEditPage + 1; i <= this.currentMaxPage; i++) {
         await this.LOAD_SCRIPT_PAGE(i);
         const loopPage = this.GET_SCRIPT_PAGE(i);
@@ -683,7 +580,7 @@ export default {
           }
         }
       }
-       
+
       return null;
     },
     lineChange(line, index) {
@@ -818,11 +715,10 @@ export default {
           this.curSavePage = 0;
           this.$bvModal.show('save-script');
 
-          const orderedPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort(
-            (a, b) => a - b,
-          );
+          const orderedPages = Object.keys(this.TMP_SCRIPT)
+            .map((x) => parseInt(x, 10))
+            .sort((a, b) => a - b);
 
-           
           for (const pageNo of orderedPages) {
             this.curSavePage = pageNo;
             // Check whether the page actually has any lines on it, and if not then skip
@@ -846,8 +742,11 @@ export default {
               } else {
                 // Existing page, check if anything has changed before saving
                 const lineDiff = diff(actualScriptPage, tmpScriptPage);
-                if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
-                    || this.INSERTED_LINES(pageNo).length > 0) {
+                if (
+                  Object.keys(lineDiff).length > 0 ||
+                  this.DELETED_LINES(pageNo).length > 0 ||
+                  this.INSERTED_LINES(pageNo).length > 0
+                ) {
                   const response = await this.SAVE_CHANGED_PAGE(pageNo);
                   if (response) {
                     await this.LOAD_SCRIPT_PAGE(pageNo);
@@ -863,7 +762,7 @@ export default {
               }
             }
           }
-           
+
           this.savingInProgress = false;
           // Re-setup autosave (to reset the timer since we have just saved)
           this.setupAutoSave();
@@ -879,76 +778,6 @@ export default {
         this.setupAutoSave();
         this.savingInProgress = false;
       }
-    },
-    validateDebugState(name) {
-      const { $dirty, $error } = this.$v.debugFormState[name];
-      return $dirty ? !$error : null;
-    },
-    async generateDebugScript(event) {
-      this.$v.debugFormState.$touch();
-      if (this.$v.debugFormState.$anyError) {
-        event.preventDefault();
-        return;
-      }
-
-      const firstActId = this.CURRENT_SHOW.first_act_id;
-      if (firstActId == null) {
-        this.$toast.error('Unable to generate script as first act has not been set!');
-        return;
-      }
-
-      const firstAct = this.ACT_LIST.find((act) => (act.id === firstActId));
-      if (firstAct == null) {
-        log.error(`Could not find act with ID ${firstActId}`);
-        this.$toast.error('Unable to generate script!');
-        return;
-      }
-
-      if (this.CHARACTER_LIST.length === 0 && this.CHARACTER_GROUP_LIST.length === 0) {
-        this.$toast.error('Unable to generate script as no characters or '
-          + 'character groups created!');
-        return;
-      }
-
-      let currentAct = firstAct;
-       
-      while (currentAct != null) {
-        let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
-        while (currentScene != null) {
-          for (let pageIter = 0; pageIter < this.debugFormState.pages; pageIter++) {
-            for (let linesIter = 0; linesIter < this.debugFormState.linesPerPage; linesIter++) {
-              this.addNewLine();
-              const scriptAtPage = this.TMP_SCRIPT[this.currentEditPageKey];
-              const line = scriptAtPage[scriptAtPage.length - 1];
-              line.act_id = currentAct.id;
-              line.scene_id = currentScene.id;
-              const totalCharacters = this.CHARACTER_GROUP_LIST.length + this.CHARACTER_LIST.length;
-              const partLength = (randInt(0, 100) % Math.min(totalCharacters, 4)) + 1;
-              for (let partIter = 0; partIter < partLength; partIter++) {
-                const characterGroup = this.CHARACTER_GROUP_LIST.length > 0 && randInt(0, 100) > 75;
-                line.line_parts.push({
-                  id: null,
-                  line_id: null,
-                  part_index: partIter,
-                  character_id: characterGroup ? null : sample(this.CHARACTER_LIST).id,
-                  character_group_id: characterGroup ? sample(this.CHARACTER_GROUP_LIST).id : null,
-                  line_text: `Act: ${currentAct.name}. Scene: ${currentScene.name}. Page: ${this.currentEditPage}. Line: ${linesIter + 1}. Part: ${partIter + 1}`,
-                });
-              }
-              this.doneEditingLine(this.currentEditPage, scriptAtPage.length - 1);
-            }
-            await this.incrPage();
-          }
-          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
-        }
-         
-        if (currentAct.next_act != null) {
-          currentAct = this.ACT_BY_ID(currentAct.next_act);
-        } else {
-          currentAct = null;
-        }
-      }
-      this.decrPage();
     },
     validatePageState(name) {
       const { $dirty, $error } = this.$v.pageInputFormState[name];
@@ -971,7 +800,10 @@ export default {
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
     },
     setupAutoSave() {
-      const autoSaveInterval = Math.max(this.USER_SETTINGS.script_auto_save_interval * 1000 * 60, 1000 * 60);
+      const autoSaveInterval = Math.max(
+        this.USER_SETTINGS.script_auto_save_interval * 1000 * 60,
+        1000 * 60
+      );
       if (this.INTERNAL_UUID !== this.CURRENT_EDITOR && this.autoSaveInterval != null) {
         clearInterval(this.autoSaveInterval);
       } else if (this.INTERNAL_UUID === this.CURRENT_EDITOR) {
@@ -1001,12 +833,11 @@ export default {
       if (!this.IS_CUT_MODE) {
         if (this.scriptChanges) {
           let curSavePage = 0;
-          const orderedPages = Object.keys(this.TMP_SCRIPT).map((x) => parseInt(x, 10)).sort(
-            (a, b) => a - b,
-          );
+          const orderedPages = Object.keys(this.TMP_SCRIPT)
+            .map((x) => parseInt(x, 10))
+            .sort((a, b) => a - b);
           let saveFailure = false;
 
-           
           for (const pageNo of orderedPages) {
             curSavePage = pageNo;
             // If the page we are trying to save currently has edits, then stop
@@ -1036,8 +867,11 @@ export default {
               } else {
                 // Existing page, check if anything has changed before saving
                 const lineDiff = diff(actualScriptPage, tmpScriptPage);
-                if (Object.keys(lineDiff).length > 0 || this.DELETED_LINES(pageNo).length > 0
-                    || this.INSERTED_LINES(pageNo).length > 0) {
+                if (
+                  Object.keys(lineDiff).length > 0 ||
+                  this.DELETED_LINES(pageNo).length > 0 ||
+                  this.INSERTED_LINES(pageNo).length > 0
+                ) {
                   const response = await this.SAVE_CHANGED_PAGE(pageNo);
                   if (response) {
                     await this.LOAD_SCRIPT_PAGE(pageNo);
@@ -1052,7 +886,7 @@ export default {
               }
             }
           }
-           
+
           if (saveFailure) {
             toastInstance.message = 'Autosave failed.';
             toastInstance.type = 'danger';
@@ -1084,13 +918,35 @@ export default {
         this.navbarHeight = 56;
       }
     },
-    ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE', 'DELETE_LINE', 'RESET_DELETED',
-      'SET_CUT_MODE', 'INSERT_BLANK_LINE', 'RESET_INSERTED']),
-    ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
-      'GET_CHARACTER_GROUP_LIST', 'LOAD_SCRIPT_PAGE', 'ADD_BLANK_PAGE', 'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED', 'SAVE_NEW_PAGE', 'SAVE_CHANGED_PAGE', 'GET_CUTS', 'SAVE_SCRIPT_CUTS',
-      'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
-      'GET_CUE_COLOUR_OVERRIDES', 'GET_USER_SETTINGS']),
+    ...mapMutations([
+      'REMOVE_PAGE',
+      'ADD_BLANK_LINE',
+      'SET_LINE',
+      'DELETE_LINE',
+      'RESET_DELETED',
+      'SET_CUT_MODE',
+      'INSERT_BLANK_LINE',
+      'RESET_INSERTED',
+    ]),
+    ...mapActions([
+      'GET_SCENE_LIST',
+      'GET_ACT_LIST',
+      'GET_CHARACTER_LIST',
+      'GET_CHARACTER_GROUP_LIST',
+      'LOAD_SCRIPT_PAGE',
+      'ADD_BLANK_PAGE',
+      'GET_SCRIPT_CONFIG_STATUS',
+      'RESET_TO_SAVED',
+      'SAVE_NEW_PAGE',
+      'SAVE_CHANGED_PAGE',
+      'GET_CUTS',
+      'SAVE_SCRIPT_CUTS',
+      'GET_STAGE_DIRECTION_STYLES',
+      'GET_CURRENT_USER',
+      'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
+      'GET_CUE_COLOUR_OVERRIDES',
+      'GET_USER_SETTINGS',
+    ]),
   },
 };
 </script>

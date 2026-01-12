@@ -1,5 +1,4 @@
 import tornado.escape
-from sqlalchemy import select
 
 from models.mics import Microphone
 from models.show import Show, ShowScriptType

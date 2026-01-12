@@ -1,38 +1,16 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
-    <b-row
-      class="session-header"
-      style="padding-top: .1rem; padding-bottom: .1rem"
-    >
-      <b-col
-        cols="4"
-        style="text-align: left"
-      >
-        <b v-if="isScriptFollowing">
-          {{ CURRENT_SHOW.name }} - Following
-        </b>
-        <b v-else-if="isScriptLeader">
-          {{ CURRENT_SHOW.name }} - Leading
-        </b>
-        <b v-else>
-          {{ CURRENT_SHOW.name }} - Manual
-        </b>
+  <b-container class="mx-0" fluid>
+    <b-row class="session-header" style="padding-top: 0.1rem; padding-bottom: 0.1rem">
+      <b-col cols="4" style="text-align: left">
+        <b v-if="isScriptFollowing"> {{ CURRENT_SHOW.name }} - Following </b>
+        <b v-else-if="isScriptLeader"> {{ CURRENT_SHOW.name }} - Leading </b>
+        <b v-else> {{ CURRENT_SHOW.name }} - Manual </b>
       </b-col>
       <b-col cols="4">
-        <b>
-          Page {{ currentPage }}
-        </b>
+        <b> Page {{ currentPage }} </b>
       </b-col>
-      <b-col
-        cols="4"
-        style="text-align: right"
-      >
-        <b>
-          Elapsed Time: {{ msToTimerString(elapsedTime) }}
-        </b>
+      <b-col cols="4" style="text-align: right">
+        <b> Elapsed Time: {{ msToTimerString(elapsedTime) }} </b>
       </b-col>
     </b-row>
     <b-overlay
@@ -43,40 +21,29 @@
       @hidden="onOverlayHidden"
     >
       <template #overlay>
-        <div
-          ref="interval-overlay"
-          class="text-center"
-        >
-          <b-container
-            class="mx-0"
-            fluid
-          >
+        <div ref="interval-overlay" class="text-center">
+          <b-container class="mx-0" fluid>
             <b-row>
               <b-col class="d-flex align-items-center justify-content-center">
                 <h3>
                   {{ intervalOverlayHeading }} - Interval in Progress
-                  <b-icon
-                    icon="stopwatch"
-                    animation="cylon"
-                  />
+                  <b-icon icon="stopwatch" animation="cylon" />
                 </h3>
               </b-col>
             </b-row>
             <b-row v-if="intervalTimer != null">
               <b-col class="d-flex align-items-center justify-content-center">
-                <h1 style="margin-top: .5rem">
+                <h1 style="margin-top: 0.5rem">
                   <!-- eslint-disable-next-line max-len -->
-                  <span :style="intervalTimerStyle">{{ intervalTimerValues[0] }}</span>:<span :style="intervalTimerStyle">{{ intervalTimerValues[1] }}</span>:<span :style="intervalTimerStyle">{{ intervalTimerValues[2] }}</span>
+                  <span :style="intervalTimerStyle">{{ intervalTimerValues[0] }}</span
+                  >:<span :style="intervalTimerStyle">{{ intervalTimerValues[1] }}</span
+                  >:<span :style="intervalTimerStyle">{{ intervalTimerValues[2] }}</span>
                 </h1>
               </b-col>
             </b-row>
-            <b-row style="margin-top: .5rem">
+            <b-row style="margin-top: 0.5rem">
               <b-col class="d-flex align-items-center justify-content-center">
-                <b-button
-                  v-if="isScriptLeader"
-                  variant="primary"
-                  @click.stop="stopInterval"
-                >
+                <b-button v-if="isScriptLeader" variant="primary" @click.stop="stopInterval">
                   Stop Interval
                 </b-button>
               </b-col>
@@ -84,24 +51,15 @@
           </b-container>
         </div>
       </template>
-      <b-row
-        ref="script-container"
-        :aria-hidden="CURRENT_SHOW_INTERVAL != null ? 'true' : null"
-      >
+      <b-row ref="script-container" :aria-hidden="CURRENT_SHOW_INTERVAL != null ? 'true' : null">
         <b-col
           id="script-container"
           cols="12"
           class="script-container"
           :data-following="isScriptFollowing"
         >
-          <div
-            v-if="!initialLoad"
-            class="text-center center-spinner"
-          >
-            <b-spinner
-              style="width: 10rem; height: 10rem;"
-              variant="info"
-            />
+          <div v-if="!initialLoad" class="text-center center-spinner">
+            <b-spinner style="width: 10rem; height: 10rem" variant="info" />
           </div>
           <template v-else>
             <template v-if="CURRENT_SHOW.script_mode === 2">
@@ -168,17 +126,10 @@
                 />
               </template>
             </template>
-            <b-row
-              v-show="initialLoad"
-              class="script-footer"
-            >
+            <b-row v-show="initialLoad" class="script-footer">
               <b-col>
                 <b-button-group>
-                  <b-button
-                    variant="danger"
-                    :disabled="stoppingSession"
-                    @click.stop="stopShow"
-                  >
+                  <b-button variant="danger" :disabled="stoppingSession" @click.stop="stopShow">
                     End Show
                   </b-button>
                 </b-button-group>
@@ -201,10 +152,7 @@
       @hidden="resetIntervalState"
       @ok="startInterval"
     >
-      <b-container
-        class="mx-0"
-        fluid
-      >
+      <b-container class="mx-0" fluid>
         <b-row align-h="center">
           <b-col md="auto">
             <b-time
@@ -221,12 +169,7 @@
         </b-row>
         <b-row align-h="center">
           <b-col md="auto">
-            <b-alert
-              show
-              variant="info"
-            >
-              Select the length of the interval (HH:MM:SS)
-            </b-alert>
+            <b-alert show variant="info"> Select the length of the interval (HH:MM:SS) </b-alert>
           </b-col>
         </b-row>
       </b-container>
@@ -239,15 +182,8 @@
       @hidden="resetNewCueForm"
       @ok="onSubmitNewCue"
     >
-      <b-form
-        ref="new-cue-form"
-        @submit.stop.prevent="onSubmitNewCue"
-      >
-        <b-form-group
-          id="type-input-group"
-          label="Cue Type"
-          label-for="type-input"
-        >
+      <b-form ref="new-cue-form" @submit.stop.prevent="onSubmitNewCue">
+        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
           <b-form-select
             id="type-input"
             v-model="$v.newCueFormState.cueType.$model"
@@ -255,17 +191,11 @@
             :state="validateNewCueState('cueType')"
             aria-describedby="cue-type-feedback"
           />
-          <b-form-invalid-feedback
-            id="cue-type-feedback"
-          >
+          <b-form-invalid-feedback id="cue-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="ident-input-group"
-          label="Identifier"
-          label-for="ident-input"
-        >
+        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
           <b-form-input
             id="ident-input"
             v-model="$v.newCueFormState.ident.$model"
@@ -273,15 +203,10 @@
             :state="validateNewCueState('ident')"
             aria-describedby="ident-feedback"
           />
-          <b-form-invalid-feedback
-            id="ident-feedback"
-          >
+          <b-form-invalid-feedback id="ident-feedback">
             This is a required field.
           </b-form-invalid-feedback>
-          <b-form-text
-            v-if="isDuplicateCue"
-            class="text-warning"
-          >
+          <b-form-text v-if="isDuplicateCue" class="text-warning">
             ⚠️ A cue with this identifier already exists for this cue type
           </b-form-text>
         </b-form-group>
@@ -297,9 +222,7 @@ import $ from 'jquery';
 import { debounce } from 'lodash';
 import log from 'loglevel';
 
-import {
-  formatTimerParts, makeURL, msToTimerParts, msToTimerString,
-} from '@/js/utils';
+import { formatTimerParts, makeURL, msToTimerParts, msToTimerString } from '@/js/utils';
 import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
 import ScriptLineViewerCompact from '@/vue_components/show/live/ScriptLineViewerCompact.vue';
 import { LINE_TYPES } from '@/constants/lineTypes';
@@ -387,22 +310,24 @@ export default {
       if (this.intervalTimerContext == null) {
         return 0;
       }
-      return ((this.intervalTimerContext.hours * 60 * 60)
-        + (this.intervalTimerContext.minutes * 60)
-        + this.intervalTimerContext.seconds);
+      return (
+        this.intervalTimerContext.hours * 60 * 60 +
+        this.intervalTimerContext.minutes * 60 +
+        this.intervalTimerContext.seconds
+      );
     },
     intervalOverlayHeading() {
       if (this.CURRENT_SHOW_INTERVAL == null || this.ACT_LIST.length === 0) {
         return '';
       }
-      return this.ACT_LIST.find((act) => (act.id === this.CURRENT_SHOW_INTERVAL.act_id)).name;
+      return this.ACT_LIST.find((act) => act.id === this.CURRENT_SHOW_INTERVAL.act_id).name;
     },
     intervalTimerColour() {
       if (this.isIntervalLong) {
         return '#cc0000';
       }
-      const intervalProgress = (Math.abs(this.intervalRemainingTime)
-        / (this.CURRENT_SHOW_INTERVAL.initial_length * 1000));
+      const intervalProgress =
+        Math.abs(this.intervalRemainingTime) / (this.CURRENT_SHOW_INTERVAL.initial_length * 1000);
       if (intervalProgress > 0.25) {
         return '#00cc00';
       }
@@ -420,7 +345,10 @@ export default {
     cueTypeOptions() {
       return [
         { value: null, text: 'N/A' },
-        ...this.CUE_TYPES.map((cueType) => ({ value: cueType.id, text: `${cueType.prefix}: ${cueType.description}` })),
+        ...this.CUE_TYPES.map((cueType) => ({
+          value: cueType.id,
+          text: `${cueType.prefix}: ${cueType.description}`,
+        })),
       ];
     },
     totalCueCount() {
@@ -431,19 +359,40 @@ export default {
       return count;
     },
     flatScriptCues() {
-      return Object.keys(this.SCRIPT_CUES).map((key) => this.SCRIPT_CUES[key]).flat();
+      return Object.keys(this.SCRIPT_CUES)
+        .map((key) => this.SCRIPT_CUES[key])
+        .flat();
     },
     isDuplicateCue() {
       if (!this.newCueFormState.ident || !this.newCueFormState.cueType) {
         return false;
       }
-      return this.flatScriptCues.some((cue) => cue.cue_type_id === this.newCueFormState.cueType
-        && cue.ident === this.newCueFormState.ident);
+      return this.flatScriptCues.some(
+        (cue) =>
+          cue.cue_type_id === this.newCueFormState.cueType &&
+          cue.ident === this.newCueFormState.ident
+      );
     },
-    ...mapGetters(['CURRENT_SHOW_SESSION', 'GET_SCRIPT_PAGE', 'ACT_LIST', 'SCENE_LIST',
-      'CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'CURRENT_SHOW', 'CUE_TYPES', 'SCRIPT_CUES',
-      'INTERNAL_UUID', 'SESSION_FOLLOW_DATA', 'SCRIPT_CUTS', 'SETTINGS', 'STAGE_DIRECTION_STYLES',
-      'CURRENT_USER', 'STAGE_DIRECTION_STYLE_OVERRIDES', 'CURRENT_SHOW_INTERVAL', 'IS_SHOW_EDITOR']),
+    ...mapGetters([
+      'CURRENT_SHOW_SESSION',
+      'GET_SCRIPT_PAGE',
+      'ACT_LIST',
+      'SCENE_LIST',
+      'CHARACTER_LIST',
+      'CHARACTER_GROUP_LIST',
+      'CURRENT_SHOW',
+      'CUE_TYPES',
+      'SCRIPT_CUES',
+      'INTERNAL_UUID',
+      'SESSION_FOLLOW_DATA',
+      'SCRIPT_CUTS',
+      'SETTINGS',
+      'STAGE_DIRECTION_STYLES',
+      'CURRENT_USER',
+      'STAGE_DIRECTION_STYLE_OVERRIDES',
+      'CURRENT_SHOW_INTERVAL',
+      'IS_SHOW_EDITOR',
+    ]),
   },
   watch: {
     SESSION_FOLLOW_DATA() {
@@ -451,7 +400,7 @@ export default {
         // Get the current line element
         const currentLineElement = document.getElementById(this.SESSION_FOLLOW_DATA.current_line);
         if (currentLineElement != null) {
-        // Extract page and line from the ID
+          // Extract page and line from the ID
           const idParts = this.SESSION_FOLLOW_DATA.current_line.split('_');
           const page = parseInt(idParts[1], 10);
           const line = parseInt(idParts[3], 10);
@@ -520,7 +469,9 @@ export default {
     this.updateElapsedTime();
     this.computeContentSize();
 
-    this.startTime = this.createDateAsUTC(new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T')));
+    this.startTime = this.createDateAsUTC(
+      new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T'))
+    );
     this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
     window.addEventListener('resize', this.debounceContentSize);
 
@@ -529,12 +480,14 @@ export default {
 
     if (this.isScriptFollowing || this.isScriptLeader) {
       if (this.CURRENT_SHOW_SESSION.latest_line_ref != null) {
-        const loadCurrentPage = parseInt(this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1], 10);
+        const loadCurrentPage = parseInt(
+          this.CURRENT_SHOW_SESSION.latest_line_ref.split('_')[1],
+          10
+        );
 
         if (!loadedCompiledScript) {
           this.currentMinLoadedPage = 1;
           for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-             
             await this.loadNextPage();
           }
           this.currentFirstPage = loadCurrentPage;
@@ -555,7 +508,6 @@ export default {
         if (!loadedCompiledScript) {
           this.currentMinLoadedPage = 1;
           for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-             
             await this.loadNextPage();
           }
         }
@@ -567,7 +519,6 @@ export default {
       if (!loadedCompiledScript) {
         this.currentMinLoadedPage = 1;
         for (let loadIndex = 0; loadIndex < this.currentMaxPage; loadIndex++) {
-           
           await this.loadNextPage();
         }
       }
@@ -702,7 +653,7 @@ export default {
           const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
           if (!prevPageLines || prevPageLines.length === 0) {
             // Skip empty pages
-             
+
             continue;
           }
 
@@ -824,8 +775,14 @@ export default {
     },
     handleKeyNavigation(event) {
       // Only handle if we're the leader and not currently scrolling or starting an interval
-      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically
-        || this.intervalTimerContext != null || this.CURRENT_SHOW_INTERVAL != null) return;
+      if (
+        !this.isScriptLeader ||
+        !this.initialLoad ||
+        this.isScrollingProgrammatically ||
+        this.intervalTimerContext != null ||
+        this.CURRENT_SHOW_INTERVAL != null
+      )
+        return;
 
       event.preventDefault();
 
@@ -835,8 +792,14 @@ export default {
     },
     handlePageNavigation(event) {
       // Only handle if we're the leader and not currently scrolling or starting an interval
-      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically
-        || this.intervalTimerContext != null || this.CURRENT_SHOW_INTERVAL != null) return;
+      if (
+        !this.isScriptLeader ||
+        !this.initialLoad ||
+        this.isScrollingProgrammatically ||
+        this.intervalTimerContext != null ||
+        this.CURRENT_SHOW_INTERVAL != null
+      )
+        return;
 
       event.preventDefault();
 
@@ -857,16 +820,21 @@ export default {
     },
     handleWheelNavigation(event) {
       // Only handle if we're the leader and not currently scrolling or starting an interval
-      if (!this.isScriptLeader || !this.initialLoad || this.isScrollingProgrammatically
-        || this.intervalTimerContext != null || this.CURRENT_SHOW_INTERVAL != null) return;
+      if (
+        !this.isScriptLeader ||
+        !this.initialLoad ||
+        this.isScrollingProgrammatically ||
+        this.intervalTimerContext != null ||
+        this.CURRENT_SHOW_INTERVAL != null
+      )
+        return;
 
       // Don't take over all scrolling, just script navigation
       // We need to check if we're at the top or bottom of the container
       const scriptContainer = document.getElementById('script-container');
       const isAtTop = scriptContainer.scrollTop === 0;
-      const isAtBottom = (
-        scriptContainer.scrollHeight - scriptContainer.scrollTop === scriptContainer.clientHeight
-      );
+      const isAtBottom =
+        scriptContainer.scrollHeight - scriptContainer.scrollTop === scriptContainer.clientHeight;
 
       // Only prevent default if we're not at the limits of the container
       if ((event.deltaY > 0 && !isAtBottom) || (event.deltaY < 0 && !isAtTop)) {
@@ -919,14 +887,16 @@ export default {
     },
     msToTimerString,
     createDateAsUTC(date) {
-      return new Date(Date.UTC(
-        date.getFullYear(),
-        date.getMonth(),
-        date.getDate(),
-        date.getHours(),
-        date.getMinutes(),
-        date.getSeconds(),
-      ));
+      return new Date(
+        Date.UTC(
+          date.getFullYear(),
+          date.getMonth(),
+          date.getDate(),
+          date.getHours(),
+          date.getMinutes(),
+          date.getSeconds()
+        )
+      );
     },
     updateElapsedTime() {
       if (this.startTime != null) {
@@ -962,9 +932,11 @@ export default {
         if ($(this).offset()) {
           if (lastObject == null) {
             lastObject = this;
-          } else if ($(lastObject).offset()
-               && $(this).offset().top > $(lastObject).offset().top
-               && $(this).offset().top < cutoffBottom) {
+          } else if (
+            $(lastObject).offset() &&
+            $(this).offset().top > $(lastObject).offset().top &&
+            $(this).offset().top < cutoffBottom
+          ) {
             lastObject = this;
           }
 
@@ -1049,15 +1021,13 @@ export default {
       const cutoffPage = this.currentLoadedPage - this.pageBatchSize;
       if (lastPage >= cutoffPage && this.currentLoadedPage < this.currentMaxPage) {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
-           
           await this.loadNextPage();
         }
         this.computeScriptBoundaries();
         while (!this.assignedLastLine && this.currentLoadedPage <= this.currentMaxPage) {
-           
           await this.loadNextPage();
           this.computeScriptBoundaries();
-           
+
           await this.$nextTick();
         }
       }
@@ -1074,7 +1044,7 @@ export default {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
           if (this.currentMinLoadedPage > 1) {
             this.currentMinLoadedPage -= 1;
-             
+
             await this.LOAD_SCRIPT_PAGE(this.currentMinLoadedPage);
           }
         }
@@ -1150,7 +1120,7 @@ export default {
           const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
           if (!prevPageLines || prevPageLines.length === 0) break;
           currentIndex = prevPageLines.length - 1;
-           
+
           continue;
         }
 
@@ -1212,7 +1182,9 @@ export default {
       this.isIntervalLong = false;
       this.intervalRemainingTime = 0;
       if (this.CURRENT_SHOW_INTERVAL != null) {
-        this.intervalStartDate = this.createDateAsUTC(new Date(this.CURRENT_SHOW_INTERVAL.start_datetime.replace(' ', 'T')));
+        this.intervalStartDate = this.createDateAsUTC(
+          new Date(this.CURRENT_SHOW_INTERVAL.start_datetime.replace(' ', 'T'))
+        );
         this.updateIntervalTimer();
         this.intervalTimer = setInterval(this.updateIntervalTimer, 500);
       }
@@ -1220,14 +1192,13 @@ export default {
     updateIntervalTimer() {
       if (this.intervalStartDate != null) {
         const intervalElapsedTime = Date.now() - this.intervalStartDate;
-        this.intervalRemainingTime = (
-          this.CURRENT_SHOW_INTERVAL.initial_length * 1000
-        ) - intervalElapsedTime;
+        this.intervalRemainingTime =
+          this.CURRENT_SHOW_INTERVAL.initial_length * 1000 - intervalElapsedTime;
         if (this.intervalRemainingTime < 0) {
           this.isIntervalLong = true;
         }
         this.intervalTimerValues = formatTimerParts(
-          ...msToTimerParts(Math.abs(this.intervalRemainingTime)),
+          ...msToTimerParts(Math.abs(this.intervalRemainingTime))
         );
       }
     },
@@ -1271,40 +1242,52 @@ export default {
         this.submittingNewCue = false;
       }
     },
-    ...mapActions(['GET_SHOW_SESSION_DATA', 'LOAD_SCRIPT_PAGE', 'GET_ACT_LIST', 'GET_SCENE_LIST',
-      'GET_CHARACTER_LIST', 'GET_CHARACTER_GROUP_LIST', 'LOAD_CUES', 'GET_CUE_TYPES',
-      'GET_CUTS', 'GET_STAGE_DIRECTION_STYLES', 'GET_CURRENT_USER', 'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
-      'GET_CUE_COLOUR_OVERRIDES', 'ADD_NEW_CUE']),
+    ...mapActions([
+      'GET_SHOW_SESSION_DATA',
+      'LOAD_SCRIPT_PAGE',
+      'GET_ACT_LIST',
+      'GET_SCENE_LIST',
+      'GET_CHARACTER_LIST',
+      'GET_CHARACTER_GROUP_LIST',
+      'LOAD_CUES',
+      'GET_CUE_TYPES',
+      'GET_CUTS',
+      'GET_STAGE_DIRECTION_STYLES',
+      'GET_CURRENT_USER',
+      'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
+      'GET_CUE_COLOUR_OVERRIDES',
+      'ADD_NEW_CUE',
+    ]),
     ...mapMutations(['SET_SCRIPT_PAGE']),
   },
 };
 </script>
 
 <style scoped>
-  .script-container {
-     overflow: scroll;
-     overflow-x: auto;
-     width: 100vw;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+.script-container {
+  overflow: scroll;
+  overflow-x: auto;
+  width: 100vw;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
-  .script-container::-webkit-scrollbar{
-    display: none;
-    width: 0 !important
-   }
+.script-container::-webkit-scrollbar {
+  display: none;
+  width: 0 !important;
+}
 
-  .script-container[data-following="true"] {
-    overflow: hidden !important;
-  }
+.script-container[data-following='true'] {
+  overflow: hidden !important;
+}
 
-  .session-header {
-    border-bottom: .1rem solid #3498db;
-  }
+.session-header {
+  border-bottom: 0.1rem solid #3498db;
+}
 
-  .script-footer {
-    border-top: .1rem solid #3498db;
-    padding-top: .5rem;
-    padding-bottom: .1rem;
-  }
+.script-footer {
+  border-top: 0.1rem solid #3498db;
+  padding-top: 0.5rem;
+  padding-bottom: 0.1rem;
+}
 </style>

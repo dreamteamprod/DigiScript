@@ -1,7 +1,7 @@
 import tornado.escape
 
 from models.script import Script, ScriptRevision
-from models.show import Character, Show, ShowScriptType
+from models.show import Show, ShowScriptType
 from test.conftest import DigiScriptTestCase
 
 

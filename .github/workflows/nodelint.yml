@@ -1,4 +1,4 @@
-name: ESLint
+name: Lint & Format (ESLint + Prettier)
 
 on: [push]
 

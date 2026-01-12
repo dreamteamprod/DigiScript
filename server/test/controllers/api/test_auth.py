@@ -1,6 +1,7 @@
-from tornado import escape
 from sqlalchemy import select
+from tornado import escape
 
+from models.show import Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
 
@@ -376,7 +377,6 @@ class TestAuthAPI(DigiScriptTestCase):
             headers={"Authorization": f"Bearer {token}"},
         )
         response_body = escape.json_decode(response.body)
-        api_token = response_body["api_token"]
 
         # Check that token exists (but can't retrieve it)
         response = self.fetch(
@@ -409,8 +409,6 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Create a test show (required by @requires_show decorator)
         with self._app.get_db().sessionmaker() as session:
-            from models.show import Show, ShowScriptType
-
             show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
@@ -439,8 +437,6 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Get the user ID
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             user = session.scalars(
                 select(User).where(User.username == "userToDelete")
             ).first()
@@ -461,8 +457,6 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Verify user was deleted
         with self._app.get_db().sessionmaker() as session:
-            from models.user import User
-
             deleted_user = session.scalars(
                 select(User).where(User.id == user_id)
             ).first()
@@ -487,8 +481,6 @@ class TestAuthAPI(DigiScriptTestCase):
 
         # Create a test show (required by @requires_show decorator)
         with self._app.get_db().sessionmaker() as session:
-            from models.show import Show, ShowScriptType
-
             show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
             session.add(show)
             session.flush()
@@ -540,3 +532,540 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertIn("admin", usernames)
         self.assertIn("user1", usernames)
         self.assertIn("user2", usernames)
+
+    def test_change_password_success(self):
+        """Test successful password change with valid old password"""
+        # Create and login a user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "testuser", "password": "oldpass123", "is_admin": False}
+            ),
+        )
+
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "testuser", "password": "oldpass123"}),
+        )
+        token = escape.json_decode(response.body)["access_token"]
+
+        # Change password
+        response = self.fetch(
+            "/api/v1/auth/change-password",
+            method="PATCH",
+            body=escape.json_encode(
+                {"old_password": "oldpass123", "new_password": "newpass456"}
+            ),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        self.assertEqual(200, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertEqual("Password changed successfully", response_body["message"])
+        self.assertIn("access_token", response_body)
+        self.assertIn("token_type", response_body)
+
+        new_token = response_body["access_token"]
+
+        # Verify old token is invalidated (should get 401)
+        response = self.fetch(
+            "/api/v1/auth", method="GET", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(401, response.code)
+
+        # Verify new token works (user stays logged in)
+        response = self.fetch(
+            "/api/v1/auth",
+            method="GET",
+            headers={"Authorization": f"Bearer {new_token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Verify can login with new password
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "testuser", "password": "newpass456"}),
+        )
+        self.assertEqual(200, response.code)
+
+    def test_change_password_incorrect_old_password(self):
+        """Test password change fails with incorrect old password"""
+        # Create and login a user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "testuser", "password": "oldpass123", "is_admin": False}
+            ),
+        )
+
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "testuser", "password": "oldpass123"}),
+        )
+        token = escape.json_decode(response.body)["access_token"]
+
+        # Try to change password with wrong old password
+        response = self.fetch(
+            "/api/v1/auth/change-password",
+            method="PATCH",
+            body=escape.json_encode(
+                {"old_password": "wrongpass", "new_password": "newpass456"}
+            ),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        self.assertEqual(401, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertEqual("Current password is incorrect", response_body["message"])
+
+    def test_change_password_missing_new_password(self):
+        """Test password change fails when new password is missing"""
+        # Create and login a user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "testuser", "password": "oldpass123", "is_admin": False}
+            ),
+        )
+
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "testuser", "password": "oldpass123"}),
+        )
+        token = escape.json_decode(response.body)["access_token"]
+
+        # Try to change password without new password
+        response = self.fetch(
+            "/api/v1/auth/change-password",
+            method="PATCH",
+            body=escape.json_encode({"old_password": "oldpass123"}),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertEqual("New password is required", response_body["message"])
+
+    def test_change_password_weak_password(self):
+        """Test password change fails with weak new password"""
+        # Create and login a user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "testuser", "password": "oldpass123", "is_admin": False}
+            ),
+        )
+
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "testuser", "password": "oldpass123"}),
+        )
+        token = escape.json_decode(response.body)["access_token"]
+
+        # Try to change to weak password (< 6 characters)
+        response = self.fetch(
+            "/api/v1/auth/change-password",
+            method="PATCH",
+            body=escape.json_encode(
+                {"old_password": "oldpass123", "new_password": "123"}
+            ),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertIn("at least 6 characters", response_body["message"])
+
+    def test_change_password_requires_authentication(self):
+        """Test password change requires authentication"""
+        response = self.fetch(
+            "/api/v1/auth/change-password",
+            method="PATCH",
+            body=escape.json_encode(
+                {"old_password": "oldpass", "new_password": "newpass"}
+            ),
+        )
+
+        self.assertEqual(401, response.code)
+
+    def test_change_password_with_requires_password_change_flag(self):
+        """Test password change works without old password when requires_password_change=True"""
+        # Create user via API to ensure password is properly hashed
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "forcedchange",
+                    "password": "temppass123",
+                    "is_admin": False,
+                }
+            ),
+        )
+
+        # Set requires_password_change flag
+        with self._app.get_db().sessionmaker() as session:
+            user = session.scalars(
+                select(User).where(User.username == "forcedchange")
+            ).first()
+            user.requires_password_change = True
+            session.commit()
+            user_id = user.id
+
+        # Login
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "forcedchange", "password": "temppass123"}
+            ),
+        )
+        token = escape.json_decode(response.body)["access_token"]
+
+        # Change password without providing old password
+        response = self.fetch(
+            "/api/v1/auth/change-password",
+            method="PATCH",
+            body=escape.json_encode({"new_password": "newpass123"}),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        self.assertEqual(200, response.code)
+
+        # Verify requires_password_change is now False
+        with self._app.get_db().sessionmaker() as session:
+            user = session.get(User, user_id)
+            self.assertFalse(user.requires_password_change)
+
+    def test_password_enforcement_blocks_regular_endpoints(self):
+        """Test that requires_password_change blocks access to regular endpoints"""
+        # Create user with requires_password_change=True
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "forcechange",
+                    "password": "password123",
+                    "is_admin": False,
+                }
+            ),
+        )
+
+        # Log in to get JWT
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "forcechange", "password": "password123"}
+            ),
+        )
+        self.assertEqual(200, response.code)
+        token = escape.json_decode(response.body)["access_token"]
+
+        # Set requires_password_change=True
+        with self._app.get_db().sessionmaker() as session:
+            user = session.scalars(
+                select(User).where(User.username == "forcechange")
+            ).first()
+            user.requires_password_change = True
+            session.commit()
+
+        # Try to access a regular endpoint (should be blocked with 403)
+        response = self.fetch(
+            "/api/v1/auth/api-token",
+            method="GET",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(403, response.code)
+
+    def test_password_enforcement_allows_change_password_endpoint(self):
+        """Test that requires_password_change allows access to change-password"""
+        # Create user with requires_password_change=True
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "forcechange2",
+                    "password": "password123",
+                    "is_admin": False,
+                }
+            ),
+        )
+
+        # Log in to get JWT
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "forcechange2", "password": "password123"}
+            ),
+        )
+        self.assertEqual(200, response.code)
+        token = escape.json_decode(response.body)["access_token"]
+
+        # Set requires_password_change=True
+        with self._app.get_db().sessionmaker() as session:
+            user = session.scalars(
+                select(User).where(User.username == "forcechange2")
+            ).first()
+            user.requires_password_change = True
+            session.commit()
+
+        # Try to change password (should be allowed)
+        response = self.fetch(
+            "/api/v1/auth/change-password",
+            method="PATCH",
+            body=escape.json_encode({"new_password": "newpassword123"}),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(200, response.code)
+
+    def test_password_enforcement_allows_logout_endpoint(self):
+        """Test that requires_password_change allows access to logout"""
+        # Create user with requires_password_change=True
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "forcechange3",
+                    "password": "password123",
+                    "is_admin": False,
+                }
+            ),
+        )
+
+        # Log in to get JWT
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "forcechange3", "password": "password123"}
+            ),
+        )
+        self.assertEqual(200, response.code)
+        token = escape.json_decode(response.body)["access_token"]
+
+        # Set requires_password_change=True
+        with self._app.get_db().sessionmaker() as session:
+            user = session.scalars(
+                select(User).where(User.username == "forcechange3")
+            ).first()
+            user.requires_password_change = True
+            session.commit()
+
+        # Try to logout (should be allowed)
+        response = self.fetch(
+            "/api/v1/auth/logout",
+            method="POST",
+            body=escape.json_encode({}),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(200, response.code)
+
+    def test_admin_reset_password_success(self):
+        """Test admin can successfully reset another user's password"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
+        # Create a regular user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "regularuser", "password": "userpass", "is_admin": False}
+            ),
+        )
+
+        # Get user ID
+        with self._app.get_db().sessionmaker() as session:
+            user = session.scalars(
+                select(User).where(User.username == "regularuser")
+            ).first()
+            user_id = user.id
+
+        # Admin resets user password
+        response = self.fetch(
+            "/api/v1/auth/reset-password",
+            method="POST",
+            body=escape.json_encode({"user_id": user_id}),
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        self.assertEqual(200, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertEqual("Password reset successfully", response_body["message"])
+        self.assertIn("temporary_password", response_body)
+
+        temp_password = response_body["temporary_password"]
+
+        # Verify temporary password works
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "regularuser", "password": temp_password}
+            ),
+        )
+        self.assertEqual(200, response.code)
+
+        # Verify requires_password_change is True
+        with self._app.get_db().sessionmaker() as session:
+            user = session.get(User, user_id)
+            self.assertTrue(user.requires_password_change)
+
+    def test_admin_reset_password_cannot_reset_own(self):
+        """Test admin cannot reset their own password via admin endpoint"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
+        # Get admin user ID
+        with self._app.get_db().sessionmaker() as session:
+            admin = session.scalars(
+                select(User).where(User.username == "admin")
+            ).first()
+            admin_id = admin.id
+
+        # Try to reset own password
+        response = self.fetch(
+            "/api/v1/auth/reset-password",
+            method="POST",
+            body=escape.json_encode({"user_id": admin_id}),
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertIn("Cannot reset your own password", response_body["message"])
+
+    def test_admin_reset_password_requires_admin(self):
+        """Test password reset requires admin privileges"""
+        # Create regular user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "regularuser", "password": "userpass", "is_admin": False}
+            ),
+        )
+
+        # Login as regular user
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "regularuser", "password": "userpass"}
+            ),
+        )
+        user_token = escape.json_decode(response.body)["access_token"]
+
+        # Try to reset password without admin privileges
+        response = self.fetch(
+            "/api/v1/auth/reset-password",
+            method="POST",
+            body=escape.json_encode({"user_id": 999}),
+            headers={"Authorization": f"Bearer {user_token}"},
+        )
+
+        self.assertEqual(401, response.code)
+
+    def test_admin_reset_password_user_not_found(self):
+        """Test password reset fails for non-existent user"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
+        # Try to reset password for non-existent user
+        response = self.fetch(
+            "/api/v1/auth/reset-password",
+            method="POST",
+            body=escape.json_encode({"user_id": 99999}),
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        self.assertEqual(404, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertEqual("User not found", response_body["message"])
+
+    def test_admin_reset_password_missing_user_id(self):
+        """Test password reset fails when user_id is missing"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
+        # Try to reset password without user_id
+        response = self.fetch(
+            "/api/v1/auth/reset-password",
+            method="POST",
+            body=escape.json_encode({}),
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        self.assertEqual(400, response.code)
+        response_body = escape.json_decode(response.body)
+        self.assertEqual("user_id is required", response_body["message"])

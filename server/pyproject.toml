@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "digiscript-server"
-version = "0.22.1"
+version = "0.23.0"
 description = "DigiScript server - Digital script management for theatrical shows"
 readme = "../README.md"
 requires-python = ">=3.13"
@@ -131,11 +131,6 @@ ignore = [
     "TD002",    # Missing TODO author
     "TD003",    # Missing TODO link
 ]
-
-[tool.ruff.lint.per-file-ignores]
-# Ignore test directory (matching pylint's ignore-paths)
-"test/**" = ["ALL"]
-"alembic_config/**" = ["ALL"]
 
 [tool.ruff.lint.isort]
 # Match isort configuration

@@ -1,14 +1,7 @@
 <template>
-  <b-container
-    id="show-config"
-    class="mx-0"
-    fluid
-  >
+  <b-container id="show-config" class="mx-0" fluid>
     <b-row>
-      <b-col
-        cols="12"
-        class="text-right"
-      >
+      <b-col cols="12" class="text-right">
         <b-button
           v-if="IS_SHOW_EDITOR"
           variant="warning"
@@ -22,10 +15,7 @@
     <b-row>
       <b-col>
         <b-table-simple>
-          <b-tr
-            v-for="key in orderedKeys"
-            :key="key"
-          >
+          <b-tr v-for="key in orderedKeys" :key="key">
             <b-th>{{ key }}</b-th>
             <b-td>{{ tableData[key] != null ? tableData[key] : 'N/A' }}</b-td>
           </b-tr>
@@ -41,15 +31,8 @@
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form
-        ref="edit-show-form"
-        @submit.stop.prevent="onSubmitEdit"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="edit-show-form" @submit.stop.prevent="onSubmitEdit">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.editFormState.name.$model"
@@ -58,18 +41,12 @@
             aria-describedby="name-feedback"
           />
 
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field and must be less than 100 characters.
           </b-form-invalid-feedback>
         </b-form-group>
 
-        <b-form-group
-          id="start-input-group"
-          label="Start Date"
-          label-for="start-input"
-        >
+        <b-form-group id="start-input-group" label="Start Date" label-for="start-input">
           <b-form-input
             id="start-input"
             v-model="$v.editFormState.start_date.$model"
@@ -78,18 +55,12 @@
             :state="validateEditState('start_date')"
             aria-describedby="start-feedback"
           />
-          <b-form-invalid-feedback
-            id="start-feedback"
-          >
+          <b-form-invalid-feedback id="start-feedback">
             This is a required field and must be before or the same as the end date.
           </b-form-invalid-feedback>
         </b-form-group>
 
-        <b-form-group
-          id="end-input-group"
-          label="End Date"
-          label-for="end-input"
-        >
+        <b-form-group id="end-input-group" label="End Date" label-for="end-input">
           <b-form-input
             id="end-input"
             v-model="$v.editFormState.end_date.$model"
@@ -98,18 +69,12 @@
             :state="validateEditState('end_date')"
             aria-describedby="end-feedback"
           />
-          <b-form-invalid-feedback
-            id="end-feedback"
-          >
+          <b-form-invalid-feedback id="end-feedback">
             This is a required field and must be after or the same as the start date.
           </b-form-invalid-feedback>
         </b-form-group>
 
-        <b-form-group
-          id="act-input-group"
-          label="Act"
-          label-for="act-input"
-        >
+        <b-form-group id="act-input-group" label="Act" label-for="act-input">
           <b-form-select
             id="act-input"
             v-model="$v.editFormState.first_act_id.$model"
@@ -172,13 +137,15 @@ export default {
       },
       start_date: {
         required,
-        beforeEnd: (value, vm) => (value == null && vm.end_date != null ? false
-          : new Date(value) <= new Date(vm.end_date)),
+        beforeEnd: (value, vm) =>
+          value == null && vm.end_date != null ? false : new Date(value) <= new Date(vm.end_date),
       },
       end_date: {
         required,
-        afterStart: (value, vm) => (value == null && vm.start_date != null ? false
-          : new Date(value) >= new Date(vm.start_date)),
+        afterStart: (value, vm) =>
+          value == null && vm.start_date != null
+            ? false
+            : new Date(value) >= new Date(vm.start_date),
       },
       first_act_id: {},
     },
@@ -234,7 +201,7 @@ export default {
 
 <style scoped>
 .row {
-  margin-top: .5em;
-  margin-bottom: .5em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 </style>

@@ -1,30 +1,12 @@
 <template>
   <div class="help-doc">
-    <b-spinner
-      v-if="loading"
-      variant="info"
-      style="width: 3rem; height: 3rem;"
-    />
-    <b-alert
-      v-else-if="error"
-      variant="danger"
-      show
-    >
+    <b-spinner v-if="loading" variant="info" style="width: 3rem; height: 3rem" />
+    <b-alert v-else-if="error" variant="danger" show>
       <strong>Error:</strong> {{ error }}
-      <br>
-      <b-button
-        variant="outline-danger"
-        size="sm"
-        class="mt-2"
-        @click="retry"
-      >
-        Retry
-      </b-button>
+      <br />
+      <b-button variant="outline-danger" size="sm" class="mt-2" @click="retry"> Retry </b-button>
     </b-alert>
-    <MarkdownRenderer
-      v-else-if="documentContent"
-      :content="documentContent"
-    />
+    <MarkdownRenderer v-else-if="documentContent" :content="documentContent" />
   </div>
 </template>
 
@@ -38,12 +20,7 @@ export default {
     MarkdownRenderer,
   },
   computed: {
-    ...mapGetters([
-      'CURRENT_DOCUMENT_CONTENT',
-      'IS_LOADING',
-      'ERROR',
-      'DOCUMENTATION_MANIFEST',
-    ]),
+    ...mapGetters(['CURRENT_DOCUMENT_CONTENT', 'IS_LOADING', 'ERROR', 'DOCUMENTATION_MANIFEST']),
     documentContent() {
       return this.CURRENT_DOCUMENT_CONTENT;
     },
@@ -65,10 +42,7 @@ export default {
     },
   },
   methods: {
-    ...mapActions([
-      'LOAD_DOCUMENT',
-      'LOAD_MANIFEST',
-    ]),
+    ...mapActions(['LOAD_DOCUMENT', 'LOAD_MANIFEST']),
     async loadDocument(slug) {
       // Wait for manifest to load if it hasn't been loaded yet
       if (!this.DOCUMENTATION_MANIFEST || this.DOCUMENTATION_MANIFEST.length === 0) {

@@ -9,6 +9,7 @@ from models.models import db
 
 
 if TYPE_CHECKING:
+    from models.script import ScriptRevision
     from models.show import Show
     from models.user import User
 
@@ -48,7 +49,8 @@ class ShowSession(db.Model):
     __tablename__ = "showsession"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    show_id: Mapped[int | None] = mapped_column(ForeignKey("shows.id"))
+    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    script_revision_id: Mapped[int] = mapped_column(ForeignKey("script_revisions.id"))
     start_date_time: Mapped[datetime.datetime | None] = mapped_column()
     end_date_time: Mapped[datetime.datetime | None] = mapped_column()
 
@@ -65,6 +67,9 @@ class ShowSession(db.Model):
     )
 
     show: Mapped["Show"] = relationship(uselist=False, foreign_keys=[show_id])
+    revision: Mapped["ScriptRevision"] = relationship(
+        uselist=False, foreign_keys=[script_revision_id]
+    )
     user: Mapped["User"] = relationship(uselist=False, foreign_keys=[user_id])
     client: Mapped["Session"] = relationship(
         foreign_keys=[client_internal_id],

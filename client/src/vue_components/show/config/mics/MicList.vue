@@ -13,23 +13,17 @@
           v-if="IS_SHOW_EDITOR"
           v-b-modal.new-microphone
           variant="outline-success"
+          :disabled="disableButtons"
         >
           New Microphone
         </b-button>
       </template>
       <template #cell(btn)="data">
         <b-button-group v-if="IS_SHOW_EDITOR">
-          <b-button
-            variant="warning"
-            @click="openEditMicForm(data)"
-          >
+          <b-button variant="warning" :disabled="disableButtons" @click="openEditMicForm(data)">
             Edit
           </b-button>
-          <b-button
-            variant="danger"
-            :disabled="isSubmittingDeleteMicrophone"
-            @click="deleteMic(data)"
-          >
+          <b-button variant="danger" :disabled="disableButtons" @click="deleteMic(data)">
             Delete
           </b-button>
         </b-button-group>
@@ -53,15 +47,8 @@
       @hidden="resetNewMicrophoneForm"
       @ok="onSubmitNewMicrophone"
     >
-      <b-form
-        ref="new-microphone-form"
-        @submit.stop.prevent="onSubmitNewMicrophone"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="new-microphone-form" @submit.stop.prevent="onSubmitNewMicrophone">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.newMicrophoneForm.name.$model"
@@ -69,9 +56,7 @@
             :state="validateNewMicrophone('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field, and must be unique.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -87,9 +72,7 @@
             :state="validateNewMicrophone('description')"
             aria-describedby="description-feedback"
           />
-          <b-form-invalid-feedback
-            id="description-feedback"
-          >
+          <b-form-invalid-feedback id="description-feedback">
             Something went wrong!
           </b-form-invalid-feedback>
         </b-form-group>
@@ -104,15 +87,8 @@
       @hidden="resetEditMicrophoneForm"
       @ok="onSubmitEditMicrophone"
     >
-      <b-form
-        ref="edit-microphone-form"
-        @submit.stop.prevent="onSubmitEditMicrophone"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="edit-microphone-form" @submit.stop.prevent="onSubmitEditMicrophone">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.editMicrophoneForm.name.$model"
@@ -120,9 +96,7 @@
             :state="validateEditMicrophone('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field, and must be unique.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -138,9 +112,7 @@
             :state="validateEditMicrophone('description')"
             aria-describedby="description-feedback"
           />
-          <b-form-invalid-feedback
-            id="description-feedback"
-          >
+          <b-form-invalid-feedback id="description-feedback">
             Something went wrong!
           </b-form-invalid-feedback>
         </b-form-group>
@@ -160,11 +132,12 @@ function isNameUnique(value) {
   }
   if (this.editMicrophoneForm.id != null) {
     if (this.MICROPHONES != null && this.MICROPHONES.length > 0) {
-      return !this.MICROPHONES.some((mic) => (
-        mic.name === value && mic.id !== this.editMicrophoneForm.id));
+      return !this.MICROPHONES.some(
+        (mic) => mic.name === value && mic.id !== this.editMicrophoneForm.id
+      );
     }
   } else if (this.MICROPHONES != null && this.MICROPHONES.length > 0) {
-    return !this.MICROPHONES.some((mic) => (mic.name === value));
+    return !this.MICROPHONES.some((mic) => mic.name === value);
   }
   return true;
 }
@@ -173,11 +146,7 @@ export default {
   name: 'MicList',
   data() {
     return {
-      micFields: [
-        'name',
-        'description',
-        { key: 'btn', label: '' },
-      ],
+      micFields: ['name', 'description', { key: 'btn', label: '' }],
       rowsPerPage: 15,
       currentPage: 1,
       newMicrophoneForm: {
@@ -200,19 +169,24 @@ export default {
         required,
         unique: isNameUnique,
       },
-      description: {
-      },
+      description: {},
     },
     editMicrophoneForm: {
       name: {
         required,
         unique: isNameUnique,
       },
-      description: {
-      },
+      description: {},
     },
   },
   computed: {
+    disableButtons() {
+      return (
+        this.isSubmittingNewMicrophone ||
+        this.isSubmittingEditMicrophone ||
+        this.isSubmittingDeleteMicrophone
+      );
+    },
     ...mapGetters(['MICROPHONES', 'IS_SHOW_EDITOR']),
   },
   methods: {

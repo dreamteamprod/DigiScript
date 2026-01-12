@@ -1,15 +1,9 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <b-tabs content-class="mt-3">
-          <b-tab
-            title="Cue Types"
-            active
-          >
+          <b-tab title="Cue Types" active>
             <b-table
               id="cue-types-table"
               :items="CUE_TYPES"
@@ -19,16 +13,12 @@
               show-empty
             >
               <template #head(btn)="data">
-                <b-button
-                  v-if="IS_SHOW_EDITOR"
-                  v-b-modal.new-cue-type
-                  variant="outline-success"
-                >
+                <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-cue-type variant="outline-success">
                   New Cue Type
                 </b-button>
               </template>
               <template #cell(colour)="data">
-                <p :style="{color: data.item.colour}">
+                <p :style="{ color: data.item.colour }">
                   <b-icon-square-fill />
                 </p>
               </template>
@@ -79,15 +69,8 @@
       @hidden="resetNewCueTypeForm"
       @ok="onSubmitNewCueType"
     >
-      <b-form
-        ref="new-cue-type-form"
-        @submit.stop.prevent="onSubmitNewCueType"
-      >
-        <b-form-group
-          id="prefix-input-group"
-          label="Prefix"
-          label-for="prefix-input"
-        >
+      <b-form ref="new-cue-type-form" @submit.stop.prevent="onSubmitNewCueType">
+        <b-form-group id="prefix-input-group" label="Prefix" label-for="prefix-input">
           <b-form-input
             id="prefix-input"
             v-model="$v.newCueTypeForm.prefix.$model"
@@ -95,9 +78,7 @@
             :state="validateNewCueTypeState('prefix')"
             aria-describedby="prefix-feedback"
           />
-          <b-form-invalid-feedback
-            id="prefix-feedback"
-          >
+          <b-form-invalid-feedback id="prefix-feedback">
             This is a required field and must be 5 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -113,17 +94,11 @@
             :state="validateNewCueTypeState('description')"
             aria-describedby="description-feedback"
           />
-          <b-form-invalid-feedback
-            id="description-feedback"
-          >
+          <b-form-invalid-feedback id="description-feedback">
             This is a required field and must be 100 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="colour-input-group"
-          label="Colour"
-          label-for="colour-input"
-        >
+        <b-form-group id="colour-input-group" label="Colour" label-for="colour-input">
           <b-form-input
             id="colour-input"
             v-model="$v.newCueTypeForm.colour.$model"
@@ -132,9 +107,7 @@
             :state="validateNewCueTypeState('colour')"
             aria-describedby="colour-feedback"
           />
-          <b-form-invalid-feedback
-            id="colour-feedback"
-          >
+          <b-form-invalid-feedback id="colour-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -149,15 +122,8 @@
       @hidden="resetEditCueTypeForm"
       @ok="onSubmitEditCueType"
     >
-      <b-form
-        ref="edit-cue-type-form"
-        @submit.stop.prevent="onSubmitEditCueType"
-      >
-        <b-form-group
-          id="prefix-input-group"
-          label="Prefix"
-          label-for="prefix-input"
-        >
+      <b-form ref="edit-cue-type-form" @submit.stop.prevent="onSubmitEditCueType">
+        <b-form-group id="prefix-input-group" label="Prefix" label-for="prefix-input">
           <b-form-input
             id="prefix-input"
             v-model="$v.editCueTypeFormState.prefix.$model"
@@ -165,9 +131,7 @@
             :state="validateEditCueTypeState('prefix')"
             aria-describedby="prefix-feedback"
           />
-          <b-form-invalid-feedback
-            id="prefix-feedback"
-          >
+          <b-form-invalid-feedback id="prefix-feedback">
             This is a required field and must be 5 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -183,17 +147,11 @@
             :state="validateEditCueTypeState('description')"
             aria-describedby="description-feedback"
           />
-          <b-form-invalid-feedback
-            id="description-feedback"
-          >
+          <b-form-invalid-feedback id="description-feedback">
             This is a required field and must be 100 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="colour-input-group"
-          label="Colour"
-          label-for="colour-input"
-        >
+        <b-form-group id="colour-input-group" label="Colour" label-for="colour-input">
           <b-form-input
             id="colour-input"
             v-model="$v.editCueTypeFormState.colour.$model"
@@ -202,9 +160,7 @@
             :state="validateEditCueTypeState('colour')"
             aria-describedby="colour-feedback"
           />
-          <b-form-invalid-feedback
-            id="colour-feedback"
-          >
+          <b-form-invalid-feedback id="colour-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -226,12 +182,7 @@ export default {
   components: { CueCountStats, CueEditor },
   data() {
     return {
-      cueTypeFields: [
-        'prefix',
-        'description',
-        'colour',
-        { key: 'btn', label: '' },
-      ],
+      cueTypeFields: ['prefix', 'description', 'colour', { key: 'btn', label: '' }],
       rowsPerPage: 15,
       currentPage: 1,
       newCueTypeForm: {

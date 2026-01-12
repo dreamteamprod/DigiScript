@@ -1,9 +1,6 @@
 <template>
   <!-- eslint-disable vue/no-v-html -->
-  <div
-    class="markdown-content"
-    v-html="renderedHtml"
-  />
+  <div class="markdown-content" v-html="renderedHtml" />
   <!-- eslint-enable vue/no-v-html -->
 </template>
 
@@ -29,12 +26,31 @@ export default {
         transformedHtml = this.transformMarkdownLinks(transformedHtml);
         return DOMPurify.sanitize(transformedHtml, {
           ALLOWED_TAGS: [
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'p', 'a', 'ul', 'ol', 'li',
-            'img', 'code', 'pre',
-            'strong', 'em', 'blockquote',
-            'table', 'thead', 'tbody', 'tr', 'th', 'td',
-            'br', 'hr',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'p',
+            'a',
+            'ul',
+            'ol',
+            'li',
+            'img',
+            'code',
+            'pre',
+            'strong',
+            'em',
+            'blockquote',
+            'table',
+            'thead',
+            'tbody',
+            'tr',
+            'th',
+            'td',
+            'br',
+            'hr',
           ],
           ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class'],
         });
@@ -48,35 +64,27 @@ export default {
     transformImagePaths(html) {
       // Transform: ../images/topic/file.png → /docs/images/topic/file.png
       // Also handles: ../../images/topic/file.png for nested docs
-      return html.replace(
-        /src="\.\.\/\.\.\/images\//g,
-        'src="/docs/images/',
-      ).replace(
-        /src="\.\.\/images\//g,
-        'src="/docs/images/',
-      );
+      return html
+        .replace(/src="\.\.\/\.\.\/images\//g, 'src="/docs/images/')
+        .replace(/src="\.\.\/images\//g, 'src="/docs/images/');
     },
     transformMarkdownLinks(html) {
       // Transform internal .md links to /help routes
       // Examples:
       // href="./pages/getting_started.md" → href="/help/getting-started"
       // href="../pages/show_config.md" → href="/help/show-config"
-      return html.replace(
-        /href="(\.\.\/)*(pages\/[^"]+)\.md"/g,
-        (match, dots, path) => {
+      return html
+        .replace(/href="(\.\.\/)*(pages\/[^"]+)\.md"/g, (match, dots, path) => {
           // Remove 'pages/' prefix and convert underscores to dashes
           const withoutPages = path.replace(/^pages\//, '');
           const slug = withoutPages.replace(/_/g, '-');
           return `href="/help/${slug}"`;
-        },
-      ).replace(
-        /href="\.\/([^"]+)\.md"/g,
-        (match, path) => {
+        })
+        .replace(/href="\.\/([^"]+)\.md"/g, (match, path) => {
           // Handle same-directory links
           const slug = path.replace(/_/g, '-');
           return `href="/help/${slug}"`;
-        },
-      );
+        });
     },
   },
 };

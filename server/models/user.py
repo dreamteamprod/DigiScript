@@ -1,9 +1,10 @@
 import datetime
+import enum
 import json
 from functools import partial
 from typing import TYPE_CHECKING, List, Union
 
-from sqlalchemy import ForeignKey, Text, select
+from sqlalchemy import ForeignKey, Integer, Text, TypeDecorator, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -12,6 +13,49 @@ from registry.user_overrides import UserOverridesRegistry
 
 if TYPE_CHECKING:
     from models.session import Session
+
+
+class TextAlignment(enum.IntEnum):
+    """Text alignment options for script display"""
+
+    LEFT = 1
+    CENTER = 2
+    RIGHT = 3
+
+
+class TextAlignmentCol(TypeDecorator):
+    """SQLAlchemy type decorator for TextAlignment enum"""
+
+    impl = Integer
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        # Convert integers to TextAlignment enum (e.g., from API requests)
+        if isinstance(value, int):
+            try:
+                value = TextAlignment(value)
+            except ValueError:
+                raise Exception(
+                    f"TextAlignmentCol received invalid integer {value}. "
+                    f"Valid values are: {[e.value for e in TextAlignment]}"
+                )
+        if not isinstance(value, TextAlignment):
+            raise Exception(
+                f"TextAlignmentCol data type is incorrect. Got {type(value)} but should be TextAlignment or int"
+            )
+        return value.value
+
+    def process_literal_param(self, value, dialect):
+        return self.process_bind_param(value, dialect)
+
+    @property
+    def python_type(self):
+        return TextAlignment
+
+    def process_result_value(self, value, dialect):
+        return TextAlignment(value)
 
 
 class User(db.Model):
@@ -24,6 +68,8 @@ class User(db.Model):
     last_login: Mapped[datetime.datetime | None] = mapped_column()
     last_seen: Mapped[datetime.datetime | None] = mapped_column()
     api_token: Mapped[str | None] = mapped_column(index=True)
+    requires_password_change: Mapped[bool] = mapped_column(default=False)
+    token_version: Mapped[int] = mapped_column(default=0)
 
     sessions: Mapped[List["Session"]] = relationship(back_populates="user")
 
@@ -35,6 +81,9 @@ class UserSettings(db.Model):
     enable_script_auto_save: Mapped[bool | None] = mapped_column(default=True)
     script_auto_save_interval: Mapped[int | None] = mapped_column(default=10)
     cue_position_right: Mapped[bool | None] = mapped_column(default=False)
+    script_text_alignment: Mapped[TextAlignment] = mapped_column(
+        TextAlignmentCol, default=TextAlignment.CENTER
+    )
 
     # Hidden Properties (None user editable, marked with _)
     # Make sure to also mark these as hidden in the Schema for this in schemas/schemas.py

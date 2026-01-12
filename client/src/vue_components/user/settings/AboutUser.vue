@@ -1,9 +1,6 @@
 <template>
   <b-table-simple>
-    <b-tr
-      v-for="key in orderedKeys"
-      :key="key"
-    >
+    <b-tr v-for="key in orderedKeys" :key="key">
       <b-th>{{ key }}</b-th>
       <b-td>{{ tableData[key] != null ? tableData[key] : 'N/A' }}</b-td>
     </b-tr>

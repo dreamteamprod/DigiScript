@@ -9,11 +9,7 @@
       show-empty
     >
       <template #head(btn)="data">
-        <b-button
-          v-if="IS_SHOW_EDITOR"
-          v-b-modal.new-tag
-          variant="outline-success"
-        >
+        <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-tag variant="outline-success">
           New Tag
         </b-button>
       </template>
@@ -22,7 +18,7 @@
           class="tag-pill"
           :style="{
             backgroundColor: data.item.colour,
-            color: contrastColor({bgColor: data.item.colour})
+            color: contrastColor({ bgColor: data.item.colour }),
           }"
         >
           {{ data.item.tag }}
@@ -33,17 +29,8 @@
       </template>
       <template #cell(btn)="data">
         <b-button-group v-if="IS_SHOW_EDITOR">
-          <b-button
-            variant="warning"
-            @click="openEditTagForm(data)"
-          >
-            Edit
-          </b-button>
-          <b-button
-            variant="danger"
-            :disabled="isSubmittingDeleteTag"
-            @click="deleteTag(data)"
-          >
+          <b-button variant="warning" @click="openEditTagForm(data)"> Edit </b-button>
+          <b-button variant="danger" :disabled="isSubmittingDeleteTag" @click="deleteTag(data)">
             Delete
           </b-button>
         </b-button-group>
@@ -67,15 +54,8 @@
       @hidden="resetNewTagForm"
       @ok="onSubmitNewTag"
     >
-      <b-form
-        ref="new-tag-form"
-        @submit.stop.prevent="onSubmitNewTag"
-      >
-        <b-form-group
-          id="new-tag-name-group"
-          label="Tag Name"
-          label-for="new-tag-name"
-        >
+      <b-form ref="new-tag-form" @submit.stop.prevent="onSubmitNewTag">
+        <b-form-group id="new-tag-name-group" label="Tag Name" label-for="new-tag-name">
           <b-form-input
             id="new-tag-name"
             v-model="$v.newTagForm.tag.$model"
@@ -87,11 +67,7 @@
             This is a required field and must be unique (case-insensitive).
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="new-tag-colour-group"
-          label="Colour"
-          label-for="new-tag-colour"
-        >
+        <b-form-group id="new-tag-colour-group" label="Colour" label-for="new-tag-colour">
           <b-form-input
             id="new-tag-colour"
             v-model="$v.newTagForm.colour.$model"
@@ -109,7 +85,7 @@
             class="tag-pill"
             :style="{
               backgroundColor: newTagForm.colour,
-              color: contrastColor({bgColor: newTagForm.colour})
+              color: contrastColor({ bgColor: newTagForm.colour }),
             }"
           >
             {{ newTagForm.tag || 'Tag Name' }}
@@ -126,15 +102,8 @@
       @hidden="resetEditTagForm"
       @ok="onSubmitEditTag"
     >
-      <b-form
-        ref="edit-tag-form"
-        @submit.stop.prevent="onSubmitEditTag"
-      >
-        <b-form-group
-          id="edit-tag-name-group"
-          label="Tag Name"
-          label-for="edit-tag-name"
-        >
+      <b-form ref="edit-tag-form" @submit.stop.prevent="onSubmitEditTag">
+        <b-form-group id="edit-tag-name-group" label="Tag Name" label-for="edit-tag-name">
           <b-form-input
             id="edit-tag-name"
             v-model="$v.editTagForm.tag.$model"
@@ -146,11 +115,7 @@
             This is a required field and must be unique (case-insensitive).
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="edit-tag-colour-group"
-          label="Colour"
-          label-for="edit-tag-colour"
-        >
+        <b-form-group id="edit-tag-colour-group" label="Colour" label-for="edit-tag-colour">
           <b-form-input
             id="edit-tag-colour"
             v-model="$v.editTagForm.colour.$model"
@@ -168,7 +133,7 @@
             class="tag-pill"
             :style="{
               backgroundColor: editTagForm.colour,
-              color: contrastColor({bgColor: editTagForm.colour})
+              color: contrastColor({ bgColor: editTagForm.colour }),
             }"
           >
             {{ editTagForm.tag || 'Tag Name' }}
@@ -198,14 +163,12 @@ function isTagNameUnique(value) {
   const lowerValue = value.toLowerCase();
   if (this.editTagForm.id != null) {
     if (this.SESSION_TAGS != null && this.SESSION_TAGS.length > 0) {
-      return !this.SESSION_TAGS.some((tag) => (
-        tag.tag.toLowerCase() === lowerValue && tag.id !== this.editTagForm.id
-      ));
+      return !this.SESSION_TAGS.some(
+        (tag) => tag.tag.toLowerCase() === lowerValue && tag.id !== this.editTagForm.id
+      );
     }
   } else if (this.SESSION_TAGS != null && this.SESSION_TAGS.length > 0) {
-    return !this.SESSION_TAGS.some((tag) => (
-      tag.tag.toLowerCase() === lowerValue
-    ));
+    return !this.SESSION_TAGS.some((tag) => tag.tag.toLowerCase() === lowerValue);
   }
   return true;
 }

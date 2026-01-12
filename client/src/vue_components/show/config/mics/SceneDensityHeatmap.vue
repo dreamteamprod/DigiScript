@@ -1,30 +1,19 @@
 <template>
   <div class="scene-density-heatmap">
-    <div
-      v-if="loading"
-      class="text-center py-5"
-    >
+    <div v-if="loading" class="text-center py-5">
       <b-spinner label="Loading heatmap..." />
     </div>
-    <div
-      v-else
-      class="heatmap-wrapper"
-    >
+    <div v-else class="heatmap-wrapper">
       <!-- Header -->
       <div class="heatmap-header">
         <h5>Scene Microphone Density</h5>
-        <p class="text-muted small">
-          Shows the number of active microphones per scene.
-        </p>
+        <p class="text-muted small">Shows the number of active microphones per scene.</p>
       </div>
 
       <!-- Legend -->
       <div class="heatmap-legend">
         <div class="legend-item">
-          <span
-            class="legend-color"
-            :style="{ backgroundColor: getDensityColor(0) }"
-          />
+          <span class="legend-color" :style="{ backgroundColor: getDensityColor(0) }" />
           <span class="legend-label">0 mics</span>
         </div>
         <div class="legend-item">
@@ -44,38 +33,25 @@
         <div class="legend-item">
           <span
             class="legend-color"
-            :style="{ backgroundColor: getDensityColor(maxDensity * 3 / 4) }"
+            :style="{ backgroundColor: getDensityColor((maxDensity * 3) / 4) }"
           />
           <span class="legend-label">High</span>
         </div>
         <div class="legend-item">
-          <span
-            class="legend-color"
-            :style="{ backgroundColor: getDensityColor(maxDensity) }"
-          />
+          <span class="legend-color" :style="{ backgroundColor: getDensityColor(maxDensity) }" />
           <span class="legend-label">{{ maxDensity }}+ mics</span>
         </div>
       </div>
 
       <!-- No Data Message -->
-      <div
-        v-if="!hasData"
-        class="text-center py-5 text-muted"
-      >
+      <div v-if="!hasData" class="text-center py-5 text-muted">
         No microphone allocation data to display
       </div>
 
       <!-- Heatmap -->
-      <div
-        v-else
-        class="heatmap-container"
-      >
+      <div v-else class="heatmap-container">
         <!-- Act sections -->
-        <div
-          v-for="actGroup in actGroups"
-          :key="`act-${actGroup.actId}`"
-          class="act-section"
-        >
+        <div v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`" class="act-section">
           <div class="act-header">
             <h6>{{ actGroup.actName }}</h6>
           </div>
@@ -89,7 +65,7 @@
                 class="scene-bar"
                 :style="{
                   backgroundColor: getDensityColor(sceneData.micCount),
-                  height: getBarHeight(sceneData.micCount) + 'px'
+                  height: getBarHeight(sceneData.micCount) + 'px',
                 }"
                 :title="`${sceneData.scene.name}: ${sceneData.micCount} microphone${sceneData.micCount !== 1 ? 's' : ''}`"
                 @click="handleBarClick(sceneData)"
@@ -105,22 +81,15 @@
       </div>
 
       <!-- Summary Stats -->
-      <div
-        v-if="hasData"
-        class="heatmap-stats"
-      >
-        <div class="stat-item">
-          <strong>Total Scenes:</strong> {{ scenes.length }}
-        </div>
+      <div v-if="hasData" class="heatmap-stats">
+        <div class="stat-item"><strong>Total Scenes:</strong> {{ scenes.length }}</div>
         <div class="stat-item">
           <strong>Avg Mics/Scene:</strong> {{ averageDensity.toFixed(1) }}
         </div>
         <div class="stat-item">
           <strong>Peak Usage:</strong> {{ maxDensity }} mics in {{ peakSceneName }}
         </div>
-        <div class="stat-item">
-          <strong>Total Active Mics:</strong> {{ uniqueMicsUsed }}
-        </div>
+        <div class="stat-item"><strong>Total Active Mics:</strong> {{ uniqueMicsUsed }}</div>
       </div>
     </div>
   </div>
@@ -144,10 +113,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters([
-      'MIC_TIMELINE_DATA',
-      'ACT_BY_ID',
-    ]),
+    ...mapGetters(['MIC_TIMELINE_DATA', 'ACT_BY_ID']),
     hasData() {
       return this.scenes.length > 0 && Object.keys(this.allocations).length > 0;
     },
@@ -234,13 +200,13 @@ export default {
       const ratio = this.maxDensity > 0 ? micCount / this.maxDensity : 0;
 
       // Hue: 240 (blue) to 0 (red)
-      const hue = 240 - (ratio * 240);
+      const hue = 240 - ratio * 240;
 
       // Saturation: 70% for vibrant colors
       const saturation = 70;
 
       // Lightness: 45-55% for good visibility on dark background
-      const lightness = 45 + (ratio * 10);
+      const lightness = 45 + ratio * 10;
 
       return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     },
@@ -249,7 +215,7 @@ export default {
 
       // Scale bar height based on mic count
       const ratio = this.maxDensity > 0 ? micCount / this.maxDensity : 0;
-      const height = this.minBarHeight + (ratio * (this.maxBarHeight - this.minBarHeight));
+      const height = this.minBarHeight + ratio * (this.maxBarHeight - this.minBarHeight);
       return Math.round(height);
     },
     handleBarClick(sceneData) {

@@ -5,20 +5,21 @@ Tests cover character priority ordering, distance-based costs, existing allocati
 preservation, over-capacity handling, and edge cases.
 """
 
-import pytest
-from unittest.mock import MagicMock
 from collections import defaultdict
+from unittest.mock import MagicMock
+
+import pytest
 
 from models.script import ScriptLineType
 from utils.show.mic_assignment import (
     SceneMetadata,
-    swap_cost,
-    calculate_swap_cost_with_cast,
-    collect_character_appearances,
-    find_best_mic,
     _mic_already_used_in_scene,
     _mic_manually_allocated_to_character,
     _mic_used_by_character_in_new_allocations,
+    calculate_swap_cost_with_cast,
+    collect_character_appearances,
+    find_best_mic,
+    swap_cost,
 )
 
 

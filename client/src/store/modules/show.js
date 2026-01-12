@@ -458,8 +458,10 @@ export default {
         context.commit('SET_SESSIONS_LIST', sessions.sessions);
         context.commit('SET_CURRENT_SESSION', sessions.current_session);
         context.commit('SET_CURRENT_INTERVAL', sessions.current_interval);
-        if (context.getters.NO_LEADER_TOAST
-            && context.getters.CURRENT_SHOW_SESSION.client_internal_id != null) {
+        if (
+          context.getters.NO_LEADER_TOAST &&
+          context.getters.CURRENT_SHOW_SESSION.client_internal_id != null
+        ) {
           context.getters.NO_LEADER_TOAST.dismiss();
           context.commit('SET_TOAST_INSTANCE', null);
         }
@@ -475,9 +477,12 @@ export default {
     async NO_LEADER(context, payload) {
       await context.dispatch('GET_SHOW_SESSION_DATA');
       if (context.getters.NO_LEADER_TOAST == null) {
-        const instance = Vue.$toast.warning('There is no script leader. Please scroll your own script!', {
-          duration: 0,
-        });
+        const instance = Vue.$toast.warning(
+          'There is no script leader. Please scroll your own script!',
+          {
+            duration: 0,
+          }
+        );
         context.commit('SET_TOAST_INSTANCE', instance);
       }
     },
@@ -771,7 +776,11 @@ export default {
       return state.micAllocations;
     },
     ORDERED_SCENES(state, getters) {
-      if (!getters.CURRENT_SHOW?.first_act_id || !getters.SCENE_LIST?.length || !getters.ACT_LIST?.length) {
+      if (
+        !getters.CURRENT_SHOW?.first_act_id ||
+        !getters.SCENE_LIST?.length ||
+        !getters.ACT_LIST?.length
+      ) {
         return [];
       }
 
@@ -809,7 +818,7 @@ export default {
         getters.ACT_LIST,
         getters.CURRENT_SHOW,
         getters.CHARACTER_LIST,
-        getters.CAST_LIST,
+        getters.CAST_LIST
       );
     },
     CONFLICTS_BY_SCENE(state, getters) {

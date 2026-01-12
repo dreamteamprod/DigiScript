@@ -1,47 +1,28 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col v-if="loaded">
         <b-tabs content-class="mt-3">
-          <b-tab
-            title="Mics"
-            active
-          >
+          <b-tab title="Mics" active>
             <mic-list />
           </b-tab>
-          <b-tab
-            title="Allocations"
-          >
+          <b-tab title="Allocations">
             <mic-allocations />
           </b-tab>
-          <b-tab
-            title="Timeline"
-          >
+          <b-tab title="Timeline">
             <mic-timeline :loading="!loaded" />
           </b-tab>
-          <b-tab
-            title="Density"
-          >
+          <b-tab title="Density">
             <scene-density-heatmap :loading="!loaded" />
           </b-tab>
-          <b-tab
-            title="Availability"
-          >
+          <b-tab title="Availability">
             <resource-availability :loading="!loaded" />
           </b-tab>
         </b-tabs>
       </b-col>
       <b-col v-else>
-        <div
-          class="text-center center-spinner"
-        >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
+        <div class="text-center center-spinner">
+          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
         </div>
       </b-col>
     </b-row>
@@ -59,7 +40,11 @@ import ResourceAvailability from '@/vue_components/show/config/mics/ResourceAvai
 export default {
   name: 'ConfigMics',
   components: {
-    MicAllocations, MicList, MicTimeline, SceneDensityHeatmap, ResourceAvailability,
+    MicAllocations,
+    MicList,
+    MicTimeline,
+    SceneDensityHeatmap,
+    ResourceAvailability,
   },
   data() {
     return {
@@ -76,8 +61,14 @@ export default {
     this.loaded = true;
   },
   methods: {
-    ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'GET_CHARACTER_LIST',
-      'GET_CAST_LIST', 'GET_MICROPHONE_LIST', 'GET_MIC_ALLOCATIONS']),
+    ...mapActions([
+      'GET_SCENE_LIST',
+      'GET_ACT_LIST',
+      'GET_CHARACTER_LIST',
+      'GET_CAST_LIST',
+      'GET_MICROPHONE_LIST',
+      'GET_MIC_ALLOCATIONS',
+    ]),
   },
 };
 </script>

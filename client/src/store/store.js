@@ -71,13 +71,16 @@ export default new Vuex.Store({
       if (getters.RBAC_ROLES.length === 0) {
         return false;
       }
-      if (getters.CURRENT_USER_RBAC == null || !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')) {
+      if (
+        getters.CURRENT_USER_RBAC == null ||
+        !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')
+      ) {
         return false;
       }
       const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
-      return getters.CURRENT_USER != null
-         
-        && (getters.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0;
+      return (
+        getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0
+      );
     },
     IS_SHOW_READER(state, getters) {
       if (getters.IS_ADMIN_USER) {
@@ -86,13 +89,16 @@ export default new Vuex.Store({
       if (getters.RBAC_ROLES.length === 0) {
         return false;
       }
-      if (getters.CURRENT_USER_RBAC == null || !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')) {
+      if (
+        getters.CURRENT_USER_RBAC == null ||
+        !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')
+      ) {
         return false;
       }
       const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
-      return getters.CURRENT_USER != null
-         
-        && (getters.CURRENT_USER_RBAC.shows[0][1] & readMask) !== 0;
+      return (
+        getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.shows[0][1] & readMask) !== 0
+      );
     },
     IS_SHOW_EXECUTOR(state, getters) {
       if (getters.IS_ADMIN_USER) {
@@ -101,12 +107,17 @@ export default new Vuex.Store({
       if (getters.RBAC_ROLES.length === 0) {
         return false;
       }
-      if (getters.CURRENT_USER_RBAC == null || !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')) {
+      if (
+        getters.CURRENT_USER_RBAC == null ||
+        !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')
+      ) {
         return false;
       }
       const execMask = getters.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value;
-       
-      return getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.shows[0][1] & execMask) !== 0;
+
+      return (
+        getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.shows[0][1] & execMask) !== 0
+      );
     },
     IS_SCRIPT_EDITOR(state, getters) {
       if (getters.IS_ADMIN_USER) {
@@ -115,13 +126,16 @@ export default new Vuex.Store({
       if (getters.RBAC_ROLES.length === 0) {
         return false;
       }
-      if (getters.CURRENT_USER_RBAC == null || !Object.keys(getters.CURRENT_USER_RBAC).includes('script')) {
+      if (
+        getters.CURRENT_USER_RBAC == null ||
+        !Object.keys(getters.CURRENT_USER_RBAC).includes('script')
+      ) {
         return false;
       }
       const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
-      return getters.CURRENT_USER != null
-         
-        && (getters.CURRENT_USER_RBAC.script[0][1] & writeMask) !== 0;
+      return (
+        getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.script[0][1] & writeMask) !== 0
+      );
     },
     IS_SCRIPT_READER(state, getters) {
       if (getters.IS_ADMIN_USER) {
@@ -130,13 +144,16 @@ export default new Vuex.Store({
       if (getters.RBAC_ROLES.length === 0) {
         return false;
       }
-      if (getters.CURRENT_USER_RBAC == null || !Object.keys(getters.CURRENT_USER_RBAC).includes('script')) {
+      if (
+        getters.CURRENT_USER_RBAC == null ||
+        !Object.keys(getters.CURRENT_USER_RBAC).includes('script')
+      ) {
         return false;
       }
       const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
-      return getters.CURRENT_USER != null
-         
-        && (getters.CURRENT_USER_RBAC.script[0][1] & readMask) !== 0;
+      return (
+        getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.script[0][1] & readMask) !== 0
+      );
     },
     IS_CUE_EDITOR(state, getters) {
       if (getters.IS_ADMIN_USER) {
@@ -145,13 +162,17 @@ export default new Vuex.Store({
       if (getters.RBAC_ROLES.length === 0) {
         return false;
       }
-      if (getters.CURRENT_USER_RBAC == null || !Object.keys(getters.CURRENT_USER_RBAC).includes('cuetypes')) {
+      if (
+        getters.CURRENT_USER_RBAC == null ||
+        !Object.keys(getters.CURRENT_USER_RBAC).includes('cuetypes')
+      ) {
         return false;
       }
       const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
-      return getters.CURRENT_USER != null
-         
-        && (getters.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & writeMask) !== 0)).length > 0;
+      return (
+        getters.CURRENT_USER != null &&
+        getters.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & writeMask) !== 0).length > 0
+      );
     },
     IS_CUE_READER(state, getters) {
       if (getters.IS_ADMIN_USER) {
@@ -160,13 +181,17 @@ export default new Vuex.Store({
       if (getters.RBAC_ROLES.length === 0) {
         return false;
       }
-      if (getters.CURRENT_USER_RBAC == null || !Object.keys(getters.CURRENT_USER_RBAC).includes('cuetypes')) {
+      if (
+        getters.CURRENT_USER_RBAC == null ||
+        !Object.keys(getters.CURRENT_USER_RBAC).includes('cuetypes')
+      ) {
         return false;
       }
       const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
-      return getters.CURRENT_USER != null
-         
-        && (getters.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & readMask) !== 0)).length > 0;
+      return (
+        getters.CURRENT_USER != null &&
+        getters.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & readMask) !== 0).length > 0
+      );
     },
   },
   modules: {

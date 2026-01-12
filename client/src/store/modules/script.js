@@ -11,6 +11,7 @@ export default {
     cues: {},
     cuts: [],
     stageDirectionStyles: [],
+    compiledScripts: [],
   },
   mutations: {
     SET_REVISIONS(state, revisions) {
@@ -30,6 +31,9 @@ export default {
     },
     SET_STAGE_DIRECTION_STYLES(state, styles) {
       state.stageDirectionStyles = styles;
+    },
+    SET_COMPILED_SCRIPTS(state, compiledScripts) {
+      state.compiledScripts = compiledScripts;
     },
   },
   actions: {
@@ -111,14 +115,13 @@ export default {
     },
     async SCRIPT_REVISION_CHANGED(context) {
       await context.dispatch('GET_SCRIPT_REVISIONS');
-       
+
       for (const page of Object.keys(context.state.script)) {
         await context.dispatch('LOAD_SCRIPT_PAGE', page);
         await context.dispatch('ADD_BLANK_PAGE', page);
       }
       await context.dispatch('LOAD_CUES');
       await context.dispatch('GET_CUTS');
-       
     },
     async LOAD_SCRIPT_PAGE(context, page) {
       const searchParams = new URLSearchParams({
@@ -290,12 +293,15 @@ export default {
       const searchParams = new URLSearchParams({
         id: styleId,
       });
-      const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}?${searchParams}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${makeURL('/api/v1/show/script/stage_direction_styles')}?${searchParams}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLES');
         Vue.$toast.success('Deleted stage direction style!');
@@ -318,6 +324,20 @@ export default {
       } else {
         log.error('Unable to edit stage direction style');
         Vue.$toast.error('Unable to edit stage direction style');
+      }
+    },
+    async GET_COMPILED_SCRIPTS(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/script/compiled_scripts')}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const respJson = await response.json();
+        context.commit('SET_COMPILED_SCRIPTS', respJson.scripts);
+      } else {
+        log.error('Unable to load compiled scripts');
       }
     },
   },
@@ -343,6 +363,9 @@ export default {
     },
     STAGE_DIRECTION_STYLES(state) {
       return state.stageDirectionStyles;
+    },
+    COMPILED_SCRIPTS(state) {
+      return state.compiledScripts;
     },
   },
 };

@@ -1,15 +1,9 @@
 <template>
   <div class="mic-timeline-container">
-    <div
-      v-if="loading"
-      class="text-center py-5"
-    >
+    <div v-if="loading" class="text-center py-5">
       <b-spinner label="Loading timeline..." />
     </div>
-    <div
-      v-else
-      class="timeline-wrapper"
-    >
+    <div v-else class="timeline-wrapper">
       <!-- Controls -->
       <div class="timeline-controls-bar">
         <b-button-group>
@@ -49,30 +43,15 @@
       <!-- SVG Container - scrollable -->
       <div class="svg-container">
         <!-- No Data Message -->
-        <div
-          v-if="!hasData"
-          class="text-center py-5 text-muted"
-        >
+        <div v-if="!hasData" class="text-center py-5 text-muted">
           No allocation data to display for this view
         </div>
 
         <!-- SVG Timeline -->
-        <svg
-          v-else
-          ref="svg"
-          :width="totalWidth"
-          :height="totalHeight"
-          class="mic-timeline"
-        >
+        <svg v-else ref="svg" :width="totalWidth" :height="totalHeight" class="mic-timeline">
           <!-- Act labels (top) -->
-          <g
-            class="act-labels"
-            :transform="`translate(${margin.left},0)`"
-          >
-            <g
-              v-for="actGroup in actGroups"
-              :key="`act-${actGroup.actId}`"
-            >
+          <g class="act-labels" :transform="`translate(${margin.left},0)`">
+            <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">
               <rect
                 :x="actGroup.startX"
                 :y="5"
@@ -92,10 +71,7 @@
           </g>
 
           <!-- Scene labels (below act labels) -->
-          <g
-            class="scene-labels"
-            :transform="`translate(${margin.left},${margin.top})`"
-          >
+          <g class="scene-labels" :transform="`translate(${margin.left},${margin.top})`">
             <text
               v-for="(scene, index) in scenes"
               :key="`scene-label-${scene.id}`"
@@ -125,10 +101,7 @@
 
             <!-- Allocation bars -->
             <g class="allocation-bars">
-              <g
-                v-for="bar in allocationBars"
-                :key="bar.id"
-              >
+              <g v-for="bar in allocationBars" :key="bar.id">
                 <rect
                   :x="bar.x"
                   :y="bar.y"
@@ -151,7 +124,7 @@
                   text-anchor="middle"
                   dominant-baseline="middle"
                   pointer-events="none"
-                  :style="{ fontSize: Math.min(12, bar.width / bar.label.length * 1.5) + 'px' }"
+                  :style="{ fontSize: Math.min(12, (bar.width / bar.label.length) * 1.5) + 'px' }"
                 >
                   {{ bar.label }}
                 </text>
@@ -207,7 +180,10 @@ export default {
     return {
       viewMode: 'mic', // 'mic', 'character', or 'cast'
       margin: {
-        top: 75, right: 20, bottom: 20, left: 150,
+        top: 75,
+        right: 20,
+        bottom: 20,
+        left: 150,
       },
       sceneWidth: 100,
       rowHeight: 50,
@@ -257,13 +233,11 @@ export default {
           }));
       }
       // Cast-centric view
-      return this.CAST_LIST
-        .filter((cast) => this.hasCastAllocations(cast.id))
-        .map((cast) => ({
-          id: cast.id,
-          name: `${cast.first_name} ${cast.last_name}`.trim() || `Cast ${cast.id}`,
-          type: 'cast',
-        }));
+      return this.CAST_LIST.filter((cast) => this.hasCastAllocations(cast.id)).map((cast) => ({
+        id: cast.id,
+        name: `${cast.first_name} ${cast.last_name}`.trim() || `Cast ${cast.id}`,
+        type: 'cast',
+      }));
     },
     contentWidth() {
       return this.scenes.length * this.sceneWidth;
@@ -371,9 +345,7 @@ export default {
     },
     hasCastAllocations(castId) {
       // Check if any character played by this cast member has allocations
-      const castCharacters = this.characters.filter(
-        (char) => char.cast_member?.id === castId,
-      );
+      const castCharacters = this.characters.filter((char) => char.cast_member?.id === castId);
       return castCharacters.some((char) => this.hasCharacterAllocations(char.id));
     },
     generateBarsForMic(micId, rowIndex, bars) {
@@ -448,7 +420,9 @@ export default {
         let currentSegment = null;
 
         this.scenes.forEach((scene, sceneIndex) => {
-          const alloc = micAllocs.find((a) => a.scene_id === scene.id && a.character_id === characterId);
+          const alloc = micAllocs.find(
+            (a) => a.scene_id === scene.id && a.character_id === characterId
+          );
 
           if (alloc) {
             if (currentSegment && currentSegment.micId === parseInt(micId, 10)) {
@@ -508,9 +482,7 @@ export default {
     },
     generateBarsForCast(castId, rowIndex, bars) {
       // Find all characters played by this cast member
-      const castCharacters = this.characters.filter(
-        (char) => char.cast_member?.id === castId,
-      );
+      const castCharacters = this.characters.filter((char) => char.cast_member?.id === castId);
 
       const segmentsByMic = new Map();
 
@@ -524,8 +496,10 @@ export default {
 
         this.scenes.forEach((scene, sceneIndex) => {
           // Check if any of this cast member's characters uses this mic in this scene
-          const alloc = micAllocs.find((a) => a.scene_id === scene.id
-            && castCharacters.some((char) => char.id === a.character_id));
+          const alloc = micAllocs.find(
+            (a) =>
+              a.scene_id === scene.id && castCharacters.some((char) => char.id === a.character_id)
+          );
 
           if (alloc) {
             if (currentSegment && currentSegment.micId === parseInt(micId, 10)) {
@@ -808,7 +782,9 @@ export default {
   stroke: #212529;
   stroke-width: 1px;
   cursor: pointer;
-  transition: opacity 0.2s ease, stroke-width 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    stroke-width 0.2s ease;
 }
 
 .allocation-bar:hover {

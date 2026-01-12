@@ -41,8 +41,11 @@ export default {
   },
   actions: {
     async GET_USERS(context) {
-      if (context.getters.CURRENT_USER == null || !context.getters.CURRENT_USER.is_admin
-        || context.rootGetters.CURRENT_SHOW == null) {
+      if (
+        context.getters.CURRENT_USER == null ||
+        !context.getters.CURRENT_USER.is_admin ||
+        context.rootGetters.CURRENT_SHOW == null
+      ) {
         return;
       }
       const response = await fetch(makeURL('/api/v1/auth/users'));
@@ -114,6 +117,15 @@ export default {
       log.error('Unable to log in');
       Vue.$toast.error(`Unable to log in! ${responseBody.message}.`);
       return false;
+    },
+    async TOKEN_REFRESH(context, payload) {
+      log.info('Received token refresh from server');
+      const newToken = payload.DATA.access_token;
+      if (newToken) {
+        await context.commit('SET_AUTH_TOKEN', newToken);
+        await context.dispatch('REFRESH_WEBSOCKET_TOKEN');
+        log.info('Auth token updated from server');
+      }
     },
     async USER_LOGOUT(context) {
       if (context.state.tokenRefreshInterval) {
@@ -189,21 +201,24 @@ export default {
         const rbac = await response.json();
         await context.commit('SET_CURRENT_RBAC', rbac.roles);
       } else {
-        log.error('Unable to get current user\'s RBAC roles');
+        log.error("Unable to get current user's RBAC roles");
       }
     },
     async SETUP_TOKEN_REFRESH(context) {
       if (context.state.tokenRefreshInterval) {
         clearInterval(context.state.tokenRefreshInterval);
       }
-      const refreshInterval = setInterval(async () => {
-        if (context.getters.AUTH_TOKEN) {
-          await context.dispatch('REFRESH_TOKEN');
-        } else {
-          clearInterval(refreshInterval);
-          await context.commit('SET_TOKEN_REFRESH_INTERVAL', null);
-        }
-      }, 1000 * 60 * 30);
+      const refreshInterval = setInterval(
+        async () => {
+          if (context.getters.AUTH_TOKEN) {
+            await context.dispatch('REFRESH_TOKEN');
+          } else {
+            clearInterval(refreshInterval);
+            await context.commit('SET_TOKEN_REFRESH_INTERVAL', null);
+          }
+        },
+        1000 * 60 * 30
+      );
 
       await context.commit('SET_TOKEN_REFRESH_INTERVAL', refreshInterval);
     },

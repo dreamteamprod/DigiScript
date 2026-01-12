@@ -1,8 +1,5 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col cols="8">
         <h5>Scene List</h5>
@@ -15,11 +12,7 @@
           show-empty
         >
           <template #head(btn)="data">
-            <b-button
-              v-if="IS_SHOW_EDITOR"
-              v-b-modal.new-scene
-              variant="outline-success"
-            >
+            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-scene variant="outline-success">
               New Scene
             </b-button>
           </template>
@@ -30,17 +23,13 @@
             <p v-if="data.item.next_scene">
               {{ SCENE_BY_ID(data.item.next_scene).name }}
             </p>
-            <p v-else>
-              N/A
-            </p>
+            <p v-else>N/A</p>
           </template>
           <template #cell(previous_scene)="data">
             <p v-if="data.item.previous_scene">
               {{ SCENE_BY_ID(data.item.previous_scene).name }}
             </p>
-            <p v-else>
-              N/A
-            </p>
+            <p v-else>N/A</p>
           </template>
           <template #cell(btn)="data">
             <b-button-group v-if="IS_SHOW_EDITOR">
@@ -72,19 +61,12 @@
       </b-col>
       <b-col cols="4">
         <h5>Act First Scenes</h5>
-        <b-table
-          id="first-scenes-table"
-          :items="ACT_LIST"
-          :fields="firstSceneFields"
-          show-empty
-        >
+        <b-table id="first-scenes-table" :items="ACT_LIST" :fields="firstSceneFields" show-empty>
           <template #cell(first_scene)="data">
             <p v-if="data.item.first_scene">
               {{ SCENE_BY_ID(data.item.first_scene).name }}
             </p>
-            <p v-else>
-              N/A
-            </p>
+            <p v-else>N/A</p>
           </template>
           <template #cell(btn)="data">
             <b-button-group v-if="IS_SHOW_EDITOR">
@@ -110,15 +92,8 @@
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
-      <b-form
-        ref="new-scene-form"
-        @submit.stop.prevent="onSubmitNew"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="new-scene-form" @submit.stop.prevent="onSubmitNew">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.newFormState.name.$model"
@@ -126,17 +101,11 @@
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="act-input-group"
-          label="Act"
-          label-for="act-input"
-        >
+        <b-form-group id="act-input-group" label="Act" label-for="act-input">
           <b-form-select
             id="act-input"
             v-model="$v.newFormState.act_id.$model"
@@ -144,9 +113,7 @@
             :state="validateNewState('act_id')"
             aria-describedby="act-feedback"
           />
-          <b-form-invalid-feedback
-            id="act-feedback"
-          >
+          <b-form-invalid-feedback id="act-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -173,15 +140,8 @@
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form
-        ref="edit-act-form"
-        @submit.stop.prevent="onSubmitEdit"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="edit-act-form" @submit.stop.prevent="onSubmitEdit">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.editFormState.name.$model"
@@ -189,17 +149,11 @@
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group
-          id="act-input-group"
-          label="Act"
-          label-for="act-input"
-        >
+        <b-form-group id="act-input-group" label="Act" label-for="act-input">
           <b-form-select
             id="act-input"
             v-model="$v.editFormState.act_id.$model"
@@ -208,9 +162,7 @@
             aria-describedby="act-feedback"
             @change="editActChanged"
           />
-          <b-form-invalid-feedback
-            id="act-feedback"
-          >
+          <b-form-invalid-feedback id="act-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -226,9 +178,7 @@
             :state="validateEditState('previous_scene_id')"
             aria-describedby="previous-scene-feedback"
           />
-          <b-form-invalid-feedback
-            id="previous-scene-feedback"
-          >
+          <b-form-invalid-feedback id="previous-scene-feedback">
             This cannot form a circular dependency between scenes.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -243,10 +193,7 @@
       @hidden="resetFirstSceneForm"
       @ok="onSubmitFirstScene"
     >
-      <b-form
-        ref="set-first-scene-form"
-        @submit.stop.prevent="onSubmitFirstScene"
-      >
+      <b-form ref="set-first-scene-form" @submit.stop.prevent="onSubmitFirstScene">
         <b-form-group
           id="first-scene-input-group"
           :label="firstSceneModalLabel"
@@ -314,7 +261,7 @@ export default {
         required,
       },
       act_id: {
-        notNullAndGreaterThanZero: (value) => (value != null && value > 0),
+        notNullAndGreaterThanZero: (value) => value != null && value > 0,
       },
       previous_scene_id: {
         integer,
@@ -326,7 +273,7 @@ export default {
         required,
       },
       act_id: {
-        notNullAndGreaterThanZero: (value) => (value != null && value > 0),
+        notNullAndGreaterThanZero: (value) => value != null && value > 0,
       },
       previous_scene_id: {
         integer,
@@ -345,14 +292,20 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENE_LIST', 'ACT_LIST', 'CURRENT_SHOW', 'SCENE_BY_ID', 'ACT_BY_ID', 'IS_SHOW_EDITOR']),
+    ...mapGetters([
+      'SCENE_LIST',
+      'ACT_LIST',
+      'CURRENT_SHOW',
+      'SCENE_BY_ID',
+      'ACT_BY_ID',
+      'IS_SHOW_EDITOR',
+    ]),
     sceneTableItems() {
       // Get ordering of Acts
       const acts = [];
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
         let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
         while (act != null) {
-           
           acts.push(act.id);
           act = this.ACT_BY_ID(act.next_act);
         }
@@ -364,17 +317,16 @@ export default {
       });
       const ret = [];
       acts.forEach((actId) => {
-        const act = this.ACT_LIST.find((a) => (a.id === actId));
+        const act = this.ACT_LIST.find((a) => a.id === actId);
         if (act.first_scene != null) {
           let scene = this.SCENE_BY_ID(act.first_scene);
           while (scene != null) {
-             
             ret.push(this.SCENE_BY_ID(scene.id));
             scene = this.SCENE_BY_ID(scene.next_scene);
           }
         }
-        const sceneIds = ret.map((s) => (s.id));
-        this.SCENE_LIST.filter((s) => (s.act === actId)).forEach((scene) => {
+        const sceneIds = ret.map((s) => s.id);
+        this.SCENE_LIST.filter((s) => s.act === actId).forEach((scene) => {
           if (!sceneIds.includes(scene.id)) {
             ret.push(scene);
           }
@@ -395,14 +347,19 @@ export default {
       this.ACT_LIST.forEach((act) => {
         ret[act.id] = [
           {
-            value: null, text: 'None', disabled: false,
+            value: null,
+            text: 'None',
+            disabled: false,
           },
-          ...this.SCENE_LIST.filter((scene) => (
-            scene.act === act.id && scene.next_scene == null
-            && this.ACT_BY_ID(scene.act) != null), this).map((scene) => ({
+          ...this.SCENE_LIST.filter(
+            (scene) =>
+              scene.act === act.id && scene.next_scene == null && this.ACT_BY_ID(scene.act) != null,
+            this
+          ).map((scene) => ({
             value: scene.id,
             text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
-          }))];
+          })),
+        ];
       }, this);
 
       return ret;
@@ -410,16 +367,23 @@ export default {
     firstSceneOptions() {
       const ret = {};
       this.ACT_LIST.forEach((act) => {
-        ret[act.id] = [{
-          value: null,
-          text: 'None',
-          disabled: false,
-        }, ...act.scene_list.filter((scene) => (
-          this.SCENE_BY_ID(scene) != null
-          && this.SCENE_BY_ID(scene).previous_scene == null), this).map((scene) => ({
-          value: scene,
-          text: `${act.name}: ${this.SCENE_BY_ID(scene).name}`,
-        }))];
+        ret[act.id] = [
+          {
+            value: null,
+            text: 'None',
+            disabled: false,
+          },
+          ...act.scene_list
+            .filter(
+              (scene) =>
+                this.SCENE_BY_ID(scene) != null && this.SCENE_BY_ID(scene).previous_scene == null,
+              this
+            )
+            .map((scene) => ({
+              value: scene,
+              text: `${act.name}: ${this.SCENE_BY_ID(scene).name}`,
+            })),
+        ];
       }, this);
       return ret;
     },
@@ -427,17 +391,17 @@ export default {
       if (this.firstSceneFormState.act_id == null) {
         return '';
       }
-      return `${this.ACT_LIST.find((act) => (act.id === this.firstSceneFormState.act_id)).name} First Scene`;
+      return `${this.ACT_LIST.find((act) => act.id === this.firstSceneFormState.act_id).name} First Scene`;
     },
     editFormPrevScenes() {
       const ret = [];
-      ret.push(...this.previousSceneOptions[this.editFormState.act_id].filter(
-        (scene) => (scene.value !== this.editFormState.scene_id),
-      ));
+      ret.push(
+        ...this.previousSceneOptions[this.editFormState.act_id].filter(
+          (scene) => scene.value !== this.editFormState.scene_id
+        )
+      );
       if (this.editFormState.previous_scene_id != null) {
-        const scene = this.SCENE_LIST.find(
-          (s) => (s.id === this.editFormState.previous_scene_id),
-        );
+        const scene = this.SCENE_LIST.find((s) => s.id === this.editFormState.previous_scene_id);
         ret.push({
           value: this.editFormState.previous_scene_id,
           text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
@@ -597,7 +561,7 @@ export default {
       }
     },
     editActChanged(newActID) {
-      const editScene = this.SCENE_LIST.find((s) => (s.id === this.editSceneID));
+      const editScene = this.SCENE_LIST.find((s) => s.id === this.editSceneID);
       if (newActID !== editScene.act) {
         this.editFormState.previous_scene_id = null;
       } else if (editScene.previous_scene != null) {
@@ -606,12 +570,16 @@ export default {
         this.editFormState.previous_scene_id = null;
       }
     },
-    ...mapActions(['GET_SCENE_LIST', 'GET_ACT_LIST', 'ADD_SCENE', 'DELETE_SCENE',
-      'SET_ACT_FIRST_SCENE', 'UPDATE_SCENE']),
+    ...mapActions([
+      'GET_SCENE_LIST',
+      'GET_ACT_LIST',
+      'ADD_SCENE',
+      'DELETE_SCENE',
+      'SET_ACT_FIRST_SCENE',
+      'UPDATE_SCENE',
+    ]),
   },
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>

@@ -1,15 +1,9 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col v-if="loaded">
         <b-tabs content-class="mt-3">
-          <b-tab
-            title="Sessions"
-            active
-          >
+          <b-tab title="Sessions" active>
             <session-list />
           </b-tab>
           <b-tab title="Tags">
@@ -18,13 +12,8 @@
         </b-tabs>
       </b-col>
       <b-col v-else>
-        <div
-          class="text-center center-spinner"
-        >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
+        <div class="text-center center-spinner">
+          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
         </div>
       </b-col>
     </b-row>
@@ -47,10 +36,11 @@ export default {
   async mounted() {
     await this.GET_SHOW_SESSION_DATA();
     await this.GET_SESSION_TAGS();
+    await this.GET_SCRIPT_REVISIONS();
     this.loaded = true;
   },
   methods: {
-    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_SESSION_TAGS']),
+    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_SESSION_TAGS', 'GET_SCRIPT_REVISIONS']),
   },
 };
 </script>

@@ -1,8 +1,5 @@
 <template>
-  <b-container
-    class="mx-0"
-    fluid
-  >
+  <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
         <template v-if="loaded">
@@ -29,10 +26,7 @@
                     </template>
                     <template v-if="setting.help_text !== ''">
                       <b-icon-question-circle-fill :id="`${key}-help-icon`" />
-                      <b-tooltip
-                        :target="`${key}-help-icon`"
-                        triggers="hover"
-                      >
+                      <b-tooltip :target="`${key}-help-icon`" triggers="hover">
                         {{ setting.help_text }}
                       </b-tooltip>
                     </template>
@@ -57,34 +51,15 @@
                   :switch="true"
                 />
               </b-form-group>
-              <b-button-group
-                size="md"
-                style="float: right"
-              >
-                <b-button
-                  type="reset"
-                  variant="danger"
-                >
-                  Reset
-                </b-button>
-                <b-button
-                  type="submit"
-                  variant="primary"
-                >
-                  Submit
-                </b-button>
+              <b-button-group size="md" style="float: right">
+                <b-button type="reset" variant="danger"> Reset </b-button>
+                <b-button type="submit" variant="primary"> Submit </b-button>
               </b-button-group>
             </div>
           </b-form>
         </template>
-        <div
-          v-else
-          class="text-center center-spinner"
-        >
-          <b-spinner
-            style="width: 10rem; height: 10rem;"
-            variant="info"
-          />
+        <div v-else class="text-center center-spinner">
+          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
         </div>
       </b-col>
     </b-row>

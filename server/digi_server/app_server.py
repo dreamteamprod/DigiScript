@@ -1,3 +1,4 @@
+import glob
 import os
 import secrets
 import shutil
@@ -20,12 +21,13 @@ from digi_server.logger import configure_db_logging, configure_file_logging, get
 from digi_server.settings import Settings
 from models import models
 from models.cue import CueType
-from models.script import Script
+from models.script import CompiledScript, Script
 from models.session import Session, ShowSession
 from models.settings import SystemSettings
 from models.show import Show
 from models.user import User
 from rbac.rbac import RBACController
+from services.user_service import UserService
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.module_discovery import get_resource_path, is_frozen
@@ -105,15 +107,18 @@ class DigiScriptServer(PrometheusMixIn, Application):
         # Configure the JWT service once we have set up the database
         self.jwt_service = self._configure_jwt()
 
-        # Check for presence of admin user, and update settings to match
+        # Configure the User service
+        self.user_service = UserService(self)
+
+        # On startup, perform the following checks/operations with the database:
         with self._db.sessionmaker() as session:
+            # 1. Check for presence of admin user, and update settings to match
             any_admin = session.scalars(select(User).where(User.is_admin)).first()
             has_admin = any_admin is not None
             self.digi_settings.settings["has_admin_user"].set_value(has_admin, False)
             self.digi_settings._save()
 
-        # Check the show we are expecting to be loaded exists
-        with self._db.sessionmaker() as session:
+            # 2. Check the show we are expecting to be loaded exists
             current_show = self.digi_settings.settings.get("current_show").get_value()
             if current_show:
                 show = session.get(Show, current_show)
@@ -123,13 +128,15 @@ class DigiScriptServer(PrometheusMixIn, Application):
                     )
                     self.digi_settings.settings["current_show"].set_to_default()
                     self.digi_settings._save()
+                    current_show = None
 
-        # If there is a live session in progress, clean up the current client ID
-        with self._db.sessionmaker() as session:
-            current_show = self.digi_settings.settings.get("current_show").get_value()
+            # 3. If there is a live session in progress:
+            # 3.1. Clean up the current client ID
+            # 3.2. Check that the revision of the script matches the current one,
+            #      if not then load the revision being used
             if current_show:
                 show = session.get(Show, current_show)
-                if show and show.current_session_id:
+                if show.current_session_id:
                     show_session: ShowSession = session.get(
                         ShowSession, show.current_session_id
                     )
@@ -137,15 +144,79 @@ class DigiScriptServer(PrometheusMixIn, Application):
                         show_session.last_client_internal_id = (
                             show_session.client_internal_id
                         )
+
+                        scripts: List[Script] = session.scalars(
+                            select(Script).where(Script.show_id == show.id)
+                        ).all()
+                        if len(scripts) != 1:
+                            get_logger().error(
+                                "Unable to validate live session script revision, "
+                                "show does not have exactly one script. Resetting."
+                            )
+                            show.current_session_id = None
+                        else:
+                            current_script: Script = scripts[0]
+                            if (
+                                show_session.script_revision_id
+                                != current_script.current_revision
+                            ):
+                                get_logger().warning(
+                                    "Live session script revision does not match "
+                                    "current script revision. Updating to use "
+                                    "current script revision."
+                                )
+                                current_script.current_revision = (
+                                    show_session.script_revision_id
+                                )
                     else:
-                        get_logger().warning(
-                            "Current show session not found. Resetting."
-                        )
+                        get_logger().error("Current show session not found. Resetting.")
                         show.current_session_id = None
                     session.commit()
 
-        # Clear out all sessions since we are starting the app up
-        with self._db.sessionmaker() as session:
+            # 4. Tidy up compiled scripts
+            # 4.1. Remove any compiled scripts objects where the data file is missing
+            # 4.2. Remove any compiled script files on disk that are not referenced
+            removed_compiled_scripts = []
+            compiled_scripts: List[CompiledScript] = session.scalars(
+                select(CompiledScript)
+            ).all()
+            for compiled_script in compiled_scripts:
+                if not os.path.exists(compiled_script.data_path):
+                    get_logger().info(
+                        f"Removing compiled script for revision {compiled_script.revision_id} "
+                        f"as data file not found at {compiled_script.data_path}"
+                    )
+                    session.delete(compiled_script)
+                    removed_compiled_scripts.append(compiled_script)
+            if removed_compiled_scripts:
+                session.commit()
+                get_logger().info(
+                    f"Removed {len(removed_compiled_scripts)} compiled script objects from the database."
+                )
+
+            compiled_script_path = self.digi_settings.settings.get(
+                "compiled_script_path"
+            ).get_value()
+            for ds_file in glob.glob(f"{compiled_script_path}/*.ds"):
+                found = False
+                for compiled_script in compiled_scripts:
+                    if compiled_script in removed_compiled_scripts:
+                        continue
+                    if compiled_script.data_path == ds_file:
+                        found = True
+                        break
+                if not found:
+                    get_logger().info(
+                        f"Removing unreferenced compiled script file: {ds_file}"
+                    )
+                    try:
+                        os.remove(ds_file)
+                    except Exception:
+                        get_logger().exception(
+                            f"Failed to remove compiled script file: {ds_file}"
+                        )
+
+            # 5. Clear out all sessions since we are starting the app up
             get_logger().debug("Emptying out sessions table!")
             session.execute(delete(Session))
             session.commit()
