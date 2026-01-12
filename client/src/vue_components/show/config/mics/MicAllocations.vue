@@ -111,7 +111,23 @@
               {{ scene.name }}
             </template>
             <template #cell(Character)="data">
-              {{ CHARACTER_BY_ID(data.item.Character).name }}
+              <div style="display: flex; align-items: center; gap: 0.75rem">
+                <span style="white-space: nowrap; flex: 1">
+                  {{ CHARACTER_BY_ID(data.item.Character).name }}
+                </span>
+                <b-button
+                  style="height: fit-content; flex-shrink: 0"
+                  squared
+                  :disabled="micSelectAllDisabledForCharacter(selectedMic, data.item.Character)"
+                  @click.stop="toggleSelectAllAllocation(selectedMic, data.item.Character)"
+                >
+                  <b-icon-check-circle
+                    v-if="micSelectedAllForCharacter(selectedMic, data.item.Character)"
+                    variant="success"
+                  />
+                  <b-icon-x-circle v-else />
+                </b-button>
+              </div>
             </template>
             <template v-for="scene in sortedScenes" #[getCellName(scene.id)]="data">
               <template v-if="editMode && IS_SHOW_EDITOR">
@@ -375,6 +391,60 @@ export default {
       }
 
       return false;
+    },
+    micSelectAllDisabledForCharacter(micId, characterId) {
+      if (this.saving) {
+        return true;
+      }
+      // Check if this mic is used anywhere on another character
+      let canAssign = true;
+      this.sortedScenes.forEach((scene) => {
+        if (
+          this.internalState[micId][scene.id] != null &&
+          this.internalState[micId][scene.id] !== characterId
+        ) {
+          canAssign = false;
+        }
+      }, this);
+      if (!canAssign) {
+        return true;
+      }
+
+      // Check if the character already has a different mic assigned anywhere
+      this.MICROPHONES.forEach((otherMic) => {
+        if (otherMic.id !== micId) {
+          this.sortedScenes.forEach((scene) => {
+            if (this.internalState[otherMic.id][scene.id] === characterId) {
+              canAssign = false;
+            }
+          }, this);
+        }
+      }, this);
+      return !canAssign;
+    },
+    toggleSelectAllAllocation(micId, characterId) {
+      let allAssigned = true;
+      this.sortedScenes.forEach((scene) => {
+        if (this.internalState[micId][scene.id] !== characterId) {
+          allAssigned = false;
+        }
+      }, this);
+      this.sortedScenes.forEach((scene) => {
+        if (allAssigned) {
+          this.internalState[micId][scene.id] = null;
+        } else {
+          this.internalState[micId][scene.id] = characterId;
+        }
+      }, this);
+    },
+    micSelectedAllForCharacter(micId, characterId) {
+      let allAssigned = true;
+      this.sortedScenes.forEach((scene) => {
+        if (this.internalState[micId][scene.id] !== characterId) {
+          allAssigned = false;
+        }
+      }, this);
+      return allAssigned;
     },
     toggleAllocation(micId, sceneId, characterId) {
       if (this.internalState[micId][sceneId] === characterId) {
