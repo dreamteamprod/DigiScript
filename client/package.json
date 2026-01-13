@@ -49,13 +49,13 @@
     "vuex-persistedstate": "3.2.1"
   },
   "devDependencies": {
-    "@babel/core": "7.28.5",
-    "@babel/eslint-parser": "7.28.5",
-    "@babel/preset-env": "7.28.5",
+    "@babel/core": "7.28.6",
+    "@babel/eslint-parser": "7.28.6",
+    "@babel/preset-env": "7.28.6",
     "@eslint/js": "^9.39.2",
     "@types/vuelidate": "^0.7.22",
     "@vitejs/plugin-vue2": "2.3.4",
-    "@vitest/ui": "^4.0.16",
+    "@vitest/ui": "^4.0.17",
     "@vue/test-utils": "^2.4.6",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
@@ -66,7 +66,7 @@
     "prettier": "^3.7.4",
     "sass": "1.97.2",
     "vite": "^7.3.1",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.17"
   },
   "browserslist": [
     "> 1%",
