@@ -13,7 +13,15 @@ if TYPE_CHECKING:
     from models.mics import MicrophoneAllocation
     from models.script import ScriptLine
     from models.session import ShowSession
-    from models.stage import Crew, Props, PropsAllocation, Scenery, SceneryAllocation
+    from models.stage import (
+        Crew,
+        Props,
+        PropsAllocation,
+        PropType,
+        Scenery,
+        SceneryAllocation,
+        SceneryType,
+    )
 
 
 class ShowScriptType(enum.IntEnum):
@@ -71,7 +79,15 @@ class Show(db.Model):
         back_populates="show",
         cascade="all, delete-orphan",
     )
+    scenery_types: Mapped[List["SceneryType"]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
     scenery_list: Mapped[List["Scenery"]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    prop_types: Mapped[List["PropType"]] = relationship(
         back_populates="show",
         cascade="all, delete-orphan",
     )

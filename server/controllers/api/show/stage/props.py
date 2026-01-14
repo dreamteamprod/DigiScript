@@ -3,10 +3,29 @@ from tornado import escape
 from models.show import Show
 from models.stage import Props
 from rbac.role import Role
-from schemas.schemas import PropsSchema
+from schemas.schemas import PropsSchema, PropTypeSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
+
+
+@ApiRoute("show/stage/props/types", ApiVersion.V1)
+class PropsTypesController(BaseAPIController):
+    @requires_show
+    def get(self):
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+        prop_type_schema = PropTypeSchema()
+
+        with self.make_session() as session:
+            show = session.get(Show, show_id)
+            if show:
+                prop_types = [prop_type_schema.dump(c) for c in show.prop_types]
+                self.set_status(200)
+                self.finish({"prop_types": prop_types})
+            else:
+                self.set_status(404)
+                self.finish({"message": "404 show not found"})
 
 
 @ApiRoute("show/stage/props", ApiVersion.V1)

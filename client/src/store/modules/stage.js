@@ -6,15 +6,23 @@ import { makeURL } from '@/js/utils';
 export default {
   state: {
     crewList: [],
+    sceneryTypes: [],
     sceneryList: [],
+    propTypes: [],
     propsList: [],
   },
   mutations: {
     SET_CREW_LIST(state, crewList) {
       state.crewList = crewList;
     },
+    SET_SCENERY_TYPES(state, sceneryTypes) {
+      state.sceneryTypes = sceneryTypes;
+    },
     SET_SCENERY_LIST(state, sceneryList) {
       state.sceneryList = sceneryList;
+    },
+    SET_PROP_TYPES(state, propTypes) {
+      state.propTypes = propTypes;
     },
     SET_PROPS_LIST(state, propsList) {
       state.propsList = propsList;
@@ -78,6 +86,15 @@ export default {
         Vue.$toast.error('Unable to edit crew member');
       }
     },
+    async GET_SCENERY_TYPES(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/scenery/types')}`);
+      if (response.ok) {
+        const scenery = await response.json();
+        context.commit('SET_SCENERY_TYPES', scenery.scenery_types);
+      } else {
+        log.error('Unable to get scenery types list');
+      }
+    },
     async GET_SCENERY_LIST(context) {
       const response = await fetch(`${makeURL('/api/v1/show/stage/scenery')}`);
       if (response.ok) {
@@ -133,6 +150,15 @@ export default {
       } else {
         log.error('Unable to edit scenery member');
         Vue.$toast.error('Unable to edit scenery member');
+      }
+    },
+    async GET_PROP_TYPES(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/props/types')}`);
+      if (response.ok) {
+        const props = await response.json();
+        context.commit('SET_PROP_TYPES', props.prop_types);
+      } else {
+        log.error('Unable to get prop types list');
       }
     },
     async GET_PROPS_LIST(context) {
@@ -197,8 +223,14 @@ export default {
     CREW_LIST(state) {
       return state.crewList;
     },
+    SCENERY_TYPES(state) {
+      return state.sceneryTypes;
+    },
     SCENERY_LIST(state) {
       return state.sceneryList;
+    },
+    PROP_TYPES(state) {
+      return state.propTypes;
     },
     PROPS_LIST(state) {
       return state.propsList;

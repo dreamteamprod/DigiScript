@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -10,7 +12,7 @@ class Crew(db.Model):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    first_name: Mapped[str | None] = mapped_column()
+    first_name: Mapped[str] = mapped_column()
     last_name: Mapped[str | None] = mapped_column()
 
     show: Mapped["Show"] = relationship(back_populates="crew_list")
@@ -52,17 +54,49 @@ class PropsAllocation(db.Model):
     )
 
 
+class SceneryType(db.Model):
+    __tablename__ = "scenery_type"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    name: Mapped[str] = mapped_column()
+    description: Mapped[str | None] = mapped_column()
+
+    show: Mapped["Show"] = relationship(back_populates="scenery_types")
+    scenery_items: Mapped[list["Scenery"]] = relationship(
+        back_populates="scenery_type",
+        cascade="all, delete-orphan",
+    )
+
+
 class Scenery(db.Model):
     __tablename__ = "scenery"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    name: Mapped[str | None] = mapped_column()
+    scenery_type_id: Mapped[int] = mapped_column(ForeignKey("scenery_type.id"))
+    name: Mapped[str] = mapped_column()
     description: Mapped[str | None] = mapped_column()
 
     show: Mapped["Show"] = relationship(back_populates="scenery_list")
-    scene_allocations: Mapped[list["SceneryAllocation"]] = relationship(
+    scenery_type: Mapped["SceneryType"] = relationship(back_populates="scenery_items")
+    scene_allocations: Mapped[List["SceneryAllocation"]] = relationship(
         back_populates="scenery",
+        cascade="all, delete-orphan",
+    )
+
+
+class PropType(db.Model):
+    __tablename__ = "prop_type"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
+    name: Mapped[str] = mapped_column()
+    description: Mapped[str | None] = mapped_column()
+
+    show: Mapped["Show"] = relationship(back_populates="prop_types")
+    prop_items: Mapped[List["Props"]] = relationship(
+        back_populates="prop_type",
         cascade="all, delete-orphan",
     )
 
@@ -72,10 +106,12 @@ class Props(db.Model):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     show_id: Mapped[int] = mapped_column(ForeignKey("shows.id"))
-    name: Mapped[str | None] = mapped_column()
+    prop_type_id: Mapped[int] = mapped_column(ForeignKey("prop_type.id"))
+    name: Mapped[str] = mapped_column()
     description: Mapped[str | None] = mapped_column()
 
     show: Mapped["Show"] = relationship(back_populates="props_list")
+    prop_type: Mapped["PropType"] = relationship(back_populates="prop_items")
     scene_allocations: Mapped[list["PropsAllocation"]] = relationship(
         back_populates="prop",
         cascade="all, delete-orphan",

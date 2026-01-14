@@ -35,15 +35,6 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{ name: 'show-config-crew' }"
-              variant="outline-info"
-              active-class="active"
-            >
-              Crew
-            </b-button>
-            <b-button
-              :disabled="!shouldViewShowConfig"
-              replace
               :to="{ name: 'show-config-characters' }"
               variant="outline-info"
               active-class="active"

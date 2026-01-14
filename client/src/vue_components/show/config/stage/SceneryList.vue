@@ -1,33 +1,69 @@
 <template>
-  <span>
-    <b-table
-      id="scenery-table"
-      :items="SCENERY_LIST"
-      :fields="sceneryFields"
-      :per-page="rowsPerPage"
-      :current-page="currentPage"
-      show-empty
-    >
-      <template #head(btn)="data">
-        <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-scenery variant="outline-success">
-          New Scenery Item
-        </b-button>
-      </template>
-      <template #cell(btn)="data">
-        <b-button-group v-if="IS_SHOW_EDITOR">
-          <b-button variant="warning" @click="openEditForm(data)"> Edit </b-button>
-          <b-button variant="danger" @click="deleteSceneryItem(data)"> Delete </b-button>
-        </b-button-group>
-      </template>
-    </b-table>
-    <b-pagination
-      v-show="SCENERY_LIST.length > rowsPerPage"
-      v-model="currentPage"
-      :total-rows="SCENERY_LIST.length"
-      :per-page="rowsPerPage"
-      aria-controls="scenery-table"
-      class="justify-content-center"
-    />
+  <b-container class="mx-0" fluid>
+    <b-row>
+      <b-col cols="5">
+        <h5>Scenery Types</h5>
+        <b-table
+          id="scenery-types-table"
+          :items="SCENERY_TYPES"
+          :fields="sceneryTypeFields"
+          :per-page="rowsPerPage"
+          :current-page="currentSceneryTypesPage"
+          show-empty
+        >
+          <template #head(btn)="data">
+            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-scenery-type variant="outline-success">
+              New Scenery Type
+            </b-button>
+          </template>
+          <template #cell(btn)="data">
+            <b-button-group v-if="IS_SHOW_EDITOR">
+              <b-button variant="warning" @click="openEditTypeForm(data)"> Edit </b-button>
+              <b-button variant="danger" @click="deleteSceneryType(data)"> Delete </b-button>
+            </b-button-group>
+          </template>
+        </b-table>
+        <b-pagination
+          v-show="SCENERY_TYPES.length > rowsPerPage"
+          v-model="currentSceneryTypesPage"
+          :total-rows="SCENERY_TYPES.length"
+          :per-page="rowsPerPage"
+          aria-controls="scenery-types-table"
+          class="justify-content-center"
+        />
+      </b-col>
+      <b-col cols="7">
+        <h5>Scenery List</h5>
+        <b-table
+          id="scenery-table"
+          :items="SCENERY_LIST"
+          :fields="sceneryFields"
+          :per-page="rowsPerPage"
+          :current-page="currentSceneryPage"
+          show-empty
+        >
+          <template #head(btn)="data">
+            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-scenery variant="outline-success">
+              New Scenery Item
+            </b-button>
+          </template>
+          <template #cell(btn)="data">
+            <b-button-group v-if="IS_SHOW_EDITOR">
+              <b-button variant="warning" @click="openEditForm(data)"> Edit </b-button>
+              <b-button variant="danger" @click="deleteSceneryItem(data)"> Delete </b-button>
+            </b-button-group>
+          </template>
+        </b-table>
+        <b-pagination
+          v-show="SCENERY_LIST.length > rowsPerPage"
+          v-model="currentSceneryPage"
+          :total-rows="SCENERY_LIST.length"
+          :per-page="rowsPerPage"
+          aria-controls="scenery-table"
+          class="justify-content-center"
+        />
+      </b-col>
+    </b-row>
     <b-modal
       id="new-scenery"
       ref="new-scenery"
@@ -107,7 +143,7 @@
         </b-form-group>
       </b-form>
     </b-modal>
-  </span>
+  </b-container>
 </template>
 
 <script>
@@ -118,13 +154,15 @@ export default {
   name: 'SceneryList',
   data() {
     return {
+      sceneryTypeFields: ['name', 'description', { key: 'btn', label: '' }],
       sceneryFields: ['name', 'description', { key: 'btn', label: '' }],
       newFormState: {
         name: '',
         description: '',
       },
       rowsPerPage: 15,
-      currentPage: 1,
+      currentSceneryPage: 1,
+      currentSceneryTypesPage: 1,
       editFormState: {
         id: null,
         showID: null,
@@ -148,9 +186,10 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENERY_LIST', 'IS_SHOW_EDITOR']),
+    ...mapGetters(['SCENERY_LIST', 'SCENERY_TYPES', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
+    await this.GET_SCENERY_TYPES();
     await this.GET_SCENERY_LIST();
   },
   methods: {
@@ -219,6 +258,7 @@ export default {
       }
     },
     ...mapActions([
+      'GET_SCENERY_TYPES',
       'GET_SCENERY_LIST',
       'ADD_SCENERY_MEMBER',
       'DELETE_SCENERY_MEMBER',

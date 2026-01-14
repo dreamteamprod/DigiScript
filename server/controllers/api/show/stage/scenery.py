@@ -3,10 +3,31 @@ from tornado import escape
 from models.show import Show
 from models.stage import Scenery
 from rbac.role import Role
-from schemas.schemas import ScenerySchema
+from schemas.schemas import ScenerySchema, SceneryTypeSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
+
+
+@ApiRoute("show/stage/scenery/types", ApiVersion.V1)
+class PropsTypesController(BaseAPIController):
+    @requires_show
+    def get(self):
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+        scenery_type_schema = SceneryTypeSchema()
+
+        with self.make_session() as session:
+            show = session.get(Show, show_id)
+            if show:
+                scenery_types = [
+                    scenery_type_schema.dump(c) for c in show.scenery_types
+                ]
+                self.set_status(200)
+                self.finish({"scenery_types": scenery_types})
+            else:
+                self.set_status(404)
+                self.finish({"message": "404 show not found"})
 
 
 @ApiRoute("show/stage/scenery", ApiVersion.V1)

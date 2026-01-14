@@ -1,33 +1,69 @@
 <template>
-  <span>
-    <b-table
-      id="props-table"
-      :items="PROPS_LIST"
-      :fields="propsFields"
-      :per-page="rowsPerPage"
-      :current-page="currentPage"
-      show-empty
-    >
-      <template #head(btn)="data">
-        <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-props variant="outline-success">
-          New Props Item
-        </b-button>
-      </template>
-      <template #cell(btn)="data">
-        <b-button-group v-if="IS_SHOW_EDITOR">
-          <b-button variant="warning" @click="openEditForm(data)"> Edit </b-button>
-          <b-button variant="danger" @click="deletePropsItem(data)"> Delete </b-button>
-        </b-button-group>
-      </template>
-    </b-table>
-    <b-pagination
-      v-show="PROPS_LIST.length > rowsPerPage"
-      v-model="currentPage"
-      :total-rows="PROPS_LIST.length"
-      :per-page="rowsPerPage"
-      aria-controls="props-table"
-      class="justify-content-center"
-    />
+  <b-container class="mx-0" fluid>
+    <b-row>
+      <b-col cols="5">
+        <h5>Prop Types</h5>
+        <b-table
+          id="prop-type-table"
+          :items="PROP_TYPES"
+          :fields="propTypesFields"
+          :per-page="rowsPerPage"
+          :current-page="currentPropPage"
+          show-empty
+        >
+          <template #head(btn)="data">
+            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-prop-type variant="outline-success">
+              New Prop Type
+            </b-button>
+          </template>
+          <template #cell(btn)="data">
+            <b-button-group v-if="IS_SHOW_EDITOR">
+              <b-button variant="warning" @click="openEditTypeForm(data)"> Edit </b-button>
+              <b-button variant="danger" @click="deletePropType(data)"> Delete </b-button>
+            </b-button-group>
+          </template>
+        </b-table>
+        <b-pagination
+          v-show="PROP_TYPES.length > rowsPerPage"
+          v-model="currentPropTypePage"
+          :total-rows="PROP_TYPES.length"
+          :per-page="rowsPerPage"
+          aria-controls="prop-type-table"
+          class="justify-content-center"
+        />
+      </b-col>
+      <b-col cols="7">
+        <h5>Props List</h5>
+        <b-table
+          id="props-table"
+          :items="PROPS_LIST"
+          :fields="propsFields"
+          :per-page="rowsPerPage"
+          :current-page="currentPropPage"
+          show-empty
+        >
+          <template #head(btn)="data">
+            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-props variant="outline-success">
+              New Props Item
+            </b-button>
+          </template>
+          <template #cell(btn)="data">
+            <b-button-group v-if="IS_SHOW_EDITOR">
+              <b-button variant="warning" @click="openEditForm(data)"> Edit </b-button>
+              <b-button variant="danger" @click="deletePropsItem(data)"> Delete </b-button>
+            </b-button-group>
+          </template>
+        </b-table>
+        <b-pagination
+          v-show="PROPS_LIST.length > rowsPerPage"
+          v-model="currentPropPage"
+          :total-rows="PROPS_LIST.length"
+          :per-page="rowsPerPage"
+          aria-controls="props-table"
+          class="justify-content-center"
+        />
+      </b-col>
+    </b-row>
     <b-modal
       id="new-props"
       ref="new-props"
@@ -107,7 +143,7 @@
         </b-form-group>
       </b-form>
     </b-modal>
-  </span>
+  </b-container>
 </template>
 
 <script>
@@ -118,13 +154,15 @@ export default {
   name: 'PropsList',
   data() {
     return {
+      propTypesFields: ['name', 'description', { key: 'btn', label: '' }],
       propsFields: ['name', 'description', { key: 'btn', label: '' }],
       newFormState: {
         name: '',
         description: '',
       },
       rowsPerPage: 15,
-      currentPage: 1,
+      currentPropPage: 1,
+      currentPropTypePage: 1,
       editFormState: {
         id: null,
         showID: null,
@@ -148,9 +186,10 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['PROPS_LIST', 'IS_SHOW_EDITOR']),
+    ...mapGetters(['PROPS_LIST', 'PROP_TYPES', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
+    await this.GET_PROP_TYPES();
     await this.GET_PROPS_LIST();
   },
   methods: {
@@ -219,6 +258,7 @@ export default {
       }
     },
     ...mapActions([
+      'GET_PROP_TYPES',
       'GET_PROPS_LIST',
       'ADD_PROPS_MEMBER',
       'DELETE_PROPS_MEMBER',

@@ -14,7 +14,7 @@ from models.script import (
 )
 from models.session import Interval, Session, SessionTag, ShowSession
 from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
-from models.stage import Crew, Props, Scenery
+from models.stage import Crew, Props, PropType, Scenery, SceneryType
 from models.user import User, UserSettings
 from registry.schema import get_registry
 
@@ -77,24 +77,40 @@ class CastSchema(SQLAlchemyAutoSchema):
 class CrewSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Crew
-        include_relationships = True
         load_instance = True
+        include_fk = True
+
+
+@schema
+class SceneryTypeSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = SceneryType
+        load_instance = True
+        include_fk = True
 
 
 @schema
 class ScenerySchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Scenery
-        include_relationships = True
         load_instance = True
+        include_fk = True
 
 
 @schema
 class PropsSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Props
-        include_relationships = True
         load_instance = True
+        include_fk = True
+
+
+@schema
+class PropTypeSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = PropType
+        load_instance = True
+        include_fk = True
 
 
 @schema
