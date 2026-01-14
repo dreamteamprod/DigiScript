@@ -11,7 +11,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/stage/crew", ApiVersion.V1)
 class CrewController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -19,7 +18,7 @@ class CrewController(BaseAPIController):
         crew_schema = CrewSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 crew = [crew_schema.dump(c) for c in show.crew_list]
                 self.set_status(200)
@@ -35,7 +34,7 @@ class CrewController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -77,7 +76,7 @@ class CrewController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -127,7 +126,7 @@ class CrewController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)

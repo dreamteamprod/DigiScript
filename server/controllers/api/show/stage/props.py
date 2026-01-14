@@ -11,7 +11,6 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 @ApiRoute("show/stage/props", ApiVersion.V1)
 class PropsController(BaseAPIController):
-
     @requires_show
     def get(self):
         current_show = self.get_current_show()
@@ -19,7 +18,7 @@ class PropsController(BaseAPIController):
         props_schema = PropsSchema()
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 props = [props_schema.dump(c) for c in show.props_list]
                 self.set_status(200)
@@ -35,7 +34,7 @@ class PropsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -71,7 +70,7 @@ class PropsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
@@ -117,7 +116,7 @@ class PropsController(BaseAPIController):
         show_id = current_show["id"]
 
         with self.make_session() as session:
-            show = session.query(Show).get(show_id)
+            show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)

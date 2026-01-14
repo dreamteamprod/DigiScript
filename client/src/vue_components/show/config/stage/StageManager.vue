@@ -1,63 +1,33 @@
 <template>
-  <b-container
-    v-show="loaded"
-    class="mx-0 px-0 stage-manager-container"
-    fluid
-  >
-    <div
-      class="sticky-header"
-      :style="{ top: navbarHeight + 'px' }"
-    >
+  <b-container v-show="loaded" class="mx-0 px-0 stage-manager-container" fluid>
+    <div class="sticky-header" :style="{ top: navbarHeight + 'px' }">
       <b-row class="script-row">
         <b-col cols="2">
-          <b-button
-            v-b-modal.go-to-scene
-            :disabled="orderedScenes.length === 0"
-            variant="success"
-          >
+          <b-button v-b-modal.go-to-scene :disabled="orderedScenes.length === 0" variant="success">
             Go to Scene
           </b-button>
         </b-col>
-        <b-col
-          cols="2"
-          style="text-align: right"
-        >
-          <b-button
-            variant="success"
-            :disabled="currentSceneIndex === 0"
-            @click="decrScene"
-          >
+        <b-col cols="2" style="text-align: right">
+          <b-button variant="success" :disabled="currentSceneIndex === 0" @click="decrScene">
             Prev Page
           </b-button>
         </b-col>
         <b-col cols="4">
           <p>Current Scene: {{ currentScene }}</p>
         </b-col>
-        <b-col
-          cols="2"
-          style="text-align: left"
-        >
+        <b-col cols="2" style="text-align: left">
           <b-button
             variant="success"
-            :disabled="orderedScenes.length === 0 || currentSceneIndex === orderedScenes.length -1"
+            :disabled="orderedScenes.length === 0 || currentSceneIndex === orderedScenes.length - 1"
             @click="incrScene"
           >
             Next Scene
           </b-button>
         </b-col>
         <b-col cols="2">
-          <b-dropdown
-            :disabled="orderedScenes.length === 0"
-            right
-            text="Add"
-            variant="success"
-          >
-            <b-dropdown-item-button v-b-modal.add-scenery>
-              Scenery
-            </b-dropdown-item-button>
-            <b-dropdown-item-button v-b-modal.add-prop>
-              Prop
-            </b-dropdown-item-button>
+          <b-dropdown :disabled="orderedScenes.length === 0" right text="Add" variant="success">
+            <b-dropdown-item-button v-b-modal.add-scenery> Scenery </b-dropdown-item-button>
+            <b-dropdown-item-button v-b-modal.add-prop> Prop </b-dropdown-item-button>
           </b-dropdown>
         </b-col>
       </b-row>

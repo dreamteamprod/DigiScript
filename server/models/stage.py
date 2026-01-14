@@ -1,5 +1,5 @@
 from sqlalchemy import ForeignKey
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
 from models.show import Scene, Show
@@ -23,9 +23,7 @@ class SceneryAllocation(db.Model):
     scenery_id: Mapped[int] = mapped_column(
         ForeignKey("scenery.id", ondelete="CASCADE")
     )
-    scene_id: Mapped[int] = mapped_column(
-        ForeignKey("scene.id", ondelete="CASCADE")
-    )
+    scene_id: Mapped[int] = mapped_column(ForeignKey("scene.id", ondelete="CASCADE"))
 
     scenery: Mapped["Scenery"] = relationship(
         back_populates="scene_allocations",
@@ -41,12 +39,8 @@ class PropsAllocation(db.Model):
     __tablename__ = "props_allocation"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    props_id: Mapped[int] = mapped_column(
-        ForeignKey("props.id", ondelete="CASCADE")
-    )
-    scene_id: Mapped[int] = mapped_column(
-        ForeignKey("scene.id", ondelete="CASCADE")
-    )
+    props_id: Mapped[int] = mapped_column(ForeignKey("props.id", ondelete="CASCADE"))
+    scene_id: Mapped[int] = mapped_column(ForeignKey("scene.id", ondelete="CASCADE"))
 
     prop: Mapped["Props"] = relationship(
         back_populates="scene_allocations",

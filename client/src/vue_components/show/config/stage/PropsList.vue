@@ -9,28 +9,14 @@
       show-empty
     >
       <template #head(btn)="data">
-        <b-button
-          v-if="IS_SHOW_EDITOR"
-          v-b-modal.new-props
-          variant="outline-success"
-        >
+        <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-props variant="outline-success">
           New Props Item
         </b-button>
       </template>
       <template #cell(btn)="data">
         <b-button-group v-if="IS_SHOW_EDITOR">
-          <b-button
-            variant="warning"
-            @click="openEditForm(data)"
-          >
-            Edit
-          </b-button>
-          <b-button
-            variant="danger"
-            @click="deletePropsItem(data)"
-          >
-            Delete
-          </b-button>
+          <b-button variant="warning" @click="openEditForm(data)"> Edit </b-button>
+          <b-button variant="danger" @click="deletePropsItem(data)"> Delete </b-button>
         </b-button-group>
       </template>
     </b-table>
@@ -51,15 +37,8 @@
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
-      <b-form
-        ref="new-props-form"
-        @submit.stop.prevent="onSubmitNew"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="new-props-form" @submit.stop.prevent="onSubmitNew">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.newFormState.name.$model"
@@ -67,9 +46,7 @@
             :state="validateNewState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -85,9 +62,7 @@
             :state="validateNewState('description')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="description-feedback"
-          >
+          <b-form-invalid-feedback id="description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -101,15 +76,8 @@
       @hidden="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form
-        ref="edit-props-form"
-        @submit.stop.prevent="onSubmitEdit"
-      >
-        <b-form-group
-          id="name-input-group"
-          label="Name"
-          label-for="name-input"
-        >
+      <b-form ref="edit-props-form" @submit.stop.prevent="onSubmitEdit">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
             v-model="$v.editFormState.name.$model"
@@ -117,9 +85,7 @@
             :state="validateEditState('name')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="name-feedback"
-          >
+          <b-form-invalid-feedback id="name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -135,9 +101,7 @@
             :state="validateEditState('description')"
             aria-describedby="name-feedback"
           />
-          <b-form-invalid-feedback
-            id="description-feedback"
-          >
+          <b-form-invalid-feedback id="description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -154,11 +118,7 @@ export default {
   name: 'PropsList',
   data() {
     return {
-      propsFields: [
-        'name',
-        'description',
-        { key: 'btn', label: '' },
-      ],
+      propsFields: ['name', 'description', { key: 'btn', label: '' }],
       newFormState: {
         name: '',
         description: '',
@@ -258,7 +218,12 @@ export default {
         await this.DELETE_PROPS_MEMBER(propsMember.item.id);
       }
     },
-    ...mapActions(['GET_PROPS_LIST', 'ADD_PROPS_MEMBER', 'DELETE_PROPS_MEMBER', 'UPDATE_PROPS_MEMBER']),
+    ...mapActions([
+      'GET_PROPS_LIST',
+      'ADD_PROPS_MEMBER',
+      'DELETE_PROPS_MEMBER',
+      'UPDATE_PROPS_MEMBER',
+    ]),
   },
 };
 </script>

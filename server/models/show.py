@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from models.mics import MicrophoneAllocation
     from models.script import ScriptLine
     from models.session import ShowSession
+    from models.stage import Crew, Props, PropsAllocation, Scenery, SceneryAllocation
 
 
 class ShowScriptType(enum.IntEnum):
