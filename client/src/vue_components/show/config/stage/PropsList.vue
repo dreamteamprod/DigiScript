@@ -455,7 +455,13 @@ export default {
       return $dirty ? !$error : null;
     },
     async deletePropType(propType) {
-      const msg = `Are you sure you want to delete ${propType.item.name}?`;
+      const propsDeleted = this.PROPS_LIST.filter(
+        (prop) => prop.prop_type_id === propType.item.id
+      ).length;
+      let msg = `Are you sure you want to delete ${propType.item.name}?`;
+      if (propsDeleted > 0) {
+        msg = `${msg} This will also delete ${propsDeleted} props.`;
+      }
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         await this.DELETE_PROP_TYPE(propType.item.id);

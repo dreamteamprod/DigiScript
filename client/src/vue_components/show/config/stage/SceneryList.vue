@@ -463,7 +463,13 @@ export default {
       return $dirty ? !$error : null;
     },
     async deleteSceneryType(sceneryType) {
-      const msg = `Are you sure you want to delete ${sceneryType.item.name}?`;
+      const sceneryDeleted = this.SCENERY_LIST.filter(
+        (scenery) => scenery.scenery_type_id === sceneryType.item.id
+      ).length;
+      let msg = `Are you sure you want to delete ${sceneryType.item.name}?`;
+      if (sceneryDeleted > 0) {
+        msg = `${msg} This will also delete ${sceneryDeleted} scenery items.`;
+      }
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         await this.DELETE_SCENERY_TYPE(sceneryType.item.id);
