@@ -46,15 +46,9 @@ const routes = [
         meta: { requiresAuth: true, requiresShowAccess: true },
       },
       {
-        name: 'show-config-acts',
+        name: 'show-config-acts-scenes',
         path: 'acts',
-        component: () => import('../views/show/config/ConfigActs.vue'),
-        meta: { requiresAuth: true, requiresShowAccess: true },
-      },
-      {
-        name: 'show-config-scenes',
-        path: 'scenes',
-        component: () => import('../views/show/config/ConfigScenes.vue'),
+        component: () => import('../views/show/config/ConfigActsAndScenes.vue'),
         meta: { requiresAuth: true, requiresShowAccess: true },
       },
       {
