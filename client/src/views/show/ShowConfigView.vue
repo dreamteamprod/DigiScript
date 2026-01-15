@@ -35,15 +35,6 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{ name: 'show-config-character-groups' }"
-              variant="outline-info"
-              active-class="active"
-            >
-              Character Groups
-            </b-button>
-            <b-button
-              :disabled="!shouldViewShowConfig"
-              replace
               :to="{ name: 'show-config-acts' }"
               variant="outline-info"
               active-class="active"
