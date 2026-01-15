@@ -47,6 +47,29 @@
           <h5>Props</h5>
         </b-col>
       </b-row>
+      <b-modal
+        id="go-to-scene"
+        ref="go-to-scene"
+        size="md"
+        title="Go To Scene"
+        @hidden="resetGoToSceneForm"
+        @ok="onSubmitGoToScene"
+      >
+        <b-form ref="go-to-scene-form" @submit.stop.prevent="onSubmitGoToScene">
+          <b-form-group id="scene-input-group" label="Scene" label-for="scene-input">
+            <b-form-select
+              id="scene-input"
+              v-model="$v.goToSceneFormState.scene_index.$model"
+              :options="sceneFormOptions"
+              :state="validateGoToSceneState('scene_index')"
+              aria-describedby="scene-input-feedback"
+            />
+            <b-form-invalid-feedback id="scene-input-feedback">
+              This is a required field.
+            </b-form-invalid-feedback>
+          </b-form-group>
+        </b-form>
+      </b-modal>
     </template>
     <b-row v-else>
       <b-col>
@@ -62,7 +85,9 @@
 </template>
 
 <script>
+import { required } from 'vuelidate/lib/validators';
 import { mapActions, mapGetters } from 'vuex';
+import { notNull } from '@/js/customValidators';
 
 export default {
   name: 'StageManager',
@@ -71,7 +96,18 @@ export default {
       loaded: false,
       navbarHeight: 0,
       currentSceneIndex: 0,
+      goToSceneFormState: {
+        scene_index: null,
+      },
     };
+  },
+  validations: {
+    goToSceneFormState: {
+      scene_index: {
+        required,
+        notNull,
+      },
+    },
   },
   computed: {
     orderedScenes() {
@@ -92,6 +128,15 @@ export default {
         return `${this.ACT_BY_ID(this.currentScene.act).name}: ${this.currentScene.name}`;
       }
       return 'N/A';
+    },
+    sceneFormOptions() {
+      return [
+        { value: null, text: 'Please select an option', disabled: true },
+        ...this.orderedScenes.map((scene, index) => ({
+          value: index,
+          text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
+        })),
+      ];
     },
     ...mapGetters(['ORDERED_SCENES', 'ACT_BY_ID']),
   },
@@ -125,6 +170,27 @@ export default {
       if (this.currentSceneIndex > 0) {
         this.currentSceneIndex -= 1;
       }
+    },
+    resetGoToSceneForm() {
+      this.goToSceneFormState = {
+        scene_index: null,
+      };
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    onSubmitGoToScene(event) {
+      this.$v.goToSceneFormState.$touch();
+      if (this.$v.goToSceneFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        this.currentSceneIndex = this.goToSceneFormState.scene_index;
+        this.resetGoToSceneForm();
+      }
+    },
+    validateGoToSceneState(name) {
+      const { $dirty, $error } = this.$v.goToSceneFormState[name];
+      return $dirty ? !$error : null;
     },
     ...mapActions(['GET_ACT_LIST', 'GET_SCENE_LIST']),
   },
