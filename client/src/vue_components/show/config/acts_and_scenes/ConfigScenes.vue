@@ -303,7 +303,7 @@ export default {
       'IS_SHOW_EDITOR',
     ]),
     sceneTableItems() {
-      // Get ordering of ConfigActs
+      // Get ordering of Acts
       const acts = [];
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
         let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
