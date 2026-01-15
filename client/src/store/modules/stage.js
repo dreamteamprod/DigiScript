@@ -95,6 +95,60 @@ export default {
         log.error('Unable to get scenery types list');
       }
     },
+    async ADD_SCENERY_TYPE(context, sceneryType) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/scenery/types')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sceneryType),
+      });
+      if (response.ok) {
+        context.dispatch('GET_SCENERY_TYPES');
+        Vue.$toast.success('Added new scenery type!');
+      } else {
+        log.error('Unable to add new scenery type');
+        Vue.$toast.error('Unable to add new scenery type');
+      }
+    },
+    async DELETE_SCENERY_TYPE(context, sceneryTypeId) {
+      const searchParams = new URLSearchParams({
+        id: sceneryTypeId,
+      });
+      const response = await fetch(
+        `${makeURL('/api/v1/show/stage/scenery/types')}?${searchParams}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (response.ok) {
+        context.dispatch('GET_SCENERY_TYPES');
+        context.dispatch('GET_SCENERY_LIST');
+        Vue.$toast.success('Deleted scenery type!');
+      } else {
+        log.error('Unable to delete scenery type');
+        Vue.$toast.error('Unable to delete scenery type');
+      }
+    },
+    async UPDATE_SCENERY_TYPE(context, sceneryType) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/scenery/types')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sceneryType),
+      });
+      if (response.ok) {
+        context.dispatch('GET_SCENERY_TYPES');
+        Vue.$toast.success('Updated scenery type!');
+      } else {
+        log.error('Unable to edit scenery type');
+        Vue.$toast.error('Unable to edit scenery type');
+      }
+    },
     async GET_SCENERY_LIST(context) {
       const response = await fetch(`${makeURL('/api/v1/show/stage/scenery')}`);
       if (response.ok) {
@@ -104,7 +158,7 @@ export default {
         log.error('Unable to get scenery list');
       }
     },
-    async ADD_SCENERY_MEMBER(context, sceneryMember) {
+    async ADD_SCENERY(context, sceneryMember) {
       const response = await fetch(`${makeURL('/api/v1/show/stage/scenery')}`, {
         method: 'POST',
         headers: {
@@ -120,13 +174,15 @@ export default {
         Vue.$toast.error('Unable to add new scenery member');
       }
     },
-    async DELETE_SCENERY_MEMBER(context, sceneryId) {
-      const response = await fetch(`${makeURL('/api/v1/show/stage/scenery')}`, {
+    async DELETE_SCENERY(context, sceneryId) {
+      const searchParams = new URLSearchParams({
+        id: sceneryId,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/stage/scenery')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: sceneryId }),
       });
       if (response.ok) {
         context.dispatch('GET_SCENERY_LIST');
@@ -136,7 +192,7 @@ export default {
         Vue.$toast.error('Unable to delete scenery member');
       }
     },
-    async UPDATE_SCENERY_MEMBER(context, sceneryMember) {
+    async UPDATE_SCENERY(context, sceneryMember) {
       const response = await fetch(`${makeURL('/api/v1/show/stage/scenery')}`, {
         method: 'PATCH',
         headers: {
@@ -161,6 +217,57 @@ export default {
         log.error('Unable to get prop types list');
       }
     },
+    async ADD_PROP_TYPE(context, propType) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/props/types')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(propType),
+      });
+      if (response.ok) {
+        context.dispatch('GET_PROP_TYPES');
+        Vue.$toast.success('Added new prop type!');
+      } else {
+        log.error('Unable to add new prop type');
+        Vue.$toast.error('Unable to add new prop type');
+      }
+    },
+    async DELETE_PROP_TYPE(context, propTypeId) {
+      const searchParams = new URLSearchParams({
+        id: propTypeId,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/stage/props/types')}?${searchParams}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        context.dispatch('GET_PROP_TYPES');
+        context.dispatch('GET_PROPS_LIST');
+        Vue.$toast.success('Deleted prop type!');
+      } else {
+        log.error('Unable to delete prop type');
+        Vue.$toast.error('Unable to delete prop type');
+      }
+    },
+    async UPDATE_PROP_TYPE(context, propType) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/props/types')}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(propType),
+      });
+      if (response.ok) {
+        context.dispatch('GET_PROP_TYPES');
+        Vue.$toast.success('Updated prop type!');
+      } else {
+        log.error('Unable to edit prop type');
+        Vue.$toast.error('Unable to edit prop type');
+      }
+    },
     async GET_PROPS_LIST(context) {
       const response = await fetch(`${makeURL('/api/v1/show/stage/props')}`);
       if (response.ok) {
@@ -170,7 +277,7 @@ export default {
         log.error('Unable to get props list');
       }
     },
-    async ADD_PROPS_MEMBER(context, propsMember) {
+    async ADD_PROP(context, propsMember) {
       const response = await fetch(`${makeURL('/api/v1/show/stage/props')}`, {
         method: 'POST',
         headers: {
@@ -186,13 +293,15 @@ export default {
         Vue.$toast.error('Unable to add new props member');
       }
     },
-    async DELETE_PROPS_MEMBER(context, propsId) {
-      const response = await fetch(`${makeURL('/api/v1/show/stage/props')}`, {
+    async DELETE_PROP(context, propsId) {
+      const searchParams = new URLSearchParams({
+        id: propsId,
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/stage/props')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: propsId }),
       });
       if (response.ok) {
         context.dispatch('GET_PROPS_LIST');
@@ -202,7 +311,7 @@ export default {
         Vue.$toast.error('Unable to delete props member');
       }
     },
-    async UPDATE_PROPS_MEMBER(context, propsMember) {
+    async UPDATE_PROP(context, propsMember) {
       const response = await fetch(`${makeURL('/api/v1/show/stage/props')}`, {
         method: 'PATCH',
         headers: {
@@ -226,11 +335,39 @@ export default {
     SCENERY_TYPES(state) {
       return state.sceneryTypes;
     },
+    SCENERY_TYPES_DICT(state) {
+      return Object.fromEntries(
+        state.sceneryTypes.map((sceneryType) => [sceneryType.id, sceneryType])
+      );
+    },
+    SCENERY_TYPE_BY_ID: (state, getters) => (sceneryTypeId) => {
+      if (sceneryTypeId == null) {
+        return null;
+      }
+      const sceneryTypeStr = sceneryTypeId.toString();
+      if (Object.keys(getters.SCENERY_TYPES_DICT).includes(sceneryTypeStr)) {
+        return getters.SCENERY_TYPES_DICT[sceneryTypeStr];
+      }
+      return null;
+    },
     SCENERY_LIST(state) {
       return state.sceneryList;
     },
     PROP_TYPES(state) {
       return state.propTypes;
+    },
+    PROP_TYPES_DICT(state) {
+      return Object.fromEntries(state.propTypes.map((propType) => [propType.id, propType]));
+    },
+    PROP_TYPE_BY_ID: (state, getters) => (propTypeId) => {
+      if (propTypeId == null) {
+        return null;
+      }
+      const propTypeStr = propTypeId.toString();
+      if (Object.keys(getters.PROP_TYPES_DICT).includes(propTypeStr)) {
+        return getters.PROP_TYPES_DICT[propTypeStr];
+      }
+      return null;
     },
     PROPS_LIST(state) {
       return state.propsList;

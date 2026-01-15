@@ -18,7 +18,7 @@
           </template>
           <template #cell(btn)="data">
             <b-button-group v-if="IS_SHOW_EDITOR">
-              <b-button variant="warning" @click="openEditTypeForm(data)"> Edit </b-button>
+              <b-button variant="warning" @click="openEditSceneryTypeForm(data)"> Edit </b-button>
               <b-button variant="danger" @click="deleteSceneryType(data)"> Delete </b-button>
             </b-button-group>
           </template>
@@ -47,9 +47,12 @@
               New Scenery Item
             </b-button>
           </template>
+          <template #cell(scenery_type_id)="data">
+            <span>{{ SCENERY_TYPE_BY_ID(data.item.scenery_type_id).name }}</span>
+          </template>
           <template #cell(btn)="data">
             <b-button-group v-if="IS_SHOW_EDITOR">
-              <b-button variant="warning" @click="openEditForm(data)"> Edit </b-button>
+              <b-button variant="warning" @click="openEditSceneryForm(data)"> Edit </b-button>
               <b-button variant="danger" @click="deleteSceneryItem(data)"> Delete </b-button>
             </b-button-group>
           </template>
@@ -65,21 +68,21 @@
       </b-col>
     </b-row>
     <b-modal
-      id="new-scenery"
-      ref="new-scenery"
-      title="Add New Scenery Member"
-      size="sm"
-      @show="resetNewForm"
-      @hidden="resetNewForm"
-      @ok="onSubmitNew"
+      id="new-scenery-type"
+      ref="new-scenery-type"
+      title="Add New Scenery Type"
+      size="md"
+      @show="resetNewSceneryTypeForm"
+      @hidden="resetNewSceneryTypeForm"
+      @ok="onSubmitNewSceneryType"
     >
-      <b-form ref="new-scenery-form" @submit.stop.prevent="onSubmitNew">
+      <b-form ref="new-scenery-type-form" @submit.stop.prevent="onSubmitNewSceneryType">
         <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
-            v-model="$v.newFormState.name.$model"
+            v-model="$v.newSceneryTypeFormState.name.$model"
             name="name-input"
-            :state="validateNewState('name')"
+            :state="validateNewSceneryTypeState('name')"
             aria-describedby="name-feedback"
           />
           <b-form-invalid-feedback id="name-feedback">
@@ -93,9 +96,104 @@
         >
           <b-form-input
             id="description-input"
-            v-model="$v.newFormState.description.$model"
+            v-model="$v.newSceneryTypeFormState.description.$model"
             name="description-input"
-            :state="validateNewState('description')"
+            :state="validateNewSceneryTypeState('description')"
+            aria-describedby="name-feedback"
+          />
+          <b-form-invalid-feedback id="description-feedback">
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
+    <b-modal
+      id="edit-scenery-type"
+      ref="edit-scenery-type"
+      title="Edit Scenery Type"
+      size="md"
+      @hidden="resetEditSceneryTypeForm"
+      @ok="onSubmitEditSceneryType"
+    >
+      <b-form ref="edit-scenery-type-form" @submit.stop.prevent="onSubmitEditSceneryType">
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+          <b-form-input
+            id="name-input"
+            v-model="$v.editSceneryTypeFormState.name.$model"
+            name="name-input"
+            :state="validateEditSceneryTypeState('name')"
+            aria-describedby="name-feedback"
+          />
+          <b-form-invalid-feedback id="name-feedback">
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
+          <b-form-input
+            id="description-input"
+            v-model="$v.editSceneryTypeFormState.description.$model"
+            name="description-input"
+            :state="validateEditSceneryTypeState('description')"
+            aria-describedby="name-feedback"
+          />
+          <b-form-invalid-feedback id="description-feedback">
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+      </b-form>
+    </b-modal>
+    <b-modal
+      id="new-scenery"
+      ref="new-scenery"
+      title="Add New Scenery"
+      size="md"
+      @show="resetNewSceneryForm"
+      @hidden="resetNewSceneryForm"
+      @ok="onSubmitNewScenery"
+    >
+      <b-form ref="new-scenery-form" @submit.stop.prevent="onSubmitNewScenery">
+        <b-form-group
+          id="scenery-type-input-group"
+          label="Scenery Type"
+          label-for="scenery-type-input"
+        >
+          <b-form-select
+            id="scenery-type-input"
+            v-model="$v.newSceneryFormState.scenery_type_id.$model"
+            :options="sceneryTypeOptions"
+            :state="validateNewSceneryState('scenery_type_id')"
+            aria-describedby="scenery-type-feedback"
+          />
+          <b-form-invalid-feedback id="scenery-type-feedback">
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+          <b-form-input
+            id="name-input"
+            v-model="$v.newSceneryFormState.name.$model"
+            name="name-input"
+            :state="validateNewSceneryState('name')"
+            aria-describedby="name-feedback"
+          />
+          <b-form-invalid-feedback id="name-feedback">
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group
+          id="description-input-group"
+          label="Description"
+          label-for="description-input"
+        >
+          <b-form-input
+            id="description-input"
+            v-model="$v.newSceneryFormState.description.$model"
+            name="description-input"
+            :state="validateNewSceneryState('description')"
             aria-describedby="name-feedback"
           />
           <b-form-invalid-feedback id="description-feedback">
@@ -107,18 +205,34 @@
     <b-modal
       id="edit-scenery"
       ref="edit-scenery"
-      title="Edit Scenery Member"
-      size="sm"
-      @hidden="resetEditForm"
-      @ok="onSubmitEdit"
+      title="Edit Scenery"
+      size="md"
+      @hidden="resetEditSceneryForm"
+      @ok="onSubmitEditScenery"
     >
-      <b-form ref="edit-scenery-form" @submit.stop.prevent="onSubmitEdit">
+      <b-form ref="edit-scenery-form" @submit.stop.prevent="onSubmitEditScenery">
+        <b-form-group
+          id="scenery-type-input-group"
+          label="Scenery Type"
+          label-for="scenery-type-input"
+        >
+          <b-form-select
+            id="scenery-type-input"
+            v-model="$v.editSceneryFormState.scenery_type_id.$model"
+            :options="sceneryTypeOptions"
+            :state="validateEditSceneryState('scenery_type_id')"
+            aria-describedby="scenery-type-feedback"
+          />
+          <b-form-invalid-feedback id="scenery-type-feedback">
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
         <b-form-group id="name-input-group" label="Name" label-for="name-input">
           <b-form-input
             id="name-input"
-            v-model="$v.editFormState.name.$model"
+            v-model="$v.editSceneryFormState.name.$model"
             name="name-input"
-            :state="validateEditState('name')"
+            :state="validateEditSceneryState('name')"
             aria-describedby="name-feedback"
           />
           <b-form-invalid-feedback id="name-feedback">
@@ -132,9 +246,9 @@
         >
           <b-form-input
             id="description-input"
-            v-model="$v.editFormState.description.$model"
+            v-model="$v.editSceneryFormState.description.$model"
             name="description-input"
-            :state="validateEditState('description')"
+            :state="validateEditSceneryState('description')"
             aria-describedby="name-feedback"
           />
           <b-form-invalid-feedback id="description-feedback">
@@ -149,52 +263,97 @@
 <script>
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
+import { notNull } from '@/js/customValidators';
 
 export default {
   name: 'SceneryList',
   data() {
     return {
       sceneryTypeFields: ['name', 'description', { key: 'btn', label: '' }],
-      sceneryFields: ['name', 'description', { key: 'btn', label: '' }],
-      newFormState: {
+      sceneryFields: [
+        'name',
+        'description',
+        { key: 'scenery_type_id', label: 'Scenery Type' },
+        { key: 'btn', label: '' },
+      ],
+      newSceneryTypeFormState: {
         name: '',
         description: '',
+      },
+      newSceneryFormState: {
+        name: '',
+        description: '',
+        scenery_type_id: null,
       },
       rowsPerPage: 15,
       currentSceneryPage: 1,
       currentSceneryTypesPage: 1,
-      editFormState: {
+      editSceneryTypeFormState: {
         id: null,
-        showID: null,
         name: '',
         description: '',
+      },
+      editSceneryFormState: {
+        id: null,
+        name: '',
+        description: '',
+        scenery_type_id: null,
       },
     };
   },
   validations: {
-    newFormState: {
+    newSceneryTypeFormState: {
       name: {
         required,
       },
       description: {},
     },
-    editFormState: {
+    newSceneryFormState: {
       name: {
         required,
       },
       description: {},
+      scenery_type_id: {
+        required,
+        notNull,
+      },
+    },
+    editSceneryTypeFormState: {
+      name: {
+        required,
+      },
+      description: {},
+    },
+    editSceneryFormState: {
+      name: {
+        required,
+      },
+      description: {},
+      scenery_type_id: {
+        required,
+        notNull,
+      },
     },
   },
   computed: {
-    ...mapGetters(['SCENERY_LIST', 'SCENERY_TYPES', 'IS_SHOW_EDITOR']),
+    sceneryTypeOptions() {
+      return [
+        { value: null, text: 'Please select an option', disabled: true },
+        ...this.SCENERY_TYPES.map((sceneryType) => ({
+          value: sceneryType.id,
+          text: sceneryType.name,
+        })),
+      ];
+    },
+    ...mapGetters(['SCENERY_LIST', 'SCENERY_TYPES', 'IS_SHOW_EDITOR', 'SCENERY_TYPE_BY_ID']),
   },
   async mounted() {
     await this.GET_SCENERY_TYPES();
     await this.GET_SCENERY_LIST();
   },
   methods: {
-    resetNewForm() {
-      this.newFormState = {
+    resetNewSceneryTypeForm() {
+      this.newSceneryTypeFormState = {
         name: '',
         description: '',
       };
@@ -203,32 +362,61 @@ export default {
         this.$v.$reset();
       });
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+    resetNewSceneryForm() {
+      this.newSceneryFormState = {
+        name: '',
+        description: '',
+      };
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    async onSubmitNewSceneryType(event) {
+      this.$v.newSceneryTypeFormState.$touch();
+      if (this.$v.newSceneryTypeFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.ADD_SCENERY_MEMBER(this.newFormState);
-        this.resetNewForm();
+        await this.ADD_SCENERY_TYPE(this.newSceneryTypeFormState);
+        this.resetNewSceneryTypeForm();
       }
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
+    async onSubmitNewScenery(event) {
+      this.$v.newSceneryFormState.$touch();
+      if (this.$v.newSceneryFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.ADD_SCENERY(this.newSceneryFormState);
+        this.resetNewSceneryForm();
+      }
+    },
+    validateNewSceneryTypeState(name) {
+      const { $dirty, $error } = this.$v.newSceneryTypeFormState[name];
       return $dirty ? !$error : null;
     },
-    openEditForm(sceneryMember) {
+    validateNewSceneryState(name) {
+      const { $dirty, $error } = this.$v.newSceneryFormState[name];
+      return $dirty ? !$error : null;
+    },
+    openEditSceneryTypeForm(sceneryType) {
+      if (sceneryType != null) {
+        this.editSceneryTypeFormState.id = sceneryType.item.id;
+        this.editSceneryTypeFormState.name = sceneryType.item.name;
+        this.editSceneryTypeFormState.description = sceneryType.item.description;
+        this.$bvModal.show('edit-scenery-type');
+      }
+    },
+    openEditSceneryForm(sceneryMember) {
       if (sceneryMember != null) {
-        this.editFormState.id = sceneryMember.item.id;
-        this.editFormState.showID = sceneryMember.item.show_id;
-        this.editFormState.name = sceneryMember.item.first_name;
-        this.editFormState.description = sceneryMember.item.last_name;
+        this.editSceneryFormState.id = sceneryMember.item.id;
+        this.editSceneryFormState.name = sceneryMember.item.name;
+        this.editSceneryFormState.description = sceneryMember.item.description;
         this.$bvModal.show('edit-scenery');
       }
     },
-    resetEditForm() {
-      this.editFormState = {
+    resetEditSceneryTypeForm() {
+      this.editSceneryTypeFormState = {
         id: null,
-        showID: null,
         name: '',
         description: '',
       };
@@ -237,32 +425,66 @@ export default {
         this.$v.$reset();
       });
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+    resetEditSceneryForm() {
+      this.editSceneryFormState = {
+        id: null,
+        name: '',
+        description: '',
+      };
+
+      this.$nextTick(() => {
+        this.$v.$reset();
+      });
+    },
+    async onSubmitEditSceneryType(event) {
+      this.$v.editSceneryTypeFormState.$touch();
+      if (this.$v.editSceneryTypeFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.UPDATE_SCENERY_MEMBER(this.editFormState);
-        this.resetEditForm();
+        await this.UPDATE_SCENERY_TYPE(this.editSceneryTypeFormState);
+        this.resetEditSceneryTypeForm();
       }
     },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
+    async onSubmitEditScenery(event) {
+      this.$v.editSceneryFormState.$touch();
+      if (this.$v.editSceneryFormState.$anyError) {
+        event.preventDefault();
+      } else {
+        await this.UPDATE_SCENERY(this.editSceneryFormState);
+        this.resetEditSceneryForm();
+      }
+    },
+    validateEditSceneryTypeState(name) {
+      const { $dirty, $error } = this.$v.editSceneryTypeFormState[name];
       return $dirty ? !$error : null;
+    },
+    validateEditSceneryState(name) {
+      const { $dirty, $error } = this.$v.editSceneryFormState[name];
+      return $dirty ? !$error : null;
+    },
+    async deleteSceneryType(sceneryType) {
+      const msg = `Are you sure you want to delete ${sceneryType.item.name}?`;
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action === true) {
+        await this.DELETE_SCENERY_TYPE(sceneryType.item.id);
+      }
     },
     async deleteSceneryItem(sceneryMember) {
       const msg = `Are you sure you want to delete ${sceneryMember.item.name}?`;
       const action = await this.$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_SCENERY_MEMBER(sceneryMember.item.id);
+        await this.DELETE_SCENERY(sceneryMember.item.id);
       }
     },
     ...mapActions([
       'GET_SCENERY_TYPES',
       'GET_SCENERY_LIST',
-      'ADD_SCENERY_MEMBER',
-      'DELETE_SCENERY_MEMBER',
-      'UPDATE_SCENERY_MEMBER',
+      'ADD_SCENERY_TYPE',
+      'ADD_SCENERY',
+      'DELETE_SCENERY_TYPE',
+      'DELETE_SCENERY',
+      'UPDATE_SCENERY_TYPE',
+      'UPDATE_SCENERY',
     ]),
   },
 };
