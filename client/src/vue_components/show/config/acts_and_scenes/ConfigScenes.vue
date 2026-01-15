@@ -1,8 +1,7 @@
 <template>
-  <b-container class="mx-0" fluid>
+  <b-container v-if="!loading" class="mx-0" fluid>
     <b-row>
       <b-col cols="8">
-        <h5>Scene List</h5>
         <b-table
           id="scene-table"
           :items="sceneTableItems"
@@ -60,7 +59,6 @@
         />
       </b-col>
       <b-col cols="4">
-        <h5>Act First Scenes</h5>
         <b-table id="first-scenes-table" :items="ACT_LIST" :fields="firstSceneFields" show-empty>
           <template #cell(first_scene)="data">
             <p v-if="data.item.first_scene">
@@ -208,6 +206,9 @@
       </b-form>
     </b-modal>
   </b-container>
+  <div v-else class="text-center py-5">
+    <b-spinner label="Loading" />
+  </div>
 </template>
 
 <script>
@@ -219,6 +220,7 @@ export default {
   name: 'ConfigScenes',
   data() {
     return {
+      loading: true,
       rowsPerPage: 15,
       currentPage: 1,
       sceneFields: [
@@ -301,7 +303,7 @@ export default {
       'IS_SHOW_EDITOR',
     ]),
     sceneTableItems() {
-      // Get ordering of Acts
+      // Get ordering of ConfigActs
       const acts = [];
       if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
         let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
@@ -414,6 +416,7 @@ export default {
   async mounted() {
     await this.GET_SCENE_LIST();
     await this.GET_ACT_LIST();
+    this.loading = false;
   },
   methods: {
     resetNewForm() {
