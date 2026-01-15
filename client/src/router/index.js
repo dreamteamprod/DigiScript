@@ -46,12 +46,6 @@ const routes = [
         meta: { requiresAuth: true, requiresShowAccess: true },
       },
       {
-        name: 'show-config-character-groups',
-        path: 'character-groups',
-        component: () => import('../views/show/config/ConfigCharacterGroups.vue'),
-        meta: { requiresAuth: true, requiresShowAccess: true },
-      },
-      {
         name: 'show-config-acts',
         path: 'acts',
         component: () => import('../views/show/config/ConfigActs.vue'),
