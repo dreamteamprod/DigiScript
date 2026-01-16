@@ -29,9 +29,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App information
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 
-  // Future: Version checking (Phase 3)
+  // Version checking
   checkVersion: (serverUrl) => ipcRenderer.invoke('version:check', serverUrl),
 
-  // Future: mDNS discovery (Phase 3)
-  discoverServers: () => ipcRenderer.invoke('mdns:discover'),
+  // mDNS discovery
+  discoverServers: (timeout) => ipcRenderer.invoke('mdns:discover', timeout),
+  discoverServersWithVersionCheck: (timeout) =>
+    ipcRenderer.invoke('mdns:discoverWithVersionCheck', timeout),
 });

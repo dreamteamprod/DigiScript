@@ -10,6 +10,8 @@ const url = require('url');
 
 // Services
 const ConnectionManager = require('./services/ConnectionManager');
+const VersionChecker = require('./services/VersionChecker');
+const MDNSDiscovery = require('./services/MDNSDiscovery');
 
 // Determine if running in development mode
 const isDev = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
@@ -122,6 +124,22 @@ function registerIPCHandlers() {
   // App information
   ipcMain.handle('app:getVersion', async () => {
     return app.getVersion();
+  });
+
+  // Version checking
+  ipcMain.handle('version:check', async (event, serverUrl) => {
+    const clientVersion = app.getVersion();
+    return VersionChecker.checkVersion(serverUrl, clientVersion);
+  });
+
+  // mDNS discovery
+  ipcMain.handle('mdns:discover', async (event, timeout = 5000) => {
+    return MDNSDiscovery.discoverServers(timeout);
+  });
+
+  ipcMain.handle('mdns:discoverWithVersionCheck', async (event, timeout = 5000) => {
+    const clientVersion = app.getVersion();
+    return MDNSDiscovery.discoverServersWithVersionCheck(clientVersion, timeout);
   });
 }
 
