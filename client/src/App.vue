@@ -98,7 +98,7 @@
         <b-spinner style="width: 10rem; height: 10rem" variant="info" />
       </div>
     </template>
-    <template v-else-if="SETTINGS.has_admin_user === false">
+    <template v-else-if="SETTINGS && SETTINGS.has_admin_user === false">
       <b-container class="mx-0" fluid>
         <b-row>
           <b-col>
@@ -219,10 +219,12 @@ export default {
         const activeConnection = await window.electronAPI.getActiveConnection();
         if (!activeConnection) {
           console.log('No active connection in Electron - skipping App initialization');
+          this.loaded = true; // Set loaded so router-view renders
           return; // Skip all initialization
         }
       } catch (error) {
         console.error('Error checking active connection:', error);
+        this.loaded = true; // Set loaded so router-view renders
         return; // Skip initialization on error
       }
     }
