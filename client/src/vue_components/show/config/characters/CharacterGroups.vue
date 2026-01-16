@@ -1,61 +1,56 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col>
-        <h5>Character Groups</h5>
-        <b-table
-          id="character-group-table"
-          :items="CHARACTER_GROUP_LIST"
-          :fields="characterGroupFields"
-          :per-page="rowsPerPage"
-          :current-page="currentPage"
-          show-empty
-        >
-          <template #head(btn)="data">
-            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-character-group variant="outline-success">
-              New Character Group
-            </b-button>
-          </template>
-          <template #cell(characters)="data">
-            <div style="overflow-wrap: break-word">
-              <p>
-                {{
-                  CHARACTER_LIST.filter((c) => data.item.characters.includes(c.id))
-                    .map((c) => c.name)
-                    .join(', ')
-                }}
-              </p>
-            </div>
-          </template>
-          <template #cell(btn)="data">
-            <b-button-group v-if="IS_SHOW_EDITOR">
-              <b-button
-                variant="warning"
-                :disabled="submittingEditGroup || deletingGroup"
-                @click="openEditForm(data)"
-              >
-                Edit
-              </b-button>
-              <b-button
-                variant="danger"
-                :disabled="submittingEditGroup || deletingGroup"
-                @click="deleteCharacterGroup(data)"
-              >
-                Delete
-              </b-button>
-            </b-button-group>
-          </template>
-        </b-table>
-        <b-pagination
-          v-show="CHARACTER_GROUP_LIST.length > rowsPerPage"
-          v-model="currentPage"
-          :total-rows="CHARACTER_GROUP_LIST.length"
-          :per-page="rowsPerPage"
-          aria-controls="character-group-table"
-          class="justify-content-center"
-        />
-      </b-col>
-    </b-row>
+  <span v-if="!loading">
+    <b-table
+      id="character-group-table"
+      :items="CHARACTER_GROUP_LIST"
+      :fields="characterGroupFields"
+      :per-page="rowsPerPage"
+      :current-page="currentPage"
+      show-empty
+    >
+      <template #head(btn)="data">
+        <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-character-group variant="outline-success">
+          New Character Group
+        </b-button>
+      </template>
+      <template #cell(characters)="data">
+        <div style="overflow-wrap: break-word">
+          <p>
+            {{
+              CHARACTER_LIST.filter((c) => data.item.characters.includes(c.id))
+                .map((c) => c.name)
+                .join(', ')
+            }}
+          </p>
+        </div>
+      </template>
+      <template #cell(btn)="data">
+        <b-button-group v-if="IS_SHOW_EDITOR">
+          <b-button
+            variant="warning"
+            :disabled="submittingEditGroup || deletingGroup"
+            @click="openEditForm(data)"
+          >
+            Edit
+          </b-button>
+          <b-button
+            variant="danger"
+            :disabled="submittingEditGroup || deletingGroup"
+            @click="deleteCharacterGroup(data)"
+          >
+            Delete
+          </b-button>
+        </b-button-group>
+      </template>
+    </b-table>
+    <b-pagination
+      v-show="CHARACTER_GROUP_LIST.length > rowsPerPage"
+      v-model="currentPage"
+      :total-rows="CHARACTER_GROUP_LIST.length"
+      :per-page="rowsPerPage"
+      aria-controls="character-group-table"
+      class="justify-content-center"
+    />
     <b-modal
       id="new-character-group"
       ref="new-character"
@@ -155,7 +150,10 @@
         </b-form-group>
       </b-form>
     </b-modal>
-  </b-container>
+  </span>
+  <div v-else class="text-center py-5">
+    <b-spinner label="Loading" />
+  </div>
 </template>
 
 <script>
@@ -164,9 +162,10 @@ import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 
 export default {
-  name: 'ConfigCharacterGroups',
+  name: 'CharacterGroups',
   data() {
     return {
+      loading: true,
       characterGroupFields: ['name', 'description', 'characters', { key: 'btn', label: '' }],
       rowsPerPage: 15,
       currentPage: 1,
@@ -210,6 +209,7 @@ export default {
   async mounted() {
     await this.GET_CHARACTER_LIST();
     await this.GET_CHARACTER_GROUP_LIST();
+    this.loading = false;
   },
   methods: {
     newSelectChanged(value, id) {
