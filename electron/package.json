@@ -1,0 +1,60 @@
+{
+  "name": "digiscript-electron",
+  "version": "0.23.0",
+  "description": "DigiScript Electron Desktop Application",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
+  },
+  "engines": {
+    "npm": ">=11.0.0 <12",
+    "node": ">=24.0.0 <25"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "bonjour-service": "^1.2.1",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "electron": "^32.2.10",
+    "@electron-forge/cli": "^7.5.0",
+    "@electron-forge/maker-squirrel": "^7.5.0",
+    "@electron-forge/maker-zip": "^7.5.0",
+    "@electron-forge/maker-deb": "^7.5.0",
+    "@electron-forge/maker-rpm": "^7.5.0"
+  },
+  "config": {
+    "forge": {
+      "packagerConfig": {
+        "name": "DigiScript",
+        "executableName": "digiscript",
+        "icon": "./assets/icon",
+        "asar": true
+      },
+      "makers": [
+        {
+          "name": "@electron-forge/maker-squirrel",
+          "config": {
+            "name": "DigiScript"
+          }
+        },
+        {
+          "name": "@electron-forge/maker-zip",
+          "platforms": ["darwin"]
+        },
+        {
+          "name": "@electron-forge/maker-deb",
+          "config": {}
+        },
+        {
+          "name": "@electron-forge/maker-rpm",
+          "config": {}
+        }
+      ]
+    }
+  }
+}
