@@ -151,6 +151,7 @@ import CreateUser from '@/vue_components/user/CreateUser.vue';
 import { makeURL } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { required, minValue } from 'vuelidate/lib/validators';
+import { isElectron } from '@/js/platform';
 
 export default {
   components: { CreateUser },
@@ -211,6 +212,21 @@ export default {
     ]),
   },
   async created() {
+    // Check if we're in Electron without an active connection
+    // If so, skip all initialization - the router will redirect to ServerSelector
+    if (isElectron()) {
+      try {
+        const activeConnection = await window.electronAPI.getActiveConnection();
+        if (!activeConnection) {
+          console.log('No active connection in Electron - skipping App initialization');
+          return; // Skip all initialization
+        }
+      } catch (error) {
+        console.error('Error checking active connection:', error);
+        return; // Skip initialization on error
+      }
+    }
+
     // If we have a stored auth token, refresh the token to validate we are still logged in,
     // and then set up token refresh
     if (this.AUTH_TOKEN) {
