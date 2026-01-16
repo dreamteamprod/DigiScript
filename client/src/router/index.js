@@ -146,19 +146,24 @@ const router = new VueRouter({
 });
 
 router.beforeEach(async (to, from, next) => {
-  // Electron: Check if we need to redirect to server selector
-  if (isElectron()) {
-    // Allow access to the server selector page itself
-    if (to.path === '/electron/server-selector') {
-      return next();
-    }
+  // Silly code needed for... reasons... this seems to correctly set the correct state
+  // on the router and do the fetch needed for anything else. Shrug...
+  let requiresSettingsFetch = false;
+  if (router.app.$store === undefined) {
+    await router.app.$nextTick();
+    requiresSettingsFetch = true;
+  }
 
-    // Check if there's an active connection
+  // Electron: Check if we need to redirect to server selector
+  // Do this BEFORE fetching settings since we need a server connection first
+  if (isElectron() && to.path !== '/electron/server-selector') {
     try {
       const activeConnection = await window.electronAPI.getActiveConnection();
       if (!activeConnection) {
         // No active connection, redirect to server selector
-        Vue.$toast.warning('Please select a server to connect to');
+        if (router.app.$toast) {
+          router.app.$toast.warning('Please select a server to connect to');
+        }
         return next('/electron/server-selector');
       }
     } catch (error) {
@@ -171,17 +176,17 @@ router.beforeEach(async (to, from, next) => {
   // Prevent non-Electron users from accessing Electron-only routes
   const isElectronOnly = to.matched.some((record) => record.meta.isElectronOnly);
   if (isElectronOnly && !isElectron()) {
-    Vue.$toast.error('This page is only available in the desktop app');
+    if (router.app.$toast) {
+      router.app.$toast.error('This page is only available in the desktop app');
+    }
     return next('/');
   }
 
-  // Silly code needed for... reasons... this seems to correctly set the correct state
-  // on the router and do the fetch needed for anything else. Shrug...
-  let requiresSettingsFetch = false;
-  if (router.app.$store === undefined) {
-    await router.app.$nextTick();
-    requiresSettingsFetch = true;
+  // Skip all settings fetch and auth checks for Electron server selector (no connection yet)
+  if (to.path === '/electron/server-selector') {
+    return next();
   }
+
   if (requiresSettingsFetch) {
     await router.app.$store.dispatch('GET_RBAC_ROLES');
     await router.app.$store.dispatch('GET_SETTINGS');
