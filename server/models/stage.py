@@ -1,6 +1,6 @@
 from typing import List
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -20,6 +20,9 @@ class Crew(db.Model):
 
 class SceneryAllocation(db.Model):
     __tablename__ = "scenery_allocation"
+    __table_args__ = (
+        UniqueConstraint("scenery_id", "scene_id", name="uq_scenery_scene"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     scenery_id: Mapped[int] = mapped_column(
@@ -39,6 +42,7 @@ class SceneryAllocation(db.Model):
 
 class PropsAllocation(db.Model):
     __tablename__ = "props_allocation"
+    __table_args__ = (UniqueConstraint("props_id", "scene_id", name="uq_props_scene"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     props_id: Mapped[int] = mapped_column(ForeignKey("props.id", ondelete="CASCADE"))

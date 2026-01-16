@@ -14,7 +14,15 @@ from models.script import (
 )
 from models.session import Interval, Session, SessionTag, ShowSession
 from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
-from models.stage import Crew, Props, PropType, Scenery, SceneryType
+from models.stage import (
+    Crew,
+    Props,
+    PropsAllocation,
+    PropType,
+    Scenery,
+    SceneryAllocation,
+    SceneryType,
+)
 from models.user import User, UserSettings
 from registry.schema import get_registry
 
@@ -109,6 +117,22 @@ class PropsSchema(SQLAlchemyAutoSchema):
 class PropTypeSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = PropType
+        load_instance = True
+        include_fk = True
+
+
+@schema
+class PropsAllocationSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = PropsAllocation
+        load_instance = True
+        include_fk = True
+
+
+@schema
+class SceneryAllocationSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = SceneryAllocation
         load_instance = True
         include_fk = True
 

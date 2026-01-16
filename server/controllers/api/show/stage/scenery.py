@@ -1,9 +1,10 @@
+from sqlalchemy import select
 from tornado import escape
 
-from models.show import Show
-from models.stage import Scenery, SceneryType
+from models.show import Scene, Show
+from models.stage import Scenery, SceneryAllocation, SceneryType
 from rbac.role import Role
-from schemas.schemas import ScenerySchema, SceneryTypeSchema
+from schemas.schemas import SceneryAllocationSchema, ScenerySchema, SceneryTypeSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
@@ -343,3 +344,174 @@ class SceneryController(BaseAPIController):
             else:
                 self.set_status(404)
                 await self.finish({"message": "404 show not found"})
+
+
+@ApiRoute("show/stage/scenery/allocations", ApiVersion.V1)
+class SceneryAllocationController(BaseAPIController):
+    """Controller for managing scenery allocations to scenes."""
+
+    @requires_show
+    def get(self):
+        """Get all scenery allocations for the current show."""
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+        allocation_schema = SceneryAllocationSchema()
+
+        with self.make_session() as session:
+            show = session.get(Show, show_id)
+            if show:
+                allocations = session.scalars(
+                    select(SceneryAllocation)
+                    .join(Scenery, SceneryAllocation.scenery_id == Scenery.id)
+                    .where(Scenery.show_id == show_id)
+                ).all()
+                allocations = [allocation_schema.dump(a) for a in allocations]
+                self.set_status(200)
+                self.finish({"allocations": allocations})
+            else:
+                self.set_status(404)
+                self.finish({"message": "404 show not found"})
+
+    @requires_show
+    @no_live_session
+    async def post(self):
+        """Create a new scenery allocation."""
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+
+        with self.make_session() as session:
+            show = session.get(Show, show_id)
+            if not show:
+                self.set_status(404)
+                await self.finish({"message": "404 show not found"})
+                return
+
+            self.requires_role(show, Role.WRITE)
+            data = escape.json_decode(self.request.body)
+
+            # Validate scenery_id
+            scenery_id = data.get("scenery_id", None)
+            if scenery_id is None:
+                self.set_status(400)
+                await self.finish({"message": "scenery_id missing"})
+                return
+
+            try:
+                scenery_id = int(scenery_id)
+            except ValueError:
+                self.set_status(400)
+                await self.finish({"message": "Invalid scenery_id"})
+                return
+
+            scenery: Scenery = session.get(Scenery, scenery_id)
+            if not scenery:
+                self.set_status(404)
+                await self.finish({"message": "404 scenery not found"})
+                return
+
+            if scenery.show_id != show_id:
+                self.set_status(404)
+                await self.finish({"message": "404 scenery not found"})
+                return
+
+            # Validate scene_id
+            scene_id = data.get("scene_id", None)
+            if scene_id is None:
+                self.set_status(400)
+                await self.finish({"message": "scene_id missing"})
+                return
+
+            try:
+                scene_id = int(scene_id)
+            except ValueError:
+                self.set_status(400)
+                await self.finish({"message": "Invalid scene_id"})
+                return
+
+            scene: Scene = session.get(Scene, scene_id)
+            if not scene:
+                self.set_status(404)
+                await self.finish({"message": "404 scene not found"})
+                return
+
+            if scene.show_id != show_id:
+                self.set_status(404)
+                await self.finish({"message": "404 scene not found"})
+                return
+
+            # Check for duplicate allocation
+            existing = session.scalars(
+                select(SceneryAllocation).where(
+                    SceneryAllocation.scenery_id == scenery_id,
+                    SceneryAllocation.scene_id == scene_id,
+                )
+            ).first()
+            if existing:
+                self.set_status(400)
+                await self.finish(
+                    {"message": "Allocation already exists for this scenery and scene"}
+                )
+                return
+
+            new_allocation = SceneryAllocation(scenery_id=scenery_id, scene_id=scene_id)
+            session.add(new_allocation)
+            session.commit()
+
+            self.set_status(200)
+            await self.finish(
+                {"id": new_allocation.id, "message": "Successfully added allocation"}
+            )
+
+            await self.application.ws_send_to_all("NOOP", "GET_SCENERY_ALLOCATIONS", {})
+
+    @requires_show
+    @no_live_session
+    async def delete(self):
+        """Delete a scenery allocation by ID (query parameter)."""
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+
+        with self.make_session() as session:
+            show = session.get(Show, show_id)
+            if not show:
+                self.set_status(404)
+                await self.finish({"message": "404 show not found"})
+                return
+
+            self.requires_role(show, Role.WRITE)
+
+            allocation_id_str = self.get_argument("id", None)
+            if not allocation_id_str:
+                self.set_status(400)
+                await self.finish({"message": "ID missing"})
+                return
+
+            try:
+                allocation_id = int(allocation_id_str)
+            except ValueError:
+                self.set_status(400)
+                await self.finish({"message": "Invalid ID"})
+                return
+
+            allocation: SceneryAllocation = session.get(
+                SceneryAllocation, allocation_id
+            )
+            if not allocation:
+                self.set_status(404)
+                await self.finish({"message": "404 allocation not found"})
+                return
+
+            # Verify the allocation belongs to scenery in this show
+            scenery: Scenery = session.get(Scenery, allocation.scenery_id)
+            if not scenery or scenery.show_id != show_id:
+                self.set_status(404)
+                await self.finish({"message": "404 allocation not found"})
+                return
+
+            session.delete(allocation)
+            session.commit()
+
+            self.set_status(200)
+            await self.finish({"message": "Successfully deleted allocation"})
+
+            await self.application.ws_send_to_all("NOOP", "GET_SCENERY_ALLOCATIONS", {})

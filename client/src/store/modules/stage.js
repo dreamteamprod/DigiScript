@@ -8,8 +8,10 @@ export default {
     crewList: [],
     sceneryTypes: [],
     sceneryList: [],
+    sceneryAllocations: [],
     propTypes: [],
     propsList: [],
+    propsAllocations: [],
   },
   mutations: {
     SET_CREW_LIST(state, crewList) {
@@ -26,6 +28,12 @@ export default {
     },
     SET_PROPS_LIST(state, propsList) {
       state.propsList = propsList;
+    },
+    SET_PROPS_ALLOCATIONS(state, allocations) {
+      state.propsAllocations = allocations;
+    },
+    SET_SCENERY_ALLOCATIONS(state, allocations) {
+      state.sceneryAllocations = allocations;
     },
   },
   actions: {
@@ -327,6 +335,98 @@ export default {
         Vue.$toast.error('Unable to edit props member');
       }
     },
+    async GET_PROPS_ALLOCATIONS(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/props/allocations')}`);
+      if (response.ok) {
+        const data = await response.json();
+        context.commit('SET_PROPS_ALLOCATIONS', data.allocations);
+      } else {
+        log.error('Unable to get props allocations');
+      }
+    },
+    async ADD_PROPS_ALLOCATION(context, allocation) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/props/allocations')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(allocation),
+      });
+      if (response.ok) {
+        context.dispatch('GET_PROPS_ALLOCATIONS');
+        Vue.$toast.success('Added prop allocation!');
+      } else {
+        log.error('Unable to add prop allocation');
+        Vue.$toast.error('Unable to add prop allocation');
+      }
+    },
+    async DELETE_PROPS_ALLOCATION(context, allocationId) {
+      const searchParams = new URLSearchParams({
+        id: allocationId,
+      });
+      const response = await fetch(
+        `${makeURL('/api/v1/show/stage/props/allocations')}?${searchParams}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (response.ok) {
+        context.dispatch('GET_PROPS_ALLOCATIONS');
+        Vue.$toast.success('Deleted prop allocation!');
+      } else {
+        log.error('Unable to delete prop allocation');
+        Vue.$toast.error('Unable to delete prop allocation');
+      }
+    },
+    async GET_SCENERY_ALLOCATIONS(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/scenery/allocations')}`);
+      if (response.ok) {
+        const data = await response.json();
+        context.commit('SET_SCENERY_ALLOCATIONS', data.allocations);
+      } else {
+        log.error('Unable to get scenery allocations');
+      }
+    },
+    async ADD_SCENERY_ALLOCATION(context, allocation) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/scenery/allocations')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(allocation),
+      });
+      if (response.ok) {
+        context.dispatch('GET_SCENERY_ALLOCATIONS');
+        Vue.$toast.success('Added scenery allocation!');
+      } else {
+        log.error('Unable to add scenery allocation');
+        Vue.$toast.error('Unable to add scenery allocation');
+      }
+    },
+    async DELETE_SCENERY_ALLOCATION(context, allocationId) {
+      const searchParams = new URLSearchParams({
+        id: allocationId,
+      });
+      const response = await fetch(
+        `${makeURL('/api/v1/show/stage/scenery/allocations')}?${searchParams}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (response.ok) {
+        context.dispatch('GET_SCENERY_ALLOCATIONS');
+        Vue.$toast.success('Deleted scenery allocation!');
+      } else {
+        log.error('Unable to delete scenery allocation');
+        Vue.$toast.error('Unable to delete scenery allocation');
+      }
+    },
   },
   getters: {
     CREW_LIST(state) {
@@ -371,6 +471,12 @@ export default {
     },
     PROPS_LIST(state) {
       return state.propsList;
+    },
+    PROPS_ALLOCATIONS(state) {
+      return state.propsAllocations;
+    },
+    SCENERY_ALLOCATIONS(state) {
+      return state.sceneryAllocations;
     },
   },
 };
