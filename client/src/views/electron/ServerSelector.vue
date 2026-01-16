@@ -354,8 +354,8 @@ export default {
 
         this.$toast.success(`Connected to ${connection.nickname}`);
 
-        // Redirect to home
-        this.$router.push('/');
+        // Reload the page to reinitialize WebSocket with new connection
+        window.location.href = '/';
       } catch (error) {
         this.$toast.error(`Connection failed: ${error.message}`);
       } finally {
@@ -382,8 +382,8 @@ export default {
 
         this.$toast.success(`Connected to ${server.name}`);
 
-        // Redirect to home
-        this.$router.push('/');
+        // Reload the page to reinitialize WebSocket with new connection
+        window.location.href = '/';
       } catch (error) {
         this.$toast.error(`Failed to add server: ${error.message}`);
       } finally {
@@ -425,8 +425,8 @@ export default {
 
         this.$toast.success(`Connected to ${this.manualForm.nickname}`);
 
-        // Redirect to home
-        this.$router.push('/');
+        // Reload the page to reinitialize WebSocket with new connection
+        window.location.href = '/';
       } catch (error) {
         this.$toast.error(`Failed to add connection: ${error.message}`);
       } finally {

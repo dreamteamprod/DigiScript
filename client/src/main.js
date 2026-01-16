@@ -10,7 +10,7 @@ import store from '@/store/store';
 import App from './App.vue';
 import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
-import { getWebSocketURL } from '@/js/platform';
+import { getWebSocketURL, isElectron } from '@/js/platform';
 
 import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';
@@ -28,40 +28,80 @@ Vue.use(ToastPlugin, {
   position: 'top-right',
 });
 
-Vue.use(VueNativeSock, getWebSocketURL(), {
-  reconnection: true,
-  format: 'json',
-  store,
-  passToStoreHandler(eventName, event, next) {
-    // Ignore anything that doesn't start with SOCKET_ as per
-    // https://www.npmjs.com/package/vue-native-websocket
-    if (!eventName.startsWith('SOCKET_')) {
-      return;
-    }
-    // Custom message handling here
-    if (this.format === 'json' && event.data) {
-      const msg = JSON.parse(event.data);
-      // If the message contains an OP key, then this is going to be something we care about
-      if (msg.OP) {
-        // Always call the commit function here, as we care about it
-        if (msg.OP !== 'NOOP') {
-          this.store.commit(eventName.toUpperCase(), msg);
+/**
+ * Check if we should initialize WebSocket
+ * In Electron, only initialize if there's an active connection
+ */
+async function shouldInitializeWebSocket() {
+  if (!isElectron()) {
+    // Browser mode: always initialize
+    return true;
+  }
+
+  // Electron mode: check if there's an active connection
+  try {
+    const activeConnection = await window.electronAPI.getActiveConnection();
+    return activeConnection !== null;
+  } catch (error) {
+    console.warn('Could not check active connection, skipping WebSocket initialization:', error);
+    return false;
+  }
+}
+
+/**
+ * Initialize WebSocket connection
+ * Only called if we have a server to connect to
+ */
+function initializeWebSocket() {
+  try {
+    const wsUrl = getWebSocketURL();
+    Vue.use(VueNativeSock, wsUrl, {
+      reconnection: true,
+      format: 'json',
+      store,
+      passToStoreHandler(eventName, event, next) {
+        // Ignore anything that doesn't start with SOCKET_ as per
+        // https://www.npmjs.com/package/vue-native-websocket
+        if (!eventName.startsWith('SOCKET_')) {
+          return;
         }
-        if (msg.ACTION) {
-          // If we have an action, then call the corresponding action too, this means a single
-          // WS message can do two things (commit a mutation, AND perform an action)
-          if (msg.ACTION !== 'NOOP') {
-            this.store.dispatch(
-              [msg.namespace || '', msg.ACTION].filter((e) => !!e).join('/'),
-              msg
-            );
+        // Custom message handling here
+        if (this.format === 'json' && event.data) {
+          const msg = JSON.parse(event.data);
+          // If the message contains an OP key, then this is going to be something we care about
+          if (msg.OP) {
+            // Always call the commit function here, as we care about it
+            if (msg.OP !== 'NOOP') {
+              this.store.commit(eventName.toUpperCase(), msg);
+            }
+            if (msg.ACTION) {
+              // If we have an action, then call the corresponding action too, this means a single
+              // WS message can do two things (commit a mutation, AND perform an action)
+              if (msg.ACTION !== 'NOOP') {
+                this.store.dispatch(
+                  [msg.namespace || '', msg.ACTION].filter((e) => !!e).join('/'),
+                  msg
+                );
+              }
+            }
+            return;
           }
         }
-        return;
-      }
-    }
-    next(eventName, event);
-  },
+        next(eventName, event);
+      },
+    });
+  } catch (error) {
+    console.error('Failed to initialize WebSocket:', error);
+  }
+}
+
+// Initialize WebSocket conditionally
+shouldInitializeWebSocket().then((shouldInit) => {
+  if (shouldInit) {
+    initializeWebSocket();
+  } else {
+    console.log('Skipping WebSocket initialization - no server connection configured');
+  }
 });
 
 Vue.config.productionTip = false;
