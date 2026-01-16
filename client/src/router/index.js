@@ -1,9 +1,16 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
+import { isElectron } from '@/js/platform';
 
 Vue.use(VueRouter);
 
 const routes = [
+  {
+    path: '/electron/server-selector',
+    name: 'electron-server-selector',
+    component: () => import('../views/electron/ServerSelector.vue'),
+    meta: { requiresAuth: false, isElectronOnly: true },
+  },
   {
     path: '/',
     name: 'home',
@@ -139,6 +146,35 @@ const router = new VueRouter({
 });
 
 router.beforeEach(async (to, from, next) => {
+  // Electron: Check if we need to redirect to server selector
+  if (isElectron()) {
+    // Allow access to the server selector page itself
+    if (to.path === '/electron/server-selector') {
+      return next();
+    }
+
+    // Check if there's an active connection
+    try {
+      const activeConnection = await window.electronAPI.getActiveConnection();
+      if (!activeConnection) {
+        // No active connection, redirect to server selector
+        Vue.$toast.warning('Please select a server to connect to');
+        return next('/electron/server-selector');
+      }
+    } catch (error) {
+      // Error checking connection, redirect to selector
+      console.error('Error checking active connection:', error);
+      return next('/electron/server-selector');
+    }
+  }
+
+  // Prevent non-Electron users from accessing Electron-only routes
+  const isElectronOnly = to.matched.some((record) => record.meta.isElectronOnly);
+  if (isElectronOnly && !isElectron()) {
+    Vue.$toast.error('This page is only available in the desktop app');
+    return next('/');
+  }
+
   // Silly code needed for... reasons... this seems to correctly set the correct state
   // on the router and do the fetch needed for anything else. Shrug...
   let requiresSettingsFetch = false;

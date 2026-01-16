@@ -5,8 +5,6 @@
  * Requires exact version match between client and server.
  */
 
-const fetch = require('node-fetch');
-
 class VersionChecker {
   /**
    * Check if a server is compatible with this client
@@ -15,6 +13,8 @@ class VersionChecker {
    * @returns {Promise<Object>} Result object with compatibility info
    */
   static async checkVersion(serverUrl, clientVersion) {
+    // Dynamic import for node-fetch (ES module)
+    const fetch = (await import('node-fetch')).default;
     const result = {
       compatible: false,
       serverVersion: null,
