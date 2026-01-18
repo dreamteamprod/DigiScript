@@ -354,10 +354,10 @@ export default {
 
         this.$toast.success(`Connected to ${connection.nickname}`);
 
-        // Navigate to home and reload to reinitialize WebSocket
-        // In hash mode (file://), we need to navigate to the base URL + #/
-        const baseUrl = window.location.href.split('#')[0];
-        window.location.href = baseUrl + '#/';
+        // Force full page reload to reinitialize WebSocket
+        // Setting hash first, then reloading ensures we start at home page
+        window.location.hash = '/';
+        window.location.reload();
       } catch (error) {
         this.$toast.error(`Connection failed: ${error.message}`);
       } finally {
@@ -384,10 +384,10 @@ export default {
 
         this.$toast.success(`Connected to ${server.name}`);
 
-        // Navigate to home and reload to reinitialize WebSocket
-        // In hash mode (file://), we need to navigate to the base URL + #/
-        const baseUrl = window.location.href.split('#')[0];
-        window.location.href = baseUrl + '#/';
+        // Force full page reload to reinitialize WebSocket
+        // Setting hash first, then reloading ensures we start at home page
+        window.location.hash = '/';
+        window.location.reload();
       } catch (error) {
         this.$toast.error(`Failed to add server: ${error.message}`);
       } finally {
@@ -429,10 +429,10 @@ export default {
 
         this.$toast.success(`Connected to ${this.manualForm.nickname}`);
 
-        // Navigate to home and reload to reinitialize WebSocket
-        // In hash mode (file://), we need to navigate to the base URL + #/
-        const baseUrl = window.location.href.split('#')[0];
-        window.location.href = baseUrl + '#/';
+        // Force full page reload to reinitialize WebSocket
+        // Setting hash first, then reloading ensures we start at home page
+        window.location.hash = '/';
+        window.location.reload();
       } catch (error) {
         this.$toast.error(`Failed to add connection: ${error.message}`);
       } finally {

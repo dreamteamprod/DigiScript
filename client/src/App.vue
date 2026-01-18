@@ -294,9 +294,9 @@ export default {
         // Clear the active connection
         await window.electronAPI.clearActiveConnection();
 
-        // Navigate to ServerSelector
-        const baseUrl = window.location.href.split('#')[0];
-        window.location.href = baseUrl + '#/electron/server-selector';
+        // Navigate to ServerSelector and reload to clean up state
+        window.location.hash = '/electron/server-selector';
+        window.location.reload();
       }
     },
     async awaitWSConnect() {
