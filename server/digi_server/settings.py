@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from importlib.metadata import version
 from typing import TYPE_CHECKING, Dict
 
 from tornado.locks import Lock
@@ -339,6 +340,12 @@ class Settings:
             settings_json = {}
             for key, value in self.settings.items():
                 settings_json[key] = value.get_value()
+            # Add version for Electron client compatibility checking
+            try:
+                settings_json["version"] = version("digiscript-server")
+            except Exception:
+                # Fallback if package metadata not available
+                settings_json["version"] = "0.0.0"
             return json.loads(json.dumps(settings_json))
 
     async def raw_json(self):
