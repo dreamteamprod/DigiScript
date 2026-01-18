@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteConnection: (id) => ipcRenderer.invoke('connections:delete', id),
   getActiveConnection: () => ipcRenderer.invoke('connections:getActive'),
   setActiveConnection: (id) => ipcRenderer.invoke('connections:setActive', id),
+  clearActiveConnection: () => ipcRenderer.invoke('connections:clearActive'),
 
   // Server URL (synchronous for platform layer compatibility)
   getServerURLSync: () => ipcRenderer.sendSync('server:getURLSync'),

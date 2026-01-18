@@ -82,6 +82,14 @@
         <b-navbar-nav class="ml-auto">
           <b-nav-item to="/help"> Help </b-nav-item>
           <b-nav-item to="/about"> About </b-nav-item>
+          <b-nav-item-dropdown v-if="isElectron()" text="Server">
+            <template #button-content>
+              <em>{{ serverConnectionName }}</em>
+            </template>
+            <b-dropdown-item-button @click.stop.prevent="switchServer">
+              Switch Server
+            </b-dropdown-item-button>
+          </b-nav-item-dropdown>
           <b-nav-item v-if="CURRENT_USER == null" to="/login"> Login </b-nav-item>
           <b-nav-item-dropdown v-else>
             <template #button-content>
@@ -172,6 +180,7 @@ export default {
       pageInputFormState: {
         pageNo: 1,
       },
+      serverConnectionName: 'Server',
     };
   },
   validations: {
@@ -228,6 +237,8 @@ export default {
           this.loaded = true; // Set loaded so router-view renders
           return; // Skip all initialization
         }
+        // Set the server connection name for the navbar
+        this.serverConnectionName = activeConnection.nickname || activeConnection.url;
       } catch (error) {
         console.error('Error checking active connection:', error);
         this.loaded = true; // Set loaded so router-view renders
@@ -271,6 +282,15 @@ export default {
       'CHECK_WEBSOCKET_STATE',
       'GET_USER_SETTINGS',
     ]),
+    isElectron,
+    async switchServer() {
+      // Clear the active connection
+      if (isElectron()) {
+        await window.electronAPI.clearActiveConnection();
+        // Reload to ServerSelector
+        window.location.href = '/electron/server-selector';
+      }
+    },
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer);

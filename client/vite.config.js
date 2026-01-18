@@ -9,6 +9,8 @@ export default defineConfig({
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
+  // Use relative paths for compatibility with both web server and Electron file:// protocol
+  base: './',
   build: {
     outDir: '../server/static/',
     assetsDir: './assets',

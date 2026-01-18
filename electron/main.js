@@ -48,10 +48,16 @@ function createWindow() {
     // Open DevTools in development
     mainWindow.webContents.openDevTools();
   } else {
-    // Production: Load built files
+    // Production: Load built files from server/static (same build used for web)
+    // In packaged app, extraResource files are in app.getPath('userData')/../static
+    // or we can use process.resourcesPath
+    const staticPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'static')
+      : path.join(__dirname, '../server/static');
+
     mainWindow.loadURL(
       url.format({
-        pathname: path.join(__dirname, '../client/dist/index.html'),
+        pathname: path.join(staticPath, 'index.html'),
         protocol: 'file:',
         slashes: true,
       })
@@ -96,6 +102,10 @@ function registerIPCHandlers() {
 
   ipcMain.handle('connections:setActive', async (event, id) => {
     return connectionManager.setActiveConnection(id);
+  });
+
+  ipcMain.handle('connections:clearActive', async () => {
+    return connectionManager.clearActiveConnection();
   });
 
   // Server URL synchronous getter (for platform layer)
