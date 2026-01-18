@@ -287,8 +287,9 @@ export default {
       // Clear the active connection
       if (isElectron()) {
         await window.electronAPI.clearActiveConnection();
-        // Reload to ServerSelector
-        window.location.href = '/electron/server-selector';
+        // Navigate to ServerSelector and reload
+        await this.$router.push('/electron/server-selector');
+        window.location.reload();
       }
     },
     async awaitWSConnect() {
