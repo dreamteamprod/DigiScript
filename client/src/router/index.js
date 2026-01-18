@@ -152,6 +152,12 @@ router.beforeEach(async (to, from, next) => {
   if (router.app.$store === undefined) {
     await router.app.$nextTick();
     requiresSettingsFetch = true;
+  } else {
+    // Also fetch if RBAC roles haven't been loaded yet (e.g., fresh page load)
+    const rbacRoles = router.app.$store.getters.RBAC_ROLES;
+    if (!rbacRoles || rbacRoles.length === 0) {
+      requiresSettingsFetch = true;
+    }
   }
 
   // Electron: Check if we need to redirect to server selector
