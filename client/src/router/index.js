@@ -140,7 +140,8 @@ const routes = [
 ];
 
 const router = new VueRouter({
-  mode: 'history',
+  // Use hash mode for Electron (file:// protocol), history mode for web
+  mode: window.location.protocol === 'file:' ? 'hash' : 'history',
   base: import.meta.env.BASE_URL,
   routes,
 });
