@@ -48,12 +48,11 @@ function createWindow() {
     // Open DevTools in development
     mainWindow.webContents.openDevTools();
   } else {
-    // Production: Load built files from server/static (same build used for web)
-    // In packaged app, extraResource files are in app.getPath('userData')/../static
-    // or we can use process.resourcesPath
+    // Production: Load built files from client/dist-electron (Electron-specific build)
+    // In packaged app, extraResource files are in process.resourcesPath
     const staticPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'static')
-      : path.join(__dirname, '../server/static');
+      ? path.join(process.resourcesPath, 'dist-electron')
+      : path.join(__dirname, '../client/dist-electron');
 
     mainWindow.loadURL(
       url.format({
@@ -67,6 +66,13 @@ function createWindow() {
   // Show window when ready to avoid flicker
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+  });
+
+  // Enable DevTools with keyboard shortcut (Cmd/Ctrl+Shift+I) in production
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'I' && input.shift && (input.meta || input.control)) {
+      mainWindow.webContents.toggleDevTools();
+    }
   });
 
   // Emitted when the window is closed

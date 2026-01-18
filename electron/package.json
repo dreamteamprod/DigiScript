@@ -9,7 +9,7 @@
     "dev": "electron . --dev",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "build": "cd ../client && npm run build && cd ../electron && npm run make"
+    "build": "cd ../client && BUILD_TARGET=electron npm run build && cd ../electron && npm run make"
   },
   "engines": {
     "npm": ">=11.0.0 <12",
@@ -36,7 +36,7 @@
         "icon": "./assets/icon",
         "asar": true,
         "extraResource": [
-          "../server/static"
+          "../client/dist-electron"
         ]
       },
       "makers": [
