@@ -136,6 +136,25 @@ class BaseController(DatabaseMixin, RequestHandler):
     def get_current_show(self) -> Optional[dict]:
         return self.current_show
 
+    def set_default_headers(self):
+        """Set CORS headers to allow requests from Electron app."""
+        # Allow all origins (needed for Electron which loads from file://)
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header(
+            "Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        )
+        self.set_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization, X-API-Key, X-Requested-With",
+        )
+        self.set_header("Access-Control-Max-Age", "3600")
+
+    def options(self, *args):
+        """Handle CORS preflight requests."""
+        # Just set status 204 No Content for OPTIONS requests
+        self.set_status(204)
+        self.finish()
+
     def data_received(self, chunk: bytes) -> Optional[Awaitable[None]]:
         raise RuntimeError(f"Data streaming not supported for {self.__class__}")
 
