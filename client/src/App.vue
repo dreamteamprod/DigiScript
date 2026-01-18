@@ -1,6 +1,12 @@
 <template>
   <div id="app">
-    <b-navbar toggleable="lg" type="dark" variant="info" :sticky="true">
+    <b-navbar
+      v-if="$route.path !== '/electron/server-selector'"
+      toggleable="lg"
+      type="dark"
+      variant="info"
+      :sticky="true"
+    >
       <b-navbar-brand to="/"> DigiScript </b-navbar-brand>
       <b-navbar-toggle target="nav-collapse" />
       <b-collapse id="nav-collapse" is-nav>
