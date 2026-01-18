@@ -284,12 +284,19 @@ export default {
     ]),
     isElectron,
     async switchServer() {
-      // Clear the active connection
+      // Clear the active connection and disconnect WebSocket
       if (isElectron()) {
+        // Close WebSocket connection if it exists
+        if (this.$socket) {
+          this.$socket.close();
+        }
+
+        // Clear the active connection
         await window.electronAPI.clearActiveConnection();
-        // Navigate to ServerSelector and reload
-        await this.$router.push('/electron/server-selector');
-        window.location.reload();
+
+        // Navigate to ServerSelector
+        const baseUrl = window.location.href.split('#')[0];
+        window.location.href = baseUrl + '#/electron/server-selector';
       }
     },
     async awaitWSConnect() {

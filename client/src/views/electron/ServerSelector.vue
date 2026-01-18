@@ -354,8 +354,10 @@ export default {
 
         this.$toast.success(`Connected to ${connection.nickname}`);
 
-        // Reload the page to reinitialize WebSocket with new connection
-        window.location.reload();
+        // Navigate to home and reload to reinitialize WebSocket
+        // In hash mode (file://), we need to navigate to the base URL + #/
+        const baseUrl = window.location.href.split('#')[0];
+        window.location.href = baseUrl + '#/';
       } catch (error) {
         this.$toast.error(`Connection failed: ${error.message}`);
       } finally {
@@ -382,8 +384,10 @@ export default {
 
         this.$toast.success(`Connected to ${server.name}`);
 
-        // Reload the page to reinitialize WebSocket with new connection
-        window.location.reload();
+        // Navigate to home and reload to reinitialize WebSocket
+        // In hash mode (file://), we need to navigate to the base URL + #/
+        const baseUrl = window.location.href.split('#')[0];
+        window.location.href = baseUrl + '#/';
       } catch (error) {
         this.$toast.error(`Failed to add server: ${error.message}`);
       } finally {
@@ -425,8 +429,10 @@ export default {
 
         this.$toast.success(`Connected to ${this.manualForm.nickname}`);
 
-        // Reload the page to reinitialize WebSocket with new connection
-        window.location.reload();
+        // Navigate to home and reload to reinitialize WebSocket
+        // In hash mode (file://), we need to navigate to the base URL + #/
+        const baseUrl = window.location.href.split('#')[0];
+        window.location.href = baseUrl + '#/';
       } catch (error) {
         this.$toast.error(`Failed to add connection: ${error.message}`);
       } finally {
