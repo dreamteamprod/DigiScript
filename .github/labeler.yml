@@ -30,6 +30,9 @@ labels:
 - label: "client"
   files:
     - "client/.*"
+- label: "client"
+  files:
+    - "electron/.*"
 - label: "server"
   files:
     - "server/.*"

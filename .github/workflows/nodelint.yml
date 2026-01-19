@@ -15,3 +15,15 @@ jobs:
         node-version: 24
     - run: npm ci
     - run: npm run ci-lint
+  run-node-lint-electron:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./electron
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run ci-lint
