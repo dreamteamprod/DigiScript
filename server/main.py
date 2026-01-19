@@ -80,6 +80,7 @@ async def main():
             nullable=False,
             display_name="",
             help_text="",
+            hide_from_ui=False,
         ):
             # For database path, adjust to a writable location if needed
             if key == "db_path" and default and isinstance(default, str):
@@ -104,12 +105,14 @@ async def main():
                 nullable,
                 display_name,
                 help_text,
+                hide_from_ui,
             )
 
         # Apply the patch
         Settings.define = patched_define
 
     app = DigiScriptServer(
+        port=options.port,
         debug=options.debug,
         settings_path=options.settings_path,
         skip_migrations=options.skip_migrations,

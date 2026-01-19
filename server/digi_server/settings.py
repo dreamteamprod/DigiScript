@@ -31,7 +31,7 @@ def _get_version() -> str:
                 pyproject_data = tomllib.load(f)
                 return pyproject_data.get("project", {}).get("version", "0.0.0")
     except Exception:
-        get_logger().exception(f"Failed to read version from pyproject.toml")
+        get_logger().exception("Failed to read version from pyproject.toml")
 
     return "0.0.0"
 
@@ -226,6 +226,15 @@ class Settings:
             False,
             display_name="Compiled Script Path",
             help_text="Directory used to store compiled scripts.",
+        )
+        self.define(
+            "mdns_advertising",
+            bool,
+            True,
+            True,
+            callback_fn=self._application.toggle_mdns_advertising,
+            display_name="Enable Network Discovery (mDNS)",
+            help_text="Advertise this server on the local network for automatic discovery by desktop clients.",
         )
 
         self._load(spawn_callbacks=False)

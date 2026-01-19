@@ -5,7 +5,7 @@
  * Requires servers to advertise themselves via Bonjour/Zeroconf.
  */
 
-const Bonjour = require('bonjour-service');
+const { Bonjour } = require('bonjour-service');
 
 class MDNSDiscovery {
   /**
