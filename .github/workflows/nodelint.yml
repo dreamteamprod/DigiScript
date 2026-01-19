@@ -1,4 +1,6 @@
 name: Lint & Format (ESLint + Prettier)
+permissions:
+  contents: read
 
 on: [push]
 
