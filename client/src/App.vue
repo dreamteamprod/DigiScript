@@ -298,7 +298,13 @@ export default {
         await window.electronAPI.clearActiveConnection();
 
         // Navigate to ServerSelector and reload to clean up state
-        window.location.hash = '/electron/server-selector';
+        // In history mode (dev), use router to navigate before reload
+        // In hash mode (prod), set hash before reload
+        if (this.$router.mode === 'history') {
+          await this.$router.push('/electron/server-selector');
+        } else {
+          window.location.hash = '/electron/server-selector';
+        }
         window.location.reload();
       }
     },

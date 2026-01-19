@@ -11,160 +11,226 @@
     </b-row>
 
     <!-- Saved Connections -->
-    <b-row v-if="savedConnections.length > 0" style="margin-top: 2rem">
+    <b-row style="margin-top: 2rem">
       <b-col>
-        <h5>Saved Connections</h5>
-        <b-list-group>
-          <b-list-group-item
-            v-for="conn in savedConnections"
-            :key="conn.id"
-            class="d-flex justify-content-between align-items-center"
-          >
-            <div>
-              <strong>{{ conn.nickname }}</strong>
-              <br />
-              <small class="text-muted">{{ conn.url }}</small>
-              <br />
-              <small v-if="conn.lastConnected" class="text-muted">
-                Last connected: {{ formatDate(conn.lastConnected) }}
-              </small>
-            </div>
-            <div>
+        <b-card no-body class="mb-3">
+          <b-card-header header-tag="header" class="p-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <h6 class="mb-0 mr-2">Saved Connections</h6>
+                <template v-if="!savedConnsCollapsed">
+                  <b-badge :variant="savedConnections.length > 0 ? 'success' : 'warning'" pill>
+                    {{ savedConnections.length }}
+                  </b-badge>
+                </template>
+              </div>
               <b-button
                 size="sm"
-                variant="primary"
-                class="mr-2"
-                :disabled="isConnecting"
-                @click="connectToServer(conn)"
+                variant="secondary"
+                @click="savedConnsCollapsed = !savedConnsCollapsed"
               >
-                Connect
-              </b-button>
-              <b-button
-                size="sm"
-                variant="outline-secondary"
-                class="mr-2"
-                :disabled="isTestingConnection"
-                @click="testConnection(conn.url)"
-              >
-                Test
-              </b-button>
-              <b-button size="sm" variant="danger" @click="confirmDeleteConnection(conn)">
-                Delete
+                <b-icon-chevron-up v-if="savedConnsCollapsed" />
+                <b-icon-chevron-down v-else />
               </b-button>
             </div>
-          </b-list-group-item>
-        </b-list-group>
+          </b-card-header>
+          <b-collapse v-model="savedConnsCollapsed">
+            <b-card-body>
+              <p class="text-muted">Connect to previously used DigiScript servers.</p>
+              <b-list-group v-if="savedConnections.length > 0">
+                <b-list-group-item
+                  v-for="conn in savedConnections"
+                  :key="conn.id"
+                  class="d-flex justify-content-between align-items-center"
+                >
+                  <div>
+                    <strong>{{ conn.nickname }}</strong>
+                    <br />
+                    <small class="text-muted">{{ conn.url }}</small>
+                    <br />
+                    <small v-if="conn.lastConnected" class="text-muted">
+                      Last connected: {{ formatDate(conn.lastConnected) }}
+                    </small>
+                  </div>
+                  <div>
+                    <b-button
+                      size="sm"
+                      variant="primary"
+                      class="mr-2"
+                      :disabled="isConnecting"
+                      @click="connectToServer(conn)"
+                    >
+                      Connect
+                    </b-button>
+                    <b-button size="sm" variant="danger" @click="confirmDeleteConnection(conn)">
+                      Delete
+                    </b-button>
+                  </div>
+                </b-list-group-item>
+              </b-list-group>
+              <b-alert v-else variant="warning" show> No saved connections. </b-alert>
+
+              <!-- Add Server Button -->
+              <div class="d-flex align-items-center mb-3">
+                <b-button v-b-modal.add-server-modal variant="success" size="sm">
+                  <b-icon-plus class="mr-1" /> Add New Server
+                </b-button>
+              </div>
+            </b-card-body>
+          </b-collapse>
+        </b-card>
       </b-col>
     </b-row>
 
     <!-- Discovery Section -->
-    <b-row style="margin-top: 2rem">
+    <b-row style="margin-top: 0.25rem">
       <b-col>
-        <h5>Discover Servers</h5>
-        <p class="text-muted">Find DigiScript servers on your local network.</p>
-        <b-button variant="info" :disabled="isDiscovering" @click="discoverServers">
-          <b-spinner v-if="isDiscovering" small class="mr-2" />
-          {{ isDiscovering ? 'Discovering...' : 'Discover Servers' }}
-        </b-button>
-
-        <!-- Discovery Results -->
-        <b-list-group v-if="discoveredServers.length > 0" class="mt-3">
-          <b-list-group-item
-            v-for="(server, index) in discoveredServers"
-            :key="index"
-            class="d-flex justify-content-between align-items-center"
-          >
-            <div>
-              <strong>{{ server.name }}</strong>
-              <br />
-              <small class="text-muted">{{ server.url }}</small>
-              <br />
-              <small v-if="server.compatible" class="text-success">
-                ✓ Compatible (v{{ server.serverVersion }})
-              </small>
-              <small v-else-if="server.serverVersion" class="text-danger">
-                ✗ Incompatible (Server: v{{ server.serverVersion }}, Client: v{{ clientVersion }})
-              </small>
-              <small v-else-if="server.versionError" class="text-warning">
-                {{ server.versionError }}
-              </small>
-            </div>
-            <div>
+        <b-card no-body class="mb-3">
+          <b-card-header header-tag="header" class="p-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <h6 class="mb-0 mr-2">Discover Servers</h6>
+                <b-badge
+                  :variant="discoveredServers.length > 0 ? 'success' : 'warning'"
+                  class="mr-2"
+                  pill
+                >
+                  {{ discoveredServers.length }}
+                </b-badge>
+                <template v-if="!discoverCollapsed">
+                  <b-icon-arrow-clockwise
+                    :variant="isDiscovering ? 'info' : 'success'"
+                    :animation="isDiscovering ? 'spin' : ''"
+                  />
+                </template>
+              </div>
               <b-button
                 size="sm"
-                variant="primary"
-                :disabled="!server.compatible || isConnecting"
-                @click="addDiscoveredServer(server)"
+                variant="secondary"
+                @click="discoverCollapsed = !discoverCollapsed"
               >
-                Add & Connect
+                <b-icon-chevron-up v-if="discoverCollapsed" />
+                <b-icon-chevron-down v-else />
               </b-button>
             </div>
-          </b-list-group-item>
-        </b-list-group>
+          </b-card-header>
+          <b-collapse v-model="discoverCollapsed">
+            <b-card-body>
+              <p class="text-muted">
+                Automatically discovering DigiScript servers on your local network...
+              </p>
+              <!-- Discovery Results -->
+              <b-list-group v-if="discoveredServers.length > 0">
+                <b-list-group-item
+                  v-for="(server, index) in discoveredServers"
+                  :key="index"
+                  class="d-flex justify-content-between align-items-center"
+                >
+                  <div>
+                    <strong>{{ server.name }}</strong>
+                    <br />
+                    <small class="text-muted">{{ server.url }}</small>
+                    <br />
+                    <small v-if="server.compatible" class="text-success">
+                      ✓ Compatible (v{{ server.serverVersion }})
+                    </small>
+                    <small v-else-if="server.serverVersion" class="text-danger">
+                      ✗ Incompatible (Server: v{{ server.serverVersion }}, Client: v{{
+                        clientVersion
+                      }})
+                    </small>
+                    <small v-else-if="server.versionError" class="text-warning">
+                      {{ server.versionError }}
+                    </small>
+                  </div>
+                  <div>
+                    <b-button
+                      size="sm"
+                      variant="primary"
+                      :disabled="!server.compatible || isConnecting"
+                      @click="addDiscoveredServer(server)"
+                    >
+                      Add & Connect
+                    </b-button>
+                  </div>
+                </b-list-group-item>
+              </b-list-group>
 
-        <!-- No servers found message -->
-        <b-alert
-          v-if="discoveryCompleted && discoveredServers.length === 0"
-          show
-          variant="info"
-          class="mt-3"
-        >
-          No servers found on the local network. Try adding a server manually below.
-        </b-alert>
+              <!-- No servers found message -->
+              <b-alert
+                v-if="discoveryCompleted && discoveredServers.length === 0"
+                show
+                variant="warning"
+              >
+                No servers found on the local network.
+              </b-alert>
+
+              <!-- Status Indicator -->
+              <div class="d-flex align-items-center mb-3">
+                <b-icon-arrow-clockwise
+                  class="mr-2"
+                  :variant="isDiscovering ? 'info' : 'success'"
+                  :animation="isDiscovering ? 'spin' : ''"
+                />
+                <span class="text-muted small">
+                  <template v-if="isDiscovering"> Discovering... </template>
+                  <template v-else-if="lastDiscoveryTime">
+                    Last updated: {{ lastDiscoveryTimeFormatted }}
+                  </template>
+                  <template v-else> Starting discovery... </template>
+                </span>
+              </div>
+            </b-card-body>
+          </b-collapse>
+        </b-card>
       </b-col>
     </b-row>
 
-    <!-- Manual Entry Form -->
-    <b-row style="margin-top: 2rem">
-      <b-col>
-        <h5>Add Server Manually</h5>
-        <b-form @submit.prevent="addManualConnection">
-          <b-form-group label="Nickname" label-for="nickname-input">
-            <b-form-input
-              id="nickname-input"
-              v-model="$v.manualForm.nickname.$model"
-              :state="validateState('nickname')"
-              placeholder="e.g., Production Server"
-            />
-            <b-form-invalid-feedback> Nickname is required. </b-form-invalid-feedback>
-          </b-form-group>
+    <!-- Add Server Modal -->
+    <b-modal
+      id="add-server-modal"
+      ref="add-server-modal"
+      title="Add Server Manually"
+      @ok="addManualConnection"
+      @hidden="resetManualForm"
+    >
+      <b-form @submit.prevent="addManualConnection">
+        <b-form-group label="Nickname" label-for="nickname-input">
+          <b-form-input
+            id="nickname-input"
+            v-model="$v.manualForm.nickname.$model"
+            :state="validateState('nickname')"
+            placeholder="e.g., Production Server"
+          />
+          <b-form-invalid-feedback> Nickname is required. </b-form-invalid-feedback>
+        </b-form-group>
 
-          <b-form-group label="Server URL" label-for="url-input">
-            <b-form-input
-              id="url-input"
-              v-model="$v.manualForm.url.$model"
-              :state="validateState('url')"
-              placeholder="e.g., http://192.168.1.100:8080"
-            />
-            <b-form-invalid-feedback>
-              Valid URL is required (e.g., http://192.168.1.100:8080).
-            </b-form-invalid-feedback>
-          </b-form-group>
+        <b-form-group label="Server URL" label-for="url-input">
+          <b-form-input
+            id="url-input"
+            v-model="$v.manualForm.url.$model"
+            :state="validateState('url')"
+            placeholder="e.g., http://192.168.1.100:8080"
+          />
+          <b-form-invalid-feedback>
+            Valid URL is required (e.g., http://192.168.1.100:8080).
+          </b-form-invalid-feedback>
+        </b-form-group>
 
-          <b-form-group>
-            <b-form-checkbox v-model="manualForm.sslEnabled"> Use SSL (HTTPS) </b-form-checkbox>
-          </b-form-group>
+        <b-form-group>
+          <b-form-checkbox v-model="manualForm.sslEnabled"> Use SSL (HTTPS) </b-form-checkbox>
+        </b-form-group>
 
-          <b-button
-            type="button"
-            variant="outline-secondary"
-            class="mr-2"
-            :disabled="isTestingConnection || $v.manualForm.$invalid"
-            @click="testManualConnection"
-          >
-            <b-spinner v-if="isTestingConnection" small class="mr-2" />
-            Test Connection
-          </b-button>
-
-          <b-button
-            type="submit"
-            variant="success"
-            :disabled="$v.manualForm.$invalid || isConnecting"
-          >
-            <b-spinner v-if="isConnecting" small class="mr-2" />
-            Add & Connect
-          </b-button>
-        </b-form>
+        <b-button
+          type="button"
+          variant="outline-secondary"
+          class="mr-2"
+          :disabled="isTestingConnection || $v.manualForm.$invalid"
+          @click="testManualConnection"
+        >
+          <b-spinner v-if="isTestingConnection" small class="mr-2" />
+          Test Connection
+        </b-button>
 
         <!-- Test Result -->
         <b-alert
@@ -177,8 +243,20 @@
         >
           {{ testResult.message }}
         </b-alert>
-      </b-col>
-    </b-row>
+      </b-form>
+
+      <template #modal-footer="{ ok, cancel }">
+        <b-button variant="secondary" @click="cancel()"> Cancel </b-button>
+        <b-button
+          variant="success"
+          :disabled="$v.manualForm.$invalid || isConnecting"
+          @click="ok()"
+        >
+          <b-spinner v-if="isConnecting" small class="mr-2" />
+          Add & Connect
+        </b-button>
+      </template>
+    </b-modal>
 
     <!-- Delete Confirmation Modal -->
     <b-modal
@@ -229,7 +307,37 @@ export default {
       },
       showDeleteModal: false,
       connectionToDelete: null,
+      savedConnsCollapsed: true,
+      discoverCollapsed: false,
+      discoveryInterval: null,
+      lastDiscoveryTime: null,
+      autoDiscoveryEnabled: true,
+      currentTime: Date.now(),
+      timeUpdateInterval: null,
     };
+  },
+  computed: {
+    /**
+     * Calculate seconds since last discovery
+     * @returns {number|null} Seconds elapsed or null if never run
+     */
+    secondsSinceLastDiscovery() {
+      if (!this.lastDiscoveryTime) return null;
+      return Math.floor((this.currentTime - this.lastDiscoveryTime) / 1000);
+    },
+
+    /**
+     * Format last update time for display
+     * @returns {string} Human-readable time string
+     */
+    lastDiscoveryTimeFormatted() {
+      if (!this.lastDiscoveryTime) return 'Never';
+      const seconds = this.secondsSinceLastDiscovery;
+
+      if (seconds < 60) return `${seconds} seconds ago`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+      return this.formatDate(this.lastDiscoveryTime);
+    },
   },
   validations: {
     manualForm: {
@@ -249,6 +357,24 @@ export default {
 
     // Load saved connections
     await this.loadConnections();
+
+    // Start time update interval for reactive timestamp
+    this.timeUpdateInterval = setInterval(() => {
+      this.currentTime = Date.now();
+    }, 1000);
+
+    // Start auto-discovery
+    this.startAutoDiscovery();
+  },
+  beforeDestroy() {
+    // Clean up auto-discovery interval
+    this.stopAutoDiscovery();
+
+    // Clean up time update interval
+    if (this.timeUpdateInterval) {
+      clearInterval(this.timeUpdateInterval);
+      this.timeUpdateInterval = null;
+    }
   },
   methods: {
     /**
@@ -272,24 +398,28 @@ export default {
 
     /**
      * Discover servers on local network using mDNS
+     * Runs automatically every 15 seconds
      */
     async discoverServers() {
+      // Skip if already discovering or disabled
+      if (this.isDiscovering || !this.autoDiscoveryEnabled) {
+        return;
+      }
+
       this.isDiscovering = true;
-      this.discoveredServers = [];
-      this.discoveryCompleted = false;
 
       try {
-        // Discover servers with version checking
         this.discoveredServers = await window.electronAPI.discoverServersWithVersionCheck(5000);
         this.discoveryCompleted = true;
+        this.lastDiscoveryTime = Date.now();
 
-        if (this.discoveredServers.length === 0) {
-          this.$toast.info('No servers found on local network');
-        } else {
-          this.$toast.success(`Found ${this.discoveredServers.length} server(s)`);
+        // Auto-expand card when servers first discovered
+        if (this.discoveredServers.length > 0 && this.discoverCollapsed) {
+          this.discoverCollapsed = false;
         }
       } catch (error) {
-        this.$toast.error(`Discovery failed: ${error.message}`);
+        // Silent failure - log only
+        console.warn('[Auto-Discovery] Failed:', error.message);
       } finally {
         this.isDiscovering = false;
       }
@@ -355,8 +485,13 @@ export default {
         this.$toast.success(`Connected to ${connection.nickname}`);
 
         // Force full page reload to reinitialize WebSocket
-        // Setting hash first, then reloading ensures we start at home page
-        window.location.hash = '/';
+        // In history mode (dev), use router to navigate before reload
+        // In hash mode (prod), set hash before reload
+        if (this.$router.mode === 'history') {
+          await this.$router.push('/');
+        } else {
+          window.location.hash = '/';
+        }
         window.location.reload();
       } catch (error) {
         this.$toast.error(`Connection failed: ${error.message}`);
@@ -385,8 +520,13 @@ export default {
         this.$toast.success(`Connected to ${server.name}`);
 
         // Force full page reload to reinitialize WebSocket
-        // Setting hash first, then reloading ensures we start at home page
-        window.location.hash = '/';
+        // In history mode (dev), use router to navigate before reload
+        // In hash mode (prod), set hash before reload
+        if (this.$router.mode === 'history') {
+          await this.$router.push('/');
+        } else {
+          window.location.hash = '/';
+        }
         window.location.reload();
       } catch (error) {
         this.$toast.error(`Failed to add server: ${error.message}`);
@@ -430,8 +570,13 @@ export default {
         this.$toast.success(`Connected to ${this.manualForm.nickname}`);
 
         // Force full page reload to reinitialize WebSocket
-        // Setting hash first, then reloading ensures we start at home page
-        window.location.hash = '/';
+        // In history mode (dev), use router to navigate before reload
+        // In hash mode (prod), set hash before reload
+        if (this.$router.mode === 'history') {
+          await this.$router.push('/');
+        } else {
+          window.location.hash = '/';
+        }
         window.location.reload();
       } catch (error) {
         this.$toast.error(`Failed to add connection: ${error.message}`);
@@ -484,6 +629,40 @@ export default {
       if (!timestamp) return 'Never';
       const date = new Date(timestamp);
       return date.toLocaleString();
+    },
+
+    /**
+     * Reset manual form when modal is closed
+     */
+    resetManualForm() {
+      this.manualForm.nickname = '';
+      this.manualForm.url = '';
+      this.manualForm.sslEnabled = false;
+      this.testResult = null;
+      this.$v.manualForm.$reset();
+    },
+
+    /**
+     * Start auto-discovery interval
+     */
+    startAutoDiscovery() {
+      // Run first discovery immediately
+      this.discoverServers();
+
+      // Set up recurring discovery every 15 seconds
+      this.discoveryInterval = setInterval(() => {
+        this.discoverServers();
+      }, 15000);
+    },
+
+    /**
+     * Stop auto-discovery interval
+     */
+    stopAutoDiscovery() {
+      if (this.discoveryInterval) {
+        clearInterval(this.discoveryInterval);
+        this.discoveryInterval = null;
+      }
     },
   },
 };
