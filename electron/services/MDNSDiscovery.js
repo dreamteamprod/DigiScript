@@ -36,7 +36,8 @@ class MDNSDiscovery {
         seenHosts.add(hostId);
 
         // Determine protocol (default to http, check txt records for https)
-        const protocol = service.txt?.ssl === 'true' || service.txt?.https === 'true' ? 'https' : 'http';
+        const protocol =
+          service.txt?.ssl === 'true' || service.txt?.https === 'true' ? 'https' : 'http';
 
         // Extract addresses
         const addresses = service.addresses || [];

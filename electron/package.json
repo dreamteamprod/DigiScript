@@ -9,7 +9,13 @@
     "dev": "electron . --dev",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "build": "cd ../client && BUILD_TARGET=electron npm run build && cd ../electron && npm run make"
+    "build": "cd ../client && BUILD_TARGET=electron npm run build && cd ../electron && npm run make",
+    "lint": "npm run format && npm run lint:eslint",
+    "lint:eslint": "eslint '**/*.js' --fix",
+    "ci-lint": "npm run format:check && npm run lint:eslint-check",
+    "lint:eslint-check": "eslint '**/*.js'",
+    "format": "prettier --write '**/*.{js,json}'",
+    "format:check": "prettier --check '**/*.{js,json}'"
   },
   "engines": {
     "npm": ">=11.0.0 <12",
@@ -26,7 +32,13 @@
     "@electron-forge/maker-squirrel": "^7.5.0",
     "@electron-forge/maker-zip": "^7.5.0",
     "@electron-forge/maker-deb": "^7.5.0",
-    "@electron-forge/maker-rpm": "^7.5.0"
+    "@electron-forge/maker-rpm": "^7.5.0",
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "globals": "^15.14.0",
+    "prettier": "^3.7.4"
   },
   "config": {
     "forge": {
@@ -48,7 +60,9 @@
         },
         {
           "name": "@electron-forge/maker-zip",
-          "platforms": ["darwin"]
+          "platforms": [
+            "darwin"
+          ]
         },
         {
           "name": "@electron-forge/maker-deb",
