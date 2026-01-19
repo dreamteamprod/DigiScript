@@ -107,6 +107,9 @@
         </b-navbar-nav>
       </b-collapse>
     </b-navbar>
+    <b-navbar v-else toggleable="lg" type="dark" variant="info" :sticky="true">
+      <b-navbar-brand to="#"> DigiScript </b-navbar-brand>
+    </b-navbar>
     <template v-if="!loaded">
       <div class="text-center center-spinner">
         <b-spinner style="width: 10rem; height: 10rem" variant="info" />
