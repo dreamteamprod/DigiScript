@@ -19,7 +19,27 @@
               <div class="d-flex align-items-center">
                 <h6 class="mb-0 mr-2">Saved Connections</h6>
                 <template v-if="!savedConnsCollapsed">
-                  <b-badge :variant="savedConnections.length > 0 ? 'success' : 'warning'" pill>
+                  <!-- Available servers (green) -->
+                  <b-badge v-if="availableServersCount > 0" variant="success" pill class="mr-1">
+                    {{ availableServersCount }}
+                  </b-badge>
+
+                  <!-- Incompatible servers (warning) -->
+                  <b-badge v-if="incompatibleServersCount > 0" variant="warning" pill class="mr-1">
+                    {{ incompatibleServersCount }}
+                  </b-badge>
+
+                  <!-- Unavailable servers (danger) -->
+                  <b-badge v-if="unavailableServersCount > 0" variant="danger" pill class="mr-1">
+                    {{ unavailableServersCount }}
+                  </b-badge>
+
+                  <!-- Show total if no status checks yet -->
+                  <b-badge
+                    v-if="Object.keys(serverStatuses).length === 0"
+                    :variant="savedConnections.length > 0 ? 'success' : 'warning'"
+                    pill
+                  >
                     {{ savedConnections.length }}
                   </b-badge>
                 </template>
@@ -43,21 +63,61 @@
                   :key="conn.id"
                   class="d-flex justify-content-between align-items-center"
                 >
-                  <div>
-                    <strong>{{ conn.nickname }}</strong>
-                    <br />
-                    <small class="text-muted">{{ conn.url }}</small>
-                    <br />
-                    <small v-if="conn.lastConnected" class="text-muted">
-                      Last connected: {{ formatDate(conn.lastConnected) }}
-                    </small>
+                  <div class="text-left">
+                    <div class="d-flex align-items-center mb-1">
+                      <strong>{{ conn.nickname }}</strong>
+
+                      <!-- Status Badge (always shown) -->
+                      <b-badge :variant="getStatusVariant(conn.id)" class="ml-2" pill>
+                        {{ getStatusText(conn.id) }}
+                      </b-badge>
+                    </div>
+
+                    <div>
+                      <small class="text-muted">{{ conn.url }}</small>
+                    </div>
+
+                    <!-- Version (always shown) -->
+                    <div>
+                      <small class="text-muted">
+                        Version:
+                        {{ serverStatuses[conn.id]?.serverVersion || 'Unknown' }}
+                      </small>
+                    </div>
+
+                    <!-- Last seen (always shown) -->
+                    <div>
+                      <small class="text-muted">
+                        Last seen:
+                        {{
+                          serverStatuses[conn.id]?.lastSeen
+                            ? formatTimeAgo(serverStatuses[conn.id].lastSeen)
+                            : 'Unknown'
+                        }}
+                      </small>
+                    </div>
+
+                    <!-- Last checked (always shown) -->
+                    <div>
+                      <small class="text-muted">
+                        Last checked:
+                        {{
+                          serverStatuses[conn.id]?.lastChecked
+                            ? formatTimeAgo(serverStatuses[conn.id].lastChecked)
+                            : 'Unknown'
+                        }}
+                      </small>
+                    </div>
                   </div>
                   <div>
                     <b-button
                       size="sm"
                       variant="primary"
                       class="mr-2"
-                      :disabled="isConnecting"
+                      :disabled="
+                        isConnecting ||
+                        (serverStatuses[conn.id] && !serverStatuses[conn.id].available)
+                      "
                       @click="connectToServer(conn)"
                     >
                       Connect
@@ -191,7 +251,6 @@
       id="add-server-modal"
       ref="add-server-modal"
       title="Add Server Manually"
-      @ok="addManualConnection"
       @hidden="resetManualForm"
     >
       <b-form @submit.prevent="addManualConnection">
@@ -245,12 +304,19 @@
         </b-alert>
       </b-form>
 
-      <template #modal-footer="{ ok, cancel }">
+      <template #modal-footer="{ cancel }">
         <b-button variant="secondary" @click="cancel()"> Cancel </b-button>
+        <b-button
+          variant="outline-success"
+          :disabled="$v.manualForm.$invalid"
+          @click="addServerOnly"
+        >
+          Add Only
+        </b-button>
         <b-button
           variant="success"
           :disabled="$v.manualForm.$invalid || isConnecting"
-          @click="ok()"
+          @click="addAndConnect"
         >
           <b-spinner v-if="isConnecting" small class="mr-2" />
           Add & Connect
@@ -314,6 +380,9 @@ export default {
       autoDiscoveryEnabled: true,
       currentTime: Date.now(),
       timeUpdateInterval: null,
+      serverStatusPollingInterval: null,
+      serverStatuses: {}, // Map of connectionId -> status object
+      isCheckingServers: false,
     };
   },
   computed: {
@@ -337,6 +406,39 @@ export default {
       if (seconds < 60) return `${seconds} seconds ago`;
       if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
       return this.formatDate(this.lastDiscoveryTime);
+    },
+
+    /**
+     * Count of available servers with compatible versions
+     * @returns {number} Number of available and compatible servers
+     */
+    availableServersCount() {
+      return this.savedConnections.filter((conn) => {
+        const status = this.serverStatuses[conn.id];
+        return status?.available && status?.compatible;
+      }).length;
+    },
+
+    /**
+     * Count of available servers with incompatible versions
+     * @returns {number} Number of available but incompatible servers
+     */
+    incompatibleServersCount() {
+      return this.savedConnections.filter((conn) => {
+        const status = this.serverStatuses[conn.id];
+        return status?.available && !status?.compatible;
+      }).length;
+    },
+
+    /**
+     * Count of unavailable servers
+     * @returns {number} Number of unavailable servers
+     */
+    unavailableServersCount() {
+      return this.savedConnections.filter((conn) => {
+        const status = this.serverStatuses[conn.id];
+        return status && !status.available;
+      }).length;
     },
   },
   validations: {
@@ -365,10 +467,16 @@ export default {
 
     // Start auto-discovery
     this.startAutoDiscovery();
+
+    // Start server status polling
+    this.startServerStatusPolling();
   },
   beforeDestroy() {
     // Clean up auto-discovery interval
     this.stopAutoDiscovery();
+
+    // Clean up server status polling
+    this.stopServerStatusPolling();
 
     // Clean up time update interval
     if (this.timeUpdateInterval) {
@@ -412,16 +520,82 @@ export default {
         this.discoveredServers = await window.electronAPI.discoverServersWithVersionCheck(5000);
         this.discoveryCompleted = true;
         this.lastDiscoveryTime = Date.now();
-
-        // Auto-expand card when servers first discovered
-        if (this.discoveredServers.length > 0 && this.discoverCollapsed) {
-          this.discoverCollapsed = false;
-        }
       } catch (error) {
         // Silent failure - log only
         console.warn('[Auto-Discovery] Failed:', error.message);
       } finally {
         this.isDiscovering = false;
+      }
+    },
+
+    /**
+     * Check status of a single server
+     * @param {Object} connection - Connection object
+     * @returns {Object} Status object with availability, compatibility, version info
+     */
+    async checkServerStatus(connection) {
+      try {
+        const result = await window.electronAPI.checkVersion(connection.url);
+
+        // If there's an error field or no serverVersion, the server is unreachable
+        if (result.error || !result.serverVersion) {
+          return {
+            available: false,
+            compatible: false,
+            serverVersion: null,
+            lastSeen: this.serverStatuses[connection.id]?.lastSeen || null,
+            lastChecked: Date.now(),
+          };
+        }
+
+        // Server is reachable, check compatibility
+        return {
+          available: true,
+          compatible: result.compatible,
+          serverVersion: result.serverVersion,
+          lastSeen: Date.now(),
+          lastChecked: Date.now(),
+        };
+      } catch (error) {
+        // Exception thrown - server unavailable or check failed
+        return {
+          available: false,
+          compatible: false,
+          serverVersion: null,
+          lastSeen: this.serverStatuses[connection.id]?.lastSeen || null,
+          lastChecked: Date.now(),
+        };
+      }
+    },
+
+    /**
+     * Check status of all saved servers
+     * Runs in parallel using Promise.all()
+     */
+    async checkAllServerStatuses() {
+      if (this.isCheckingServers || this.savedConnections.length === 0) {
+        return;
+      }
+
+      this.isCheckingServers = true;
+
+      try {
+        // Check all servers in parallel
+        const statusChecks = this.savedConnections.map(async (conn) => {
+          const status = await this.checkServerStatus(conn);
+          return { id: conn.id, status };
+        });
+
+        const results = await Promise.all(statusChecks);
+
+        // Update statuses using $set for reactivity
+        results.forEach(({ id, status }) => {
+          this.$set(this.serverStatuses, id, status);
+        });
+      } catch (error) {
+        console.warn('[Server Status] Failed to check servers:', error.message);
+      } finally {
+        this.isCheckingServers = false;
       }
     },
 
@@ -536,9 +710,63 @@ export default {
     },
 
     /**
-     * Add manual connection and connect
+     * Add server without connecting
      */
-    async addManualConnection() {
+    async addServerOnly() {
+      this.$v.manualForm.$touch();
+      if (this.$v.manualForm.$invalid) {
+        return;
+      }
+
+      try {
+        const url = this.normalizeUrl(this.manualForm.url);
+
+        // Verify version compatibility first
+        const versionCheck = await window.electronAPI.checkVersion(url);
+
+        if (!versionCheck.compatible) {
+          // Show warning but allow adding anyway
+          const proceed = await this.$bvModal.msgBoxConfirm(
+            `Server version (${versionCheck.serverVersion}) does not match client version. Add anyway?`,
+            {
+              title: 'Version Mismatch',
+              okVariant: 'warning',
+              okTitle: 'Add Anyway',
+              cancelTitle: 'Cancel',
+            }
+          );
+
+          if (!proceed) {
+            return;
+          }
+        }
+
+        // Add connection (don't set as active)
+        await window.electronAPI.addConnection({
+          nickname: this.manualForm.nickname,
+          url,
+          sslEnabled: this.manualForm.sslEnabled,
+        });
+
+        this.$toast.success(`Saved ${this.manualForm.nickname}`);
+
+        // Reload connections list
+        await this.loadConnections();
+
+        // Close modal
+        this.$bvModal.hide('add-server-modal');
+
+        // Trigger immediate status check for new server
+        await this.checkAllServerStatuses();
+      } catch (error) {
+        this.$toast.error(`Failed to add server: ${error.message}`);
+      }
+    },
+
+    /**
+     * Add manual connection and connect immediately
+     */
+    async addAndConnect() {
       this.$v.manualForm.$touch();
       if (this.$v.manualForm.$invalid) {
         return;
@@ -632,6 +860,65 @@ export default {
     },
 
     /**
+     * Format timestamp as "time ago" string
+     * @param {number} timestamp - Timestamp in milliseconds
+     * @returns {string} Human-readable "time ago" string
+     */
+    formatTimeAgo(timestamp) {
+      if (!timestamp) return 'Never';
+
+      const seconds = Math.floor((this.currentTime - timestamp) / 1000);
+
+      if (seconds < 10) return 'Just now';
+      if (seconds < 60) return `${seconds} seconds ago`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+      return `${Math.floor(seconds / 86400)} days ago`;
+    },
+
+    /**
+     * Get badge variant for connection status
+     * @param {string} connectionId - Connection ID
+     * @returns {string} Bootstrap variant (secondary=checking, danger=unavailable, warning=mismatch, success=available)
+     */
+    getStatusVariant(connectionId) {
+      const status = this.serverStatuses[connectionId];
+
+      // No status yet - still checking
+      if (!status) return 'secondary';
+
+      // Server unreachable
+      if (!status.available) return 'danger';
+
+      // Server reachable but wrong version
+      if (!status.compatible) return 'warning';
+
+      // Server reachable and compatible
+      return 'success';
+    },
+
+    /**
+     * Get status text for connection
+     * @param {string} connectionId - Connection ID
+     * @returns {string} Status text
+     */
+    getStatusText(connectionId) {
+      const status = this.serverStatuses[connectionId];
+
+      // No status yet - still checking
+      if (!status) return 'Checking...';
+
+      // Server unreachable
+      if (!status.available) return 'Unavailable';
+
+      // Server reachable but wrong version
+      if (!status.compatible) return 'Version Mismatch';
+
+      // Server reachable and compatible
+      return 'Available';
+    },
+
+    /**
      * Reset manual form when modal is closed
      */
     resetManualForm() {
@@ -662,6 +949,30 @@ export default {
       if (this.discoveryInterval) {
         clearInterval(this.discoveryInterval);
         this.discoveryInterval = null;
+      }
+    },
+
+    /**
+     * Start server status polling
+     * Checks all saved servers every 30 seconds
+     */
+    startServerStatusPolling() {
+      // Run first check immediately
+      this.checkAllServerStatuses();
+
+      // Set up recurring checks every 30 seconds
+      this.serverStatusPollingInterval = setInterval(() => {
+        this.checkAllServerStatuses();
+      }, 30000);
+    },
+
+    /**
+     * Stop server status polling
+     */
+    stopServerStatusPolling() {
+      if (this.serverStatusPollingInterval) {
+        clearInterval(this.serverStatusPollingInterval);
+        this.serverStatusPollingInterval = null;
       }
     },
   },

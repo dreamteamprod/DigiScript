@@ -36,6 +36,18 @@ def _get_version() -> str:
     return "0.0.0"
 
 
+def get_version() -> str:
+    """
+    Get the current application version.
+
+    Public wrapper for _get_version() that can be imported by other modules.
+
+    Returns:
+        str: Version string from pyproject.toml, or '0.0.0' if not found
+    """
+    return _get_version()
+
+
 class SettingsObject:
     def __init__(
         self,

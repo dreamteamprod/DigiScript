@@ -24,14 +24,14 @@ class VersionChecker {
     };
 
     try {
-      // Construct the settings endpoint URL
-      const settingsUrl = `${serverUrl}/api/v1/settings`;
+      // Construct the health endpoint URL
+      const healthUrl = `${serverUrl}/api/v1/health`;
 
-      // Fetch server settings with timeout
+      // Fetch server health with timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-      const response = await fetch(settingsUrl, {
+      const response = await fetch(healthUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -48,15 +48,15 @@ class VersionChecker {
       }
 
       // Parse JSON response
-      const settings = await response.json();
+      const health = await response.json();
 
-      // Extract version from settings
-      if (!settings || !settings.version) {
+      // Extract version from health response
+      if (!health || !health.version) {
         result.error = 'Server response does not contain version information';
         return result;
       }
 
-      result.serverVersion = settings.version;
+      result.serverVersion = health.version;
 
       // Compare versions (exact match required)
       result.compatible = result.serverVersion === clientVersion;
