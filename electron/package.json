@@ -2,6 +2,7 @@
   "name": "digiscript-electron",
   "version": "0.23.0",
   "description": "DigiScript Electron Desktop Application",
+  "author": "DreamTeamProd",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -55,7 +56,9 @@
         {
           "name": "@electron-forge/maker-squirrel",
           "config": {
-            "name": "DigiScript"
+            "name": "DigiScript",
+            "authors": "DreamTeamProd",
+            "exe": "digiscript.exe"
           }
         },
         {
@@ -66,11 +69,17 @@
         },
         {
           "name": "@electron-forge/maker-deb",
-          "config": {}
+          "config": {
+            "bin": "digiscript",
+            "maintainer": "DreamTeamProd"
+          }
         },
         {
           "name": "@electron-forge/maker-rpm",
-          "config": {}
+          "config": {
+            "bin": "digiscript",
+            "vendor": "DreamTeamProd"
+          }
         }
       ]
     }
