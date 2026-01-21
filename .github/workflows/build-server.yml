@@ -1,37 +1,45 @@
-name: Build DigiScript Applications
+name: Build Server Executables
 
 on:
   push:
-    tags: [ 'v*' ]
+    tags: ['v*']
   pull_request:
-    branches: [ main, dev ]
+    branches: [main, dev]
 
 jobs:
   build-front-end:
+    name: Build Frontend
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: 'client/package-lock.json'
+
       - name: Install dependencies
         run: |
           cd client
           npm ci
+
       - name: Build frontend
         run: |
           cd client
           npm run build
+
       - name: Upload frontend build
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
           path: server/static/
-  build-executables:
+          retention-days: 7
+
+  build-server-executables:
+    name: Build Server (${{ matrix.platform }})
     needs: build-front-end
     strategy:
       fail-fast: false
@@ -51,22 +59,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
           cache: 'pip'
           cache-dependency-path: 'server/requirements.txt'
+
       - name: Download frontend build
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
           path: server/static
+
       - name: Install Python Packages
         run: python -m pip install -r server/requirements.txt
+
       - name: Build DigiScript with build script
         run: python dist/build_digiscript.py --onefile --name DigiScript-${{ matrix.platform }}
         shell: bash
+
       - name: Create ZIP package
         run: |
           mkdir -p artifacts
@@ -81,18 +94,24 @@ jobs:
             zip DigiScript-${{ matrix.platform }}.zip DigiScript-${{ matrix.platform }}${{ matrix.artifact_extension }}
           fi
         shell: bash
-      - name: Upload executable
+
+      - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
           name: DigiScript-${{ matrix.platform }}
           path: artifacts/DigiScript-${{ matrix.platform }}${{ matrix.artifact_extension }}
-      - name: Upload ZIP package
+          retention-days: 7
+
+      - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
           name: DigiScript-${{ matrix.platform }}-zip
           path: artifacts/DigiScript-${{ matrix.platform }}.zip
-  create-release:
-    needs: build-executables
+          retention-days: 7
+
+  upload-server-to-release:
+    name: Upload Server Executables to Release
+    needs: build-server-executables
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -100,14 +119,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Create release
-        uses: softprops/action-gh-release@v1
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/DigiScript-linux-zip/DigiScript-linux.zip
             artifacts/DigiScript-windows-zip/DigiScript-windows.zip
             artifacts/DigiScript-macos-zip/DigiScript-macos.zip
-          draft: false
-          prerelease: false
-          generate_release_notes: true
           token: ${{ secrets.GITHUB_TOKEN }}
