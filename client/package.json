@@ -39,7 +39,7 @@
     "lodash": "4.17.21",
     "loglevel": "1.9.2",
     "marked": "11.2.0",
-    "vue": "2.7.14",
+    "vue": "3.0.0",
     "vue-multiselect": "2.1.9",
     "vue-native-websocket": "2.0.15",
     "vue-router": "3.6.5",
