@@ -28,7 +28,7 @@
     "bootstrap-vue": "2.23.1",
     "bootswatch": "4.6.2",
     "contrast-color": "1.0.1",
-    "core-js": "3.47.0",
+    "core-js": "3.48.0",
     "d3-hierarchy": "^3.1.2",
     "d3-selection": "^3.0.0",
     "d3-zoom": "^3.0.0",
