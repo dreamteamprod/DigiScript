@@ -23,6 +23,75 @@ DigiScript uses split front-end and back-end architecture with the following key
 - **Compiled script caching** with gzip compression for fast live show performance
 - **Automatic database migrations** via Alembic, checked on server startup
 
+## Project Structure
+
+DigiScript consists of three main components:
+
+- **`server/`** - Python Tornado backend with SQLite database
+- **`client/`** - Vue.js 2 frontend (builds to `server/static/` for web, or `client/dist-electron/` for Electron)
+- **`electron/`** - Electron desktop application wrapper
+
+## Building the Web Client
+
+```shell
+cd client
+npm ci
+npm run build
+```
+
+This outputs the built frontend to `../server/static/` for serving by the Python backend.
+
+## Building the Electron Desktop App
+
+The Electron app is a standalone desktop client that connects to a DigiScript server over the network.
+
+### Prerequisites
+
+- Node.js 24.x
+- npm 11.x
+
+### Development
+
+```shell
+# Build the Electron renderer (Vue app configured for Electron)
+cd client
+BUILD_TARGET=electron npm run build
+
+# Run the Electron app in development mode
+cd ../electron
+npm ci
+npm run dev
+```
+
+### Building Installers
+
+```shell
+# Full build (renderer + installers)
+cd electron
+npm run build
+
+# Or step by step:
+cd client
+BUILD_TARGET=electron npm run build
+cd ../electron
+npm run package  # Creates unpacked app
+npm run make     # Creates platform installers
+```
+
+Output locations:
+- **Windows**: `electron/out/make/squirrel.windows/x64/*.exe`
+- **macOS**: `electron/out/make/*.zip`
+- **Linux**: `electron/out/make/deb/x64/*.deb` and `electron/out/make/rpm/x64/*.rpm`
+
+### Electron vs Web Build
+
+The `BUILD_TARGET` environment variable controls how the Vue client is built:
+
+| Build Target | Output Directory | Base URL | Use Case |
+|--------------|------------------|----------|----------|
+| (default) | `server/static/` | `/` | Web client served by Python backend |
+| `electron` | `client/dist-electron/` | `./` (relative) | Electron app loads files locally |
+
 ## Contributing
 
 Contributions are welcome! Please ensure all client and server code passes linting checks before submitting pull requests:
@@ -36,6 +105,10 @@ npm run lint
 cd server
 ruff check server/
 ruff format server/
+
+# Electron linting
+cd electron
+npm run lint
 ```
 
 When creating pull requests for new features, target the `dev` branch.
