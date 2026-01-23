@@ -17,8 +17,7 @@ export function baseURL() {
     );
   }
 
-  // Get server URL from Electron store (synchronous for now)
-  // In Phase 2, this will be implemented via IPC
+  // Get server URL from Electron store via synchronous IPC
   const serverURL = window.electronAPI.getServerURLSync?.() || null;
 
   if (!serverURL) {
