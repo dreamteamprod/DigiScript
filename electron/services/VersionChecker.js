@@ -13,8 +13,6 @@ class VersionChecker {
    * @returns {Promise<Object>} Result object with compatibility info
    */
   static async checkVersion(serverUrl, clientVersion) {
-    // Dynamic import for node-fetch (ES module)
-    const fetch = (await import('node-fetch')).default;
     const result = {
       compatible: false,
       serverVersion: null,
@@ -27,7 +25,7 @@ class VersionChecker {
       // Construct the health endpoint URL
       const healthUrl = `${serverUrl}/api/v1/health`;
 
-      // Fetch server health with timeout
+      // Fetch server health with timeout using native fetch (Node.js 18+)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
@@ -116,4 +114,4 @@ class VersionChecker {
   }
 }
 
-module.exports = VersionChecker;
+export default VersionChecker;

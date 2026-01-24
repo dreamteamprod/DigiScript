@@ -5,7 +5,8 @@
  * Requires servers to advertise themselves via Bonjour/Zeroconf.
  */
 
-const { Bonjour } = require('bonjour-service');
+import { Bonjour } from 'bonjour-service';
+import VersionChecker from './VersionChecker.js';
 
 class MDNSDiscovery {
   /**
@@ -72,8 +73,6 @@ class MDNSDiscovery {
    * @returns {Promise<Array>} Array of servers with version compatibility info
    */
   static async discoverServersWithVersionCheck(clientVersion, timeout = 5000) {
-    const VersionChecker = require('./VersionChecker');
-
     // First, discover all servers
     const servers = await MDNSDiscovery.discoverServers(timeout);
 
@@ -109,4 +108,4 @@ class MDNSDiscovery {
   }
 }
 
-module.exports = MDNSDiscovery;
+export default MDNSDiscovery;

@@ -4,14 +4,19 @@
  * Handles window creation, IPC communication, and app lifecycle.
  */
 
-const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
-const url = require('url');
+import { app, BrowserWindow, ipcMain } from 'electron';
+import path from 'path';
+import url from 'url';
+import { fileURLToPath } from 'url';
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Services
-const ConnectionManager = require('./services/ConnectionManager');
-const VersionChecker = require('./services/VersionChecker');
-const MDNSDiscovery = require('./services/MDNSDiscovery');
+import ConnectionManager from './services/ConnectionManager.js';
+import VersionChecker from './services/VersionChecker.js';
+import MDNSDiscovery from './services/MDNSDiscovery.js';
 
 // Determine if running in development mode
 const isDev = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
@@ -32,7 +37,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
