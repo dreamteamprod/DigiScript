@@ -41,4 +41,26 @@ export default [
       'no-plusplus': 'off',
     },
   },
+  // CommonJS files (preload scripts must be CJS when sandbox is enabled)
+  {
+    files: ['**/*.cjs'],
+    plugins: {
+      prettier: prettierPlugin,
+    },
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: {
+        ...globals.node,
+        ...globals.es2021,
+      },
+    },
+    rules: {
+      'prettier/prettier': 'error',
+      ...prettierConfig.rules,
+      'max-len': 'off',
+      'no-unused-vars': 'warn',
+      'no-plusplus': 'off',
+    },
+  },
 ];

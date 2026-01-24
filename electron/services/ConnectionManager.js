@@ -5,8 +5,8 @@
  * Handles CRUD operations, active connection tracking, and general storage.
  */
 
-const Store = require('electron-store');
-const { randomUUID } = require('crypto');
+import Store from 'electron-store';
+import { randomUUID } from 'crypto';
 
 class ConnectionManager {
   constructor() {
@@ -220,4 +220,4 @@ class ConnectionManager {
   }
 }
 
-module.exports = ConnectionManager;
+export default ConnectionManager;

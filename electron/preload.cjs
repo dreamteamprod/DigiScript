@@ -3,6 +3,9 @@
  *
  * Safely exposes IPC methods to the renderer process via contextBridge.
  * This creates the window.electronAPI interface used by the platform layer.
+ *
+ * Note: Preload scripts must use CommonJS when sandbox is enabled, as they run
+ * in a special isolated context that doesn't support native ES modules.
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
