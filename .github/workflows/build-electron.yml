@@ -63,7 +63,7 @@ jobs:
           - os: macos-latest
             platform: macos
             artifact_patterns: |
-              electron/out/make/*.zip
+              electron/out/make/**/*.zip
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
