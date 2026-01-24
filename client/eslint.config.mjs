@@ -24,13 +24,13 @@ export default [
       prettier: prettierPlugin,
     },
     languageOptions: {
-      ecmaVersion: 2021,
+      ecmaVersion: 2022,
       sourceType: 'module',
       parser: pluginVue.processors['.vue'].parser,
       parserOptions: {
         parser: babelParser,
         requireConfigFile: false,
-        ecmaVersion: 12,
+        ecmaVersion: 13,
         sourceType: 'module',
         babelOptions: {
           presets: ['@babel/preset-env'],

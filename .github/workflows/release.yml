@@ -1,0 +1,48 @@
+name: Create Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            ## DigiScript Release ${{ github.ref_name }}
+
+            This release includes both the server application and Electron desktop clients.
+
+            ### Server Application
+            - **Linux**: Download `DigiScript-linux.zip`
+            - **Windows**: Download `DigiScript-windows.zip`
+            - **macOS**: Download `DigiScript-macos.zip`
+
+            ### Electron Desktop Application
+            - **Windows**: Download and run the `.exe` installer
+            - **macOS**: Download the `.zip`, extract, and move DigiScript.app to Applications
+            - **Linux (Debian/Ubuntu)**: Download and install the `.deb` package
+            - **Linux (RedHat/Fedora)**: Download and install the `.rpm` package
+
+            ### Important Notes
+            - Electron desktop apps require exact version match with server
+            - First launch of desktop app will prompt for server connection details
+            - Use mDNS discovery to find servers on your local network
+
+            ---
+
+            See below for detailed release notes.

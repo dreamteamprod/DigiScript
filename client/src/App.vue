@@ -1,6 +1,12 @@
 <template>
   <div id="app">
-    <b-navbar toggleable="lg" type="dark" variant="info" :sticky="true">
+    <b-navbar
+      v-if="$route.path !== '/electron/server-selector'"
+      toggleable="lg"
+      type="dark"
+      variant="info"
+      :sticky="true"
+    >
       <b-navbar-brand to="/"> DigiScript </b-navbar-brand>
       <b-navbar-toggle target="nav-collapse" />
       <b-collapse id="nav-collapse" is-nav>
@@ -76,6 +82,14 @@
         <b-navbar-nav class="ml-auto">
           <b-nav-item to="/help"> Help </b-nav-item>
           <b-nav-item to="/about"> About </b-nav-item>
+          <b-nav-item-dropdown v-if="isElectron()" text="Server">
+            <template #button-content>
+              <em>{{ serverConnectionName }}</em>
+            </template>
+            <b-dropdown-item-button @click.stop.prevent="switchServer">
+              Switch Server
+            </b-dropdown-item-button>
+          </b-nav-item-dropdown>
           <b-nav-item v-if="CURRENT_USER == null" to="/login"> Login </b-nav-item>
           <b-nav-item-dropdown v-else>
             <template #button-content>
@@ -93,12 +107,15 @@
         </b-navbar-nav>
       </b-collapse>
     </b-navbar>
+    <b-navbar v-else toggleable="lg" type="dark" variant="info" :sticky="true">
+      <b-navbar-brand to="#"> DigiScript </b-navbar-brand>
+    </b-navbar>
     <template v-if="!loaded">
       <div class="text-center center-spinner">
         <b-spinner style="width: 10rem; height: 10rem" variant="info" />
       </div>
     </template>
-    <template v-else-if="SETTINGS.has_admin_user === false">
+    <template v-else-if="SETTINGS && SETTINGS.has_admin_user === false">
       <b-container class="mx-0" fluid>
         <b-row>
           <b-col>
@@ -151,6 +168,7 @@ import CreateUser from '@/vue_components/user/CreateUser.vue';
 import { makeURL } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { required, minValue } from 'vuelidate/lib/validators';
+import { isElectron } from '@/js/platform';
 
 export default {
   components: { CreateUser },
@@ -165,6 +183,7 @@ export default {
       pageInputFormState: {
         pageNo: 1,
       },
+      serverConnectionName: 'Server',
     };
   },
   validations: {
@@ -211,6 +230,25 @@ export default {
     ]),
   },
   async created() {
+    // Check if we're in Electron without an active connection
+    // If so, skip all initialization - the router will redirect to ServerSelector
+    if (isElectron()) {
+      try {
+        const activeConnection = await window.electronAPI.getActiveConnection();
+        if (!activeConnection) {
+          console.log('No active connection in Electron - skipping App initialization');
+          this.loaded = true; // Set loaded so router-view renders
+          return; // Skip all initialization
+        }
+        // Set the server connection name for the navbar
+        this.serverConnectionName = activeConnection.nickname || activeConnection.url;
+      } catch (error) {
+        console.error('Error checking active connection:', error);
+        this.loaded = true; // Set loaded so router-view renders
+        return; // Skip initialization on error
+      }
+    }
+
     // If we have a stored auth token, refresh the token to validate we are still logged in,
     // and then set up token refresh
     if (this.AUTH_TOKEN) {
@@ -247,6 +285,29 @@ export default {
       'CHECK_WEBSOCKET_STATE',
       'GET_USER_SETTINGS',
     ]),
+    isElectron,
+    async switchServer() {
+      // Clear the active connection and disconnect WebSocket
+      if (isElectron()) {
+        // Close WebSocket connection if it exists
+        if (this.$socket) {
+          this.$socket.close();
+        }
+
+        // Clear the active connection
+        await window.electronAPI.clearActiveConnection();
+
+        // Navigate to ServerSelector and reload to clean up state
+        // In history mode (dev), use router to navigate before reload
+        // In hash mode (prod), set hash before reload
+        if (this.$router.mode === 'history') {
+          await this.$router.push('/electron/server-selector');
+        } else {
+          window.location.hash = '/electron/server-selector';
+        }
+        window.location.reload();
+      }
+    },
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer);

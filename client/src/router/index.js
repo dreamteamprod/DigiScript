@@ -1,9 +1,16 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
+import { isElectron } from '@/js/platform';
 
 Vue.use(VueRouter);
 
 const routes = [
+  {
+    path: '/electron/server-selector',
+    name: 'electron-server-selector',
+    component: () => import('../views/electron/ServerSelector.vue'),
+    meta: { requiresAuth: false, isElectronOnly: true },
+  },
   {
     path: '/',
     name: 'home',
@@ -133,7 +140,8 @@ const routes = [
 ];
 
 const router = new VueRouter({
-  mode: 'history',
+  // Use hash mode for Electron (file:// protocol), history mode for web
+  mode: window.location.protocol === 'file:' ? 'hash' : 'history',
   base: import.meta.env.BASE_URL,
   routes,
 });
@@ -145,7 +153,47 @@ router.beforeEach(async (to, from, next) => {
   if (router.app.$store === undefined) {
     await router.app.$nextTick();
     requiresSettingsFetch = true;
+  } else {
+    // Also fetch if RBAC roles haven't been loaded yet (e.g., fresh page load)
+    const rbacRoles = router.app.$store.getters.RBAC_ROLES;
+    if (!rbacRoles || rbacRoles.length === 0) {
+      requiresSettingsFetch = true;
+    }
   }
+
+  // Electron: Check if we need to redirect to server selector
+  // Do this BEFORE fetching settings since we need a server connection first
+  if (isElectron() && to.path !== '/electron/server-selector') {
+    try {
+      const activeConnection = await window.electronAPI.getActiveConnection();
+      if (!activeConnection) {
+        // No active connection, redirect to server selector
+        if (router.app.$toast) {
+          router.app.$toast.warning('Please select a server to connect to');
+        }
+        return next('/electron/server-selector');
+      }
+    } catch (error) {
+      // Error checking connection, redirect to selector
+      console.error('Error checking active connection:', error);
+      return next('/electron/server-selector');
+    }
+  }
+
+  // Prevent non-Electron users from accessing Electron-only routes
+  const isElectronOnly = to.matched.some((record) => record.meta.isElectronOnly);
+  if (isElectronOnly && !isElectron()) {
+    if (router.app.$toast) {
+      router.app.$toast.error('This page is only available in the desktop app');
+    }
+    return next('/');
+  }
+
+  // Skip all settings fetch and auth checks for Electron server selector (no connection yet)
+  if (to.path === '/electron/server-selector') {
+    return next();
+  }
+
   if (requiresSettingsFetch) {
     await router.app.$store.dispatch('GET_RBAC_ROLES');
     await router.app.$store.dispatch('GET_SETTINGS');

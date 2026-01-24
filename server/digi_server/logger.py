@@ -1,5 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
+from typing import Optional
 
 from tornado.log import LogFormatter
 
@@ -7,7 +8,9 @@ from tornado.log import LogFormatter
 logger = logging.getLogger("DigiScript")
 
 
-def get_logger():
+def get_logger(name: Optional[str] = None):
+    if name:
+        return logger.getChild(name)
     return logger
 
 
