@@ -1,0 +1,139 @@
+name: Build Electron Applications
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  build-electron-renderer:
+    name: Build Electron Renderer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'client/package-lock.json'
+
+      - name: Install dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Build Electron renderer
+        run: |
+          cd client
+          BUILD_TARGET=electron npm run build
+
+      - name: Upload Electron renderer build
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-renderer
+          path: client/dist-electron/
+          retention-days: 7
+
+  build-electron-apps:
+    name: Build Electron App (${{ matrix.platform }})
+    needs: build-electron-renderer
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact_patterns: |
+              electron/out/make/deb/x64/*.deb
+              electron/out/make/rpm/x64/*.rpm
+          - os: windows-latest
+            platform: windows
+            artifact_patterns: |
+              electron/out/make/squirrel.windows/x64/*.exe
+              electron/out/make/squirrel.windows/x64/*.nupkg
+              electron/out/make/squirrel.windows/x64/RELEASES
+          - os: macos-latest
+            platform: macos
+            artifact_patterns: |
+              electron/out/make/*.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'electron/package-lock.json'
+
+      - name: Download Electron renderer build
+        uses: actions/download-artifact@v4
+        with:
+          name: electron-renderer
+          path: client/dist-electron
+
+      - name: Install Electron dependencies
+        run: |
+          cd electron
+          npm ci
+
+      - name: Package Electron app
+        run: |
+          cd electron
+          npm run package
+
+      - name: Make installers
+        run: |
+          cd electron
+          npm run make
+
+      - name: List output files (debug)
+        run: |
+          echo "Contents of electron/out/make:"
+          ls -R electron/out/make/
+        shell: bash
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-${{ matrix.platform }}-installers
+          path: ${{ matrix.artifact_patterns }}
+          retention-days: 7
+
+  upload-electron-to-release:
+    name: Upload Electron Apps to Release
+    needs: build-electron-apps
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded artifacts (debug)
+        run: |
+          echo "Downloaded artifacts:"
+          ls -R artifacts/
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/electron-linux-installers/**/*.deb
+            artifacts/electron-linux-installers/**/*.rpm
+            artifacts/electron-windows-installers/**/*.exe
+            artifacts/electron-macos-installers/**/*.zip
+          token: ${{ secrets.GITHUB_TOKEN }}

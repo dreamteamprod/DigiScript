@@ -35,29 +35,11 @@
             <b-button
               :disabled="!shouldViewShowConfig"
               replace
-              :to="{ name: 'show-config-character-groups' }"
+              :to="{ name: 'show-config-acts-scenes' }"
               variant="outline-info"
               active-class="active"
             >
-              Character Groups
-            </b-button>
-            <b-button
-              :disabled="!shouldViewShowConfig"
-              replace
-              :to="{ name: 'show-config-acts' }"
-              variant="outline-info"
-              active-class="active"
-            >
-              Acts
-            </b-button>
-            <b-button
-              :disabled="!shouldViewShowConfig"
-              replace
-              :to="{ name: 'show-config-scenes' }"
-              variant="outline-info"
-              active-class="active"
-            >
-              Scenes
+              Acts & Scenes
             </b-button>
             <b-button
               :disabled="!shouldShowScriptConfig"

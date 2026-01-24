@@ -1,66 +1,61 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col>
-        <h5>Act List</h5>
-        <b-table
-          id="acts-table"
-          :items="actTableItems"
-          :fields="actFields"
-          :per-page="rowsPerPage"
-          :current-page="currentPage"
-          show-empty
-        >
-          <template #head(btn)="data">
-            <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-act variant="outline-success">
-              New Act
-            </b-button>
-          </template>
-          <template #cell(interval_after)="data">
-            <b-icon-check-square-fill v-if="data.item.interval_after" variant="success" />
-            <b-icon-x-square-fill v-else variant="danger" />
-          </template>
-          <template #cell(next_act)="data">
-            <p v-if="data.item.next_act">
-              {{ ACT_BY_ID(data.item.next_act).name }}
-            </p>
-            <p v-else>N/A</p>
-          </template>
-          <template #cell(previous_act)="data">
-            <p v-if="data.item.previous_act">
-              {{ ACT_BY_ID(data.item.previous_act).name }}
-            </p>
-            <p v-else>N/A</p>
-          </template>
-          <template #cell(btn)="data">
-            <b-button-group v-if="IS_SHOW_EDITOR">
-              <b-button
-                variant="warning"
-                :disabled="submittingEditAct || deletingAct"
-                @click="openEditForm(data)"
-              >
-                Edit
-              </b-button>
-              <b-button
-                variant="danger"
-                :disabled="submittingEditAct || deletingAct"
-                @click="deleteAct(data)"
-              >
-                Delete
-              </b-button>
-            </b-button-group>
-          </template>
-        </b-table>
-        <b-pagination
-          v-show="actTableItems.length > rowsPerPage"
-          v-model="currentPage"
-          :total-rows="actTableItems.length"
-          :per-page="rowsPerPage"
-          aria-controls="acts-table"
-          class="justify-content-center"
-        />
-      </b-col>
-    </b-row>
+  <span v-if="!loading">
+    <b-table
+      id="acts-table"
+      :items="actTableItems"
+      :fields="actFields"
+      :per-page="rowsPerPage"
+      :current-page="currentPage"
+      show-empty
+    >
+      <template #head(btn)="data">
+        <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-act variant="outline-success">
+          New Act
+        </b-button>
+      </template>
+      <template #cell(interval_after)="data">
+        <b-icon-check-square-fill v-if="data.item.interval_after" variant="success" />
+        <b-icon-x-square-fill v-else variant="danger" />
+      </template>
+      <template #cell(next_act)="data">
+        <p v-if="data.item.next_act">
+          {{ ACT_BY_ID(data.item.next_act).name }}
+        </p>
+        <p v-else>N/A</p>
+      </template>
+      <template #cell(previous_act)="data">
+        <p v-if="data.item.previous_act">
+          {{ ACT_BY_ID(data.item.previous_act).name }}
+        </p>
+        <p v-else>N/A</p>
+      </template>
+      <template #cell(btn)="data">
+        <b-button-group v-if="IS_SHOW_EDITOR">
+          <b-button
+            variant="warning"
+            :disabled="submittingEditAct || deletingAct"
+            @click="openEditForm(data)"
+          >
+            Edit
+          </b-button>
+          <b-button
+            variant="danger"
+            :disabled="submittingEditAct || deletingAct"
+            @click="deleteAct(data)"
+          >
+            Delete
+          </b-button>
+        </b-button-group>
+      </template>
+    </b-table>
+    <b-pagination
+      v-show="actTableItems.length > rowsPerPage"
+      v-model="currentPage"
+      :total-rows="actTableItems.length"
+      :per-page="rowsPerPage"
+      aria-controls="acts-table"
+      class="justify-content-center"
+    />
     <b-modal
       id="new-act"
       ref="new-act"
@@ -152,7 +147,10 @@
         </b-form-group>
       </b-form>
     </b-modal>
-  </b-container>
+  </span>
+  <div v-else class="text-center py-5">
+    <b-spinner label="Loading" />
+  </div>
 </template>
 
 <script>
@@ -164,6 +162,7 @@ export default {
   name: 'ConfigActs',
   data() {
     return {
+      loading: true,
       rowsPerPage: 15,
       currentPage: 1,
       actFields: [
@@ -260,6 +259,7 @@ export default {
   },
   async mounted() {
     await this.GET_ACT_LIST();
+    this.loading = false;
   },
   methods: {
     resetNewForm() {

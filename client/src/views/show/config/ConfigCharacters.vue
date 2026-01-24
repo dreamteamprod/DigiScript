@@ -53,6 +53,9 @@
               class="justify-content-center"
             />
           </b-tab>
+          <b-tab title="Character Groups">
+            <character-groups />
+          </b-tab>
           <b-tab title="Line Counts">
             <character-line-stats />
           </b-tab>
@@ -154,10 +157,11 @@ import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
 import log from 'loglevel';
+import CharacterGroups from '@/vue_components/show/config/characters/CharacterGroups.vue';
 
 export default {
   name: 'ConfigCharacters',
-  components: { CharacterLineStats },
+  components: { CharacterGroups, CharacterLineStats },
   data() {
     return {
       rowsPerPage: 15,

@@ -11,6 +11,7 @@ from models import models
 class DigiScriptTestCase(AsyncHTTPTestCase):
     def get_app(self):
         return DigiScriptServer(
+            port=0,  # Let OS assign a free port for testing
             debug=True,
             settings_path=self.settings_path,
             skip_migrations=True,

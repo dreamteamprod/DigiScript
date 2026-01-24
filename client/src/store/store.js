@@ -4,6 +4,7 @@ import createPersistedState from 'vuex-persistedstate';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
+import { getStorageAdapter } from '@/js/platform';
 import user from '@/store/modules/user/user';
 import websocket from './modules/websocket';
 import system from './modules/system';
@@ -205,7 +206,7 @@ export default new Vuex.Store({
   },
   plugins: [
     createPersistedState({
-      storage: window.sessionStorage,
+      storage: getStorageAdapter('session'),
       key: 'digiscript',
       paths: ['websocket.internalUUID'],
     }),

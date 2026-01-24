@@ -1,9 +1,11 @@
+import { baseURL as platformBaseURL, makeURL as platformMakeURL } from '@/js/platform';
+
 export function baseURL() {
-  return `${window.location.protocol}//${window.location.hostname}:${window.location.port}`;
+  return platformBaseURL();
 }
 
 export function makeURL(path) {
-  return `${baseURL()}${path}`;
+  return platformMakeURL(path);
 }
 
 export function titleCase(str, sep = ' ') {

@@ -123,7 +123,7 @@ export default {
         ...this.ACT_LIST.map((act) => ({ value: act.id, text: act.name })),
       ];
     },
-    ...mapGetters(['CURRENT_SHOW', 'ACT_LIST']),
+    ...mapGetters(['CURRENT_SHOW', 'ACT_LIST', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
     await this.GET_SHOW_DETAILS();

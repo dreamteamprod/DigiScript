@@ -9,8 +9,11 @@ export default defineConfig({
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
+  // Use relative paths ONLY for Electron builds (file:// protocol)
+  // Use absolute paths for web server (prevents issues with nested routes)
+  base: process.env.BUILD_TARGET === 'electron' ? './' : '/',
   build: {
-    outDir: '../server/static/',
+    outDir: process.env.BUILD_TARGET === 'electron' ? './dist-electron' : '../server/static/',
     assetsDir: './assets',
     emptyOutDir: true,
     minify: 'esbuild',

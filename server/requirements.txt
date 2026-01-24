@@ -6,8 +6,9 @@ marshmallow-sqlalchemy>=1.4.0
 tornado-prometheus==0.1.2
 bcrypt==4.3.0
 anytree==2.13.0
-alembic==1.17.2
+alembic==1.18.1
 marshmallow<5
 pyjwt[crypto]==2.10.1
-setuptools==80.9.0
-xkcdpass==1.20.0
+setuptools==80.10.1
+xkcdpass==1.30.0
+zeroconf==0.140.0

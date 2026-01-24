@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import tomllib
+from pathlib import Path
 from typing import TYPE_CHECKING, Dict
 
 from tornado.locks import Lock
@@ -12,6 +14,38 @@ from utils.file_watcher import IOLoopFileWatcher
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
+
+
+def _get_version() -> str:
+    """
+    Read version from pyproject.toml.
+
+    Returns:
+        str: Version string from pyproject.toml, or '0.0.0' if not found
+    """
+    try:
+        # Get path to pyproject.toml (one directory up from digi_server)
+        pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
+        if pyproject_path.exists():
+            with open(pyproject_path, "rb") as f:
+                pyproject_data = tomllib.load(f)
+                return pyproject_data.get("project", {}).get("version", "0.0.0")
+    except Exception:
+        get_logger().exception("Failed to read version from pyproject.toml")
+
+    return "0.0.0"
+
+
+def get_version() -> str:
+    """
+    Get the current application version.
+
+    Public wrapper for _get_version() that can be imported by other modules.
+
+    Returns:
+        str: Version string from pyproject.toml, or '0.0.0' if not found
+    """
+    return _get_version()
 
 
 class SettingsObject:
@@ -205,6 +239,15 @@ class Settings:
             display_name="Compiled Script Path",
             help_text="Directory used to store compiled scripts.",
         )
+        self.define(
+            "mdns_advertising",
+            bool,
+            True,
+            True,
+            callback_fn=self._application.toggle_mdns_advertising,
+            display_name="Enable Network Discovery (mDNS)",
+            help_text="Advertise this server on the local network for automatic discovery by desktop clients.",
+        )
 
         self._load(spawn_callbacks=False)
 
@@ -339,6 +382,8 @@ class Settings:
             settings_json = {}
             for key, value in self.settings.items():
                 settings_json[key] = value.get_value()
+            # Add version for Electron client compatibility checking
+            settings_json["version"] = _get_version()
             return json.loads(json.dumps(settings_json))
 
     async def raw_json(self):
