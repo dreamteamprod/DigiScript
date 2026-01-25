@@ -129,12 +129,18 @@ class CrewController(BaseAPIController):
             show = session.get(Show, show_id)
             if show:
                 self.requires_role(show, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                crew_id = data.get("id", None)
-                if not crew_id:
+                crew_id_str = self.get_argument("id", None)
+                if not crew_id_str:
                     self.set_status(400)
                     await self.finish({"message": "ID missing"})
+                    return
+
+                try:
+                    crew_id = int(crew_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": "Invalid ID"})
                     return
 
                 entry = session.get(Crew, crew_id)

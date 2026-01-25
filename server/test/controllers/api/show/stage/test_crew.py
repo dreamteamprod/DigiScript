@@ -234,13 +234,10 @@ class TestCrewController(DigiScriptTestCase):
             crew_id = crew_member.id
             session.commit()
 
-        # CrewController DELETE uses JSON body (not query params)
         response = self.fetch(
-            "/api/v1/show/stage/crew",
+            f"/api/v1/show/stage/crew?id={crew_id}",
             method="DELETE",
-            body=tornado.escape.json_encode({"id": crew_id}),
             headers={"Authorization": f"Bearer {self.token}"},
-            allow_nonstandard_methods=True,
         )
         self.assertEqual(200, response.code)
 
@@ -254,9 +251,7 @@ class TestCrewController(DigiScriptTestCase):
         response = self.fetch(
             "/api/v1/show/stage/crew",
             method="DELETE",
-            body=tornado.escape.json_encode({}),
             headers={"Authorization": f"Bearer {self.token}"},
-            allow_nonstandard_methods=True,
         )
         self.assertEqual(400, response.code)
         response_body = tornado.escape.json_decode(response.body)
@@ -265,22 +260,29 @@ class TestCrewController(DigiScriptTestCase):
     def test_delete_crew_not_found(self):
         """Test DELETE returns 404 for non-existent crew member."""
         response = self.fetch(
-            "/api/v1/show/stage/crew",
+            "/api/v1/show/stage/crew?id=99999",
             method="DELETE",
-            body=tornado.escape.json_encode({"id": 99999}),
             headers={"Authorization": f"Bearer {self.token}"},
-            allow_nonstandard_methods=True,
         )
         self.assertEqual(404, response.code)
+
+    def test_delete_crew_invalid_id(self):
+        """Test DELETE returns 400 when id is not a valid integer."""
+        response = self.fetch(
+            "/api/v1/show/stage/crew?id=not-a-number",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(400, response.code)
+        response_body = tornado.escape.json_decode(response.body)
+        self.assertIn("Invalid ID", response_body["message"])
 
     def test_delete_crew_no_show(self):
         """Test DELETE returns 400 when no show is loaded."""
         self._app.digi_settings.settings["current_show"].set_value(None)
         response = self.fetch(
-            "/api/v1/show/stage/crew",
+            "/api/v1/show/stage/crew?id=1",
             method="DELETE",
-            body=tornado.escape.json_encode({"id": 1}),
             headers={"Authorization": f"Bearer {self.token}"},
-            allow_nonstandard_methods=True,
         )
         self.assertEqual(400, response.code)

@@ -63,12 +63,12 @@ export default {
       }
     },
     async DELETE_CREW_MEMBER(context, crewId) {
-      const response = await fetch(`${makeURL('/api/v1/show/stage/crew')}`, {
+      const searchParams = new URLSearchParams({ id: crewId });
+      const response = await fetch(`${makeURL('/api/v1/show/stage/crew')}?${searchParams}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id: crewId }),
       });
       if (response.ok) {
         context.dispatch('GET_CREW_LIST');
