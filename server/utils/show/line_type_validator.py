@@ -81,7 +81,12 @@ class DialogueValidator(BaseLineTypeValidator):
 
 
 class StageDirectionValidator(BaseLineTypeValidator):
-    """Validator for STAGE_DIRECTION lines."""
+    """Validator for STAGE_DIRECTION lines.
+
+    Stage directions can optionally be tagged with a character or character group.
+    When tagged, they participate in the character heading system, allowing
+    headings to appear above stage directions when the character changes.
+    """
 
     def validate(self, line_json: dict, show) -> LineTypeValidationResult:
         line_parts = line_json.get("line_parts", [])
@@ -94,14 +99,14 @@ class StageDirectionValidator(BaseLineTypeValidator):
 
         line_part = line_parts[0]
 
-        if line_part.get("character_id") is not None:
-            return LineTypeValidationResult(
-                is_valid=False, error_message="Stage directions cannot have characters"
-            )
-        if line_part.get("character_group_id") is not None:
+        # Character/group is optional, but cannot have both
+        has_character = line_part.get("character_id") is not None
+        has_group = line_part.get("character_group_id") is not None
+
+        if has_character and has_group:
             return LineTypeValidationResult(
                 is_valid=False,
-                error_message="Stage directions cannot have character groups",
+                error_message="Stage directions cannot have both character and character group",
             )
 
         line_text = line_part.get("line_text")

@@ -187,25 +187,39 @@ class TestStageDirectionValidator:
         assert result.is_valid is False
         assert "must have exactly 1 line part" in result.error_message
 
-    def test_rejects_with_character(self, validator, mock_show):
-        """Test stage direction with character_id is rejected."""
+    def test_allows_with_character(self, validator, mock_show):
+        """Test stage direction with character_id is allowed (tagged stage direction)."""
         line_json = {
             "line_type": 2,
             "line_parts": [{"character_id": 1, "line_text": "Enter stage left"}],
         }
         result = validator.validate(line_json, mock_show)
-        assert result.is_valid is False
-        assert "cannot have characters" in result.error_message
+        assert result.is_valid is True
 
-    def test_rejects_with_character_group(self, validator, mock_show):
-        """Test stage direction with character_group_id is rejected."""
+    def test_allows_with_character_group(self, validator, mock_show):
+        """Test stage direction with character_group_id is allowed (tagged stage direction)."""
         line_json = {
             "line_type": 2,
             "line_parts": [{"character_group_id": 1, "line_text": "Enter stage left"}],
         }
         result = validator.validate(line_json, mock_show)
+        assert result.is_valid is True
+
+    def test_rejects_with_both_character_and_group(self, validator, mock_show):
+        """Test stage direction with both character_id and character_group_id is rejected."""
+        line_json = {
+            "line_type": 2,
+            "line_parts": [
+                {
+                    "character_id": 1,
+                    "character_group_id": 2,
+                    "line_text": "Enter stage left",
+                }
+            ],
+        }
+        result = validator.validate(line_json, mock_show)
         assert result.is_valid is False
-        assert "cannot have character groups" in result.error_message
+        assert "cannot have both character and character group" in result.error_message
 
     def test_rejects_empty_text(self, validator, mock_show):
         """Test stage direction with None text is rejected."""
@@ -349,14 +363,13 @@ class TestLineTypeValidatorRegistry:
             "line_type": 2,
             "line_parts": [
                 {
-                    "character_id": 1,
-                    "line_text": "Enter",
-                }  # Invalid: stage direction can't have character
+                    "line_text": "",
+                }  # Invalid: stage direction must have text
             ],
         }
         result = registry.validate_line(line_json, mock_show)
         assert result.is_valid is False
-        assert "cannot have characters" in result.error_message
+        assert "must contain text" in result.error_message
 
     def test_cue_line_validation_fails_correctly(self, registry, mock_show):
         """Test registry correctly returns validation failure for invalid cue line."""

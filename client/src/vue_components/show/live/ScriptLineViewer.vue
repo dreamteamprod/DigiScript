@@ -68,7 +68,10 @@
     <b-row
       :class="{
         'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
-        'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
+        'heading-padding':
+          (line.line_type === LINE_TYPES.DIALOGUE ||
+            (line.line_type === LINE_TYPES.STAGE_DIRECTION && isTaggedStageDirection)) &&
+          needsHeadingsAll,
       }"
     >
       <template v-if="USER_SETTINGS.cue_position_right">
@@ -107,24 +110,53 @@
           </b-col>
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
-          <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
-            <i class="viewable-line" :style="stageDirectionStyling">
-              <template
-                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+          <b-col>
+            <!-- Character heading for tagged stage directions -->
+            <b-row v-if="isTaggedStageDirection && needsHeadingsAny">
+              <b-col :style="headingStyle">
+                <b>
+                  <template v-if="line.line_parts[0].character_id != null">
+                    {{
+                      characters.find((char) => char.id === line.line_parts[0].character_id).name
+                    }}
+                  </template>
+                  <template v-else>
+                    {{
+                      characterGroups.find(
+                        (char) => char.id === line.line_parts[0].character_group_id
+                      ).name
+                    }}
+                  </template>
+                </b>
+              </b-col>
+            </b-row>
+            <!-- Stage direction text with styling -->
+            <b-row>
+              <b-col
+                :key="`line_${lineIndex}_stage_direction`"
+                :style="{ textAlign: scriptTextAlign }"
               >
-                {{ line.line_parts[0].line_text | uppercase }}
-              </template>
-              <template
-                v-else-if="
-                  stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'
-                "
-              >
-                {{ line.line_parts[0].line_text | lowercase }}
-              </template>
-              <template v-else>
-                {{ line.line_parts[0].line_text }}
-              </template>
-            </i>
+                <i class="viewable-line" :style="stageDirectionStyling">
+                  <template
+                    v-if="
+                      stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'
+                    "
+                  >
+                    {{ line.line_parts[0].line_text | uppercase }}
+                  </template>
+                  <template
+                    v-else-if="
+                      stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'
+                    "
+                  >
+                    {{ line.line_parts[0].line_text | lowercase }}
+                  </template>
+                  <template v-else>
+                    {{ line.line_parts[0].line_text }}
+                  </template>
+                </i>
+              </b-col>
+            </b-row>
           </b-col>
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
@@ -213,24 +245,53 @@
           </b-col>
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
-          <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
-            <i class="viewable-line" :style="stageDirectionStyling">
-              <template
-                v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
+          <b-col>
+            <!-- Character heading for tagged stage directions -->
+            <b-row v-if="isTaggedStageDirection && needsHeadingsAny">
+              <b-col :style="headingStyle">
+                <b>
+                  <template v-if="line.line_parts[0].character_id != null">
+                    {{
+                      characters.find((char) => char.id === line.line_parts[0].character_id).name
+                    }}
+                  </template>
+                  <template v-else>
+                    {{
+                      characterGroups.find(
+                        (char) => char.id === line.line_parts[0].character_group_id
+                      ).name
+                    }}
+                  </template>
+                </b>
+              </b-col>
+            </b-row>
+            <!-- Stage direction text with styling -->
+            <b-row>
+              <b-col
+                :key="`line_${lineIndex}_stage_direction`"
+                :style="{ textAlign: scriptTextAlign }"
               >
-                {{ line.line_parts[0].line_text | uppercase }}
-              </template>
-              <template
-                v-else-if="
-                  stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'
-                "
-              >
-                {{ line.line_parts[0].line_text | lowercase }}
-              </template>
-              <template v-else>
-                {{ line.line_parts[0].line_text }}
-              </template>
-            </i>
+                <i class="viewable-line" :style="stageDirectionStyling">
+                  <template
+                    v-if="
+                      stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'
+                    "
+                  >
+                    {{ line.line_parts[0].line_text | uppercase }}
+                  </template>
+                  <template
+                    v-else-if="
+                      stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'
+                    "
+                  >
+                    {{ line.line_parts[0].line_text | lowercase }}
+                  </template>
+                  <template v-else>
+                    {{ line.line_parts[0].line_text }}
+                  </template>
+                </i>
+              </b-col>
+            </b-row>
           </b-col>
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">

@@ -1,6 +1,6 @@
 <template>
   <b-col>
-    <b-form-row v-if="lineType === LINE_TYPES.DIALOGUE">
+    <b-form-row v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
       <b-col v-show="$v.state.character_group_id.$model == null">
         <b-form-group
           id="character-input-group"
@@ -103,11 +103,13 @@ export default {
   validations: {
     state: {
       character_id: {
+        // Required for DIALOGUE if no group selected; optional for STAGE_DIRECTION
         required: requiredIf(function isCharacterRequired() {
           return this.lineType === LINE_TYPES.DIALOGUE && this.state.character_group_id == null;
         }),
       },
       character_group_id: {
+        // Required for DIALOGUE if no character selected; optional for STAGE_DIRECTION
         required: requiredIf(function isCharacterGroupRequired() {
           return this.lineType === LINE_TYPES.DIALOGUE && this.state.character_id == null;
         }),

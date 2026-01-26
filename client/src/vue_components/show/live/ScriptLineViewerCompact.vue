@@ -119,7 +119,24 @@
         </b-col>
       </template>
       <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
-        <b-col cols="2" class="cue-column" />
+        <!-- Character column for tagged stage directions -->
+        <b-col
+          cols="2"
+          class="cue-column line-part text-right"
+          :class="{ 'first-row': isFirstRowContent }"
+        >
+          <p v-if="isTaggedStageDirection && needsHeadingsAny">
+            <template v-if="line.line_parts[0].character_id != null">
+              {{ characters.find((char) => char.id === line.line_parts[0].character_id).name }}
+            </template>
+            <template v-else>
+              {{
+                characterGroups.find((char) => char.id === line.line_parts[0].character_group_id)
+                  .name
+              }}
+            </template>
+          </p>
+        </b-col>
         <b-col
           :key="`line_${lineIndex}_stage_direction`"
           :cols="cueAddMode ? 9 : 10"
