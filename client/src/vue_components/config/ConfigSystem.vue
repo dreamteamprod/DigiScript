@@ -38,6 +38,45 @@
             </b-button>
           </b-td>
         </b-tr>
+        <b-tr>
+          <b-td>
+            <b>Version</b>
+          </b-td>
+          <b-td>
+            {{ versionStatus.current_version || 'Unknown' }}
+            <b-badge :variant="getVersionStatusVariant()" pill>
+              {{ getVersionStatusText() }}
+            </b-badge>
+            <template v-if="versionStatus.update_available && versionStatus.latest_version">
+              <br />
+              <small class="text-muted">
+                Latest: {{ versionStatus.latest_version }}
+                <a
+                  v-if="versionStatus.release_url"
+                  :href="versionStatus.release_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  (Release Notes)
+                </a>
+              </small>
+            </template>
+            <template v-if="versionStatus.check_error">
+              <br />
+              <small class="text-danger">{{ versionStatus.check_error }}</small>
+            </template>
+          </b-td>
+          <b-td>
+            <b-button
+              variant="outline-success"
+              :disabled="isCheckingVersion"
+              @click="checkForUpdates"
+            >
+              <b-spinner v-if="isCheckingVersion" small class="mr-1" />
+              Check Now
+            </b-button>
+          </b-td>
+        </b-tr>
       </b-tbody>
     </b-table-simple>
     <b-modal
@@ -218,6 +257,17 @@ export default {
       ],
       clientTimeout: null,
       loading: true,
+      versionStatus: {
+        current_version: null,
+        latest_version: null,
+        update_available: false,
+        release_url: null,
+        last_checked: null,
+        check_error: null,
+      },
+      isCheckingVersion: false,
+      currentTime: Date.now(),
+      timeUpdateInterval: null,
     };
   },
   validations: {
@@ -254,10 +304,20 @@ export default {
     await this.getAvailableShows();
     await this.getConnectedClients();
     await this.GET_SCRIPT_MODES();
+    await this.getVersionStatus();
     this.loading = false;
+
+    // Start time update interval for reactive "time ago" display
+    this.timeUpdateInterval = setInterval(() => {
+      this.currentTime = Date.now();
+    }, 1000);
   },
   destroyed() {
     clearTimeout(this.clientTimeout);
+    if (this.timeUpdateInterval) {
+      clearInterval(this.timeUpdateInterval);
+      this.timeUpdateInterval = null;
+    }
   },
   methods: {
     async getAvailableShows() {
@@ -376,6 +436,93 @@ export default {
       } finally {
         this.isSubmittingLoad = false;
       }
+    },
+    async getVersionStatus() {
+      try {
+        const response = await fetch(`${makeURL('/api/v1/version/status')}`);
+        if (response.ok) {
+          this.versionStatus = await response.json();
+        } else {
+          log.error('Unable to get version status');
+        }
+      } catch (error) {
+        log.error('Error fetching version status:', error);
+      }
+    },
+    async checkForUpdates() {
+      if (this.isCheckingVersion) {
+        return;
+      }
+
+      this.isCheckingVersion = true;
+
+      try {
+        const response = await fetch(`${makeURL('/api/v1/version/check')}`, {
+          method: 'POST',
+        });
+        if (response.ok) {
+          this.versionStatus = await response.json();
+          if (this.versionStatus.update_available) {
+            this.$toast.info(`Update available: ${this.versionStatus.latest_version}`);
+          } else if (!this.versionStatus.check_error) {
+            this.$toast.success('You are running the latest version');
+          }
+        } else {
+          this.$toast.error('Unable to check for updates');
+          log.error('Unable to check for updates');
+        }
+      } catch (error) {
+        this.$toast.error('Unable to check for updates');
+        log.error('Error checking for updates:', error);
+      } finally {
+        this.isCheckingVersion = false;
+      }
+    },
+    getVersionStatusVariant() {
+      if (!this.versionStatus.current_version) {
+        return 'secondary';
+      }
+      if (this.versionStatus.check_error) {
+        return 'danger';
+      }
+      if (this.versionStatus.update_available) {
+        return 'warning';
+      }
+      return 'success';
+    },
+    getVersionStatusText() {
+      if (!this.versionStatus.current_version) {
+        return 'Loading...';
+      }
+      if (this.versionStatus.check_error) {
+        return 'Unable to check';
+      }
+      if (this.versionStatus.update_available) {
+        return 'Update Available';
+      }
+      return 'Up to date';
+    },
+    formatTimeAgo(isoTimestamp) {
+      if (!isoTimestamp) {
+        return 'Never';
+      }
+
+      const timestamp = new Date(isoTimestamp).getTime();
+      const seconds = Math.floor((this.currentTime - timestamp) / 1000);
+
+      if (seconds < 10) {
+        return 'Just now';
+      }
+      if (seconds < 60) {
+        return `${seconds} seconds ago`;
+      }
+      if (seconds < 3600) {
+        return `${Math.floor(seconds / 60)} minutes ago`;
+      }
+      if (seconds < 86400) {
+        return `${Math.floor(seconds / 3600)} hours ago`;
+      }
+      return `${Math.floor(seconds / 86400)} days ago`;
     },
     ...mapMutations(['UPDATE_SHOWS']),
     ...mapActions(['GET_SCRIPT_MODES']),
