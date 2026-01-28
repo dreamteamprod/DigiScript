@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import json
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, Optional, Union

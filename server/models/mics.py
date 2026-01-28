@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, List
 
 from sqlalchemy import ForeignKey, String
@@ -19,7 +21,7 @@ class Microphone(db.Model):
     name: Mapped[str | None] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(String(500))
 
-    allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
+    allocations: Mapped[List[MicrophoneAllocation]] = relationship(
         cascade="all, delete-orphan", back_populates="microphone"
     )
 
@@ -33,6 +35,6 @@ class MicrophoneAllocation(db.Model):
         ForeignKey("character.id"), primary_key=True
     )
 
-    microphone: Mapped["Microphone"] = relationship(back_populates="allocations")
-    scene: Mapped["Scene"] = relationship(back_populates="mic_allocations")
-    character: Mapped["Character"] = relationship(back_populates="mic_allocations")
+    microphone: Mapped[Microphone] = relationship(back_populates="allocations")
+    scene: Mapped[Scene] = relationship(back_populates="mic_allocations")
+    character: Mapped[Character] = relationship(back_populates="mic_allocations")

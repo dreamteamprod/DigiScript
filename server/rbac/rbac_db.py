@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 from collections import defaultdict
 from copy import deepcopy
@@ -85,7 +87,7 @@ def _get_mapping_columns(
 
 
 class RBACDatabase:
-    def __init__(self, _db: DigiSQLAlchemy, app: "DigiScriptServer"):
+    def __init__(self, _db: DigiSQLAlchemy, app: DigiScriptServer):
         self._db: DigiSQLAlchemy = _db
         self._app = app
         self._mappings = {}
