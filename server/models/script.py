@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import enum
 import gzip
@@ -41,11 +43,11 @@ class Script(db.Model):
         ForeignKey("script_revisions.id")
     )
 
-    revisions: Mapped[List["ScriptRevision"]] = relationship(
+    revisions: Mapped[List[ScriptRevision]] = relationship(
         primaryjoin="ScriptRevision.script_id == Script.id", back_populates="script"
     )
-    show: Mapped["Show"] = relationship(foreign_keys=[show_id])
-    stage_direction_styles: Mapped[List["StageDirectionStyle"]] = relationship(
+    show: Mapped[Show] = relationship(foreign_keys=[show_id])
+    stage_direction_styles: Mapped[List[StageDirectionStyle]] = relationship(
         cascade="all, delete-orphan", back_populates="script"
     )
 
@@ -64,19 +66,19 @@ class ScriptRevision(db.Model):
         ForeignKey("script_revisions.id", ondelete="SET NULL")
     )
 
-    previous_revision: Mapped["ScriptRevision"] = relationship(
+    previous_revision: Mapped[ScriptRevision] = relationship(
         foreign_keys=[previous_revision_id]
     )
-    script: Mapped["Script"] = relationship(
+    script: Mapped[Script] = relationship(
         foreign_keys=[script_id], back_populates="revisions"
     )
-    line_associations: Mapped[List["ScriptLineRevisionAssociation"]] = relationship(
+    line_associations: Mapped[List[ScriptLineRevisionAssociation]] = relationship(
         cascade="all, delete", back_populates="revision"
     )
-    line_part_cuts: Mapped[List["ScriptCuts"]] = relationship(
+    line_part_cuts: Mapped[List[ScriptCuts]] = relationship(
         cascade="all, delete-orphan", back_populates="revision"
     )
-    cue_associations: Mapped[List["CueAssociation"]] = relationship(
+    cue_associations: Mapped[List[CueAssociation]] = relationship(
         cascade="all, delete-orphan", back_populates="revision"
     )
 
@@ -130,17 +132,17 @@ class ScriptLine(db.Model):
         ForeignKey("stage_direction_styles.id", ondelete="SET NULL")
     )
 
-    act: Mapped["Act"] = relationship(back_populates="lines")
-    scene: Mapped["Scene"] = relationship(back_populates="lines")
-    revision_associations: Mapped[List["ScriptLineRevisionAssociation"]] = relationship(
+    act: Mapped[Act] = relationship(back_populates="lines")
+    scene: Mapped[Scene] = relationship(back_populates="lines")
+    revision_associations: Mapped[List[ScriptLineRevisionAssociation]] = relationship(
         foreign_keys="[ScriptLineRevisionAssociation.line_id]",
         cascade="all, delete",
         back_populates="line",
     )
-    cue_associations: Mapped[List["CueAssociation"]] = relationship(
+    cue_associations: Mapped[List[CueAssociation]] = relationship(
         foreign_keys="[CueAssociation.line_id]", viewonly=True, back_populates="line"
     )
-    line_parts: Mapped[List["ScriptLinePart"]] = relationship(
+    line_parts: Mapped[List[ScriptLinePart]] = relationship(
         cascade="all, delete-orphan", back_populates="line"
     )
 
@@ -158,14 +160,14 @@ class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     next_line_id: Mapped[int | None] = mapped_column(ForeignKey("script_lines.id"))
     previous_line_id: Mapped[int | None] = mapped_column(ForeignKey("script_lines.id"))
 
-    revision: Mapped["ScriptRevision"] = relationship(
+    revision: Mapped[ScriptRevision] = relationship(
         foreign_keys=[revision_id], back_populates="line_associations"
     )
-    line: Mapped["ScriptLine"] = relationship(
+    line: Mapped[ScriptLine] = relationship(
         foreign_keys=[line_id], back_populates="revision_associations"
     )
-    next_line: Mapped["ScriptLine"] = relationship(foreign_keys=[next_line_id])
-    previous_line: Mapped["ScriptLine"] = relationship(foreign_keys=[previous_line_id])
+    next_line: Mapped[ScriptLine] = relationship(foreign_keys=[next_line_id])
+    previous_line: Mapped[ScriptLine] = relationship(foreign_keys=[previous_line_id])
 
     def pre_delete(self, session):
         pass
@@ -259,12 +261,12 @@ class ScriptLinePart(db.Model):
     )
     line_text: Mapped[str | None] = mapped_column(String)
 
-    line: Mapped["ScriptLine"] = relationship(
+    line: Mapped[ScriptLine] = relationship(
         foreign_keys=[line_id], back_populates="line_parts"
     )
-    character: Mapped["Character"] = relationship()
-    character_group: Mapped["CharacterGroup"] = relationship()
-    line_part_cuts: Mapped["ScriptCuts"] = relationship(
+    character: Mapped[Character] = relationship()
+    character_group: Mapped[CharacterGroup] = relationship()
+    line_part_cuts: Mapped[ScriptCuts] = relationship(
         cascade="all, delete-orphan", back_populates="line_part"
     )
 
@@ -279,10 +281,10 @@ class ScriptCuts(db.Model):
         ForeignKey("script_revisions.id"), primary_key=True, index=True
     )
 
-    line_part: Mapped["ScriptLinePart"] = relationship(
+    line_part: Mapped[ScriptLinePart] = relationship(
         foreign_keys=[line_part_id], back_populates="line_part_cuts"
     )
-    revision: Mapped["ScriptRevision"] = relationship(
+    revision: Mapped[ScriptRevision] = relationship(
         foreign_keys=[revision_id], back_populates="line_part_cuts"
     )
 
@@ -313,7 +315,7 @@ class StageDirectionStyle(db.Model, DeleteMixin):
     enable_background_colour: Mapped[bool | None] = mapped_column(Boolean)
     background_colour: Mapped[str | None] = mapped_column(String)
 
-    script: Mapped["Script"] = relationship(
+    script: Mapped[Script] = relationship(
         foreign_keys=[script_id], back_populates="stage_direction_styles"
     )
 
@@ -344,10 +346,10 @@ class CompiledScript(db.Model):
     )
     data_path: Mapped[str | None] = mapped_column(String)
 
-    script_revision: Mapped["ScriptRevision"] = relationship(foreign_keys=[revision_id])
+    script_revision: Mapped[ScriptRevision] = relationship(foreign_keys=[revision_id])
 
     @classmethod
-    async def compile_script(cls, application: "DigiScriptServer", revision_id):
+    async def compile_script(cls, application: DigiScriptServer, revision_id):
         line_schema = get_registry().get_schema_by_model(ScriptLine)()
         with application.get_db().sessionmaker() as session:
             revision: ScriptRevision = session.get(ScriptRevision, revision_id)

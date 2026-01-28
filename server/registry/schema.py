@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Optional
 
 from marshmallow_sqlalchemy import SQLAlchemySchema
@@ -19,7 +21,7 @@ class SchemaRegistry:
     def get_schema_by_model(self, key) -> Optional[SQLAlchemySchema]:
         return self._backward_registry.get(key, None)
 
-    def get_model_by_schema(self, key) -> "db.Model":
+    def get_model_by_schema(self, key) -> db.Model:
         return self._forward_registry.get(key, None)
 
 

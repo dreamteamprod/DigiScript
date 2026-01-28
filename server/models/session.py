@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 from functools import partial
 from typing import TYPE_CHECKING
@@ -26,8 +28,8 @@ class Session(db.Model):
         ForeignKey("user.id", ondelete="SET NULL"), index=True
     )
 
-    user: Mapped["User"] = relationship(back_populates="sessions")
-    live_session: Mapped["ShowSession"] = relationship(
+    user: Mapped[User] = relationship(back_populates="sessions")
+    live_session: Mapped[ShowSession] = relationship(
         foreign_keys="[ShowSession.client_internal_id]",
         back_populates="client",
     )
@@ -66,16 +68,16 @@ class ShowSession(db.Model):
         ForeignKey("showinterval.id", ondelete="SET NULL")
     )
 
-    show: Mapped["Show"] = relationship(uselist=False, foreign_keys=[show_id])
-    revision: Mapped["ScriptRevision"] = relationship(
+    show: Mapped[Show] = relationship(uselist=False, foreign_keys=[show_id])
+    revision: Mapped[ScriptRevision] = relationship(
         uselist=False, foreign_keys=[script_revision_id]
     )
-    user: Mapped["User"] = relationship(uselist=False, foreign_keys=[user_id])
-    client: Mapped["Session"] = relationship(
+    user: Mapped[User] = relationship(uselist=False, foreign_keys=[user_id])
+    client: Mapped[Session] = relationship(
         foreign_keys=[client_internal_id],
         back_populates="live_session",
     )
-    tags: Mapped[list["SessionTag"]] = relationship(
+    tags: Mapped[list[SessionTag]] = relationship(
         secondary=session_tag_association_table, back_populates="sessions"
     )
 
@@ -105,7 +107,7 @@ class SessionTag(db.Model):
     tag: Mapped[str] = mapped_column(String(255))
     colour: Mapped[str] = mapped_column(String(16))
 
-    show: Mapped["Show"] = relationship(uselist=False, foreign_keys=[show_id])
-    sessions: Mapped[list["ShowSession"]] = relationship(
+    show: Mapped[Show] = relationship(uselist=False, foreign_keys=[show_id])
+    sessions: Mapped[list[ShowSession]] = relationship(
         secondary=session_tag_association_table, back_populates="tags"
     )
