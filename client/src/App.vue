@@ -61,6 +61,12 @@
                 Jump To Page
               </b-dropdown-item>
               <b-dropdown-item-btn
+                :disabled="
+                  CURRENT_SHOW_SESSION == null ||
+                  !WEBSOCKET_HEALTHY ||
+                  stoppingSession ||
+                  startingSession
+                "
                 @click.stop.prevent="SET_STAGE_MANAGER_MODE(!STAGE_MANAGER_MODE)"
               >
                 {{ STAGE_MANAGER_MODE ? 'Disable' : 'Enable' }} Stage Manager
