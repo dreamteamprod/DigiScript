@@ -32,6 +32,7 @@ from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.mdns_service import MDNSAdvertiser
 from utils.module_discovery import get_resource_path, is_frozen
+from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
 from utils.web.route import Route
 
@@ -60,6 +61,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self._db: DigiSQLAlchemy = models.db
         self.jwt_service: JWTService = None
         self.mdns_advertiser: Optional[MDNSAdvertiser] = None
+        self.version_checker: Optional[VersionChecker] = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
         if db_path.startswith("sqlite://"):
@@ -351,6 +353,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
     async def configure(self):
         await self._configure_logging()
         await self.start_mdns_advertising()
+        await self.start_version_checker()
 
     async def _configure_logging(self):
         get_logger().info("Reconfiguring logging!")
@@ -528,3 +531,16 @@ class DigiScriptServer(PrometheusMixIn, Application):
         else:
             # Stop advertising
             await self.stop_mdns_advertising()
+
+    async def start_version_checker(self) -> None:
+        """Start the version checker service."""
+        if not self.version_checker:
+            self.version_checker = VersionChecker(application=self)
+
+        await self.version_checker.start()
+
+    async def stop_version_checker(self) -> None:
+        """Stop the version checker service if it's running."""
+        if self.version_checker:
+            await self.version_checker.stop()
+            self.version_checker = None

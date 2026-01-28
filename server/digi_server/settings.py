@@ -17,12 +17,6 @@ if TYPE_CHECKING:
 
 
 def _get_version() -> str:
-    """
-    Read version from pyproject.toml.
-
-    Returns:
-        str: Version string from pyproject.toml, or '0.0.0' if not found
-    """
     try:
         # Get path to pyproject.toml (one directory up from digi_server)
         pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
@@ -37,14 +31,6 @@ def _get_version() -> str:
 
 
 def get_version() -> str:
-    """
-    Get the current application version.
-
-    Public wrapper for _get_version() that can be imported by other modules.
-
-    Returns:
-        str: Version string from pyproject.toml, or '0.0.0' if not found
-    """
     return _get_version()
 
 

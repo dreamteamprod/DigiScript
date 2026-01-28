@@ -558,7 +558,8 @@ export default {
     },
     navigateTo(targetPage, targetLineOnPage, preventScroll = false) {
       // Check if the page is loaded
-      if (targetPage > this.currentLoadedPage) {
+      // Use Number() for defense-in-depth in case currentLoadedPage is ever a string
+      if (targetPage > Number(this.currentLoadedPage)) {
         return false;
       }
 
@@ -975,7 +976,7 @@ export default {
         let minLoadedPage = Number.POSITIVE_INFINITY;
         const respJson = await response.json();
         Object.entries(respJson).forEach((value) => {
-          const pageNumber = value[0];
+          const pageNumber = parseInt(value[0], 10);
           const pageContents = value[1];
 
           if (pageNumber > maxLoadedPage) {

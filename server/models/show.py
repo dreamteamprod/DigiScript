@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import enum
 from typing import TYPE_CHECKING, List
@@ -69,43 +71,40 @@ class Show(db.Model):
     script_mode: Mapped[ShowScriptType] = mapped_column(ShowScriptTypeCol)
 
     # Relationships
-    first_act: Mapped["Act"] = relationship(foreign_keys=[first_act_id])
-    current_session: Mapped["ShowSession"] = relationship(
+    first_act: Mapped[Act] = relationship(foreign_keys=[first_act_id])
+    current_session: Mapped[ShowSession] = relationship(
         foreign_keys=[current_session_id]
     )
-
-    cast_list: Mapped[List["Cast"]] = relationship(cascade="all, delete-orphan")
-    crew_list: Mapped[List["Crew"]] = relationship(
+    cast_list: Mapped[List[Cast]] = relationship(cascade="all, delete-orphan")
+    crew_list: Mapped[List[Crew]] = relationship(
         back_populates="show",
         cascade="all, delete-orphan",
     )
-    scenery_types: Mapped[List["SceneryType"]] = relationship(
+    scenery_types: Mapped[List[SceneryType]] = relationship(
         back_populates="show",
         cascade="all, delete-orphan",
     )
-    scenery_list: Mapped[List["Scenery"]] = relationship(
+    scenery_list: Mapped[List[Scenery]] = relationship(
         back_populates="show",
         cascade="all, delete-orphan",
     )
-    prop_types: Mapped[List["PropType"]] = relationship(
+    prop_types: Mapped[List[PropType]] = relationship(
         back_populates="show",
         cascade="all, delete-orphan",
     )
-    props_list: Mapped[List["Props"]] = relationship(
+    props_list: Mapped[List[Props]] = relationship(
         back_populates="show",
         cascade="all, delete-orphan",
     )
-    character_list: Mapped[List["Character"]] = relationship(
+    character_list: Mapped[List[Character]] = relationship(cascade="all, delete-orphan")
+    character_group_list: Mapped[List[CharacterGroup]] = relationship(
         cascade="all, delete-orphan"
     )
-    character_group_list: Mapped[List["CharacterGroup"]] = relationship(
-        cascade="all, delete-orphan"
-    )
-    act_list: Mapped[List["Act"]] = relationship(
+    act_list: Mapped[List[Act]] = relationship(
         primaryjoin="Show.id == Act.show_id", cascade="all, delete-orphan"
     )
-    scene_list: Mapped[List["Scene"]] = relationship(cascade="all, delete-orphan")
-    cue_type_list: Mapped[List["CueType"]] = relationship(cascade="all, delete-orphan")
+    scene_list: Mapped[List[Scene]] = relationship(cascade="all, delete-orphan")
+    cue_type_list: Mapped[List[CueType]] = relationship(cascade="all, delete-orphan")
 
 
 class Cast(db.Model):
@@ -117,9 +116,7 @@ class Cast(db.Model):
     last_name: Mapped[str | None] = mapped_column()
 
     # Relationships
-    character_list: Mapped[List["Character"]] = relationship(
-        back_populates="cast_member"
-    )
+    character_list: Mapped[List[Character]] = relationship(back_populates="cast_member")
 
 
 character_group_association_table = Table(
@@ -139,12 +136,12 @@ class Character(db.Model):
     name: Mapped[str | None] = mapped_column()
     description: Mapped[str | None] = mapped_column()
 
-    cast_member: Mapped["Cast"] = relationship(back_populates="character_list")
-    character_groups: Mapped[List["CharacterGroup"]] = relationship(
+    cast_member: Mapped[Cast] = relationship(back_populates="character_list")
+    character_groups: Mapped[List[CharacterGroup]] = relationship(
         secondary=character_group_association_table,
         back_populates="characters",
     )
-    mic_allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
+    mic_allocations: Mapped[List[MicrophoneAllocation]] = relationship(
         cascade="all, delete-orphan", back_populates="character"
     )
 
@@ -158,7 +155,7 @@ class CharacterGroup(db.Model):
     name: Mapped[str | None] = mapped_column()
     description: Mapped[str | None] = mapped_column()
 
-    characters: Mapped[List["Character"]] = relationship(
+    characters: Mapped[List[Character]] = relationship(
         secondary=character_group_association_table,
         back_populates="character_groups",
     )
@@ -174,22 +171,22 @@ class Act(db.Model):
     first_scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
     previous_act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
 
-    first_scene: Mapped["Scene"] = relationship(foreign_keys=[first_scene_id])
-    previous_act: Mapped["Act"] = relationship(
+    first_scene: Mapped[Scene] = relationship(foreign_keys=[first_scene_id])
+    previous_act: Mapped[Act] = relationship(
         remote_side="[Act.id]",
         back_populates="next_act",
         foreign_keys=[previous_act_id],
     )
-    next_act: Mapped["Act"] = relationship(
+    next_act: Mapped[Act] = relationship(
         back_populates="previous_act",
         foreign_keys="[Act.previous_act_id]",
     )
-    scene_list: Mapped[List["Scene"]] = relationship(
+    scene_list: Mapped[List[Scene]] = relationship(
         back_populates="act",
         cascade="all, delete-orphan",
         foreign_keys="[Scene.act_id]",
     )
-    lines: Mapped[List["ScriptLine"]] = relationship(
+    lines: Mapped[List[ScriptLine]] = relationship(
         back_populates="act", cascade="all, delete-orphan"
     )
 
@@ -203,24 +200,24 @@ class Scene(db.Model):
     name: Mapped[str | None] = mapped_column()
     previous_scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
 
-    act: Mapped["Act"] = relationship(
+    act: Mapped[Act] = relationship(
         back_populates="scene_list",
         foreign_keys=[act_id],
         post_update=True,
     )
-    previous_scene: Mapped["Scene"] = relationship(
+    previous_scene: Mapped[Scene] = relationship(
         remote_side="[Scene.id]",
         back_populates="next_scene",
         foreign_keys=[previous_scene_id],
     )
-    next_scene: Mapped["Scene"] = relationship(
+    next_scene: Mapped[Scene] = relationship(
         back_populates="previous_scene",
         foreign_keys="[Scene.previous_scene_id]",
     )
-    lines: Mapped[List["ScriptLine"]] = relationship(
+    lines: Mapped[List[ScriptLine]] = relationship(
         back_populates="scene", cascade="all, delete-orphan"
     )
-    mic_allocations: Mapped[List["MicrophoneAllocation"]] = relationship(
+    mic_allocations: Mapped[List[MicrophoneAllocation]] = relationship(
         cascade="all, delete-orphan", back_populates="scene"
     )
     scenery_allocations: Mapped[List["SceneryAllocation"]] = relationship(

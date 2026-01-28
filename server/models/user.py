@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import enum
 import json
@@ -71,7 +73,7 @@ class User(db.Model):
     requires_password_change: Mapped[bool] = mapped_column(default=False)
     token_version: Mapped[int] = mapped_column(default=0)
 
-    sessions: Mapped[List["Session"]] = relationship(back_populates="user")
+    sessions: Mapped[List[Session]] = relationship(back_populates="user")
 
 
 class UserSettings(db.Model):

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import List
 
 from sqlalchemy import ForeignKey, String, func, select
@@ -20,7 +22,7 @@ class CueType(db.Model, DeleteMixin):
     description: Mapped[str | None] = mapped_column(String(100))
     colour: Mapped[str | None] = mapped_column(String(16))
 
-    cues: Mapped[List["Cue"]] = relationship(
+    cues: Mapped[List[Cue]] = relationship(
         back_populates="cue_type", cascade="all, delete-orphan"
     )
 
@@ -38,10 +40,10 @@ class Cue(db.Model):
     cue_type_id: Mapped[int | None] = mapped_column(ForeignKey("cuetypes.id"))
     ident: Mapped[str | None] = mapped_column(String(50))
 
-    cue_type: Mapped["CueType"] = relationship(
+    cue_type: Mapped[CueType] = relationship(
         foreign_keys=[cue_type_id], back_populates="cues"
     )
-    revision_associations: Mapped[List["CueAssociation"]] = relationship(
+    revision_associations: Mapped[List[CueAssociation]] = relationship(
         cascade="all, delete-orphan", back_populates="cue"
     )
 
@@ -59,13 +61,13 @@ class CueAssociation(db.Model, DeleteMixin):
         ForeignKey("cue.id"), primary_key=True, index=True
     )
 
-    revision: Mapped["ScriptRevision"] = relationship(
+    revision: Mapped[ScriptRevision] = relationship(
         foreign_keys=[revision_id], back_populates="cue_associations"
     )
-    line: Mapped["ScriptLine"] = relationship(
+    line: Mapped[ScriptLine] = relationship(
         foreign_keys=[line_id], back_populates="cue_associations", viewonly=True
     )
-    cue: Mapped["Cue"] = relationship(
+    cue: Mapped[Cue] = relationship(
         foreign_keys=[cue_id], back_populates="revision_associations"
     )
 
