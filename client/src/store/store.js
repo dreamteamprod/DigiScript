@@ -210,7 +210,7 @@ export default new Vuex.Store({
     createPersistedState({
       storage: getStorageAdapter('session'),
       key: 'digiscript',
-      paths: ['websocket.internalUUID'],
+      paths: ['websocket.internalUUID', 'show.stageManagerMode'],
     }),
   ],
 });
