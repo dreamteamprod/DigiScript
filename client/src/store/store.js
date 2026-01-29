@@ -12,6 +12,7 @@ import show from './modules/show';
 import script from './modules/script';
 import scriptConfig from './modules/scriptConfig';
 import help from './modules/help';
+import stage from './modules/stage';
 
 Vue.use(Vuex);
 
@@ -199,6 +200,7 @@ export default new Vuex.Store({
     websocket,
     system,
     show,
+    stage,
     script,
     scriptConfig,
     user,
@@ -208,7 +210,7 @@ export default new Vuex.Store({
     createPersistedState({
       storage: getStorageAdapter('session'),
       key: 'digiscript',
-      paths: ['websocket.internalUUID'],
+      paths: ['websocket.internalUUID', 'show.stageManagerMode'],
     }),
   ],
 });

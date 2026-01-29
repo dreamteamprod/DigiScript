@@ -21,6 +21,7 @@ export default {
     noLeaderToast: null,
     scriptModes: [],
     sessionTags: [],
+    stageManagerMode: false,
   },
   mutations: {
     SET_CAST_LIST(state, castList) {
@@ -74,6 +75,9 @@ export default {
     },
     SET_SESSION_TAGS(state, tags) {
       state.sessionTags = tags;
+    },
+    SET_STAGE_MANAGER_MODE(state, enabled) {
+      state.stageManagerMode = enabled;
     },
   },
   actions: {
@@ -861,6 +865,9 @@ export default {
         return getters.SESSION_TAGS_DICT[tagStr];
       }
       return null;
+    },
+    STAGE_MANAGER_MODE(state) {
+      return state.stageManagerMode;
     },
   },
 };

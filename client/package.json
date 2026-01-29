@@ -41,6 +41,7 @@
     "lodash": "4.17.23",
     "loglevel": "1.9.2",
     "marked": "11.2.0",
+    "splitpanes": "^2.4.1",
     "vue": "2.7.14",
     "vue-multiselect": "2.1.9",
     "vue-native-websocket": "2.0.15",
