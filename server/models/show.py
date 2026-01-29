@@ -15,6 +15,15 @@ if TYPE_CHECKING:
     from models.mics import MicrophoneAllocation
     from models.script import ScriptLine
     from models.session import ShowSession
+    from models.stage import (
+        Crew,
+        Props,
+        PropsAllocation,
+        PropType,
+        Scenery,
+        SceneryAllocation,
+        SceneryType,
+    )
 
 
 class ShowScriptType(enum.IntEnum):
@@ -66,8 +75,27 @@ class Show(db.Model):
     current_session: Mapped[ShowSession] = relationship(
         foreign_keys=[current_session_id]
     )
-
     cast_list: Mapped[List[Cast]] = relationship(cascade="all, delete-orphan")
+    crew_list: Mapped[List[Crew]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    scenery_types: Mapped[List[SceneryType]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    scenery_list: Mapped[List[Scenery]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    prop_types: Mapped[List[PropType]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    props_list: Mapped[List[Props]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
     character_list: Mapped[List[Character]] = relationship(cascade="all, delete-orphan")
     character_group_list: Mapped[List[CharacterGroup]] = relationship(
         cascade="all, delete-orphan"
@@ -191,4 +219,12 @@ class Scene(db.Model):
     )
     mic_allocations: Mapped[List[MicrophoneAllocation]] = relationship(
         cascade="all, delete-orphan", back_populates="scene"
+    )
+    scenery_allocations: Mapped[List["SceneryAllocation"]] = relationship(
+        back_populates="scene",
+        cascade="all, delete-orphan",
+    )
+    props_allocations: Mapped[List["PropsAllocation"]] = relationship(
+        back_populates="scene",
+        cascade="all, delete-orphan",
     )

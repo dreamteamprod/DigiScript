@@ -10,3 +10,11 @@
 :root {
   --body-background: #{$body-bg};
 }
+
+.splitpanes {
+  background: inherit !important;
+}
+
+.splitpanes__pane {
+  background: inherit !important;
+}
