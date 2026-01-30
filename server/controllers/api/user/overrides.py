@@ -20,6 +20,93 @@ from utils.web.web_decorators import api_authenticated
 VALID_TEXT_FORMATS = ("default", "upper", "lower")
 
 
+async def handle_override_patch(
+    controller, ws_action, success_message, not_found_message
+):
+    """
+    Handle PATCH request for user override controllers.
+
+    :param controller: The controller instance handling the request
+    :param ws_action: WebSocket action to send on success
+    :param success_message: Success message to return
+    :param not_found_message: Not found error message
+    """
+    data = escape.json_decode(controller.request.body)
+    settings_id = data.get("id", None)
+    if not settings_id:
+        controller.set_status(400)
+        await controller.finish({"message": ERROR_ID_MISSING})
+        return
+
+    with controller.make_session() as session:
+        entry: UserOverrides = session.get(UserOverrides, settings_id)
+        if entry:
+            if entry.user_id != controller.current_user["id"]:
+                controller.set_status(403)
+                await controller.finish()
+                return
+
+            merge_settings = data.copy()
+            del merge_settings["id"]
+            entry.update_settings(merge_settings)
+            session.commit()
+
+            controller.set_status(200)
+            await controller.finish({"message": success_message})
+
+            await controller.application.ws_send_to_user(
+                controller.current_user["id"],
+                "NOOP",
+                ws_action,
+                {},
+            )
+        else:
+            controller.set_status(404)
+            await controller.finish({"message": not_found_message})
+
+
+async def handle_override_delete(
+    controller, ws_action, success_message, not_found_message
+):
+    """
+    Handle DELETE request for user override controllers.
+
+    :param controller: The controller instance handling the request
+    :param ws_action: WebSocket action to send on success
+    :param success_message: Success message to return
+    :param not_found_message: Not found error message
+    """
+    settings_id = controller.get_argument("id", None)
+    if not settings_id:
+        controller.set_status(400)
+        await controller.finish({"message": ERROR_ID_MISSING})
+        return
+
+    with controller.make_session() as session:
+        entry: UserOverrides = session.get(UserOverrides, int(settings_id))
+        if entry:
+            if entry.user_id != controller.current_user["id"]:
+                controller.set_status(403)
+                await controller.finish()
+                return
+
+            session.delete(entry)
+            session.commit()
+
+            controller.set_status(200)
+            await controller.finish({"message": success_message})
+
+            await controller.application.ws_send_to_user(
+                controller.current_user["id"],
+                "NOOP",
+                ws_action,
+                {},
+            )
+        else:
+            controller.set_status(404)
+            await controller.finish({"message": not_found_message})
+
+
 @ApiRoute("user/settings/stage_direction_overrides", ApiVersion.V1)
 class StageDirectionOverridesController(BaseAPIController):
     @api_authenticated
@@ -107,76 +194,21 @@ class StageDirectionOverridesController(BaseAPIController):
 
     @api_authenticated
     async def patch(self):
-        data = escape.json_decode(self.request.body)
-        settings_id = data.get("id", None)
-        if not settings_id:
-            self.set_status(400)
-            await self.finish({"message": ERROR_ID_MISSING})
-            return
-
-        with self.make_session() as session:
-            entry: UserOverrides = session.get(UserOverrides, settings_id)
-            if entry:
-                if entry.user_id != self.current_user["id"]:
-                    self.set_status(403)
-                    await self.finish()
-
-                merge_settings = data.copy()
-                del merge_settings["id"]
-                entry.update_settings(merge_settings)
-                session.commit()
-
-                self.set_status(200)
-                await self.finish(
-                    {"message": "Successfully edited stage direction style override"}
-                )
-
-                await self.application.ws_send_to_user(
-                    self.current_user["id"],
-                    "NOOP",
-                    "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
-                    {},
-                )
-            else:
-                self.set_status(404)
-                await self.finish(
-                    {"message": "Stage direction style override not found"}
-                )
+        await handle_override_patch(
+            self,
+            "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
+            "Successfully edited stage direction style override",
+            "Stage direction style override not found",
+        )
 
     @api_authenticated
     async def delete(self):
-        settings_id = self.get_argument("id", None)
-        if not settings_id:
-            self.set_status(400)
-            await self.finish({"message": ERROR_ID_MISSING})
-            return
-
-        with self.make_session() as session:
-            entry: UserOverrides = session.get(UserOverrides, int(settings_id))
-            if entry:
-                if entry.user_id != self.current_user["id"]:
-                    self.set_status(403)
-                    await self.finish()
-
-                session.delete(entry)
-                session.commit()
-
-                self.set_status(200)
-                await self.finish(
-                    {"message": "Successfully deleted stage direction style override"}
-                )
-
-                await self.application.ws_send_to_user(
-                    self.current_user["id"],
-                    "NOOP",
-                    "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
-                    {},
-                )
-            else:
-                self.set_status(404)
-                await self.finish(
-                    {"message": "Stage direction style override not found"}
-                )
+        await handle_override_delete(
+            self,
+            "GET_STAGE_DIRECTION_STYLE_OVERRIDES",
+            "Successfully deleted stage direction style override",
+            "Stage direction style override not found",
+        )
 
 
 @ApiRoute("user/settings/cue_colour_overrides", ApiVersion.V1)
@@ -247,69 +279,18 @@ class CueColourOverridesController(BaseAPIController):
 
     @api_authenticated
     async def patch(self):
-        data = escape.json_decode(self.request.body)
-        settings_id = data.get("id", None)
-        if not settings_id:
-            self.set_status(400)
-            await self.finish({"message": ERROR_ID_MISSING})
-            return
-
-        with self.make_session() as session:
-            entry: UserOverrides = session.get(UserOverrides, settings_id)
-            if entry:
-                if entry.user_id != self.current_user["id"]:
-                    self.set_status(403)
-                    await self.finish()
-
-                merge_settings = data.copy()
-                del merge_settings["id"]
-                entry.update_settings(merge_settings)
-                session.commit()
-
-                self.set_status(200)
-                await self.finish(
-                    {"message": "Successfully edited cue colour override"}
-                )
-
-                await self.application.ws_send_to_user(
-                    self.current_user["id"],
-                    "NOOP",
-                    "GET_CUE_COLOUR_OVERRIDES",
-                    {},
-                )
-            else:
-                self.set_status(404)
-                await self.finish({"message": "Cue colour override not found"})
+        await handle_override_patch(
+            self,
+            "GET_CUE_COLOUR_OVERRIDES",
+            "Successfully edited cue colour override",
+            "Cue colour override not found",
+        )
 
     @api_authenticated
     async def delete(self):
-        settings_id = self.get_argument("id", None)
-        if not settings_id:
-            self.set_status(400)
-            await self.finish({"message": ERROR_ID_MISSING})
-            return
-
-        with self.make_session() as session:
-            entry: UserOverrides = session.get(UserOverrides, int(settings_id))
-            if entry:
-                if entry.user_id != self.current_user["id"]:
-                    self.set_status(403)
-                    await self.finish()
-
-                session.delete(entry)
-                session.commit()
-
-                self.set_status(200)
-                await self.finish(
-                    {"message": "Successfully deleted cue colour override"}
-                )
-
-                await self.application.ws_send_to_user(
-                    self.current_user["id"],
-                    "NOOP",
-                    "GET_CUE_COLOUR_OVERRIDES",
-                    {},
-                )
-            else:
-                self.set_status(404)
-                await self.finish({"message": "Cue colour override not found"})
+        await handle_override_delete(
+            self,
+            "GET_CUE_COLOUR_OVERRIDES",
+            "Successfully deleted cue colour override",
+            "Cue colour override not found",
+        )
