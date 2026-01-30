@@ -62,27 +62,35 @@
       @ok="onSubmitNew"
     >
       <b-form ref="new-cast-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="first-name-input-group" label="First Name" label-for="first-name-input">
+        <b-form-group
+          id="new-first-name-input-group"
+          label="First Name"
+          label-for="new-first-name-input"
+        >
           <b-form-input
-            id="first-name-input"
+            id="new-first-name-input"
             v-model="$v.newFormState.firstName.$model"
-            name="first-name-input"
+            name="new-first-name-input"
             :state="validateNewState('firstName')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-first-name-feedback"
           />
-          <b-form-invalid-feedback id="first-name-feedback">
+          <b-form-invalid-feedback id="new-first-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="last-name-input-group" label="Last Name" label-for="last-name-input">
+        <b-form-group
+          id="new-last-name-input-group"
+          label="Last Name"
+          label-for="new-last-name-input"
+        >
           <b-form-input
-            id="last-name-input"
+            id="new-last-name-input"
             v-model="$v.newFormState.lastName.$model"
-            name="last-name-input"
+            name="new-last-name-input"
             :state="validateNewState('lastName')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-last-name-feedback"
           />
-          <b-form-invalid-feedback id="last-name-feedback">
+          <b-form-invalid-feedback id="new-last-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -98,27 +106,35 @@
       @ok="onSubmitEdit"
     >
       <b-form ref="edit-cast-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="first-name-input-group" label="First Name" label-for="first-name-input">
+        <b-form-group
+          id="edit-first-name-input-group"
+          label="First Name"
+          label-for="edit-first-name-input"
+        >
           <b-form-input
-            id="first-name-input"
+            id="edit-first-name-input"
             v-model="$v.editFormState.firstName.$model"
-            name="first-name-input"
+            name="edit-first-name-input"
             :state="validateEditState('firstName')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-first-name-feedback"
           />
-          <b-form-invalid-feedback id="first-name-feedback">
+          <b-form-invalid-feedback id="edit-first-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="last-name-input-group" label="Last Name" label-for="last-name-input">
+        <b-form-group
+          id="edit-last-name-input-group"
+          label="Last Name"
+          label-for="edit-last-name-input"
+        >
           <b-form-input
-            id="last-name-input"
+            id="edit-last-name-input"
             v-model="$v.editFormState.lastName.$model"
-            name="last-name-input"
+            name="edit-last-name-input"
             :state="validateEditState('lastName')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-last-name-feedback"
           />
-          <b-form-invalid-feedback id="last-name-feedback">
+          <b-form-invalid-feedback id="edit-last-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>

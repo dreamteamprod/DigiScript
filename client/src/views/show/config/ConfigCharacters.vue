@@ -73,32 +73,37 @@
       @ok="onSubmitNew"
     >
       <b-form ref="new-character-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="new-name-input-group" label="Name" label-for="new-name-input">
           <b-form-input
-            id="name-input"
+            id="new-name-input"
             v-model="$v.newFormState.name.$model"
-            name="name-input"
+            name="new-name-input"
             :state="validateNewState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="new-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="new-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="new-description-input"
             v-model="$v.newFormState.description.$model"
-            name="description-input"
+            name="new-description-input"
             :state="validateNewState('description')"
           />
         </b-form-group>
-        <b-form-group id="played-by-input-group" label="Played By" label-for="played-by-input">
+        <b-form-group
+          id="new-played-by-input-group"
+          label="Played By"
+          label-for="new-played-by-input"
+        >
           <b-form-select
+            id="new-played-by-input"
             v-model="$v.newFormState.played_by.$model"
             :options="castOptions"
             :state="validateNewState('played_by')"
@@ -116,32 +121,37 @@
       @ok="onSubmitEdit"
     >
       <b-form ref="edit-character-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="edit-name-input-group" label="Name" label-for="edit-name-input">
           <b-form-input
-            id="name-input"
+            id="edit-name-input"
             v-model="$v.editFormState.name.$model"
-            name="name-input"
+            name="edit-name-input"
             :state="validateEditState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="edit-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="edit-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="edit-description-input"
             v-model="$v.editFormState.description.$model"
-            name="description-input"
+            name="edit-description-input"
             :state="validateEditState('description')"
           />
         </b-form-group>
-        <b-form-group id="played-by-input-group" label="Played By" label-for="played-by-input">
+        <b-form-group
+          id="edit-played-by-input-group"
+          label="Played By"
+          label-for="edit-played-by-input"
+        >
           <b-form-select
+            id="edit-played-by-input"
             v-model="$v.editFormState.played_by.$model"
             :options="castOptions"
             :state="validateEditState('played_by')"

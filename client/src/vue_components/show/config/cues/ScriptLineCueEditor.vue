@@ -102,27 +102,27 @@
       @ok="onSubmitNew"
     >
       <b-form ref="new-cue-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
+        <b-form-group id="new-type-input-group" label="Cue Type" label-for="new-type-input">
           <b-form-select
-            id="act-input"
+            id="new-type-input"
             v-model="$v.newFormState.cueType.$model"
             :options="cueTypeOptions"
             :state="validateNewState('cueType')"
-            aria-describedby="cue-type-feedback"
+            aria-describedby="new-cue-type-feedback"
           />
-          <b-form-invalid-feedback id="cue-type-feedback">
+          <b-form-invalid-feedback id="new-cue-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
+        <b-form-group id="new-ident-input-group" label="Identifier" label-for="new-ident-input">
           <b-form-input
-            id="ident-input"
+            id="new-ident-input"
             v-model="$v.newFormState.ident.$model"
-            name="ident-input"
+            name="new-ident-input"
             :state="validateNewState('ident')"
-            aria-describedby="ident-feedback"
+            aria-describedby="new-ident-feedback"
           />
-          <b-form-invalid-feedback id="ident-feedback">
+          <b-form-invalid-feedback id="new-ident-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -208,27 +208,27 @@
       @ok="onSubmitEdit"
     >
       <b-form ref="edit-cue-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
+        <b-form-group id="edit-type-input-group" label="Cue Type" label-for="edit-type-input">
           <b-form-select
-            id="act-input"
+            id="edit-type-input"
             v-model="$v.editFormState.cueType.$model"
             :options="cueTypeOptions"
             :state="validateEditState('cueType')"
-            aria-describedby="cue-type-feedback"
+            aria-describedby="edit-cue-type-feedback"
           />
-          <b-form-invalid-feedback id="cue-type-feedback">
+          <b-form-invalid-feedback id="edit-cue-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
+        <b-form-group id="edit-ident-input-group" label="Identifier" label-for="edit-ident-input">
           <b-form-input
-            id="ident-input"
+            id="edit-ident-input"
             v-model="$v.editFormState.ident.$model"
-            name="ident-input"
+            name="edit-ident-input"
             :state="validateEditState('ident')"
-            aria-describedby="ident-feedback"
+            aria-describedby="edit-ident-feedback"
           />
-          <b-form-invalid-feedback id="ident-feedback">
+          <b-form-invalid-feedback id="edit-ident-feedback">
             This is a required field.
           </b-form-invalid-feedback>
           <b-form-text v-if="isDuplicateEditCue" class="text-warning">

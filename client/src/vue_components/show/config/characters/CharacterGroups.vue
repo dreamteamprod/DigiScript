@@ -62,35 +62,39 @@
       @ok="onSubmitNew"
     >
       <b-form ref="new-character-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="new-name-input-group" label="Name" label-for="new-name-input">
           <b-form-input
-            id="name-input"
+            id="new-name-input"
             v-model="$v.newFormState.name.$model"
-            name="name-input"
+            name="new-name-input"
             :state="validateNewState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="new-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="new-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="new-description-input"
             v-model="$v.newFormState.description.$model"
-            name="description-input"
+            name="new-description-input"
             :state="validateNewState('description')"
           />
         </b-form-group>
-        <b-form-group id="characters-input-group" label="Characters" label-for="characters-input">
+        <b-form-group
+          id="new-characters-input-group"
+          label="Characters"
+          label-for="new-characters-input"
+        >
           <multi-select
-            id="characters-input"
+            id="new-characters-input"
             v-model="tempCharacterList"
-            name="characters-input"
+            name="new-characters-input"
             :multiple="true"
             :options="CHARACTER_LIST"
             track-by="id"
@@ -111,35 +115,39 @@
       @ok="onSubmitEdit"
     >
       <b-form ref="edit-character-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="edit-name-input-group" label="Name" label-for="edit-name-input">
           <b-form-input
-            id="name-input"
+            id="edit-name-input"
             v-model="$v.editFormState.name.$model"
-            name="name-input"
+            name="edit-name-input"
             :state="validateEditState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="edit-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="edit-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="edit-description-input"
             v-model="$v.editFormState.description.$model"
-            name="description-input"
+            name="edit-description-input"
             :state="validateEditState('description')"
           />
         </b-form-group>
-        <b-form-group id="characters-input-group" label="Characters" label-for="characters-input">
+        <b-form-group
+          id="edit-characters-input-group"
+          label="Characters"
+          label-for="edit-characters-input"
+        >
           <multi-select
-            id="characters-input"
+            id="edit-characters-input"
             v-model="tempEditCharacterList"
-            name="characters-input"
+            name="edit-characters-input"
             :multiple="true"
             :options="CHARACTER_LIST"
             track-by="id"

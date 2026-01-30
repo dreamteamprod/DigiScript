@@ -48,31 +48,31 @@
       @ok="onSubmitNewMicrophone"
     >
       <b-form ref="new-microphone-form" @submit.stop.prevent="onSubmitNewMicrophone">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="new-name-input-group" label="Name" label-for="new-name-input">
           <b-form-input
-            id="name-input"
+            id="new-name-input"
             v-model="$v.newMicrophoneForm.name.$model"
-            name="name-input"
+            name="new-name-input"
             :state="validateNewMicrophone('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-name-feedback">
             This is a required field, and must be unique.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="new-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="new-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="new-description-input"
             v-model="$v.newMicrophoneForm.description.$model"
-            name="description-input"
+            name="new-description-input"
             :state="validateNewMicrophone('description')"
-            aria-describedby="description-feedback"
+            aria-describedby="new-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="new-description-feedback">
             Something went wrong!
           </b-form-invalid-feedback>
         </b-form-group>
@@ -88,31 +88,31 @@
       @ok="onSubmitEditMicrophone"
     >
       <b-form ref="edit-microphone-form" @submit.stop.prevent="onSubmitEditMicrophone">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="edit-name-input-group" label="Name" label-for="edit-name-input">
           <b-form-input
-            id="name-input"
+            id="edit-name-input"
             v-model="$v.editMicrophoneForm.name.$model"
-            name="name-input"
+            name="edit-name-input"
             :state="validateEditMicrophone('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-name-feedback">
             This is a required field, and must be unique.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="edit-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="edit-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="edit-description-input"
             v-model="$v.editMicrophoneForm.description.$model"
-            name="description-input"
+            name="edit-description-input"
             :state="validateEditMicrophone('description')"
-            aria-describedby="description-feedback"
+            aria-describedby="edit-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="edit-description-feedback">
             Something went wrong!
           </b-form-invalid-feedback>
         </b-form-group>

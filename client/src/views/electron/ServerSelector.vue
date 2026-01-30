@@ -350,6 +350,7 @@ const validUrl = (value) => {
     const url = new URL(value.startsWith('http') ? value : `http://${value}`);
     return url.protocol === 'http:' || url.protocol === 'https:';
   } catch {
+    // Invalid URL syntax - return false for validation
     return false;
   }
 };

@@ -53,19 +53,19 @@
           <h4>Configuration Options</h4>
           <b-form ref="new-config-form" @ok="onSubmitNewOverride">
             <b-form-group
-              id="colour-input-group"
+              id="new-colour-input-group"
               label="Cue Button Colour"
-              label-for="colour-input"
+              label-for="new-colour-input"
             >
               <b-form-input
-                id="colour-input"
+                id="new-colour-input"
                 v-model="$v.newFormState.colour.$model"
-                name="colour-input"
+                name="new-colour-input"
                 type="color"
                 :state="validateNewState('colour')"
-                aria-describedby="colour-feedback"
+                aria-describedby="new-colour-feedback"
               />
-              <b-form-invalid-feedback id="colour-feedback">
+              <b-form-invalid-feedback id="new-colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -97,19 +97,19 @@
           <h4>Configuration Options</h4>
           <b-form ref="edit-config-form" @ok="onSubmitEditOverride">
             <b-form-group
-              id="colour-input-group"
+              id="edit-colour-input-group"
               label="Cue Button Colour"
-              label-for="colour-input"
+              label-for="edit-colour-input"
             >
               <b-form-input
-                id="colour-input"
+                id="edit-colour-input"
                 v-model="$v.editFormState.colour.$model"
-                name="colour-input"
+                name="edit-colour-input"
                 type="color"
                 :state="validateEditState('colour')"
-                aria-describedby="colour-feedback"
+                aria-describedby="edit-colour-feedback"
               />
-              <b-form-invalid-feedback id="colour-feedback">
+              <b-form-invalid-feedback id="edit-colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
