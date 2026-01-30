@@ -376,6 +376,14 @@ export default {
   background-color: #1a3147;
 }
 
+.current-scene .scene-header:hover {
+  background-color: #215d35;
+}
+
+.next-scene .scene-header:hover {
+  background-color: #28476b;
+}
+
 .scene-title {
   font-size: 0.8rem;
   font-weight: 500;
