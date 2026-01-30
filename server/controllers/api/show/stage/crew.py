@@ -1,5 +1,14 @@
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_CAST_MEMBER_NOT_FOUND,
+    ERROR_CREW_NOT_FOUND,
+    ERROR_FIRST_NAME_MISSING,
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_LAST_NAME_MISSING,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.show import Show
 from models.stage import Crew
 from rbac.role import Role
@@ -25,7 +34,7 @@ class CrewController(BaseAPIController):
                 self.finish({"crew": crew})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -42,13 +51,13 @@ class CrewController(BaseAPIController):
                 first_name = data.get("firstName", None)
                 if not first_name:
                     self.set_status(400)
-                    await self.finish({"message": "First name missing"})
+                    await self.finish({"message": ERROR_FIRST_NAME_MISSING})
                     return
 
                 last_name = data.get("lastName", None)
                 if not last_name:
                     self.set_status(400)
-                    await self.finish({"message": "Last name missing"})
+                    await self.finish({"message": ERROR_LAST_NAME_MISSING})
                     return
 
                 new_crew = Crew(
@@ -67,7 +76,7 @@ class CrewController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -84,7 +93,7 @@ class CrewController(BaseAPIController):
                 crew_id = data.get("id", None)
                 if not crew_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: Crew = session.get(Crew, crew_id)
@@ -92,14 +101,14 @@ class CrewController(BaseAPIController):
                     first_name = data.get("firstName", None)
                     if not first_name:
                         self.set_status(400)
-                        await self.finish({"message": "First name missing"})
+                        await self.finish({"message": ERROR_FIRST_NAME_MISSING})
                         return
                     entry.first_name = first_name
 
                     last_name = data.get("lastName", None)
                     if not last_name:
                         self.set_status(400)
-                        await self.finish({"message": "Last name missing"})
+                        await self.finish({"message": ERROR_LAST_NAME_MISSING})
                         return
                     entry.last_name = last_name
 
@@ -113,11 +122,11 @@ class CrewController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 cast member not found"})
+                    await self.finish({"message": ERROR_CAST_MEMBER_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -133,14 +142,14 @@ class CrewController(BaseAPIController):
                 crew_id_str = self.get_argument("id", None)
                 if not crew_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     crew_id = int(crew_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry = session.get(Crew, crew_id)
@@ -156,7 +165,7 @@ class CrewController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 crew member not found"})
+                    await self.finish({"message": ERROR_CREW_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

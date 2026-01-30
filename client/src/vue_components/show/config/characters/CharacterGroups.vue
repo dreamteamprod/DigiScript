@@ -168,9 +168,11 @@
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'CharacterGroups',
+  mixins: [formValidationMixin],
   data() {
     return {
       loading: true,
@@ -224,16 +226,12 @@ export default {
     },
     resetNewForm() {
       this.tempCharacterList = [];
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         description: '',
         characters: [],
-      };
-      this.submittingNewGroup = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.submittingNewGroup = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -253,10 +251,6 @@ export default {
       } finally {
         this.submittingNewGroup = false;
       }
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteCharacterGroup(characterGroup) {
       if (this.deletingGroup) {
@@ -293,19 +287,15 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         name: '',
         description: '',
         characters: [],
-      };
+      });
       this.tempEditCharacterList = [];
       this.submittingEditGroup = false;
       this.deletingGroup = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     editSelectChanged(value, id) {
       this.$v.editFormState.characters.$model = value.map((character) => character.id);
@@ -328,10 +318,6 @@ export default {
       } finally {
         this.submittingEditGroup = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     ...mapActions([
       'GET_CHARACTER_LIST',

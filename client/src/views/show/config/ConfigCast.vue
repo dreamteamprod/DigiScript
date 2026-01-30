@@ -148,10 +148,12 @@ import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import CastLineStats from '@/vue_components/show/config/cast/CastLineStats.vue';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'ConfigCast',
   components: { CastLineStats },
+  mixins: [formValidationMixin],
   data() {
     return {
       castFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
@@ -198,15 +200,11 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         firstName: '',
         lastName: '',
-      };
-      this.submittingNewCast = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.submittingNewCast = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -227,10 +225,6 @@ export default {
         this.submittingNewCast = false;
       }
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
-    },
     openEditForm(castMember) {
       if (castMember != null) {
         this.editFormState.id = castMember.item.id;
@@ -241,18 +235,14 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         showID: null,
         firstName: '',
         lastName: '',
-      };
+      });
       this.submittingEditCast = false;
       this.deletingCast = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
@@ -272,10 +262,6 @@ export default {
       } finally {
         this.submittingEditCast = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteCastMember(castMember) {
       if (this.deletingCast) {

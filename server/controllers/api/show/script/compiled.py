@@ -4,6 +4,10 @@ from typing import Optional
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_SCRIPT_REVISION_NOT_FOUND,
+    ERROR_SHOW_NOT_FOUND,
+)
 from digi_server.logger import get_logger
 from models.script import CompiledScript, Script, ScriptRevision
 from models.show import Show
@@ -26,7 +30,7 @@ class CompiledScriptsController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
             stmt = (
@@ -53,7 +57,7 @@ class CompiledScriptsController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.WRITE)
 
@@ -67,7 +71,7 @@ class CompiledScriptsController(BaseAPIController):
             revision = session.get(ScriptRevision, revision_id)
             if not revision or revision.script.show_id != show_id:
                 self.set_status(404)
-                await self.finish({"message": "404 script revision not found"})
+                await self.finish({"message": ERROR_SCRIPT_REVISION_NOT_FOUND})
                 return
 
             await CompiledScript.compile_script(self.application, revision.id)
@@ -83,7 +87,7 @@ class CompiledScriptsController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.WRITE)
 
@@ -101,7 +105,7 @@ class CompiledScriptsController(BaseAPIController):
             revision = session.get(ScriptRevision, revision_id)
             if not revision or revision.script.show_id != show_id:
                 self.set_status(404)
-                await self.finish({"message": "404 script revision not found"})
+                await self.finish({"message": ERROR_SCRIPT_REVISION_NOT_FOUND})
                 return
 
             compiled_script: Optional[CompiledScript] = session.scalars(

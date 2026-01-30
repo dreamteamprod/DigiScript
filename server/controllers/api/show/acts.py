@@ -3,6 +3,16 @@ from typing import List
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_ACT_ID_MISSING,
+    ERROR_ACT_NOT_FOUND,
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_NAME_MISSING,
+    ERROR_SCENE_ID_MISSING,
+    ERROR_SCENE_NOT_FOUND,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.show import Act, Scene, Show
 from rbac.role import Role
 from schemas.schemas import ActSchema
@@ -30,7 +40,7 @@ class ActController(BaseAPIController):
                 self.finish({"acts": acts})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -47,7 +57,7 @@ class ActController(BaseAPIController):
                 name: str = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 interval_after: bool = data.get("interval_after", None)
@@ -80,7 +90,7 @@ class ActController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_ACT_LIST", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -97,7 +107,7 @@ class ActController(BaseAPIController):
                 act_id = data.get("id", None)
                 if not act_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: Act = session.get(Act, act_id)
@@ -105,7 +115,7 @@ class ActController(BaseAPIController):
                     name = data.get("name", None)
                     if not name:
                         self.set_status(400)
-                        await self.finish({"message": "Name missing"})
+                        await self.finish({"message": ERROR_NAME_MISSING})
                         return
                     entry.name = name
 
@@ -159,11 +169,11 @@ class ActController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_ACT_LIST", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 act not found"})
+                    await self.finish({"message": ERROR_ACT_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -179,14 +189,14 @@ class ActController(BaseAPIController):
                 act_id_str = self.get_argument("id", None)
                 if not act_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     act_id = int(act_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry: Act = session.get(Act, act_id)
@@ -210,10 +220,10 @@ class ActController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_ACT_LIST", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 act not found"})
+                    await self.finish({"message": ERROR_ACT_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/act/first_scene", ApiVersion.V1)
@@ -233,12 +243,12 @@ class FirstSceneController(BaseAPIController):
                 act_id: int = data.get("act_id", None)
                 if not act_id:
                     self.set_status(400)
-                    await self.finish({"message": "Act ID missing"})
+                    await self.finish({"message": ERROR_ACT_ID_MISSING})
                     return
 
                 if "scene_id" not in data:
                     self.set_status(400)
-                    await self.finish({"message": "Scene ID missing"})
+                    await self.finish({"message": ERROR_SCENE_ID_MISSING})
                     return
 
                 scene_id: int = data.get("scene_id", None)
@@ -246,7 +256,7 @@ class FirstSceneController(BaseAPIController):
                     scene: Scene = session.get(Scene, scene_id)
                     if not scene:
                         self.set_status(404)
-                        await self.finish({"message": "404 scene not found"})
+                        await self.finish({"message": ERROR_SCENE_NOT_FOUND})
                         return
                     if scene.previous_scene_id:
                         self.set_status(400)
@@ -273,4 +283,4 @@ class FirstSceneController(BaseAPIController):
 
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

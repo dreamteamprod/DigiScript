@@ -1,6 +1,14 @@
 from sqlalchemy import func, select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_COLOUR_MISSING,
+    ERROR_ID_MISSING,
+    ERROR_SHOW_NOT_FOUND,
+    ERROR_TAG_NAME_EXISTS,
+    ERROR_TAG_NAME_MISSING,
+    ERROR_TAG_NOT_FOUND,
+)
 from models.session import SessionTag
 from models.show import Show
 from rbac.role import Role
@@ -30,7 +38,7 @@ class SessionTagsController(BaseAPIController):
                 self.finish({"tags": tags})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -49,14 +57,14 @@ class SessionTagsController(BaseAPIController):
                 tag = data.get("tag", None)
                 if not tag:
                     self.set_status(400)
-                    await self.finish({"message": "Tag name missing"})
+                    await self.finish({"message": ERROR_TAG_NAME_MISSING})
                     return
 
                 # Validate colour
                 colour = data.get("colour", None)
                 if not colour:
                     self.set_status(400)
-                    await self.finish({"message": "Colour missing"})
+                    await self.finish({"message": ERROR_COLOUR_MISSING})
                     return
 
                 # Check case-insensitive uniqueness
@@ -69,7 +77,7 @@ class SessionTagsController(BaseAPIController):
                 if existing_tag:
                     self.set_status(400)
                     await self.finish(
-                        {"message": "Tag name already exists (case-insensitive)"}
+                        {"message": ERROR_TAG_NAME_EXISTS}
                     )
                     return
 
@@ -86,7 +94,7 @@ class SessionTagsController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_SESSION_TAGS", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -105,28 +113,28 @@ class SessionTagsController(BaseAPIController):
                 tag_id = data.get("id", None)
                 if not tag_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 # Fetch existing tag
                 tag_obj = session.get(SessionTag, tag_id)
                 if not tag_obj:
                     self.set_status(404)
-                    await self.finish({"message": "404 tag not found"})
+                    await self.finish({"message": ERROR_TAG_NOT_FOUND})
                     return
 
                 # Validate tag name
                 tag = data.get("tag", None)
                 if not tag:
                     self.set_status(400)
-                    await self.finish({"message": "Tag name missing"})
+                    await self.finish({"message": ERROR_TAG_NAME_MISSING})
                     return
 
                 # Validate colour
                 colour = data.get("colour", None)
                 if not colour:
                     self.set_status(400)
-                    await self.finish({"message": "Colour missing"})
+                    await self.finish({"message": ERROR_COLOUR_MISSING})
                     return
 
                 # Check case-insensitive uniqueness (excluding self)
@@ -140,7 +148,7 @@ class SessionTagsController(BaseAPIController):
                 if other_tag:
                     self.set_status(400)
                     await self.finish(
-                        {"message": "Tag name already exists (case-insensitive)"}
+                        {"message": ERROR_TAG_NAME_EXISTS}
                     )
                     return
 
@@ -158,7 +166,7 @@ class SessionTagsController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -177,7 +185,7 @@ class SessionTagsController(BaseAPIController):
                     tag_id: int = int(self.get_query_argument("id"))
                 except Exception:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 # Fetch tag and delete
@@ -197,7 +205,7 @@ class SessionTagsController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 tag not found"})
+                    await self.finish({"message": ERROR_TAG_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

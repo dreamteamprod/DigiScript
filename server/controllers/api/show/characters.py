@@ -3,6 +3,15 @@ from collections import defaultdict
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_CAST_MEMBER_NOT_FOUND,
+    ERROR_CHARACTER_GROUP_NOT_FOUND,
+    ERROR_CHARACTER_NOT_FOUND,
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_NAME_MISSING,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
 from models.show import Cast, Character, CharacterGroup, Show
 from rbac.role import Role
@@ -28,7 +37,7 @@ class CharacterController(BaseAPIController):
                 self.finish({"characters": characters})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -45,7 +54,7 @@ class CharacterController(BaseAPIController):
                 name = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 description = data.get("description", None)
@@ -54,7 +63,7 @@ class CharacterController(BaseAPIController):
                     cast_member = session.get(Cast, played_by)
                     if not cast_member:
                         self.set_status(404)
-                        await self.finish({"message": "404 cast member found"})
+                        await self.finish({"message": ERROR_CAST_MEMBER_NOT_FOUND})
                         return
 
                 new_character = Character(
@@ -77,7 +86,7 @@ class CharacterController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_CHARACTER_LIST", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -94,7 +103,7 @@ class CharacterController(BaseAPIController):
                 character_id = data.get("id", None)
                 if not character_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: Character = session.get(Character, character_id)
@@ -102,7 +111,7 @@ class CharacterController(BaseAPIController):
                     name = data.get("name", None)
                     if not name:
                         self.set_status(400)
-                        await self.finish({"message": "Name missing"})
+                        await self.finish({"message": ERROR_NAME_MISSING})
                         return
                     entry.name = name
 
@@ -114,7 +123,7 @@ class CharacterController(BaseAPIController):
                         cast_member = session.get(Cast, played_by)
                         if not cast_member:
                             self.set_status(404)
-                            await self.finish({"message": "404 cast member found"})
+                            await self.finish({"message": ERROR_CAST_MEMBER_NOT_FOUND})
                             return
                     entry.played_by = played_by
 
@@ -128,11 +137,11 @@ class CharacterController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 character not found"})
+                    await self.finish({"message": ERROR_CHARACTER_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -148,14 +157,14 @@ class CharacterController(BaseAPIController):
                 character_id_str = self.get_argument("id", None)
                 if not character_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     character_id = int(character_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry: Character = session.get(Character, character_id)
@@ -171,10 +180,10 @@ class CharacterController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 character not found"})
+                    await self.finish({"message": ERROR_CHARACTER_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/character/stats", ApiVersion.V1)
@@ -223,7 +232,7 @@ class CharacterStatsController(BaseAPIController):
                 await self.finish({"line_counts": line_counts})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/character/group", ApiVersion.V1)
@@ -244,7 +253,7 @@ class CharacterGroupController(BaseAPIController):
                 self.finish({"character_groups": character_groups})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -261,7 +270,7 @@ class CharacterGroupController(BaseAPIController):
                 name = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 description = data.get("description", None)
@@ -297,7 +306,7 @@ class CharacterGroupController(BaseAPIController):
 
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -313,14 +322,14 @@ class CharacterGroupController(BaseAPIController):
                 character_group_id_str = self.get_argument("id", None)
                 if not character_group_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     character_group_id = int(character_group_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry: CharacterGroup = session.get(CharacterGroup, character_group_id)
@@ -338,10 +347,10 @@ class CharacterGroupController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 character not found"})
+                    await self.finish({"message": ERROR_CHARACTER_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -358,7 +367,7 @@ class CharacterGroupController(BaseAPIController):
                 character_group_id = data.get("id", None)
                 if not character_group_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: CharacterGroup = session.get(CharacterGroup, character_group_id)
@@ -366,7 +375,7 @@ class CharacterGroupController(BaseAPIController):
                     name = data.get("name", None)
                     if not name:
                         self.set_status(400)
-                        await self.finish({"message": "Name missing"})
+                        await self.finish({"message": ERROR_NAME_MISSING})
                         return
                     entry.name = name
 
@@ -397,8 +406,8 @@ class CharacterGroupController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 character group not found"})
+                    await self.finish({"message": ERROR_CHARACTER_GROUP_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

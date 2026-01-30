@@ -5,6 +5,19 @@ from typing import List
 from sqlalchemy import func, select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_COLOUR_MISSING,
+    ERROR_CUE_ID_MISSING,
+    ERROR_CUE_NOT_FOUND,
+    ERROR_CUE_TYPE_MISSING,
+    ERROR_CUE_TYPE_NOT_FOUND,
+    ERROR_ID_MISSING,
+    ERROR_IDENTIFIER_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_LINE_ID_MISSING,
+    ERROR_PREFIX_MISSING,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.cue import Cue, CueAssociation, CueType
 from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
 from models.show import Show
@@ -31,7 +44,7 @@ class CueTypesController(BaseAPIController):
                 self.finish({"cue_types": cue_types})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -48,7 +61,7 @@ class CueTypesController(BaseAPIController):
                 prefix: str = data.get("prefix", None)
                 if not prefix:
                     self.set_status(400)
-                    await self.finish({"message": "Prefix missing"})
+                    await self.finish({"message": ERROR_PREFIX_MISSING})
                     return
 
                 description: str = data.get("description", None)
@@ -56,7 +69,7 @@ class CueTypesController(BaseAPIController):
                 colour: str = data.get("colour", None)
                 if not colour:
                     self.set_status(400)
-                    await self.finish({"message": "Colour missing"})
+                    await self.finish({"message": ERROR_COLOUR_MISSING})
                     return
 
                 new_cuetype = CueType(
@@ -76,7 +89,7 @@ class CueTypesController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_CUE_TYPES", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -93,19 +106,19 @@ class CueTypesController(BaseAPIController):
                 cue_type_id = data.get("id", None)
                 if not cue_type_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 cue_type: CueType = session.get(CueType, cue_type_id)
                 if not cue_type:
                     self.set_status(404)
-                    await self.finish({"message": "404 cue type not found"})
+                    await self.finish({"message": ERROR_CUE_TYPE_NOT_FOUND})
                     return
 
                 prefix: str = data.get("prefix", None)
                 if not prefix:
                     self.set_status(400)
-                    await self.finish({"message": "Prefix missing"})
+                    await self.finish({"message": ERROR_PREFIX_MISSING})
                     return
 
                 description: str = data.get("description", None)
@@ -113,7 +126,7 @@ class CueTypesController(BaseAPIController):
                 colour: str = data.get("colour", None)
                 if not colour:
                     self.set_status(400)
-                    await self.finish({"message": "Colour missing"})
+                    await self.finish({"message": ERROR_COLOUR_MISSING})
                     return
 
                 cue_type.prefix = prefix
@@ -127,7 +140,7 @@ class CueTypesController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_CUE_TYPES", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -143,14 +156,14 @@ class CueTypesController(BaseAPIController):
                 cue_type_id_str = self.get_argument("id", None)
                 if not cue_type_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     cue_type_id = int(cue_type_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry: CueType = session.get(CueType, cue_type_id)
@@ -164,10 +177,10 @@ class CueTypesController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_CUE_TYPES", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 cue type not found"})
+                    await self.finish({"message": ERROR_CUE_TYPE_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/cues", ApiVersion.V1)
@@ -208,7 +221,7 @@ class CueController(BaseAPIController):
                 self.finish({"cues": cues})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     async def post(self):
@@ -238,7 +251,7 @@ class CueController(BaseAPIController):
                 cue_type_id: int = data.get("cueType", None)
                 if not cue_type_id:
                     self.set_status(400)
-                    await self.finish({"message": "Cue Type missing"})
+                    await self.finish({"message": ERROR_CUE_TYPE_MISSING})
                     return
 
                 cue_type = session.get(CueType, cue_type_id)
@@ -253,13 +266,13 @@ class CueController(BaseAPIController):
                 ident: str = data.get("ident", None)
                 if not ident:
                     self.set_status(400)
-                    await self.finish({"message": "Identifier missing"})
+                    await self.finish({"message": ERROR_IDENTIFIER_MISSING})
                     return
 
                 line_id: int = data.get("lineId", None)
                 if not line_id:
                     self.set_status(400)
-                    await self.finish({"message": "Line ID missing"})
+                    await self.finish({"message": ERROR_LINE_ID_MISSING})
                     return
 
                 line: ScriptLine = session.get(ScriptLine, line_id)
@@ -290,7 +303,7 @@ class CueController(BaseAPIController):
 
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -321,13 +334,13 @@ class CueController(BaseAPIController):
                 cue_id: int = data.get("cueId")
                 if not cue_id:
                     self.set_status(400)
-                    await self.finish({"message": "Cue ID missing"})
+                    await self.finish({"message": ERROR_CUE_ID_MISSING})
                     return
 
                 cue_type_id: int = data.get("cueType", None)
                 if not cue_type_id:
                     self.set_status(400)
-                    await self.finish({"message": "Cue Type missing"})
+                    await self.finish({"message": ERROR_CUE_TYPE_MISSING})
                     return
 
                 cue_type = session.get(CueType, cue_type_id)
@@ -342,19 +355,19 @@ class CueController(BaseAPIController):
                 ident: str = data.get("ident", None)
                 if not ident:
                     self.set_status(400)
-                    await self.finish({"message": "Identifier missing"})
+                    await self.finish({"message": ERROR_IDENTIFIER_MISSING})
                     return
 
                 line_id: int = data.get("lineId", None)
                 if not line_id:
                     self.set_status(400)
-                    await self.finish({"message": "Line ID missing"})
+                    await self.finish({"message": ERROR_LINE_ID_MISSING})
                     return
 
                 cue: Cue = session.get(Cue, cue_id)
                 if not cue:
                     self.set_status(404)
-                    await self.finish({"message": "404 cue not found"})
+                    await self.finish({"message": ERROR_CUE_NOT_FOUND})
                     return
 
                 current_association: CueAssociation = session.get(
@@ -394,7 +407,7 @@ class CueController(BaseAPIController):
 
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -423,7 +436,7 @@ class CueController(BaseAPIController):
                 cue_id_str = self.get_argument("cueId", None)
                 if not cue_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "Cue ID missing"})
+                    await self.finish({"message": ERROR_CUE_ID_MISSING})
                     return
 
                 try:
@@ -440,7 +453,7 @@ class CueController(BaseAPIController):
                 line_id_str = self.get_argument("lineId", None)
                 if not line_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "Line ID missing"})
+                    await self.finish({"message": ERROR_LINE_ID_MISSING})
                     return
 
                 try:
@@ -470,7 +483,7 @@ class CueController(BaseAPIController):
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/cues/stats", ApiVersion.V1)
@@ -512,7 +525,7 @@ class CueStatsController(BaseAPIController):
                 await self.finish({"cue_counts": cue_counts})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/cues/search", ApiVersion.V1)
@@ -547,7 +560,7 @@ class CueSearchController(BaseAPIController):
             show: Show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
             script: Script = session.scalars(

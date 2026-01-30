@@ -1,6 +1,15 @@
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_BACKGROUND_COLOUR_MISSING,
+    ERROR_DESCRIPTION_MISSING,
+    ERROR_ID_MISSING,
+    ERROR_SHOW_NOT_FOUND,
+    ERROR_STAGE_DIRECTION_STYLE_NOT_FOUND,
+    ERROR_TEXT_COLOUR_MISSING,
+    ERROR_TEXT_FORMAT_INVALID,
+)
 from models.script import Script, StageDirectionStyle
 from models.show import Show
 from rbac.role import Role
@@ -33,7 +42,7 @@ class StageDirectionStylesController(BaseAPIController):
                 self.finish({"styles": stage_direction_styles})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
     @requires_show
@@ -54,7 +63,7 @@ class StageDirectionStylesController(BaseAPIController):
                 description: str = data.get("description", None)
                 if not description:
                     self.set_status(400)
-                    await self.finish({"message": "Description missing"})
+                    await self.finish({"message": ERROR_DESCRIPTION_MISSING})
                     return
 
                 bold: bool = data.get("bold", False)
@@ -64,13 +73,13 @@ class StageDirectionStylesController(BaseAPIController):
                 text_format: str = data.get("textFormat", None)
                 if not text_format or text_format not in ["default", "upper", "lower"]:
                     self.set_status(400)
-                    await self.finish({"message": "Text format missing or invalid"})
+                    await self.finish({"message": ERROR_TEXT_FORMAT_INVALID})
                     return
 
                 text_colour: str = data.get("textColour", None)
                 if not text_colour:
                     self.set_status(400)
-                    await self.finish({"message": "Text colour missing"})
+                    await self.finish({"message": ERROR_TEXT_COLOUR_MISSING})
                     return
 
                 enable_background_colour: bool = data.get(
@@ -79,7 +88,7 @@ class StageDirectionStylesController(BaseAPIController):
                 background_colour: str = data.get("backgroundColour", None)
                 if enable_background_colour and not background_colour:
                     self.set_status(400)
-                    await self.finish({"message": "Background colour missing"})
+                    await self.finish({"message": ERROR_BACKGROUND_COLOUR_MISSING})
                     return
 
                 new_style = StageDirectionStyle(
@@ -109,7 +118,7 @@ class StageDirectionStylesController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -129,21 +138,21 @@ class StageDirectionStylesController(BaseAPIController):
                 style_id = data.get("id", None)
                 if not style_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 style: StageDirectionStyle = session.get(StageDirectionStyle, style_id)
                 if not style:
                     self.set_status(404)
                     await self.finish(
-                        {"message": "404 stage direction style not found"}
+                        {"message": ERROR_STAGE_DIRECTION_STYLE_NOT_FOUND}
                     )
                     return
 
                 description: str = data.get("description", None)
                 if not description:
                     self.set_status(400)
-                    await self.finish({"message": "Description missing"})
+                    await self.finish({"message": ERROR_DESCRIPTION_MISSING})
                     return
 
                 bold: bool = data.get("bold", False)
@@ -153,13 +162,13 @@ class StageDirectionStylesController(BaseAPIController):
                 text_format: str = data.get("textFormat", None)
                 if not text_format or text_format not in ["default", "upper", "lower"]:
                     self.set_status(400)
-                    await self.finish({"message": "Text format missing or invalid"})
+                    await self.finish({"message": ERROR_TEXT_FORMAT_INVALID})
                     return
 
                 text_colour: str = data.get("textColour", None)
                 if not text_colour:
                     self.set_status(400)
-                    await self.finish({"message": "Text colour missing"})
+                    await self.finish({"message": ERROR_TEXT_COLOUR_MISSING})
                     return
 
                 enable_background_colour: bool = data.get(
@@ -168,7 +177,7 @@ class StageDirectionStylesController(BaseAPIController):
                 background_colour: str = data.get("backgroundColour", None)
                 if enable_background_colour and not background_colour:
                     self.set_status(400)
-                    await self.finish({"message": "Background colour missing"})
+                    await self.finish({"message": ERROR_BACKGROUND_COLOUR_MISSING})
                     return
 
                 style.description = description
@@ -191,7 +200,7 @@ class StageDirectionStylesController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -211,7 +220,7 @@ class StageDirectionStylesController(BaseAPIController):
                 style_id = data.get("id", None)
                 if not style_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: StageDirectionStyle = session.get(StageDirectionStyle, style_id)
@@ -230,8 +239,8 @@ class StageDirectionStylesController(BaseAPIController):
                 else:
                     self.set_status(404)
                     await self.finish(
-                        {"message": "404 stage direction style not found"}
+                        {"message": ERROR_STAGE_DIRECTION_STYLE_NOT_FOUND}
                     )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

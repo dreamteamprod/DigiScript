@@ -158,9 +158,11 @@ import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import { contrastColor } from 'contrast-color';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'CueColourPreferences',
+  mixins: [formValidationMixin],
   data() {
     return {
       columns: [
@@ -255,25 +257,19 @@ export default {
       }
     },
     resetNewFormState() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         cueTypeId: null,
         colour: '#FF0000',
-      };
-      this.isSubmittingNew = false;
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.isSubmittingNew = false;
     },
     resetEditFormState() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         cueTypeId: null,
         colour: '#FF0000',
-      };
-      this.isSubmittingEdit = false;
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.isSubmittingEdit = false;
     },
     async onSubmitNewOverride(event) {
       this.$v.newFormState.$touch();
@@ -326,14 +322,6 @@ export default {
       } finally {
         this.isSubmittingEdit = false;
       }
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteOverride(override) {
       if (this.isDeleting) {

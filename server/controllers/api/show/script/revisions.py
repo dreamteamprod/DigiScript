@@ -5,6 +5,12 @@ from sqlalchemy import func, select
 from tornado import escape
 from tornado.web import MissingArgumentError
 
+from controllers.api.constants import (
+    ERROR_DESCRIPTION_MISSING,
+    ERROR_SCRIPT_NOT_FOUND,
+    ERROR_SCRIPT_REVISION_NOT_FOUND,
+    ERROR_SHOW_NOT_FOUND,
+)
 from digi_server.logger import get_logger
 from models.cue import CueAssociation
 from models.script import (
@@ -48,10 +54,10 @@ class ScriptRevisionsController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    self.finish({"message": "404 script not found"})
+                    self.finish({"message": ERROR_SCRIPT_NOT_FOUND})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -69,7 +75,7 @@ class ScriptRevisionsController(BaseAPIController):
                 ).first()
                 if not script:
                     self.set_status(404)
-                    await self.finish({"message": "404 script not found"})
+                    await self.finish({"message": ERROR_SCRIPT_NOT_FOUND})
                     return
                 self.requires_role(script, Role.WRITE)
 
@@ -80,7 +86,7 @@ class ScriptRevisionsController(BaseAPIController):
 
                 if not parent_rev_id:
                     self.set_status(404)
-                    await self.finish({"message": "404 script revision not found"})
+                    await self.finish({"message": ERROR_SCRIPT_REVISION_NOT_FOUND})
                     return
 
                 # Get set_as_current flag (defaults to True for backward compatibility)
@@ -110,7 +116,7 @@ class ScriptRevisionsController(BaseAPIController):
                 description: str = data.get("description", None)
                 if not description:
                     self.set_status(400)
-                    await self.finish({"message": "Description missing"})
+                    await self.finish({"message": ERROR_DESCRIPTION_MISSING})
                     return
 
                 now_time = datetime.now(UTC)
@@ -169,7 +175,7 @@ class ScriptRevisionsController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -185,7 +191,7 @@ class ScriptRevisionsController(BaseAPIController):
                 ).first()
                 if not script:
                     self.set_status(404)
-                    await self.finish({"message": "404 script not found"})
+                    await self.finish({"message": ERROR_SCRIPT_NOT_FOUND})
                     return
                 self.requires_role(script, Role.WRITE)
 
@@ -265,7 +271,7 @@ class ScriptRevisionsController(BaseAPIController):
                     )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/script/revisions/current", ApiVersion.V1)
@@ -291,10 +297,10 @@ class ScriptCurrentRevisionController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    self.finish({"message": "404 script not found"})
+                    self.finish({"message": ERROR_SCRIPT_NOT_FOUND})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -313,7 +319,7 @@ class ScriptCurrentRevisionController(BaseAPIController):
                 ).first()
                 if not script:
                     self.set_status(404)
-                    await self.finish({"message": "404 script not found"})
+                    await self.finish({"message": ERROR_SCRIPT_NOT_FOUND})
                     return
 
                 new_rev_id: int = data.get("new_rev_id", None)
@@ -358,4 +364,4 @@ class ScriptCurrentRevisionController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

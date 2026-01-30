@@ -2,6 +2,13 @@ from typing import List
 
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_BACKGROUND_COLOUR_MISSING,
+    ERROR_COLOUR_MISSING,
+    ERROR_ID_MISSING,
+    ERROR_TEXT_COLOUR_MISSING,
+    ERROR_TEXT_FORMAT_INVALID,
+)
 from models.cue import CueType
 from models.script import StageDirectionStyle
 from models.user import UserOverrides
@@ -44,20 +51,20 @@ class StageDirectionOverridesController(BaseAPIController):
         text_format: str = data.get("textFormat", None)
         if not text_format or text_format not in ["default", "upper", "lower"]:
             self.set_status(400)
-            await self.finish({"message": "Text format missing or invalid"})
+            await self.finish({"message": ERROR_TEXT_FORMAT_INVALID})
             return
 
         text_colour: str = data.get("textColour", None)
         if not text_colour:
             self.set_status(400)
-            await self.finish({"message": "Text colour missing"})
+            await self.finish({"message": ERROR_TEXT_COLOUR_MISSING})
             return
 
         enable_background_colour: bool = data.get("enableBackgroundColour", False)
         background_colour: str = data.get("backgroundColour", None)
         if enable_background_colour and not background_colour:
             self.set_status(400)
-            await self.finish({"message": "Background colour missing"})
+            await self.finish({"message": ERROR_BACKGROUND_COLOUR_MISSING})
             return
 
         with self.make_session() as session:
@@ -105,7 +112,7 @@ class StageDirectionOverridesController(BaseAPIController):
         settings_id = data.get("id", None)
         if not settings_id:
             self.set_status(400)
-            await self.finish({"message": "ID missing"})
+            await self.finish({"message": ERROR_ID_MISSING})
             return
 
         with self.make_session() as session:
@@ -142,7 +149,7 @@ class StageDirectionOverridesController(BaseAPIController):
         settings_id = self.get_argument("id", None)
         if not settings_id:
             self.set_status(400)
-            await self.finish({"message": "ID missing"})
+            await self.finish({"message": ERROR_ID_MISSING})
             return
 
         with self.make_session() as session:
@@ -203,7 +210,7 @@ class CueColourOverridesController(BaseAPIController):
         colour: str = data.get("colour", None)
         if not colour:
             self.set_status(400)
-            await self.finish({"message": "Colour missing"})
+            await self.finish({"message": ERROR_COLOUR_MISSING})
             return
 
         with self.make_session() as session:
@@ -245,7 +252,7 @@ class CueColourOverridesController(BaseAPIController):
         settings_id = data.get("id", None)
         if not settings_id:
             self.set_status(400)
-            await self.finish({"message": "ID missing"})
+            await self.finish({"message": ERROR_ID_MISSING})
             return
 
         with self.make_session() as session:
@@ -280,7 +287,7 @@ class CueColourOverridesController(BaseAPIController):
         settings_id = self.get_argument("id", None)
         if not settings_id:
             self.set_status(400)
-            await self.finish({"message": "ID missing"})
+            await self.finish({"message": ERROR_ID_MISSING})
             return
 
         with self.make_session() as session:

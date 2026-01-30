@@ -1,6 +1,20 @@
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_ALLOCATION_NOT_FOUND,
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_NAME_MISSING,
+    ERROR_PROP_NOT_FOUND,
+    ERROR_PROP_TYPE_ID_MISSING,
+    ERROR_PROP_TYPE_NOT_FOUND,
+    ERROR_PROPS_ID_MISSING,
+    ERROR_PROPS_NOT_FOUND,
+    ERROR_SCENE_ID_MISSING,
+    ERROR_SCENE_NOT_FOUND,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.show import Scene, Show
 from models.stage import Props, PropsAllocation, PropType
 from rbac.role import Role
@@ -26,7 +40,7 @@ class PropsTypesController(BaseAPIController):
                 self.finish({"prop_types": prop_types})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -38,7 +52,7 @@ class PropsTypesController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.WRITE)
             data = escape.json_decode(self.request.body)
@@ -46,7 +60,7 @@ class PropsTypesController(BaseAPIController):
             name = data.get("name", None)
             if not name:
                 self.set_status(400)
-                await self.finish({"message": "Name missing"})
+                await self.finish({"message": ERROR_NAME_MISSING})
                 return
 
             description = data.get("description", "")
@@ -74,7 +88,7 @@ class PropsTypesController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.WRITE)
             data = escape.json_decode(self.request.body)
@@ -82,20 +96,20 @@ class PropsTypesController(BaseAPIController):
             prop_type = data.get("id", None)
             if not prop_type:
                 self.set_status(400)
-                await self.finish({"message": "ID missing"})
+                await self.finish({"message": ERROR_ID_MISSING})
                 return
 
             entry: PropType = session.get(PropType, prop_type)
             if not entry:
                 self.set_status(404)
-                await self.finish({"message": "404 prop type not found"})
+                await self.finish({"message": ERROR_PROP_TYPE_NOT_FOUND})
                 return
 
             name = data.get("name", None)
             description = data.get("description", "")
             if not name:
                 self.set_status(400)
-                await self.finish({"message": "Name missing"})
+                await self.finish({"message": ERROR_NAME_MISSING})
                 return
 
             entry.name = name
@@ -117,27 +131,27 @@ class PropsTypesController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.WRITE)
 
             prop_type_id_str = self.get_argument("id", None)
             if not prop_type_id_str:
                 self.set_status(400)
-                await self.finish({"message": "ID missing"})
+                await self.finish({"message": ERROR_ID_MISSING})
                 return
 
             try:
                 prop_type_id = int(prop_type_id_str)
             except ValueError:
                 self.set_status(400)
-                await self.finish({"message": "Invalid ID"})
+                await self.finish({"message": ERROR_INVALID_ID})
                 return
 
             entry = session.get(PropType, prop_type_id)
             if not entry:
                 self.set_status(404)
-                await self.finish({"message": "404 prop type not found"})
+                await self.finish({"message": ERROR_PROP_TYPE_NOT_FOUND})
                 return
 
             session.delete(entry)
@@ -166,7 +180,7 @@ class PropsController(BaseAPIController):
                 self.finish({"props": props})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -183,13 +197,13 @@ class PropsController(BaseAPIController):
                 name = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 prop_type_id = data.get("prop_type_id", None)
                 if not prop_type_id:
                     self.set_status(400)
-                    await self.finish({"message": "Prop type ID missing"})
+                    await self.finish({"message": ERROR_PROP_TYPE_ID_MISSING})
                     return
                 try:
                     prop_type_id = int(prop_type_id)
@@ -226,7 +240,7 @@ class PropsController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -243,7 +257,7 @@ class PropsController(BaseAPIController):
                 props = data.get("id", None)
                 if not props:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: Props = session.get(Props, props)
@@ -251,14 +265,14 @@ class PropsController(BaseAPIController):
                     name = data.get("name", None)
                     if not name:
                         self.set_status(400)
-                        await self.finish({"message": "Name missing"})
+                        await self.finish({"message": ERROR_NAME_MISSING})
                         return
                     entry.name = name
 
                     prop_type_id = data.get("prop_type_id", None)
                     if not prop_type_id:
                         self.set_status(400)
-                        await self.finish({"message": "Prop type ID missing"})
+                        await self.finish({"message": ERROR_PROP_TYPE_ID_MISSING})
                         return
                     try:
                         prop_type_id = int(prop_type_id)
@@ -288,11 +302,11 @@ class PropsController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 prop not found"})
+                    await self.finish({"message": ERROR_PROP_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -308,14 +322,14 @@ class PropsController(BaseAPIController):
                 props_id_str = self.get_argument("id", None)
                 if not props_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     props_id = int(props_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry = session.get(Props, props_id)
@@ -329,10 +343,10 @@ class PropsController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 props not found"})
+                    await self.finish({"message": ERROR_PROPS_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/stage/props/allocations", ApiVersion.V1)
@@ -359,7 +373,7 @@ class PropsAllocationController(BaseAPIController):
                 self.finish({"allocations": allocations})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -372,7 +386,7 @@ class PropsAllocationController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
             self.requires_role(show, Role.WRITE)
@@ -382,7 +396,7 @@ class PropsAllocationController(BaseAPIController):
             props_id = data.get("props_id", None)
             if props_id is None:
                 self.set_status(400)
-                await self.finish({"message": "props_id missing"})
+                await self.finish({"message": ERROR_PROPS_ID_MISSING})
                 return
 
             try:
@@ -395,19 +409,19 @@ class PropsAllocationController(BaseAPIController):
             prop: Props = session.get(Props, props_id)
             if not prop:
                 self.set_status(404)
-                await self.finish({"message": "404 prop not found"})
+                await self.finish({"message": ERROR_PROP_NOT_FOUND})
                 return
 
             if prop.show_id != show_id:
                 self.set_status(404)
-                await self.finish({"message": "404 prop not found"})
+                await self.finish({"message": ERROR_PROP_NOT_FOUND})
                 return
 
             # Validate scene_id
             scene_id = data.get("scene_id", None)
             if scene_id is None:
                 self.set_status(400)
-                await self.finish({"message": "scene_id missing"})
+                await self.finish({"message": ERROR_SCENE_ID_MISSING})
                 return
 
             try:
@@ -420,12 +434,12 @@ class PropsAllocationController(BaseAPIController):
             scene: Scene = session.get(Scene, scene_id)
             if not scene:
                 self.set_status(404)
-                await self.finish({"message": "404 scene not found"})
+                await self.finish({"message": ERROR_SCENE_NOT_FOUND})
                 return
 
             if scene.show_id != show_id:
                 self.set_status(404)
-                await self.finish({"message": "404 scene not found"})
+                await self.finish({"message": ERROR_SCENE_NOT_FOUND})
                 return
 
             # Check for duplicate allocation
@@ -464,7 +478,7 @@ class PropsAllocationController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
             self.requires_role(show, Role.WRITE)
@@ -472,27 +486,27 @@ class PropsAllocationController(BaseAPIController):
             allocation_id_str = self.get_argument("id", None)
             if not allocation_id_str:
                 self.set_status(400)
-                await self.finish({"message": "ID missing"})
+                await self.finish({"message": ERROR_ID_MISSING})
                 return
 
             try:
                 allocation_id = int(allocation_id_str)
             except ValueError:
                 self.set_status(400)
-                await self.finish({"message": "Invalid ID"})
+                await self.finish({"message": ERROR_INVALID_ID})
                 return
 
             allocation: PropsAllocation = session.get(PropsAllocation, allocation_id)
             if not allocation:
                 self.set_status(404)
-                await self.finish({"message": "404 allocation not found"})
+                await self.finish({"message": ERROR_ALLOCATION_NOT_FOUND})
                 return
 
             # Verify the allocation belongs to a prop in this show
             prop: Props = session.get(Props, allocation.props_id)
             if not prop or prop.show_id != show_id:
                 self.set_status(404)
-                await self.finish({"message": "404 allocation not found"})
+                await self.finish({"message": ERROR_ALLOCATION_NOT_FOUND})
                 return
 
             session.delete(allocation)

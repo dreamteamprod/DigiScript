@@ -165,9 +165,11 @@
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'ConfigActs',
+  mixins: [formValidationMixin],
   data() {
     return {
       loading: true,
@@ -271,20 +273,12 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         interval_after: false,
         previous_act_id: null,
-      };
-      this.submittingNewAct = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+      this.submittingNewAct = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -318,19 +312,15 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         showID: null,
         name: '',
         interval_after: false,
         previous_act_id: null,
-      };
+      });
       this.submittingEditAct = false;
       this.deletingAct = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
@@ -350,10 +340,6 @@ export default {
       } finally {
         this.submittingEditAct = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteAct(act) {
       if (this.deletingAct) {

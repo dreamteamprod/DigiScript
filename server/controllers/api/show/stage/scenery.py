@@ -1,6 +1,20 @@
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_ALLOCATION_NOT_FOUND,
+    ERROR_CAST_MEMBER_NOT_FOUND,
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_NAME_MISSING,
+    ERROR_SCENE_ID_MISSING,
+    ERROR_SCENE_NOT_FOUND,
+    ERROR_SCENERY_ID_MISSING,
+    ERROR_SCENERY_NOT_FOUND,
+    ERROR_SCENERY_TYPE_ID_MISSING,
+    ERROR_SCENERY_TYPE_NOT_FOUND,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.show import Scene, Show
 from models.stage import Scenery, SceneryAllocation, SceneryType
 from rbac.role import Role
@@ -28,7 +42,7 @@ class SceneryTypesController(BaseAPIController):
                 self.finish({"scenery_types": scenery_types})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -40,7 +54,7 @@ class SceneryTypesController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.WRITE)
             data = escape.json_decode(self.request.body)
@@ -48,7 +62,7 @@ class SceneryTypesController(BaseAPIController):
             name = data.get("name", None)
             if not name:
                 self.set_status(400)
-                await self.finish({"message": "Name missing"})
+                await self.finish({"message": ERROR_NAME_MISSING})
                 return
 
             description = data.get("description", "")
@@ -79,7 +93,7 @@ class SceneryTypesController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.WRITE)
             data = escape.json_decode(self.request.body)
@@ -87,20 +101,20 @@ class SceneryTypesController(BaseAPIController):
             prop_type = data.get("id", None)
             if not prop_type:
                 self.set_status(400)
-                await self.finish({"message": "ID missing"})
+                await self.finish({"message": ERROR_ID_MISSING})
                 return
 
             entry: SceneryType = session.get(SceneryType, prop_type)
             if not entry:
                 self.set_status(404)
-                await self.finish({"message": "404 scenery type not found"})
+                await self.finish({"message": ERROR_SCENERY_TYPE_NOT_FOUND})
                 return
 
             name = data.get("name", None)
             description = data.get("description", "")
             if not name:
                 self.set_status(400)
-                await self.finish({"message": "Name missing"})
+                await self.finish({"message": ERROR_NAME_MISSING})
                 return
 
             entry.name = name
@@ -122,27 +136,27 @@ class SceneryTypesController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.WRITE)
 
             scenery_type_id_str = self.get_argument("id", None)
             if not scenery_type_id_str:
                 self.set_status(400)
-                await self.finish({"message": "ID missing"})
+                await self.finish({"message": ERROR_ID_MISSING})
                 return
 
             try:
                 scenery_type_id = int(scenery_type_id_str)
             except ValueError:
                 self.set_status(400)
-                await self.finish({"message": "Invalid ID"})
+                await self.finish({"message": ERROR_INVALID_ID})
                 return
 
             entry = session.get(SceneryType, scenery_type_id)
             if not entry:
                 self.set_status(404)
-                await self.finish({"message": "404 scenery type not found"})
+                await self.finish({"message": ERROR_SCENERY_TYPE_NOT_FOUND})
                 return
 
             session.delete(entry)
@@ -171,7 +185,7 @@ class SceneryController(BaseAPIController):
                 self.finish({"scenery": scenery})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -188,13 +202,13 @@ class SceneryController(BaseAPIController):
                 name = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 scenery_type_id = data.get("scenery_type_id", None)
                 if not scenery_type_id:
                     self.set_status(400)
-                    await self.finish({"message": "Scenery type ID missing"})
+                    await self.finish({"message": ERROR_SCENERY_TYPE_ID_MISSING})
                     return
                 try:
                     scenery_type_id = int(scenery_type_id)
@@ -231,7 +245,7 @@ class SceneryController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_SCENERY_LIST", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -248,7 +262,7 @@ class SceneryController(BaseAPIController):
                 scenery = data.get("id", None)
                 if not scenery:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: Scenery = session.get(Scenery, scenery)
@@ -256,14 +270,14 @@ class SceneryController(BaseAPIController):
                     name = data.get("name", None)
                     if not name:
                         self.set_status(400)
-                        await self.finish({"message": "Name missing"})
+                        await self.finish({"message": ERROR_NAME_MISSING})
                         return
                     entry.name = name
 
                     scenery_type_id = data.get("scenery_type_id", None)
                     if not scenery_type_id:
                         self.set_status(400)
-                        await self.finish({"message": "Scenery type ID missing"})
+                        await self.finish({"message": ERROR_SCENERY_TYPE_ID_MISSING})
                         return
                     try:
                         scenery_type_id = int(scenery_type_id)
@@ -297,11 +311,11 @@ class SceneryController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 cast member not found"})
+                    await self.finish({"message": ERROR_CAST_MEMBER_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -317,14 +331,14 @@ class SceneryController(BaseAPIController):
                 scenery_id_str = self.get_argument("id", None)
                 if not scenery_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     scenery_id = int(scenery_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry = session.get(Scenery, scenery_id)
@@ -340,10 +354,10 @@ class SceneryController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 scenery not found"})
+                    await self.finish({"message": ERROR_SCENERY_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/stage/scenery/allocations", ApiVersion.V1)
@@ -370,7 +384,7 @@ class SceneryAllocationController(BaseAPIController):
                 self.finish({"allocations": allocations})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -383,7 +397,7 @@ class SceneryAllocationController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
             self.requires_role(show, Role.WRITE)
@@ -393,7 +407,7 @@ class SceneryAllocationController(BaseAPIController):
             scenery_id = data.get("scenery_id", None)
             if scenery_id is None:
                 self.set_status(400)
-                await self.finish({"message": "scenery_id missing"})
+                await self.finish({"message": ERROR_SCENERY_ID_MISSING})
                 return
 
             try:
@@ -406,19 +420,19 @@ class SceneryAllocationController(BaseAPIController):
             scenery: Scenery = session.get(Scenery, scenery_id)
             if not scenery:
                 self.set_status(404)
-                await self.finish({"message": "404 scenery not found"})
+                await self.finish({"message": ERROR_SCENERY_NOT_FOUND})
                 return
 
             if scenery.show_id != show_id:
                 self.set_status(404)
-                await self.finish({"message": "404 scenery not found"})
+                await self.finish({"message": ERROR_SCENERY_NOT_FOUND})
                 return
 
             # Validate scene_id
             scene_id = data.get("scene_id", None)
             if scene_id is None:
                 self.set_status(400)
-                await self.finish({"message": "scene_id missing"})
+                await self.finish({"message": ERROR_SCENE_ID_MISSING})
                 return
 
             try:
@@ -431,12 +445,12 @@ class SceneryAllocationController(BaseAPIController):
             scene: Scene = session.get(Scene, scene_id)
             if not scene:
                 self.set_status(404)
-                await self.finish({"message": "404 scene not found"})
+                await self.finish({"message": ERROR_SCENE_NOT_FOUND})
                 return
 
             if scene.show_id != show_id:
                 self.set_status(404)
-                await self.finish({"message": "404 scene not found"})
+                await self.finish({"message": ERROR_SCENE_NOT_FOUND})
                 return
 
             # Check for duplicate allocation
@@ -475,7 +489,7 @@ class SceneryAllocationController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
             self.requires_role(show, Role.WRITE)
@@ -483,14 +497,14 @@ class SceneryAllocationController(BaseAPIController):
             allocation_id_str = self.get_argument("id", None)
             if not allocation_id_str:
                 self.set_status(400)
-                await self.finish({"message": "ID missing"})
+                await self.finish({"message": ERROR_ID_MISSING})
                 return
 
             try:
                 allocation_id = int(allocation_id_str)
             except ValueError:
                 self.set_status(400)
-                await self.finish({"message": "Invalid ID"})
+                await self.finish({"message": ERROR_INVALID_ID})
                 return
 
             allocation: SceneryAllocation = session.get(
@@ -498,14 +512,14 @@ class SceneryAllocationController(BaseAPIController):
             )
             if not allocation:
                 self.set_status(404)
-                await self.finish({"message": "404 allocation not found"})
+                await self.finish({"message": ERROR_ALLOCATION_NOT_FOUND})
                 return
 
             # Verify the allocation belongs to scenery in this show
             scenery: Scenery = session.get(Scenery, allocation.scenery_id)
             if not scenery or scenery.show_id != show_id:
                 self.set_status(404)
-                await self.finish({"message": "404 allocation not found"})
+                await self.finish({"message": ERROR_ALLOCATION_NOT_FOUND})
                 return
 
             session.delete(allocation)

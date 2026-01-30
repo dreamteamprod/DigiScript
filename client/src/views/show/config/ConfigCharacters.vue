@@ -168,10 +168,12 @@ import { mapGetters, mapActions } from 'vuex';
 import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
 import log from 'loglevel';
 import CharacterGroups from '@/vue_components/show/config/characters/CharacterGroups.vue';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'ConfigCharacters',
   components: { CharacterGroups, CharacterLineStats },
+  mixins: [formValidationMixin],
   data() {
     return {
       rowsPerPage: 15,
@@ -232,16 +234,12 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         description: '',
         played_by: null,
-      };
-      this.submittingNewCharacter = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.submittingNewCharacter = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -262,10 +260,6 @@ export default {
         this.submittingNewCharacter = false;
       }
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
-    },
     openEditForm(character) {
       if (character != null) {
         this.editFormState.id = character.item.id;
@@ -277,19 +271,15 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         showID: null,
         name: '',
         description: '',
         played_by: null,
-      };
+      });
       this.submittingEditCharacter = false;
       this.deletingCharacter = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
@@ -309,10 +299,6 @@ export default {
       } finally {
         this.submittingEditCharacter = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteCharacter(character) {
       if (this.deletingCharacter) {

@@ -272,9 +272,11 @@
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import { notNull } from '@/js/customValidators';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'PropsList',
+  mixins: [formValidationMixin],
   data() {
     return {
       propTypesFields: ['name', 'description', { key: 'btn', label: '' }],
@@ -357,24 +359,16 @@ export default {
   },
   methods: {
     resetNewPropTypeForm() {
-      this.newPropTypeFormState = {
+      this.resetForm('newPropTypeFormState', {
         name: '',
         description: '',
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     resetNewPropForm() {
-      this.newPropFormState = {
+      this.resetForm('newPropFormState', {
         name: '',
         description: '',
         prop_type: null,
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     async onSubmitNewPropType(event) {
@@ -421,26 +415,18 @@ export default {
       }
     },
     resetEditPropTypeForm() {
-      this.editPropTypeFormState = {
+      this.resetForm('editPropTypeFormState', {
         id: null,
         name: '',
         description: '',
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     resetEditPropForm() {
-      this.editPropFormState = {
+      this.resetForm('editPropFormState', {
         id: null,
         name: '',
         description: '',
         prop_type_id: null,
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     async onSubmitEditPropType(event) {

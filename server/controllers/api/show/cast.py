@@ -3,6 +3,14 @@ from collections import defaultdict
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_CAST_MEMBER_NOT_FOUND,
+    ERROR_FIRST_NAME_MISSING,
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_LAST_NAME_MISSING,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
 from models.show import Cast, Character, Show
 from rbac.role import Role
@@ -28,7 +36,7 @@ class CastController(BaseAPIController):
                 self.finish({"cast": cast})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -45,13 +53,13 @@ class CastController(BaseAPIController):
                 first_name = data.get("firstName", None)
                 if not first_name:
                     self.set_status(400)
-                    await self.finish({"message": "First name missing"})
+                    await self.finish({"message": ERROR_FIRST_NAME_MISSING})
                     return
 
                 last_name = data.get("lastName", None)
                 if not last_name:
                     self.set_status(400)
-                    await self.finish({"message": "Last name missing"})
+                    await self.finish({"message": ERROR_LAST_NAME_MISSING})
                     return
 
                 new_cast = Cast(
@@ -70,7 +78,7 @@ class CastController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -87,7 +95,7 @@ class CastController(BaseAPIController):
                 cast_id = data.get("id", None)
                 if not cast_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: Cast = session.get(Cast, cast_id)
@@ -95,14 +103,14 @@ class CastController(BaseAPIController):
                     first_name = data.get("firstName", None)
                     if not first_name:
                         self.set_status(400)
-                        await self.finish({"message": "First name missing"})
+                        await self.finish({"message": ERROR_FIRST_NAME_MISSING})
                         return
                     entry.first_name = first_name
 
                     last_name = data.get("lastName", None)
                     if not last_name:
                         self.set_status(400)
-                        await self.finish({"message": "Last name missing"})
+                        await self.finish({"message": ERROR_LAST_NAME_MISSING})
                         return
                     entry.last_name = last_name
 
@@ -116,11 +124,11 @@ class CastController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 cast member not found"})
+                    await self.finish({"message": ERROR_CAST_MEMBER_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -136,14 +144,14 @@ class CastController(BaseAPIController):
                 cast_id_str = self.get_argument("id", None)
                 if not cast_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     cast_id = int(cast_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry = session.get(Cast, cast_id)
@@ -159,10 +167,10 @@ class CastController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 cast member not found"})
+                    await self.finish({"message": ERROR_CAST_MEMBER_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/cast/stats", ApiVersion.V1)
@@ -214,4 +222,4 @@ class CastStatsController(BaseAPIController):
                 await self.finish({"line_counts": line_counts})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

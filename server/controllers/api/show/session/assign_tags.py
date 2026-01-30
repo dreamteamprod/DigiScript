@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import ERROR_SHOW_NOT_FOUND
 from models.session import SessionTag, ShowSession
 from models.show import Show
 from rbac.role import Role
@@ -34,7 +35,7 @@ class SessionTagAssignmentController(BaseAPIController):
             show = session.get(Show, show_id)
             if not show:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
             self.requires_role(show, Role.WRITE)

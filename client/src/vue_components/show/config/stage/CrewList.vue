@@ -121,9 +121,11 @@
 <script>
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'CrewList',
+  mixins: [formValidationMixin],
   data() {
     return {
       crewFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
@@ -167,13 +169,9 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         firstName: '',
         lastName: '',
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     async onSubmitNew(event) {
@@ -185,10 +183,6 @@ export default {
         this.resetNewForm();
       }
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
-    },
     openEditForm(crewMember) {
       if (crewMember != null) {
         this.editFormState.id = crewMember.item.id;
@@ -199,15 +193,11 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         showID: null,
         firstName: '',
         lastName: '',
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     async onSubmitEdit(event) {
@@ -218,10 +208,6 @@ export default {
         await this.UPDATE_CREW_MEMBER(this.editFormState);
         this.resetEditForm();
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteCrewMember(crewMember) {
       const msg = `Are you sure you want to delete ${crewMember.item.first_name} ${crewMember.item.last_name}?`;
