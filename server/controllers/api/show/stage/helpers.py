@@ -12,12 +12,161 @@ from controllers.api.constants import (
     ERROR_ALLOCATION_NOT_FOUND,
     ERROR_ID_MISSING,
     ERROR_INVALID_ID,
+    ERROR_NAME_MISSING,
     ERROR_SCENE_ID_MISSING,
     ERROR_SCENE_NOT_FOUND,
     ERROR_SHOW_NOT_FOUND,
 )
 from models.show import Scene, Show
 from rbac.role import Role
+
+
+async def handle_type_post(controller, type_model, ws_action, success_message):
+    """
+    Handle POST request for creating stage item types (PropType/SceneryType).
+
+    :param controller: The controller instance
+    :param type_model: SQLAlchemy model class for the type
+    :param ws_action: WebSocket action to send on success
+    :param success_message: Success message to return
+    """
+    current_show = controller.get_current_show()
+    show_id = current_show["id"]
+
+    with controller.make_session() as session:
+        show = session.get(Show, show_id)
+        if not show:
+            controller.set_status(404)
+            await controller.finish({"message": ERROR_SHOW_NOT_FOUND})
+            return
+        controller.requires_role(show, Role.WRITE)
+        data = escape.json_decode(controller.request.body)
+
+        name = data.get("name", None)
+        if not name:
+            controller.set_status(400)
+            await controller.finish({"message": ERROR_NAME_MISSING})
+            return
+
+        description = data.get("description", "")
+
+        new_type = type_model(show_id=show.id, name=name, description=description)
+        session.add(new_type)
+        session.commit()
+
+        controller.set_status(200)
+        await controller.finish({"id": new_type.id, "message": success_message})
+
+        await controller.application.ws_send_to_all("NOOP", ws_action, {})
+
+
+async def handle_type_patch(
+    controller, type_model, ws_action, success_message, not_found_message
+):
+    """
+    Handle PATCH request for updating stage item types.
+
+    :param controller: The controller instance
+    :param type_model: SQLAlchemy model class for the type
+    :param ws_action: WebSocket action to send on success
+    :param success_message: Success message to return
+    :param not_found_message: Not found error message
+    """
+    current_show = controller.get_current_show()
+    show_id = current_show["id"]
+
+    with controller.make_session() as session:
+        show = session.get(Show, show_id)
+        if not show:
+            controller.set_status(404)
+            await controller.finish({"message": ERROR_SHOW_NOT_FOUND})
+            return
+        controller.requires_role(show, Role.WRITE)
+        data = escape.json_decode(controller.request.body)
+
+        type_id = data.get("id", None)
+        if not type_id:
+            controller.set_status(400)
+            await controller.finish({"message": ERROR_ID_MISSING})
+            return
+
+        entry = session.get(type_model, type_id)
+        if not entry:
+            controller.set_status(404)
+            await controller.finish({"message": not_found_message})
+            return
+
+        name = data.get("name", None)
+        description = data.get("description", "")
+        if not name:
+            controller.set_status(400)
+            await controller.finish({"message": ERROR_NAME_MISSING})
+            return
+
+        entry.name = name
+        entry.description = description
+        session.commit()
+
+        controller.set_status(200)
+        await controller.finish({"message": success_message})
+
+        await controller.application.ws_send_to_all("NOOP", ws_action, {})
+
+
+async def handle_type_delete(
+    controller,
+    type_model,
+    ws_actions,
+    success_message,
+    not_found_message,
+):
+    """
+    Handle DELETE request for removing stage item types.
+
+    :param controller: The controller instance
+    :param type_model: SQLAlchemy model class for the type
+    :param ws_actions: List of WebSocket actions to send on success
+    :param success_message: Success message to return
+    :param not_found_message: Not found error message
+    """
+    current_show = controller.get_current_show()
+    show_id = current_show["id"]
+
+    with controller.make_session() as session:
+        show = session.get(Show, show_id)
+        if not show:
+            controller.set_status(404)
+            await controller.finish({"message": ERROR_SHOW_NOT_FOUND})
+            return
+        controller.requires_role(show, Role.WRITE)
+
+        type_id_str = controller.get_argument("id", None)
+        if not type_id_str:
+            controller.set_status(400)
+            await controller.finish({"message": ERROR_ID_MISSING})
+            return
+
+        try:
+            type_id = int(type_id_str)
+        except ValueError:
+            controller.set_status(400)
+            await controller.finish({"message": ERROR_INVALID_ID})
+            return
+
+        entry = session.get(type_model, type_id)
+        if not entry:
+            controller.set_status(404)
+            await controller.finish({"message": not_found_message})
+            return
+
+        session.delete(entry)
+        session.commit()
+
+        controller.set_status(200)
+        await controller.finish({"message": success_message})
+
+        for ws_action in ws_actions:
+            await controller.application.ws_send_to_all("NOOP", ws_action, {})
 
 
 async def validate_type_id(

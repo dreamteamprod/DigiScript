@@ -15,6 +15,9 @@ from controllers.api.constants import (
 from controllers.api.show.stage.helpers import (
     handle_allocation_delete,
     handle_allocation_post,
+    handle_type_delete,
+    handle_type_patch,
+    handle_type_post,
 )
 from models.show import Show
 from models.stage import Scenery, SceneryAllocation, SceneryType
@@ -48,126 +51,34 @@ class SceneryTypesController(BaseAPIController):
     @requires_show
     @no_live_session
     async def post(self):
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
-        with self.make_session() as session:
-            show = session.get(Show, show_id)
-            if not show:
-                self.set_status(404)
-                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
-                return
-            self.requires_role(show, Role.WRITE)
-            data = escape.json_decode(self.request.body)
-
-            name = data.get("name", None)
-            if not name:
-                self.set_status(400)
-                await self.finish({"message": ERROR_NAME_MISSING})
-                return
-
-            description = data.get("description", "")
-
-            new_scenery_type = SceneryType(
-                show_id=show.id, name=name, description=description
-            )
-            session.add(new_scenery_type)
-            session.commit()
-
-            self.set_status(200)
-            await self.finish(
-                {
-                    "id": new_scenery_type.id,
-                    "message": "Successfully added scenery type",
-                }
-            )
-
-            await self.application.ws_send_to_all("NOOP", "GET_SCENERY_TYPES", {})
+        await handle_type_post(
+            self,
+            type_model=SceneryType,
+            ws_action="GET_SCENERY_TYPES",
+            success_message="Successfully added scenery type",
+        )
 
     @requires_show
     @no_live_session
     async def patch(self):
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
-        with self.make_session() as session:
-            show = session.get(Show, show_id)
-            if not show:
-                self.set_status(404)
-                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
-                return
-            self.requires_role(show, Role.WRITE)
-            data = escape.json_decode(self.request.body)
-
-            prop_type = data.get("id", None)
-            if not prop_type:
-                self.set_status(400)
-                await self.finish({"message": ERROR_ID_MISSING})
-                return
-
-            entry: SceneryType = session.get(SceneryType, prop_type)
-            if not entry:
-                self.set_status(404)
-                await self.finish({"message": ERROR_SCENERY_TYPE_NOT_FOUND})
-                return
-
-            name = data.get("name", None)
-            description = data.get("description", "")
-            if not name:
-                self.set_status(400)
-                await self.finish({"message": ERROR_NAME_MISSING})
-                return
-
-            entry.name = name
-            entry.description = description
-            session.commit()
-
-            self.set_status(200)
-            await self.finish({"message": "Successfully updated scenery type"})
-
-            await self.application.ws_send_to_all("NOOP", "GET_SCENERY_TYPES", {})
+        await handle_type_patch(
+            self,
+            type_model=SceneryType,
+            ws_action="GET_SCENERY_TYPES",
+            success_message="Successfully updated scenery type",
+            not_found_message=ERROR_SCENERY_TYPE_NOT_FOUND,
+        )
 
     @requires_show
     @no_live_session
     async def delete(self):
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
-        with self.make_session() as session:
-            show = session.get(Show, show_id)
-            if not show:
-                self.set_status(404)
-                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
-                return
-            self.requires_role(show, Role.WRITE)
-
-            scenery_type_id_str = self.get_argument("id", None)
-            if not scenery_type_id_str:
-                self.set_status(400)
-                await self.finish({"message": ERROR_ID_MISSING})
-                return
-
-            try:
-                scenery_type_id = int(scenery_type_id_str)
-            except ValueError:
-                self.set_status(400)
-                await self.finish({"message": ERROR_INVALID_ID})
-                return
-
-            entry = session.get(SceneryType, scenery_type_id)
-            if not entry:
-                self.set_status(404)
-                await self.finish({"message": ERROR_SCENERY_TYPE_NOT_FOUND})
-                return
-
-            session.delete(entry)
-            session.commit()
-
-            self.set_status(200)
-            await self.finish({"message": "Successfully deleted scenery type"})
-
-            await self.application.ws_send_to_all("NOOP", "GET_SCENERY_TYPES", {})
-            await self.application.ws_send_to_all("NOOP", "GET_SCENERY_LIST", {})
+        await handle_type_delete(
+            self,
+            type_model=SceneryType,
+            ws_actions=["GET_SCENERY_TYPES", "GET_SCENERY_LIST"],
+            success_message="Successfully deleted scenery type",
+            not_found_message=ERROR_SCENERY_TYPE_NOT_FOUND,
+        )
 
 
 @ApiRoute("show/stage/scenery", ApiVersion.V1)
