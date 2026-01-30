@@ -77,31 +77,35 @@
       @ok="onSubmitNewSceneryType"
     >
       <b-form ref="new-scenery-type-form" @submit.stop.prevent="onSubmitNewSceneryType">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group
+          id="new-scenery-type-name-input-group"
+          label="Name"
+          label-for="new-scenery-type-name-input"
+        >
           <b-form-input
-            id="name-input"
+            id="new-scenery-type-name-input"
             v-model="$v.newSceneryTypeFormState.name.$model"
-            name="name-input"
+            name="new-scenery-type-name-input"
             :state="validateNewSceneryTypeState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-scenery-type-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-scenery-type-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="new-scenery-type-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="new-scenery-type-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="new-scenery-type-description-input"
             v-model="$v.newSceneryTypeFormState.description.$model"
-            name="description-input"
+            name="new-scenery-type-description-input"
             :state="validateNewSceneryTypeState('description')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-scenery-type-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="new-scenery-type-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -116,31 +120,35 @@
       @ok="onSubmitEditSceneryType"
     >
       <b-form ref="edit-scenery-type-form" @submit.stop.prevent="onSubmitEditSceneryType">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group
+          id="edit-scenery-type-name-input-group"
+          label="Name"
+          label-for="edit-scenery-type-name-input"
+        >
           <b-form-input
-            id="name-input"
+            id="edit-scenery-type-name-input"
             v-model="$v.editSceneryTypeFormState.name.$model"
-            name="name-input"
+            name="edit-scenery-type-name-input"
             :state="validateEditSceneryTypeState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-scenery-type-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-scenery-type-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="edit-scenery-type-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="edit-scenery-type-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="edit-scenery-type-description-input"
             v-model="$v.editSceneryTypeFormState.description.$model"
-            name="description-input"
+            name="edit-scenery-type-description-input"
             :state="validateEditSceneryTypeState('description')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-scenery-type-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="edit-scenery-type-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -157,46 +165,50 @@
     >
       <b-form ref="new-scenery-form" @submit.stop.prevent="onSubmitNewScenery">
         <b-form-group
-          id="scenery-type-input-group"
+          id="new-scenery-type-input-group"
           label="Scenery Type"
-          label-for="scenery-type-input"
+          label-for="new-scenery-type-input"
         >
           <b-form-select
-            id="scenery-type-input"
+            id="new-scenery-type-input"
             v-model="$v.newSceneryFormState.scenery_type_id.$model"
             :options="sceneryTypeOptions"
             :state="validateNewSceneryState('scenery_type_id')"
-            aria-describedby="scenery-type-feedback"
+            aria-describedby="new-scenery-type-feedback"
           />
-          <b-form-invalid-feedback id="scenery-type-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
-          <b-form-input
-            id="name-input"
-            v-model="$v.newSceneryFormState.name.$model"
-            name="name-input"
-            :state="validateNewSceneryState('name')"
-            aria-describedby="name-feedback"
-          />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-scenery-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
-          label="Description"
-          label-for="description-input"
+          id="new-scenery-name-input-group"
+          label="Name"
+          label-for="new-scenery-name-input"
         >
           <b-form-input
-            id="description-input"
-            v-model="$v.newSceneryFormState.description.$model"
-            name="description-input"
-            :state="validateNewSceneryState('description')"
-            aria-describedby="name-feedback"
+            id="new-scenery-name-input"
+            v-model="$v.newSceneryFormState.name.$model"
+            name="new-scenery-name-input"
+            :state="validateNewSceneryState('name')"
+            aria-describedby="new-scenery-name-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="new-scenery-name-feedback">
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group
+          id="new-scenery-description-input-group"
+          label="Description"
+          label-for="new-scenery-description-input"
+        >
+          <b-form-input
+            id="new-scenery-description-input"
+            v-model="$v.newSceneryFormState.description.$model"
+            name="new-scenery-description-input"
+            :state="validateNewSceneryState('description')"
+            aria-describedby="new-scenery-description-feedback"
+          />
+          <b-form-invalid-feedback id="new-scenery-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -212,46 +224,50 @@
     >
       <b-form ref="edit-scenery-form" @submit.stop.prevent="onSubmitEditScenery">
         <b-form-group
-          id="scenery-type-input-group"
+          id="edit-scenery-type-input-group"
           label="Scenery Type"
-          label-for="scenery-type-input"
+          label-for="edit-scenery-type-input"
         >
           <b-form-select
-            id="scenery-type-input"
+            id="edit-scenery-type-input"
             v-model="$v.editSceneryFormState.scenery_type_id.$model"
             :options="sceneryTypeOptions"
             :state="validateEditSceneryState('scenery_type_id')"
-            aria-describedby="scenery-type-feedback"
+            aria-describedby="edit-scenery-type-feedback"
           />
-          <b-form-invalid-feedback id="scenery-type-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
-          <b-form-input
-            id="name-input"
-            v-model="$v.editSceneryFormState.name.$model"
-            name="name-input"
-            :state="validateEditSceneryState('name')"
-            aria-describedby="name-feedback"
-          />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-scenery-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
-          label="Description"
-          label-for="description-input"
+          id="edit-scenery-name-input-group"
+          label="Name"
+          label-for="edit-scenery-name-input"
         >
           <b-form-input
-            id="description-input"
-            v-model="$v.editSceneryFormState.description.$model"
-            name="description-input"
-            :state="validateEditSceneryState('description')"
-            aria-describedby="name-feedback"
+            id="edit-scenery-name-input"
+            v-model="$v.editSceneryFormState.name.$model"
+            name="edit-scenery-name-input"
+            :state="validateEditSceneryState('name')"
+            aria-describedby="edit-scenery-name-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="edit-scenery-name-feedback">
+            This is a required field.
+          </b-form-invalid-feedback>
+        </b-form-group>
+        <b-form-group
+          id="edit-scenery-description-input-group"
+          label="Description"
+          label-for="edit-scenery-description-input"
+        >
+          <b-form-input
+            id="edit-scenery-description-input"
+            v-model="$v.editSceneryFormState.description.$model"
+            name="edit-scenery-description-input"
+            :state="validateEditSceneryState('description')"
+            aria-describedby="edit-scenery-description-feedback"
+          />
+          <b-form-invalid-feedback id="edit-scenery-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>

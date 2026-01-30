@@ -77,31 +77,35 @@
       @ok="onSubmitNewPropType"
     >
       <b-form ref="new-prop-type-form" @submit.stop.prevent="onSubmitNewPropType">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group
+          id="new-prop-type-name-input-group"
+          label="Name"
+          label-for="new-prop-type-name-input"
+        >
           <b-form-input
-            id="name-input"
+            id="new-prop-type-name-input"
             v-model="$v.newPropTypeFormState.name.$model"
-            name="name-input"
+            name="new-prop-type-name-input"
             :state="validateNewPropTypeState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-prop-type-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-prop-type-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="new-prop-type-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="new-prop-type-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="new-prop-type-description-input"
             v-model="$v.newPropTypeFormState.description.$model"
-            name="description-input"
+            name="new-prop-type-description-input"
             :state="validateNewPropTypeState('description')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-prop-type-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="new-prop-type-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -116,31 +120,35 @@
       @ok="onSubmitEditPropType"
     >
       <b-form ref="edit-prop-type-form" @submit.stop.prevent="onSubmitEditPropType">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group
+          id="edit-prop-type-name-input-group"
+          label="Name"
+          label-for="edit-prop-type-name-input"
+        >
           <b-form-input
-            id="name-input"
+            id="edit-prop-type-name-input"
             v-model="$v.editPropTypeFormState.name.$model"
-            name="name-input"
+            name="edit-prop-type-name-input"
             :state="validateEditPropTypeState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-prop-type-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-prop-type-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="edit-prop-type-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="edit-prop-type-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="edit-prop-type-description-input"
             v-model="$v.editPropTypeFormState.description.$model"
-            name="description-input"
+            name="edit-prop-type-description-input"
             :state="validateEditPropTypeState('description')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-prop-type-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="edit-prop-type-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -156,43 +164,47 @@
       @ok="onSubmitNewProp"
     >
       <b-form ref="new-props-form" @submit.stop.prevent="onSubmitNewProp">
-        <b-form-group id="prop-type-input-group" label="Prop Type" label-for="prop-type-input">
+        <b-form-group
+          id="new-prop-prop-type-input-group"
+          label="Prop Type"
+          label-for="new-prop-prop-type-input"
+        >
           <b-form-select
-            id="prop-type-input"
+            id="new-prop-prop-type-input"
             v-model="$v.newPropFormState.prop_type_id.$model"
             :options="propTypeOptions"
             :state="validateNewPropState('prop_type_id')"
-            aria-describedby="prop-type-feedback"
+            aria-describedby="new-prop-prop-type-feedback"
           />
-          <b-form-invalid-feedback id="prop-type-feedback">
+          <b-form-invalid-feedback id="new-prop-prop-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="new-prop-name-input-group" label="Name" label-for="new-prop-name-input">
           <b-form-input
-            id="name-input"
+            id="new-prop-name-input"
             v-model="$v.newPropFormState.name.$model"
-            name="name-input"
+            name="new-prop-name-input"
             :state="validateNewPropState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-prop-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-prop-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="new-prop-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="new-prop-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="new-prop-description-input"
             v-model="$v.newPropFormState.description.$model"
-            name="description-input"
+            name="new-prop-description-input"
             :state="validateNewPropState('description')"
-            aria-describedby="name-feedback"
+            aria-describedby="new-prop-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="new-prop-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -207,43 +219,47 @@
       @ok="onSubmitEditProp"
     >
       <b-form ref="edit-props-form" @submit.stop.prevent="onSubmitEditProp">
-        <b-form-group id="prop-type-input-group" label="Prop Type" label-for="prop-type-input">
+        <b-form-group
+          id="edit-prop-prop-type-input-group"
+          label="Prop Type"
+          label-for="edit-prop-prop-type-input"
+        >
           <b-form-select
-            id="prop-type-input"
+            id="edit-prop-prop-type-input"
             v-model="$v.editPropFormState.prop_type_id.$model"
             :options="propTypeOptions"
             :state="validateEditPropState('prop_type_id')"
-            aria-describedby="prop-type-feedback"
+            aria-describedby="edit-prop-prop-type-feedback"
           />
-          <b-form-invalid-feedback id="prop-type-feedback">
+          <b-form-invalid-feedback id="edit-prop-prop-type-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="edit-prop-name-input-group" label="Name" label-for="edit-prop-name-input">
           <b-form-input
-            id="name-input"
+            id="edit-prop-name-input"
             v-model="$v.editPropFormState.name.$model"
-            name="name-input"
+            name="edit-prop-name-input"
             :state="validateEditPropState('name')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-prop-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-prop-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="edit-prop-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="edit-prop-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="edit-prop-description-input"
             v-model="$v.editPropFormState.description.$model"
-            name="description-input"
+            name="edit-prop-description-input"
             :state="validateEditPropState('description')"
-            aria-describedby="name-feedback"
+            aria-describedby="edit-prop-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="edit-prop-description-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
