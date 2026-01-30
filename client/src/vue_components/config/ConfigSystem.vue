@@ -301,10 +301,12 @@ export default {
     ...mapGetters(['SCRIPT_MODES']),
   },
   async mounted() {
-    await this.getAvailableShows();
-    await this.getConnectedClients();
-    await this.GET_SCRIPT_MODES();
-    await this.getVersionStatus();
+    await Promise.all([
+      this.getAvailableShows(),
+      this.getConnectedClients(),
+      this.GET_SCRIPT_MODES(),
+      this.getVersionStatus(),
+    ]);
     this.loading = false;
 
     // Start time update interval for reactive "time ago" display

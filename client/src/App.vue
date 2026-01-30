@@ -324,19 +324,15 @@ export default {
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer);
-        await this.GET_RBAC_ROLES();
 
-        // Check WebSocket state for any pending operations
-        if (this.WEBSOCKET_HAS_PENDING_OPERATIONS) {
-          await this.CHECK_WEBSOCKET_STATE();
-        }
+        await Promise.all([
+          this.GET_RBAC_ROLES(),
+          this.WEBSOCKET_HAS_PENDING_OPERATIONS ? this.CHECK_WEBSOCKET_STATE() : Promise.resolve(),
+        ]);
 
-        // Check for authentication via token first
         if (this.AUTH_TOKEN) {
-          // Then get user data
           await this.GET_CURRENT_USER();
-          await this.GET_CURRENT_RBAC();
-          await this.GET_USER_SETTINGS();
+          await Promise.all([this.GET_CURRENT_RBAC(), this.GET_USER_SETTINGS()]);
         }
 
         if (this.SETTINGS.current_show != null) {

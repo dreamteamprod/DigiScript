@@ -337,8 +337,7 @@ export default {
     ...mapGetters(['PROPS_LIST', 'PROP_TYPES', 'IS_SHOW_EDITOR', 'PROP_TYPE_BY_ID']),
   },
   async mounted() {
-    await this.GET_PROP_TYPES();
-    await this.GET_PROPS_LIST();
+    await Promise.all([this.GET_PROP_TYPES(), this.GET_PROPS_LIST()]);
   },
   methods: {
     resetNewPropTypeForm() {

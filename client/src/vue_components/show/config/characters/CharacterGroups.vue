@@ -207,8 +207,7 @@ export default {
     ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CHARACTER_GROUP_LIST();
+    await Promise.all([this.GET_CHARACTER_LIST(), this.GET_CHARACTER_GROUP_LIST()]);
     this.loading = false;
   },
   methods: {

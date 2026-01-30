@@ -348,8 +348,7 @@ export default {
     ...mapGetters(['SCENERY_LIST', 'SCENERY_TYPES', 'IS_SHOW_EDITOR', 'SCENERY_TYPE_BY_ID']),
   },
   async mounted() {
-    await this.GET_SCENERY_TYPES();
-    await this.GET_SCENERY_LIST();
+    await Promise.all([this.GET_SCENERY_TYPES(), this.GET_SCENERY_LIST()]);
   },
   methods: {
     resetNewSceneryTypeForm() {

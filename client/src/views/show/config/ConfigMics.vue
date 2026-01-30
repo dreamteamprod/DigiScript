@@ -52,12 +52,14 @@ export default {
     };
   },
   async mounted() {
-    await this.GET_SCENE_LIST();
-    await this.GET_ACT_LIST();
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CAST_LIST();
-    await this.GET_MICROPHONE_LIST();
-    await this.GET_MIC_ALLOCATIONS();
+    await Promise.all([
+      this.GET_SCENE_LIST(),
+      this.GET_ACT_LIST(),
+      this.GET_CHARACTER_LIST(),
+      this.GET_CAST_LIST(),
+      this.GET_MICROPHONE_LIST(),
+      this.GET_MIC_ALLOCATIONS(),
+    ]);
     this.loaded = true;
   },
   methods: {

@@ -166,15 +166,12 @@ export default {
     },
   },
   async mounted() {
-    await this.GET_SHOW_SESSION_DATA();
+    await Promise.all([this.GET_SHOW_SESSION_DATA(), this.GET_ACT_LIST()]);
     this.loadedSessionData = true;
 
     if (this.CURRENT_SHOW_INTERVAL != null) {
       this.setupIntervalTimer();
     }
-
-    // Load act list (needed for interval overlay heading)
-    await this.GET_ACT_LIST();
 
     // Setup elapsed time tracking
     this.updateElapsedTime();

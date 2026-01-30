@@ -325,29 +325,30 @@ export default {
     },
   },
   async beforeMount() {
-    // Get the current user
-    await this.GET_CURRENT_USER();
-    await this.GET_USER_SETTINGS();
-    // Config status
-    await this.GET_SCRIPT_CONFIG_STATUS();
-    // Show details
-    await this.GET_ACT_LIST();
-    await this.GET_SCENE_LIST();
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CHARACTER_GROUP_LIST();
-    // Stage direction styles
-    await this.GET_STAGE_DIRECTION_STYLES();
-    // User related stuff
-    if (this.CURRENT_USER != null) {
-      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
-      await this.GET_CUE_COLOUR_OVERRIDES();
-    }
-    // Handle script cuts
-    await this.GET_CUTS();
-    this.resetCutsToSaved();
+    await Promise.all([
+      this.GET_CURRENT_USER()
+        .then(() => this.GET_USER_SETTINGS())
+        .then(() => {
+          if (this.CURRENT_USER != null) {
+            return Promise.all([
+              this.GET_STAGE_DIRECTION_STYLE_OVERRIDES(),
+              this.GET_CUE_COLOUR_OVERRIDES(),
+            ]);
+          }
+          return Promise.resolve();
+        }),
+      this.GET_SCRIPT_CONFIG_STATUS(),
+      this.GET_ACT_LIST(),
+      this.GET_SCENE_LIST(),
+      this.GET_CHARACTER_LIST(),
+      this.GET_CHARACTER_GROUP_LIST(),
+      this.GET_STAGE_DIRECTION_STYLES(),
+      this.GET_CUTS(),
+      this.getMaxScriptPage(),
+    ]);
 
-    // Get the max page of the saved version of the script
-    await this.getMaxScriptPage();
+    // Handle script cuts (depends on GET_CUTS completing)
+    this.resetCutsToSaved();
 
     // Initialisation of page data
     const storedPage = localStorage.getItem('scriptEditPage');

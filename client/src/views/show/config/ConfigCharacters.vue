@@ -218,8 +218,7 @@ export default {
     },
   },
   async mounted() {
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CAST_LIST();
+    await Promise.all([this.GET_CHARACTER_LIST(), this.GET_CAST_LIST()]);
   },
   methods: {
     resetNewForm() {
