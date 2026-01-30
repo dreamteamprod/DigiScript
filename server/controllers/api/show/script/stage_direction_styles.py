@@ -19,6 +19,40 @@ from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
 
 
+VALID_TEXT_FORMATS = ("default", "upper", "lower")
+
+
+def validate_style_fields(data):
+    """
+    Validate stage direction style fields from request data.
+
+    :param data: Request data dictionary
+    :returns: Tuple of (error_message, validated_fields) - error_message is None if valid
+    """
+    text_format = data.get("textFormat", None)
+    if not text_format or text_format not in VALID_TEXT_FORMATS:
+        return ERROR_TEXT_FORMAT_INVALID, None
+
+    text_colour = data.get("textColour", None)
+    if not text_colour:
+        return ERROR_TEXT_COLOUR_MISSING, None
+
+    enable_background_colour = data.get("enableBackgroundColour", False)
+    background_colour = data.get("backgroundColour", None)
+    if enable_background_colour and not background_colour:
+        return ERROR_BACKGROUND_COLOUR_MISSING, None
+
+    return None, {
+        "bold": data.get("bold", False),
+        "italic": data.get("italic", False),
+        "underline": data.get("underline", False),
+        "text_format": text_format,
+        "text_colour": text_colour,
+        "enable_background_colour": enable_background_colour,
+        "background_colour": background_colour,
+    }
+
+
 @ApiRoute("/show/script/stage_direction_styles", ApiVersion.V1)
 class StageDirectionStylesController(BaseAPIController):
     @requires_show
@@ -66,41 +100,16 @@ class StageDirectionStylesController(BaseAPIController):
                     await self.finish({"message": ERROR_DESCRIPTION_MISSING})
                     return
 
-                bold: bool = data.get("bold", False)
-                italic: bool = data.get("italic", False)
-                underline: bool = data.get("underline", False)
-
-                text_format: str = data.get("textFormat", None)
-                if not text_format or text_format not in ["default", "upper", "lower"]:
+                error, fields = validate_style_fields(data)
+                if error:
                     self.set_status(400)
-                    await self.finish({"message": ERROR_TEXT_FORMAT_INVALID})
-                    return
-
-                text_colour: str = data.get("textColour", None)
-                if not text_colour:
-                    self.set_status(400)
-                    await self.finish({"message": ERROR_TEXT_COLOUR_MISSING})
-                    return
-
-                enable_background_colour: bool = data.get(
-                    "enableBackgroundColour", False
-                )
-                background_colour: str = data.get("backgroundColour", None)
-                if enable_background_colour and not background_colour:
-                    self.set_status(400)
-                    await self.finish({"message": ERROR_BACKGROUND_COLOUR_MISSING})
+                    await self.finish({"message": error})
                     return
 
                 new_style = StageDirectionStyle(
                     script_id=script.id,
                     description=description,
-                    bold=bold,
-                    italic=italic,
-                    underline=underline,
-                    text_format=text_format,
-                    text_colour=text_colour,
-                    enable_background_colour=enable_background_colour,
-                    background_colour=background_colour,
+                    **fields,
                 )
                 session.add(new_style)
                 session.commit()
@@ -155,39 +164,15 @@ class StageDirectionStylesController(BaseAPIController):
                     await self.finish({"message": ERROR_DESCRIPTION_MISSING})
                     return
 
-                bold: bool = data.get("bold", False)
-                italic: bool = data.get("italic", False)
-                underline: bool = data.get("underline", False)
-
-                text_format: str = data.get("textFormat", None)
-                if not text_format or text_format not in ["default", "upper", "lower"]:
+                error, fields = validate_style_fields(data)
+                if error:
                     self.set_status(400)
-                    await self.finish({"message": ERROR_TEXT_FORMAT_INVALID})
-                    return
-
-                text_colour: str = data.get("textColour", None)
-                if not text_colour:
-                    self.set_status(400)
-                    await self.finish({"message": ERROR_TEXT_COLOUR_MISSING})
-                    return
-
-                enable_background_colour: bool = data.get(
-                    "enableBackgroundColour", False
-                )
-                background_colour: str = data.get("backgroundColour", None)
-                if enable_background_colour and not background_colour:
-                    self.set_status(400)
-                    await self.finish({"message": ERROR_BACKGROUND_COLOUR_MISSING})
+                    await self.finish({"message": error})
                     return
 
                 style.description = description
-                style.bold = bold
-                style.italic = italic
-                style.underline = underline
-                style.text_format = text_format
-                style.text_colour = text_colour
-                style.enable_background_colour = enable_background_colour
-                style.background_colour = background_colour
+                for key, value in fields.items():
+                    setattr(style, key, value)
                 session.commit()
 
                 self.set_status(200)

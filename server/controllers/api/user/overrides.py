@@ -17,6 +17,9 @@ from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import api_authenticated
 
 
+VALID_TEXT_FORMATS = ("default", "upper", "lower")
+
+
 @ApiRoute("user/settings/stage_direction_overrides", ApiVersion.V1)
 class StageDirectionOverridesController(BaseAPIController):
     @api_authenticated
@@ -44,12 +47,8 @@ class StageDirectionOverridesController(BaseAPIController):
             await self.finish({"message": "Style ID missing"})
             return
 
-        bold: bool = data.get("bold", False)
-        italic: bool = data.get("italic", False)
-        underline: bool = data.get("underline", False)
-
         text_format: str = data.get("textFormat", None)
-        if not text_format or text_format not in ["default", "upper", "lower"]:
+        if not text_format or text_format not in VALID_TEXT_FORMATS:
             self.set_status(400)
             await self.finish({"message": ERROR_TEXT_FORMAT_INVALID})
             return
@@ -79,9 +78,9 @@ class StageDirectionOverridesController(BaseAPIController):
                 settings_type="stage_direction_styles",
                 settings_data={
                     "id": style_id,
-                    "bold": bold,
-                    "italic": italic,
-                    "underline": underline,
+                    "bold": data.get("bold", False),
+                    "italic": data.get("italic", False),
+                    "underline": data.get("underline", False),
                     "text_format": text_format,
                     "text_colour": text_colour,
                     "enable_background_colour": enable_background_colour,
