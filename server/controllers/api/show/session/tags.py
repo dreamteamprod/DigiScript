@@ -76,9 +76,7 @@ class SessionTagsController(BaseAPIController):
                 ).first()
                 if existing_tag:
                     self.set_status(400)
-                    await self.finish(
-                        {"message": ERROR_TAG_NAME_EXISTS}
-                    )
+                    await self.finish({"message": ERROR_TAG_NAME_EXISTS})
                     return
 
                 # Create new tag
@@ -147,9 +145,7 @@ class SessionTagsController(BaseAPIController):
                 ).first()
                 if other_tag:
                     self.set_status(400)
-                    await self.finish(
-                        {"message": ERROR_TAG_NAME_EXISTS}
-                    )
+                    await self.finish({"message": ERROR_TAG_NAME_EXISTS})
                     return
 
                 # Update tag
