@@ -78,7 +78,7 @@
             id="new-name-input"
             v-model="$v.newFormState.name.$model"
             name="new-name-input"
-            :state="validateNewState('name')"
+            :state="getValidationState('newFormState', 'name')"
             aria-describedby="new-name-feedback"
           />
           <b-form-invalid-feedback id="new-name-feedback">
@@ -94,7 +94,7 @@
             id="new-description-input"
             v-model="$v.newFormState.description.$model"
             name="new-description-input"
-            :state="validateNewState('description')"
+            :state="getValidationState('newFormState', 'description')"
           />
         </b-form-group>
         <b-form-group
@@ -106,7 +106,7 @@
             id="new-played-by-input"
             v-model="$v.newFormState.played_by.$model"
             :options="castOptions"
-            :state="validateNewState('played_by')"
+            :state="getValidationState('newFormState', 'played_by')"
           />
         </b-form-group>
       </b-form>
@@ -126,7 +126,7 @@
             id="edit-name-input"
             v-model="$v.editFormState.name.$model"
             name="edit-name-input"
-            :state="validateEditState('name')"
+            :state="getValidationState('editFormState', 'name')"
             aria-describedby="edit-name-feedback"
           />
           <b-form-invalid-feedback id="edit-name-feedback">
@@ -142,7 +142,7 @@
             id="edit-description-input"
             v-model="$v.editFormState.description.$model"
             name="edit-description-input"
-            :state="validateEditState('description')"
+            :state="getValidationState('editFormState', 'description')"
           />
         </b-form-group>
         <b-form-group
@@ -154,7 +154,7 @@
             id="edit-played-by-input"
             v-model="$v.editFormState.played_by.$model"
             :options="castOptions"
-            :state="validateEditState('played_by')"
+            :state="getValidationState('editFormState', 'played_by')"
           />
         </b-form-group>
       </b-form>

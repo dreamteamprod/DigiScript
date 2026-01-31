@@ -51,28 +51,6 @@ export default {
     },
 
     /**
-     * Validate state for a field in newFormState.
-     * Convenience method that wraps getValidationState.
-     *
-     * @param {string} fieldName - The field name to validate
-     * @returns {boolean|null} - Bootstrap validation state
-     */
-    validateNewState(fieldName) {
-      return this.getValidationState('newFormState', fieldName);
-    },
-
-    /**
-     * Validate state for a field in editFormState.
-     * Convenience method that wraps getValidationState.
-     *
-     * @param {string} fieldName - The field name to validate
-     * @returns {boolean|null} - Bootstrap validation state
-     */
-    validateEditState(fieldName) {
-      return this.getValidationState('editFormState', fieldName);
-    },
-
-    /**
      * Reset a form to its initial state and reset validation.
      *
      * @param {string} formStateKey - The data property key (e.g., 'newFormState')

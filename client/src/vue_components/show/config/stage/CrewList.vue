@@ -47,7 +47,7 @@
             id="new-first-name-input"
             v-model="$v.newFormState.firstName.$model"
             name="new-first-name-input"
-            :state="validateNewState('firstName')"
+            :state="getValidationState('newFormState', 'firstName')"
             aria-describedby="new-first-name-feedback"
           />
           <b-form-invalid-feedback id="new-first-name-feedback">
@@ -63,7 +63,7 @@
             id="new-last-name-input"
             v-model="$v.newFormState.lastName.$model"
             name="new-last-name-input"
-            :state="validateNewState('lastName')"
+            :state="getValidationState('newFormState', 'lastName')"
             aria-describedby="new-last-name-feedback"
           />
           <b-form-invalid-feedback id="new-last-name-feedback">
@@ -90,7 +90,7 @@
             id="edit-first-name-input"
             v-model="$v.editFormState.firstName.$model"
             name="edit-first-name-input"
-            :state="validateEditState('firstName')"
+            :state="getValidationState('editFormState', 'firstName')"
             aria-describedby="edit-first-name-feedback"
           />
           <b-form-invalid-feedback id="edit-first-name-feedback">
@@ -106,7 +106,7 @@
             id="edit-last-name-input"
             v-model="$v.editFormState.lastName.$model"
             name="edit-last-name-input"
-            :state="validateEditState('lastName')"
+            :state="getValidationState('editFormState', 'lastName')"
             aria-describedby="edit-last-name-feedback"
           />
           <b-form-invalid-feedback id="edit-last-name-feedback">

@@ -62,7 +62,7 @@
                 v-model="$v.newFormState.colour.$model"
                 name="new-colour-input"
                 type="color"
-                :state="validateNewState('colour')"
+                :state="getValidationState('newFormState', 'colour')"
                 aria-describedby="new-colour-feedback"
               />
               <b-form-invalid-feedback id="new-colour-feedback">
@@ -106,7 +106,7 @@
                 v-model="$v.editFormState.colour.$model"
                 name="edit-colour-input"
                 type="color"
-                :state="validateEditState('colour')"
+                :state="getValidationState('editFormState', 'colour')"
                 aria-describedby="edit-colour-feedback"
               />
               <b-form-invalid-feedback id="edit-colour-feedback">

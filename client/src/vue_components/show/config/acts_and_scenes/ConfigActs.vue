@@ -72,7 +72,7 @@
             id="new-name-input"
             v-model="$v.newFormState.name.$model"
             name="new-name-input"
-            :state="validateNewState('name')"
+            :state="getValidationState('newFormState', 'name')"
             aria-describedby="new-name-feedback"
           />
           <b-form-invalid-feedback id="new-name-feedback">
@@ -119,7 +119,7 @@
             id="edit-name-input"
             v-model="$v.editFormState.name.$model"
             name="edit-name-input"
-            :state="validateEditState('name')"
+            :state="getValidationState('editFormState', 'name')"
             aria-describedby="edit-name-feedback"
           />
           <b-form-invalid-feedback id="edit-name-feedback">
@@ -146,7 +146,7 @@
             id="edit-previous-act-input"
             v-model="$v.editFormState.previous_act_id.$model"
             :options="editFormActOptions"
-            :state="validateEditState('previous_act_id')"
+            :state="getValidationState('editFormState', 'previous_act_id')"
             aria-describedby="edit-previous-act-feedback"
           />
           <b-form-invalid-feedback id="edit-previous-act-feedback">

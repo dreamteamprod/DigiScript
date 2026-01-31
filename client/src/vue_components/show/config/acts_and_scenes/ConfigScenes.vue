@@ -96,7 +96,7 @@
             id="new-name-input"
             v-model="$v.newFormState.name.$model"
             name="new-name-input"
-            :state="validateNewState('name')"
+            :state="getValidationState('newFormState', 'name')"
             aria-describedby="new-name-feedback"
           />
           <b-form-invalid-feedback id="new-name-feedback">
@@ -108,7 +108,7 @@
             id="new-act-input"
             v-model="$v.newFormState.act_id.$model"
             :options="actOptions"
-            :state="validateNewState('act_id')"
+            :state="getValidationState('newFormState', 'act_id')"
             aria-describedby="new-act-feedback"
           />
           <b-form-invalid-feedback id="new-act-feedback">
@@ -144,7 +144,7 @@
             id="edit-name-input"
             v-model="$v.editFormState.name.$model"
             name="edit-name-input"
-            :state="validateEditState('name')"
+            :state="getValidationState('editFormState', 'name')"
             aria-describedby="edit-name-feedback"
           />
           <b-form-invalid-feedback id="edit-name-feedback">
@@ -156,7 +156,7 @@
             id="edit-act-input"
             v-model="$v.editFormState.act_id.$model"
             :options="actOptions"
-            :state="validateEditState('act_id')"
+            :state="getValidationState('editFormState', 'act_id')"
             aria-describedby="edit-act-feedback"
             @change="editActChanged"
           />
@@ -173,7 +173,7 @@
             id="edit-previous-scene-input"
             v-model="$v.editFormState.previous_scene_id.$model"
             :options="editFormPrevScenes"
-            :state="validateEditState('previous_scene_id')"
+            :state="getValidationState('editFormState', 'previous_scene_id')"
             aria-describedby="edit-previous-scene-feedback"
           />
           <b-form-invalid-feedback id="edit-previous-scene-feedback">
