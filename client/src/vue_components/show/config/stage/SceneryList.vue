@@ -280,9 +280,11 @@
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import { notNull } from '@/js/customValidators';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'SceneryList',
+  mixins: [formValidationMixin],
   data() {
     return {
       sceneryTypeFields: ['name', 'description', { key: 'btn', label: '' }],
@@ -368,23 +370,15 @@ export default {
   },
   methods: {
     resetNewSceneryTypeForm() {
-      this.newSceneryTypeFormState = {
+      this.resetForm('newSceneryTypeFormState', {
         name: '',
         description: '',
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     resetNewSceneryForm() {
-      this.newSceneryFormState = {
+      this.resetForm('newSceneryFormState', {
         name: '',
         description: '',
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     async onSubmitNewSceneryType(event) {
@@ -430,25 +424,17 @@ export default {
       }
     },
     resetEditSceneryTypeForm() {
-      this.editSceneryTypeFormState = {
+      this.resetForm('editSceneryTypeFormState', {
         id: null,
         name: '',
         description: '',
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     resetEditSceneryForm() {
-      this.editSceneryFormState = {
+      this.resetForm('editSceneryFormState', {
         id: null,
         name: '',
         description: '',
-      };
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
     },
     async onSubmitEditSceneryType(event) {

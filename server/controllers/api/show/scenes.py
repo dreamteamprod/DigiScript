@@ -3,6 +3,14 @@ from typing import List
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_ACT_ID_MISSING,
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_NAME_MISSING,
+    ERROR_SCENE_NOT_FOUND,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.show import Scene, Show
 from rbac.role import Role
 from schemas.schemas import SceneSchema
@@ -30,7 +38,7 @@ class SceneController(BaseAPIController):
                 self.finish({"scenes": scenes})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -47,13 +55,13 @@ class SceneController(BaseAPIController):
                 act_id: int = data.get("act_id", None)
                 if not act_id:
                     self.set_status(400)
-                    await self.finish({"message": "Act ID missing"})
+                    await self.finish({"message": ERROR_ACT_ID_MISSING})
                     return
 
                 name: str = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 previous_scene_id = data.get("previous_scene_id", None)
@@ -97,7 +105,7 @@ class SceneController(BaseAPIController):
 
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -113,14 +121,14 @@ class SceneController(BaseAPIController):
                 scene_id_str = self.get_argument("id", None)
                 if not scene_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     scene_id = int(scene_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry: Scene = session.get(Scene, scene_id)
@@ -144,10 +152,10 @@ class SceneController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_SCENE_LIST", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 scene not found"})
+                    await self.finish({"message": ERROR_SCENE_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -164,7 +172,7 @@ class SceneController(BaseAPIController):
                 scene_id = data.get("scene_id", None)
                 if not scene_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: Scene = session.get(Scene, scene_id)
@@ -172,13 +180,13 @@ class SceneController(BaseAPIController):
                     act_id: int = data.get("act_id", None)
                     if not act_id:
                         self.set_status(400)
-                        await self.finish({"message": "Act ID missing"})
+                        await self.finish({"message": ERROR_ACT_ID_MISSING})
                         return
 
                     name: str = data.get("name", None)
                     if not name:
                         self.set_status(400)
-                        await self.finish({"message": "Name missing"})
+                        await self.finish({"message": ERROR_NAME_MISSING})
                         return
 
                     previous_scene_id = data.get("previous_scene_id", None)
@@ -235,7 +243,7 @@ class SceneController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_SCENE_LIST", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 scene not found"})
+                    await self.finish({"message": ERROR_SCENE_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

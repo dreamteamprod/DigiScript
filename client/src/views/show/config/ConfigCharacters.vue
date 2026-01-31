@@ -78,7 +78,7 @@
             id="new-name-input"
             v-model="$v.newFormState.name.$model"
             name="new-name-input"
-            :state="validateNewState('name')"
+            :state="getValidationState('newFormState', 'name')"
             aria-describedby="new-name-feedback"
           />
           <b-form-invalid-feedback id="new-name-feedback">
@@ -94,7 +94,7 @@
             id="new-description-input"
             v-model="$v.newFormState.description.$model"
             name="new-description-input"
-            :state="validateNewState('description')"
+            :state="getValidationState('newFormState', 'description')"
           />
         </b-form-group>
         <b-form-group
@@ -106,7 +106,7 @@
             id="new-played-by-input"
             v-model="$v.newFormState.played_by.$model"
             :options="castOptions"
-            :state="validateNewState('played_by')"
+            :state="getValidationState('newFormState', 'played_by')"
           />
         </b-form-group>
       </b-form>
@@ -126,7 +126,7 @@
             id="edit-name-input"
             v-model="$v.editFormState.name.$model"
             name="edit-name-input"
-            :state="validateEditState('name')"
+            :state="getValidationState('editFormState', 'name')"
             aria-describedby="edit-name-feedback"
           />
           <b-form-invalid-feedback id="edit-name-feedback">
@@ -142,7 +142,7 @@
             id="edit-description-input"
             v-model="$v.editFormState.description.$model"
             name="edit-description-input"
-            :state="validateEditState('description')"
+            :state="getValidationState('editFormState', 'description')"
           />
         </b-form-group>
         <b-form-group
@@ -154,7 +154,7 @@
             id="edit-played-by-input"
             v-model="$v.editFormState.played_by.$model"
             :options="castOptions"
-            :state="validateEditState('played_by')"
+            :state="getValidationState('editFormState', 'played_by')"
           />
         </b-form-group>
       </b-form>
@@ -168,10 +168,12 @@ import { mapGetters, mapActions } from 'vuex';
 import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
 import log from 'loglevel';
 import CharacterGroups from '@/vue_components/show/config/characters/CharacterGroups.vue';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'ConfigCharacters',
   components: { CharacterGroups, CharacterLineStats },
+  mixins: [formValidationMixin],
   data() {
     return {
       rowsPerPage: 15,
@@ -232,16 +234,12 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         description: '',
         played_by: null,
-      };
-      this.submittingNewCharacter = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.submittingNewCharacter = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -262,10 +260,6 @@ export default {
         this.submittingNewCharacter = false;
       }
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
-    },
     openEditForm(character) {
       if (character != null) {
         this.editFormState.id = character.item.id;
@@ -277,19 +271,15 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         showID: null,
         name: '',
         description: '',
         played_by: null,
-      };
+      });
       this.submittingEditCharacter = false;
       this.deletingCharacter = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
@@ -309,10 +299,6 @@ export default {
       } finally {
         this.submittingEditCharacter = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteCharacter(character) {
       if (this.deletingCharacter) {

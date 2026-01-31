@@ -215,7 +215,7 @@ class TestPropsAllocationController(DigiScriptTestCase):
         )
         self.assertEqual(400, response.code)
         response_body = tornado.escape.json_decode(response.body)
-        self.assertIn("scene_id missing", response_body["message"])
+        self.assertIn("Scene ID missing", response_body["message"])
 
     def test_create_allocation_no_show(self):
         """Test POST returns 400 when no show is loaded."""

@@ -1,7 +1,25 @@
 from sqlalchemy import select
 from tornado import escape
 
-from models.show import Scene, Show
+from controllers.api.constants import (
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_NAME_MISSING,
+    ERROR_PROP_NOT_FOUND,
+    ERROR_PROP_TYPE_ID_MISSING,
+    ERROR_PROP_TYPE_NOT_FOUND,
+    ERROR_PROPS_ID_MISSING,
+    ERROR_PROPS_NOT_FOUND,
+    ERROR_SHOW_NOT_FOUND,
+)
+from controllers.api.show.stage.helpers import (
+    handle_allocation_delete,
+    handle_allocation_post,
+    handle_type_delete,
+    handle_type_patch,
+    handle_type_post,
+)
+from models.show import Show
 from models.stage import Props, PropsAllocation, PropType
 from rbac.role import Role
 from schemas.schemas import PropsAllocationSchema, PropsSchema, PropTypeSchema
@@ -26,128 +44,39 @@ class PropsTypesController(BaseAPIController):
                 self.finish({"prop_types": prop_types})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
     async def post(self):
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
-        with self.make_session() as session:
-            show = session.get(Show, show_id)
-            if not show:
-                self.set_status(404)
-                await self.finish({"message": "404 show not found"})
-                return
-            self.requires_role(show, Role.WRITE)
-            data = escape.json_decode(self.request.body)
-
-            name = data.get("name", None)
-            if not name:
-                self.set_status(400)
-                await self.finish({"message": "Name missing"})
-                return
-
-            description = data.get("description", "")
-
-            new_prop_type = PropType(
-                show_id=show.id, name=name, description=description
-            )
-            session.add(new_prop_type)
-            session.commit()
-
-            self.set_status(200)
-            await self.finish(
-                {"id": new_prop_type.id, "message": "Successfully added prop type"}
-            )
-
-            await self.application.ws_send_to_all("NOOP", "GET_PROP_TYPES", {})
+        await handle_type_post(
+            self,
+            type_model=PropType,
+            ws_action="GET_PROP_TYPES",
+            success_message="Successfully added prop type",
+        )
 
     @requires_show
     @no_live_session
     async def patch(self):
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
-        with self.make_session() as session:
-            show = session.get(Show, show_id)
-            if not show:
-                self.set_status(404)
-                await self.finish({"message": "404 show not found"})
-                return
-            self.requires_role(show, Role.WRITE)
-            data = escape.json_decode(self.request.body)
-
-            prop_type = data.get("id", None)
-            if not prop_type:
-                self.set_status(400)
-                await self.finish({"message": "ID missing"})
-                return
-
-            entry: PropType = session.get(PropType, prop_type)
-            if not entry:
-                self.set_status(404)
-                await self.finish({"message": "404 prop type not found"})
-                return
-
-            name = data.get("name", None)
-            description = data.get("description", "")
-            if not name:
-                self.set_status(400)
-                await self.finish({"message": "Name missing"})
-                return
-
-            entry.name = name
-            entry.description = description
-            session.commit()
-
-            self.set_status(200)
-            await self.finish({"message": "Successfully updated prop type"})
-
-            await self.application.ws_send_to_all("NOOP", "GET_PROP_TYPES", {})
+        await handle_type_patch(
+            self,
+            type_model=PropType,
+            ws_action="GET_PROP_TYPES",
+            success_message="Successfully updated prop type",
+            not_found_message=ERROR_PROP_TYPE_NOT_FOUND,
+        )
 
     @requires_show
     @no_live_session
     async def delete(self):
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
-        with self.make_session() as session:
-            show = session.get(Show, show_id)
-            if not show:
-                self.set_status(404)
-                await self.finish({"message": "404 show not found"})
-                return
-            self.requires_role(show, Role.WRITE)
-
-            prop_type_id_str = self.get_argument("id", None)
-            if not prop_type_id_str:
-                self.set_status(400)
-                await self.finish({"message": "ID missing"})
-                return
-
-            try:
-                prop_type_id = int(prop_type_id_str)
-            except ValueError:
-                self.set_status(400)
-                await self.finish({"message": "Invalid ID"})
-                return
-
-            entry = session.get(PropType, prop_type_id)
-            if not entry:
-                self.set_status(404)
-                await self.finish({"message": "404 prop type not found"})
-                return
-
-            session.delete(entry)
-            session.commit()
-
-            self.set_status(200)
-            await self.finish({"message": "Successfully deleted prop type"})
-
-            await self.application.ws_send_to_all("NOOP", "GET_PROP_TYPES", {})
-            await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
+        await handle_type_delete(
+            self,
+            type_model=PropType,
+            ws_actions=["GET_PROP_TYPES", "GET_PROPS_LIST"],
+            success_message="Successfully deleted prop type",
+            not_found_message=ERROR_PROP_TYPE_NOT_FOUND,
+        )
 
 
 @ApiRoute("show/stage/props", ApiVersion.V1)
@@ -166,7 +95,7 @@ class PropsController(BaseAPIController):
                 self.finish({"props": props})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -183,13 +112,13 @@ class PropsController(BaseAPIController):
                 name = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 prop_type_id = data.get("prop_type_id", None)
                 if not prop_type_id:
                     self.set_status(400)
-                    await self.finish({"message": "Prop type ID missing"})
+                    await self.finish({"message": ERROR_PROP_TYPE_ID_MISSING})
                     return
                 try:
                     prop_type_id = int(prop_type_id)
@@ -226,7 +155,7 @@ class PropsController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -243,7 +172,7 @@ class PropsController(BaseAPIController):
                 props = data.get("id", None)
                 if not props:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 entry: Props = session.get(Props, props)
@@ -251,14 +180,14 @@ class PropsController(BaseAPIController):
                     name = data.get("name", None)
                     if not name:
                         self.set_status(400)
-                        await self.finish({"message": "Name missing"})
+                        await self.finish({"message": ERROR_NAME_MISSING})
                         return
                     entry.name = name
 
                     prop_type_id = data.get("prop_type_id", None)
                     if not prop_type_id:
                         self.set_status(400)
-                        await self.finish({"message": "Prop type ID missing"})
+                        await self.finish({"message": ERROR_PROP_TYPE_ID_MISSING})
                         return
                     try:
                         prop_type_id = int(prop_type_id)
@@ -288,11 +217,11 @@ class PropsController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 prop not found"})
+                    await self.finish({"message": ERROR_PROP_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -308,14 +237,14 @@ class PropsController(BaseAPIController):
                 props_id_str = self.get_argument("id", None)
                 if not props_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     props_id = int(props_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry = session.get(Props, props_id)
@@ -329,10 +258,10 @@ class PropsController(BaseAPIController):
                     await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 props not found"})
+                    await self.finish({"message": ERROR_PROPS_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/stage/props/allocations", ApiVersion.V1)
@@ -359,146 +288,32 @@ class PropsAllocationController(BaseAPIController):
                 self.finish({"allocations": allocations})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
     async def post(self):
         """Create a new props allocation."""
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
-        with self.make_session() as session:
-            show = session.get(Show, show_id)
-            if not show:
-                self.set_status(404)
-                await self.finish({"message": "404 show not found"})
-                return
-
-            self.requires_role(show, Role.WRITE)
-            data = escape.json_decode(self.request.body)
-
-            # Validate props_id
-            props_id = data.get("props_id", None)
-            if props_id is None:
-                self.set_status(400)
-                await self.finish({"message": "props_id missing"})
-                return
-
-            try:
-                props_id = int(props_id)
-            except ValueError:
-                self.set_status(400)
-                await self.finish({"message": "Invalid props_id"})
-                return
-
-            prop: Props = session.get(Props, props_id)
-            if not prop:
-                self.set_status(404)
-                await self.finish({"message": "404 prop not found"})
-                return
-
-            if prop.show_id != show_id:
-                self.set_status(404)
-                await self.finish({"message": "404 prop not found"})
-                return
-
-            # Validate scene_id
-            scene_id = data.get("scene_id", None)
-            if scene_id is None:
-                self.set_status(400)
-                await self.finish({"message": "scene_id missing"})
-                return
-
-            try:
-                scene_id = int(scene_id)
-            except ValueError:
-                self.set_status(400)
-                await self.finish({"message": "Invalid scene_id"})
-                return
-
-            scene: Scene = session.get(Scene, scene_id)
-            if not scene:
-                self.set_status(404)
-                await self.finish({"message": "404 scene not found"})
-                return
-
-            if scene.show_id != show_id:
-                self.set_status(404)
-                await self.finish({"message": "404 scene not found"})
-                return
-
-            # Check for duplicate allocation
-            existing = session.scalars(
-                select(PropsAllocation).where(
-                    PropsAllocation.props_id == props_id,
-                    PropsAllocation.scene_id == scene_id,
-                )
-            ).first()
-            if existing:
-                self.set_status(400)
-                await self.finish(
-                    {"message": "Allocation already exists for this prop and scene"}
-                )
-                return
-
-            new_allocation = PropsAllocation(props_id=props_id, scene_id=scene_id)
-            session.add(new_allocation)
-            session.commit()
-
-            self.set_status(200)
-            await self.finish(
-                {"id": new_allocation.id, "message": "Successfully added allocation"}
-            )
-
-            await self.application.ws_send_to_all("NOOP", "GET_PROPS_ALLOCATIONS", {})
+        await handle_allocation_post(
+            self,
+            item_model=Props,
+            item_id_key="props_id",
+            allocation_model=PropsAllocation,
+            allocation_item_fk="props_id",
+            ws_action="GET_PROPS_ALLOCATIONS",
+            error_item_id_missing=ERROR_PROPS_ID_MISSING,
+            error_item_not_found=ERROR_PROP_NOT_FOUND,
+            allocation_exists_message="Allocation already exists for this prop and scene",
+        )
 
     @requires_show
     @no_live_session
     async def delete(self):
         """Delete a props allocation by ID (query parameter)."""
-        current_show = self.get_current_show()
-        show_id = current_show["id"]
-
-        with self.make_session() as session:
-            show = session.get(Show, show_id)
-            if not show:
-                self.set_status(404)
-                await self.finish({"message": "404 show not found"})
-                return
-
-            self.requires_role(show, Role.WRITE)
-
-            allocation_id_str = self.get_argument("id", None)
-            if not allocation_id_str:
-                self.set_status(400)
-                await self.finish({"message": "ID missing"})
-                return
-
-            try:
-                allocation_id = int(allocation_id_str)
-            except ValueError:
-                self.set_status(400)
-                await self.finish({"message": "Invalid ID"})
-                return
-
-            allocation: PropsAllocation = session.get(PropsAllocation, allocation_id)
-            if not allocation:
-                self.set_status(404)
-                await self.finish({"message": "404 allocation not found"})
-                return
-
-            # Verify the allocation belongs to a prop in this show
-            prop: Props = session.get(Props, allocation.props_id)
-            if not prop or prop.show_id != show_id:
-                self.set_status(404)
-                await self.finish({"message": "404 allocation not found"})
-                return
-
-            session.delete(allocation)
-            session.commit()
-
-            self.set_status(200)
-            await self.finish({"message": "Successfully deleted allocation"})
-
-            await self.application.ws_send_to_all("NOOP", "GET_PROPS_ALLOCATIONS", {})
+        await handle_allocation_delete(
+            self,
+            item_model=Props,
+            allocation_model=PropsAllocation,
+            allocation_item_fk="props_id",
+            ws_action="GET_PROPS_ALLOCATIONS",
+        )

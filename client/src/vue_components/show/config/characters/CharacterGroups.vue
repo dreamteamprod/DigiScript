@@ -67,7 +67,7 @@
             id="new-name-input"
             v-model="$v.newFormState.name.$model"
             name="new-name-input"
-            :state="validateNewState('name')"
+            :state="getValidationState('newFormState', 'name')"
             aria-describedby="new-name-feedback"
           />
           <b-form-invalid-feedback id="new-name-feedback">
@@ -83,7 +83,7 @@
             id="new-description-input"
             v-model="$v.newFormState.description.$model"
             name="new-description-input"
-            :state="validateNewState('description')"
+            :state="getValidationState('newFormState', 'description')"
           />
         </b-form-group>
         <b-form-group
@@ -99,7 +99,7 @@
             :options="CHARACTER_LIST"
             track-by="id"
             label="name"
-            :state="validateNewState('characters')"
+            :state="getValidationState('newFormState', 'characters')"
             @input="newSelectChanged"
           />
         </b-form-group>
@@ -120,7 +120,7 @@
             id="edit-name-input"
             v-model="$v.editFormState.name.$model"
             name="edit-name-input"
-            :state="validateEditState('name')"
+            :state="getValidationState('editFormState', 'name')"
             aria-describedby="edit-name-feedback"
           />
           <b-form-invalid-feedback id="edit-name-feedback">
@@ -136,7 +136,7 @@
             id="edit-description-input"
             v-model="$v.editFormState.description.$model"
             name="edit-description-input"
-            :state="validateEditState('description')"
+            :state="getValidationState('editFormState', 'description')"
           />
         </b-form-group>
         <b-form-group
@@ -152,7 +152,7 @@
             :options="CHARACTER_LIST"
             track-by="id"
             label="name"
-            :state="validateEditState('characters')"
+            :state="getValidationState('editFormState', 'characters')"
             @input="editSelectChanged"
           />
         </b-form-group>
@@ -168,9 +168,11 @@
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'CharacterGroups',
+  mixins: [formValidationMixin],
   data() {
     return {
       loading: true,
@@ -224,16 +226,12 @@ export default {
     },
     resetNewForm() {
       this.tempCharacterList = [];
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         description: '',
         characters: [],
-      };
-      this.submittingNewGroup = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.submittingNewGroup = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -253,10 +251,6 @@ export default {
       } finally {
         this.submittingNewGroup = false;
       }
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteCharacterGroup(characterGroup) {
       if (this.deletingGroup) {
@@ -293,19 +287,15 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         name: '',
         description: '',
         characters: [],
-      };
+      });
       this.tempEditCharacterList = [];
       this.submittingEditGroup = false;
       this.deletingGroup = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     editSelectChanged(value, id) {
       this.$v.editFormState.characters.$model = value.map((character) => character.id);
@@ -328,10 +318,6 @@ export default {
       } finally {
         this.submittingEditGroup = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     ...mapActions([
       'GET_CHARACTER_LIST',

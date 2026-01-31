@@ -4,6 +4,7 @@ from dateutil import parser
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import ERROR_SHOW_NOT_FOUND
 from digi_server.logger import get_logger
 from models.script import Script, ScriptRevision
 from models.show import Show, ShowScriptType
@@ -143,7 +144,7 @@ class ShowController(BaseAPIController):
             self.write(show)
         else:
             self.set_status(404)
-            self.write({"message": "404 show not found"})
+            self.write({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     async def patch(self):
@@ -217,7 +218,7 @@ class ShowController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_SHOW_DETAILS", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/script_modes", ApiVersion.V1)

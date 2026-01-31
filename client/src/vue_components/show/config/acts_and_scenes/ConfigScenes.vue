@@ -96,7 +96,7 @@
             id="new-name-input"
             v-model="$v.newFormState.name.$model"
             name="new-name-input"
-            :state="validateNewState('name')"
+            :state="getValidationState('newFormState', 'name')"
             aria-describedby="new-name-feedback"
           />
           <b-form-invalid-feedback id="new-name-feedback">
@@ -108,7 +108,7 @@
             id="new-act-input"
             v-model="$v.newFormState.act_id.$model"
             :options="actOptions"
-            :state="validateNewState('act_id')"
+            :state="getValidationState('newFormState', 'act_id')"
             aria-describedby="new-act-feedback"
           />
           <b-form-invalid-feedback id="new-act-feedback">
@@ -144,7 +144,7 @@
             id="edit-name-input"
             v-model="$v.editFormState.name.$model"
             name="edit-name-input"
-            :state="validateEditState('name')"
+            :state="getValidationState('editFormState', 'name')"
             aria-describedby="edit-name-feedback"
           />
           <b-form-invalid-feedback id="edit-name-feedback">
@@ -156,7 +156,7 @@
             id="edit-act-input"
             v-model="$v.editFormState.act_id.$model"
             :options="actOptions"
-            :state="validateEditState('act_id')"
+            :state="getValidationState('editFormState', 'act_id')"
             aria-describedby="edit-act-feedback"
             @change="editActChanged"
           />
@@ -173,7 +173,7 @@
             id="edit-previous-scene-input"
             v-model="$v.editFormState.previous_scene_id.$model"
             :options="editFormPrevScenes"
-            :state="validateEditState('previous_scene_id')"
+            :state="getValidationState('editFormState', 'previous_scene_id')"
             aria-describedby="edit-previous-scene-feedback"
           />
           <b-form-invalid-feedback id="edit-previous-scene-feedback">
@@ -215,9 +215,11 @@
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'ConfigScenes',
+  mixins: [formValidationMixin],
   data() {
     return {
       loading: true,
@@ -420,20 +422,12 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         act_id: null,
         previous_scene_id: null,
-      };
-      this.submittingNewScene = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+      this.submittingNewScene = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -473,15 +467,11 @@ export default {
       }
     },
     resetFirstSceneForm() {
-      this.firstSceneFormState = {
+      this.resetForm('firstSceneFormState', {
         act_id: null,
         scene_id: null,
-      };
-      this.submittingFirstScene = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.submittingFirstScene = false;
     },
     openFirstSceneEdit(act) {
       if (act != null) {
@@ -513,18 +503,14 @@ export default {
     },
     resetEditForm() {
       this.editSceneID = null;
-      this.editFormState = {
+      this.resetForm('editFormState', {
         scene_id: null,
         name: '',
         act_id: null,
         previous_scene_id: null,
-      };
+      });
       this.submittingEditScene = false;
       this.deletingScene = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     openEditForm(scene) {
       if (scene != null) {
@@ -539,10 +525,6 @@ export default {
         }
         this.$bvModal.show('edit-scene');
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();

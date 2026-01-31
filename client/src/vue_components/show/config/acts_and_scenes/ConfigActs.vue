@@ -72,7 +72,7 @@
             id="new-name-input"
             v-model="$v.newFormState.name.$model"
             name="new-name-input"
-            :state="validateNewState('name')"
+            :state="getValidationState('newFormState', 'name')"
             aria-describedby="new-name-feedback"
           />
           <b-form-invalid-feedback id="new-name-feedback">
@@ -119,7 +119,7 @@
             id="edit-name-input"
             v-model="$v.editFormState.name.$model"
             name="edit-name-input"
-            :state="validateEditState('name')"
+            :state="getValidationState('editFormState', 'name')"
             aria-describedby="edit-name-feedback"
           />
           <b-form-invalid-feedback id="edit-name-feedback">
@@ -146,7 +146,7 @@
             id="edit-previous-act-input"
             v-model="$v.editFormState.previous_act_id.$model"
             :options="editFormActOptions"
-            :state="validateEditState('previous_act_id')"
+            :state="getValidationState('editFormState', 'previous_act_id')"
             aria-describedby="edit-previous-act-feedback"
           />
           <b-form-invalid-feedback id="edit-previous-act-feedback">
@@ -165,9 +165,11 @@
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'ConfigActs',
+  mixins: [formValidationMixin],
   data() {
     return {
       loading: true,
@@ -271,20 +273,12 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         interval_after: false,
         previous_act_id: null,
-      };
-      this.submittingNewAct = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+      this.submittingNewAct = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -318,19 +312,15 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         showID: null,
         name: '',
         interval_after: false,
         previous_act_id: null,
-      };
+      });
       this.submittingEditAct = false;
       this.deletingAct = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
@@ -350,10 +340,6 @@ export default {
       } finally {
         this.submittingEditAct = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteAct(act) {
       if (this.deletingAct) {
