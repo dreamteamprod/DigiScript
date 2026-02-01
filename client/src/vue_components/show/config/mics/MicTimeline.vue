@@ -1,5 +1,5 @@
 <template>
-  <div class="mic-timeline-container">
+  <div class="timeline-container">
     <div v-if="loading" class="text-center py-5">
       <b-spinner label="Loading timeline..." />
     </div>
@@ -30,12 +30,7 @@
           </b-button>
         </b-button-group>
 
-        <b-button
-          size="sm"
-          variant="outline-secondary"
-          title="Export as PNG"
-          @click="exportTimeline"
-        >
+        <b-button size="sm" variant="outline-secondary" title="Export as PNG" @click="handleExport">
           <b-icon-download />
         </b-button>
       </div>
@@ -48,7 +43,7 @@
         </div>
 
         <!-- SVG Timeline -->
-        <svg v-else ref="svg" :width="totalWidth" :height="totalHeight" class="mic-timeline">
+        <svg v-else ref="svg" :width="totalWidth" :height="totalHeight" class="timeline-svg">
           <!-- Act labels (top) -->
           <g class="act-labels" :transform="`translate(${margin.left},0)`">
             <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">
@@ -167,9 +162,11 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import timelineMixin from '@/mixins/timelineMixin';
 
 export default {
   name: 'MicTimeline',
+  mixins: [timelineMixin],
   props: {
     loading: {
       type: Boolean,
@@ -179,15 +176,6 @@ export default {
   data() {
     return {
       viewMode: 'mic', // 'mic', 'character', or 'cast'
-      margin: {
-        top: 75,
-        right: 20,
-        bottom: 20,
-        left: 150,
-      },
-      sceneWidth: 100,
-      rowHeight: 50,
-      barPadding: 6,
     };
   },
   computed: {
@@ -195,8 +183,6 @@ export default {
       'MIC_TIMELINE_DATA',
       'MICROPHONE_BY_ID',
       'CHARACTER_BY_ID',
-      'ACT_BY_ID',
-      'SCENE_BY_ID',
       'CAST_BY_ID',
       'CAST_LIST',
     ]),
@@ -239,53 +225,6 @@ export default {
         type: 'cast',
       }));
     },
-    contentWidth() {
-      return this.scenes.length * this.sceneWidth;
-    },
-    contentHeight() {
-      return this.rows.length * this.rowHeight;
-    },
-    totalWidth() {
-      return this.margin.left + this.contentWidth + this.margin.right;
-    },
-    totalHeight() {
-      return this.margin.top + this.contentHeight + this.margin.bottom;
-    },
-    actGroups() {
-      const groups = [];
-      let currentAct = null;
-      let startIndex = 0;
-
-      this.scenes.forEach((scene, index) => {
-        const act = this.ACT_BY_ID(scene.act);
-        if (!act) return;
-
-        if (currentAct !== act.id) {
-          if (currentAct !== null) {
-            groups.push({
-              actId: currentAct,
-              actName: this.ACT_BY_ID(currentAct)?.name || 'Unknown',
-              startX: this.getSceneX(startIndex),
-              width: this.getSceneX(index) - this.getSceneX(startIndex),
-            });
-          }
-          currentAct = act.id;
-          startIndex = index;
-        }
-      });
-
-      // Push final group
-      if (currentAct !== null) {
-        groups.push({
-          actId: currentAct,
-          actName: this.ACT_BY_ID(currentAct)?.name || 'Unknown',
-          startX: this.getSceneX(startIndex),
-          width: this.getSceneX(this.scenes.length) - this.getSceneX(startIndex),
-        });
-      }
-
-      return groups;
-    },
     allocationBars() {
       const bars = [];
 
@@ -310,33 +249,6 @@ export default {
     },
   },
   methods: {
-    getSceneX(sceneIndex) {
-      return sceneIndex * this.sceneWidth;
-    },
-    getRowY(rowIndex) {
-      return rowIndex * this.rowHeight;
-    },
-    getColorForEntity(entityId, entityType) {
-      // Generate unique, consistent color for any entity (mic, character, or cast)
-      // Use HSL color space for visually distinct colors
-
-      // Use a prime number multiplier to spread IDs evenly across hue spectrum
-      // Golden ratio angle (137.5°) provides optimal distribution
-      const GOLDEN_RATIO_CONJUGATE = 137.508;
-
-      // Different offsets for different entity types to avoid collisions
-      const typeOffsets = {
-        mic: 0,
-        character: 120,
-        cast: 240,
-      };
-
-      const offset = typeOffsets[entityType] || 0;
-      const hue = (entityId * GOLDEN_RATIO_CONJUGATE + offset) % 360;
-
-      // Use high saturation and medium lightness for vibrant, visible colors
-      return `hsl(${hue}, 70%, 50%)`;
-    },
     hasCharacterAllocations(characterId) {
       return Object.values(this.allocations).some((micAllocs) => {
         if (!Array.isArray(micAllocs)) return false;
@@ -566,114 +478,13 @@ export default {
         });
       });
     },
-    exportTimeline() {
-      const svgElement = this.$refs.svg;
-      if (!svgElement) return;
-
-      // Create a clone of the SVG to avoid modifying the original
-      const svgClone = svgElement.cloneNode(true);
-
-      // Inline critical styles for export (for print-friendly output)
-      // This is necessary because XMLSerializer doesn't preserve CSS from stylesheets
-
-      // Style scene dividers (vertical grid lines)
-      svgClone.querySelectorAll('.scene-divider').forEach((el) => {
-        el.setAttribute('stroke', '#495057');
-        el.setAttribute('stroke-width', '1');
-        el.setAttribute('opacity', '0.4');
-      });
-
-      // Style row separators (horizontal grid lines)
-      svgClone.querySelectorAll('.row-separator').forEach((el) => {
-        el.setAttribute('stroke', '#495057');
-        el.setAttribute('stroke-width', '1');
-        el.setAttribute('opacity', '0.3');
-      });
-
-      // Style act headers and labels
-      svgClone.querySelectorAll('.act-header').forEach((el) => {
-        el.setAttribute('fill', '#e9ecef');
-        el.setAttribute('stroke', '#495057');
-        el.setAttribute('stroke-width', '1');
-      });
-
-      svgClone.querySelectorAll('.act-label').forEach((el) => {
-        el.setAttribute('fill', '#212529');
-        el.setAttribute('font-size', '14');
-        el.setAttribute('font-weight', '600');
-      });
-
-      // Style scene labels
-      svgClone.querySelectorAll('.scene-label').forEach((el) => {
-        el.setAttribute('fill', '#495057');
-        el.setAttribute('font-size', '11');
-      });
-
-      // Style row labels
-      svgClone.querySelectorAll('.row-label').forEach((el) => {
-        el.setAttribute('fill', '#212529');
-        el.setAttribute('font-size', '12');
-        el.setAttribute('font-weight', '500');
-      });
-
-      // Style allocation bars (keep their colors but add stroke)
-      svgClone.querySelectorAll('.allocation-bar').forEach((el) => {
-        el.setAttribute('stroke', '#212529');
-        el.setAttribute('stroke-width', '1');
-      });
-
-      // Style bar labels
-      svgClone.querySelectorAll('.bar-label').forEach((el) => {
-        el.setAttribute('fill', '#ffffff');
-        el.setAttribute('font-weight', '600');
-        el.setAttribute('style', 'text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8)');
-      });
-
-      // Serialize the SVG to a string
-      const serializer = new XMLSerializer();
-      const svgString = serializer.serializeToString(svgClone);
-
-      // Create a blob and download link
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-
-      // Set canvas size to SVG size
-      canvas.width = this.totalWidth;
-      canvas.height = this.totalHeight;
-
-      img.onload = () => {
-        // Draw white background for print-friendly output
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Draw the SVG image
-        ctx.drawImage(img, 0, 0);
-
-        // Convert canvas to blob and download
-        canvas.toBlob((blob) => {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-
-          // Determine view mode name for filename
-          let viewModeName = 'Cast';
-          if (this.viewMode === 'mic') {
-            viewModeName = 'Microphone';
-          } else if (this.viewMode === 'character') {
-            viewModeName = 'Character';
-          }
-
-          link.download = `mic-timeline-${viewModeName}-${new Date().toISOString().slice(0, 10)}.png`;
-          link.href = url;
-          link.click();
-          URL.revokeObjectURL(url);
-        });
+    handleExport() {
+      const viewModeNames = {
+        mic: 'Microphone',
+        character: 'Character',
+        cast: 'Cast',
       };
-
-      // Create a data URL from the SVG string
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const svgUrl = URL.createObjectURL(svgBlob);
-      img.src = svgUrl;
+      this.exportTimeline('mic-timeline', viewModeNames[this.viewMode]);
     },
     handleBarClick(bar) {
       this.$emit('bar-click', bar.data);
@@ -688,116 +499,6 @@ export default {
 };
 </script>
 
-<style scoped>
-.mic-timeline-container {
-  position: relative;
-  background-color: var(--body-background);
-  border: 1px solid #dee2e6;
-  border-radius: 0.25rem;
-  overflow: hidden;
-  min-height: 400px;
-  height: calc(100vh - 200px);
-}
-
-.timeline-wrapper {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.timeline-controls-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background-color: rgba(52, 58, 64, 0.95);
-  border-bottom: 1px solid #6c757d;
-  z-index: 10;
-  flex-shrink: 0;
-}
-
-.svg-container {
-  flex: 1;
-  overflow: auto;
-  position: relative;
-  min-height: 0;
-}
-
-.mic-timeline {
-  display: block;
-  background-color: var(--body-background);
-}
-
-/* Scene dividers */
-.scene-divider {
-  stroke: #6c757d;
-  stroke-width: 1;
-  opacity: 0.6;
-  shape-rendering: crispEdges;
-}
-
-/* Act labels */
-.act-header {
-  fill: #343a40;
-  stroke: #6c757d;
-  stroke-width: 1px;
-}
-
-.act-label {
-  fill: #dee2e6;
-  font-size: 14px;
-  font-weight: 600;
-  pointer-events: none;
-  user-select: none;
-}
-
-/* Scene labels */
-.scene-label {
-  fill: #adb5bd;
-  font-size: 11px;
-  pointer-events: none;
-  user-select: none;
-}
-
-/* Row labels */
-.row-label {
-  fill: #dee2e6;
-  font-size: 12px;
-  font-weight: 500;
-  pointer-events: none;
-  user-select: none;
-}
-
-/* Row separators */
-.row-separator {
-  stroke: #6c757d;
-  stroke-width: 1px;
-  opacity: 0.5;
-}
-
-/* Allocation bars */
-.allocation-bar {
-  stroke: #212529;
-  stroke-width: 1px;
-  cursor: pointer;
-  transition:
-    opacity 0.2s ease,
-    stroke-width 0.2s ease;
-}
-
-.allocation-bar:hover {
-  opacity: 0.8;
-  stroke-width: 2px;
-  stroke: #fff;
-}
-
-.bar-label {
-  fill: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
-  user-select: none;
-}
+<style lang="scss">
+@use '@/assets/styles/timeline';
 </style>

@@ -49,25 +49,6 @@
         </b-card-header>
         <b-collapse :id="`collapse-${scene.id}`" v-model="expandedScenes[scene.id]">
           <b-card-body class="p-2 scene-body">
-            <!-- Scenery Section -->
-            <div v-if="getSceneryForScene(scene.id).length > 0" class="mb-2">
-              <small class="section-label">Scenery</small>
-              <ul class="item-list mb-0">
-                <li v-for="item in getSceneryForScene(scene.id)" :key="`scenery-${item.id}`">
-                  {{ item.name }}
-                </li>
-              </ul>
-            </div>
-            <!-- Props Section -->
-            <div v-if="getPropsForScene(scene.id).length > 0">
-              <small class="section-label">Props</small>
-              <ul class="item-list mb-0">
-                <li v-for="item in getPropsForScene(scene.id)" :key="`prop-${item.id}`">
-                  {{ item.name }}
-                </li>
-              </ul>
-            </div>
-            <!-- Empty state for scene with no allocations -->
             <div
               v-if="
                 getSceneryForScene(scene.id).length === 0 && getPropsForScene(scene.id).length === 0
@@ -76,10 +57,140 @@
             >
               <small>No props or scenery</small>
             </div>
+            <template v-else>
+              <div
+                class="d-flex justify-content-end align-items-end"
+                @click.stop.prevent="showSMPlanModal(scene)"
+              >
+                <b-button size="sm" variant="primary"> Plan </b-button>
+              </div>
+              <div v-if="getSceneryForScene(scene.id).length > 0" class="mb-2">
+                <small class="section-label">Scenery</small>
+                <ul class="item-list mb-0">
+                  <li v-for="item in getSceneryForScene(scene.id)" :key="`scenery-${item.id}`">
+                    {{ getSceneryDisplayName(item) }}
+                  </li>
+                </ul>
+              </div>
+              <div v-if="getPropsForScene(scene.id).length > 0">
+                <small class="section-label">Props</small>
+                <ul class="item-list mb-0">
+                  <li v-for="item in getPropsForScene(scene.id)" :key="`prop-${item.id}`">
+                    {{ getPropDisplayName(item) }}
+                  </li>
+                </ul>
+              </div>
+            </template>
           </b-card-body>
         </b-collapse>
       </b-card>
     </div>
+    <b-modal
+      id="sm-plan-modal"
+      ref="sm-plan-modal"
+      :title="`${smPlanScene ? getSceneDisplayName(smPlanScene) : ''} - Plan`"
+      size="lg"
+      @hidden="resetSMPlanScene"
+    >
+      <div v-if="smPlanScene">
+        <b-card no-body class="mb-2">
+          <b-card-header header-tag="header" class="p-2" role="button" @click="togglePlanSet">
+            <div class="d-flex justify-content-between align-items-center">
+              <span>
+                <b-icon :icon="smPlanSet ? 'chevron-down' : 'chevron-right'" class="mr-1" />
+                Setting
+              </span>
+            </div>
+          </b-card-header>
+          <b-collapse v-model="smPlanSet">
+            <b-card-body class="p-2">
+              <b-container class="mx-0 px-0" fluid>
+                <b-row class="plan-header-row">
+                  <b-col cols="6" class="plan-header-col border-right">
+                    <b>Scenery</b>
+                  </b-col>
+                  <b-col cols="6" class="plan-header-col">
+                    <b>Props</b>
+                  </b-col>
+                </b-row>
+                <b-row class="plan-content-row">
+                  <b-col cols="6" class="plan-content-col border-right">
+                    <ul v-if="getSettingScenery(smPlanScene).length > 0" class="item-list mb-0">
+                      <li
+                        v-for="item in getSettingScenery(smPlanScene)"
+                        :key="`set-scenery-${item.id}`"
+                      >
+                        {{ getSceneryDisplayName(item) }}
+                      </li>
+                    </ul>
+                    <p v-else class="text-muted mb-0">None</p>
+                  </b-col>
+                  <b-col cols="6" class="plan-content-col">
+                    <ul v-if="getSettingProps(smPlanScene).length > 0" class="item-list mb-0">
+                      <li v-for="item in getSettingProps(smPlanScene)" :key="`set-prop-${item.id}`">
+                        {{ getPropDisplayName(item) }}
+                      </li>
+                    </ul>
+                    <p v-else class="text-muted mb-0">None</p>
+                  </b-col>
+                </b-row>
+              </b-container>
+            </b-card-body>
+          </b-collapse>
+        </b-card>
+        <b-card no-body class="mb-2">
+          <b-card-header header-tag="header" class="p-2" role="button" @click="togglePlanStrike">
+            <div class="d-flex justify-content-between align-items-center">
+              <span>
+                <b-icon :icon="smPlanStrike ? 'chevron-down' : 'chevron-right'" class="mr-1" />
+                Striking
+              </span>
+            </div>
+          </b-card-header>
+          <b-collapse v-model="smPlanStrike">
+            <b-card-body class="p-2">
+              <b-container class="mx-0 px-0" fluid>
+                <b-row class="plan-header-row">
+                  <b-col cols="6" class="plan-header-col border-right">
+                    <b>Scenery</b>
+                  </b-col>
+                  <b-col cols="6" class="plan-header-col">
+                    <b>Props</b>
+                  </b-col>
+                </b-row>
+                <b-row class="plan-content-row">
+                  <b-col cols="6" class="plan-content-col border-right">
+                    <ul v-if="getStrikingScenery(smPlanScene).length > 0" class="item-list mb-0">
+                      <li
+                        v-for="item in getStrikingScenery(smPlanScene)"
+                        :key="`strike-scenery-${item.id}`"
+                      >
+                        {{ getSceneryDisplayName(item) }}
+                      </li>
+                    </ul>
+                    <p v-else class="text-muted mb-0">None</p>
+                  </b-col>
+                  <b-col cols="6" class="plan-content-col">
+                    <ul v-if="getStrikingProps(smPlanScene).length > 0" class="item-list mb-0">
+                      <li
+                        v-for="item in getStrikingProps(smPlanScene)"
+                        :key="`strike-prop-${item.id}`"
+                      >
+                        {{ getPropDisplayName(item) }}
+                      </li>
+                    </ul>
+                    <p v-else class="text-muted mb-0">None</p>
+                  </b-col>
+                </b-row>
+              </b-container>
+            </b-card-body>
+          </b-collapse>
+        </b-card>
+      </div>
+      <div v-else>
+        <p>No scene selected.</p>
+      </div>
+    </b-modal>
   </div>
 </template>
 
@@ -102,6 +213,9 @@ export default {
       expandedScenes: {},
       pinnedScenes: {},
       debounceContentSize: null,
+      smPlanScene: null,
+      smPlanSet: true,
+      smPlanStrike: true,
     };
   },
   computed: {
@@ -157,6 +271,8 @@ export default {
       'SCENERY_ALLOCATIONS',
       'PROPS_LIST',
       'SCENERY_LIST',
+      'PROP_TYPES_DICT',
+      'SCENERY_TYPES_DICT',
     ]),
   },
   watch: {
@@ -213,6 +329,8 @@ export default {
       this.GET_SCENERY_LIST(),
       this.GET_PROPS_ALLOCATIONS(),
       this.GET_SCENERY_ALLOCATIONS(),
+      this.GET_PROP_TYPES(),
+      this.GET_SCENERY_TYPES(),
     ]);
     this.loaded = true;
 
@@ -267,6 +385,14 @@ export default {
         .map((alloc) => this.sceneryDict[alloc.scenery_id])
         .filter((scenery) => scenery != null);
     },
+    getPropDisplayName(prop) {
+      const propType = this.PROP_TYPES_DICT[prop.prop_type_id];
+      return propType ? `${propType.name}: ${prop.name}` : prop.name;
+    },
+    getSceneryDisplayName(scenery) {
+      const sceneryType = this.SCENERY_TYPES_DICT[scenery.scenery_type_id];
+      return sceneryType ? `${sceneryType.name}: ${scenery.name}` : scenery.name;
+    },
     autoScrollToCurrentScene(currentSceneId) {
       const container = this.$refs.scrollContainer;
       if (!container) return;
@@ -295,6 +421,66 @@ export default {
         container.scrollTo({ top: scrollOffset, behavior: 'smooth' });
       }
     },
+    resetSMPlanScene() {
+      this.smPlanScene = null;
+    },
+    showSMPlanModal(scene) {
+      this.smPlanScene = scene;
+      this.$bvModal.show('sm-plan-modal');
+    },
+    togglePlanSet() {
+      this.smPlanSet = !this.smPlanSet;
+    },
+    togglePlanStrike() {
+      this.smPlanStrike = !this.smPlanStrike;
+    },
+    getPreviousScene(scene) {
+      const currentIndex = this.orderedScenes.findIndex((s) => s.id === scene.id);
+      if (currentIndex <= 0) {
+        return null; // First scene or not found
+      }
+      return this.orderedScenes[currentIndex - 1];
+    },
+    getSettingScenery(scene) {
+      const currentScenery = this.getSceneryForScene(scene.id);
+      const previousScene = this.getPreviousScene(scene);
+      if (!previousScene) {
+        return currentScenery; // First scene - all items are being set
+      }
+      const previousSceneryIds = new Set(
+        this.getSceneryForScene(previousScene.id).map((s) => s.id)
+      );
+      return currentScenery.filter((item) => !previousSceneryIds.has(item.id));
+    },
+    getSettingProps(scene) {
+      const currentProps = this.getPropsForScene(scene.id);
+      const previousScene = this.getPreviousScene(scene);
+      if (!previousScene) {
+        return currentProps; // First scene - all items are being set
+      }
+      const previousPropsIds = new Set(this.getPropsForScene(previousScene.id).map((p) => p.id));
+      return currentProps.filter((item) => !previousPropsIds.has(item.id));
+    },
+    getStrikingScenery(scene) {
+      const previousScene = this.getPreviousScene(scene);
+      if (!previousScene) {
+        return []; // First scene - nothing to strike
+      }
+      const currentSceneryIds = new Set(this.getSceneryForScene(scene.id).map((s) => s.id));
+      return this.getSceneryForScene(previousScene.id).filter(
+        (item) => !currentSceneryIds.has(item.id)
+      );
+    },
+    getStrikingProps(scene) {
+      const previousScene = this.getPreviousScene(scene);
+      if (!previousScene) {
+        return []; // First scene - nothing to strike
+      }
+      const currentPropsIds = new Set(this.getPropsForScene(scene.id).map((p) => p.id));
+      return this.getPropsForScene(previousScene.id).filter(
+        (item) => !currentPropsIds.has(item.id)
+      );
+    },
     ...mapActions([
       'GET_ACT_LIST',
       'GET_SCENE_LIST',
@@ -302,6 +488,8 @@ export default {
       'GET_SCENERY_LIST',
       'GET_PROPS_ALLOCATIONS',
       'GET_SCENERY_ALLOCATIONS',
+      'GET_PROP_TYPES',
+      'GET_SCENERY_TYPES',
     ]),
   },
 };
@@ -430,5 +618,32 @@ export default {
 .empty-scene {
   color: #6c757d;
   font-style: italic;
+}
+
+.plan-header-row {
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.plan-header-col {
+  padding: 0.5rem 0.75rem;
+}
+
+.plan-header-col.border-right {
+  border-right: 1px solid #dee2e6;
+}
+
+.plan-content-row {
+  margin: 0;
+  padding: 0;
+}
+
+.plan-content-col {
+  padding: 0.5rem 0.75rem;
+}
+
+.plan-content-col.border-right {
+  border-right: 1px solid #dee2e6;
 }
 </style>

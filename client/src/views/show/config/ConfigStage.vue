@@ -15,6 +15,9 @@
           <b-tab title="Stage Manager">
             <stage-manager />
           </b-tab>
+          <b-tab title="Timeline">
+            <stage-timeline />
+          </b-tab>
         </b-tabs>
       </b-col>
     </b-row>
@@ -26,6 +29,7 @@ import CrewList from '@/vue_components/show/config/stage/CrewList.vue';
 import SceneryList from '@/vue_components/show/config/stage/SceneryList.vue';
 import PropsList from '@/vue_components/show/config/stage/PropsList.vue';
 import StageManager from '@/vue_components/show/config/stage/StageManager.vue';
+import StageTimeline from '@/vue_components/show/config/stage/StageTimeline.vue';
 
 export default {
   name: 'ConfigCrew',
@@ -34,6 +38,7 @@ export default {
     PropsList,
     SceneryList,
     CrewList,
+    StageTimeline,
   },
 };
 </script>

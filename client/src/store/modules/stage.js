@@ -432,6 +432,34 @@ export default {
     CREW_LIST(state) {
       return state.crewList;
     },
+    PROP_BY_ID: (state) => (propId) => {
+      if (propId == null) return null;
+      return state.propsList.find((p) => p.id === propId) || null;
+    },
+    SCENERY_BY_ID: (state) => (sceneryId) => {
+      if (sceneryId == null) return null;
+      return state.sceneryList.find((s) => s.id === sceneryId) || null;
+    },
+    PROPS_ALLOCATIONS_BY_ITEM(state) {
+      const result = {};
+      state.propsAllocations.forEach((alloc) => {
+        if (!result[alloc.props_id]) {
+          result[alloc.props_id] = [];
+        }
+        result[alloc.props_id].push(alloc);
+      });
+      return result;
+    },
+    SCENERY_ALLOCATIONS_BY_ITEM(state) {
+      const result = {};
+      state.sceneryAllocations.forEach((alloc) => {
+        if (!result[alloc.scenery_id]) {
+          result[alloc.scenery_id] = [];
+        }
+        result[alloc.scenery_id].push(alloc);
+      });
+      return result;
+    },
     SCENERY_TYPES(state) {
       return state.sceneryTypes;
     },
