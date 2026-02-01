@@ -206,15 +206,9 @@ export default {
     },
     allocationBars() {
       const bars = [];
-
       this.rows.forEach((row, rowIndex) => {
-        if (row.type === 'prop') {
-          this.generateBarsForProp(row.itemId, rowIndex, bars);
-        } else {
-          this.generateBarsForScenery(row.itemId, rowIndex, bars);
-        }
+        this.generateBarsForItem(row.itemId, row.type, rowIndex, bars);
       });
-
       return bars;
     },
   },
@@ -258,56 +252,40 @@ export default {
       const allocations = this.SCENERY_ALLOCATIONS_BY_ITEM[sceneryId];
       return allocations && allocations.length > 0;
     },
-    generateBarsForProp(propId, rowIndex, bars) {
-      const allocations = this.PROPS_ALLOCATIONS_BY_ITEM[propId] || [];
-      const segments = this.groupConsecutiveScenes(allocations, 'scene_id');
-      const prop = this.PROP_BY_ID(propId);
-      const propName = prop?.name || `Prop ${propId}`;
 
-      segments.forEach((segment, idx) => {
-        const startX = this.getSceneX(segment.startIndex);
-        const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
-
-        bars.push({
-          id: `prop-${propId}-seg-${idx}`,
-          x: startX,
-          y: this.getRowY(rowIndex) + this.barPadding,
-          width,
-          height: this.rowHeight - 2 * this.barPadding,
-          color: this.getColorForEntity(propId, 'prop'),
-          label: propName,
-          tooltip: `${propName} (${segment.startScene}${segment.startScene !== segment.endScene ? ' - ' + segment.endScene : ''})`,
-          data: {
-            type: 'prop',
-            itemId: propId,
-            startScene: segment.startIndex,
-            endScene: segment.endIndex,
-          },
-        });
-      });
+    formatSceneRange(startScene, endScene) {
+      if (startScene === endScene) {
+        return startScene;
+      }
+      return `${startScene} - ${endScene}`;
     },
-    generateBarsForScenery(sceneryId, rowIndex, bars) {
-      const allocations = this.SCENERY_ALLOCATIONS_BY_ITEM[sceneryId] || [];
+
+    generateBarsForItem(itemId, itemType, rowIndex, bars) {
+      const allocations =
+        itemType === 'prop'
+          ? this.PROPS_ALLOCATIONS_BY_ITEM[itemId] || []
+          : this.SCENERY_ALLOCATIONS_BY_ITEM[itemId] || [];
       const segments = this.groupConsecutiveScenes(allocations, 'scene_id');
-      const scenery = this.SCENERY_BY_ID(sceneryId);
-      const sceneryName = scenery?.name || `Scenery ${sceneryId}`;
+
+      const item = itemType === 'prop' ? this.PROP_BY_ID(itemId) : this.SCENERY_BY_ID(itemId);
+      const itemName = item?.name || `${itemType === 'prop' ? 'Prop' : 'Scenery'} ${itemId}`;
 
       segments.forEach((segment, idx) => {
         const startX = this.getSceneX(segment.startIndex);
         const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
 
         bars.push({
-          id: `scenery-${sceneryId}-seg-${idx}`,
+          id: `${itemType}-${itemId}-seg-${idx}`,
           x: startX,
           y: this.getRowY(rowIndex) + this.barPadding,
           width,
           height: this.rowHeight - 2 * this.barPadding,
-          color: this.getColorForEntity(sceneryId, 'scenery'),
-          label: sceneryName,
-          tooltip: `${sceneryName} (${segment.startScene}${segment.startScene !== segment.endScene ? ' - ' + segment.endScene : ''})`,
+          color: this.getColorForEntity(itemId, itemType),
+          label: itemName,
+          tooltip: `${itemName} (${this.formatSceneRange(segment.startScene, segment.endScene)})`,
           data: {
-            type: 'scenery',
-            itemId: sceneryId,
+            type: itemType,
+            itemId,
             startScene: segment.startIndex,
             endScene: segment.endIndex,
           },
