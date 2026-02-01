@@ -50,6 +50,12 @@
         <b-collapse :id="`collapse-${scene.id}`" v-model="expandedScenes[scene.id]">
           <b-card-body class="p-2 scene-body">
             <div
+              class="d-flex justify-content-end align-items-end"
+              @click.stop.prevent="showSMPlanModal(scene)"
+            >
+              <b-button size="sm" variant="primary"> Plan </b-button>
+            </div>
+            <div
               v-if="
                 getSceneryForScene(scene.id).length === 0 && getPropsForScene(scene.id).length === 0
               "
@@ -58,12 +64,6 @@
               <small>No props or scenery</small>
             </div>
             <template v-else>
-              <div
-                class="d-flex justify-content-end align-items-end"
-                @click.stop.prevent="showSMPlanModal(scene)"
-              >
-                <b-button size="sm" variant="primary"> Plan </b-button>
-              </div>
               <div v-if="getSceneryForScene(scene.id).length > 0" class="mb-2">
                 <small class="section-label">Scenery</small>
                 <ul class="item-list mb-0">
