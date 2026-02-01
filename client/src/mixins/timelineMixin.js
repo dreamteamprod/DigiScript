@@ -196,57 +196,28 @@ export default {
       img.src = svgUrl;
     },
     applyExportStyles(svgClone) {
-      // Style scene dividers (vertical grid lines)
-      svgClone.querySelectorAll('.scene-divider').forEach((el) => {
-        el.setAttribute('stroke', '#495057');
-        el.setAttribute('stroke-width', '1');
-        el.setAttribute('opacity', '0.4');
-      });
+      // Define export styles for print-friendly output
+      const exportStyles = {
+        '.scene-divider': { stroke: '#495057', 'stroke-width': '1', opacity: '0.4' },
+        '.row-separator': { stroke: '#495057', 'stroke-width': '1', opacity: '0.3' },
+        '.act-header': { fill: '#e9ecef', stroke: '#495057', 'stroke-width': '1' },
+        '.act-label': { fill: '#212529', 'font-size': '14', 'font-weight': '600' },
+        '.scene-label': { fill: '#495057', 'font-size': '11' },
+        '.row-label': { fill: '#212529', 'font-size': '12', 'font-weight': '500' },
+        '.allocation-bar': { stroke: '#212529', 'stroke-width': '1' },
+        '.bar-label': {
+          fill: '#ffffff',
+          'font-weight': '600',
+          style: 'text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8)',
+        },
+      };
 
-      // Style row separators (horizontal grid lines)
-      svgClone.querySelectorAll('.row-separator').forEach((el) => {
-        el.setAttribute('stroke', '#495057');
-        el.setAttribute('stroke-width', '1');
-        el.setAttribute('opacity', '0.3');
-      });
-
-      // Style act headers and labels
-      svgClone.querySelectorAll('.act-header').forEach((el) => {
-        el.setAttribute('fill', '#e9ecef');
-        el.setAttribute('stroke', '#495057');
-        el.setAttribute('stroke-width', '1');
-      });
-
-      svgClone.querySelectorAll('.act-label').forEach((el) => {
-        el.setAttribute('fill', '#212529');
-        el.setAttribute('font-size', '14');
-        el.setAttribute('font-weight', '600');
-      });
-
-      // Style scene labels
-      svgClone.querySelectorAll('.scene-label').forEach((el) => {
-        el.setAttribute('fill', '#495057');
-        el.setAttribute('font-size', '11');
-      });
-
-      // Style row labels
-      svgClone.querySelectorAll('.row-label').forEach((el) => {
-        el.setAttribute('fill', '#212529');
-        el.setAttribute('font-size', '12');
-        el.setAttribute('font-weight', '500');
-      });
-
-      // Style allocation bars (keep their colors but add stroke)
-      svgClone.querySelectorAll('.allocation-bar').forEach((el) => {
-        el.setAttribute('stroke', '#212529');
-        el.setAttribute('stroke-width', '1');
-      });
-
-      // Style bar labels
-      svgClone.querySelectorAll('.bar-label').forEach((el) => {
-        el.setAttribute('fill', '#ffffff');
-        el.setAttribute('font-weight', '600');
-        el.setAttribute('style', 'text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8)');
+      Object.entries(exportStyles).forEach(([selector, attrs]) => {
+        svgClone.querySelectorAll(selector).forEach((el) => {
+          Object.entries(attrs).forEach(([attr, value]) => {
+            el.setAttribute(attr, value);
+          });
+        });
       });
     },
   },
