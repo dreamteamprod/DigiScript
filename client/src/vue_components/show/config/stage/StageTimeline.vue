@@ -1,5 +1,5 @@
 <template>
-  <div class="stage-timeline-container">
+  <div class="timeline-container">
     <div v-if="loading" class="text-center py-5">
       <b-spinner label="Loading timeline..." />
     </div>
@@ -36,7 +36,7 @@
         <div v-if="!hasData" class="text-center py-5 text-muted">
           No allocation data to display for this view
         </div>
-        <svg v-else ref="svg" :width="totalWidth" :height="totalHeight" class="stage-timeline">
+        <svg v-else ref="svg" :width="totalWidth" :height="totalHeight" class="timeline-svg">
           <g class="act-labels" :transform="`translate(${margin.left},0)`">
             <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">
               <rect
@@ -313,110 +313,6 @@ export default {
 };
 </script>
 
-<style scoped>
-.stage-timeline-container {
-  position: relative;
-  background-color: var(--body-background);
-  border: 1px solid #dee2e6;
-  border-radius: 0.25rem;
-  overflow: hidden;
-  min-height: 400px;
-  height: calc(100vh - 200px);
-}
-
-.timeline-wrapper {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.timeline-controls-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background-color: rgba(52, 58, 64, 0.95);
-  border-bottom: 1px solid #6c757d;
-  z-index: 10;
-  flex-shrink: 0;
-}
-
-.svg-container {
-  flex: 1;
-  overflow: auto;
-  position: relative;
-  min-height: 0;
-}
-
-.stage-timeline {
-  display: block;
-  background-color: var(--body-background);
-}
-
-.scene-divider {
-  stroke: #6c757d;
-  stroke-width: 1;
-  opacity: 0.6;
-  shape-rendering: crispEdges;
-}
-
-.act-header {
-  fill: #343a40;
-  stroke: #6c757d;
-  stroke-width: 1px;
-}
-
-.act-label {
-  fill: #dee2e6;
-  font-size: 14px;
-  font-weight: 600;
-  pointer-events: none;
-  user-select: none;
-}
-
-.scene-label {
-  fill: #adb5bd;
-  font-size: 11px;
-  pointer-events: none;
-  user-select: none;
-}
-
-.row-label {
-  fill: #dee2e6;
-  font-size: 12px;
-  font-weight: 500;
-  pointer-events: none;
-  user-select: none;
-}
-
-.row-separator {
-  stroke: #6c757d;
-  stroke-width: 1px;
-  opacity: 0.5;
-}
-
-.allocation-bar {
-  stroke: #212529;
-  stroke-width: 1px;
-  cursor: pointer;
-  transition:
-    opacity 0.2s ease,
-    stroke-width 0.2s ease;
-}
-
-.allocation-bar:hover {
-  opacity: 0.8;
-  stroke-width: 2px;
-  stroke: #fff;
-}
-
-.bar-label {
-  fill: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
-  user-select: none;
-}
+<style lang="scss">
+@use '@/assets/styles/timeline';
 </style>
