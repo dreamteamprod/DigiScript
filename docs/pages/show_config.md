@@ -9,6 +9,7 @@ Heading over to the **Show Config** navigation option at the top of the page wil
 The Show Config page is organized into several sections, each accessible from the left sidebar:
 
 - **Show**: View and edit basic show information (name, dates, settings)
+- [Staging](./show_config/stage_management.md): Manage crew, props, and scenery for your production
 - [Cast, Characters and Character Groups](./show_config/cast_and_characters.md): Manage performers and roles
 - [Acts and Scenes](./show_config/acts_and_scenes.md): Structure your show's timeline
 - **Script**: Create and edit the show script with revisions
@@ -27,6 +28,7 @@ The recommended workflow for configuring a new show is:
 5. Move on to [Script Configuration](./script_config.md)
 6. Configure [Cues](./cue_config.md)
 7. Optionally set up [Microphones](./show_config/microphones.md)
+8. Optionally configure [Stage Management](./show_config/stage_management.md) (crew, props, scenery)
 
 ### Script Display Modes
 
