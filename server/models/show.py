@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from models.session import ShowSession
     from models.stage import (
         Crew,
+        CrewAssignment,
         Props,
         PropsAllocation,
         PropType,
@@ -225,6 +226,10 @@ class Scene(db.Model):
         cascade="all, delete-orphan",
     )
     props_allocations: Mapped[List["PropsAllocation"]] = relationship(
+        back_populates="scene",
+        cascade="all, delete-orphan",
+    )
+    crew_assignments: Mapped[List["CrewAssignment"]] = relationship(
         back_populates="scene",
         cascade="all, delete-orphan",
     )

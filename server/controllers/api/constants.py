@@ -47,6 +47,9 @@ ERROR_SCENERY_TYPE_NOT_FOUND = "404 scenery type not found"
 # Allocations
 ERROR_ALLOCATION_NOT_FOUND = "404 allocation not found"
 
+# Crew assignments
+ERROR_CREW_ASSIGNMENT_NOT_FOUND = "404 crew assignment not found"
+
 
 # =============================================================================
 # HTTP 400 Validation Errors - Missing Required Fields
@@ -91,6 +94,15 @@ ERROR_SCENERY_TYPE_ID_MISSING = "Scenery type ID missing"
 # Allocations
 ERROR_PROPS_ID_MISSING = "props_id missing"
 ERROR_SCENERY_ID_MISSING = "scenery_id missing"
+
+# Crew assignments
+ERROR_CREW_ID_MISSING = "crew_id missing"
+ERROR_ASSIGNMENT_TYPE_MISSING = "assignment_type missing"
+ERROR_ASSIGNMENT_TYPE_INVALID = "assignment_type must be 'set' or 'strike'"
+ERROR_ITEM_ID_MISSING = "Either prop_id or scenery_id must be provided"
+ERROR_ITEM_ID_BOTH = "Only one of prop_id or scenery_id can be provided"
+ERROR_INVALID_BOUNDARY = "Scene is not a valid boundary for this assignment type"
+ERROR_CREW_ASSIGNMENT_EXISTS = "Crew assignment already exists"
 
 
 # =============================================================================

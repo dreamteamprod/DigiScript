@@ -18,7 +18,12 @@ from controllers.api.constants import (
     ERROR_SHOW_NOT_FOUND,
 )
 from models.show import Scene, Show
+from models.stage import Props, Scenery
 from rbac.role import Role
+from utils.show.block_computation import (
+    delete_orphaned_assignments_for_prop,
+    delete_orphaned_assignments_for_scenery,
+)
 
 
 async def handle_type_post(controller, type_model, ws_action, success_message):
@@ -319,6 +324,25 @@ async def handle_allocation_post(
             **{allocation_item_fk: item_id, "scene_id": scene_id}
         )
         session.add(new_allocation)
+        # Flush to persist the allocation within the current transaction,
+        # making it available for block computation without committing yet
+        session.flush()
+
+        # Refresh the item to get updated relationships for orphan detection
+        session.refresh(item)
+
+        # Delete any crew assignments that are now orphaned due to block boundary changes
+        deleted_assignment_ids = []
+        if isinstance(item, Props):
+            deleted_assignment_ids = delete_orphaned_assignments_for_prop(
+                session, item, show
+            )
+        elif isinstance(item, Scenery):
+            deleted_assignment_ids = delete_orphaned_assignments_for_scenery(
+                session, item, show
+            )
+
+        # Commit the entire operation atomically (allocation + orphan deletions)
         session.commit()
 
         controller.set_status(200)
@@ -327,6 +351,12 @@ async def handle_allocation_post(
         )
 
         await controller.application.ws_send_to_all("NOOP", ws_action, {})
+
+        # Also notify about crew assignment changes if any were deleted
+        if deleted_assignment_ids:
+            await controller.application.ws_send_to_all(
+                "NOOP", "GET_CREW_ASSIGNMENTS", {}
+            )
 
 
 async def handle_allocation_delete(
@@ -385,9 +415,34 @@ async def handle_allocation_delete(
             return
 
         session.delete(allocation)
+        # Flush to persist the deletion within the current transaction,
+        # making it available for block computation without committing yet
+        session.flush()
+
+        # Refresh the item to get updated relationships for orphan detection
+        session.refresh(item)
+
+        # Delete any crew assignments that are now orphaned due to block boundary changes
+        deleted_assignment_ids = []
+        if isinstance(item, Props):
+            deleted_assignment_ids = delete_orphaned_assignments_for_prop(
+                session, item, show
+            )
+        elif isinstance(item, Scenery):
+            deleted_assignment_ids = delete_orphaned_assignments_for_scenery(
+                session, item, show
+            )
+
+        # Commit the entire operation atomically (allocation deletion + orphan deletions)
         session.commit()
 
         controller.set_status(200)
         await controller.finish({"message": "Successfully deleted allocation"})
 
         await controller.application.ws_send_to_all("NOOP", ws_action, {})
+
+        # Also notify about crew assignment changes if any were deleted
+        if deleted_assignment_ids:
+            await controller.application.ws_send_to_all(
+                "NOOP", "GET_CREW_ASSIGNMENTS", {}
+            )

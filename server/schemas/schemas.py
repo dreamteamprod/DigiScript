@@ -16,6 +16,7 @@ from models.session import Interval, Session, SessionTag, ShowSession
 from models.show import Act, Cast, Character, CharacterGroup, Scene, Show
 from models.stage import (
     Crew,
+    CrewAssignment,
     Props,
     PropsAllocation,
     PropType,
@@ -133,6 +134,14 @@ class PropsAllocationSchema(SQLAlchemyAutoSchema):
 class SceneryAllocationSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = SceneryAllocation
+        load_instance = True
+        include_fk = True
+
+
+@schema
+class CrewAssignmentSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = CrewAssignment
         load_instance = True
         include_fk = True
 
