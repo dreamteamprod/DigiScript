@@ -27,6 +27,6 @@ def find_end_modules(path, prefix=None):
     modules = find_modules(path, prefix)
     end_modules = []
     for module in modules:
-        if not any(x for x in modules if x != module and x.startswith(module)):
+        if not any(x for x in modules if x != module and x.startswith(module + ".")):
             end_modules.append(module)
     return end_modules
