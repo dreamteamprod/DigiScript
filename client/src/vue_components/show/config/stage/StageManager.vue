@@ -31,83 +31,298 @@
               Next Scene
             </b-button>
           </b-col>
-          <b-col cols="2">
-            <b-dropdown :disabled="orderedScenes.length === 0" right text="Add" variant="success">
-              <b-dropdown-item-button v-b-modal.add-scenery> Scenery </b-dropdown-item-button>
-              <b-dropdown-item-button v-b-modal.add-prop> Prop </b-dropdown-item-button>
-            </b-dropdown>
-          </b-col>
+          <b-col cols="2" />
         </b-row>
       </div>
-      <b-row style="margin-top: 0.5rem">
-        <b-col
-          cols="6"
-          style="border-right: 1px solid #dee2e6; margin-top: -0.5rem; padding-top: 0.5rem"
+      <!-- Allocations card -->
+      <b-card no-body class="section-card mt-2">
+        <b-card-header
+          class="section-card-header"
+          @click="allocationsExpanded = !allocationsExpanded"
         >
-          <h5>Scenery</h5>
-          <b-table
-            id="scenery-alloc-table"
-            :items="currentSceneSceneryAllocations"
-            :fields="sceneryAllocFields"
-            :per-page="rowsPerPage"
-            :current-page="currentSceneryAllocPage"
-            show-empty
-            empty-text="No scenery allocated to this scene"
-          >
-            <template #cell(scenery_name)="data">
-              {{ getSceneryById(data.item.scenery_id)?.name }}
-            </template>
-            <template #cell(scenery_type)="data">
-              {{ SCENERY_TYPE_BY_ID(getSceneryById(data.item.scenery_id)?.scenery_type_id)?.name }}
-            </template>
-            <template #cell(btn)="data">
-              <b-button variant="danger" size="sm" @click="deleteSceneryAllocation(data.item)">
-                Delete
-              </b-button>
-            </template>
-          </b-table>
-          <b-pagination
-            v-show="currentSceneSceneryAllocations.length > rowsPerPage"
-            v-model="currentSceneryAllocPage"
-            :total-rows="currentSceneSceneryAllocations.length"
-            :per-page="rowsPerPage"
-            aria-controls="scenery-alloc-table"
-            class="justify-content-center"
-          />
-        </b-col>
-        <b-col cols="6" style="margin-top: -0.5rem; padding-top: 0.5rem">
-          <h5>Props</h5>
-          <b-table
-            id="props-alloc-table"
-            :items="currentScenePropsAllocations"
-            :fields="propsAllocFields"
-            :per-page="rowsPerPage"
-            :current-page="currentPropsAllocPage"
-            show-empty
-            empty-text="No props allocated to this scene"
-          >
-            <template #cell(prop_name)="data">
-              {{ getPropById(data.item.props_id)?.name }}
-            </template>
-            <template #cell(prop_type)="data">
-              {{ PROP_TYPE_BY_ID(getPropById(data.item.props_id)?.prop_type_id)?.name }}
-            </template>
-            <template #cell(btn)="data">
-              <b-button variant="danger" size="sm" @click="deletePropAllocation(data.item)">
-                Delete
-              </b-button>
-            </template>
-          </b-table>
-          <b-pagination
-            v-show="currentScenePropsAllocations.length > rowsPerPage"
-            v-model="currentPropsAllocPage"
-            :total-rows="currentScenePropsAllocations.length"
-            :per-page="rowsPerPage"
-            aria-controls="props-alloc-table"
-            class="justify-content-center"
-          />
-        </b-col>
-      </b-row>
+          <div class="d-flex justify-content-between align-items-center">
+            <span>
+              Allocations
+              <b-badge variant="light" class="ml-1">
+                {{ currentSceneSceneryAllocations.length + currentScenePropsAllocations.length }}
+              </b-badge>
+            </span>
+            <b-icon-chevron-down v-if="!allocationsExpanded" font-scale="0.8" />
+            <b-icon-chevron-up v-else font-scale="0.8" />
+          </div>
+        </b-card-header>
+        <b-collapse :visible="allocationsExpanded">
+          <b-card-body>
+            <div class="d-flex justify-content-end mb-2">
+              <b-dropdown :disabled="orderedScenes.length === 0" right text="Add" variant="success">
+                <b-dropdown-item-button v-b-modal.add-scenery> Scenery </b-dropdown-item-button>
+                <b-dropdown-item-button v-b-modal.add-prop> Prop </b-dropdown-item-button>
+              </b-dropdown>
+            </div>
+            <b-row>
+              <b-col cols="6" style="border-right: 1px solid #dee2e6">
+                <h5>Scenery</h5>
+                <b-table
+                  id="scenery-alloc-table"
+                  :items="currentSceneSceneryAllocations"
+                  :fields="sceneryAllocFields"
+                  :per-page="rowsPerPage"
+                  :current-page="currentSceneryAllocPage"
+                  show-empty
+                  empty-text="No scenery allocated to this scene"
+                >
+                  <template #cell(scenery_name)="data">
+                    {{ getSceneryById(data.item.scenery_id)?.name }}
+                  </template>
+                  <template #cell(scenery_type)="data">
+                    {{
+                      SCENERY_TYPE_BY_ID(getSceneryById(data.item.scenery_id)?.scenery_type_id)
+                        ?.name
+                    }}
+                  </template>
+                  <template #cell(btn)="data">
+                    <b-button
+                      variant="danger"
+                      size="sm"
+                      @click="deleteSceneryAllocation(data.item)"
+                    >
+                      Delete
+                    </b-button>
+                  </template>
+                </b-table>
+                <b-pagination
+                  v-show="currentSceneSceneryAllocations.length > rowsPerPage"
+                  v-model="currentSceneryAllocPage"
+                  :total-rows="currentSceneSceneryAllocations.length"
+                  :per-page="rowsPerPage"
+                  aria-controls="scenery-alloc-table"
+                  class="justify-content-center"
+                />
+              </b-col>
+              <b-col cols="6">
+                <h5>Props</h5>
+                <b-table
+                  id="props-alloc-table"
+                  :items="currentScenePropsAllocations"
+                  :fields="propsAllocFields"
+                  :per-page="rowsPerPage"
+                  :current-page="currentPropsAllocPage"
+                  show-empty
+                  empty-text="No props allocated to this scene"
+                >
+                  <template #cell(prop_name)="data">
+                    {{ getPropById(data.item.props_id)?.name }}
+                  </template>
+                  <template #cell(prop_type)="data">
+                    {{ PROP_TYPE_BY_ID(getPropById(data.item.props_id)?.prop_type_id)?.name }}
+                  </template>
+                  <template #cell(btn)="data">
+                    <b-button variant="danger" size="sm" @click="deletePropAllocation(data.item)">
+                      Delete
+                    </b-button>
+                  </template>
+                </b-table>
+                <b-pagination
+                  v-show="currentScenePropsAllocations.length > rowsPerPage"
+                  v-model="currentPropsAllocPage"
+                  :total-rows="currentScenePropsAllocations.length"
+                  :per-page="rowsPerPage"
+                  aria-controls="props-alloc-table"
+                  class="justify-content-center"
+                />
+              </b-col>
+            </b-row>
+          </b-card-body>
+        </b-collapse>
+      </b-card>
+
+      <!-- SET card -->
+      <b-card v-if="setItems.length > 0" no-body class="section-card mt-2">
+        <b-card-header class="section-card-header" @click="setExpanded = !setExpanded">
+          <div class="d-flex justify-content-between align-items-center">
+            <span>
+              SET
+              <b-badge variant="light" class="ml-1">{{ setItems.length }}</b-badge>
+            </span>
+            <span class="d-flex align-items-center">
+              <b-badge v-if="unassignedSetCount > 0" variant="warning" class="mr-1">
+                {{ unassignedSetCount }} unassigned
+              </b-badge>
+              <b-icon-chevron-down v-if="!setExpanded" font-scale="0.8" />
+              <b-icon-chevron-up v-else font-scale="0.8" />
+            </span>
+          </div>
+        </b-card-header>
+        <b-collapse :visible="setExpanded">
+          <b-card-body class="crew-card-body">
+            <div class="boundary-items-grid">
+              <div
+                v-for="item in setItems"
+                :key="'set-' + item.itemType + '-' + item.itemId"
+                class="boundary-item"
+              >
+                <div class="boundary-item-header">
+                  <span class="item-name">{{ item.name }}</span>
+                  <b-badge variant="secondary" pill class="ml-1">{{ item.itemType }}</b-badge>
+                </div>
+                <div class="assignment-list">
+                  <span
+                    v-for="assignment in getAssignmentsForItem(item.itemId, item.itemType, 'set')"
+                    :key="assignment.id"
+                    class="crew-badge"
+                  >
+                    {{ formatCrewName(CREW_MEMBER_BY_ID(assignment.crew_id)) }}
+                    <b-button
+                      variant="link"
+                      size="sm"
+                      class="remove-btn text-danger p-0 ml-1"
+                      :disabled="savingAssignment"
+                      @click="removeCrewAssignment(assignment)"
+                    >
+                      <b-icon-x />
+                    </b-button>
+                  </span>
+                  <span
+                    v-if="getAssignmentsForItem(item.itemId, item.itemType, 'set').length === 0"
+                    class="text-muted small"
+                  >
+                    No crew assigned
+                  </span>
+                </div>
+                <div class="add-crew-container mt-1">
+                  <b-form-select
+                    :value="newCrewSelections[crewSelectionKey(item.itemId, item.itemType, 'set')]"
+                    :options="getAvailableCrewForItem(item.itemId, item.itemType, 'set')"
+                    :disabled="savingAssignment"
+                    size="sm"
+                    class="add-crew-select"
+                    @input="
+                      $set(
+                        newCrewSelections,
+                        crewSelectionKey(item.itemId, item.itemType, 'set'),
+                        $event
+                      )
+                    "
+                  >
+                    <template #first>
+                      <b-form-select-option :value="null" disabled>
+                        + Add crew
+                      </b-form-select-option>
+                    </template>
+                  </b-form-select>
+                  <b-button
+                    v-show="newCrewSelections[crewSelectionKey(item.itemId, item.itemType, 'set')]"
+                    variant="primary"
+                    size="sm"
+                    :disabled="savingAssignment"
+                    @click="addCrewAssignment(item.itemId, item.itemType, 'set')"
+                  >
+                    Add
+                  </b-button>
+                </div>
+              </div>
+            </div>
+          </b-card-body>
+        </b-collapse>
+      </b-card>
+
+      <!-- STRIKE card -->
+      <b-card v-if="strikeItems.length > 0" no-body class="section-card mt-2">
+        <b-card-header class="section-card-header" @click="strikeExpanded = !strikeExpanded">
+          <div class="d-flex justify-content-between align-items-center">
+            <span>
+              STRIKE
+              <b-badge variant="light" class="ml-1">{{ strikeItems.length }}</b-badge>
+            </span>
+            <span class="d-flex align-items-center">
+              <b-badge v-if="unassignedStrikeCount > 0" variant="warning" class="mr-1">
+                {{ unassignedStrikeCount }} unassigned
+              </b-badge>
+              <b-icon-chevron-down v-if="!strikeExpanded" font-scale="0.8" />
+              <b-icon-chevron-up v-else font-scale="0.8" />
+            </span>
+          </div>
+        </b-card-header>
+        <b-collapse :visible="strikeExpanded">
+          <b-card-body class="crew-card-body">
+            <div class="boundary-items-grid">
+              <div
+                v-for="item in strikeItems"
+                :key="'strike-' + item.itemType + '-' + item.itemId"
+                class="boundary-item"
+              >
+                <div class="boundary-item-header">
+                  <span class="item-name">{{ item.name }}</span>
+                  <b-badge variant="secondary" pill class="ml-1">{{ item.itemType }}</b-badge>
+                </div>
+                <div class="assignment-list">
+                  <span
+                    v-for="assignment in getAssignmentsForItem(
+                      item.itemId,
+                      item.itemType,
+                      'strike'
+                    )"
+                    :key="assignment.id"
+                    class="crew-badge"
+                  >
+                    {{ formatCrewName(CREW_MEMBER_BY_ID(assignment.crew_id)) }}
+                    <b-button
+                      variant="link"
+                      size="sm"
+                      class="remove-btn text-danger p-0 ml-1"
+                      :disabled="savingAssignment"
+                      @click="removeCrewAssignment(assignment)"
+                    >
+                      <b-icon-x />
+                    </b-button>
+                  </span>
+                  <span
+                    v-if="getAssignmentsForItem(item.itemId, item.itemType, 'strike').length === 0"
+                    class="text-muted small"
+                  >
+                    No crew assigned
+                  </span>
+                </div>
+                <div class="add-crew-container mt-1">
+                  <b-form-select
+                    :value="
+                      newCrewSelections[crewSelectionKey(item.itemId, item.itemType, 'strike')]
+                    "
+                    :options="getAvailableCrewForItem(item.itemId, item.itemType, 'strike')"
+                    :disabled="savingAssignment"
+                    size="sm"
+                    class="add-crew-select"
+                    @input="
+                      $set(
+                        newCrewSelections,
+                        crewSelectionKey(item.itemId, item.itemType, 'strike'),
+                        $event
+                      )
+                    "
+                  >
+                    <template #first>
+                      <b-form-select-option :value="null" disabled>
+                        + Add crew
+                      </b-form-select-option>
+                    </template>
+                  </b-form-select>
+                  <b-button
+                    v-show="
+                      newCrewSelections[crewSelectionKey(item.itemId, item.itemType, 'strike')]
+                    "
+                    variant="primary"
+                    size="sm"
+                    :disabled="savingAssignment"
+                    @click="addCrewAssignment(item.itemId, item.itemType, 'strike')"
+                  >
+                    Add
+                  </b-button>
+                </div>
+              </div>
+            </div>
+          </b-card-body>
+        </b-collapse>
+      </b-card>
       <b-modal
         id="go-to-scene"
         ref="go-to-scene"
@@ -244,6 +459,11 @@ export default {
       },
       addSceneryFormState: { scenery_id: null },
       addPropFormState: { props_id: null },
+      savingAssignment: false,
+      newCrewSelections: {},
+      allocationsExpanded: true,
+      setExpanded: false,
+      strikeExpanded: false,
       rowsPerPage: 10,
       currentSceneryAllocPage: 1,
       currentPropsAllocPage: 1,
@@ -338,6 +558,83 @@ export default {
           .map((p) => ({ value: p.id, text: p.name })),
       })).filter((group) => group.options.length > 0);
     },
+    previousSceneInAct() {
+      if (this.currentSceneIndex <= 0 || !this.currentScene) return null;
+      const prev = this.orderedScenes[this.currentSceneIndex - 1];
+      return prev && prev.act === this.currentScene.act ? prev : null;
+    },
+    nextSceneInAct() {
+      if (!this.currentScene || this.currentSceneIndex >= this.orderedScenes.length - 1)
+        return null;
+      const next = this.orderedScenes[this.currentSceneIndex + 1];
+      return next && next.act === this.currentScene.act ? next : null;
+    },
+    setItems() {
+      if (!this.currentScene) return [];
+      const items = [];
+      const sceneId = this.currentScene.id;
+      const prevSceneId = this.previousSceneInAct?.id;
+
+      for (const scenery of this.SCENERY_LIST) {
+        const allocs = this.SCENERY_ALLOCATIONS_BY_ITEM[scenery.id] || [];
+        const inCurrent = allocs.some((a) => a.scene_id === sceneId);
+        if (!inCurrent) continue;
+        const inPrev = prevSceneId && allocs.some((a) => a.scene_id === prevSceneId);
+        if (!inPrev) {
+          items.push({ itemId: scenery.id, itemType: 'scenery', name: scenery.name });
+        }
+      }
+
+      for (const prop of this.PROPS_LIST) {
+        const allocs = this.PROPS_ALLOCATIONS_BY_ITEM[prop.id] || [];
+        const inCurrent = allocs.some((a) => a.scene_id === sceneId);
+        if (!inCurrent) continue;
+        const inPrev = prevSceneId && allocs.some((a) => a.scene_id === prevSceneId);
+        if (!inPrev) {
+          items.push({ itemId: prop.id, itemType: 'prop', name: prop.name });
+        }
+      }
+
+      return items;
+    },
+    strikeItems() {
+      if (!this.currentScene) return [];
+      const items = [];
+      const sceneId = this.currentScene.id;
+      const nextSceneId = this.nextSceneInAct?.id;
+
+      for (const scenery of this.SCENERY_LIST) {
+        const allocs = this.SCENERY_ALLOCATIONS_BY_ITEM[scenery.id] || [];
+        const inCurrent = allocs.some((a) => a.scene_id === sceneId);
+        if (!inCurrent) continue;
+        const inNext = nextSceneId && allocs.some((a) => a.scene_id === nextSceneId);
+        if (!inNext) {
+          items.push({ itemId: scenery.id, itemType: 'scenery', name: scenery.name });
+        }
+      }
+
+      for (const prop of this.PROPS_LIST) {
+        const allocs = this.PROPS_ALLOCATIONS_BY_ITEM[prop.id] || [];
+        const inCurrent = allocs.some((a) => a.scene_id === sceneId);
+        if (!inCurrent) continue;
+        const inNext = nextSceneId && allocs.some((a) => a.scene_id === nextSceneId);
+        if (!inNext) {
+          items.push({ itemId: prop.id, itemType: 'prop', name: prop.name });
+        }
+      }
+
+      return items;
+    },
+    unassignedSetCount() {
+      return this.setItems.filter(
+        (item) => this.getAssignmentsForItem(item.itemId, item.itemType, 'set').length === 0
+      ).length;
+    },
+    unassignedStrikeCount() {
+      return this.strikeItems.filter(
+        (item) => this.getAssignmentsForItem(item.itemId, item.itemType, 'strike').length === 0
+      ).length;
+    },
     currentSceneSceneryAllocations() {
       if (!this.currentScene) return [];
       return this.SCENERY_ALLOCATIONS.filter((a) => a.scene_id === this.currentScene.id);
@@ -353,10 +650,16 @@ export default {
       'SCENERY_TYPES',
       'SCENERY_TYPE_BY_ID',
       'SCENERY_ALLOCATIONS',
+      'SCENERY_ALLOCATIONS_BY_ITEM',
       'PROPS_LIST',
       'PROP_TYPES',
       'PROP_TYPE_BY_ID',
       'PROPS_ALLOCATIONS',
+      'PROPS_ALLOCATIONS_BY_ITEM',
+      'CREW_LIST',
+      'CREW_MEMBER_BY_ID',
+      'CREW_ASSIGNMENTS_BY_PROP',
+      'CREW_ASSIGNMENTS_BY_SCENERY',
     ]),
   },
   async mounted() {
@@ -369,6 +672,8 @@ export default {
       this.GET_PROP_TYPES(),
       this.GET_PROPS_LIST(),
       this.GET_PROPS_ALLOCATIONS(),
+      this.GET_CREW_LIST(),
+      this.GET_CREW_ASSIGNMENTS(),
     ]);
     this.loaded = true;
     this.calculateNavbarHeight();
@@ -463,6 +768,75 @@ export default {
       });
       this.resetAddPropForm();
     },
+    getAssignmentsForItem(itemId, itemType, assignmentType) {
+      const assignments =
+        itemType === 'prop'
+          ? this.CREW_ASSIGNMENTS_BY_PROP[itemId] || []
+          : this.CREW_ASSIGNMENTS_BY_SCENERY[itemId] || [];
+      return assignments.filter(
+        (a) => a.assignment_type === assignmentType && a.scene_id === this.currentScene?.id
+      );
+    },
+    getAvailableCrewForItem(itemId, itemType, assignmentType) {
+      const assigned = new Set(
+        this.getAssignmentsForItem(itemId, itemType, assignmentType).map((a) => a.crew_id)
+      );
+      return this.CREW_LIST.filter((c) => !assigned.has(c.id)).map((c) => ({
+        value: c.id,
+        text: this.formatCrewName(c),
+      }));
+    },
+    formatCrewName(crew) {
+      if (!crew) return 'Unknown';
+      return crew.last_name ? `${crew.first_name} ${crew.last_name}` : crew.first_name;
+    },
+    crewSelectionKey(itemId, itemType, assignmentType) {
+      return `${itemType}-${itemId}-${assignmentType}`;
+    },
+    async addCrewAssignment(itemId, itemType, assignmentType) {
+      const key = this.crewSelectionKey(itemId, itemType, assignmentType);
+      const crewId = this.newCrewSelections[key];
+      if (!crewId || !this.currentScene || this.savingAssignment) return;
+
+      this.savingAssignment = true;
+      try {
+        const assignment = {
+          crew_id: crewId,
+          scene_id: this.currentScene.id,
+          assignment_type: assignmentType,
+        };
+        if (itemType === 'prop') {
+          assignment.prop_id = itemId;
+        } else {
+          assignment.scenery_id = itemId;
+        }
+
+        const result = await this.ADD_CREW_ASSIGNMENT(assignment);
+        if (result.success) {
+          this.$set(this.newCrewSelections, key, null);
+        }
+      } finally {
+        this.savingAssignment = false;
+      }
+    },
+    async removeCrewAssignment(assignment) {
+      if (this.savingAssignment) return;
+
+      const crew = this.CREW_MEMBER_BY_ID(assignment.crew_id);
+      const crewName = this.formatCrewName(crew);
+      const confirmed = await this.$bvModal.msgBoxConfirm(
+        `Remove ${crewName} from this ${assignment.assignment_type.toUpperCase()} assignment?`,
+        { okTitle: 'Remove', okVariant: 'danger' }
+      );
+      if (confirmed) {
+        this.savingAssignment = true;
+        try {
+          await this.DELETE_CREW_ASSIGNMENT(assignment.id);
+        } finally {
+          this.savingAssignment = false;
+        }
+      }
+    },
     getSceneryById(id) {
       return this.SCENERY_LIST.find((s) => s.id === id);
     },
@@ -498,6 +872,10 @@ export default {
       'GET_PROPS_ALLOCATIONS',
       'ADD_PROPS_ALLOCATION',
       'DELETE_PROPS_ALLOCATION',
+      'GET_CREW_LIST',
+      'GET_CREW_ASSIGNMENTS',
+      'ADD_CREW_ASSIGNMENT',
+      'DELETE_CREW_ASSIGNMENT',
     ]),
   },
 };
@@ -514,5 +892,60 @@ export default {
   padding: 10px 0;
   border-bottom: 1px solid #dee2e6;
   background: var(--body-background);
+}
+
+.section-card-header {
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.crew-card-body {
+  padding: 0.75rem;
+}
+
+.boundary-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.5rem;
+}
+
+.boundary-item {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.boundary-item-header {
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.assignment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.crew-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.8rem;
+}
+
+.add-crew-container {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.add-crew-select {
+  flex: 1;
 }
 </style>
