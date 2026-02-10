@@ -3,138 +3,150 @@
     <div v-if="loading" class="text-center py-5">
       <b-spinner label="Loading timeline..." />
     </div>
-    <div v-else class="timeline-wrapper">
-      <div class="timeline-controls-bar">
-        <b-button-group>
-          <b-button
-            :variant="viewMode === 'combined' ? 'primary' : 'outline-primary'"
-            size="sm"
-            @click="viewMode = 'combined'"
-          >
-            Combined
-          </b-button>
-          <b-button
-            :variant="viewMode === 'props' ? 'primary' : 'outline-primary'"
-            size="sm"
-            @click="viewMode = 'props'"
-          >
-            Props
-          </b-button>
-          <b-button
-            :variant="viewMode === 'scenery' ? 'primary' : 'outline-primary'"
-            size="sm"
-            @click="viewMode = 'scenery'"
-          >
-            Scenery
-          </b-button>
-        </b-button-group>
-        <b-button size="sm" variant="outline-secondary" title="Export as PNG" @click="handleExport">
-          <b-icon-download />
-        </b-button>
-      </div>
-      <div class="svg-container">
-        <div v-if="!hasData" class="text-center py-5 text-muted">
-          No allocation data to display for this view
-        </div>
-        <svg v-else ref="svg" :width="totalWidth" :height="totalHeight" class="timeline-svg">
-          <g class="act-labels" :transform="`translate(${margin.left},0)`">
-            <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">
-              <rect
-                :x="actGroup.startX"
-                :y="5"
-                :width="actGroup.width"
-                :height="25"
-                class="act-header"
-              />
-              <text
-                :x="actGroup.startX + actGroup.width / 2"
-                :y="22"
-                class="act-label"
-                text-anchor="middle"
-              >
-                {{ actGroup.actName }}
-              </text>
-            </g>
-          </g>
-          <g class="scene-labels" :transform="`translate(${margin.left},${margin.top})`">
-            <text
-              v-for="(scene, index) in scenes"
-              :key="`scene-label-${scene.id}`"
-              :x="getSceneX(index) + sceneWidth / 2"
-              :y="-10"
-              class="scene-label"
-              text-anchor="middle"
+    <div v-else class="timeline-with-panel">
+      <div class="timeline-wrapper">
+        <div class="timeline-controls-bar">
+          <b-button-group>
+            <b-button
+              :variant="viewMode === 'combined' ? 'primary' : 'outline-primary'"
+              size="sm"
+              @click="viewMode = 'combined'"
             >
-              {{ scene.name }}
-            </text>
-          </g>
-          <g :transform="`translate(${margin.left},${margin.top})`">
-            <g class="scene-dividers">
-              <line
-                v-for="(scene, index) in scenes"
-                :key="`divider-${scene.id}`"
-                :x1="getSceneX(index)"
-                :y1="0"
-                :x2="getSceneX(index)"
-                :y2="contentHeight"
-                class="scene-divider"
-              />
-            </g>
-            <g class="allocation-bars">
-              <g v-for="bar in allocationBars" :key="bar.id">
+              Combined
+            </b-button>
+            <b-button
+              :variant="viewMode === 'props' ? 'primary' : 'outline-primary'"
+              size="sm"
+              @click="viewMode = 'props'"
+            >
+              Props
+            </b-button>
+            <b-button
+              :variant="viewMode === 'scenery' ? 'primary' : 'outline-primary'"
+              size="sm"
+              @click="viewMode = 'scenery'"
+            >
+              Scenery
+            </b-button>
+          </b-button-group>
+          <b-button
+            size="sm"
+            variant="outline-secondary"
+            title="Export as PNG"
+            @click="handleExport"
+          >
+            <b-icon-download />
+          </b-button>
+        </div>
+        <div class="svg-container">
+          <div v-if="!hasData" class="text-center py-5 text-muted">
+            No allocation data to display for this view
+          </div>
+          <svg v-else ref="svg" :width="totalWidth" :height="totalHeight" class="timeline-svg">
+            <g class="act-labels" :transform="`translate(${margin.left},0)`">
+              <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">
                 <rect
-                  :x="bar.x"
-                  :y="bar.y"
-                  :width="bar.width"
-                  :height="bar.height"
-                  :fill="bar.color"
-                  class="allocation-bar"
-                  @click="handleBarClick(bar)"
-                  @mouseenter="handleBarHover(bar, $event)"
-                  @mouseleave="handleBarLeave()"
+                  :x="actGroup.startX"
+                  :y="5"
+                  :width="actGroup.width"
+                  :height="25"
+                  class="act-header"
                 />
-                <title>{{ bar.tooltip }}</title>
                 <text
-                  v-if="bar.width >= 30"
-                  :x="bar.x + bar.width / 2"
-                  :y="bar.y + bar.height / 2"
-                  class="bar-label"
+                  :x="actGroup.startX + actGroup.width / 2"
+                  :y="22"
+                  class="act-label"
                   text-anchor="middle"
-                  dominant-baseline="middle"
-                  pointer-events="none"
-                  :style="{ fontSize: Math.min(12, (bar.width / bar.label.length) * 1.5) + 'px' }"
                 >
-                  {{ bar.label }}
+                  {{ actGroup.actName }}
                 </text>
               </g>
             </g>
-            <g class="row-separators">
-              <line
-                v-for="(row, index) in rows"
-                :key="`separator-${row.id}`"
-                :x1="0"
-                :y1="getRowY(index) + rowHeight"
-                :x2="contentWidth"
-                :y2="getRowY(index) + rowHeight"
-                class="row-separator"
-              />
-            </g>
-            <g class="row-labels">
+            <g class="scene-labels" :transform="`translate(${margin.left},${margin.top})`">
               <text
-                v-for="(row, index) in rows"
-                :key="`row-label-${row.id}`"
-                :x="-10"
-                :y="getRowY(index) + rowHeight / 2"
-                class="row-label"
-                text-anchor="end"
-                dominant-baseline="middle"
+                v-for="(scene, index) in scenes"
+                :key="`scene-label-${scene.id}`"
+                :x="getSceneX(index) + sceneWidth / 2"
+                :y="-10"
+                class="scene-label"
+                text-anchor="middle"
               >
-                {{ row.name }}
+                {{ scene.name }}
               </text>
             </g>
-          </g>
-        </svg>
+            <g :transform="`translate(${margin.left},${margin.top})`">
+              <g class="scene-dividers">
+                <line
+                  v-for="(scene, index) in scenes"
+                  :key="`divider-${scene.id}`"
+                  :x1="getSceneX(index)"
+                  :y1="0"
+                  :x2="getSceneX(index)"
+                  :y2="contentHeight"
+                  class="scene-divider"
+                />
+              </g>
+              <g class="allocation-bars">
+                <g v-for="bar in allocationBars" :key="bar.id">
+                  <rect
+                    :x="bar.x"
+                    :y="bar.y"
+                    :width="bar.width"
+                    :height="bar.height"
+                    :fill="bar.color"
+                    :class="['allocation-bar', { selected: isBarSelected(bar) }]"
+                    @click="handleBarClick(bar)"
+                    @mouseenter="handleBarHover(bar, $event)"
+                    @mouseleave="handleBarLeave()"
+                  />
+                  <title>{{ bar.tooltip }}</title>
+                  <text
+                    v-if="bar.width >= 30"
+                    :x="bar.x + bar.width / 2"
+                    :y="bar.y + bar.height / 2"
+                    class="bar-label"
+                    text-anchor="middle"
+                    dominant-baseline="middle"
+                    pointer-events="none"
+                    :style="{ fontSize: Math.min(12, (bar.width / bar.label.length) * 1.5) + 'px' }"
+                  >
+                    {{ bar.label }}
+                  </text>
+                </g>
+              </g>
+              <g class="row-separators">
+                <line
+                  v-for="(row, index) in rows"
+                  :key="`separator-${row.id}`"
+                  :x1="0"
+                  :y1="getRowY(index) + rowHeight"
+                  :x2="contentWidth"
+                  :y2="getRowY(index) + rowHeight"
+                  class="row-separator"
+                />
+              </g>
+              <g class="row-labels">
+                <text
+                  v-for="(row, index) in rows"
+                  :key="`row-label-${row.id}`"
+                  :x="-10"
+                  :y="getRowY(index) + rowHeight / 2"
+                  class="row-label"
+                  text-anchor="end"
+                  dominant-baseline="middle"
+                >
+                  {{ row.name }}
+                </text>
+              </g>
+            </g>
+          </svg>
+        </div>
       </div>
+      <TimelineSidePanel
+        :selected-item="selectedItem"
+        :is-open="sidePanelOpen"
+        @close="closeSidePanel"
+      />
     </div>
   </div>
 </template>
@@ -142,9 +154,13 @@
 <script>
 import { mapGetters, mapActions } from 'vuex';
 import timelineMixin from '@/mixins/timelineMixin';
+import TimelineSidePanel from './TimelineSidePanel.vue';
 
 export default {
   name: 'StageTimeline',
+  components: {
+    TimelineSidePanel,
+  },
   mixins: [timelineMixin],
   props: {
     loading: {
@@ -156,6 +172,8 @@ export default {
     return {
       viewMode: 'combined',
       dataLoaded: false,
+      selectedItem: null,
+      sidePanelOpen: false,
     };
   },
   computed: {
@@ -230,6 +248,8 @@ export default {
       'GET_SCENE_LIST',
       'GET_PROP_TYPES',
       'GET_SCENERY_TYPES',
+      'GET_CREW_LIST',
+      'GET_CREW_ASSIGNMENTS',
     ]),
     async loadData() {
       await Promise.all([
@@ -241,6 +261,8 @@ export default {
         this.GET_SCENERY_LIST(),
         this.GET_PROPS_ALLOCATIONS(),
         this.GET_SCENERY_ALLOCATIONS(),
+        this.GET_CREW_LIST(),
+        this.GET_CREW_ASSIGNMENTS(),
       ]);
       this.dataLoaded = true;
     },
@@ -301,6 +323,8 @@ export default {
       this.exportTimeline('stage-timeline', viewModeNames[this.viewMode]);
     },
     handleBarClick(bar) {
+      this.selectedItem = bar.data;
+      this.sidePanelOpen = true;
       this.$emit('bar-click', bar.data);
     },
     handleBarHover(bar, event) {
@@ -309,10 +333,50 @@ export default {
     handleBarLeave() {
       this.$emit('bar-leave');
     },
+    closeSidePanel() {
+      this.sidePanelOpen = false;
+      this.selectedItem = null;
+    },
+    isBarSelected(bar) {
+      if (!this.selectedItem) return false;
+      return (
+        this.selectedItem.type === bar.data.type &&
+        this.selectedItem.itemId === bar.data.itemId &&
+        this.selectedItem.startScene === bar.data.startScene &&
+        this.selectedItem.endScene === bar.data.endScene
+      );
+    },
   },
 };
 </script>
 
 <style lang="scss">
 @use '@/assets/styles/timeline';
+
+.timeline-with-panel {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.timeline-wrapper {
+  flex: 1;
+  overflow: auto;
+  min-width: 0;
+}
+
+.allocation-bar {
+  cursor: pointer;
+  transition: stroke-width 0.15s ease;
+
+  &.selected {
+    stroke: #212529;
+    stroke-width: 3px;
+  }
+
+  &:hover:not(.selected) {
+    stroke: #495057;
+    stroke-width: 2px;
+  }
+}
 </style>

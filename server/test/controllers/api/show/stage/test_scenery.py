@@ -719,9 +719,8 @@ class TestSceneryController(DigiScriptTestCase):
             headers={"Authorization": f"Bearer {self.token}"},
         )
         self.assertEqual(400, response.code)
-        # Note: The controller has a typo in the error message
         response_body = tornado.escape.json_decode(response.body)
-        self.assertIn("Scenery prop type ID", response_body["message"])
+        self.assertIn("Invalid scenery type ID", response_body["message"])
 
     def test_create_scenery_scenery_type_not_found(self):
         """Test POST returns 404 for non-existent scenery type."""
@@ -922,9 +921,8 @@ class TestSceneryController(DigiScriptTestCase):
             headers={"Authorization": f"Bearer {self.token}"},
         )
         self.assertEqual(400, response.code)
-        # Note: The controller has a typo in the error message
         response_body = tornado.escape.json_decode(response.body)
-        self.assertIn("Scenery prop type ID", response_body["message"])
+        self.assertIn("Invalid scenery type ID", response_body["message"])
 
     def test_update_scenery_scenery_type_not_found(self):
         """Test PATCH returns 404 for non-existent scenery type."""
