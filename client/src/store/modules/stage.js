@@ -589,6 +589,16 @@ export default {
       });
       return result;
     },
+    CREW_ASSIGNMENTS_BY_CREW(state) {
+      const result = {};
+      state.crewAssignments.forEach((assignment) => {
+        if (!result[assignment.crew_id]) {
+          result[assignment.crew_id] = [];
+        }
+        result[assignment.crew_id].push(assignment);
+      });
+      return result;
+    },
     CREW_ASSIGNMENTS_BY_SCENE(state) {
       const result = {};
       state.crewAssignments.forEach((assignment) => {

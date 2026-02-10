@@ -16,7 +16,14 @@
             <stage-manager />
           </b-tab>
           <b-tab title="Timeline">
-            <stage-timeline />
+            <b-tabs content-class="mt-2">
+              <b-tab title="Props & Scenery" active>
+                <stage-timeline />
+              </b-tab>
+              <b-tab title="Crew" lazy>
+                <crew-timeline />
+              </b-tab>
+            </b-tabs>
           </b-tab>
         </b-tabs>
       </b-col>
@@ -30,6 +37,7 @@ import SceneryList from '@/vue_components/show/config/stage/SceneryList.vue';
 import PropsList from '@/vue_components/show/config/stage/PropsList.vue';
 import StageManager from '@/vue_components/show/config/stage/StageManager.vue';
 import StageTimeline from '@/vue_components/show/config/stage/StageTimeline.vue';
+import CrewTimeline from '@/vue_components/show/config/stage/CrewTimeline.vue';
 
 export default {
   name: 'ConfigCrew',
@@ -39,6 +47,7 @@ export default {
     SceneryList,
     CrewList,
     StageTimeline,
+    CrewTimeline,
   },
 };
 </script>

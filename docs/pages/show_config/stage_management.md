@@ -121,3 +121,23 @@ The **Timeline** tab provides a visual overview of all props and scenery allocat
    - Which scenes have the most items
    - Which items are used in which scenes
    - Potential conflicts or busy changeover points
+
+##### Crew Timeline
+
+The **Timeline** tab includes a **Crew** sub-tab (navigate to **Timeline** → **Crew**) that displays a crew-centric visual grid showing all SET and STRIKE assignments across the show:
+
+- **Rows** represent crew members (only those with at least one assignment are shown)
+- **Columns** represent scenes, grouped by act
+- **Bars** are color-coded by the prop or scenery item, with **▲** for SET and **▼** for STRIKE
+- When a crew member has multiple assignments in the same scene, bars stack vertically
+
+###### Conflict Indicators
+
+The timeline highlights potential scheduling problems based on **distinct items** — SET and STRIKE of the same item in a scene is the normal lifecycle and is not treated as a conflict:
+
+- **Red border** (hard conflict): A crew member is assigned to **two or more different items** in the same scene (e.g., SET Chair + SET Table)
+- **Orange dashed border** (soft conflict): A crew member has assignments in adjacent scenes within the same act involving **different items**, which may leave insufficient changeover time (e.g., SET Chair in Scene 1 + SET Table in Scene 2). If both scenes involve exactly the same items, no soft conflict is raised.
+
+Act boundaries are not treated as soft conflicts, since intermissions provide natural gaps.
+
+Click the **Export** button to save the crew timeline as a PNG image.
