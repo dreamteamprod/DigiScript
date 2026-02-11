@@ -356,6 +356,7 @@ export default {
           }
           return Promise.resolve();
         }),
+      this.GET_SCRIPT_REVISIONS(),
       this.GET_SCRIPT_CONFIG_STATUS(),
       this.GET_ACT_LIST(),
       this.GET_SCENE_LIST(),
@@ -1089,6 +1090,7 @@ export default {
       'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
       'GET_CUE_COLOUR_OVERRIDES',
       'GET_USER_SETTINGS',
+      'GET_SCRIPT_REVISIONS',
       'JOIN_DRAFT_ROOM',
       'LEAVE_DRAFT_ROOM',
     ]),
