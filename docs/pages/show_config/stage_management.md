@@ -92,6 +92,12 @@ To remove an allocation, click the **Delete** button next to the item.
 
 **Note**: Each prop or scenery item can only be allocated to one scene at a time, reflecting the physical constraint that an item can only be in one place.
 
+##### Crew Assignment Warnings
+
+When adding or removing an allocation that changes the boundaries of an allocation block, any crew assignments on the affected boundaries will be removed. A warning dialog will appear listing the specific crew assignments that will be affected, giving you the opportunity to cancel or proceed.
+
+For example, if a chair is allocated to Scenes 1-3 with Alice assigned to SET (Scene 1), removing Scene 1's allocation shifts the SET boundary to Scene 2. The warning dialog will list "Chair - SET (Scene 1): Alice" as an assignment that will be removed. After proceeding, you can reassign crew to the new boundaries.
+
 #### Stage Timeline
 
 The **Timeline** tab provides a visual overview of all props and scenery allocations across the entire show:
@@ -141,3 +147,9 @@ The timeline highlights potential scheduling problems based on **distinct items*
 Act boundaries are not treated as soft conflicts, since intermissions provide natural gaps.
 
 Click the **Export** button to save the crew timeline as a PNG image.
+
+#### Plan Modal (Live Show View)
+
+During a live show, the Stage Manager pane's **Plan** button opens a modal showing what items are being set and struck for a given scene. When crew members have been assigned to SET or STRIKE operations, their names appear in italics beneath each item in the Plan modal.
+
+This allows stage crew to quickly see who is responsible for each item during scene changes without navigating away from the live show view. Items with no crew assigned show no additional text.

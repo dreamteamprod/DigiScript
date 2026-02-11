@@ -446,6 +446,7 @@
 import { required } from 'vuelidate/lib/validators';
 import { mapActions, mapGetters } from 'vuex';
 import { notNull } from '@/js/customValidators';
+import { findOrphanedAssignments } from '@/js/blockOrphanUtils';
 
 export default {
   name: 'StageManager',
@@ -740,11 +741,30 @@ export default {
         event.preventDefault();
         return;
       }
-      await this.ADD_SCENERY_ALLOCATION({
-        scenery_id: this.addSceneryFormState.scenery_id,
-        scene_id: this.currentScene.id,
-      });
-      this.resetAddSceneryForm();
+      const sceneryId = this.addSceneryFormState.scenery_id;
+      const orphans = this.findOrphansForItem(sceneryId, 'scenery', 'add', this.currentScene.id);
+      if (orphans.length > 0) {
+        event.preventDefault();
+        const msgVNode = this.buildOrphanWarningVNode(orphans);
+        const confirmed = await this.$bvModal.msgBoxConfirm([msgVNode], {
+          title: 'Crew assignments will be removed',
+          okTitle: 'Continue',
+          okVariant: 'warning',
+        });
+        if (confirmed !== true) return;
+        await this.ADD_SCENERY_ALLOCATION({
+          scenery_id: sceneryId,
+          scene_id: this.currentScene.id,
+        });
+        this.resetAddSceneryForm();
+        this.$bvModal.hide('add-scenery');
+      } else {
+        await this.ADD_SCENERY_ALLOCATION({
+          scenery_id: sceneryId,
+          scene_id: this.currentScene.id,
+        });
+        this.resetAddSceneryForm();
+      }
     },
     resetAddPropForm() {
       this.addPropFormState = { props_id: null };
@@ -762,11 +782,30 @@ export default {
         event.preventDefault();
         return;
       }
-      await this.ADD_PROPS_ALLOCATION({
-        props_id: this.addPropFormState.props_id,
-        scene_id: this.currentScene.id,
-      });
-      this.resetAddPropForm();
+      const propsId = this.addPropFormState.props_id;
+      const orphans = this.findOrphansForItem(propsId, 'prop', 'add', this.currentScene.id);
+      if (orphans.length > 0) {
+        event.preventDefault();
+        const msgVNode = this.buildOrphanWarningVNode(orphans);
+        const confirmed = await this.$bvModal.msgBoxConfirm([msgVNode], {
+          title: 'Crew assignments will be removed',
+          okTitle: 'Continue',
+          okVariant: 'warning',
+        });
+        if (confirmed !== true) return;
+        await this.ADD_PROPS_ALLOCATION({
+          props_id: propsId,
+          scene_id: this.currentScene.id,
+        });
+        this.resetAddPropForm();
+        this.$bvModal.hide('add-prop');
+      } else {
+        await this.ADD_PROPS_ALLOCATION({
+          props_id: propsId,
+          scene_id: this.currentScene.id,
+        });
+        this.resetAddPropForm();
+      }
     },
     getAssignmentsForItem(itemId, itemType, assignmentType) {
       const assignments =
@@ -843,21 +882,98 @@ export default {
     getPropById(id) {
       return this.PROPS_LIST.find((p) => p.id === id);
     },
+    getItemAllocationsForScenery(sceneryId) {
+      return this.SCENERY_ALLOCATIONS.filter((a) => a.scenery_id === sceneryId);
+    },
+    getItemAllocationsForProp(propId) {
+      return this.PROPS_ALLOCATIONS.filter((a) => a.props_id === propId);
+    },
+    findOrphansForItem(itemId, itemType, changeType, sceneId) {
+      const allocations =
+        itemType === 'scenery'
+          ? this.getItemAllocationsForScenery(itemId)
+          : this.getItemAllocationsForProp(itemId);
+      const crewAssignments =
+        itemType === 'scenery'
+          ? this.CREW_ASSIGNMENTS_BY_SCENERY[itemId] || []
+          : this.CREW_ASSIGNMENTS_BY_PROP[itemId] || [];
+      return findOrphanedAssignments({
+        orderedScenes: this.orderedScenes,
+        currentAllocations: allocations,
+        crewAssignments,
+        changeType,
+        changeSceneId: sceneId,
+      });
+    },
+    buildOrphanWarningVNode(orphanedAssignments) {
+      const h = this.$createElement;
+      const groups = {};
+      for (const assignment of orphanedAssignments) {
+        const itemName =
+          assignment.prop_id != null
+            ? this.getPropById(assignment.prop_id)?.name || 'Unknown Prop'
+            : this.getSceneryById(assignment.scenery_id)?.name || 'Unknown Scenery';
+        const scene = this.orderedScenes.find((s) => s.id === assignment.scene_id);
+        const sceneName = scene?.name || 'Unknown Scene';
+        const key = `${itemName} - ${assignment.assignment_type.toUpperCase()} (${sceneName})`;
+        if (!groups[key]) groups[key] = [];
+        const crew = this.CREW_MEMBER_BY_ID(assignment.crew_id);
+        groups[key].push(this.formatCrewName(crew));
+      }
+      const items = Object.entries(groups).map(([label, names]) =>
+        h('li', {}, `${label}: ${names.join(', ')}`)
+      );
+      return h('div', {}, [
+        h('p', {}, 'This action will remove the following crew assignments:'),
+        h('ul', { class: 'mb-2' }, items),
+        h('p', { class: 'text-muted mb-0' }, 'You can reassign crew after the change.'),
+      ]);
+    },
     async deleteSceneryAllocation(allocation) {
       const scenery = this.getSceneryById(allocation.scenery_id);
-      const msg = `Remove "${scenery?.name}" from this scene?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
-      if (action === true) {
-        await this.DELETE_SCENERY_ALLOCATION(allocation.id);
+      const orphans = this.findOrphansForItem(
+        allocation.scenery_id,
+        'scenery',
+        'remove',
+        this.currentScene.id
+      );
+      if (orphans.length > 0) {
+        const msgVNode = this.buildOrphanWarningVNode(orphans);
+        const action = await this.$bvModal.msgBoxConfirm([msgVNode], {
+          title: 'Crew assignments will be removed',
+          okTitle: 'Continue',
+          okVariant: 'danger',
+        });
+        if (action !== true) return;
+      } else {
+        const msg = `Remove "${scenery?.name}" from this scene?`;
+        const action = await this.$bvModal.msgBoxConfirm(msg, {});
+        if (action !== true) return;
       }
+      await this.DELETE_SCENERY_ALLOCATION(allocation.id);
     },
     async deletePropAllocation(allocation) {
       const prop = this.getPropById(allocation.props_id);
-      const msg = `Remove "${prop?.name}" from this scene?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
-      if (action === true) {
-        await this.DELETE_PROPS_ALLOCATION(allocation.id);
+      const orphans = this.findOrphansForItem(
+        allocation.props_id,
+        'prop',
+        'remove',
+        this.currentScene.id
+      );
+      if (orphans.length > 0) {
+        const msgVNode = this.buildOrphanWarningVNode(orphans);
+        const action = await this.$bvModal.msgBoxConfirm([msgVNode], {
+          title: 'Crew assignments will be removed',
+          okTitle: 'Continue',
+          okVariant: 'danger',
+        });
+        if (action !== true) return;
+      } else {
+        const msg = `Remove "${prop?.name}" from this scene?`;
+        const action = await this.$bvModal.msgBoxConfirm(msg, {});
+        if (action !== true) return;
       }
+      await this.DELETE_PROPS_ALLOCATION(allocation.id);
     },
     ...mapActions([
       'GET_ACT_LIST',
