@@ -6,6 +6,7 @@ import { makeURL } from '@/js/utils';
 export default {
   state: {
     crewList: [],
+    crewAssignments: [],
     sceneryTypes: [],
     sceneryList: [],
     sceneryAllocations: [],
@@ -16,6 +17,9 @@ export default {
   mutations: {
     SET_CREW_LIST(state, crewList) {
       state.crewList = crewList;
+    },
+    SET_CREW_ASSIGNMENTS(state, assignments) {
+      state.crewAssignments = assignments;
     },
     SET_SCENERY_TYPES(state, sceneryTypes) {
       state.sceneryTypes = sceneryTypes;
@@ -427,6 +431,56 @@ export default {
         Vue.$toast.error('Unable to delete scenery allocation');
       }
     },
+    async GET_CREW_ASSIGNMENTS(context) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/crew/assignments')}`);
+      if (response.ok) {
+        const data = await response.json();
+        context.commit('SET_CREW_ASSIGNMENTS', data.assignments);
+      } else {
+        log.error('Unable to get crew assignments');
+      }
+    },
+    async ADD_CREW_ASSIGNMENT(context, assignment) {
+      const response = await fetch(`${makeURL('/api/v1/show/stage/crew/assignments')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(assignment),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CREW_ASSIGNMENTS');
+        Vue.$toast.success('Added crew assignment!');
+        return { success: true };
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.message || 'Unable to add crew assignment';
+        log.error(errorMsg);
+        Vue.$toast.error(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+    async DELETE_CREW_ASSIGNMENT(context, assignmentId) {
+      const searchParams = new URLSearchParams({ id: assignmentId });
+      const response = await fetch(
+        `${makeURL('/api/v1/show/stage/crew/assignments')}?${searchParams}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (response.ok) {
+        context.dispatch('GET_CREW_ASSIGNMENTS');
+        Vue.$toast.success('Deleted crew assignment!');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.message || 'Unable to delete crew assignment';
+        log.error(errorMsg);
+        Vue.$toast.error(errorMsg);
+      }
+    },
   },
   getters: {
     CREW_LIST(state) {
@@ -505,6 +559,57 @@ export default {
     },
     SCENERY_ALLOCATIONS(state) {
       return state.sceneryAllocations;
+    },
+    CREW_ASSIGNMENTS(state) {
+      return state.crewAssignments;
+    },
+    CREW_MEMBER_BY_ID: (state) => (crewId) => {
+      if (crewId == null) return null;
+      return state.crewList.find((c) => c.id === crewId) || null;
+    },
+    CREW_ASSIGNMENTS_BY_PROP(state) {
+      const result = {};
+      state.crewAssignments.forEach((assignment) => {
+        if (assignment.prop_id != null) {
+          if (!result[assignment.prop_id]) {
+            result[assignment.prop_id] = [];
+          }
+          result[assignment.prop_id].push(assignment);
+        }
+      });
+      return result;
+    },
+    CREW_ASSIGNMENTS_BY_SCENERY(state) {
+      const result = {};
+      state.crewAssignments.forEach((assignment) => {
+        if (assignment.scenery_id != null) {
+          if (!result[assignment.scenery_id]) {
+            result[assignment.scenery_id] = [];
+          }
+          result[assignment.scenery_id].push(assignment);
+        }
+      });
+      return result;
+    },
+    CREW_ASSIGNMENTS_BY_CREW(state) {
+      const result = {};
+      state.crewAssignments.forEach((assignment) => {
+        if (!result[assignment.crew_id]) {
+          result[assignment.crew_id] = [];
+        }
+        result[assignment.crew_id].push(assignment);
+      });
+      return result;
+    },
+    CREW_ASSIGNMENTS_BY_SCENE(state) {
+      const result = {};
+      state.crewAssignments.forEach((assignment) => {
+        if (!result[assignment.scene_id]) {
+          result[assignment.scene_id] = [];
+        }
+        result[assignment.scene_id].push(assignment);
+      });
+      return result;
     },
   },
 };

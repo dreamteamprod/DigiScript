@@ -119,11 +119,19 @@ export default {
         const hasAllocation = allocations.some((a) => a[sceneIdField] === scene.id);
 
         if (hasAllocation) {
-          if (currentSegment) {
-            // Extend current segment
+          const sameAct = currentSegment
+            ? scene.act === this.scenes[currentSegment.startIndex].act
+            : true;
+
+          if (currentSegment && sameAct) {
+            // Extend current segment within same act
             currentSegment.endIndex = sceneIndex;
             currentSegment.endScene = scene.name;
           } else {
+            // Close previous segment if act boundary crossed
+            if (currentSegment) {
+              segments.push(currentSegment);
+            }
             // Start new segment
             currentSegment = {
               startIndex: sceneIndex,

@@ -121,6 +121,12 @@
                         :key="`set-scenery-${item.id}`"
                       >
                         {{ getSceneryDisplayName(item) }}
+                        <div
+                          v-if="getCrewNamesForSettingItem(item, 'scenery', smPlanScene).length > 0"
+                          class="crew-names"
+                        >
+                          {{ getCrewNamesForSettingItem(item, 'scenery', smPlanScene).join(', ') }}
+                        </div>
                       </li>
                     </ul>
                     <p v-else class="text-muted mb-0">None</p>
@@ -129,6 +135,12 @@
                     <ul v-if="getSettingProps(smPlanScene).length > 0" class="item-list mb-0">
                       <li v-for="item in getSettingProps(smPlanScene)" :key="`set-prop-${item.id}`">
                         {{ getPropDisplayName(item) }}
+                        <div
+                          v-if="getCrewNamesForSettingItem(item, 'prop', smPlanScene).length > 0"
+                          class="crew-names"
+                        >
+                          {{ getCrewNamesForSettingItem(item, 'prop', smPlanScene).join(', ') }}
+                        </div>
                       </li>
                     </ul>
                     <p v-else class="text-muted mb-0">None</p>
@@ -166,6 +178,14 @@
                         :key="`strike-scenery-${item.id}`"
                       >
                         {{ getSceneryDisplayName(item) }}
+                        <div
+                          v-if="
+                            getCrewNamesForStrikingItem(item, 'scenery', smPlanScene).length > 0
+                          "
+                          class="crew-names"
+                        >
+                          {{ getCrewNamesForStrikingItem(item, 'scenery', smPlanScene).join(', ') }}
+                        </div>
                       </li>
                     </ul>
                     <p v-else class="text-muted mb-0">None</p>
@@ -177,6 +197,12 @@
                         :key="`strike-prop-${item.id}`"
                       >
                         {{ getPropDisplayName(item) }}
+                        <div
+                          v-if="getCrewNamesForStrikingItem(item, 'prop', smPlanScene).length > 0"
+                          class="crew-names"
+                        >
+                          {{ getCrewNamesForStrikingItem(item, 'prop', smPlanScene).join(', ') }}
+                        </div>
                       </li>
                     </ul>
                     <p v-else class="text-muted mb-0">None</p>
@@ -273,6 +299,9 @@ export default {
       'SCENERY_LIST',
       'PROP_TYPES_DICT',
       'SCENERY_TYPES_DICT',
+      'CREW_ASSIGNMENTS_BY_PROP',
+      'CREW_ASSIGNMENTS_BY_SCENERY',
+      'CREW_MEMBER_BY_ID',
     ]),
   },
   watch: {
@@ -331,6 +360,8 @@ export default {
       this.GET_SCENERY_ALLOCATIONS(),
       this.GET_PROP_TYPES(),
       this.GET_SCENERY_TYPES(),
+      this.GET_CREW_LIST(),
+      this.GET_CREW_ASSIGNMENTS(),
     ]);
     this.loaded = true;
 
@@ -481,6 +512,30 @@ export default {
         (item) => !currentPropsIds.has(item.id)
       );
     },
+    formatCrewName(crew) {
+      if (!crew) return 'Unknown';
+      return crew.last_name ? `${crew.first_name} ${crew.last_name}` : crew.first_name;
+    },
+    getCrewNamesForSettingItem(item, itemType, scene) {
+      const assignments =
+        itemType === 'scenery'
+          ? this.CREW_ASSIGNMENTS_BY_SCENERY[item.id] || []
+          : this.CREW_ASSIGNMENTS_BY_PROP[item.id] || [];
+      return assignments
+        .filter((a) => a.assignment_type === 'set' && a.scene_id === scene.id)
+        .map((a) => this.formatCrewName(this.CREW_MEMBER_BY_ID(a.crew_id)));
+    },
+    getCrewNamesForStrikingItem(item, itemType, scene) {
+      const previousScene = this.getPreviousScene(scene);
+      if (!previousScene) return [];
+      const assignments =
+        itemType === 'scenery'
+          ? this.CREW_ASSIGNMENTS_BY_SCENERY[item.id] || []
+          : this.CREW_ASSIGNMENTS_BY_PROP[item.id] || [];
+      return assignments
+        .filter((a) => a.assignment_type === 'strike' && a.scene_id === previousScene.id)
+        .map((a) => this.formatCrewName(this.CREW_MEMBER_BY_ID(a.crew_id)));
+    },
     ...mapActions([
       'GET_ACT_LIST',
       'GET_SCENE_LIST',
@@ -490,6 +545,8 @@ export default {
       'GET_SCENERY_ALLOCATIONS',
       'GET_PROP_TYPES',
       'GET_SCENERY_TYPES',
+      'GET_CREW_LIST',
+      'GET_CREW_ASSIGNMENTS',
     ]),
   },
 };
@@ -645,5 +702,12 @@ export default {
 
 .plan-content-col.border-right {
   border-right: 1px solid #dee2e6;
+}
+
+.crew-names {
+  color: #6c757d;
+  font-size: 0.8rem;
+  padding-left: 0.5rem;
+  font-style: italic;
 }
 </style>

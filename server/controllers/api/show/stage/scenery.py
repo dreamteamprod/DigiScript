@@ -2,7 +2,6 @@ from sqlalchemy import select
 from tornado import escape
 
 from controllers.api.constants import (
-    ERROR_CAST_MEMBER_NOT_FOUND,
     ERROR_ID_MISSING,
     ERROR_INVALID_ID,
     ERROR_NAME_MISSING,
@@ -126,7 +125,7 @@ class SceneryController(BaseAPIController):
                     scenery_type_id = int(scenery_type_id)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Scenery prop type ID"})
+                    await self.finish({"message": "Invalid scenery type ID"})
                     return
                 scenery_type: SceneryType = session.get(SceneryType, scenery_type_id)
                 if not scenery_type:
@@ -195,7 +194,7 @@ class SceneryController(BaseAPIController):
                         scenery_type_id = int(scenery_type_id)
                     except ValueError:
                         self.set_status(400)
-                        await self.finish({"message": "Scenery prop type ID"})
+                        await self.finish({"message": "Invalid scenery type ID"})
                         return
                     scenery_type: SceneryType = session.get(
                         SceneryType, scenery_type_id
@@ -223,7 +222,7 @@ class SceneryController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": ERROR_CAST_MEMBER_NOT_FOUND})
+                    await self.finish({"message": ERROR_SCENERY_NOT_FOUND})
                     return
             else:
                 self.set_status(404)

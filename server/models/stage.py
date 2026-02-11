@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -18,6 +18,67 @@ class Crew(db.Model):
     last_name: Mapped[str | None] = mapped_column()
 
     show: Mapped[Show] = relationship(back_populates="crew_list")
+    crew_assignments: Mapped[List["CrewAssignment"]] = relationship(
+        back_populates="crew",
+        cascade="all, delete-orphan",
+    )
+
+
+class CrewAssignment(db.Model):
+    """
+    Assigns a crew member to SET or STRIKE an item (prop or scenery) in a specific scene.
+
+    The scene must be a block boundary for the item:
+    - SET assignments go on the first scene of a block
+    - STRIKE assignments go on the last scene of a block
+
+    Exactly one of prop_id or scenery_id must be set (enforced by CHECK constraint).
+    """
+
+    __tablename__ = "crew_assignment"
+    __table_args__ = (
+        # Exactly one of prop_id or scenery_id must be set
+        CheckConstraint(
+            "(prop_id IS NOT NULL AND scenery_id IS NULL) OR "
+            "(prop_id IS NULL AND scenery_id IS NOT NULL)",
+            name="exactly_one_item_type",
+        ),
+        # Prevent duplicate assignments for props
+        UniqueConstraint(
+            "crew_id",
+            "scene_id",
+            "assignment_type",
+            "prop_id",
+            name="uq_crew_prop_assignment",
+        ),
+        # Prevent duplicate assignments for scenery
+        UniqueConstraint(
+            "crew_id",
+            "scene_id",
+            "assignment_type",
+            "scenery_id",
+            name="uq_crew_scenery_assignment",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    crew_id: Mapped[int] = mapped_column(ForeignKey("crew.id", ondelete="CASCADE"))
+    scene_id: Mapped[int] = mapped_column(ForeignKey("scene.id", ondelete="CASCADE"))
+    assignment_type: Mapped[str] = mapped_column()  # 'set' or 'strike'
+
+    # Two nullable FKs - exactly one must be non-null
+    prop_id: Mapped[int | None] = mapped_column(
+        ForeignKey("props.id", ondelete="CASCADE")
+    )
+    scenery_id: Mapped[int | None] = mapped_column(
+        ForeignKey("scenery.id", ondelete="CASCADE")
+    )
+
+    # Relationships
+    crew: Mapped["Crew"] = relationship(back_populates="crew_assignments")
+    scene: Mapped[Scene] = relationship(back_populates="crew_assignments")
+    prop: Mapped["Props | None"] = relationship(back_populates="crew_assignments")
+    scenery: Mapped["Scenery | None"] = relationship(back_populates="crew_assignments")
 
 
 class SceneryAllocation(db.Model):
@@ -90,6 +151,10 @@ class Scenery(db.Model):
         back_populates="scenery",
         cascade="all, delete-orphan",
     )
+    crew_assignments: Mapped[List["CrewAssignment"]] = relationship(
+        back_populates="scenery",
+        cascade="all, delete-orphan",
+    )
 
 
 class PropType(db.Model):
@@ -119,6 +184,10 @@ class Props(db.Model):
     show: Mapped[Show] = relationship(back_populates="props_list")
     prop_type: Mapped[PropType] = relationship(back_populates="prop_items")
     scene_allocations: Mapped[list[PropsAllocation]] = relationship(
+        back_populates="prop",
+        cascade="all, delete-orphan",
+    )
+    crew_assignments: Mapped[List["CrewAssignment"]] = relationship(
         back_populates="prop",
         cascade="all, delete-orphan",
     )
