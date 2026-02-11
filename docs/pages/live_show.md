@@ -74,7 +74,10 @@ The Stage Manager pane will appear on the right side of the screen:
 - **Current Scene**: The scene cards can be expanded to show allocated items
 - **Scenery Section**: Lists all scenery items allocated to each scene, grouped by type
 - **Props Section**: Lists all props allocated to each scene, grouped by type
-- **Plan Button**: Opens a planning modal for additional scene notes
+- **Plan Button**: Opens a planning modal showing which items are being set (brought on stage) and struck (removed) for the selected scene, with crew names listed beneath each assigned item
+- **Auto-scroll**: The current scene card is automatically expanded, and the pane scrolls to keep it visible as the show progresses
+
+![](../images/live_show/live_plan_modal_crew.png)
 
 Click on a scene header to expand or collapse its details. The Stage Manager pane provides a quick at-a-glance view of what items are needed for each scene, helping the stage management team track prop and scenery requirements throughout the performance.
 
