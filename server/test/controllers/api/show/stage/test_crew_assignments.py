@@ -4,19 +4,23 @@ import tornado.escape
 from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
 
-from models.show import Act, Scene, Show, ShowScriptType
 from models.stage import (
     Crew,
     CrewAssignment,
     Props,
     PropsAllocation,
-    PropType,
     Scenery,
     SceneryAllocation,
-    SceneryType,
 )
-from models.user import User
 from test.conftest import DigiScriptTestCase
+from test.helpers.stage_fixtures import (
+    create_act_with_scenes,
+    create_admin_user,
+    create_crew,
+    create_prop,
+    create_scenery,
+    create_show,
+)
 
 
 class TestCrewAssignmentController(DigiScriptTestCase):
@@ -25,103 +29,39 @@ class TestCrewAssignmentController(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            # Create an act and scenes
-            act = Act(show_id=show.id, name="Act 1", interval_after=False)
-            session.add(act)
-            session.flush()
-            self.act_id = act.id
-
-            scene1 = Scene(
-                show_id=show.id, act_id=act.id, name="Scene 1", previous_scene_id=None
+            self.show_id = create_show(session)
+            _, scene_ids = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 1",
+                3,
+                link_to_show=True,
             )
-            session.add(scene1)
-            session.flush()
-            self.scene1_id = scene1.id
+            self.scene1_id, self.scene2_id, self.scene3_id = scene_ids
 
-            scene2 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 2",
-                previous_scene_id=scene1.id,
+            self.crew_id = create_crew(session, self.show_id)
+            self.prop_type_id, self.prop_id = create_prop(session, self.show_id)
+            self.scenery_type_id, self.scenery_id = create_scenery(
+                session, self.show_id
             )
-            session.add(scene2)
-            session.flush()
-            self.scene2_id = scene2.id
-
-            scene3 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 3",
-                previous_scene_id=scene2.id,
-            )
-            session.add(scene3)
-            session.flush()
-            self.scene3_id = scene3.id
-
-            show.first_act = act
-            act.first_scene = scene1
-
-            # Create crew member
-            crew = Crew(show_id=show.id, first_name="John", last_name="Doe")
-            session.add(crew)
-            session.flush()
-            self.crew_id = crew.id
-
-            # Create prop type and prop
-            prop_type = PropType(show_id=show.id, name="Hand Props", description="")
-            session.add(prop_type)
-            session.flush()
-            self.prop_type_id = prop_type.id
-
-            prop = Props(
-                show_id=show.id,
-                prop_type_id=prop_type.id,
-                name="Sword",
-                description="",
-            )
-            session.add(prop)
-            session.flush()
-            self.prop_id = prop.id
 
             # Allocate prop to scenes 1 and 2 (forms one block)
             # SET boundary: scene 1, STRIKE boundary: scene 2
-            allocation1 = PropsAllocation(props_id=prop.id, scene_id=scene1.id)
-            allocation2 = PropsAllocation(props_id=prop.id, scene_id=scene2.id)
+            allocation1 = PropsAllocation(
+                props_id=self.prop_id, scene_id=self.scene1_id
+            )
+            allocation2 = PropsAllocation(
+                props_id=self.prop_id, scene_id=self.scene2_id
+            )
             session.add_all([allocation1, allocation2])
 
-            # Create scenery type and scenery
-            scenery_type = SceneryType(
-                show_id=show.id, name="Backdrops", description=""
-            )
-            session.add(scenery_type)
-            session.flush()
-            self.scenery_type_id = scenery_type.id
-
-            scenery = Scenery(
-                show_id=show.id,
-                scenery_type_id=scenery_type.id,
-                name="Castle Wall",
-                description="",
-            )
-            session.add(scenery)
-            session.flush()
-            self.scenery_id = scenery.id
-
             # Allocate scenery to scene 3 only (single-scene block)
-            allocation3 = SceneryAllocation(scenery_id=scenery.id, scene_id=scene3.id)
+            allocation3 = SceneryAllocation(
+                scenery_id=self.scenery_id, scene_id=self.scene3_id
+            )
             session.add(allocation3)
 
-            # Create admin user for RBAC
-            admin = User(username="admin", is_admin=True, password="test")
-            session.add(admin)
-            session.flush()
-            self.user_id = admin.id
-
+            self.user_id = create_admin_user(session)
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
@@ -707,68 +647,35 @@ class TestCrewAssignmentCascadeDelete(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            # Create act and scene
-            act = Act(show_id=show.id, name="Act 1", interval_after=False)
-            session.add(act)
-            session.flush()
-
-            scene = Scene(
-                show_id=show.id, act_id=act.id, name="Scene 1", previous_scene_id=None
+            self.show_id = create_show(session)
+            _, scene_ids = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 1",
+                1,
+                link_to_show=True,
             )
-            session.add(scene)
-            session.flush()
-            self.scene_id = scene.id
+            self.scene_id = scene_ids[0]
 
-            show.first_act = act
-            act.first_scene = scene
-
-            # Create crew member
-            crew = Crew(show_id=show.id, first_name="John", last_name="Doe")
-            session.add(crew)
-            session.flush()
-            self.crew_id = crew.id
-
-            # Create prop
-            prop_type = PropType(show_id=show.id, name="Hand Props", description="")
-            session.add(prop_type)
-            session.flush()
-
-            prop = Props(
-                show_id=show.id,
-                prop_type_id=prop_type.id,
-                name="Sword",
-                description="",
-            )
-            session.add(prop)
-            session.flush()
-            self.prop_id = prop.id
+            self.crew_id = create_crew(session, self.show_id)
+            _, self.prop_id = create_prop(session, self.show_id)
 
             # Allocate prop to scene
-            allocation = PropsAllocation(props_id=prop.id, scene_id=scene.id)
+            allocation = PropsAllocation(props_id=self.prop_id, scene_id=self.scene_id)
             session.add(allocation)
 
             # Create assignment
             assignment = CrewAssignment(
-                crew_id=crew.id,
-                scene_id=scene.id,
+                crew_id=self.crew_id,
+                scene_id=self.scene_id,
                 assignment_type="set",
-                prop_id=prop.id,
+                prop_id=self.prop_id,
             )
             session.add(assignment)
             session.flush()
             self.assignment_id = assignment.id
 
-            # Create admin user
-            admin = User(username="admin", is_admin=True, password="test")
-            session.add(admin)
-            session.flush()
-            self.user_id = admin.id
-
+            self.user_id = create_admin_user(session)
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
@@ -804,21 +711,7 @@ class TestCrewAssignmentCascadeDelete(DigiScriptTestCase):
         """Test assignment is deleted when scenery is deleted."""
         # Create a scenery item and assignment
         with self._app.get_db().sessionmaker() as session:
-            scenery_type = SceneryType(
-                show_id=self.show_id, name="Backdrops", description=""
-            )
-            session.add(scenery_type)
-            session.flush()
-
-            scenery = Scenery(
-                show_id=self.show_id,
-                scenery_type_id=scenery_type.id,
-                name="Wall",
-                description="",
-            )
-            session.add(scenery)
-            session.flush()
-            scenery_id = scenery.id
+            _, scenery_id = create_scenery(session, self.show_id, name="Wall")
 
             # Allocate scenery to scene
             allocation = SceneryAllocation(
@@ -855,91 +748,42 @@ class TestOrphanDeletionOnAllocationChange(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            # Create act and 3 scenes
-            act = Act(show_id=show.id, name="Act 1", interval_after=False)
-            session.add(act)
-            session.flush()
-
-            scene1 = Scene(
-                show_id=show.id, act_id=act.id, name="Scene 1", previous_scene_id=None
+            self.show_id = create_show(session)
+            _, scene_ids = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 1",
+                3,
+                link_to_show=True,
             )
-            session.add(scene1)
-            session.flush()
-            self.scene1_id = scene1.id
+            self.scene1_id, self.scene2_id, self.scene3_id = scene_ids
 
-            scene2 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 2",
-                previous_scene_id=scene1.id,
-            )
-            session.add(scene2)
-            session.flush()
-            self.scene2_id = scene2.id
-
-            scene3 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 3",
-                previous_scene_id=scene2.id,
-            )
-            session.add(scene3)
-            session.flush()
-            self.scene3_id = scene3.id
-
-            show.first_act = act
-            act.first_scene = scene1
-
-            # Create crew member
-            crew = Crew(show_id=show.id, first_name="John", last_name="Doe")
-            session.add(crew)
-            session.flush()
-            self.crew_id = crew.id
-
-            # Create prop
-            prop_type = PropType(show_id=show.id, name="Hand Props", description="")
-            session.add(prop_type)
-            session.flush()
-
-            prop = Props(
-                show_id=show.id,
-                prop_type_id=prop_type.id,
-                name="Sword",
-                description="",
-            )
-            session.add(prop)
-            session.flush()
-            self.prop_id = prop.id
+            self.crew_id = create_crew(session, self.show_id)
+            _, self.prop_id = create_prop(session, self.show_id)
 
             # Allocate prop to scenes 1 and 2 (block: SET at 1, STRIKE at 2)
-            allocation1 = PropsAllocation(props_id=prop.id, scene_id=scene1.id)
-            allocation2 = PropsAllocation(props_id=prop.id, scene_id=scene2.id)
+            allocation1 = PropsAllocation(
+                props_id=self.prop_id, scene_id=self.scene1_id
+            )
+            allocation2 = PropsAllocation(
+                props_id=self.prop_id, scene_id=self.scene2_id
+            )
             session.add_all([allocation1, allocation2])
             session.flush()
             self.allocation2_id = allocation2.id
 
             # Create crew assignment at STRIKE boundary (scene 2)
             assignment = CrewAssignment(
-                crew_id=crew.id,
-                scene_id=scene2.id,
+                crew_id=self.crew_id,
+                scene_id=self.scene2_id,
                 assignment_type="strike",
-                prop_id=prop.id,
+                prop_id=self.prop_id,
             )
             session.add(assignment)
             session.flush()
             self.assignment_id = assignment.id
 
-            # Create admin user
-            admin = User(username="admin", is_admin=True, password="test")
-            session.add(admin)
-            session.flush()
-            self.user_id = admin.id
-
+            self.user_id = create_admin_user(session)
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)

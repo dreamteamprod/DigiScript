@@ -1,17 +1,21 @@
 """Unit tests for block computation utilities."""
 
-from models.show import Act, Scene, Show, ShowScriptType
+from models.show import Scene, Show
 from models.stage import (
-    Crew,
     CrewAssignment,
     Props,
     PropsAllocation,
-    PropType,
     Scenery,
     SceneryAllocation,
-    SceneryType,
 )
 from test.conftest import DigiScriptTestCase
+from test.helpers.stage_fixtures import (
+    create_act_with_scenes,
+    create_crew,
+    create_prop,
+    create_scenery,
+    create_show,
+)
 from utils.show.block_computation import (
     Block,
     compute_blocks_for_prop,
@@ -33,10 +37,7 @@ class TestGetOrderedScenesByAct(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
+            self.show_id = create_show(session)
             session.commit()
 
     def test_empty_show(self):
@@ -49,136 +50,62 @@ class TestGetOrderedScenesByAct(DigiScriptTestCase):
     def test_single_act_single_scene(self):
         """Test with a single act containing a single scene."""
         with self._app.get_db().sessionmaker() as session:
-            show = session.get(Show, self.show_id)
-            act = Act(show_id=show.id, name="Act 1", interval_after=False)
-            session.add(act)
-            session.flush()
-
-            scene = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 1",
-                previous_scene_id=None,
+            act_id, scene_ids = create_act_with_scenes(
+                session, self.show_id, "Act 1", 1, link_to_show=True
             )
-            session.add(scene)
-            session.flush()
-
-            show.first_act = act
-            act.first_scene = scene
             session.commit()
 
+            show = session.get(Show, self.show_id)
             result = get_ordered_scenes_by_act(show)
 
             self.assertEqual(1, len(result))
-            self.assertIn(act.id, result)
-            self.assertEqual(1, len(result[act.id]))
-            self.assertEqual(scene.id, result[act.id][0].id)
+            self.assertIn(act_id, result)
+            self.assertEqual(1, len(result[act_id]))
+            self.assertEqual(scene_ids[0], result[act_id][0].id)
 
     def test_single_act_multiple_scenes(self):
         """Test with a single act containing multiple scenes in linked list order."""
         with self._app.get_db().sessionmaker() as session:
-            show = session.get(Show, self.show_id)
-            act = Act(show_id=show.id, name="Act 1", interval_after=False)
-            session.add(act)
-            session.flush()
-
-            # Create 3 scenes in linked list order
-            scene1 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 1",
-                previous_scene_id=None,
+            act_id, scene_ids = create_act_with_scenes(
+                session, self.show_id, "Act 1", 3, link_to_show=True
             )
-            session.add(scene1)
-            session.flush()
-
-            scene2 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 2",
-                previous_scene_id=scene1.id,
-            )
-            session.add(scene2)
-            session.flush()
-
-            scene3 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 3",
-                previous_scene_id=scene2.id,
-            )
-            session.add(scene3)
-            session.flush()
-
-            show.first_act = act
-            act.first_scene = scene1
             session.commit()
 
+            show = session.get(Show, self.show_id)
             result = get_ordered_scenes_by_act(show)
 
             self.assertEqual(1, len(result))
-            self.assertEqual(3, len(result[act.id]))
-            self.assertEqual("Scene 1", result[act.id][0].name)
-            self.assertEqual("Scene 2", result[act.id][1].name)
-            self.assertEqual("Scene 3", result[act.id][2].name)
+            self.assertEqual(3, len(result[act_id]))
+            self.assertEqual("Scene 1", result[act_id][0].name)
+            self.assertEqual("Scene 2", result[act_id][1].name)
+            self.assertEqual("Scene 3", result[act_id][2].name)
 
     def test_multiple_acts(self):
         """Test with multiple acts each containing scenes."""
         with self._app.get_db().sessionmaker() as session:
-            show = session.get(Show, self.show_id)
-
-            # Create Act 1 with 2 scenes
-            act1 = Act(show_id=show.id, name="Act 1", interval_after=True)
-            session.add(act1)
-            session.flush()
-
-            scene1_1 = Scene(
-                show_id=show.id,
-                act_id=act1.id,
-                name="Act 1, Scene 1",
-                previous_scene_id=None,
+            act1_id, _ = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 1",
+                2,
+                interval_after=True,
+                link_to_show=True,
             )
-            session.add(scene1_1)
-            session.flush()
-
-            scene1_2 = Scene(
-                show_id=show.id,
-                act_id=act1.id,
-                name="Act 1, Scene 2",
-                previous_scene_id=scene1_1.id,
+            act2_id, _ = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 2",
+                1,
+                previous_act_id=act1_id,
             )
-            session.add(scene1_2)
-            session.flush()
-
-            # Create Act 2 with 1 scene
-            act2 = Act(
-                show_id=show.id,
-                name="Act 2",
-                interval_after=False,
-                previous_act_id=act1.id,
-            )
-            session.add(act2)
-            session.flush()
-
-            scene2_1 = Scene(
-                show_id=show.id,
-                act_id=act2.id,
-                name="Act 2, Scene 1",
-                previous_scene_id=None,
-            )
-            session.add(scene2_1)
-            session.flush()
-
-            show.first_act = act1
-            act1.first_scene = scene1_1
-            act2.first_scene = scene2_1
             session.commit()
 
+            show = session.get(Show, self.show_id)
             result = get_ordered_scenes_by_act(show)
 
             self.assertEqual(2, len(result))
-            self.assertEqual(2, len(result[act1.id]))
-            self.assertEqual(1, len(result[act2.id]))
+            self.assertEqual(2, len(result[act1_id]))
+            self.assertEqual(1, len(result[act2_id]))
 
 
 class TestComputeBlocksForProp(DigiScriptTestCase):
@@ -187,73 +114,17 @@ class TestComputeBlocksForProp(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            # Create Act 1 with 4 scenes
-            act1 = Act(show_id=show.id, name="Act 1", interval_after=True)
-            session.add(act1)
-            session.flush()
-            self.act1_id = act1.id
-
-            scene1 = Scene(
-                show_id=show.id, act_id=act1.id, name="Scene 1", previous_scene_id=None
+            self.show_id = create_show(session)
+            self.act1_id, scene_ids = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 1",
+                4,
+                interval_after=True,
+                link_to_show=True,
             )
-            session.add(scene1)
-            session.flush()
-            self.scene1_id = scene1.id
-
-            scene2 = Scene(
-                show_id=show.id,
-                act_id=act1.id,
-                name="Scene 2",
-                previous_scene_id=scene1.id,
-            )
-            session.add(scene2)
-            session.flush()
-            self.scene2_id = scene2.id
-
-            scene3 = Scene(
-                show_id=show.id,
-                act_id=act1.id,
-                name="Scene 3",
-                previous_scene_id=scene2.id,
-            )
-            session.add(scene3)
-            session.flush()
-            self.scene3_id = scene3.id
-
-            scene4 = Scene(
-                show_id=show.id,
-                act_id=act1.id,
-                name="Scene 4",
-                previous_scene_id=scene3.id,
-            )
-            session.add(scene4)
-            session.flush()
-            self.scene4_id = scene4.id
-
-            show.first_act = act1
-            act1.first_scene = scene1
-
-            # Create prop type and prop
-            prop_type = PropType(show_id=show.id, name="Hand Props", description="")
-            session.add(prop_type)
-            session.flush()
-            self.prop_type_id = prop_type.id
-
-            prop = Props(
-                show_id=show.id,
-                prop_type_id=prop_type.id,
-                name="Sword",
-                description="",
-            )
-            session.add(prop)
-            session.flush()
-            self.prop_id = prop.id
-
+            self.scene1_id, self.scene2_id, self.scene3_id, self.scene4_id = scene_ids
+            _, self.prop_id = create_prop(session, self.show_id)
             session.commit()
 
     def test_no_allocations(self):
@@ -362,35 +233,20 @@ class TestComputeBlocksForProp(DigiScriptTestCase):
         """Test allocations in different acts create separate blocks."""
         with self._app.get_db().sessionmaker() as session:
             # Create Act 2 with a scene
-            show = session.get(Show, self.show_id)
-            act1 = session.get(Act, self.act1_id)
-
-            act2 = Act(
-                show_id=show.id,
-                name="Act 2",
-                interval_after=False,
-                previous_act_id=act1.id,
+            act2_id, act2_scene_ids = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 2",
+                1,
+                previous_act_id=self.act1_id,
             )
-            session.add(act2)
-            session.flush()
-
-            scene_act2 = Scene(
-                show_id=show.id,
-                act_id=act2.id,
-                name="Act 2, Scene 1",
-                previous_scene_id=None,
-            )
-            session.add(scene_act2)
-            session.flush()
-
-            act2.first_scene = scene_act2
 
             # Allocate prop to last scene of Act 1 and first scene of Act 2
             allocation1 = PropsAllocation(
                 props_id=self.prop_id, scene_id=self.scene4_id
             )
             allocation2 = PropsAllocation(
-                props_id=self.prop_id, scene_id=scene_act2.id
+                props_id=self.prop_id, scene_id=act2_scene_ids[0]
             )
             session.add_all([allocation1, allocation2])
             session.commit()
@@ -402,7 +258,7 @@ class TestComputeBlocksForProp(DigiScriptTestCase):
             # Should be 2 blocks, one per act
             self.assertEqual(2, len(blocks))
             self.assertEqual(self.act1_id, blocks[0].act_id)
-            self.assertEqual(act2.id, blocks[1].act_id)
+            self.assertEqual(act2_id, blocks[1].act_id)
 
 
 class TestComputeBlocksForScenery(DigiScriptTestCase):
@@ -411,65 +267,16 @@ class TestComputeBlocksForScenery(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            # Create Act 1 with 3 scenes
-            act1 = Act(show_id=show.id, name="Act 1", interval_after=False)
-            session.add(act1)
-            session.flush()
-            self.act1_id = act1.id
-
-            scene1 = Scene(
-                show_id=show.id, act_id=act1.id, name="Scene 1", previous_scene_id=None
+            self.show_id = create_show(session)
+            self.act1_id, scene_ids = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 1",
+                3,
+                link_to_show=True,
             )
-            session.add(scene1)
-            session.flush()
-            self.scene1_id = scene1.id
-
-            scene2 = Scene(
-                show_id=show.id,
-                act_id=act1.id,
-                name="Scene 2",
-                previous_scene_id=scene1.id,
-            )
-            session.add(scene2)
-            session.flush()
-            self.scene2_id = scene2.id
-
-            scene3 = Scene(
-                show_id=show.id,
-                act_id=act1.id,
-                name="Scene 3",
-                previous_scene_id=scene2.id,
-            )
-            session.add(scene3)
-            session.flush()
-            self.scene3_id = scene3.id
-
-            show.first_act = act1
-            act1.first_scene = scene1
-
-            # Create scenery type and scenery
-            scenery_type = SceneryType(
-                show_id=show.id, name="Backdrops", description=""
-            )
-            session.add(scenery_type)
-            session.flush()
-            self.scenery_type_id = scenery_type.id
-
-            scenery = Scenery(
-                show_id=show.id,
-                scenery_type_id=scenery_type.id,
-                name="Castle Wall",
-                description="",
-            )
-            session.add(scenery)
-            session.flush()
-            self.scenery_id = scenery.id
-
+            self.scene1_id, self.scene2_id, self.scene3_id = scene_ids
+            _, self.scenery_id = create_scenery(session, self.show_id)
             session.commit()
 
     def test_no_allocations(self):
@@ -508,65 +315,24 @@ class TestBoundaryValidation(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            # Create Act with 3 scenes
-            act = Act(show_id=show.id, name="Act 1", interval_after=False)
-            session.add(act)
-            session.flush()
-            self.act_id = act.id
-
-            scene1 = Scene(
-                show_id=show.id, act_id=act.id, name="Scene 1", previous_scene_id=None
+            self.show_id = create_show(session)
+            self.act_id, scene_ids = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 1",
+                3,
+                link_to_show=True,
             )
-            session.add(scene1)
-            session.flush()
-            self.scene1_id = scene1.id
-
-            scene2 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 2",
-                previous_scene_id=scene1.id,
-            )
-            session.add(scene2)
-            session.flush()
-            self.scene2_id = scene2.id
-
-            scene3 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 3",
-                previous_scene_id=scene2.id,
-            )
-            session.add(scene3)
-            session.flush()
-            self.scene3_id = scene3.id
-
-            show.first_act = act
-            act.first_scene = scene1
-
-            # Create prop
-            prop_type = PropType(show_id=show.id, name="Hand Props", description="")
-            session.add(prop_type)
-            session.flush()
-
-            prop = Props(
-                show_id=show.id,
-                prop_type_id=prop_type.id,
-                name="Sword",
-                description="",
-            )
-            session.add(prop)
-            session.flush()
-            self.prop_id = prop.id
+            self.scene1_id, self.scene2_id, self.scene3_id = scene_ids
+            _, self.prop_id = create_prop(session, self.show_id)
 
             # Allocate prop to scenes 1 and 2 (forms one block)
-            allocation1 = PropsAllocation(props_id=prop.id, scene_id=scene1.id)
-            allocation2 = PropsAllocation(props_id=prop.id, scene_id=scene2.id)
+            allocation1 = PropsAllocation(
+                props_id=self.prop_id, scene_id=self.scene1_id
+            )
+            allocation2 = PropsAllocation(
+                props_id=self.prop_id, scene_id=self.scene2_id
+            )
             session.add_all([allocation1, allocation2])
             session.commit()
 
@@ -704,7 +470,9 @@ class TestBoundaryValidation(DigiScriptTestCase):
         """Test boundary check for non-existent prop returns False."""
         with self._app.get_db().sessionmaker() as session:
             show = session.get(Show, self.show_id)
-            result = is_valid_boundary(session, self.scene1_id, "set", 99999, None, show)
+            result = is_valid_boundary(
+                session, self.scene1_id, "set", 99999, None, show
+            )
             self.assertFalse(result)
 
 
@@ -714,82 +482,27 @@ class TestOrphanDetection(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            # Create Act with 4 scenes
-            act = Act(show_id=show.id, name="Act 1", interval_after=False)
-            session.add(act)
-            session.flush()
-            self.act_id = act.id
-
-            scene1 = Scene(
-                show_id=show.id, act_id=act.id, name="Scene 1", previous_scene_id=None
+            self.show_id = create_show(session)
+            self.act_id, scene_ids = create_act_with_scenes(
+                session,
+                self.show_id,
+                "Act 1",
+                4,
+                link_to_show=True,
             )
-            session.add(scene1)
-            session.flush()
-            self.scene1_id = scene1.id
-
-            scene2 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 2",
-                previous_scene_id=scene1.id,
-            )
-            session.add(scene2)
-            session.flush()
-            self.scene2_id = scene2.id
-
-            scene3 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 3",
-                previous_scene_id=scene2.id,
-            )
-            session.add(scene3)
-            session.flush()
-            self.scene3_id = scene3.id
-
-            scene4 = Scene(
-                show_id=show.id,
-                act_id=act.id,
-                name="Scene 4",
-                previous_scene_id=scene3.id,
-            )
-            session.add(scene4)
-            session.flush()
-            self.scene4_id = scene4.id
-
-            show.first_act = act
-            act.first_scene = scene1
-
-            # Create crew member
-            crew = Crew(show_id=show.id, first_name="John", last_name="Doe")
-            session.add(crew)
-            session.flush()
-            self.crew_id = crew.id
-
-            # Create prop
-            prop_type = PropType(show_id=show.id, name="Hand Props", description="")
-            session.add(prop_type)
-            session.flush()
-
-            prop = Props(
-                show_id=show.id,
-                prop_type_id=prop_type.id,
-                name="Sword",
-                description="",
-            )
-            session.add(prop)
-            session.flush()
-            self.prop_id = prop.id
+            (
+                self.scene1_id,
+                self.scene2_id,
+                self.scene3_id,
+                self.scene4_id,
+            ) = scene_ids
+            self.crew_id = create_crew(session, self.show_id)
+            _, self.prop_id = create_prop(session, self.show_id)
 
             # Initial allocation: scenes 1, 2, 3 (one block)
             # SET boundary: scene 1, STRIKE boundary: scene 3
             for scene_id in [self.scene1_id, self.scene2_id, self.scene3_id]:
-                allocation = PropsAllocation(props_id=prop.id, scene_id=scene_id)
+                allocation = PropsAllocation(props_id=self.prop_id, scene_id=scene_id)
                 session.add(allocation)
 
             session.commit()
@@ -896,22 +609,7 @@ class TestOrphanDetection(DigiScriptTestCase):
     def test_find_orphaned_for_scenery(self):
         """Test orphan detection works for scenery items."""
         with self._app.get_db().sessionmaker() as session:
-            # Create scenery
-            scenery_type = SceneryType(
-                show_id=self.show_id, name="Backdrops", description=""
-            )
-            session.add(scenery_type)
-            session.flush()
-
-            scenery = Scenery(
-                show_id=self.show_id,
-                scenery_type_id=scenery_type.id,
-                name="Castle Wall",
-                description="",
-            )
-            session.add(scenery)
-            session.flush()
-            scenery_id = scenery.id
+            _, scenery_id = create_scenery(session, self.show_id)
 
             # Allocate to scenes 1 and 2
             allocation1 = SceneryAllocation(
