@@ -198,8 +198,8 @@ class VersionChecker:
         """
         try:
             # Strip pre-release suffixes (everything after -)
-            latest_clean = latest.split("-")[0]
-            current_clean = current.split("-")[0]
+            latest_clean = latest.split("-", maxsplit=1)[0]
+            current_clean = current.split("-", maxsplit=1)[0]
 
             latest_parts = [int(x) for x in latest_clean.split(".")]
             current_parts = [int(x) for x in current_clean.split(".")]
