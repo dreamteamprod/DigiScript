@@ -75,9 +75,7 @@ def compute_blocks_for_prop(prop: Props, show: Show) -> List[Block]:
     :returns: List of Block objects representing consecutive allocations
     """
     # Get all scene IDs where this prop is allocated
-    allocated_scene_ids: Set[int] = {
-        alloc.scene_id for alloc in prop.scene_allocations
-    }
+    allocated_scene_ids: Set[int] = {alloc.scene_id for alloc in prop.scene_allocations}
 
     return _compute_blocks(show, allocated_scene_ids)
 
