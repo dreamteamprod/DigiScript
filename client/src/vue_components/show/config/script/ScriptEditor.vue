@@ -53,6 +53,14 @@
           </b-button-group>
         </b-col>
       </b-row>
+      <b-row v-if="IS_DRAFT_ACTIVE" class="script-row py-1">
+        <b-col>
+          <collaborator-panel
+            :collaborators="DRAFT_COLLABORATORS"
+            :awareness-states="DRAFT_AWARENESS_STATES"
+          />
+        </b-col>
+      </b-row>
       <b-row class="script-row">
         <b-col cols="1"> Act </b-col>
         <b-col cols="1"> Scene </b-col>
@@ -99,6 +107,7 @@
               :line-part-cuts="linePartCuts"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
               :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
+              :editing-users="editingUsersForLine(index)"
               @editLine="beginEditingLine(currentEditPage, index)"
               @cutLinePart="cutLinePart"
               @insertDialogue="insertDialogueAt(currentEditPage, index)"
@@ -204,6 +213,7 @@ import { sample } from 'lodash';
 
 import ScriptLineEditor from '@/vue_components/show/config/script/ScriptLineEditor.vue';
 import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineViewer.vue';
+import CollaboratorPanel from '@/vue_components/show/config/script/CollaboratorPanel.vue';
 import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
@@ -211,7 +221,7 @@ import { syncPageFromYDoc, addYDocLine, deleteYDocLine } from '@/utils/yjs/yjsBr
 
 export default {
   name: 'ScriptConfig',
-  components: { ScriptLineViewer, ScriptLineEditor },
+  components: { ScriptLineViewer, ScriptLineEditor, CollaboratorPanel },
   data() {
     return {
       currentEditPage: 1,
@@ -321,6 +331,7 @@ export default {
       'DRAFT_YDOC',
       'DRAFT_COLLABORATORS',
       'DRAFT_LINE_EDITORS',
+      'DRAFT_AWARENESS_STATES',
     ]),
   },
   watch: {

@@ -3,7 +3,9 @@
     :class="{
       'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
       'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
+      'editing-indicator': editingUsers.length > 0,
     }"
+    :style="editingBorderStyle"
   >
     <b-col cols="1">
       <p v-if="needsActSceneLabelSimple" class="viewable-line">
@@ -119,6 +121,9 @@
       </b-col>
     </template>
     <b-col cols="1" align-self="end">
+      <span v-if="editingUsers.length > 0" class="editing-badge" :title="editingTooltip">
+        {{ editingUsers.map((u) => u.username).join(', ') }}
+      </span>
       <b-dropdown
         v-show="canEdit && !IS_CUT_MODE"
         split
@@ -215,6 +220,10 @@ export default {
       required: true,
       type: Array,
     },
+    editingUsers: {
+      type: Array,
+      default: () => [],
+    },
   },
   data() {
     return {
@@ -222,6 +231,26 @@ export default {
     };
   },
   computed: {
+    editingBorderStyle() {
+      if (this.editingUsers.length === 0) return {};
+      const COLLAB_COLORS = [
+        '#e74c3c',
+        '#3498db',
+        '#2ecc71',
+        '#f39c12',
+        '#9b59b6',
+        '#1abc9c',
+        '#e67e22',
+        '#e91e63',
+      ];
+      const color = COLLAB_COLORS[this.editingUsers[0].userId % COLLAB_COLORS.length];
+      return { borderLeft: `3px solid ${color}`, paddingLeft: '5px' };
+    },
+    editingTooltip() {
+      if (this.editingUsers.length === 0) return '';
+      const names = this.editingUsers.map((u) => u.username).join(', ');
+      return `${names} ${this.editingUsers.length === 1 ? 'is' : 'are'} editing this line`;
+    },
     needsHeadings() {
       let { previousLine } = this;
       let previousLineIndex = this.lineIndex - 1;
@@ -344,5 +373,17 @@ export default {
 }
 .cut-line-part {
   text-decoration: line-through;
+}
+.editing-indicator {
+  transition: border-left 0.2s ease;
+}
+.editing-badge {
+  display: block;
+  font-size: 0.7rem;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
 }
 </style>
