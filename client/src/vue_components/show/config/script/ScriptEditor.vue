@@ -206,12 +206,7 @@ import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineView
 import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
-import {
-  syncPageFromYDoc,
-  updateYDocLine,
-  addYDocLine,
-  deleteYDocLine,
-} from '@/utils/yjs/yjsBridge';
+import { syncPageFromYDoc, addYDocLine, deleteYDocLine } from '@/utils/yjs/yjsBridge';
 
 export default {
   name: 'ScriptConfig',
@@ -624,10 +619,7 @@ export default {
         lineIndex: index,
         lineObj: line,
       });
-      // Propagate to Y.Doc for collaborative sync
-      if (this.IS_DRAFT_ACTIVE && this.DRAFT_YDOC && !this.syncingFromYDoc) {
-        updateYDocLine(this.DRAFT_YDOC, this.currentEditPage, index, line);
-      }
+      // Note: Y.Doc sync now handled by direct component bindings (R3 will rework this)
     },
     beginEditingLine(pageIndex, lineIndex) {
       const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);

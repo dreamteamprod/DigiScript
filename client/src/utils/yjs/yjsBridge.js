@@ -1,13 +1,18 @@
 /**
- * Bridge utilities for converting between Y.Doc and TMP_SCRIPT formats.
+ * Bridge utilities for Y.Doc ↔ TMP_SCRIPT format conversion.
  *
- * The Y.Doc uses a slightly different schema than TMP_SCRIPT:
+ * Y.Doc is the source of truth during collaborative editing. TMP_SCRIPT is a
+ * read-only view cache populated one-way from Y.Doc via observers.
+ * Components write directly to Y.Map/Y.Text; this module provides:
+ *   - Y.Doc → plain object conversion (for the TMP_SCRIPT view cache)
+ *   - Structural helpers (add/delete lines in Y.Doc)
+ *   - Sentinel conversion (nullToZero / zeroToNull)
+ *
+ * Schema differences between Y.Doc and TMP_SCRIPT:
  *   - `_id` instead of `id`
  *   - `parts` instead of `line_parts`
  *   - `0` as sentinel for null on FK fields
  *   - Y.Text for line_text instead of plain strings
- *
- * These utilities handle the conversion in both directions.
  */
 
 import * as Y from 'yjs';
@@ -17,7 +22,7 @@ import * as Y from 'yjs';
  * @param {*} val
  * @returns {*}
  */
-function zeroToNull(val) {
+export function zeroToNull(val) {
   return val === 0 ? null : val;
 }
 
@@ -26,7 +31,7 @@ function zeroToNull(val) {
  * @param {*} val
  * @returns {*}
  */
-function nullToZero(val) {
+export function nullToZero(val) {
   return val == null ? 0 : val;
 }
 
@@ -86,80 +91,6 @@ export function syncPageFromYDoc(ydoc, pageNo) {
     lines.push(ydocLineToPlain(pageArray.get(i), pageNo));
   }
   return lines;
-}
-
-/**
- * Update a single existing line in the Y.Doc from a TMP_SCRIPT line object.
- * Uses 'local-bridge' as the transaction origin so observers can
- * distinguish local UI changes from remote changes.
- *
- * @param {import('yjs').Doc} ydoc - The Y.Doc instance
- * @param {number|string} pageNo - The page number
- * @param {number} lineIndex - Index of the line within the page array
- * @param {object} lineObj - The TMP_SCRIPT line object
- */
-export function updateYDocLine(ydoc, pageNo, lineIndex, lineObj) {
-  const pages = ydoc.getMap('pages');
-  const pageKey = pageNo.toString();
-  const pageArray = pages.get(pageKey);
-  if (!pageArray || lineIndex >= pageArray.length) return;
-
-  const lineMap = pageArray.get(lineIndex);
-
-  ydoc.transact(() => {
-    lineMap.set('act_id', nullToZero(lineObj.act_id));
-    lineMap.set('scene_id', nullToZero(lineObj.scene_id));
-    lineMap.set('line_type', lineObj.line_type);
-    lineMap.set('stage_direction_style_id', nullToZero(lineObj.stage_direction_style_id));
-
-    const partsArray = lineMap.get('parts');
-    if (!partsArray) return;
-
-    // Update existing parts
-    const minLen = Math.min(partsArray.length, lineObj.line_parts.length);
-    for (let i = 0; i < minLen; i++) {
-      const part = lineObj.line_parts[i];
-      const partMap = partsArray.get(i);
-
-      partMap.set('character_id', nullToZero(part.character_id));
-      partMap.set('character_group_id', nullToZero(part.character_group_id));
-      partMap.set('part_index', part.part_index ?? i);
-
-      const ytext = partMap.get('line_text');
-      if (ytext) {
-        const currentText = ytext.toString();
-        if (currentText !== (part.line_text || '')) {
-          ytext.delete(0, ytext.length);
-          if (part.line_text) {
-            ytext.insert(0, part.line_text);
-          }
-        }
-      }
-    }
-
-    // Add new parts that don't exist in Y.Doc yet
-    for (let i = partsArray.length; i < lineObj.line_parts.length; i++) {
-      const part = lineObj.line_parts[i];
-      const newPartMap = new Y.Map();
-      partsArray.push([newPartMap]);
-
-      newPartMap.set('_id', 0);
-      newPartMap.set('character_id', nullToZero(part.character_id));
-      newPartMap.set('character_group_id', nullToZero(part.character_group_id));
-      newPartMap.set('part_index', part.part_index ?? i);
-
-      const ytext = new Y.Text();
-      newPartMap.set('line_text', ytext);
-      if (part.line_text) {
-        ytext.insert(0, part.line_text);
-      }
-    }
-
-    // Remove extra parts from Y.Doc (if user deleted parts)
-    while (partsArray.length > lineObj.line_parts.length) {
-      partsArray.delete(partsArray.length - 1, 1);
-    }
-  }, 'local-bridge');
 }
 
 /**
