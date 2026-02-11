@@ -226,6 +226,14 @@ class Settings:
             help_text="Directory used to store compiled scripts.",
         )
         self.define(
+            "draft_script_path",
+            str,
+            os.path.join(self._base_path, "draft_scripts"),
+            False,
+            display_name="Draft Script Path",
+            help_text="Directory used to store collaborative editing draft files.",
+        )
+        self.define(
             "mdns_advertising",
             bool,
             True,

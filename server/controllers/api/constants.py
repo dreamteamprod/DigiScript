@@ -111,3 +111,6 @@ ERROR_CREW_ASSIGNMENT_EXISTS = "Crew assignment already exists"
 
 ERROR_NAME_ALREADY_TAKEN = "Name already taken"
 ERROR_TAG_NAME_EXISTS = "Tag name already exists (case-insensitive)"
+ERROR_SCRIPT_DRAFT_ACTIVE = (
+    "409 cannot modify script while collaborative edit in progress"
+)
