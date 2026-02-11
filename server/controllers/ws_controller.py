@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import datetime
 import json
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, Optional, Union
@@ -81,6 +82,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
     def on_close(self) -> None:
         if self in self.application.clients:
             self.application.clients.remove(self)
+
+        # Remove from any collaborative editing room
+        if hasattr(self.application, "room_manager") and self.application.room_manager:
+            room = self.application.room_manager.get_room_for_client(self)
+            if room:
+                room.remove_client(self)
 
         notify_editor_change = False
         elect_live_leader = False
@@ -227,6 +234,17 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 await self.write_message(
                     {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
                 )
+            return
+
+        # Handle collaborative editing operations (Yjs sync protocol)
+        if ws_op in (
+            "JOIN_SCRIPT_ROOM",
+            "LEAVE_SCRIPT_ROOM",
+            "YJS_SYNC",
+            "YJS_UPDATE",
+            "YJS_AWARENESS",
+        ):
+            await self._handle_collab_op(ws_op, message)
             return
 
         with self.make_session() as session:
@@ -390,6 +408,118 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     f"Unknown OP {ws_op} received from "
                     f"WebSocket connection {self.request.remote_ip}"
                 )
+
+    async def _handle_collab_op(self, ws_op: str, message: dict):
+        """Handle collaborative editing WebSocket operations.
+
+        :param ws_op: The operation code.
+        :param message: The full parsed message dict.
+        """
+        room_manager = getattr(self.application, "room_manager", None)
+        if not room_manager:
+            get_logger().warning("RoomManager not available, ignoring collab OP")
+            return
+
+        data = message.get("DATA", {})
+
+        if ws_op == "JOIN_SCRIPT_ROOM":
+            revision_id = data.get("revision_id")
+            if not revision_id:
+                await self.write_message(
+                    {"OP": "COLLAB_ERROR", "DATA": {"error": "revision_id required"}}
+                )
+                return
+
+            role = data.get("role", "editor")
+            room = await room_manager.get_or_create_room(revision_id)
+            room.add_client(self, role)
+
+            # Send initial sync: full document state
+            sync_state = room.get_sync_state()
+            await self.write_message(
+                {
+                    "OP": "YJS_SYNC",
+                    "DATA": {
+                        "step": 0,
+                        "payload": base64.b64encode(sync_state).decode("ascii"),
+                        "room_id": f"draft_{revision_id}",
+                    },
+                }
+            )
+
+            # Notify all clients about the new collaborator
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+
+        elif ws_op == "LEAVE_SCRIPT_ROOM":
+            room = room_manager.get_room_for_client(self)
+            if room:
+                room.remove_client(self)
+                await self.application.ws_send_to_all(
+                    "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+                )
+
+        elif ws_op == "YJS_SYNC":
+            room = room_manager.get_room_for_client(self)
+            if not room:
+                return
+
+            payload = data.get("payload", "")
+            step = data.get("step", 1)
+
+            try:
+                decoded = base64.b64decode(payload)
+            except Exception:
+                get_logger().warning("Invalid base64 in YJS_SYNC message")
+                return
+
+            if step == 1:
+                # Client sends its state vector; server responds with diff
+                diff = room.get_update_for(decoded)
+                await self.write_message(
+                    {
+                        "OP": "YJS_SYNC",
+                        "DATA": {
+                            "step": 2,
+                            "payload": base64.b64encode(diff).decode("ascii"),
+                            "room_id": f"draft_{room.revision_id}",
+                        },
+                    }
+                )
+            elif step == 2:
+                # Client sends its diff; server applies it
+                room.apply_update(decoded)
+                await room.broadcast_update(decoded, sender=self)
+
+        elif ws_op == "YJS_UPDATE":
+            room = room_manager.get_room_for_client(self)
+            if not room:
+                return
+
+            payload = data.get("payload", "")
+            try:
+                decoded = base64.b64decode(payload)
+            except Exception:
+                get_logger().warning("Invalid base64 in YJS_UPDATE message")
+                return
+
+            room.apply_update(decoded)
+            await room.broadcast_update(decoded, sender=self)
+
+        elif ws_op == "YJS_AWARENESS":
+            room = room_manager.get_room_for_client(self)
+            if not room:
+                return
+
+            payload = data.get("payload", "")
+            try:
+                decoded = base64.b64decode(payload)
+            except Exception:
+                get_logger().warning("Invalid base64 in YJS_AWARENESS message")
+                return
+
+            await room.broadcast_awareness(decoded, sender=self)
 
     def on_pong(self, data: bytes) -> None:
         self._last_pong = IOLoop.current().time()
