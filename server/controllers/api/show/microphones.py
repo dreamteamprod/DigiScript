@@ -498,9 +498,11 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                     ]
                     # Sort by scene position (chronological order)
                     character_scenes.sort(
-                        key=lambda x: scene_metadata[x[0]].position
-                        if x[0] in scene_metadata
-                        else 0
+                        key=lambda x: (
+                            scene_metadata[x[0]].position
+                            if x[0] in scene_metadata
+                            else 0
+                        )
                     )
 
                     # Assign mic for each scene

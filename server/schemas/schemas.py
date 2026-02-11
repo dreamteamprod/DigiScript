@@ -227,7 +227,7 @@ class ScriptLineSchema(SQLAlchemyAutoSchema):
         include_fk = True
 
     line_parts = Nested(
-        lambda: ScriptLinePartSchema(),
+        lambda: ScriptLinePartSchema(),  # noqa: PLW0108 — forward reference required
         many=True,
     )
 
