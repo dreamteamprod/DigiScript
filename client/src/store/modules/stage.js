@@ -454,7 +454,7 @@ export default {
         return { success: true };
       } else {
         const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.error || 'Unable to add crew assignment';
+        const errorMsg = errorData.message || 'Unable to add crew assignment';
         log.error(errorMsg);
         Vue.$toast.error(errorMsg);
         return { success: false, error: errorMsg };
@@ -475,8 +475,10 @@ export default {
         context.dispatch('GET_CREW_ASSIGNMENTS');
         Vue.$toast.success('Deleted crew assignment!');
       } else {
-        log.error('Unable to delete crew assignment');
-        Vue.$toast.error('Unable to delete crew assignment');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.message || 'Unable to delete crew assignment';
+        log.error(errorMsg);
+        Vue.$toast.error(errorMsg);
       }
     },
   },
