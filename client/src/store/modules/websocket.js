@@ -100,11 +100,12 @@ export default {
         case 'RELOAD_CLIENT':
           window.location.reload();
           break;
-        // Collaborative editing Yjs messages — handled by HANDLE_DRAFT_MESSAGE action
+        // Collaborative editing messages — handled by HANDLE_DRAFT_MESSAGE action
         case 'YJS_SYNC':
         case 'YJS_UPDATE':
         case 'YJS_AWARENESS':
         case 'COLLAB_ERROR':
+        case 'ROOM_MEMBERS':
           break;
         default:
           log.error(`Unknown OP received from websocket: ${message.OP}`);

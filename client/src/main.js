@@ -89,7 +89,11 @@ function initializeWebSocket() {
               }
             }
             // Route collaborative editing messages to the draft provider
-            if (['YJS_SYNC', 'YJS_UPDATE', 'YJS_AWARENESS', 'COLLAB_ERROR'].includes(msg.OP)) {
+            if (
+              ['YJS_SYNC', 'YJS_UPDATE', 'YJS_AWARENESS', 'COLLAB_ERROR', 'ROOM_MEMBERS'].includes(
+                msg.OP
+              )
+            ) {
               this.store.dispatch('HANDLE_DRAFT_MESSAGE', msg);
             }
             return;

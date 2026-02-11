@@ -21,6 +21,7 @@ from tornado.ioloop import IOLoop
 
 from digi_server.logger import get_logger
 from models.script_draft import ScriptDraft
+from models.user import User
 from utils.script.line_to_ydoc import build_ydoc, fetch_script_line_data
 
 
@@ -145,6 +146,40 @@ class ScriptRoom:
             except Exception:
                 get_logger().debug(
                     f"Failed to send awareness to client in room {self.revision_id}"
+                )
+
+    async def broadcast_members(self, session):
+        """Broadcast the current room membership to all clients.
+
+        Sent whenever a client joins or leaves the room so all
+        participants have an up-to-date collaborator list.
+
+        :param session: A SQLAlchemy session for looking up usernames.
+        """
+        members = []
+        for ws, role in list(self.clients.items()):
+            user_id = getattr(ws, "current_user_id", None)
+            username = "Unknown"
+            if user_id:
+                user = session.get(User, user_id)
+                if user:
+                    username = user.username or f"User {user_id}"
+            members.append({"user_id": user_id, "username": username, "role": role})
+
+        message = {
+            "OP": "ROOM_MEMBERS",
+            "DATA": {
+                "room_id": f"draft_{self.revision_id}",
+                "members": members,
+            },
+        }
+
+        for ws in list(self.clients.keys()):
+            try:
+                await ws.write_message(message)
+            except Exception:
+                get_logger().debug(
+                    f"Failed to send members to client in room {self.revision_id}"
                 )
 
     def apply_update(self, update: bytes):

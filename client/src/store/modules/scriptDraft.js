@@ -5,6 +5,7 @@
  * the Yjs document and provider instances, and collaborator presence.
  */
 
+import Vue from 'vue';
 import * as Y from 'yjs';
 import log from 'loglevel';
 
@@ -27,8 +28,11 @@ export default {
     /** @type {string|null} ISO timestamp of last save */
     lastSavedAt: null,
 
-    /** @type {Array<{userId: number, username: string, role: string}>} */
+    /** @type {Array<{user_id: number, username: string, role: string}>} */
     collaborators: [],
+
+    /** @type {Object<number, {page: number|null, lineIndex: number|null, username: string}>} */
+    awarenessStates: {},
 
     /**
      * @type {import('yjs').Doc|null}
@@ -70,6 +74,14 @@ export default {
       state.collaborators = collaborators;
     },
 
+    SET_AWARENESS_STATE(state, { userId, awarenessState }) {
+      Vue.set(state.awarenessStates, userId, awarenessState);
+    },
+
+    REMOVE_AWARENESS_STATE(state, userId) {
+      Vue.delete(state.awarenessStates, userId);
+    },
+
     CLEAR_DRAFT_STATE(state) {
       state.roomId = null;
       state.isConnected = false;
@@ -77,6 +89,7 @@ export default {
       state.isDraft = false;
       state.lastSavedAt = null;
       state.collaborators = [];
+      state.awarenessStates = {};
       state.ydoc = null;
       state.provider = null;
     },
@@ -161,6 +174,25 @@ export default {
         context.commit('SET_DRAFT_CONNECTED', true);
       }
 
+      // Handle structured responses from the provider
+      if (handled && typeof handled === 'object') {
+        if (handled.type === 'ROOM_MEMBERS') {
+          context.commit('SET_DRAFT_COLLABORATORS', handled.members);
+        } else if (handled.type === 'AWARENESS') {
+          const state = handled.state;
+          if (state && state.userId != null) {
+            if (state.page === null && state.lineIndex === null) {
+              context.commit('REMOVE_AWARENESS_STATE', state.userId);
+            } else {
+              context.commit('SET_AWARENESS_STATE', {
+                userId: state.userId,
+                awarenessState: state,
+              });
+            }
+          }
+        }
+      }
+
       return handled;
     },
   },
@@ -202,6 +234,32 @@ export default {
     /** @returns {Array} List of collaborators in the room */
     DRAFT_COLLABORATORS(state) {
       return state.collaborators;
+    },
+
+    /** @returns {Object} Awareness states keyed by userId */
+    DRAFT_AWARENESS_STATES(state) {
+      return state.awarenessStates;
+    },
+
+    /**
+     * Map of "page:lineIndex" → array of users editing that line.
+     * Used by ScriptLineViewer to show editing indicators.
+     *
+     * @returns {Object<string, Array<{userId: number, username: string}>>}
+     */
+    DRAFT_LINE_EDITORS(state) {
+      const result = {};
+      for (const [userId, awareness] of Object.entries(state.awarenessStates)) {
+        if (awareness.page != null && awareness.lineIndex != null) {
+          const key = `${awareness.page}:${awareness.lineIndex}`;
+          if (!result[key]) result[key] = [];
+          result[key].push({
+            userId: Number(userId),
+            username: awareness.username || 'Unknown',
+          });
+        }
+      }
+      return result;
     },
   },
 };

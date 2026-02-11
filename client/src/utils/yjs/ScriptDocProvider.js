@@ -108,6 +108,9 @@ export default class ScriptDocProvider {
   disconnect() {
     if (!this._connected) return;
 
+    // Clear local awareness before leaving
+    this.setLocalAwareness({ page: null, lineIndex: null });
+
     const socket = this._socket;
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.sendObj({
@@ -135,7 +138,7 @@ export default class ScriptDocProvider {
    * Should be called from the Vuex SOCKET_ONMESSAGE handler.
    *
    * @param {object} message - The parsed WebSocket message
-   * @returns {boolean} true if this message was handled
+   * @returns {boolean|object} true/data if handled, false if not
    */
   handleMessage(message) {
     if (!this._connected && message.OP !== 'YJS_SYNC') return false;
@@ -150,6 +153,8 @@ export default class ScriptDocProvider {
         return this._handleUpdate(data);
       case 'YJS_AWARENESS':
         return this._handleAwareness(data);
+      case 'ROOM_MEMBERS':
+        return { type: 'ROOM_MEMBERS', members: data.members || [] };
       default:
         return false;
     }
@@ -212,12 +217,43 @@ export default class ScriptDocProvider {
 
   /**
    * Handle YJS_AWARENESS messages from the server.
+   * Decodes the JSON payload and returns the awareness state for
+   * the Vuex store to process.
+   *
    * @param {object} data
-   * @returns {boolean}
+   * @returns {object|boolean}
    */
   _handleAwareness(data) {
-    // Awareness handling will be implemented in Phase 3
+    const payload = data.payload;
+    if (!payload) return true;
+
+    try {
+      const decoded = decodeBase64(payload);
+      const jsonStr = new TextDecoder().decode(decoded);
+      const awarenessState = JSON.parse(jsonStr);
+      return { type: 'AWARENESS', state: awarenessState };
+    } catch (e) {
+      log.error('ScriptDocProvider: Failed to handle awareness message', e);
+    }
+
     return true;
+  }
+
+  /**
+   * Set local awareness state and broadcast to other clients.
+   * Used to share which line the user is currently editing.
+   *
+   * @param {object} state - e.g. { page, lineIndex, userId, username }
+   */
+  setLocalAwareness(state) {
+    if (!this._connected) return;
+
+    const jsonStr = JSON.stringify(state);
+    const encoded = new TextEncoder().encode(jsonStr);
+    this._sendToServer('YJS_AWARENESS', {
+      payload: encodeBase64(encoded),
+      room_id: this.roomId,
+    });
   }
 
   /**

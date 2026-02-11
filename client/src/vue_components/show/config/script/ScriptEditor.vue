@@ -319,6 +319,8 @@ export default {
       'IS_DRAFT_ACTIVE',
       'IS_DRAFT_SYNCED',
       'DRAFT_YDOC',
+      'DRAFT_COLLABORATORS',
+      'DRAFT_LINE_EDITORS',
     ]),
   },
   watch: {
@@ -497,6 +499,7 @@ export default {
       const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
       const lineIdent = `page_${this.currentEditPage}_line_${lineIndex}`;
       this.editPages.push(lineIdent);
+      this._broadcastAwareness(this.currentEditPage, lineIndex);
       if (trackAsLatest) {
         this.latestAddedLine = lineIdent;
       }
@@ -608,6 +611,7 @@ export default {
       if (index === -1) {
         this.editPages.push(`page_${pageIndex}_line_${lineIndex}`);
       }
+      this._broadcastAwareness(pageIndex, lineIndex);
     },
     doneEditingLine(pageIndex, lineIndex) {
       const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
@@ -615,6 +619,7 @@ export default {
       if (index !== -1) {
         this.editPages.splice(index, 1);
       }
+      this._broadcastAwareness(pageIndex, null);
       if (this.latestAddedLine === lineIdent) {
         this.addNewLine();
       }
@@ -706,6 +711,7 @@ export default {
       // Add new line to edit pages
       const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
       this.editPages.push(lineIdent);
+      this._broadcastAwareness(this.currentEditPage, newLineIndex);
     },
     async insertDialogueAt(pageIndex, lineIndex) {
       await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
@@ -1007,6 +1013,33 @@ export default {
       const pageArray = pages.get(this.currentEditPageKey);
       if (!pageArray || index >= pageArray.length) return null;
       return pageArray.get(index);
+    },
+    /**
+     * Broadcast awareness state (which line the user is editing).
+     * @param {number} page - The page number
+     * @param {number|null} lineIndex - The line index, or null if no line is expanded
+     */
+    _broadcastAwareness(page, lineIndex) {
+      if (!this.$store.state.scriptDraft.provider) return;
+      const user = this.CURRENT_USER;
+      this.$store.state.scriptDraft.provider.setLocalAwareness({
+        userId: user ? user.id : null,
+        username: user ? user.username : 'Unknown',
+        page,
+        lineIndex,
+      });
+    },
+    /**
+     * Get the list of other users editing a specific line.
+     * @param {number} lineIndex - The line index on the current page
+     * @returns {Array<{userId: number, username: string}>}
+     */
+    editingUsersForLine(lineIndex) {
+      const key = `${this.currentEditPage}:${lineIndex}`;
+      const editors = this.DRAFT_LINE_EDITORS[key] || [];
+      // Exclude current user
+      const currentUserId = this.CURRENT_USER ? this.CURRENT_USER.id : null;
+      return editors.filter((e) => e.userId !== currentUserId);
     },
     calculateNavbarHeight() {
       const navbar = document.querySelector('.navbar');

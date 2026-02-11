@@ -88,6 +88,14 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             room = self.application.room_manager.get_room_for_client(self)
             if room:
                 room.remove_client(self)
+                # Schedule async broadcast (on_close is sync, so use add_callback)
+                app = self.application
+
+                async def _broadcast():
+                    with app.get_db().sessionmaker() as session:
+                        await room.broadcast_members(session)
+
+                IOLoop.current().add_callback(_broadcast)
 
         notify_editor_change = False
         elect_live_leader = False
@@ -447,6 +455,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 }
             )
 
+            # Broadcast updated member list to all room clients
+            with self.make_session() as session:
+                await room.broadcast_members(session)
+
             # Notify all clients about the new collaborator
             await self.application.ws_send_to_all(
                 "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
@@ -456,6 +468,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             room = room_manager.get_room_for_client(self)
             if room:
                 room.remove_client(self)
+                # Broadcast updated member list to remaining clients
+                with self.make_session() as session:
+                    await room.broadcast_members(session)
                 await self.application.ws_send_to_all(
                     "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
                 )
