@@ -44,6 +44,7 @@
           v-for="(part, index) in state.line_parts"
           :key="`line_${lineIndex}_part_${index}`"
           v-model="$v.state.line_parts.$model[index]"
+          :y-part-map="getYPartMap(index)"
           :focus-input="index === 0"
           :characters="characters"
           :character-groups="characterGroups"
@@ -98,11 +99,13 @@
 </template>
 
 <script>
+import * as Y from 'yjs';
 import { mapGetters } from 'vuex';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { nullToZero, zeroToNull } from '@/utils/yjs/yjsBridge';
 
 export default {
   name: 'ScriptLineEditor',
@@ -153,6 +156,10 @@ export default {
       required: true,
       type: Object,
     },
+    yLineMap: {
+      type: Object,
+      default: null,
+    },
   },
   data() {
     return {
@@ -170,6 +177,8 @@ export default {
       nextLine: null,
       recalculationTimeout: null,
       abortController: null,
+      /** @type {Function|null} Y.Map observer cleanup */
+      ymapObserverCleanup: null,
     };
   },
   validations: {
@@ -313,8 +322,15 @@ export default {
       },
       deep: true,
     },
+    yLineMap(newVal, oldVal) {
+      if (oldVal) this.teardownYLineObservers();
+      if (newVal) this.setupYLineObservers();
+    },
   },
   async created() {
+    if (this.yLineMap) {
+      this.setupYLineObservers();
+    }
     this.previousLine = await this.previousLineFn(this.lineIndex);
     this.nextLine = await this.nextLineFn(this.lineIndex);
     if (
@@ -328,6 +344,7 @@ export default {
     this.$v.state.$touch();
   },
   beforeDestroy() {
+    this.teardownYLineObservers();
     if (this.recalculationTimeout) {
       clearTimeout(this.recalculationTimeout);
     }
@@ -378,8 +395,22 @@ export default {
     doneEditing() {
       this.$emit('doneEditing');
     },
+    /**
+     * Called on dropdown changes and when child ScriptLinePart emits input.
+     * In collab mode, writes line-level fields to Y.Map.
+     */
     stateChange() {
       this.$v.state.$touch();
+      if (this.yLineMap && this.yLineMap.doc) {
+        this.yLineMap.doc.transact(() => {
+          this.yLineMap.set('act_id', nullToZero(this.state.act_id));
+          this.yLineMap.set('scene_id', nullToZero(this.state.scene_id));
+          this.yLineMap.set(
+            'stage_direction_style_id',
+            nullToZero(this.state.stage_direction_style_id)
+          );
+        }, 'local-edit');
+      }
       this.$emit('input', this.state);
     },
     addLinePart() {
@@ -399,7 +430,78 @@ export default {
           }
         }
       }
+      // Sync new part to Y.Doc for collaborative editing
+      if (this.yLineMap) {
+        this.addPartToYDoc(
+          this.state.line_parts[this.state.line_parts.length - 1],
+          this.state.line_parts.length - 1
+        );
+      }
       this.stateChange();
+    },
+    /**
+     * Create a Y.Map for a new line part in the Y.Doc parts array.
+     * @param {object} partObj - The plain part object
+     * @param {number} index - The part index
+     */
+    addPartToYDoc(partObj, index) {
+      const partsArray = this.yLineMap.get('parts');
+      if (!partsArray || !this.yLineMap.doc) return;
+      this.yLineMap.doc.transact(() => {
+        const partMap = new Y.Map();
+        partsArray.push([partMap]);
+        partMap.set('_id', 0);
+        partMap.set('character_id', nullToZero(partObj.character_id));
+        partMap.set('character_group_id', nullToZero(partObj.character_group_id));
+        partMap.set('part_index', partObj.part_index ?? index);
+        const ytext = new Y.Text();
+        partMap.set('line_text', ytext);
+        if (partObj.line_text) {
+          ytext.insert(0, partObj.line_text);
+        }
+      }, 'local-edit');
+    },
+    /**
+     * Get the Y.Map for a specific line part from the Y.Doc.
+     * Returns null when not in collab mode or if the part doesn't exist.
+     * @param {number} index - Part index
+     * @returns {import('yjs').Map|null}
+     */
+    getYPartMap(index) {
+      if (!this.yLineMap) return null;
+      const parts = this.yLineMap.get('parts');
+      if (!parts || index >= parts.length) return null;
+      return parts.get(index);
+    },
+    /**
+     * Set up Y.Map observer for remote changes to line-level fields.
+     */
+    setupYLineObservers() {
+      const mapObserver = (event) => {
+        if (event.transaction.origin === 'local-edit') return;
+        for (const key of event.keysChanged) {
+          if (key === 'act_id') {
+            this.state.act_id = zeroToNull(this.yLineMap.get('act_id'));
+          } else if (key === 'scene_id') {
+            this.state.scene_id = zeroToNull(this.yLineMap.get('scene_id'));
+          } else if (key === 'stage_direction_style_id') {
+            this.state.stage_direction_style_id = zeroToNull(
+              this.yLineMap.get('stage_direction_style_id')
+            );
+          }
+        }
+      };
+      this.yLineMap.observe(mapObserver);
+      this.ymapObserverCleanup = () => this.yLineMap.unobserve(mapObserver);
+    },
+    /**
+     * Remove Y.Map observer.
+     */
+    teardownYLineObservers() {
+      if (this.ymapObserverCleanup) {
+        this.ymapObserverCleanup();
+        this.ymapObserverCleanup = null;
+      }
     },
     deleteLine() {
       this.$emit('deleteLine');
