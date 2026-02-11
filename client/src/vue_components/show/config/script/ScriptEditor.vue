@@ -206,6 +206,12 @@ import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineView
 import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import {
+  syncPageFromYDoc,
+  updateYDocLine,
+  addYDocLine,
+  deleteYDocLine,
+} from '@/utils/yjs/yjsBridge';
 
 export default {
   name: 'ScriptConfig',
@@ -238,6 +244,10 @@ export default {
       autoSaveInterval: null,
       isAutoSaving: false,
       navbarHeight: 0,
+      /** @type {Function|null} Deep observer cleanup for Y.Doc pages */
+      ydocObserverCleanup: null,
+      /** @type {boolean} Guard flag to prevent observer → TMP_SCRIPT → Y.Doc loops */
+      syncingFromYDoc: false,
     };
   },
   validations: {
@@ -311,6 +321,10 @@ export default {
       'STAGE_DIRECTION_STYLE_OVERRIDES',
       'USER_SETTINGS',
       'IS_SCRIPT_EDITOR',
+      'CURRENT_REVISION',
+      'IS_DRAFT_ACTIVE',
+      'IS_DRAFT_SYNCED',
+      'DRAFT_YDOC',
     ]),
   },
   watch: {
@@ -322,6 +336,11 @@ export default {
     },
     CURRENT_EDITOR() {
       this.setupAutoSave();
+    },
+    IS_DRAFT_SYNCED(synced) {
+      if (synced) {
+        this.setupYDocBridge();
+      }
     },
   },
   async beforeMount() {
@@ -356,6 +375,14 @@ export default {
       this.currentEditPage = parseInt(storedPage, 10);
     }
     await this.goToPageInner(this.currentEditPage);
+
+    // Join collaborative editing room if a revision is active
+    if (this.CURRENT_REVISION) {
+      this.JOIN_DRAFT_ROOM({
+        revisionId: this.CURRENT_REVISION,
+        role: this.IS_SCRIPT_EDITOR ? 'editor' : 'viewer',
+      });
+    }
   },
   mounted() {
     this.loaded = true;
@@ -369,6 +396,8 @@ export default {
     if (this.autoSaveInterval != null) {
       clearInterval(this.autoSaveInterval);
     }
+    this.teardownYDocBridge();
+    this.LEAVE_DRAFT_ROOM();
   },
   methods: {
     async getMaxScriptPage() {
@@ -459,6 +488,7 @@ export default {
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
       }
+      this.addLineToYDoc(this.currentEditPage, this.TMP_SCRIPT[this.currentEditPageKey][lineIndex]);
     },
     async addStageDirection() {
       const stageDirectionObject = JSON.parse(JSON.stringify(this.blankLineObj));
@@ -474,6 +504,7 @@ export default {
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
       }
+      this.addLineToYDoc(this.currentEditPage, this.TMP_SCRIPT[this.currentEditPageKey][lineIndex]);
     },
     async addCueLine() {
       const cueLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
@@ -490,6 +521,7 @@ export default {
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
       }
+      this.addLineToYDoc(this.currentEditPage, this.TMP_SCRIPT[this.currentEditPageKey][lineIndex]);
     },
     async addSpacing() {
       const spacingObject = JSON.parse(JSON.stringify(this.blankLineObj));
@@ -506,6 +538,7 @@ export default {
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
         this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
       }
+      this.addLineToYDoc(this.currentEditPage, this.TMP_SCRIPT[this.currentEditPageKey][lineIndex]);
     },
     async getPreviousLineForIndex(lineIndex) {
       // Search backwards from lineIndex - 1 on the current page, skipping deleted lines
@@ -590,6 +623,10 @@ export default {
         lineIndex: index,
         lineObj: line,
       });
+      // Propagate to Y.Doc for collaborative sync
+      if (this.IS_DRAFT_ACTIVE && this.DRAFT_YDOC && !this.syncingFromYDoc) {
+        updateYDocLine(this.DRAFT_YDOC, this.currentEditPage, index, line);
+      }
     },
     beginEditingLine(pageIndex, lineIndex) {
       const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);
@@ -615,6 +652,7 @@ export default {
         pageNo: pageIndex,
         lineIndex,
       });
+      this.deleteLineFromYDoc(pageIndex, lineIndex);
       this.doneEditingLine(pageIndex, lineIndex);
 
       this.editPages.forEach(function updateEditPage(editPage, index) {
@@ -695,6 +733,11 @@ export default {
         this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
         this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
       }
+      this.addLineToYDoc(
+        this.currentEditPage,
+        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex],
+        newLineIndex
+      );
     },
     async insertDialogueAt(pageIndex, lineIndex) {
       await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
@@ -799,6 +842,11 @@ export default {
         this.ADD_BLANK_PAGE(this.currentEditPage);
       }
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
+
+      // If Y.Doc is synced, overlay collaborative data onto loaded pages
+      if (this.IS_DRAFT_SYNCED && this.DRAFT_YDOC) {
+        this.syncCurrentPageFromYDoc();
+      }
     },
     setupAutoSave() {
       const autoSaveInterval = Math.max(
@@ -911,6 +959,100 @@ export default {
       }
       this.isAutoSaving = false;
     },
+    /**
+     * Set up the Y.Doc ↔ TMP_SCRIPT bridge after initial sync completes.
+     * Installs a deep observer on the Y.Doc pages map that updates
+     * TMP_SCRIPT when remote changes arrive.
+     */
+    setupYDocBridge() {
+      const ydoc = this.DRAFT_YDOC;
+      if (!ydoc) return;
+
+      const pages = ydoc.getMap('pages');
+
+      // Sync the current page from Y.Doc → TMP_SCRIPT on initial connect
+      this.syncCurrentPageFromYDoc();
+
+      // Observe deep changes on the pages map
+      const observer = (events, transaction) => {
+        // Skip changes we made ourselves (from lineChange → updateYDocLine)
+        if (transaction.origin === 'local-bridge') return;
+
+        // Determine which pages were affected
+        const affectedPages = new Set();
+        events.forEach((event) => {
+          // Walk up to find the page key
+          const path = event.path;
+          if (path.length >= 1) {
+            affectedPages.add(path[0].toString());
+          } else {
+            // Top-level pages map changed — sync all loaded pages
+            Object.keys(this.TMP_SCRIPT).forEach((p) => affectedPages.add(p));
+          }
+        });
+
+        // Sync affected pages that are currently loaded
+        this.syncingFromYDoc = true;
+        affectedPages.forEach((pageKey) => {
+          if (Object.keys(this.TMP_SCRIPT).includes(pageKey)) {
+            const lines = syncPageFromYDoc(ydoc, pageKey);
+            this.$store.commit('ADD_PAGE', { pageNo: pageKey, pageContents: lines });
+          }
+        });
+        this.syncingFromYDoc = false;
+      };
+
+      pages.observeDeep(observer);
+      this.ydocObserverCleanup = () => pages.unobserveDeep(observer);
+
+      log.info('ScriptEditor: Y.Doc bridge established');
+    },
+    /**
+     * Remove the Y.Doc observer.
+     */
+    teardownYDocBridge() {
+      if (this.ydocObserverCleanup) {
+        this.ydocObserverCleanup();
+        this.ydocObserverCleanup = null;
+      }
+    },
+    /**
+     * Sync all currently loaded TMP_SCRIPT pages from Y.Doc data.
+     */
+    syncCurrentPageFromYDoc() {
+      const ydoc = this.DRAFT_YDOC;
+      if (!ydoc) return;
+
+      this.syncingFromYDoc = true;
+      Object.keys(this.TMP_SCRIPT).forEach((pageKey) => {
+        const lines = syncPageFromYDoc(ydoc, pageKey);
+        if (lines.length > 0) {
+          this.$store.commit('ADD_PAGE', { pageNo: pageKey, pageContents: lines });
+        }
+      });
+      this.syncingFromYDoc = false;
+    },
+    /**
+     * Propagate a new line addition to the Y.Doc.
+     * @param {number} pageNo
+     * @param {object} lineObj
+     * @param {number} [insertAt] - Index to insert at
+     */
+    addLineToYDoc(pageNo, lineObj, insertAt) {
+      if (this.IS_DRAFT_ACTIVE && this.DRAFT_YDOC) {
+        addYDocLine(this.DRAFT_YDOC, pageNo, lineObj, insertAt);
+      }
+    },
+    /**
+     * Propagate a line deletion to the Y.Doc.
+     * @param {number} pageNo
+     * @param {number} lineIndex
+     */
+    deleteLineFromYDoc(pageNo, lineIndex) {
+      if (this.IS_DRAFT_ACTIVE && this.DRAFT_YDOC) {
+        deleteYDocLine(this.DRAFT_YDOC, pageNo, lineIndex);
+      }
+    },
     calculateNavbarHeight() {
       const navbar = document.querySelector('.navbar');
       if (navbar) {
@@ -947,6 +1089,8 @@ export default {
       'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
       'GET_CUE_COLOUR_OVERRIDES',
       'GET_USER_SETTINGS',
+      'JOIN_DRAFT_ROOM',
+      'LEAVE_DRAFT_ROOM',
     ]),
   },
 };
