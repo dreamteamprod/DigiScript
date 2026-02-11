@@ -41,7 +41,7 @@ class ScriptDraft(db.Model):
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc),
         onupdate=partial(datetime.datetime.now, tz=datetime.timezone.utc),
     )
-    last_editor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    last_editor_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"))
 
     script_revision: Mapped[ScriptRevision] = relationship(foreign_keys=[revision_id])
     last_editor: Mapped[User] = relationship(foreign_keys=[last_editor_id])
