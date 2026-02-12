@@ -330,6 +330,7 @@ export default {
       'IS_DRAFT_SYNCED',
       'DRAFT_YDOC',
       'DRAFT_COLLABORATORS',
+      'DRAFT_PROVIDER',
       'DRAFT_LINE_EDITORS',
       'DRAFT_AWARENESS_STATES',
     ]),
@@ -350,7 +351,7 @@ export default {
       }
     },
   },
-  async beforeMount() {
+  async mounted() {
     await Promise.all([
       this.GET_CURRENT_USER()
         .then(() => this.GET_USER_SETTINGS())
@@ -391,10 +392,10 @@ export default {
         role: this.IS_SCRIPT_EDITOR ? 'editor' : 'viewer',
       });
     }
-  },
-  mounted() {
+
+    // All data loaded — now safe to render
     this.loaded = true;
-    this.calculateNavbarHeight();
+    this.$nextTick(() => this.calculateNavbarHeight());
   },
   created() {
     window.addEventListener('resize', this.calculateNavbarHeight);
@@ -1022,7 +1023,9 @@ export default {
       if (!this.IS_DRAFT_ACTIVE || !this.DRAFT_YDOC) return null;
       const pages = this.DRAFT_YDOC.getMap('pages');
       const pageArray = pages.get(this.currentEditPageKey);
-      if (!pageArray || index >= pageArray.length) return null;
+      if (!pageArray || index >= pageArray.length) {
+        return null;
+      }
       return pageArray.get(index);
     },
     /**
@@ -1031,9 +1034,9 @@ export default {
      * @param {number|null} lineIndex - The line index, or null if no line is expanded
      */
     _broadcastAwareness(page, lineIndex) {
-      if (!this.$store.state.scriptDraft.provider) return;
+      if (!this.DRAFT_PROVIDER) return;
       const user = this.CURRENT_USER;
-      this.$store.state.scriptDraft.provider.setLocalAwareness({
+      this.DRAFT_PROVIDER.setLocalAwareness({
         userId: user ? user.id : null,
         username: user ? user.username : 'Unknown',
         page,

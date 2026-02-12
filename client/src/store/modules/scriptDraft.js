@@ -3,6 +3,13 @@
  *
  * Tracks the connection state to a collaborative editing room,
  * the Yjs document and provider instances, and collaborator presence.
+ *
+ * IMPORTANT: The Y.Doc and ScriptDocProvider instances are stored outside
+ * of Vuex reactive state (as module-level variables). Vue 2's reactivity
+ * system deeply observes all objects in state, adding getters/setters to
+ * every property. For complex library objects like Y.Doc, this causes Vue
+ * to track internal Yjs properties as reactive dependencies — leading to
+ * infinite render loops when Y.Doc internals change during transactions.
  */
 
 import Vue from 'vue';
@@ -10,6 +17,18 @@ import * as Y from 'yjs';
 import log from 'loglevel';
 
 import ScriptDocProvider from '@/utils/yjs/ScriptDocProvider';
+
+/**
+ * Non-reactive storage for Y.Doc and provider instances.
+ * These must NOT be stored in Vuex state because Vue 2 would make them
+ * deeply reactive, breaking Yjs internal state management.
+ *
+ * @type {import('yjs').Doc|null}
+ */
+let _ydoc = null;
+
+/** @type {ScriptDocProvider|null} */
+let _provider = null;
 
 export default {
   state: {
@@ -33,25 +52,11 @@ export default {
 
     /** @type {Object<number, {page: number|null, lineIndex: number|null, username: string}>} */
     awarenessStates: {},
-
-    /**
-     * @type {import('yjs').Doc|null}
-     * The Yjs document instance. Not persisted to localStorage.
-     */
-    ydoc: null,
-
-    /**
-     * @type {ScriptDocProvider|null}
-     * The Yjs provider instance. Not persisted to localStorage.
-     */
-    provider: null,
   },
 
   mutations: {
-    SET_DRAFT_ROOM(state, { roomId, ydoc, provider }) {
+    SET_DRAFT_ROOM(state, { roomId }) {
       state.roomId = roomId;
-      state.ydoc = ydoc;
-      state.provider = provider;
     },
 
     SET_DRAFT_CONNECTED(state, value) {
@@ -90,8 +95,8 @@ export default {
       state.lastSavedAt = null;
       state.collaborators = [];
       state.awarenessStates = {};
-      state.ydoc = null;
-      state.provider = null;
+      _ydoc = null;
+      _provider = null;
     },
   },
 
@@ -107,18 +112,18 @@ export default {
      */
     async JOIN_DRAFT_ROOM(context, { revisionId, role = 'editor' }) {
       // Leave existing room first
-      if (context.state.provider) {
+      if (_provider) {
         await context.dispatch('LEAVE_DRAFT_ROOM');
       }
 
       const ydoc = new Y.Doc();
       const provider = new ScriptDocProvider(ydoc, revisionId, { role });
 
-      context.commit('SET_DRAFT_ROOM', {
-        roomId: revisionId,
-        ydoc,
-        provider,
-      });
+      // Store instances outside reactive state
+      _ydoc = ydoc;
+      _provider = provider;
+
+      context.commit('SET_DRAFT_ROOM', { roomId: revisionId });
 
       // Listen for sync completion
       const checkSynced = setInterval(() => {
@@ -145,9 +150,8 @@ export default {
      * Leave the current collaborative editing room.
      */
     async LEAVE_DRAFT_ROOM(context) {
-      const { provider } = context.state;
-      if (provider) {
-        provider.destroy();
+      if (_provider) {
+        _provider.destroy();
       }
 
       context.commit('CLEAR_DRAFT_STATE');
@@ -163,13 +167,12 @@ export default {
      * @returns {boolean} Whether the message was handled
      */
     HANDLE_DRAFT_MESSAGE(context, message) {
-      const { provider } = context.state;
-      if (!provider) return false;
+      if (!_provider) return false;
 
-      const handled = provider.handleMessage(message);
+      const handled = _provider.handleMessage(message);
 
       // Check if sync status changed
-      if (handled && provider.synced && !context.state.isSynced) {
+      if (handled && _provider.synced && !context.state.isSynced) {
         context.commit('SET_DRAFT_SYNCED', true);
         context.commit('SET_DRAFT_CONNECTED', true);
       }
@@ -203,27 +206,32 @@ export default {
       return state.roomId !== null && state.isConnected;
     },
 
-    /** @returns {import('yjs').Doc|null} The Y.Doc instance */
-    DRAFT_YDOC(state) {
-      return state.ydoc;
+    /** @returns {import('yjs').Doc|null} The Y.Doc instance (non-reactive) */
+    DRAFT_YDOC() {
+      return _ydoc;
+    },
+
+    /** @returns {ScriptDocProvider|null} The provider instance (non-reactive) */
+    DRAFT_PROVIDER() {
+      return _provider;
     },
 
     /** @returns {import('yjs').Map|null} The Y.Doc pages map */
-    DRAFT_PAGES(state) {
-      if (!state.ydoc) return null;
-      return state.ydoc.getMap('pages');
+    DRAFT_PAGES() {
+      if (!_ydoc) return null;
+      return _ydoc.getMap('pages');
     },
 
     /** @returns {import('yjs').Map|null} The Y.Doc meta map */
-    DRAFT_META(state) {
-      if (!state.ydoc) return null;
-      return state.ydoc.getMap('meta');
+    DRAFT_META() {
+      if (!_ydoc) return null;
+      return _ydoc.getMap('meta');
     },
 
     /** @returns {import('yjs').Array|null} The deleted line IDs array */
-    DRAFT_DELETED_LINE_IDS(state) {
-      if (!state.ydoc) return null;
-      return state.ydoc.getArray('deleted_line_ids');
+    DRAFT_DELETED_LINE_IDS() {
+      if (!_ydoc) return null;
+      return _ydoc.getArray('deleted_line_ids');
     },
 
     /** @returns {boolean} Whether initial sync is complete */
