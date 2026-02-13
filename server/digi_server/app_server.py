@@ -17,7 +17,12 @@ from tornado_prometheus import PrometheusMixIn
 
 from controllers import controllers
 from controllers.ws_controller import WebSocketController
-from digi_server.logger import configure_db_logging, configure_file_logging, get_logger
+from digi_server.logger import (
+    configure_db_logging,
+    configure_file_logging,
+    configure_log_level,
+    get_logger,
+)
 from digi_server.settings import Settings
 from models import models
 from models.cue import CueType
@@ -362,23 +367,29 @@ class DigiScriptServer(PrometheusMixIn, Application):
         log_path = await self.digi_settings.get("log_path")
         file_size = await self.digi_settings.get("max_log_mb")
         backups = await self.digi_settings.get("log_backups")
+        log_level = await self.digi_settings.get("log_level")
         if log_path:
             self.app_log_handler = configure_file_logging(
-                log_path, file_size, backups, self.app_log_handler
+                log_path=log_path,
+                max_size_mb=file_size,
+                log_backups=backups,
+                handler=self.app_log_handler,
             )
+        configure_log_level(log_level)
 
         # Database logging
         use_db_logging = await self.digi_settings.get("db_log_enabled")
-        if use_db_logging:
-            db_log_path = await self.digi_settings.get("db_log_path")
-            db_file_size = await self.digi_settings.get("db_max_log_mb")
-            db_backups = await self.digi_settings.get("db_log_backups")
-            self.db_file_handler = configure_db_logging(
-                log_path=db_log_path,
-                max_size_mb=db_file_size,
-                log_backups=db_backups,
-                handler=self.db_file_handler,
-            )
+        db_log_path = await self.digi_settings.get("db_log_path")
+        db_file_size = await self.digi_settings.get("db_max_log_mb")
+        db_backups = await self.digi_settings.get("db_log_backups")
+        self.db_file_handler = configure_db_logging(
+            log_path=db_log_path,
+            max_size_mb=db_file_size,
+            log_backups=db_backups,
+            handler=self.db_file_handler,
+            log_level=log_level,
+            enable_db_logging=use_db_logging,
+        )
 
     def _configure_rbac(self):
         self._db.register_delete_hook(self.rbac.rbac_db.check_object_deletion)

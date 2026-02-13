@@ -32,8 +32,18 @@
                     </template>
                   </p>
                 </template>
+                <b-form-select
+                  v-if="setting.choice_options != null"
+                  :id="`${key}-input`"
+                  v-model="$v.editSettings[key].$model"
+                  :name="`${key}-input`"
+                  :options="getChoiceOptions(setting)"
+                  :state="validateState(key)"
+                  :disabled="!setting.can_edit"
+                >
+                </b-form-select>
                 <b-form-input
-                  v-if="setting.type !== 'bool'"
+                  v-else-if="setting.type !== 'bool'"
                   :id="`${key}-input`"
                   v-model="$v.editSettings[key].$model"
                   :name="`${key}-input`"
@@ -43,13 +53,16 @@
                   :number="setting.type === 'int'"
                 />
                 <b-form-checkbox
-                  v-else
+                  v-else-if="setting.type === 'bool'"
                   :id="`${key}-input`"
                   v-model="$v.editSettings[key].$model"
                   :name="`${key}-input`"
                   :disabled="!setting.can_edit"
                   :switch="true"
                 />
+                <b-alert v-else show variant="danger">
+                  Unknown setting type {{ setting.type }} for setting {{ key }}.
+                </b-alert>
               </b-form-group>
               <b-button-group size="md" style="float: right">
                 <b-button type="reset" variant="danger"> Reset </b-button>
@@ -130,6 +143,16 @@ export default {
         return 'text';
       }
       return mapping[fieldType];
+    },
+    getChoiceOptions(setting) {
+      const options = [];
+      if (setting._nullable) {
+        options.push({ value: null, text: 'N/A' });
+      }
+      setting.choice_options.forEach((option) => {
+        options.push({ value: option, text: option });
+      });
+      return options;
     },
     validateState(name) {
       const { $dirty, $error } = this.$v.editSettings[name];

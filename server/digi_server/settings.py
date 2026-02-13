@@ -4,11 +4,11 @@ import json
 import os
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Optional
 
 from tornado.locks import Lock
 
-from digi_server.logger import get_logger
+from digi_server.logger import get_level_names_by_order, get_logger
 from utils.file_watcher import IOLoopFileWatcher
 
 
@@ -35,6 +35,8 @@ def get_version() -> str:
 
 
 class SettingsObject:
+    ALLOWED_TYPES = [str, bool, int]
+
     def __init__(
         self,
         key,
@@ -46,12 +48,37 @@ class SettingsObject:
         display_name: str = "",
         help_text: str = "",
         hide_from_ui: bool = False,
+        choice_options: Optional[list] = None,
     ):
-        if val_type not in [str, bool, int]:
+        if val_type not in self.ALLOWED_TYPES:
             raise RuntimeError(
                 f"Invalid type {val_type} for {key}. Allowed options are: "
-                f"[str, int, bool]"
+                f"{[t.__name__ for t in self.ALLOWED_TYPES]}."
             )
+
+        if default is None and not nullable:
+            raise RuntimeError(
+                f"Default value for {key} cannot be None if setting is not nullable."
+            )
+
+        if default is not None and not isinstance(default, val_type):
+            raise RuntimeError(
+                f"Default value {default} for {key} is not of type {val_type.__name__}."
+            )
+
+        if choice_options is not None:
+            if len(choice_options) == 0:
+                raise RuntimeError(f"Choice options for {key} cannot be an empty list.")
+
+            if any(not isinstance(option, val_type) for option in choice_options):
+                raise RuntimeError(
+                    f"All choice options for {key} must be of type {val_type.__name__}."
+                )
+
+            if default not in choice_options:
+                raise RuntimeError(
+                    f"Default value for {key} must be one of the choice options."
+                )
 
         self.key = key
         self.val_type = val_type
@@ -64,6 +91,7 @@ class SettingsObject:
         self.display_name = display_name
         self.help_text = help_text
         self.hide_from_ui = hide_from_ui
+        self.choice_options = choice_options
 
     def set_to_default(self):
         self.value = self.default
@@ -80,6 +108,12 @@ class SettingsObject:
                     f"Value for {self.key} of {value} is not of assigned "
                     f"type {self.val_type}"
                 )
+
+        if self.choice_options is not None and value not in self.choice_options:
+            raise ValueError(
+                f"Value for {self.key} must be one of the following options: "
+                f"{self.choice_options}"
+            )
 
         changed = False
         if value != self.value:
@@ -106,6 +140,8 @@ class SettingsObject:
             "display_name": self.display_name,
             "help_text": self.help_text,
             "hide_from_ui": self.hide_from_ui,
+            "choice_options": self.choice_options,
+            "_nullable": self._nullable,
         }
 
 
@@ -161,6 +197,15 @@ class Settings:
             hide_from_ui=True,
         )
         self.define("debug_mode", bool, False, True, display_name="Enable Debug Mode")
+        self.define(
+            "log_level",
+            str,
+            "DEBUG",
+            True,
+            self._application.regen_logging,
+            display_name="Log Level",
+            choice_options=get_level_names_by_order(),
+        )
         self.define(
             "log_path",
             str,
@@ -254,6 +299,7 @@ class Settings:
         display_name: str = "",
         help_text: str = "",
         hide_from_ui: bool = False,
+        choice_options: Optional[list] = None,
     ):
         self.settings[key] = SettingsObject(
             key,
@@ -265,6 +311,7 @@ class Settings:
             display_name,
             help_text,
             hide_from_ui,
+            choice_options,
         )
 
     def file_deleted(self):
