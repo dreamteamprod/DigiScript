@@ -6,6 +6,12 @@ from tornado.log import LogFormatter
 
 
 logger = logging.getLogger("DigiScript")
+ALL_LOGGERS = [
+    logging.getLogger("tornado.access"),
+    logging.getLogger("tornado.application"),
+    logging.getLogger("tornado.general"),
+    logger,
+]
 
 
 def get_logger(name: Optional[str] = None):
@@ -14,26 +20,40 @@ def get_logger(name: Optional[str] = None):
     return logger
 
 
-def configure_file_logging(log_path, max_size_mb=100, log_backups=5, handler=None):
+def configure_log_level(log_level=logging.DEBUG):
+    for _logger in ALL_LOGGERS:
+        logger.info(f"Setting log level to {log_level} for logger: {_logger.name}")
+        _logger.setLevel(log_level)
+
+
+def configure_file_logging(
+    log_path,
+    max_size_mb=100,
+    log_backups=5,
+    handler=None,
+):
     size_bytes = max_size_mb * 1024 * 1024
-    app_logger = get_logger()
 
     if handler:
-        app_logger.removeHandler(handler)
+        for _logger in ALL_LOGGERS:
+            _logger.removeHandler(handler)
 
     file_handler = RotatingFileHandler(
         log_path, maxBytes=size_bytes, backupCount=log_backups
     )
     file_handler.setFormatter(LogFormatter(color=False))
-    app_logger.addHandler(file_handler)
-    logging.getLogger("tornado.access").addHandler(file_handler)
-    logging.getLogger("tornado.application").addHandler(file_handler)
-    logging.getLogger("tornado.general").addHandler(file_handler)
+    for _logger in ALL_LOGGERS:
+        _logger.addHandler(file_handler)
     return file_handler
 
 
 def configure_db_logging(
-    log_level=logging.DEBUG, log_path=None, max_size_mb=100, log_backups=5, handler=None
+    log_level=logging.DEBUG,
+    log_path=None,
+    max_size_mb=100,
+    log_backups=5,
+    handler=None,
+    enable_db_logging=False,
 ):
     size_bytes = max_size_mb * 1024 * 1024
     db_logger = logging.getLogger("sqlalchemy.engine")
@@ -41,6 +61,11 @@ def configure_db_logging(
     if handler:
         db_logger.removeHandler(handler)
 
+    if not enable_db_logging:
+        logger.info(f"Disabling logger: {db_logger.name}")
+        return None
+
+    logger.info(f"Setting log level to {log_level} for logger: {db_logger.name}")
     db_logger.setLevel(log_level)
     file_handler = None
     if log_path:
@@ -75,3 +100,9 @@ def add_logging_level(level_name, level_num, method_name=None):
     setattr(logging, level_name, level_num)
     setattr(logging.getLoggerClass(), method_name, log_for_level)
     setattr(logging, method_name, log_to_root)
+
+
+def get_level_names_by_order():
+    levels = logging.getLevelNamesMapping()
+    sorted_levels = sorted(levels.items(), key=lambda x: x[1])
+    return [name for name, _ in sorted_levels]
