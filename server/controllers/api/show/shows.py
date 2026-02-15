@@ -4,7 +4,11 @@ from dateutil import parser
 from sqlalchemy import select
 from tornado import escape
 
-from controllers.api.constants import ERROR_SHOW_NOT_FOUND
+from controllers.api.constants import (
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_SHOW_NOT_FOUND,
+)
 from digi_server.logger import get_logger
 from models.script import Script, ScriptRevision
 from models.show import Show, ShowScriptType
@@ -12,7 +16,12 @@ from rbac.role import Role
 from schemas.schemas import ShowSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import api_authenticated, require_admin, requires_show
+from utils.web.web_decorators import (
+    api_authenticated,
+    no_live_session,
+    require_admin,
+    requires_show,
+)
 
 
 @ApiRoute("show", ApiVersion.V1)
@@ -216,6 +225,45 @@ class ShowController(BaseAPIController):
                 await self.finish({"message": "Successfully updated act"})
 
                 await self.application.ws_send_to_all("NOOP", "GET_SHOW_DETAILS", {})
+            else:
+                self.set_status(404)
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
+
+    @requires_show
+    @no_live_session
+    async def delete(self):
+        """
+        Deletes a show. This is a destructive action and will delete all associated data including scripts, script revisions, acts, cues, etc. Use with caution.
+        """
+        show_id_str = self.get_argument("id", None)
+        if not show_id_str:
+            self.set_status(400)
+            await self.finish({"message": ERROR_ID_MISSING})
+            return
+
+        try:
+            show_id = int(show_id_str)
+        except ValueError:
+            self.set_status(400)
+            await self.finish({"message": ERROR_INVALID_ID})
+            return
+
+        current_show = self.get_current_show()
+        current_show_id = current_show["id"]
+        if show_id == current_show_id:
+            self.set_status(400)
+            await self.finish({"message": "Cannot delete the currently loaded show"})
+            return
+
+        with self.make_session() as session:
+            show: Show = session.get(Show, show_id)
+            if show:
+                session.delete(show)
+                session.commit()
+
+                self.set_status(200)
+                await self.application.ws_send_to_all("NOOP", "GET_SHOW_DETAILS", {})
+                await self.finish({"message": "Successfully deleted show"})
             else:
                 self.set_status(404)
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
