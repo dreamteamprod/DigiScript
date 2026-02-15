@@ -4,7 +4,21 @@
       <b-col>
         <b-table id="cast-table" :items="USERS" :fields="userFields" show-empty>
           <template #head(btn)="data">
-            <b-button v-b-modal.new-user variant="outline-success"> New User </b-button>
+            <b-button-group>
+              <b-button v-b-modal.new-user variant="outline-success"> New User </b-button>
+              <b-button v-b-modal.new-admin-user variant="outline-success"> New Admin </b-button>
+            </b-button-group>
+          </template>
+          <template #head(is_admin)="data"> User Type </template>
+          <template #cell(last_login)="data">
+            {{ data.item.last_login ? data.item.last_login : 'Never' }}
+          </template>
+          <template #cell(last_seen)="data">
+            {{ data.item.last_seen ? data.item.last_seen : 'Never' }}
+          </template>
+          <template #cell(is_admin)="data">
+            <b-badge v-if="data.item.is_admin" variant="primary">Admin</b-badge>
+            <b-badge v-else variant="secondary">User</b-badge>
           </template>
           <template #cell(btn)="data">
             <b-button-group>
@@ -26,7 +40,9 @@
               </b-button>
               <b-button
                 variant="danger"
-                :disabled="data.item.is_admin"
+                :disabled="
+                  (allAdmins.length === 1 && data.item.is_admin) || data.item.id === CURRENT_USER.id
+                "
                 @click.stop="deleteUser(data)"
               >
                 Delete
@@ -37,7 +53,10 @@
       </b-col>
     </b-row>
     <b-modal id="new-user" ref="new-user" title="Add New User" size="md" hide-footer>
-      <create-user :is_first_admin="false" @created_user="resetNewForm" />
+      <create-user :is-first-admin="false" @created_user="resetNewForm" />
+    </b-modal>
+    <b-modal id="new-admin-user" ref="new-admin-user" title="Add New Admin" size="md" hide-footer>
+      <create-user :is-first-admin="false" :is-admin="true" @created_user="resetNewAdminForm" />
     </b-modal>
     <b-modal id="user-rbac" ref="user-rbac" title="User RBAC Config" size="xl" hide-footer>
       <config-rbac :user-id="editUser" />
@@ -80,6 +99,9 @@ export default {
     };
   },
   computed: {
+    allAdmins() {
+      return this.USERS.filter((user) => user.is_admin);
+    },
     ...mapGetters(['USERS', 'CURRENT_SHOW', 'CURRENT_USER']),
   },
   async mounted() {
@@ -91,6 +113,9 @@ export default {
   methods: {
     resetNewForm() {
       this.$bvModal.hide('new-user');
+    },
+    resetNewAdminForm() {
+      this.$bvModal.hide('new-admin-user');
     },
     setEditUser(userId) {
       this.editUser = userId;

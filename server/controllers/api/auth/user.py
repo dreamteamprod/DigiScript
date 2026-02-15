@@ -97,14 +97,24 @@ class UserDeleteController(BaseAPIController):
 
         with self.make_session() as session:
             user_to_delete: User = session.get(User, int(user_to_delete))
+            all_admins = session.scalars(
+                select(User).where(User.is_admin.is_(True))
+            ).all()
             if not user_to_delete:
                 self.set_status(400)
                 await self.finish({"message": "Could not find user to delete"})
                 return
 
-            if user_to_delete.is_admin:
+            if user_to_delete.id == self.current_user["id"]:
                 self.set_status(400)
-                await self.finish({"message": "Cannot delete admin user"})
+                await self.finish(
+                    {"message": "Cannot delete currently authenticated user"}
+                )
+                return
+
+            if user_to_delete.is_admin and len(all_admins) <= 1:
+                self.set_status(400)
+                await self.finish({"message": "Cannot delete the only admin user"})
                 return
 
             async with NamedLockRegistry.acquire(
