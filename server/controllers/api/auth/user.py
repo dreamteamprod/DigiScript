@@ -15,62 +15,71 @@ from utils.web.web_decorators import (
     api_authenticated,
     no_live_session,
     require_admin,
-    requires_show,
 )
 
 
 @ApiRoute("auth/create", ApiVersion.V1)
 class UserCreateController(BaseAPIController):
     async def post(self):
-        data = escape.json_decode(self.request.body)
-
-        username = data.get("username", "")
-        if not username:
-            self.set_status(400)
-            await self.finish({"message": "Username missing"})
-            return
-
-        password = data.get("password", "")
-        if not password:
-            self.set_status(400)
-            await self.finish({"message": "Password missing"})
-            return
-
-        # Validate password strength
-        is_valid, error_msg = PasswordService.validate_password_strength(password)
-        if not is_valid:
-            self.set_status(400)
-            await self.finish({"message": error_msg})
-            return
-
-        is_admin = data.get("is_admin", False)
-
         with self.make_session() as session:
-            conflict_user = session.scalars(
-                select(User).where(User.username == username)
-            ).first()
-            if conflict_user:
+            # If there are no users, allow creation without authentication, otherwise require admin.
+            has_any_users = session.scalars(select(User)).first() is not None
+            if has_any_users:
+                self.requires_admin()
+
+            data = escape.json_decode(self.request.body)
+
+            username = data.get("username", "")
+            if not username:
                 self.set_status(400)
-                await self.finish({"message": "Username already taken"})
+                await self.finish({"message": "Username missing"})
                 return
 
-            hashed_password = await PasswordService.hash_password(password)
+            password = data.get("password", "")
+            if not password:
+                self.set_status(400)
+                await self.finish({"message": "Password missing"})
+                return
 
-            session.add(
-                User(
-                    username=username,
-                    password=hashed_password,
-                    is_admin=is_admin,
+            is_admin = data.get("is_admin", False)
+            if not has_any_users and not is_admin:
+                self.set_status(400)
+                await self.finish({"message": "First user must be an admin"})
+                return
+
+            # Validate password strength
+            is_valid, error_msg = PasswordService.validate_password_strength(password)
+            if not is_valid:
+                self.set_status(400)
+                await self.finish({"message": error_msg})
+                return
+
+            async with NamedLockRegistry.acquire(f"UserLock::{username}"):
+                conflict_user = session.scalars(
+                    select(User).where(User.username == username)
+                ).first()
+                if conflict_user:
+                    self.set_status(400)
+                    await self.finish({"message": "Username already taken"})
+                    return
+
+                hashed_password = await PasswordService.hash_password(password)
+
+                session.add(
+                    User(
+                        username=username,
+                        password=hashed_password,
+                        is_admin=is_admin,
+                    )
                 )
-            )
-            session.commit()
+                session.commit()
 
-            if is_admin:
-                await self.application.digi_settings.set("has_admin_user", True)
+                if is_admin:
+                    await self.application.digi_settings.set("has_admin_user", True)
 
-            self.set_status(200)
-            await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
-            await self.finish({"message": "Successfully created user"})
+                self.set_status(200)
+                await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
+                await self.finish({"message": "Successfully created user"})
 
 
 @ApiRoute("auth/delete", ApiVersion.V1)
@@ -233,7 +242,6 @@ class RefreshTokenHandler(BaseAPIController):
 class UsersHandler(BaseAPIController):
     @api_authenticated
     @require_admin
-    @requires_show
     def get(self):
         user_schema = UserSchema()
         with self.make_session() as session:

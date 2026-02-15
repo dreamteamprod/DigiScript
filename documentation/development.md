@@ -31,6 +31,8 @@ DigiScript consists of three main components:
 - **`client/`** - Vue.js 2 frontend (builds to `server/static/` for web, or `client/dist-electron/` for Electron)
 - **`electron/`** - Electron desktop application wrapper
 
+Refer to [DeepWiki](https://deepwiki.com/dreamteamprod/DigiScript) for detailed documentation on the architecture and design.
+
 ## Building the Web Client
 
 ```shell
