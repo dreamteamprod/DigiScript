@@ -25,6 +25,15 @@ export default {
     },
   },
   actions: {
+    async GET_AVAILABLE_SHOWS(context) {
+      const response = await fetch(`${makeURL('/api/v1/shows')}`);
+      if (response.ok) {
+        const shows = await response.json();
+        context.commit('UPDATE_SHOWS', shows.shows);
+      } else {
+        log.error('Unable to get available shows');
+      }
+    },
     async GET_RAW_SETTINGS(context) {
       const response = await fetch(`${makeURL('/api/v1/settings/raw')}`);
       if (response.ok) {
@@ -81,6 +90,9 @@ export default {
     },
   },
   getters: {
+    AVAILABLE_SHOWS(state) {
+      return state.availableShows;
+    },
     SETTINGS(state) {
       return state.settings;
     },
