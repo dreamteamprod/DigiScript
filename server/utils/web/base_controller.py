@@ -121,6 +121,12 @@ class BaseController(DatabaseMixin, RequestHandler):
                     self.current_show = show_schema.dump(show)
         return
 
+    def requires_admin(self):
+        if not self.current_user:
+            raise HTTPError(401, log_message="Not logged in")
+        if not self.current_user["is_admin"]:
+            raise HTTPError(403, log_message="Admin access required")
+
     def requires_role(self, resource: db.Model, role: Role):
         if not self.current_user:
             raise HTTPError(401, log_message="Not logged in")
