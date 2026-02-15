@@ -4,7 +4,10 @@
       <b-col>
         <h1>DigiScript Config</h1>
         <b-tabs content-class="mt-3">
-          <b-tab title="System" active>
+          <b-tab title="Shows" active>
+            <config-shows />
+          </b-tab>
+          <b-tab title="System">
             <config-system />
           </b-tab>
           <b-tab title="Settings">
@@ -23,9 +26,10 @@
 import ConfigSystem from '@/vue_components/config/ConfigSystem.vue';
 import ConfigSettings from '@/vue_components/config/ConfigSettings.vue';
 import ConfigUsers from '@/vue_components/config/ConfigUsers.vue';
+import ConfigShows from '@/vue_components/config/ConfigShows.vue';
 
 export default {
   name: 'ConfigView',
-  components: { ConfigUsers, ConfigSettings, ConfigSystem },
+  components: { ConfigShows, ConfigUsers, ConfigSettings, ConfigSystem },
 };
 </script>
