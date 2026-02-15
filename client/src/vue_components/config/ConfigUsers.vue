@@ -2,7 +2,7 @@
   <b-container class="mx-0" fluid>
     <b-row>
       <b-col>
-        <b-table id="cast-table" :items="SHOW_USERS" :fields="userFields" show-empty>
+        <b-table id="cast-table" :items="USERS" :fields="userFields" show-empty>
           <template #head(btn)="data">
             <b-button v-b-modal.new-user variant="outline-success"> New User </b-button>
           </template>
@@ -80,7 +80,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['SHOW_USERS', 'CURRENT_SHOW', 'CURRENT_USER']),
+    ...mapGetters(['USERS', 'CURRENT_SHOW', 'CURRENT_USER']),
   },
   async mounted() {
     await this.getUsers();
