@@ -115,10 +115,16 @@ export default {
         event.preventDefault();
       } else {
         await this.CREATE_USER(this.state);
+        if (this.isFirstAdmin) {
+          await this.USER_LOGIN({
+            username: this.state.username,
+            password: this.state.password,
+          });
+        }
         this.$emit('created_user');
       }
     },
-    ...mapActions(['CREATE_USER']),
+    ...mapActions(['CREATE_USER', 'USER_LOGIN']),
   },
 };
 </script>
