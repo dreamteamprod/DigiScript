@@ -19,12 +19,16 @@
         <b-col cols="2">
           <b-button-group v-if="IS_SCRIPT_EDITOR">
             <template v-if="!IS_CURRENT_EDITOR && !IS_CURRENT_CUTTER">
-              <b-button variant="warning" :disabled="!CAN_REQUEST_EDIT" @click="requestEdit">
-                Edit
-              </b-button>
-              <b-button variant="warning" :disabled="!CAN_REQUEST_CUTS" @click="requestCutEdit">
-                Cuts
-              </b-button>
+              <span v-b-tooltip.hover="editDisabledReason" class="btn-group-item">
+                <b-button variant="warning" :disabled="!CAN_REQUEST_EDIT" @click="requestEdit">
+                  Edit
+                </b-button>
+              </span>
+              <span v-b-tooltip.hover="cutsDisabledReason" class="btn-group-item">
+                <b-button variant="warning" :disabled="!CAN_REQUEST_CUTS" @click="requestCutEdit">
+                  Cuts
+                </b-button>
+              </span>
             </template>
             <template v-if="IS_CURRENT_EDITOR">
               <b-button
@@ -290,6 +294,16 @@ export default {
         return this.saveError ? 'danger' : 'success';
       }
       return 'primary';
+    },
+    editDisabledReason() {
+      if (this.CUTTERS.length > 0) return 'Another user is currently making cuts';
+      return '';
+    },
+    cutsDisabledReason() {
+      if (this.EDITORS.length > 0) return 'Another user is currently editing';
+      if (this.CUTTERS.length > 0) return 'Another user is currently making cuts';
+      if (this.HAS_DRAFT) return 'An unsaved draft exists';
+      return '';
     },
     canEdit() {
       return this.IS_CURRENT_EDITOR;
@@ -1144,5 +1158,19 @@ export default {
   padding: 10px 0;
   border-bottom: 1px solid #dee2e6;
   background: var(--body-background);
+}
+
+.btn-group-item {
+  display: flex;
+}
+
+.btn-group-item:first-child > .btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.btn-group-item:last-child > .btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 </style>
