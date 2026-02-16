@@ -114,3 +114,12 @@ ERROR_TAG_NAME_EXISTS = "Tag name already exists (case-insensitive)"
 ERROR_SCRIPT_DRAFT_ACTIVE = (
     "409 cannot modify script while collaborative edit in progress"
 )
+
+# =============================================================================
+# WebSocket Edit/Cuts Mode Errors
+# =============================================================================
+
+ERROR_EDIT_BLOCKED_BY_CUTTER = "Cannot edit: another user is in cuts mode"
+ERROR_CUTS_BLOCKED_BY_EDITOR = "Cannot enter cuts mode: another user is editing"
+ERROR_CUTS_BLOCKED_BY_CUTTER = "Cannot enter cuts mode: another user is already cutting"
+ERROR_CUTS_BLOCKED_BY_DRAFT = "Cannot enter cuts mode: unsaved draft exists"

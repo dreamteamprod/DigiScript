@@ -9,8 +9,9 @@ export default {
     tmpScript: {},
     deletedLines: {},
     editStatus: {
-      canRequestEdit: false,
-      currentEditor: null,
+      editors: [],
+      cutters: [],
+      hasDraft: false,
     },
     cutMode: false,
     insertedLines: {},
@@ -93,8 +94,9 @@ export default {
     },
   },
   actions: {
-    REQUEST_EDIT_FAILURE(context) {
-      Vue.$toast.error('Unable to edit script');
+    REQUEST_EDIT_FAILURE(context, message) {
+      const reason = message?.DATA?.reason || 'Unable to edit script';
+      Vue.$toast.error(reason);
       context.dispatch('GET_SCRIPT_CONFIG_STATUS');
       context.commit('SET_CUT_MODE', false);
     },
@@ -195,11 +197,32 @@ export default {
     ALL_DELETED_LINES(state) {
       return state.deletedLines;
     },
-    CAN_REQUEST_EDIT(state) {
-      return state.editStatus.canRequestEdit;
+    EDITORS(state) {
+      return state.editStatus.editors;
     },
-    CURRENT_EDITOR(state) {
-      return state.editStatus.currentEditor;
+    CUTTERS(state) {
+      return state.editStatus.cutters;
+    },
+    HAS_DRAFT(state) {
+      return state.editStatus.hasDraft;
+    },
+    CAN_REQUEST_EDIT(state) {
+      return state.editStatus.cutters.length === 0;
+    },
+    CAN_REQUEST_CUTS(state) {
+      return (
+        state.editStatus.editors.length === 0 &&
+        state.editStatus.cutters.length === 0 &&
+        !state.editStatus.hasDraft
+      );
+    },
+    IS_CURRENT_EDITOR: (state, getters, rootState, rootGetters) => {
+      const uuid = rootGetters.INTERNAL_UUID;
+      return state.editStatus.editors.some((e) => e.internal_id === uuid);
+    },
+    IS_CURRENT_CUTTER: (state, getters, rootState, rootGetters) => {
+      const uuid = rootGetters.INTERNAL_UUID;
+      return state.editStatus.cutters.some((c) => c.internal_id === uuid);
     },
     IS_CUT_MODE(state) {
       return state.cutMode;

@@ -18,38 +18,38 @@
         </b-col>
         <b-col cols="2">
           <b-button-group v-if="IS_SCRIPT_EDITOR">
-            <b-button
-              v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-              variant="warning"
-              :disabled="!CAN_REQUEST_EDIT"
-              @click="requestEdit"
-            >
-              Edit
-            </b-button>
-            <b-button
-              v-if="INTERNAL_UUID !== CURRENT_EDITOR"
-              variant="warning"
-              :disabled="!CAN_REQUEST_EDIT"
-              @click="requestCutEdit"
-            >
-              Cuts
-            </b-button>
-            <b-button
-              v-else
-              variant="warning"
-              :disabled="savingInProgress || isAutoSaving"
-              @click="stopEditing"
-            >
-              Stop Editing
-            </b-button>
-            <b-button
-              v-if="INTERNAL_UUID === CURRENT_EDITOR"
-              variant="success"
-              :disabled="!canSave && !isAutoSaving"
-              @click="saveScript"
-            >
-              Save
-            </b-button>
+            <template v-if="!IS_CURRENT_EDITOR && !IS_CURRENT_CUTTER">
+              <b-button variant="warning" :disabled="!CAN_REQUEST_EDIT" @click="requestEdit">
+                Edit
+              </b-button>
+              <b-button variant="warning" :disabled="!CAN_REQUEST_CUTS" @click="requestCutEdit">
+                Cuts
+              </b-button>
+            </template>
+            <template v-if="IS_CURRENT_EDITOR">
+              <b-button
+                variant="warning"
+                :disabled="savingInProgress || isAutoSaving"
+                @click="stopEditing"
+              >
+                Stop Editing
+              </b-button>
+              <b-button variant="success" :disabled="!canSave && !isAutoSaving" @click="saveScript">
+                Save
+              </b-button>
+            </template>
+            <template v-if="IS_CURRENT_CUTTER">
+              <b-button
+                variant="warning"
+                :disabled="savingInProgress || isAutoSaving"
+                @click="stopEditing"
+              >
+                Stop Cuts
+              </b-button>
+              <b-button variant="success" :disabled="!canSave && !isAutoSaving" @click="saveScript">
+                Save
+              </b-button>
+            </template>
           </b-button-group>
         </b-col>
       </b-row>
@@ -292,7 +292,7 @@ export default {
       return 'primary';
     },
     canEdit() {
-      return this.INTERNAL_UUID === this.CURRENT_EDITOR;
+      return this.IS_CURRENT_EDITOR;
     },
     canSave() {
       if (this.IS_CUT_MODE) {
@@ -311,7 +311,12 @@ export default {
       'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST',
       'CAN_REQUEST_EDIT',
-      'CURRENT_EDITOR',
+      'CAN_REQUEST_CUTS',
+      'EDITORS',
+      'CUTTERS',
+      'HAS_DRAFT',
+      'IS_CURRENT_EDITOR',
+      'IS_CURRENT_CUTTER',
       'INTERNAL_UUID',
       'GET_SCRIPT_PAGE',
       'DELETED_LINES',
@@ -342,8 +347,36 @@ export default {
     USER_SETTINGS() {
       this.setupAutoSave();
     },
-    CURRENT_EDITOR() {
+    IS_CURRENT_EDITOR(isEditor) {
       this.setupAutoSave();
+      if (isEditor && this.CURRENT_REVISION && !this.IS_DRAFT_ACTIVE) {
+        this.JOIN_DRAFT_ROOM({
+          revisionId: this.CURRENT_REVISION,
+          role: 'editor',
+        });
+      }
+    },
+    EDITORS: {
+      handler(editors) {
+        if (
+          editors.length > 0 &&
+          !this.IS_CURRENT_EDITOR &&
+          !this.IS_DRAFT_ACTIVE &&
+          this.CURRENT_REVISION
+        ) {
+          this.JOIN_DRAFT_ROOM({
+            revisionId: this.CURRENT_REVISION,
+            role: 'viewer',
+          });
+        }
+      },
+      immediate: true,
+    },
+    IS_DRAFT_ACTIVE(active) {
+      if (!active) {
+        this.teardownYDocBridge();
+        this.RESET_TO_SAVED(this.currentEditPage);
+      }
     },
     IS_DRAFT_SYNCED(synced) {
       if (synced) {
@@ -385,14 +418,6 @@ export default {
     }
     await this.goToPageInner(this.currentEditPage);
 
-    // Join collaborative editing room if a revision is active
-    if (this.CURRENT_REVISION) {
-      this.JOIN_DRAFT_ROOM({
-        revisionId: this.CURRENT_REVISION,
-        role: this.IS_SCRIPT_EDITOR ? 'editor' : 'viewer',
-      });
-    }
-
     // All data loaded — now safe to render
     this.loaded = true;
     this.$nextTick(() => this.calculateNavbarHeight());
@@ -432,7 +457,7 @@ export default {
     requestCutEdit() {
       this.SET_CUT_MODE(true);
       this.$socket.sendObj({
-        OP: 'REQUEST_SCRIPT_EDIT',
+        OP: 'REQUEST_SCRIPT_CUTS',
         DATA: {},
       });
     },
@@ -440,23 +465,32 @@ export default {
       this.linePartCuts = JSON.parse(JSON.stringify(this.SCRIPT_CUTS));
     },
     async stopEditing() {
-      if (this.scriptChanges) {
-        const msg =
-          'Are you sure you want to stop editing the script? ' +
-          'This will cause all unsaved changes to be lost';
-        const action = await this.$bvModal.msgBoxConfirm(msg, {});
-        if (action === false) {
-          return;
+      if (this.IS_CUT_MODE) {
+        // Cuts mode: local state, no room involvement
+        if (this.scriptChanges) {
+          const msg =
+            'Are you sure you want to stop editing cuts? ' +
+            'This will cause all unsaved changes to be lost';
+          const action = await this.$bvModal.msgBoxConfirm(msg, {});
+          if (action === false) {
+            return;
+          }
         }
+        this.editPages = [];
+        this.RESET_TO_SAVED(this.currentEditPage);
+        this.resetCutsToSaved();
+        this.$socket.sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
+        this.SET_CUT_MODE(false);
+        return;
       }
+
+      // Collab edit mode: stay in room as viewer
       this.editPages = [];
-      this.RESET_TO_SAVED(this.currentEditPage);
-      this.resetCutsToSaved();
-      this.$socket.sendObj({
-        OP: 'STOP_SCRIPT_EDIT',
-        DATA: {},
-      });
-      this.SET_CUT_MODE(false);
+      this._broadcastAwareness(this.currentEditPage, null);
+      this.$socket.sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
+      // Server downgrades role; IS_CURRENT_EDITOR goes false via GET_SCRIPT_CONFIG_STATUS
+      // → canEdit becomes false → UI switches to read-only
+      // Y.Doc bridge stays active, TMP_SCRIPT stays populated
     },
     async decrPage() {
       if (this.currentEditPage > 1) {
@@ -839,9 +873,9 @@ export default {
         this.USER_SETTINGS.script_auto_save_interval * 1000 * 60,
         1000 * 60
       );
-      if (this.INTERNAL_UUID !== this.CURRENT_EDITOR && this.autoSaveInterval != null) {
+      if (!this.IS_CURRENT_EDITOR && this.autoSaveInterval != null) {
         clearInterval(this.autoSaveInterval);
-      } else if (this.INTERNAL_UUID === this.CURRENT_EDITOR) {
+      } else if (this.IS_CURRENT_EDITOR) {
         if (this.USER_SETTINGS.enable_script_auto_save) {
           if (this.autoSaveInterval == null) {
             this.autoSaveInterval = setInterval(this.autosave, autoSaveInterval);

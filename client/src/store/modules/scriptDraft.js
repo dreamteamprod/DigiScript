@@ -167,6 +167,12 @@ export default {
      * @returns {boolean} Whether the message was handled
      */
     HANDLE_DRAFT_MESSAGE(context, message) {
+      // Room closed by server (last editor left) — clean up
+      if (message.OP === 'ROOM_CLOSED') {
+        context.dispatch('LEAVE_DRAFT_ROOM');
+        return { type: 'ROOM_CLOSED' };
+      }
+
       if (!_provider) return false;
 
       const handled = _provider.handleMessage(message);

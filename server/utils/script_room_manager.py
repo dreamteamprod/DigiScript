@@ -212,6 +212,11 @@ class ScriptRoom:
         return self.doc.get_update(state_vector)
 
     @property
+    def has_editors(self) -> bool:
+        """Whether the room has any connected editor clients."""
+        return any(role == "editor" for role in self.clients.values())
+
+    @property
     def is_empty(self) -> bool:
         """Whether the room has no connected clients."""
         return len(self.clients) == 0
@@ -431,6 +436,33 @@ class RoomManager:
             get_logger().debug(f"Checkpointed room {room.revision_id} to {draft_path}")
         except Exception:
             get_logger().exception(f"Failed to checkpoint room {room.revision_id}")
+
+    async def close_room(self, revision_id: int):
+        """Close a room: notify all remaining viewers and evict.
+
+        Called when the last editor leaves or disconnects. Sends
+        ``ROOM_CLOSED`` to every remaining client so they can revert
+        to the saved script, then tears down the room.
+
+        :param revision_id: The revision ID of the room to close.
+        """
+        room = self._rooms.get(revision_id)
+        if room is None:
+            return
+
+        message = {
+            "OP": "ROOM_CLOSED",
+            "DATA": {"room_id": f"draft_{revision_id}"},
+        }
+        for ws in list(room.clients.keys()):
+            try:
+                await ws.write_message(message)
+            except Exception:
+                pass
+
+        room.stop_observing()
+        del self._rooms[revision_id]
+        get_logger().info(f"Closed room for revision {revision_id}")
 
     async def _evict_room(self, revision_id: int):
         """Evict an idle room, checkpointing first if dirty.

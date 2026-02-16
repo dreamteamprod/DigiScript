@@ -106,6 +106,7 @@ export default {
         case 'YJS_AWARENESS':
         case 'COLLAB_ERROR':
         case 'ROOM_MEMBERS':
+        case 'ROOM_CLOSED':
           break;
         default:
           log.error(`Unknown OP received from websocket: ${message.OP}`);

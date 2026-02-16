@@ -252,12 +252,13 @@ export default {
     ...mapGetters([
       'SCRIPT_REVISIONS',
       'CURRENT_REVISION',
-      'CURRENT_EDITOR',
-      'INTERNAL_UUID',
+      'EDITORS',
+      'CUTTERS',
+      'HAS_DRAFT',
       'IS_SCRIPT_EDITOR',
     ]),
     canChangeRevisions() {
-      return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
+      return this.EDITORS.length === 0 && this.CUTTERS.length === 0;
     },
   },
   watch: {
