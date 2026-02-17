@@ -624,9 +624,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         # Verify a ScriptDraft record was created (checkpoint happened)
         with self._app.get_db().sessionmaker() as db_session:
             draft = db_session.scalar(
-                select(ScriptDraft).where(
-                    ScriptDraft.revision_id == self.revision_id
-                )
+                select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
             )
             self.assertIsNotNone(draft)
             self.assertIsNotNone(draft.data_path)
@@ -695,7 +693,9 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         room_closed_msg = await ws.read_message()
         room_closed_data = json.loads(room_closed_msg)
         self.assertEqual("ROOM_CLOSED", room_closed_data["OP"])
-        self.assertEqual(f"draft_{self.revision_id}", room_closed_data["DATA"]["room_id"])
+        self.assertEqual(
+            f"draft_{self.revision_id}", room_closed_data["DATA"]["room_id"]
+        )
 
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
