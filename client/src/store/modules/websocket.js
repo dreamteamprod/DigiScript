@@ -107,6 +107,8 @@ export default {
         case 'COLLAB_ERROR':
         case 'ROOM_MEMBERS':
         case 'ROOM_CLOSED':
+        case 'SCRIPT_SAVED':
+        case 'SAVE_ERROR':
           break;
         default:
           log.error(`Unknown OP received from websocket: ${message.OP}`);

@@ -20,7 +20,7 @@
           <b-button-group v-if="IS_SCRIPT_EDITOR">
             <template v-if="!IS_CURRENT_EDITOR && !IS_CURRENT_CUTTER">
               <span v-b-tooltip.hover="editDisabledReason" class="btn-group-item">
-                <b-button variant="warning" :disabled="!CAN_REQUEST_EDIT" @click="requestEdit">
+                <b-button variant="warning" :disabled="!CAN_REQUEST_EDIT" @click="onEditClick">
                   Edit
                 </b-button>
               </span>
@@ -29,18 +29,37 @@
                   Cuts
                 </b-button>
               </span>
+              <span
+                v-if="HAS_DRAFT && EDITORS.length === 0"
+                v-b-tooltip.hover="'Discard the unsaved draft permanently'"
+                class="btn-group-item"
+              >
+                <b-button variant="outline-danger" size="sm" @click="confirmDiscardDraft">
+                  Discard Draft
+                </b-button>
+              </span>
             </template>
             <template v-if="IS_CURRENT_EDITOR">
               <b-button
                 variant="warning"
-                :disabled="savingInProgress || isAutoSaving"
+                :disabled="savingInProgress || isAutoSaving || IS_DRAFT_SAVING"
                 @click="stopEditing"
               >
                 Stop Editing
               </b-button>
-              <b-button variant="success" :disabled="!canSave && !isAutoSaving" @click="saveScript">
-                Save
+              <b-button
+                variant="success"
+                :disabled="(!canSave && !isAutoSaving) || IS_DRAFT_SAVING"
+                @click="saveScript"
+              >
+                {{ IS_DRAFT_SAVING ? 'Saving...' : 'Save' }}
               </b-button>
+              <span v-if="IS_DRAFT_ACTIVE" class="ml-2 align-self-center small text-muted">
+                <template v-if="IS_DRAFT_SAVING">
+                  Saving{{ DRAFT_SAVE_PHASE ? ` (${DRAFT_SAVE_PHASE})` : '' }}...
+                </template>
+                <template v-else> Draft &mdash; unsaved changes </template>
+              </span>
             </template>
             <template v-if="IS_CURRENT_CUTTER">
               <b-button
@@ -195,6 +214,25 @@
           </b-form-invalid-feedback>
         </b-form-group>
       </b-form>
+    </b-modal>
+    <b-modal
+      id="draft-resume-modal"
+      ref="draft-resume-modal"
+      title="Unsaved Draft Found"
+      size="md"
+      no-close-on-backdrop
+      hide-footer
+    >
+      <p>An unsaved draft exists for this script. What would you like to do?</p>
+      <div class="d-flex justify-content-between mt-3">
+        <b-button variant="primary" @click="resumeDraft"> Resume Draft </b-button>
+        <b-button variant="danger" @click="discardAndStartFresh">
+          Discard &amp; Start Fresh
+        </b-button>
+        <b-button variant="secondary" @click="$bvModal.hide('draft-resume-modal')">
+          Cancel
+        </b-button>
+      </div>
     </b-modal>
   </b-container>
   <b-container v-else class="mx-0 px-0 script-editor-container" fluid>
@@ -352,6 +390,8 @@ export default {
       'DRAFT_PROVIDER',
       'DRAFT_LINE_EDITORS',
       'DRAFT_AWARENESS_STATES',
+      'IS_DRAFT_SAVING',
+      'DRAFT_SAVE_PHASE',
     ]),
   },
   watch: {
@@ -395,6 +435,42 @@ export default {
     IS_DRAFT_SYNCED(synced) {
       if (synced) {
         this.setupYDocBridge();
+      }
+    },
+    DRAFT_SAVE_PHASE(phase) {
+      if (!this._collabSaveToast || !phase) return;
+      const labels = {
+        validating: 'Validating lines...',
+        persisting: 'Persisting changes...',
+        finalizing: 'Finalizing...',
+      };
+      this._collabSaveToast.message = labels[phase] || 'Saving...';
+    },
+    '$store.state.scriptDraft.isSaving': function onSavingChanged(saving) {
+      if (!saving && this._collabSaveToast) {
+        this._collabSaveToast.dismiss();
+        this._collabSaveToast = null;
+
+        const error = this.$store.state.scriptDraft.saveError;
+        if (error) {
+          if (Array.isArray(error)) {
+            // Validation errors
+            const messages = error.map(
+              (e) => `Page ${e.page}, line ${e.lineIndex + 1}: ${e.message}`
+            );
+            this.$toast.error(`Save failed:\n${messages.join('\n')}`);
+          } else {
+            this.$toast.error(`Save failed: ${error}`);
+          }
+        } else if (this.$store.state.scriptDraft.lastSavedAt) {
+          this.$toast.success('Script saved successfully');
+          // Refresh script data to match DB
+          this.LOAD_SCRIPT_PAGE(this.currentEditPage).then(() => {
+            this.ADD_BLANK_PAGE(this.currentEditPage);
+          });
+          this.GET_SCRIPT_CONFIG_STATUS();
+          this.getMaxScriptPage();
+        }
       }
     },
   },
@@ -462,11 +538,48 @@ export default {
         log.error('Unable to get current max page');
       }
     },
+    onEditClick() {
+      if (this.HAS_DRAFT) {
+        this.$bvModal.show('draft-resume-modal');
+      } else {
+        this.requestEdit();
+      }
+    },
     requestEdit() {
       this.$socket.sendObj({
         OP: 'REQUEST_SCRIPT_EDIT',
         DATA: {},
       });
+    },
+    resumeDraft() {
+      this.$bvModal.hide('draft-resume-modal');
+      this.requestEdit();
+    },
+    async discardAndStartFresh() {
+      this.$bvModal.hide('draft-resume-modal');
+      this.$socket.sendObj({
+        OP: 'DISCARD_SCRIPT_DRAFT',
+        DATA: {},
+      });
+      // Wait for ROOM_CLOSED + status update, then request edit
+      // Use a short delay to let the server process the discard
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await this.GET_SCRIPT_CONFIG_STATUS();
+      this.requestEdit();
+    },
+    async confirmDiscardDraft() {
+      const confirmed = await this.$bvModal.msgBoxConfirm(
+        'Are you sure you want to discard the unsaved draft? This cannot be undone.',
+        { okVariant: 'danger', okTitle: 'Discard Draft' }
+      );
+      if (confirmed) {
+        this.$socket.sendObj({
+          OP: 'DISCARD_SCRIPT_DRAFT',
+          DATA: {},
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await this.GET_SCRIPT_CONFIG_STATUS();
+      }
     },
     requestCutEdit() {
       this.SET_CUT_MODE(true);
@@ -786,6 +899,19 @@ export default {
       await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.SPACING);
     },
     async saveScript() {
+      // Collaborative save — server handles persistence via WebSocket
+      if (this.IS_DRAFT_ACTIVE) {
+        this.SET_DRAFT_SAVING(true);
+        this._collabSaveToast = this.$toast.open({
+          type: 'info',
+          message: 'Saving script...',
+          duration: 0,
+          dismissible: false,
+        });
+        this.$socket.sendObj({ OP: 'SAVE_SCRIPT_DRAFT', DATA: {} });
+        return;
+      }
+
       if (!this.IS_CUT_MODE) {
         if (this.scriptChanges) {
           this.savingInProgress = true;
@@ -904,6 +1030,11 @@ export default {
     },
     async autosave() {
       if (this.isAutoSaving) {
+        return;
+      }
+      // In collab mode, trigger server-side save (no toast for autosave)
+      if (this.IS_DRAFT_ACTIVE) {
+        this.$socket.sendObj({ OP: 'SAVE_SCRIPT_DRAFT', DATA: {} });
         return;
       }
       this.isAutoSaving = true;
@@ -1120,6 +1251,7 @@ export default {
       'SET_CUT_MODE',
       'INSERT_BLANK_LINE',
       'RESET_INSERTED',
+      'SET_DRAFT_SAVING',
     ]),
     ...mapActions([
       'GET_SCENE_LIST',

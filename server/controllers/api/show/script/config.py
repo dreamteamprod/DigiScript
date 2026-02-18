@@ -64,7 +64,7 @@ class ScriptStatusController(BaseAPIController):
                             room_manager = self.application.room_manager
                             if room_manager:
                                 room = room_manager.get_room(script.current_revision)
-                                if room and room.has_editors:
+                                if room and room.has_editors and room._dirty:
                                     has_draft = True
 
             data = {

@@ -13,6 +13,7 @@ import glob
 import os
 import tempfile
 import time
+from functools import partial
 from typing import TYPE_CHECKING
 
 import pycrdt
@@ -20,9 +21,13 @@ from sqlalchemy import select
 from tornado.ioloop import IOLoop
 
 from digi_server.logger import get_logger
+from models.script import CompiledScript, ScriptRevision
 from models.script_draft import ScriptDraft
 from models.user import User
+from utils.database import DigiDBSession
 from utils.script.line_to_ydoc import build_ydoc, fetch_script_line_data
+from utils.script.ydoc_to_lines import _save_script_page, extract_lines_from_ydoc
+from utils.script.yjs_debug import attach_trace_observers
 
 
 if TYPE_CHECKING:
@@ -54,16 +59,25 @@ class ScriptRoom:
         self._last_checkpoint = time.monotonic()
         self._dirty = False
         self._doc_subscription = None
+        self._trace_pages_sub = None
+        self._trace_deleted_sub = None
 
     def start_observing(self):
-        """Start observing doc changes to track dirty state."""
+        """Start observing doc changes to track dirty state and emit trace logs."""
         self._doc_subscription = self.doc.observe(self._on_doc_update)
+        self._trace_pages_sub, self._trace_deleted_sub = attach_trace_observers(self)
 
     def stop_observing(self):
         """Stop observing doc changes."""
         if self._doc_subscription is not None:
             del self._doc_subscription
             self._doc_subscription = None
+        if self._trace_pages_sub is not None:
+            del self._trace_pages_sub
+            self._trace_pages_sub = None
+        if self._trace_deleted_sub is not None:
+            del self._trace_deleted_sub
+            self._trace_deleted_sub = None
 
     def _on_doc_update(self, event):
         """Called when the Y.Doc is modified."""
@@ -181,6 +195,111 @@ class ScriptRoom:
                 get_logger().debug(
                     f"Failed to send members to client in room {self.revision_id}"
                 )
+
+    async def save_draft(self, session: DigiDBSession) -> bytes | None:
+        """Persist the current Y.Doc state to the database.
+
+        Processes all pages in Y.Doc order, carrying the linked-list
+        ``previous_line`` across page boundaries.  After the commit, patches
+        any UUID ``_id`` values in the Y.Doc with real DB ids and returns the
+        resulting Y.Doc update delta (so callers can broadcast it to clients).
+
+        :param session: Active SQLAlchemy session.
+        :returns: Y.Doc update bytes containing the id-patch, or ``None`` if
+            no new lines were created.
+        :raises Exception: Propagates any save/validation error after rolling
+            back.
+        """
+        log = get_logger()
+        log.info(f"save_draft: starting for revision={self.revision_id}")
+        async with self.save_lock:
+            revision = session.get(ScriptRevision, self.revision_id)
+            if not revision:
+                raise ValueError(f"ScriptRevision {self.revision_id} not found")
+            show = revision.script.show
+
+            lines_by_page, deleted_line_ids = extract_lines_from_ydoc(self.doc)
+            total_lines = sum(len(p["lines"]) for p in lines_by_page)
+            log.info(
+                f"save_draft: revision={self.revision_id} "
+                f"pages={len(lines_by_page)} total_lines={total_lines} "
+                f"deleted_line_ids={deleted_line_ids}"
+            )
+
+            new_line_id_map: dict[str, str] = {}
+            new_part_id_map: dict[str, str] = {}
+
+            previous_line = None
+            for page in lines_by_page:
+                log.debug(
+                    f"save_draft: processing page {page['page']} "
+                    f"({len(page['lines'])} lines)"
+                )
+                previous_line, line_map, part_map = _save_script_page(
+                    revision,
+                    page["page"],
+                    page["lines"],
+                    deleted_line_ids,
+                    session,
+                    show,
+                    previous_line,
+                )
+                new_line_id_map.update(line_map)
+                new_part_id_map.update(part_map)
+
+            log.info(
+                f"save_draft: revision={self.revision_id} commit starting. "
+                f"new_line_id_map={new_line_id_map} "
+                f"new_part_ids={list(new_part_id_map.keys())}"
+            )
+            session.commit()
+            log.info(f"save_draft: revision={self.revision_id} commit successful")
+
+            if not new_line_id_map and not new_part_id_map:
+                log.info(
+                    f"save_draft: revision={self.revision_id} "
+                    f"no new IDs to patch — returning None"
+                )
+                return None
+
+            # Patch the Y.Doc: replace UUID _id values with real DB ids.
+            # Capture the state vector before patching so we can compute
+            # the delta to broadcast to all clients.
+            state_before = self.doc.get_state()
+            pages_map = self.doc.get("pages", type=pycrdt.Map)
+            patched_lines = 0
+            patched_parts = 0
+            for page_key in sorted(pages_map.keys(), key=int):
+                page_arr = pages_map[page_key]
+                for i in range(len(page_arr)):
+                    line_map_obj = page_arr[i]
+                    line_id_str = str(line_map_obj["_id"])
+                    if line_id_str in new_line_id_map:
+                        new_id = new_line_id_map[line_id_str]
+                        log.debug(
+                            f"save_draft: patching Y.Doc line _id "
+                            f"{line_id_str!r} → {new_id!r}"
+                        )
+                        line_map_obj["_id"] = new_id
+                        patched_lines += 1
+                    parts_arr = line_map_obj["parts"]
+                    for j in range(len(parts_arr)):
+                        part_map_obj = parts_arr[j]
+                        part_id_str = str(part_map_obj["_id"])
+                        if part_id_str in new_part_id_map:
+                            new_pid = new_part_id_map[part_id_str]
+                            log.debug(
+                                f"save_draft: patching Y.Doc part _id "
+                                f"{part_id_str!r} → {new_pid!r}"
+                            )
+                            part_map_obj["_id"] = new_pid
+                            patched_parts += 1
+
+            log.info(
+                f"save_draft: revision={self.revision_id} Y.Doc patched "
+                f"({patched_lines} line IDs, {patched_parts} part IDs)"
+            )
+            return self.doc.get_update(state_before)
 
     def apply_update(self, update: bytes):
         """Apply a binary update to the Y.Doc.
@@ -328,6 +447,128 @@ class RoomManager:
             if ws in room.clients:
                 return room
         return None
+
+    async def save_room(self, ws: WebSocketHandler):
+        """Save the draft for the room that *ws* belongs to.
+
+        Sequence:
+        1. Call ``save_draft()`` which commits to DB and returns ID-patch bytes.
+        2. Broadcast the ID-patch update to **all** clients (so everyone's
+           Y.Doc has real DB ids).
+        3. Reset ``_dirty`` so ``hasDraft`` becomes ``False`` immediately.
+        4. Broadcast ``SCRIPT_SAVED`` to all clients.
+        5. Delete the draft file + DB record.
+        6. Schedule script compilation.
+
+        On any error, sends ``SAVE_ERROR`` to the requesting client only.
+
+        :param ws: The WebSocket handler that requested the save.
+        """
+        room = self.get_room_for_client(ws)
+        if room is None:
+            get_logger().warning("Attempted to save draft for client with no room")
+            return
+
+        with self._application.get_db().sessionmaker() as session:
+            try:
+                id_update = await room.save_draft(session)
+            except Exception as e:
+                get_logger().exception("save_draft failed")
+                try:
+                    await ws.write_message(
+                        {"OP": "SAVE_ERROR", "DATA": {"error": str(e)}}
+                    )
+                except Exception:
+                    pass
+                return
+
+        # Broadcast ID-patch update so all clients get real DB ids
+        if id_update:
+            payload = base64.b64encode(id_update).decode("ascii")
+            for client_ws in list(room.clients.keys()):
+                try:
+                    await client_ws.write_message(
+                        {
+                            "OP": "YJS_UPDATE",
+                            "DATA": {
+                                "payload": payload,
+                                "room_id": f"draft_{room.revision_id}",
+                            },
+                        }
+                    )
+                except Exception:
+                    pass
+
+        # Reset dirty so hasDraft → False
+        room.mark_checkpointed()
+
+        # Notify all clients of successful save
+        now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+        for client_ws in list(room.clients.keys()):
+            try:
+                await client_ws.write_message(
+                    {"OP": "SCRIPT_SAVED", "DATA": {"last_saved_at": now}}
+                )
+            except Exception:
+                pass
+
+        # Remove draft file and DB record (no longer needed after DB save)
+        await self._delete_draft(room.revision_id)
+
+        # Schedule script compilation (fire-and-forget)
+        IOLoop.current().add_callback(
+            partial(CompiledScript.compile_script, self._application, room.revision_id)
+        )
+
+    async def discard_room(self, ws: WebSocketHandler, revision_id: int | None = None):
+        """Discard the draft for the room that *ws* belongs to.
+
+        Deletes the draft file and DB record, then closes the room so all
+        clients receive ``ROOM_CLOSED`` and revert to the saved script.
+
+        If the room is no longer active (e.g. the last editor already stopped
+        editing and the room was closed), *revision_id* is used as a fallback
+        to delete the draft directly.
+
+        :param ws: The WebSocket handler that requested the discard.
+        :param revision_id: Fallback revision ID when no active room exists.
+        """
+        room = self.get_room_for_client(ws)
+        if room is not None:
+            revision_id = room.revision_id
+            await self._delete_draft(revision_id)
+            await self.close_room(revision_id)
+        elif revision_id is not None:
+            # Room was already closed (last editor stopped before discard was confirmed)
+            get_logger().info(
+                f"Discarding draft for revision {revision_id} (no active room)"
+            )
+            await self._delete_draft(revision_id)
+        else:
+            get_logger().warning("discard_room called with no room and no revision_id")
+
+    async def _delete_draft(self, revision_id: int):
+        """Delete the draft file and DB record for *revision_id*.
+
+        Does not evict the room — the room stays open so editors can keep
+        working after a save.
+
+        :param revision_id: The script revision whose draft to remove.
+        """
+        draft_path = self._get_draft_path(revision_id)
+        if os.path.exists(draft_path):
+            try:
+                os.remove(draft_path)
+            except Exception:
+                get_logger().exception(f"Failed to remove draft file: {draft_path}")
+
+        with self._application.get_db().sessionmaker() as session:
+            draft = session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == revision_id)
+            )
+            if draft:
+                session.delete(draft)
+                session.commit()
 
     async def _load_or_build_doc(self, revision_id: int) -> pycrdt.Doc:
         """Load a Y.Doc from draft file or build from ScriptLine models.

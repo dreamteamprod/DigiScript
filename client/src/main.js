@@ -97,6 +97,8 @@ function initializeWebSocket() {
                 'COLLAB_ERROR',
                 'ROOM_MEMBERS',
                 'ROOM_CLOSED',
+                'SCRIPT_SAVED',
+                'SAVE_ERROR',
               ].includes(msg.OP)
             ) {
               this.store.dispatch('HANDLE_DRAFT_MESSAGE', msg);

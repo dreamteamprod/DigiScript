@@ -4,11 +4,26 @@ Tests the in-memory room that holds a Y.Doc and tracks connected clients.
 Uses mock WebSocket handlers since we don't need a real server.
 """
 
+import uuid
 from unittest.mock import AsyncMock
 
 import pycrdt
 import pytest
+from sqlalchemy import select
+from tornado.testing import gen_test
 
+from models.script import (
+    ScriptLine,
+    ScriptLinePart,
+    ScriptLineRevisionAssociation,
+    ScriptLineType,
+)
+from test.utils.script.test_ydoc_to_lines import (
+    _add_line_to_doc,
+    _build_empty_doc,
+    _ScriptTestSetup,
+)
+from utils.script.line_to_ydoc import build_ydoc, fetch_script_line_data
 from utils.script_room_manager import RoomManager, ScriptRoom
 
 
@@ -296,3 +311,166 @@ class TestRoomManagerCloseRoom:
         assert 7 not in manager._rooms
         # The healthy client still receives the message
         ws_ok.write_message.assert_called_once()
+
+
+class TestScriptRoomSaveDraft(_ScriptTestSetup):
+    """Tests for ``ScriptRoom.save_draft`` using a real in-memory DB."""
+
+    def _seed_line(self, session, previous_assoc=None, text="Direction text", page=1):
+        """Insert ScriptLine + ScriptLinePart + SLRA; return the association."""
+        line = ScriptLine(
+            act_id=self.act_id,
+            scene_id=self.scene_id,
+            page=page,
+            line_type=ScriptLineType.STAGE_DIRECTION,
+        )
+        session.add(line)
+        session.flush()
+
+        part = ScriptLinePart(
+            line_id=line.id,
+            part_index=0,
+            character_id=None,
+            character_group_id=None,
+            line_text=text,
+        )
+        session.add(part)
+        session.flush()
+
+        assoc = ScriptLineRevisionAssociation(
+            revision_id=self.revision_id,
+            line_id=line.id,
+        )
+        session.add(assoc)
+        session.flush()
+
+        if previous_assoc:
+            previous_assoc.next_line = line
+            assoc.previous_line = previous_assoc.line
+            session.flush()
+
+        return assoc
+
+    @gen_test
+    async def test_save_draft_all_new_lines_returns_id_patch(self):
+        """Y.Doc with 2 UUID lines → 2 DB rows created, returns bytes."""
+
+        doc = _build_empty_doc()
+        uid1 = str(uuid.uuid4())
+        uid2 = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid1)
+        _add_line_to_doc(doc, "1", uid2)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            update = await room.save_draft(session)
+
+        self.assertIsInstance(update, bytes)
+        self.assertGreater(len(update), 0)
+
+        with self._app.get_db().sessionmaker() as session:
+            lines = session.scalars(select(ScriptLine)).all()
+        self.assertEqual(2, len(lines))
+
+    @gen_test
+    async def test_save_draft_patches_ydoc_ids(self):
+        """After save, Y.Doc _id values are replaced with real DB integer strings."""
+        doc = _build_empty_doc()
+        uid = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        pages = doc.get("pages", type=pycrdt.Map)
+        line_id_in_doc = str(pages["1"][0]["_id"])
+
+        # Should be a positive integer string (real DB id), not the original UUID
+        self.assertNotEqual(line_id_in_doc, uid)
+        patched_id = int(line_id_in_doc)
+        self.assertGreater(patched_id, 0)
+
+    @gen_test
+    async def test_save_draft_no_new_lines_returns_none(self):
+        """Y.Doc built from existing DB lines (unchanged) → save_draft returns None."""
+        with self._app.get_db().sessionmaker() as session:
+            self._seed_line(session)
+
+        # Build Y.Doc directly from DB state — all _ids will be real integers
+        with self._app.get_db().sessionmaker() as session:
+            script_data = fetch_script_line_data(session, self.revision_id)
+        doc = build_ydoc(script_data, self.revision_id)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            update = await room.save_draft(session)
+
+        self.assertIsNone(update)
+
+    @gen_test
+    async def test_save_draft_validation_error_propagates(self):
+        """Invalid DIALOGUE line in Y.Doc → ValueError raised, no new DB rows committed."""
+
+        doc = _build_empty_doc()
+        bad_id = str(uuid.uuid4())
+        # DIALOGUE with character_id=0 and character_group_id=0 → both None after
+        # extraction via _zero_to_none → fails validation (needs one or the other)
+        _add_line_to_doc(
+            doc,
+            "1",
+            bad_id,
+            line_type=ScriptLineType.DIALOGUE.value,
+            parts=[
+                {
+                    "_id": str(uuid.uuid4()),
+                    "part_index": 0,
+                    "character_id": 0,
+                    "character_group_id": 0,
+                    "line_text": "Hello",
+                }
+            ],
+        )
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self.assertRaises(ValueError):
+            with self._app.get_db().sessionmaker() as session:
+                await room.save_draft(session)
+
+        # Rollback means no lines should exist in DB
+        with self._app.get_db().sessionmaker() as session:
+            lines = session.scalars(select(ScriptLine)).all()
+        self.assertEqual(0, len(lines))
+
+    @gen_test
+    async def test_save_draft_deleted_line_removed_from_db(self):
+        """deleted_line_ids entry with a real DB id → SLRA deleted after save."""
+
+        # Seed one line so it has a real DB id
+        with self._app.get_db().sessionmaker() as session:
+            assoc = self._seed_line(session)
+        line_id_to_delete = assoc.line_id
+
+        # Build Y.Doc with no lines on page 1, but the line's id in deleted_line_ids.
+        # Adding an empty page array ensures _save_script_page runs for page 1
+        # so that its deletion pass 2 processes the deleted id.
+        doc = _build_empty_doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = pycrdt.Array()
+        deleted_arr = doc.get("deleted_line_ids", type=pycrdt.Array)
+        deleted_arr.append(line_id_to_delete)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        with self._app.get_db().sessionmaker() as session:
+            assoc_post = session.get(
+                ScriptLineRevisionAssociation, (self.revision_id, line_id_to_delete)
+            )
+        self.assertIsNone(assoc_post)

@@ -16,6 +16,7 @@
  */
 
 import * as Y from 'yjs';
+import { uuidv4 } from 'lib0/random';
 
 /**
  * Convert 0 → null for FK fields stored as 0 in the Y.Doc.
@@ -121,7 +122,7 @@ export function addYDocLine(ydoc, pageNo, lineObj, insertAt) {
       pageArray.push([lineMap]);
     }
 
-    lineMap.set('_id', nullToZero(lineObj.id));
+    lineMap.set('_id', lineObj.id ? String(lineObj.id) : uuidv4());
     lineMap.set('act_id', nullToZero(lineObj.act_id));
     lineMap.set('scene_id', nullToZero(lineObj.scene_id));
     lineMap.set('line_type', lineObj.line_type);
@@ -135,7 +136,7 @@ export function addYDocLine(ydoc, pageNo, lineObj, insertAt) {
         const partMap = new Y.Map();
         partsArray.push([partMap]);
 
-        partMap.set('_id', nullToZero(part.id));
+        partMap.set('_id', part.id ? String(part.id) : uuidv4());
         partMap.set('character_id', nullToZero(part.character_id));
         partMap.set('character_group_id', nullToZero(part.character_group_id));
         partMap.set('part_index', part.part_index ?? i);
@@ -164,6 +165,19 @@ export function deleteYDocLine(ydoc, pageNo, lineIndex) {
   if (!pageArray || lineIndex >= pageArray.length) return;
 
   ydoc.transact(() => {
+    // If line has a real DB id (not a UUID), record it for backend deletion.
+    // Use a strict all-digits test rather than parseInt — parseInt('3f1e…', 10)
+    // returns 3, which would falsely classify UUIDs starting with a digit as DB ids.
+    const lineMap = pageArray.get(lineIndex);
+    if (lineMap) {
+      const rawId = String(lineMap.get('_id') ?? '');
+      if (/^\d+$/.test(rawId)) {
+        const dbId = parseInt(rawId, 10);
+        if (dbId > 0) {
+          ydoc.getArray('deleted_line_ids').push([dbId]);
+        }
+      }
+    }
     pageArray.delete(lineIndex, 1);
   }, 'local-bridge');
 }

@@ -267,6 +267,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             "YJS_SYNC",
             "YJS_UPDATE",
             "YJS_AWARENESS",
+            "SAVE_SCRIPT_DRAFT",
+            "DISCARD_SCRIPT_DRAFT",
         ):
             await self._handle_collab_op(ws_op, message)
             return
@@ -679,7 +681,15 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
             if step == 1:
                 # Client sends its state vector; server responds with diff
+                get_logger().trace(
+                    f"YJS_SYNC step=1 rev={room.revision_id} "
+                    f"state-vector {len(decoded)}B from {self.request.remote_ip}"
+                )
                 diff = room.get_update_for(decoded)
+                get_logger().trace(
+                    f"YJS_SYNC step=2 rev={room.revision_id} "
+                    f"sending diff {len(diff)}B to {self.request.remote_ip}"
+                )
                 await self.write_message(
                     {
                         "OP": "YJS_SYNC",
@@ -692,6 +702,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
             elif step == 2:
                 # Client sends its diff; server applies it
+                get_logger().trace(
+                    f"YJS_SYNC step=2 rev={room.revision_id} "
+                    f"applying {len(decoded)}B update from {self.request.remote_ip}"
+                )
                 room.apply_update(decoded)
                 await room.broadcast_update(decoded, sender=self)
 
@@ -707,6 +721,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 get_logger().warning("Invalid base64 in YJS_UPDATE message")
                 return
 
+            get_logger().trace(
+                f"YJS_UPDATE rev={room.revision_id} "
+                f"applying {len(decoded)}B update from {self.request.remote_ip}"
+            )
             room.apply_update(decoded)
             await room.broadcast_update(decoded, sender=self)
 
@@ -723,6 +741,24 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 return
 
             await room.broadcast_awareness(decoded, sender=self)
+        elif ws_op == "SAVE_SCRIPT_DRAFT":
+            await room_manager.save_room(self)
+        elif ws_op == "DISCARD_SCRIPT_DRAFT":
+            revision_id = None
+            current_show_id = await self.application.digi_settings.get("current_show")
+            if current_show_id:
+                with self.make_session() as session:
+                    show = session.get(Show, current_show_id)
+                    if show:
+                        script = session.scalar(
+                            select(Script).where(Script.show_id == show.id)
+                        )
+                        if script:
+                            revision_id = script.current_revision
+            await room_manager.discard_room(self, revision_id=revision_id)
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
 
     def on_pong(self, data: bytes) -> None:
         self._last_pong = IOLoop.current().time()

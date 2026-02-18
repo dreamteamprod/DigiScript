@@ -52,6 +52,15 @@ export default {
 
     /** @type {Object<number, {page: number|null, lineIndex: number|null, username: string}>} */
     awarenessStates: {},
+
+    /** @type {boolean} Whether a save is currently in progress */
+    isSaving: false,
+
+    /** @type {string|null} Current save phase ('validating', 'persisting', 'finalizing') */
+    savePhase: null,
+
+    /** @type {object|null} Last save error */
+    saveError: null,
   },
 
   mutations: {
@@ -87,6 +96,18 @@ export default {
       Vue.delete(state.awarenessStates, userId);
     },
 
+    SET_DRAFT_SAVING(state, value) {
+      state.isSaving = value;
+    },
+
+    SET_DRAFT_SAVE_PHASE(state, phase) {
+      state.savePhase = phase;
+    },
+
+    SET_DRAFT_SAVE_ERROR(state, error) {
+      state.saveError = error;
+    },
+
     CLEAR_DRAFT_STATE(state) {
       state.roomId = null;
       state.isConnected = false;
@@ -95,6 +116,9 @@ export default {
       state.lastSavedAt = null;
       state.collaborators = [];
       state.awarenessStates = {};
+      state.isSaving = false;
+      state.savePhase = null;
+      state.saveError = null;
       _ydoc = null;
       _provider = null;
     },
@@ -173,6 +197,25 @@ export default {
         return { type: 'ROOM_CLOSED' };
       }
 
+      // Save flow messages — handled regardless of provider state
+      if (message.OP === 'SCRIPT_SAVED') {
+        context.commit('SET_DRAFT_SAVING', false);
+        context.commit('SET_DRAFT_SAVE_PHASE', null);
+        context.commit('SET_DRAFT_SAVE_ERROR', null);
+        const timestamp = message.DATA?.last_saved_at;
+        if (timestamp) {
+          context.commit('SET_DRAFT_LAST_SAVED', timestamp);
+        }
+        return { type: 'SCRIPT_SAVED', data: message.DATA };
+      }
+
+      if (message.OP === 'SAVE_ERROR') {
+        context.commit('SET_DRAFT_SAVING', false);
+        context.commit('SET_DRAFT_SAVE_PHASE', null);
+        context.commit('SET_DRAFT_SAVE_ERROR', message.DATA?.error);
+        return { type: 'SAVE_ERROR', error: message.DATA?.error };
+      }
+
       if (!_provider) return false;
 
       const handled = _provider.handleMessage(message);
@@ -212,32 +255,60 @@ export default {
       return state.roomId !== null && state.isConnected;
     },
 
-    /** @returns {import('yjs').Doc|null} The Y.Doc instance (non-reactive) */
-    DRAFT_YDOC() {
+    /**
+     * @returns {import('yjs').Doc|null} The Y.Doc instance (non-reactive)
+     *
+     * NOTE: `state.roomId` is accessed intentionally to create a reactive
+     * dependency. Without it, Vue/Vuex caches this getter permanently (since
+     * `_ydoc` is a non-reactive module variable). After LEAVE_DRAFT_ROOM +
+     * JOIN_DRAFT_ROOM, `roomId` changes, busting the cache so the new Y.Doc
+     * instance is returned to all components.
+     */
+    DRAFT_YDOC(state) {
+      // eslint-disable-next-line no-unused-expressions
+      state.roomId; // reactive dependency — forces re-evaluation on room change
       return _ydoc;
     },
 
     /** @returns {ScriptDocProvider|null} The provider instance (non-reactive) */
-    DRAFT_PROVIDER() {
+    DRAFT_PROVIDER(state) {
+      // eslint-disable-next-line no-unused-expressions
+      state.roomId; // reactive dependency — see DRAFT_YDOC comment
       return _provider;
     },
 
     /** @returns {import('yjs').Map|null} The Y.Doc pages map */
-    DRAFT_PAGES() {
+    DRAFT_PAGES(state) {
+      // eslint-disable-next-line no-unused-expressions
+      state.roomId; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getMap('pages');
     },
 
     /** @returns {import('yjs').Map|null} The Y.Doc meta map */
-    DRAFT_META() {
+    DRAFT_META(state) {
+      // eslint-disable-next-line no-unused-expressions
+      state.roomId; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getMap('meta');
     },
 
     /** @returns {import('yjs').Array|null} The deleted line IDs array */
-    DRAFT_DELETED_LINE_IDS() {
+    DRAFT_DELETED_LINE_IDS(state) {
+      // eslint-disable-next-line no-unused-expressions
+      state.roomId; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getArray('deleted_line_ids');
+    },
+
+    /** @returns {boolean} Whether a save is in progress */
+    IS_DRAFT_SAVING(state) {
+      return state.isSaving;
+    },
+
+    /** @returns {string|null} Current save phase */
+    DRAFT_SAVE_PHASE(state) {
+      return state.savePhase;
     },
 
     /** @returns {boolean} Whether initial sync is complete */

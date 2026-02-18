@@ -21,10 +21,14 @@ from models.script import (
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import ScriptLineSchema
-from utils.show.line_type_validator import LineTypeValidatorRegistry
+from utils.script.line_helpers import create_new_line, validate_line
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import no_live_session, requires_show
+from utils.web.web_decorators import (
+    no_active_script_draft,
+    no_live_session,
+    requires_show,
+)
 
 
 @ApiRoute("/show/script", ApiVersion.V1)
@@ -104,11 +108,10 @@ class ScriptController(BaseAPIController):
 
     @staticmethod
     def _validate_line(show, line_json):
-        validator_registry = LineTypeValidatorRegistry()
-        result = validator_registry.validate_line(line_json, show)
-        return result.is_valid, result.error_message
+        return validate_line(show, line_json)
 
     @requires_show
+    @no_active_script_draft
     @no_live_session
     async def post(self):
         page = self.get_query_argument("page", None)
@@ -276,50 +279,10 @@ class ScriptController(BaseAPIController):
 
     @staticmethod
     def _create_new_line(session, revision, line, previous_line, with_association=True):
-        # Create the line object
-        line_obj = ScriptLine(
-            act_id=line["act_id"],
-            scene_id=line["scene_id"],
-            page=line["page"],
-            line_type=ScriptLineType(line["line_type"]),
-            stage_direction_style_id=line["stage_direction_style_id"],
-        )
-        session.add(line_obj)
-        session.flush()
-
-        line_association = None
-        if with_association:
-            # Line revision object to keep track of that thing
-            line_association = ScriptLineRevisionAssociation(
-                revision_id=revision.id, line_id=line_obj.id
-            )
-            session.add(line_association)
-            session.flush()
-
-            # Set the next and previous line reference
-            if previous_line:
-                previous_line.next_line = line_obj
-                line_association.previous_line = previous_line.line
-                session.flush()
-
-        # Construct the line part objects and add these to the line itself
-        for line_part in line["line_parts"]:
-            part_obj = ScriptLinePart(
-                line_id=line_obj.id,
-                part_index=line_part["part_index"],
-                character_id=line_part["character_id"],
-                character_group_id=line_part["character_group_id"],
-                line_text=line_part["line_text"],
-            )
-            session.add(part_obj)
-            line_obj.line_parts.append(part_obj)
-
-        # Flush the DB to add the line parts
-        session.flush()
-
-        return line_association, line_obj
+        return create_new_line(session, revision, line, previous_line, with_association)
 
     @requires_show
+    @no_active_script_draft
     @no_live_session
     async def patch(self):
         page = self.get_query_argument("page", None)
@@ -748,6 +711,7 @@ class ScriptCutsController(BaseAPIController):
                 return
 
     @requires_show
+    @no_active_script_draft
     @no_live_session
     def put(self):
         current_show = self.get_current_show()

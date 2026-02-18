@@ -106,6 +106,7 @@ import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.v
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { nullToZero, zeroToNull } from '@/utils/yjs/yjsBridge';
+import { uuidv4 } from 'lib0/random';
 
 export default {
   name: 'ScriptLineEditor',
@@ -456,7 +457,7 @@ export default {
       this.yLineMap.doc.transact(() => {
         const partMap = new Y.Map();
         partsArray.push([partMap]);
-        partMap.set('_id', 0);
+        partMap.set('_id', uuidv4());
         partMap.set('character_id', nullToZero(partObj.character_id));
         partMap.set('character_group_id', nullToZero(partObj.character_group_id));
         partMap.set('part_index', partObj.part_index ?? index);

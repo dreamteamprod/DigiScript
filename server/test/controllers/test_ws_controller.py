@@ -818,3 +818,107 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
 
         ws_viewer.close()
+
+    # ------------------------------------------------------------------
+    # SAVE_SCRIPT_DRAFT tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_save_script_draft_success(self):
+        """SAVE_SCRIPT_DRAFT dispatches to save_room; editor receives SCRIPT_SAVED."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(
+            json.dumps(
+                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
+            )
+        )
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Send save request — empty Y.Doc means save_draft returns None (no uuid patch),
+        # save_room then sends SCRIPT_SAVED to all clients.
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("SCRIPT_SAVED", response_data["OP"])
+        self.assertIn("last_saved_at", response_data["DATA"])
+
+        ws.close()
+
+    @gen_test
+    async def test_save_script_draft_error_sent_to_requester(self):
+        """If save_draft raises, the requesting editor receives SAVE_ERROR."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(
+            json.dumps(
+                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
+            )
+        )
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Patch the room's save_draft to raise
+        room = self._app.room_manager.get_room(self.revision_id)
+
+        async def _raise_save_error(session):
+            raise ValueError("Simulated save failure")
+
+        room.save_draft = _raise_save_error
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("SAVE_ERROR", response_data["OP"])
+        self.assertIn("Simulated save failure", response_data["DATA"]["error"])
+
+        ws.close()
+
+    # ------------------------------------------------------------------
+    # DISCARD_SCRIPT_DRAFT tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_discard_script_draft_closes_room(self):
+        """DISCARD_SCRIPT_DRAFT closes the room; editor receives ROOM_CLOSED."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(
+            json.dumps(
+                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
+            )
+        )
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        self.assertIsNotNone(self._app.room_manager.get_room(self.revision_id))
+
+        await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("ROOM_CLOSED", response_data["OP"])
+        self.assertEqual(f"draft_{self.revision_id}", response_data["DATA"]["room_id"])
+
+        # Room should be evicted after discard
+        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+
+        ws.close()

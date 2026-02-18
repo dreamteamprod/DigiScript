@@ -148,9 +148,9 @@ def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
             else 0
         )
 
-        # Create line_parts Y.Array
+        # Create parts Y.Array
         parts_array = pycrdt.Array()
-        line_map["line_parts"] = parts_array
+        line_map["parts"] = parts_array
 
         for part_data in line_data["line_parts"]:
             part_map = pycrdt.Map()

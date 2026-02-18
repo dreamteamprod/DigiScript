@@ -165,7 +165,7 @@ class TestBuildYdocLineParts:
         doc = build_ydoc(data, revision_id=1)
 
         pages = doc.get("pages", type=pycrdt.Map)
-        line_parts = pages["1"][0]["line_parts"]
+        line_parts = pages["1"][0]["parts"]
         assert len(line_parts) == 2
         assert str(line_parts[0]["line_text"]) == "Hello"
         assert str(line_parts[1]["line_text"]) == " World"
@@ -177,7 +177,7 @@ class TestBuildYdocLineParts:
         doc = build_ydoc(data, revision_id=1)
 
         pages = doc.get("pages", type=pycrdt.Map)
-        line_text = pages["1"][0]["line_parts"][0]["line_text"]
+        line_text = pages["1"][0]["parts"][0]["line_text"]
         assert isinstance(line_text, pycrdt.Text)
 
 
@@ -310,8 +310,8 @@ class TestCrdtConvergence:
         doc2.apply_update(doc1.get_update())
 
         # Both type at position 0
-        text1 = doc1.get("pages", type=pycrdt.Map)["1"][0]["line_parts"][0]["line_text"]
-        text2 = doc2.get("pages", type=pycrdt.Map)["1"][0]["line_parts"][0]["line_text"]
+        text1 = doc1.get("pages", type=pycrdt.Map)["1"][0]["parts"][0]["line_text"]
+        text2 = doc2.get("pages", type=pycrdt.Map)["1"][0]["parts"][0]["line_text"]
 
         text1 += "Hello"
         text2 += "World"
@@ -324,10 +324,10 @@ class TestCrdtConvergence:
 
         # Both should converge to same value (order may vary)
         result1 = str(
-            doc1.get("pages", type=pycrdt.Map)["1"][0]["line_parts"][0]["line_text"]
+            doc1.get("pages", type=pycrdt.Map)["1"][0]["parts"][0]["line_text"]
         )
         result2 = str(
-            doc2.get("pages", type=pycrdt.Map)["1"][0]["line_parts"][0]["line_text"]
+            doc2.get("pages", type=pycrdt.Map)["1"][0]["parts"][0]["line_text"]
         )
         assert result1 == result2
         assert "Hello" in result1
