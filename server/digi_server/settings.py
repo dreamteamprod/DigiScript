@@ -279,6 +279,47 @@ class Settings:
             display_name="Enable Network Discovery (mDNS)",
             help_text="Advertise this server on the local network for automatic discovery by desktop clients.",
         )
+        self.define(
+            "client_log_enabled",
+            bool,
+            True,
+            True,
+            display_name="Enable Client Logging",
+            help_text="Allow clients to send logs to the server.",
+        )
+        self.define(
+            "client_log_level",
+            str,
+            "INFO",
+            True,
+            display_name="Client Log Level",
+            help_text="Minimum level of logs to receive from clients.",
+            choice_options=get_level_names_by_order(),
+        )
+        self.define(
+            "client_log_path",
+            str,
+            os.path.join(self._base_path, "digiscript_client.log"),
+            True,
+            self._application.regen_logging,
+            display_name="Client Log Path",
+        )
+        self.define(
+            "client_max_log_mb",
+            int,
+            100,
+            True,
+            self._application.regen_logging,
+            display_name="Max Client Log Size (MB)",
+        )
+        self.define(
+            "client_log_backups",
+            int,
+            5,
+            True,
+            self._application.regen_logging,
+            display_name="Client Log Backups",
+        )
 
         self._load(spawn_callbacks=False)
 

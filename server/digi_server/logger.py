@@ -78,6 +78,32 @@ def configure_db_logging(
     return file_handler
 
 
+def configure_client_logging(
+    log_path,
+    max_size_mb=100,
+    log_backups=5,
+    handler=None,
+    log_level=logging.DEBUG,
+):
+    size_bytes = max_size_mb * 1024 * 1024
+    client_logger = get_logger("Client")
+
+    if handler:
+        client_logger.removeHandler(handler)
+
+    client_logger.setLevel(log_level)
+    file_handler = None
+    if log_path:
+        file_handler = RotatingFileHandler(
+            log_path, maxBytes=size_bytes, backupCount=log_backups
+        )
+        file_handler.setFormatter(LogFormatter(color=False))
+        client_logger.addHandler(file_handler)
+        # Prevent propagation to avoid polluting the server console
+        client_logger.propagate = False
+    return file_handler
+
+
 def add_logging_level(level_name, level_num, method_name=None):
     if not method_name:
         method_name = level_name.lower()
