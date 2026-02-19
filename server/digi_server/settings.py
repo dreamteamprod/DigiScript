@@ -292,6 +292,7 @@ class Settings:
             str,
             "INFO",
             True,
+            self._application.regen_logging,
             display_name="Client Log Level",
             help_text="Minimum level of logs to receive from clients.",
             choice_options=get_level_names_by_order(),
@@ -303,6 +304,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Client Log Path",
+            help_text="Path to the log file for client-side log messages.",
         )
         self.define(
             "client_max_log_mb",
@@ -311,6 +313,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Max Client Log Size (MB)",
+            help_text="Maximum size in MB of the client log file before it is rotated.",
         )
         self.define(
             "client_log_backups",
@@ -319,6 +322,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Client Log Backups",
+            help_text="Number of rotated client log file backups to retain.",
         )
 
         self._load(spawn_callbacks=False)
