@@ -196,17 +196,35 @@ class ScriptRoom:
                     f"Failed to send members to client in room {self.revision_id}"
                 )
 
-    async def save_draft(self, session: DigiDBSession) -> bytes | None:
+    async def _broadcast_save_progress(self, page: int, total: int) -> None:
+        """Broadcast save progress to all connected clients.
+
+        :param page: Number of pages saved so far (0 = starting).
+        :param total: Total number of pages to save.
+        """
+        percent = round((page / total) * 100) if total else 100
+        for client_ws in list(self.clients.keys()):
+            try:
+                await client_ws.write_message(
+                    {
+                        "OP": "SAVE_PROGRESS",
+                        "DATA": {"page": page, "total": total, "percent": percent},
+                    }
+                )
+            except Exception:
+                pass
+
+    async def save_draft(self, session: DigiDBSession) -> bytes:
         """Persist the current Y.Doc state to the database.
 
         Processes all pages in Y.Doc order, carrying the linked-list
         ``previous_line`` across page boundaries.  After the commit, patches
-        any UUID ``_id`` values in the Y.Doc with real DB ids and returns the
-        resulting Y.Doc update delta (so callers can broadcast it to clients).
+        any UUID ``_id`` values in the Y.Doc with real DB ids, updates
+        ``meta.last_saved_at``, and returns the resulting Y.Doc update delta
+        (so callers can broadcast it to clients).
 
         :param session: Active SQLAlchemy session.
-        :returns: Y.Doc update bytes containing the id-patch, or ``None`` if
-            no new lines were created.
+        :returns: Y.Doc update bytes containing the id-patch and meta update.
         :raises Exception: Propagates any save/validation error after rolling
             back.
         """
@@ -229,8 +247,12 @@ class ScriptRoom:
             new_line_id_map: dict[str, str] = {}
             new_part_id_map: dict[str, str] = {}
 
+            total_pages = len(lines_by_page)
+            if total_pages:
+                await self._broadcast_save_progress(0, total_pages)
+
             previous_line = None
-            for page in lines_by_page:
+            for i, page in enumerate(lines_by_page):
                 log.debug(
                     f"save_draft: processing page {page['page']} "
                     f"({len(page['lines'])} lines)"
@@ -246,6 +268,8 @@ class ScriptRoom:
                 )
                 new_line_id_map.update(line_map)
                 new_part_id_map.update(part_map)
+                if total_pages:
+                    await self._broadcast_save_progress(i + 1, total_pages)
 
             log.info(
                 f"save_draft: revision={self.revision_id} commit starting. "
@@ -255,17 +279,27 @@ class ScriptRoom:
             session.commit()
             log.info(f"save_draft: revision={self.revision_id} commit successful")
 
+            # Wipe deleted_line_ids from the Y.Doc now that the commit succeeded.
+            # Entries left here cause stale integer IDs to be re-processed on future
+            # saves, which can delete freshly-created lines if SQLite reuses an ID.
+            deleted_arr = self.doc.get("deleted_line_ids", type=pycrdt.Array)
+            n = len(deleted_arr)
+            if n > 0:
+                del deleted_arr[0:n]
+
+            # Capture state before patching so we can compute the delta to broadcast.
+            # Always update meta.last_saved_at so late-joining clients see the timestamp.
+            state_before = self.doc.get_state()
+            meta = self.doc.get("meta", type=pycrdt.Map)
+            meta["last_saved_at"] = datetime.datetime.now(
+                tz=datetime.timezone.utc
+            ).isoformat()
+
             if not new_line_id_map and not new_part_id_map:
-                log.info(
-                    f"save_draft: revision={self.revision_id} "
-                    f"no new IDs to patch — returning None"
-                )
-                return None
+                log.info(f"save_draft: revision={self.revision_id} no new IDs to patch")
+                return self.doc.get_update(state_before)
 
             # Patch the Y.Doc: replace UUID _id values with real DB ids.
-            # Capture the state vector before patching so we can compute
-            # the delta to broadcast to all clients.
-            state_before = self.doc.get_state()
             pages_map = self.doc.get("pages", type=pycrdt.Map)
             patched_lines = 0
             patched_parts = 0
@@ -301,12 +335,17 @@ class ScriptRoom:
             )
             return self.doc.get_update(state_before)
 
-    def apply_update(self, update: bytes):
+    async def apply_update(self, update: bytes) -> None:
         """Apply a binary update to the Y.Doc.
+
+        Acquires ``save_lock`` before mutating the Y.Doc so that concurrent
+        ``apply_update`` calls are serialised with ``save_draft``, preventing
+        interleaved writes during a save.
 
         :param update: The binary update from a client.
         """
-        self.doc.apply_update(update)
+        async with self.save_lock:
+            self.doc.apply_update(update)
 
     def get_sync_state(self) -> bytes:
         """Get the full document state for initial sync.

@@ -466,7 +466,17 @@ def _save_script_page(
     # ------------------------------------------------------------------
     # Pass 2: delete lines marked as deleted that belong to this page
     # ------------------------------------------------------------------
+    # Guard: do not delete a line that was just created in Pass 1.
+    # This can happen if SQLite reuses an integer ID that is still present
+    # in a stale deleted_line_ids entry from a previous save.
+    newly_created_ids = {int(v) for v in new_line_id_map.values()}
     for deleted_id in deleted_line_ids:
+        if deleted_id in newly_created_ids:
+            log.warning(
+                f"  [del] Skipping stale deleted_id={deleted_id} — "
+                f"just created in Pass 1 (stale deleted_line_ids entry)"
+            )
+            continue
         line = session.get(ScriptLine, deleted_id)
         if not line or line.page != page_number:
             log.debug(
