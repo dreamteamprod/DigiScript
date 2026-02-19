@@ -841,9 +841,13 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
-        # Send save request — empty Y.Doc means save_draft returns None (no uuid patch),
-        # save_room then sends SCRIPT_SAVED to all clients.
+        # Send save request. save_draft always updates meta.last_saved_at in the Y.Doc,
+        # so save_room always broadcasts YJS_UPDATE first, then SCRIPT_SAVED.
         await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("YJS_UPDATE", response_data["OP"])
 
         response = await ws.read_message()
         response_data = json.loads(response)
