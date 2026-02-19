@@ -108,7 +108,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         await room.broadcast_members(session)
                     # Checkpoint and close if last editor disconnected
                     if was_editor and not room.has_editors:
-                        await rm._checkpoint_room(room)
+                        if room._dirty:
+                            await rm._checkpoint_room(room)
                         await rm.close_room(room.revision_id)
 
                 IOLoop.current().add_callback(_broadcast)
@@ -493,7 +494,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                             await room.broadcast_members(session)
                             # Checkpoint and close if no editors remain
                             if not room.has_editors:
-                                await room_manager._checkpoint_room(room)
+                                if room._dirty:
+                                    await room_manager._checkpoint_room(room)
                                 await room_manager.close_room(room.revision_id)
 
                     await self.application.ws_send_to_all(

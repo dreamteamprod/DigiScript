@@ -922,3 +922,96 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
 
         ws.close()
+
+    # ------------------------------------------------------------------
+    # Checkpoint-on-close guard tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_stop_edit_clean_room_does_not_checkpoint(self):
+        """Last editor stops editing with a clean room — no checkpoint is written.
+
+        After a save, _dirty is False. STOP_SCRIPT_EDIT should close the room
+        without re-creating the draft file or ScriptDraft DB record.
+        """
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(
+            json.dumps(
+                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
+            )
+        )
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Confirm the room starts clean (no Y.Doc mutations yet)
+        room = self._app.room_manager.get_room(self.revision_id)
+        self.assertFalse(room._dirty)
+
+        # Stop editing (last editor) with a clean room
+        await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # ROOM_CLOSED
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        # No ScriptDraft record should exist
+        with self._app.get_db().sessionmaker() as db_session:
+            draft = db_session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
+            )
+            self.assertIsNone(draft)
+
+        # Room should still be evicted
+        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+
+        ws.close()
+
+    @gen_test
+    async def test_stop_edit_dirty_room_checkpoints_before_close(self):
+        """Last editor stops editing with a dirty room — checkpoint IS written.
+
+        Any Y.Doc mutation sets _dirty = True. STOP_SCRIPT_EDIT should
+        checkpoint (creating a ScriptDraft) before closing the room.
+        """
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(
+            json.dumps(
+                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
+            )
+        )
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Mutate the Y.Doc to mark it dirty
+        room = self._app.room_manager.get_room(self.revision_id)
+        meta = room.doc.get("meta", type=pycrdt.Map)
+        meta["dirty_marker"] = "unsaved"
+        self.assertTrue(room._dirty)
+
+        # Stop editing (last editor) with a dirty room
+        await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # ROOM_CLOSED
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        # A ScriptDraft record should have been created by the checkpoint
+        with self._app.get_db().sessionmaker() as db_session:
+            draft = db_session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
+            )
+            self.assertIsNotNone(draft)
+            self.assertIsNotNone(draft.data_path)
+
+        # Room should be evicted
+        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
