@@ -7,11 +7,16 @@ import ToastPlugin from 'vue-toast-notification';
 import Multiselect from 'vue-multiselect';
 import { Splitpanes, Pane } from 'splitpanes';
 
+import log from 'loglevel';
+
 import store from '@/store/store';
 import App from './App.vue';
 import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
 import { getWebSocketURL, isElectron } from '@/js/platform';
+
+// Expose loglevel globally so `log.setLevel('debug')` works in DevTools
+window.log = log;
 
 import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';

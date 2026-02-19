@@ -174,6 +174,9 @@ export default class ScriptDocProvider {
 
       if (data.step === 0) {
         // Initial full state from server
+        log.debug(
+          `ScriptDocProvider: Received step 0 (${decoded.length} bytes); applying full state`
+        );
         Y.applyUpdate(this.doc, decoded, 'server');
         this._synced = true;
         log.info(`ScriptDocProvider: Synced with room ${this.roomId}`);
@@ -187,6 +190,7 @@ export default class ScriptDocProvider {
         });
       } else if (data.step === 2) {
         // Server's diff response to our state vector
+        log.debug(`ScriptDocProvider: Received step 2 diff (${decoded.length} bytes); applied`);
         Y.applyUpdate(this.doc, decoded, 'server');
       }
     } catch (e) {
@@ -207,6 +211,7 @@ export default class ScriptDocProvider {
 
     try {
       const decoded = decodeBase64(payload);
+      log.debug(`ScriptDocProvider: Applied remote update (${decoded.length} bytes)`);
       Y.applyUpdate(this.doc, decoded, 'server');
     } catch (e) {
       log.error('ScriptDocProvider: Failed to apply update', e);
@@ -268,6 +273,7 @@ export default class ScriptDocProvider {
     if (origin === 'server') return;
     if (!this._connected) return;
 
+    log.debug(`ScriptDocProvider: Broadcasting local update (${update.length} bytes)`);
     this._sendToServer('YJS_UPDATE', {
       payload: encodeBase64(update),
       room_id: this.roomId,

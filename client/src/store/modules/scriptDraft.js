@@ -30,6 +30,12 @@ let _ydoc = null;
 /** @type {ScriptDocProvider|null} */
 let _provider = null;
 
+/** @type {number|null} Interval ID for the sync-polling loop */
+let _syncIntervalId = null;
+
+/** @type {number|null} Timeout ID for the sync-failure watchdog */
+let _syncTimeoutId = null;
+
 export default {
   state: {
     /** @type {number|null} The revision ID of the active room */
@@ -162,24 +168,42 @@ export default {
 
       context.commit('SET_DRAFT_ROOM', { roomId: revisionId });
 
+      // Cancel any stale timers from a previous join before creating new ones
+      if (_syncIntervalId) {
+        clearInterval(_syncIntervalId);
+        _syncIntervalId = null;
+      }
+      if (_syncTimeoutId) {
+        clearTimeout(_syncTimeoutId);
+        _syncTimeoutId = null;
+      }
+
       // Listen for sync completion
-      const checkSynced = setInterval(() => {
+      _syncIntervalId = setInterval(() => {
         if (provider.synced) {
+          log.debug('ScriptDraft: Sync detected via polling; clearing timer');
           context.commit('SET_DRAFT_SYNCED', true);
           context.commit('SET_DRAFT_CONNECTED', true);
-          clearInterval(checkSynced);
+          clearInterval(_syncIntervalId);
+          _syncIntervalId = null;
         }
       }, 100);
 
-      // Stop checking after 10 seconds (timeout)
-      setTimeout(() => {
-        clearInterval(checkSynced);
-        if (!provider.synced) {
+      // Watchdog: log an error only if this is still the active provider
+      _syncTimeoutId = setTimeout(() => {
+        clearInterval(_syncIntervalId);
+        _syncIntervalId = null;
+        _syncTimeoutId = null;
+        log.debug(
+          `ScriptDraft: Sync timeout fired (provider is ${provider === _provider ? 'current' : 'stale'}); synced=${provider.synced}`
+        );
+        if (provider === _provider && !provider.synced) {
           log.error('ScriptDraft: Sync timeout after 10 seconds');
         }
       }, 10000);
 
       provider.connect();
+      log.debug(`ScriptDraft: Provider connect() called for revision ${revisionId}`);
       log.info(`ScriptDraft: Joined room for revision ${revisionId} as ${role}`);
     },
 
@@ -187,6 +211,18 @@ export default {
      * Leave the current collaborative editing room.
      */
     async LEAVE_DRAFT_ROOM(context) {
+      log.debug(
+        `ScriptDraft: Cancelling sync timers (interval=${_syncIntervalId}, timeout=${_syncTimeoutId})`
+      );
+      if (_syncIntervalId) {
+        clearInterval(_syncIntervalId);
+        _syncIntervalId = null;
+      }
+      if (_syncTimeoutId) {
+        clearTimeout(_syncTimeoutId);
+        _syncTimeoutId = null;
+      }
+
       if (_provider) {
         _provider.destroy();
       }
@@ -284,21 +320,18 @@ export default {
      * instance is returned to all components.
      */
     DRAFT_YDOC(state) {
-      // eslint-disable-next-line no-unused-expressions
       state.roomId; // reactive dependency — forces re-evaluation on room change
       return _ydoc;
     },
 
     /** @returns {ScriptDocProvider|null} The provider instance (non-reactive) */
     DRAFT_PROVIDER(state) {
-      // eslint-disable-next-line no-unused-expressions
       state.roomId; // reactive dependency — see DRAFT_YDOC comment
       return _provider;
     },
 
     /** @returns {import('yjs').Map|null} The Y.Doc pages map */
     DRAFT_PAGES(state) {
-      // eslint-disable-next-line no-unused-expressions
       state.roomId; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getMap('pages');
@@ -306,7 +339,6 @@ export default {
 
     /** @returns {import('yjs').Map|null} The Y.Doc meta map */
     DRAFT_META(state) {
-      // eslint-disable-next-line no-unused-expressions
       state.roomId; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getMap('meta');
@@ -314,7 +346,6 @@ export default {
 
     /** @returns {import('yjs').Array|null} The deleted line IDs array */
     DRAFT_DELETED_LINE_IDS(state) {
-      // eslint-disable-next-line no-unused-expressions
       state.roomId; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getArray('deleted_line_ids');

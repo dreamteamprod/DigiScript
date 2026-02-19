@@ -1140,11 +1140,16 @@ export default {
 
       const pages = ydoc.getMap('pages');
 
+      log.debug('ScriptEditor: Initialising Y.Doc bridge observers');
+
       // Sync the current page from Y.Doc → TMP_SCRIPT on initial connect
       this.syncCurrentPageFromYDoc();
 
       // Observe deep changes on the pages map — all origins flow through
-      const observer = (events) => {
+      const observer = (events, transaction) => {
+        log.debug(
+          `ScriptEditor: Deep observer fired (origin=${transaction.origin}); syncing to TMP_SCRIPT`
+        );
         // Determine which pages were affected
         const affectedPages = new Set();
         events.forEach((event) => {
@@ -1175,6 +1180,7 @@ export default {
      * Remove the Y.Doc observer.
      */
     teardownYDocBridge() {
+      log.debug('ScriptEditor: Tearing down Y.Doc bridge observers');
       if (this.ydocObserverCleanup) {
         this.ydocObserverCleanup();
         this.ydocObserverCleanup = null;
