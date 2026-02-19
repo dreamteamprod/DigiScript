@@ -61,6 +61,12 @@ export default {
 
     /** @type {object|null} Last save error */
     saveError: null,
+
+    /** @type {number} Pages saved so far during the current save (0 = starting) */
+    savePage: 0,
+
+    /** @type {number} Total pages to save in the current save operation */
+    saveTotalPages: 0,
   },
 
   mutations: {
@@ -108,6 +114,11 @@ export default {
       state.saveError = error;
     },
 
+    SET_SAVE_PROGRESS(state, { page, total }) {
+      state.savePage = page;
+      state.saveTotalPages = total;
+    },
+
     CLEAR_DRAFT_STATE(state) {
       state.roomId = null;
       state.isConnected = false;
@@ -119,6 +130,8 @@ export default {
       state.isSaving = false;
       state.savePhase = null;
       state.saveError = null;
+      state.savePage = 0;
+      state.saveTotalPages = 0;
       _ydoc = null;
       _provider = null;
     },
@@ -198,6 +211,12 @@ export default {
       }
 
       // Save flow messages — handled regardless of provider state
+      if (message.OP === 'SAVE_PROGRESS') {
+        context.commit('SET_DRAFT_SAVING', true);
+        context.commit('SET_SAVE_PROGRESS', message.DATA);
+        return { type: 'SAVE_PROGRESS', data: message.DATA };
+      }
+
       if (message.OP === 'SCRIPT_SAVED') {
         context.commit('SET_DRAFT_SAVING', false);
         context.commit('SET_DRAFT_SAVE_PHASE', null);
@@ -309,6 +328,11 @@ export default {
     /** @returns {string|null} Current save phase */
     DRAFT_SAVE_PHASE(state) {
       return state.savePhase;
+    },
+
+    /** @returns {{page: number, total: number}} Current save progress */
+    DRAFT_SAVE_PROGRESS(state) {
+      return { page: state.savePage, total: state.saveTotalPages };
     },
 
     /** @returns {boolean} Whether initial sync is complete */

@@ -73,7 +73,7 @@ def no_active_script_draft(
                 )
                 if active_draft:
                     raise HTTPError(
-                        400,
+                        409,
                         log_message="Cannot modify script while collaborative edit in progress",
                     )
         return method(self, *args, **kwargs)

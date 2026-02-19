@@ -706,7 +706,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     f"YJS_SYNC step=2 rev={room.revision_id} "
                     f"applying {len(decoded)}B update from {self.request.remote_ip}"
                 )
-                room.apply_update(decoded)
+                await room.apply_update(decoded)
                 await room.broadcast_update(decoded, sender=self)
 
         elif ws_op == "YJS_UPDATE":
@@ -725,7 +725,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 f"YJS_UPDATE rev={room.revision_id} "
                 f"applying {len(decoded)}B update from {self.request.remote_ip}"
             )
-            room.apply_update(decoded)
+            await room.apply_update(decoded)
             await room.broadcast_update(decoded, sender=self)
 
         elif ws_op == "YJS_AWARENESS":

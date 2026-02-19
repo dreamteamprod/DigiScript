@@ -392,6 +392,7 @@ export default {
       'DRAFT_AWARENESS_STATES',
       'IS_DRAFT_SAVING',
       'DRAFT_SAVE_PHASE',
+      'DRAFT_SAVE_PROGRESS',
     ]),
   },
   watch: {
@@ -437,17 +438,24 @@ export default {
         this.setupYDocBridge();
       }
     },
-    DRAFT_SAVE_PHASE(phase) {
-      if (!this._collabSaveToast || !phase) return;
-      const labels = {
-        validating: 'Validating lines...',
-        persisting: 'Persisting changes...',
-        finalizing: 'Finalizing...',
-      };
-      this._collabSaveToast.message = labels[phase] || 'Saving...';
+    DRAFT_SAVE_PROGRESS({ page, total }) {
+      if (!this._collabSaveToast || !total) return;
+      const percent = Math.round((page / total) * 100);
+      this._collabSaveToast.message =
+        page === 0 ? 'Saving script...' : `Saving page ${page} of ${total} (${percent}%)`;
     },
     '$store.state.scriptDraft.isSaving': function onSavingChanged(saving) {
-      if (!saving && this._collabSaveToast) {
+      if (saving && !this._collabSaveToast) {
+        // Open toast for all editors — the save-initiating user triggers this via
+        // SET_DRAFT_SAVING(true) in saveScript(); other editors get it when the
+        // first SAVE_PROGRESS message arrives and commits SET_DRAFT_SAVING(true).
+        this._collabSaveToast = this.$toast.open({
+          type: 'info',
+          message: 'Saving script...',
+          duration: 0,
+          dismissible: false,
+        });
+      } else if (!saving && this._collabSaveToast) {
         this._collabSaveToast.dismiss();
         this._collabSaveToast = null;
 
@@ -902,12 +910,6 @@ export default {
       // Collaborative save — server handles persistence via WebSocket
       if (this.IS_DRAFT_ACTIVE) {
         this.SET_DRAFT_SAVING(true);
-        this._collabSaveToast = this.$toast.open({
-          type: 'info',
-          message: 'Saving script...',
-          duration: 0,
-          dismissible: false,
-        });
         this.$socket.sendObj({ OP: 'SAVE_SCRIPT_DRAFT', DATA: {} });
         return;
       }

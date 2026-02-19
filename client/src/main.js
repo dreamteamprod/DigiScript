@@ -99,6 +99,7 @@ function initializeWebSocket() {
                 'ROOM_CLOSED',
                 'SCRIPT_SAVED',
                 'SAVE_ERROR',
+                'SAVE_PROGRESS',
               ].includes(msg.OP)
             ) {
               this.store.dispatch('HANDLE_DRAFT_MESSAGE', msg);
