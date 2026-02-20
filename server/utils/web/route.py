@@ -56,9 +56,15 @@ class ApiVersion(Enum):
 
 
 class ApiRoute(Route):
-    def __init__(self, route: str, api_version: ApiVersion, name: str = None):
+    def __init__(
+        self,
+        route: str,
+        api_version: ApiVersion,
+        name: str = None,
+        ignore_logging: bool = False,
+    ):
         route = f"/api/v{api_version.value}/{route.removeprefix('/')}"
-        super().__init__(route, name)
+        super().__init__(route, name, ignore_logging)
 
     def __call__(self, controller):
         if not issubclass(controller, (BaseAPIController, WebSocketHandler)):

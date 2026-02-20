@@ -60,6 +60,24 @@
                   :state="validateState('script_text_alignment')"
                 />
               </b-form-group>
+              <b-form-group :label-cols="true" label-for="console-log-level-input">
+                <template #label>
+                  <p>
+                    Browser Console Log Level
+                    <b-icon-question-circle-fill id="console-log-level-help-icon" />
+                    <b-tooltip target="console-log-level-help-icon" triggers="hover">
+                      Controls which log messages appear in your browser's developer console.
+                    </b-tooltip>
+                  </p>
+                </template>
+                <b-form-select
+                  id="console-log-level-input"
+                  v-model="$v.editSettings.console_log_level.$model"
+                  name="console-log-level-input"
+                  :options="consoleLogLevelOptions"
+                  :state="validateState('console_log_level')"
+                />
+              </b-form-group>
               <b-button-group size="md" style="float: right">
                 <b-button type="reset" variant="danger" :disabled="!$v.$anyDirty"> Reset </b-button>
                 <b-button type="submit" variant="primary" :disabled="!$v.$anyDirty || $v.$anyError">
@@ -95,11 +113,20 @@ export default {
         script_auto_save_interval: 10,
         cue_position_right: false,
         script_text_alignment: TEXT_ALIGNMENT.CENTER,
+        console_log_level: 'WARN',
       },
       textAlignmentOptions: [
         { value: TEXT_ALIGNMENT.LEFT, text: 'Left' },
         { value: TEXT_ALIGNMENT.CENTER, text: 'Center' },
         { value: TEXT_ALIGNMENT.RIGHT, text: 'Right' },
+      ],
+      consoleLogLevelOptions: [
+        { value: 'TRACE', text: 'TRACE' },
+        { value: 'DEBUG', text: 'DEBUG' },
+        { value: 'INFO', text: 'INFO' },
+        { value: 'WARN', text: 'WARN' },
+        { value: 'ERROR', text: 'ERROR' },
+        { value: 'SILENT', text: 'SILENT' },
       ],
       toggle: 0,
     };
@@ -127,6 +154,7 @@ export default {
         required,
         integer,
       },
+      console_log_level: { required },
     },
   },
   mounted() {

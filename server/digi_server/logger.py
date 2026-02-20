@@ -78,6 +78,25 @@ def configure_db_logging(
     return file_handler
 
 
+CLIENT_LEVEL_MAP = {
+    "TRACE": 5,  # Registered via add_logging_level("TRACE", logging.DEBUG - 5) in main.py
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARN": logging.WARNING,  # loglevel npm uses WARN; Python uses WARNING
+    "ERROR": logging.ERROR,
+    "SILENT": logging.CRITICAL + 1,  # No Python equivalent; suppress all
+}
+
+
+def map_client_level(level_name: str) -> int:
+    """Map a loglevel npm level name to a Python logging integer.
+
+    :param level_name: Level name from the loglevel npm package (e.g. TRACE, WARN).
+    :returns: The corresponding Python logging integer level.
+    """
+    return CLIENT_LEVEL_MAP.get(level_name.upper(), logging.INFO)
+
+
 def configure_client_logging(
     log_path,
     max_size_mb=100,
@@ -90,6 +109,9 @@ def configure_client_logging(
 
     if handler:
         client_logger.removeHandler(handler)
+
+    if isinstance(log_level, str):
+        log_level = map_client_level(log_level)
 
     client_logger.setLevel(log_level)
     file_handler = None

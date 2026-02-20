@@ -284,8 +284,8 @@ class Settings:
             bool,
             True,
             True,
-            display_name="Enable Client Logging",
-            help_text="Allow clients to send logs to the server.",
+            display_name="Enable Client Log Forwarding",
+            help_text="When enabled, client browsers will forward their logs to the server.",
         )
         self.define(
             "client_log_level",
@@ -294,8 +294,8 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Client Log Level",
-            help_text="Minimum level of logs to receive from clients.",
-            choice_options=get_level_names_by_order(),
+            help_text="Minimum log level that clients will forward to the server.",
+            choice_options=["TRACE", "DEBUG", "INFO", "WARN", "ERROR"],
         )
         self.define(
             "client_log_path",

@@ -1,19 +1,52 @@
-import logging
+from typing import Any, Dict, List
 
-from tornado import escape
+from tornado import escape, httputil
 
-from digi_server.logger import get_logger
+from digi_server.app_server import DigiScriptServer
+from digi_server.logger import get_logger, map_client_level
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 
 
-@ApiRoute("logs", ApiVersion.V1)
-class ClientLoggingController(BaseAPIController):
-    async def prepare(self):
-        # Override prepare to allow logs from unauthenticated clients
-        # but still run the base prepare to populate current_user if available
-        await super().prepare()
+class ClientLoggingBase(BaseAPIController):
+    def __init__(
+        self,
+        application: DigiScriptServer,
+        request: httputil.HTTPServerRequest,
+        **kwargs: Any,
+    ):
+        super().__init__(application, request, **kwargs)
+        self.client_logger = get_logger("Client")
 
+    def process_logs(self, entries: List[Dict]):
+        # Build request-level context added to every entry's extra
+        request_extra = {
+            "remote_ip": self.request.remote_ip,
+            "agent": self.request.headers.get("User-Agent", "Unknown"),
+        }
+        if self.current_user:
+            request_extra["user_id"] = self.current_user.get("id")
+            request_extra["username"] = self.current_user.get("username")
+
+        for entry in entries:
+            level = entry.get("level", "INFO").upper()
+            message = entry.get("message", "")
+            extra = {**entry.get("extra", {}), **request_extra}
+
+            log_level = map_client_level(level)
+
+            log_msg = f"[Client] {message}"
+            if extra:
+                log_msg += f" | Extra: {extra}"
+
+            self.client_logger.log(log_level, log_msg)
+
+        self.set_status(200)
+        self.write({"status": "OK"})
+
+
+@ApiRoute("logs/batch", ApiVersion.V1, ignore_logging=True)
+class ClientLoggingBatchController(ClientLoggingBase):
     async def post(self):
         client_log_enabled = await self.application.digi_settings.get(
             "client_log_enabled"
@@ -30,33 +63,36 @@ class ClientLoggingController(BaseAPIController):
             self.write({"message": "Invalid JSON"})
             return
 
-        level = data.get("level", "INFO").upper()
-        message = data.get("message", "")
-        extra = data.get("extra", {})
+        if not isinstance(data, dict):
+            self.set_status(400)
+            self.write({"message": "Expected JSON object with 'batch' key"})
+            return
 
-        # Add user info if available
-        if self.current_user:
-            extra["user_id"] = self.current_user.get("id")
-            extra["username"] = self.current_user.get("username")
+        batch = data.get("batch")
+        if not isinstance(batch, list):
+            self.set_status(400)
+            self.write({"message": "Expected 'batch' to be a list of log entries"})
+            return
 
-        extra["remote_ip"] = self.request.remote_ip
-        extra["agent"] = self.request.headers.get("User-Agent", "Unknown")
+        self.process_logs(batch)
 
-        # Map string level to logging level
-        log_level = getattr(logging, level, logging.INFO)
 
-        # Get a special logger for client logs
-        client_logger = get_logger("Client")
+@ApiRoute("logs", ApiVersion.V1, ignore_logging=True)
+class ClientLoggingController(ClientLoggingBase):
+    async def post(self):
+        client_log_enabled = await self.application.digi_settings.get(
+            "client_log_enabled"
+        )
+        if not client_log_enabled:
+            self.set_status(403)
+            self.write({"message": "Client logging is disabled"})
+            return
 
-        # Log the message.
-        # Tornado's logger might not handle 'extra' in the way we want directly
-        # but we can format it into the message or use it if the formatter is set up.
-        # For now, let's include it in the message for visibility.
-        log_msg = f"[Client] {message}"
-        if extra:
-            log_msg += f" | Extra: {extra}"
+        try:
+            data = escape.json_decode(self.request.body)
+        except ValueError:
+            self.set_status(400)
+            self.write({"message": "Invalid JSON"})
+            return
 
-        client_logger.log(log_level, log_msg)
-
-        self.set_status(200)
-        self.write({"status": "OK"})
+        self.process_logs([data])
