@@ -324,6 +324,16 @@ class Settings:
             display_name="Client Log Backups",
             help_text="Number of rotated client log file backups to retain.",
         )
+        self.define(
+            "log_buffer_size",
+            int,
+            2000,
+            True,
+            self._application.regen_logging,
+            display_name="Log Buffer Size",
+            help_text="Number of recent log entries to keep in memory for the log viewer. "
+            "Larger values use more memory. Changes take effect after restart.",
+        )
 
         self._load(spawn_callbacks=False)
 

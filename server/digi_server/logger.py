@@ -4,6 +4,12 @@ from typing import Optional
 
 from tornado.log import LogFormatter
 
+from digi_server.log_buffer import (
+    LogBufferHandler,
+    get_client_buffer,
+    get_server_buffer,
+)
+
 
 logger = logging.getLogger("DigiScript")
 ALL_LOGGERS = [
@@ -148,6 +154,40 @@ def add_logging_level(level_name, level_num, method_name=None):
     setattr(logging, level_name, level_num)
     setattr(logging.getLoggerClass(), method_name, log_for_level)
     setattr(logging, method_name, log_to_root)
+
+
+def configure_server_buffer(maxlen: int) -> LogBufferHandler:
+    """Attach (or resize) the server log buffer to all server loggers.
+
+    Idempotent: if the handler is already attached, only the buffer size is
+    updated.
+
+    :param maxlen: Maximum number of entries to keep in the buffer.
+    :returns: The :class:`LogBufferHandler` singleton for server logs.
+    """
+    handler = get_server_buffer()
+    handler.resize(maxlen)
+    for _logger in ALL_LOGGERS:
+        if handler not in _logger.handlers:
+            _logger.addHandler(handler)
+    return handler
+
+
+def configure_client_buffer(maxlen: int) -> LogBufferHandler:
+    """Attach (or resize) the client log buffer to the DigiScript.Client logger.
+
+    Idempotent: if the handler is already attached, only the buffer size is
+    updated.
+
+    :param maxlen: Maximum number of entries to keep in the buffer.
+    :returns: The :class:`LogBufferHandler` singleton for client logs.
+    """
+    handler = get_client_buffer()
+    handler.resize(maxlen)
+    client_logger = get_logger("Client")
+    if handler not in client_logger.handlers:
+        client_logger.addHandler(handler)
+    return handler
 
 
 def get_level_names_by_order():

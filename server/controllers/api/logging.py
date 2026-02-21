@@ -39,7 +39,18 @@ class ClientLoggingBase(BaseAPIController):
             if extra:
                 log_msg += f" | Extra: {extra}"
 
-            self.client_logger.log(log_level, log_msg)
+            # Pass structured fields via extra so LogBufferHandler can read them.
+            # Tornado's LogFormatter ignores unknown extra fields, so file output
+            # is unaffected.
+            self.client_logger.log(
+                log_level,
+                log_msg,
+                extra={
+                    "user_id": request_extra.get("user_id"),
+                    "username": request_extra.get("username"),
+                    "remote_ip": request_extra.get("remote_ip"),
+                },
+            )
 
         self.set_status(200)
         self.write({"status": "OK"})
