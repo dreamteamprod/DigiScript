@@ -171,9 +171,16 @@ class BaseAPIController(BaseController):
         self.write({"message": "405 not allowed"})
 
     def on_finish(self):
+        from utils.web.route import Route  # noqa: PLC0415
+
+        if self.request.path in Route.ignored_logging_routes():
+            log_method = get_logger().trace
+        else:
+            log_method = get_logger().debug
+
         if self.request.body:
             try:
-                get_logger().debug(
+                log_method(
                     f"{self.request.method} "
                     f"{self.request.path} "
                     f"{escape.json_decode(self.request.body)}"

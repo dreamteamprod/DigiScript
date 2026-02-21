@@ -14,6 +14,7 @@ import App from './App.vue';
 import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
 import { getWebSocketURL, isElectron } from '@/js/platform';
+import { initRemoteLogging } from '@/js/logger';
 
 // Expose loglevel globally so `log.setLevel('debug')` works in DevTools
 window.log = log;
@@ -24,6 +25,7 @@ import 'vue-multiselect/dist/vue-multiselect.min.css';
 import 'splitpanes/dist/splitpanes.css';
 
 setupHttpInterceptor();
+initRemoteLogging();
 
 Vue.use(BootstrapVue);
 Vue.use(IconsPlugin);

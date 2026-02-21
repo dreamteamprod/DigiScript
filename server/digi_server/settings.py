@@ -287,6 +287,61 @@ class Settings:
             display_name="Enable Network Discovery (mDNS)",
             help_text="Advertise this server on the local network for automatic discovery by desktop clients.",
         )
+        self.define(
+            "client_log_enabled",
+            bool,
+            True,
+            True,
+            display_name="Enable Client Log Forwarding",
+            help_text="When enabled, client browsers will forward their logs to the server.",
+        )
+        self.define(
+            "client_log_level",
+            str,
+            "INFO",
+            True,
+            self._application.regen_logging,
+            display_name="Client Log Level",
+            help_text="Minimum log level that clients will forward to the server.",
+            choice_options=["TRACE", "DEBUG", "INFO", "WARN", "ERROR"],
+        )
+        self.define(
+            "client_log_path",
+            str,
+            os.path.join(self._base_path, "digiscript_client.log"),
+            True,
+            self._application.regen_logging,
+            display_name="Client Log Path",
+            help_text="Path to the log file for client-side log messages.",
+        )
+        self.define(
+            "client_max_log_mb",
+            int,
+            100,
+            True,
+            self._application.regen_logging,
+            display_name="Max Client Log Size (MB)",
+            help_text="Maximum size in MB of the client log file before it is rotated.",
+        )
+        self.define(
+            "client_log_backups",
+            int,
+            5,
+            True,
+            self._application.regen_logging,
+            display_name="Client Log Backups",
+            help_text="Number of rotated client log file backups to retain.",
+        )
+        self.define(
+            "log_buffer_size",
+            int,
+            2000,
+            True,
+            self._application.regen_logging,
+            display_name="Log Buffer Size",
+            help_text="Number of recent log entries to keep in memory for the log viewer. "
+            "Larger values use more memory. Changes take effect after restart.",
+        )
 
         self._load(spawn_callbacks=False)
 

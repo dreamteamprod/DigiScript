@@ -4,6 +4,12 @@ from typing import Optional
 
 from tornado.log import LogFormatter
 
+from digi_server.log_buffer import (
+    LogBufferHandler,
+    get_client_buffer,
+    get_server_buffer,
+)
+
 
 logger = logging.getLogger("DigiScript")
 ALL_LOGGERS = [
@@ -78,6 +84,54 @@ def configure_db_logging(
     return file_handler
 
 
+CLIENT_LEVEL_MAP = {
+    "TRACE": 5,  # Registered via add_logging_level("TRACE", logging.DEBUG - 5) in main.py
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARN": logging.WARNING,  # loglevel npm uses WARN; Python uses WARNING
+    "ERROR": logging.ERROR,
+    "SILENT": logging.CRITICAL + 1,  # No Python equivalent; suppress all
+}
+
+
+def map_client_level(level_name: str) -> int:
+    """Map a loglevel npm level name to a Python logging integer.
+
+    :param level_name: Level name from the loglevel npm package (e.g. TRACE, WARN).
+    :returns: The corresponding Python logging integer level.
+    """
+    return CLIENT_LEVEL_MAP.get(level_name.upper(), logging.INFO)
+
+
+def configure_client_logging(
+    log_path,
+    max_size_mb=100,
+    log_backups=5,
+    handler=None,
+    log_level=logging.DEBUG,
+):
+    size_bytes = max_size_mb * 1024 * 1024
+    client_logger = get_logger("Client")
+
+    if handler:
+        client_logger.removeHandler(handler)
+
+    if isinstance(log_level, str):
+        log_level = map_client_level(log_level)
+
+    client_logger.setLevel(log_level)
+    file_handler = None
+    if log_path:
+        file_handler = RotatingFileHandler(
+            log_path, maxBytes=size_bytes, backupCount=log_backups
+        )
+        file_handler.setFormatter(LogFormatter(color=False))
+        client_logger.addHandler(file_handler)
+        # Prevent propagation to avoid polluting the server console
+        client_logger.propagate = False
+    return file_handler
+
+
 def add_logging_level(level_name, level_num, method_name=None):
     if not method_name:
         method_name = level_name.lower()
@@ -100,6 +154,40 @@ def add_logging_level(level_name, level_num, method_name=None):
     setattr(logging, level_name, level_num)
     setattr(logging.getLoggerClass(), method_name, log_for_level)
     setattr(logging, method_name, log_to_root)
+
+
+def configure_server_buffer(maxlen: int) -> LogBufferHandler:
+    """Attach (or resize) the server log buffer to all server loggers.
+
+    Idempotent: if the handler is already attached, only the buffer size is
+    updated.
+
+    :param maxlen: Maximum number of entries to keep in the buffer.
+    :returns: The :class:`LogBufferHandler` singleton for server logs.
+    """
+    handler = get_server_buffer()
+    handler.resize(maxlen)
+    for _logger in ALL_LOGGERS:
+        if handler not in _logger.handlers:
+            _logger.addHandler(handler)
+    return handler
+
+
+def configure_client_buffer(maxlen: int) -> LogBufferHandler:
+    """Attach (or resize) the client log buffer to the DigiScript.Client logger.
+
+    Idempotent: if the handler is already attached, only the buffer size is
+    updated.
+
+    :param maxlen: Maximum number of entries to keep in the buffer.
+    :returns: The :class:`LogBufferHandler` singleton for client logs.
+    """
+    handler = get_client_buffer()
+    handler.resize(maxlen)
+    client_logger = get_logger("Client")
+    if handler not in client_logger.handlers:
+        client_logger.addHandler(handler)
+    return handler
 
 
 def get_level_names_by_order():

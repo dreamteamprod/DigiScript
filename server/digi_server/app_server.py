@@ -18,9 +18,12 @@ from tornado_prometheus import PrometheusMixIn
 from controllers import controllers
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import (
+    configure_client_buffer,
+    configure_client_logging,
     configure_db_logging,
     configure_file_logging,
     configure_log_level,
+    configure_server_buffer,
     get_logger,
 )
 from digi_server.settings import Settings
@@ -57,6 +60,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.digi_settings: Settings = Settings(self, settings_path)
         self.app_log_handler = None
         self.db_file_handler = None
+        self.client_file_handler = None
+        self.server_buffer = None
+        self.client_buffer = None
 
         # Controller imports (needed to trigger the decorator)
         controllers.import_all_controllers()
@@ -422,6 +428,24 @@ class DigiScriptServer(PrometheusMixIn, Application):
                 handler=self.app_log_handler,
             )
         configure_log_level(log_level)
+
+        # Client logging
+        client_log_path = await self.digi_settings.get("client_log_path")
+        client_file_size = await self.digi_settings.get("client_max_log_mb")
+        client_backups = await self.digi_settings.get("client_log_backups")
+        client_log_level = await self.digi_settings.get("client_log_level")
+        self.client_file_handler = configure_client_logging(
+            log_path=client_log_path,
+            max_size_mb=client_file_size,
+            log_backups=client_backups,
+            handler=self.client_file_handler,
+            log_level=client_log_level,
+        )
+
+        # In-memory log buffers (for the log viewer UI)
+        buffer_maxlen = await self.digi_settings.get("log_buffer_size")
+        self.server_buffer = configure_server_buffer(buffer_maxlen)
+        self.client_buffer = configure_client_buffer(buffer_maxlen)
 
         # Database logging
         use_db_logging = await self.digi_settings.get("db_log_enabled")
