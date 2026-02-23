@@ -7,8 +7,6 @@ import ToastPlugin from 'vue-toast-notification';
 import Multiselect from 'vue-multiselect';
 import { Splitpanes, Pane } from 'splitpanes';
 
-import log from 'loglevel';
-
 import store from '@/store/store';
 import App from './App.vue';
 import router from './router';
