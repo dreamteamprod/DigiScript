@@ -4,7 +4,7 @@ from typing import Optional
 
 from tornado.log import LogFormatter
 
-from digi_server.log_buffer import (
+from utils.log_buffer import (
     LogBufferHandler,
     get_client_buffer,
     get_server_buffer,

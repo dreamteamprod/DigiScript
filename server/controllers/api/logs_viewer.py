@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 
-from digi_server.log_buffer import get_client_buffer, get_server_buffer
+from utils.log_buffer import get_client_buffer, get_server_buffer
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import require_admin

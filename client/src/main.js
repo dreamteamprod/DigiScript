@@ -15,6 +15,7 @@ import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
 import { getWebSocketURL, isElectron } from '@/js/platform';
 import { initRemoteLogging } from '@/js/logger';
+import log from 'loglevel';
 
 // Expose loglevel globally so `log.setLevel('debug')` works in DevTools
 window.log = log;
@@ -26,6 +27,8 @@ import 'splitpanes/dist/splitpanes.css';
 
 setupHttpInterceptor();
 initRemoteLogging();
+
+log.info(`Running in ${import.meta.env.MODE} mode.`);
 
 Vue.use(BootstrapVue);
 Vue.use(IconsPlugin);

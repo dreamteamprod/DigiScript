@@ -4,8 +4,8 @@ import logging
 
 from tornado import escape
 
-from digi_server.log_buffer import get_client_buffer, get_server_buffer
 from test.conftest import DigiScriptTestCase
+from utils.log_buffer import get_client_buffer, get_server_buffer
 
 
 def _make_record(msg, level=logging.INFO, name="test", **extra_attrs):

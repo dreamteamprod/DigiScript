@@ -41,6 +41,13 @@ class SettingsController(BaseAPIController):
         self.write({"message": "Settings updated"})
 
 
+@ApiRoute("settings/categories", ApiVersion.V1)
+class SettingsCategoriesController(BaseAPIController):
+    @allow_when_password_required
+    async def get(self):
+        await self.finish({"categories": self.application.digi_settings.categories})
+
+
 @ApiRoute("settings/raw", ApiVersion.V1)
 class RawSettingsController(BaseAPIController):
     async def get(self):

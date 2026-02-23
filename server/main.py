@@ -81,6 +81,8 @@ async def main():
             display_name="",
             help_text="",
             hide_from_ui=False,
+            choice_options=None,
+            category="General",
         ):
             # For database path, adjust to a writable location if needed
             if key == "db_path" and default and isinstance(default, str):
@@ -106,6 +108,8 @@ async def main():
                 display_name,
                 help_text,
                 hide_from_ui,
+                choice_options,
+                category,
             )
 
         # Apply the patch
