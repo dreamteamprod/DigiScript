@@ -2,7 +2,7 @@ import logging
 import unittest
 from datetime import datetime
 
-from digi_server.log_buffer import (
+from utils.log_buffer import (
     LogBufferHandler,
     get_client_buffer,
     get_server_buffer,
