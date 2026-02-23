@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
 import bcrypt
@@ -179,14 +180,25 @@ class BaseAPIController(BaseController):
             log_method = get_logger().debug
 
         if self.request.body:
+            method_name = self.request.method.lower()
+            handler_method = getattr(self, method_name, None)
+            redacted_data_paths = getattr(handler_method, "_redacted_data_paths", None)
             try:
-                log_method(
-                    f"{self.request.method} "
-                    f"{self.request.path} "
-                    f"{escape.json_decode(self.request.body)}"
-                )
+                body = escape.json_decode(self.request.body)
             except BaseException:
                 get_logger().debug(
                     f"{self.request.method} {self.request.path} {self.request.body}"
                 )
+            else:
+                if (
+                    redacted_data_paths
+                    and self.application.digi_settings.settings[
+                        "log_redaction"
+                    ].get_value()
+                ):
+                    body = deepcopy(body)
+                    redacted_data_paths.apply(body)
+
+                log_method(f"{self.request.method} {self.request.path} {body}")
+
         super().on_finish()

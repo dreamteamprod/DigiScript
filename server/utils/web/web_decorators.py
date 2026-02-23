@@ -1,6 +1,7 @@
 import functools
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, List, Optional
 
+from jsonpath import JSONPatch
 from tornado.web import HTTPError
 
 from utils.web.base_controller import BaseController
@@ -77,3 +78,27 @@ def allow_when_password_required(
     # Mark the wrapper with an attribute so prepare() can detect it
     wrapper._allow_when_password_required = True  # type: ignore
     return wrapper
+
+
+def redact_data_paths(
+    paths: List[str],
+) -> Callable[
+    [Callable[..., Optional[Awaitable[None]]]], Callable[..., Optional[Awaitable[None]]]
+]:
+    patch = None
+    if paths:
+        patch = JSONPatch()
+        for path in paths:
+            patch.replace(path, "<-- REDACTED -->")
+
+    def decorator(
+        method: Callable[..., Optional[Awaitable[None]]],
+    ) -> Callable[..., Optional[Awaitable[None]]]:
+        @functools.wraps(method)
+        def wrapper(self: BaseController, *args, **kwargs) -> Optional[Awaitable[None]]:
+            return method(self, *args, **kwargs)
+
+        wrapper._redacted_data_paths = patch
+        return wrapper
+
+    return decorator

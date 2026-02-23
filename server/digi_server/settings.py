@@ -231,6 +231,14 @@ class Settings:
             display_name="Log Backups",
         )
         self.define(
+            "log_redaction",
+            bool,
+            False,
+            True,
+            display_name="Enable Log Redaction",
+            help_text="When enabled, potentially sensitive information will be redacted from logs.",
+        )
+        self.define(
             "db_log_enabled",
             bool,
             False,
