@@ -4,7 +4,7 @@ import json
 import os
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from tornado.locks import Lock
 
@@ -167,8 +167,17 @@ class Settings:
             )
             os.makedirs(os.path.dirname(self.settings_path))
 
+        self.categories: Dict[str : List[str]] = {"General": []}
         self.settings: Dict[str, SettingsObject] = {}
+        self.init_settings()
+        self._load(spawn_callbacks=False)
+        self._file_watcher = IOLoopFileWatcher(
+            self.settings_path, self.auto_reload_changes, 100
+        )
+        self._file_watcher.add_error_callback(self.file_deleted)
+        self._file_watcher.watch()
 
+    def init_settings(self):
         db_default = f"sqlite:///{os.path.join(os.path.dirname(__file__), '../conf/digiscript.sqlite')}"
         self.define(
             "has_admin_user",
@@ -205,6 +214,7 @@ class Settings:
             self._application.regen_logging,
             display_name="Log Level",
             choice_options=get_level_names_by_order(),
+            category="Logging",
         )
         self.define(
             "log_path",
@@ -213,6 +223,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Application Log Path",
+            category="Logging",
         )
         self.define(
             "max_log_mb",
@@ -221,6 +232,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Max Log Size (MB)",
+            category="Logging",
         )
         self.define(
             "log_backups",
@@ -229,6 +241,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Log Backups",
+            category="Logging",
         )
         self.define(
             "log_redaction",
@@ -237,6 +250,7 @@ class Settings:
             True,
             display_name="Enable Log Redaction",
             help_text="When enabled, potentially sensitive information will be redacted from logs.",
+            category="Logging",
         )
         self.define(
             "db_log_enabled",
@@ -245,6 +259,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Enable Database Log",
+            category="DB Logging",
         )
         self.define(
             "db_log_path",
@@ -253,6 +268,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Database Log Path",
+            category="DB Logging",
         )
         self.define(
             "db_max_log_mb",
@@ -261,6 +277,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Max Database Log Size (MB)",
+            category="DB Logging",
         )
         self.define(
             "db_log_backups",
@@ -269,6 +286,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Database Log Backups",
+            category="DB Logging",
         )
         self.define(
             "compiled_script_path",
@@ -294,6 +312,7 @@ class Settings:
             True,
             display_name="Enable Client Log Forwarding",
             help_text="When enabled, client browsers will forward their logs to the server.",
+            category="Client Logging",
         )
         self.define(
             "client_log_level",
@@ -304,6 +323,7 @@ class Settings:
             display_name="Client Log Level",
             help_text="Minimum log level that clients will forward to the server.",
             choice_options=["TRACE", "DEBUG", "INFO", "WARN", "ERROR"],
+            category="Client Logging",
         )
         self.define(
             "client_log_path",
@@ -313,6 +333,7 @@ class Settings:
             self._application.regen_logging,
             display_name="Client Log Path",
             help_text="Path to the log file for client-side log messages.",
+            category="Client Logging",
         )
         self.define(
             "client_max_log_mb",
@@ -322,6 +343,7 @@ class Settings:
             self._application.regen_logging,
             display_name="Max Client Log Size (MB)",
             help_text="Maximum size in MB of the client log file before it is rotated.",
+            category="Client Logging",
         )
         self.define(
             "client_log_backups",
@@ -331,6 +353,7 @@ class Settings:
             self._application.regen_logging,
             display_name="Client Log Backups",
             help_text="Number of rotated client log file backups to retain.",
+            category="Client Logging",
         )
         self.define(
             "log_buffer_size",
@@ -341,15 +364,8 @@ class Settings:
             display_name="Log Buffer Size",
             help_text="Number of recent log entries to keep in memory for the log viewer. "
             "Larger values use more memory. Changes take effect after restart.",
+            category="Client Logging",
         )
-
-        self._load(spawn_callbacks=False)
-
-        self._file_watcher = IOLoopFileWatcher(
-            self.settings_path, self.auto_reload_changes, 100
-        )
-        self._file_watcher.add_error_callback(self.file_deleted)
-        self._file_watcher.watch()
 
     def define(
         self,
@@ -363,7 +379,11 @@ class Settings:
         help_text: str = "",
         hide_from_ui: bool = False,
         choice_options: Optional[list] = None,
+        category: str = "General",
     ):
+        if key in self.settings:
+            raise KeyError(f"Setting {key} is already defined")
+
         self.settings[key] = SettingsObject(
             key,
             val_type,
@@ -376,6 +396,10 @@ class Settings:
             hide_from_ui,
             choice_options,
         )
+        if category not in self.categories:
+            self.categories[category] = [key]
+        else:
+            self.categories[category].append(key)
 
     def file_deleted(self):
         get_logger().info("Settings file deleted; recreating from in memory settings")

@@ -13,6 +13,7 @@ import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
 import { getWebSocketURL, isElectron } from '@/js/platform';
 import { initRemoteLogging } from '@/js/logger';
+import log from 'loglevel';
 
 import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';
@@ -21,6 +22,8 @@ import 'splitpanes/dist/splitpanes.css';
 
 setupHttpInterceptor();
 initRemoteLogging();
+
+log.info(`Running in ${import.meta.env.MODE} mode.`);
 
 Vue.use(BootstrapVue);
 Vue.use(IconsPlugin);
