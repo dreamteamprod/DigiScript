@@ -14,12 +14,14 @@ from utils.web.web_decorators import (
     allow_when_password_required,
     api_authenticated,
     no_live_session,
+    redact_data_paths,
     require_admin,
 )
 
 
 @ApiRoute("auth/create", ApiVersion.V1)
 class UserCreateController(BaseAPIController):
+    @redact_data_paths(paths=["/password", "/confirmPassword"])
     async def post(self):
         with self.make_session() as session:
             # If there are no users, allow creation without authentication, otherwise require admin.
@@ -139,6 +141,7 @@ class UserDeleteController(BaseAPIController):
 
 @ApiRoute("auth/login", ApiVersion.V1)
 class LoginHandler(BaseAPIController):
+    @redact_data_paths(paths=["/password"])
     async def post(self):
         data = escape.json_decode(self.request.body)
 
@@ -274,6 +277,7 @@ class PasswordChangeController(BaseAPIController):
 
     @api_authenticated
     @allow_when_password_required
+    @redact_data_paths(paths=["/old_password", "/new_password"])
     async def patch(self):
         """
         Change authenticated user's password.
