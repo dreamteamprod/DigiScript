@@ -12,8 +12,5 @@ pyjwt[crypto]==2.11.0
 setuptools==80.10.2
 xkcdpass==1.30.0
 zeroconf==0.148.0
-<<<<<<< feature/collaborative-editing
 pycrdt>=0.12.0,<1.0.0
-=======
 python-jsonpath==2.0.2
->>>>>>> dev
