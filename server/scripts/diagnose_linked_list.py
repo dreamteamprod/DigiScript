@@ -47,7 +47,9 @@ def _open_db(db_path: str) -> sqlite3.Connection:
 def _get_db_path(args) -> str:
     if args.db_path:
         return args.db_path
-    config_file = Path(os.path.join(os.path.dirname(__file__), "..", "conf/digiscript.json"))
+    config_file = Path(
+        os.path.join(os.path.dirname(__file__), "..", "conf/digiscript.json")
+    )
     if config_file.exists():
         with config_file.open() as fh:
             cfg = json.load(fh)
