@@ -5,6 +5,7 @@ from jsonpath import JSONPatch
 from sqlalchemy import select
 from tornado.web import HTTPError
 
+from controllers.api.constants import ERROR_SCRIPT_DRAFT_ACTIVE
 from models.script import Script, ScriptRevision
 from models.script_draft import ScriptDraft
 from models.show import Show
@@ -52,7 +53,7 @@ def no_active_script_draft(
     method: Callable[..., Optional[Awaitable[None]]],
 ) -> Callable[..., Optional[Awaitable[None]]]:
     @functools.wraps(method)
-    def wrapper(self: BaseController, *args, **kwargs):
+    async def wrapper(self: BaseController, *args, **kwargs):
         with self.make_session() as session:
             show = session.get(Show, self.get_current_show()["id"])
             if show:
@@ -69,15 +70,27 @@ def no_active_script_draft(
                         400, log_message="Script does not have a current revision"
                     )
 
+                current_revision_id = revision.id
+
                 active_draft = session.scalar(
-                    select(ScriptDraft).where(ScriptDraft.revision_id == revision.id)
+                    select(ScriptDraft).where(
+                        ScriptDraft.revision_id == current_revision_id
+                    )
                 )
                 if active_draft:
-                    raise HTTPError(
-                        409,
-                        log_message="Cannot modify script while collaborative edit in progress",
-                    )
-        return method(self, *args, **kwargs)
+                    self.set_status(409)
+                    await self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
+                    return
+
+                room_manager = getattr(self.application, "room_manager", None)
+                if room_manager:
+                    room = room_manager.get_room(current_revision_id)
+                    if room and not room.is_empty:
+                        self.set_status(409)
+                        await self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
+                        return
+
+        return await method(self, *args, **kwargs)
 
     return wrapper
 

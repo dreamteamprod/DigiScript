@@ -437,7 +437,6 @@ export default {
           }
         }
       }
-      // Sync new part to Y.Doc for collaborative editing
       if (this.yLineMap) {
         this.addPartToYDoc(
           this.state.line_parts[this.state.line_parts.length - 1],

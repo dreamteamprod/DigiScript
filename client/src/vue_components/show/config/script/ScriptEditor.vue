@@ -111,7 +111,6 @@
               :next-line-fn="getNextLineForIndex"
               :line-type="line.line_type"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
-              @input="lineChange(line, index)"
               @doneEditing="doneEditingLine(currentEditPage, index)"
               @deleteLine="deleteLine(currentEditPage, index)"
             />
@@ -286,7 +285,7 @@ export default {
         pageNo: 1,
       },
       changingPage: false,
-      loaded: false,
+      dataLoaded: false,
       latestAddedLine: null,
       linePartCuts: [],
       autoSaveInterval: null,
@@ -307,6 +306,9 @@ export default {
     },
   },
   computed: {
+    loaded() {
+      return this.dataLoaded && (!this.IS_DRAFT_ACTIVE || this.IS_DRAFT_SYNCED);
+    },
     currentEditPageKey() {
       return this.currentEditPage.toString();
     },
@@ -517,7 +519,7 @@ export default {
     await this.goToPageInner(this.currentEditPage);
 
     // All data loaded — now safe to render
-    this.loaded = true;
+    this.dataLoaded = true;
     this.$nextTick(() => this.calculateNavbarHeight());
   },
   created() {
@@ -643,10 +645,8 @@ export default {
         // Pre-load previous page
         await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
 
-        // Overlay Y.Doc data onto the newly current page (matches goToPageInner behaviour)
-        if (this.IS_DRAFT_SYNCED && this.DRAFT_YDOC) {
-          this.syncCurrentPageFromYDoc();
-        }
+        // Overlay Y.Doc data onto the newly current page
+        this.syncCurrentPageFromYDoc();
       }
     },
     async incrPage() {
@@ -657,10 +657,8 @@ export default {
       // Pre-load next page
       await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
 
-      // Overlay Y.Doc data onto the newly current page (matches goToPageInner behaviour)
-      if (this.IS_DRAFT_SYNCED && this.DRAFT_YDOC) {
-        this.syncCurrentPageFromYDoc();
-      }
+      // Overlay Y.Doc data onto the newly current page
+      this.syncCurrentPageFromYDoc();
     },
     /**
      * Common logic for all add-line operations.
@@ -681,11 +679,7 @@ export default {
         lineObj.scene_id = prevLine.scene_id;
       }
 
-      if (this.IS_DRAFT_ACTIVE && this.DRAFT_YDOC) {
-        addYDocLine(this.DRAFT_YDOC, this.currentEditPage, lineObj);
-      } else {
-        this.ADD_BLANK_LINE({ pageNo: this.currentEditPage, lineObj });
-      }
+      addYDocLine(this.DRAFT_YDOC, this.currentEditPage, lineObj);
 
       const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
       const lineIdent = `page_${this.currentEditPage}_line_${lineIndex}`;
@@ -784,19 +778,6 @@ export default {
 
       return null;
     },
-    lineChange(line, index) {
-      if (this.IS_DRAFT_ACTIVE && this.DRAFT_YDOC) {
-        // Y.Doc is source of truth — components wrote directly to Y.Map/Y.Text.
-        // The deep observer handles TMP_SCRIPT updates synchronously.
-        return;
-      }
-      // Non-collab mode: write to TMP_SCRIPT as before
-      this.SET_LINE({
-        pageNo: this.currentEditPage,
-        lineIndex: index,
-        lineObj: line,
-      });
-    },
     beginEditingLine(pageIndex, lineIndex) {
       const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);
       if (index === -1) {
@@ -819,11 +800,7 @@ export default {
       if (this.latestAddedLine === `page_${pageIndex}_line_${lineIndex}`) {
         this.latestAddedLine = null;
       }
-      if (this.IS_DRAFT_ACTIVE && this.DRAFT_YDOC) {
-        deleteYDocLine(this.DRAFT_YDOC, pageIndex, lineIndex);
-      } else {
-        this.DELETE_LINE({ pageNo: pageIndex, lineIndex });
-      }
+      deleteYDocLine(this.DRAFT_YDOC, pageIndex, lineIndex);
       this.doneEditingLine(pageIndex, lineIndex);
 
       this.editPages.forEach(function updateEditPage(editPage, index) {
@@ -879,15 +856,7 @@ export default {
         newLineObject.scene_id = prevLine.scene_id;
       }
 
-      if (this.IS_DRAFT_ACTIVE && this.DRAFT_YDOC) {
-        addYDocLine(this.DRAFT_YDOC, this.currentEditPage, newLineObject, newLineIndex);
-      } else {
-        this.INSERT_BLANK_LINE({
-          pageNo: this.currentEditPage,
-          lineIndex: newLineIndex,
-          lineObj: newLineObject,
-        });
-      }
+      addYDocLine(this.DRAFT_YDOC, this.currentEditPage, newLineObject, newLineIndex);
 
       // Update existing edit page indices
       this.editPages.forEach(function updateEditPage(editPage, index) {
@@ -1015,10 +984,8 @@ export default {
       }
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
 
-      // If Y.Doc is synced, overlay collaborative data onto loaded pages
-      if (this.IS_DRAFT_SYNCED && this.DRAFT_YDOC) {
-        this.syncCurrentPageFromYDoc();
-      }
+      // Overlay collaborative data onto loaded pages
+      this.syncCurrentPageFromYDoc();
     },
     setupAutoSave() {
       const autoSaveInterval = Math.max(
@@ -1220,22 +1187,10 @@ export default {
      * @returns {import('yjs').Map|null}
      */
     getYLineMap(index) {
-      if (!this.IS_DRAFT_ACTIVE || !this.DRAFT_YDOC) {
-        log.debug(
-          `ScriptEditor: getYLineMap(${index}) p=${this.currentEditPage} → null ` +
-            `(IS_DRAFT_ACTIVE=${this.IS_DRAFT_ACTIVE}, DRAFT_YDOC=${!!this.DRAFT_YDOC})`
-        );
-        return null;
-      }
+      if (!this.DRAFT_YDOC) return null;
       const pages = this.DRAFT_YDOC.getMap('pages');
       const pageArray = pages.get(this.currentEditPageKey);
-      if (!pageArray || index >= pageArray.length) {
-        log.debug(
-          `ScriptEditor: getYLineMap(${index}) p=${this.currentEditPage} → null ` +
-            `(pageArray=${!!pageArray}, len=${pageArray?.length})`
-        );
-        return null;
-      }
+      if (!pageArray || index >= pageArray.length) return null;
       return pageArray.get(index);
     },
     /**
@@ -1275,12 +1230,8 @@ export default {
     },
     ...mapMutations([
       'REMOVE_PAGE',
-      'ADD_BLANK_LINE',
-      'SET_LINE',
-      'DELETE_LINE',
       'RESET_DELETED',
       'SET_CUT_MODE',
-      'INSERT_BLANK_LINE',
       'RESET_INSERTED',
       'SET_DRAFT_SAVING',
     ]),
