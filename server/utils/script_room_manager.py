@@ -118,7 +118,8 @@ class ScriptRoom:
         """
         payload = base64.b64encode(update).decode("ascii")
         message = {
-            "OP": "YJS_UPDATE",
+            "OP": "NOOP",
+            "ACTION": "YJS_UPDATE",
             "DATA": {
                 "payload": payload,
                 "room_id": f"draft_{self.revision_id}",
@@ -145,7 +146,8 @@ class ScriptRoom:
         """
         payload = base64.b64encode(data).decode("ascii")
         message = {
-            "OP": "YJS_AWARENESS",
+            "OP": "NOOP",
+            "ACTION": "YJS_AWARENESS",
             "DATA": {
                 "payload": payload,
                 "room_id": f"draft_{self.revision_id}",
@@ -181,7 +183,8 @@ class ScriptRoom:
             members.append({"user_id": user_id, "username": username, "role": role})
 
         message = {
-            "OP": "ROOM_MEMBERS",
+            "OP": "NOOP",
+            "ACTION": "ROOM_MEMBERS",
             "DATA": {
                 "room_id": f"draft_{self.revision_id}",
                 "members": members,
@@ -207,7 +210,8 @@ class ScriptRoom:
             try:
                 await client_ws.write_message(
                     {
-                        "OP": "SAVE_PROGRESS",
+                        "OP": "NOOP",
+                        "ACTION": "SAVE_PROGRESS",
                         "DATA": {"page": page, "total": total, "percent": percent},
                     }
                 )
@@ -515,7 +519,11 @@ class RoomManager:
                 get_logger().exception("save_draft failed")
                 try:
                     await ws.write_message(
-                        {"OP": "SAVE_ERROR", "DATA": {"error": str(e)}}
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "SAVE_ERROR",
+                            "DATA": {"error": str(e)},
+                        }
                     )
                 except Exception:
                     pass
@@ -528,7 +536,8 @@ class RoomManager:
                 try:
                     await client_ws.write_message(
                         {
-                            "OP": "YJS_UPDATE",
+                            "OP": "NOOP",
+                            "ACTION": "YJS_UPDATE",
                             "DATA": {
                                 "payload": payload,
                                 "room_id": f"draft_{room.revision_id}",
@@ -546,7 +555,11 @@ class RoomManager:
         for client_ws in list(room.clients.keys()):
             try:
                 await client_ws.write_message(
-                    {"OP": "SCRIPT_SAVED", "DATA": {"last_saved_at": now}}
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "SCRIPT_SAVED",
+                        "DATA": {"last_saved_at": now},
+                    }
                 )
             except Exception:
                 pass
@@ -731,7 +744,8 @@ class RoomManager:
             return
 
         message = {
-            "OP": "ROOM_CLOSED",
+            "OP": "NOOP",
+            "ACTION": "ROOM_CLOSED",
             "DATA": {"room_id": f"draft_{revision_id}"},
         }
         for ws in list(room.clients.keys()):

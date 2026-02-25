@@ -602,7 +602,11 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             revision_id = data.get("revision_id")
             if not revision_id:
                 await self.write_message(
-                    {"OP": "COLLAB_ERROR", "DATA": {"error": "revision_id required"}}
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": "revision_id required"},
+                    }
                 )
                 return
 
@@ -638,7 +642,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             sync_state = room.get_sync_state()
             await self.write_message(
                 {
-                    "OP": "YJS_SYNC",
+                    "OP": "NOOP",
+                    "ACTION": "YJS_SYNC",
                     "DATA": {
                         "step": 0,
                         "payload": base64.b64encode(sync_state).decode("ascii"),
@@ -694,7 +699,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
                 await self.write_message(
                     {
-                        "OP": "YJS_SYNC",
+                        "OP": "NOOP",
+                        "ACTION": "YJS_SYNC",
                         "DATA": {
                             "step": 2,
                             "payload": base64.b64encode(diff).decode("ascii"),

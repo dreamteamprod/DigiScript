@@ -195,7 +195,8 @@ class TestScriptRoomBroadcast:
 
         # Verify message format
         sent_msg = ws2.write_message.call_args[0][0]
-        assert sent_msg["OP"] == "YJS_UPDATE"
+        assert sent_msg["OP"] == "NOOP"
+        assert sent_msg["ACTION"] == "YJS_UPDATE"
         assert "payload" in sent_msg["DATA"]
         assert "room_id" in sent_msg["DATA"]
 
@@ -213,7 +214,8 @@ class TestScriptRoomBroadcast:
         assert ws2.write_message.call_count == 1
 
         sent_msg = ws2.write_message.call_args[0][0]
-        assert sent_msg["OP"] == "YJS_AWARENESS"
+        assert sent_msg["OP"] == "NOOP"
+        assert sent_msg["ACTION"] == "YJS_AWARENESS"
 
     @pytest.mark.asyncio
     async def test_broadcast_handles_failed_write(self):
@@ -282,7 +284,8 @@ class TestRoomManagerCloseRoom:
         for ws in (ws1, ws2):
             ws.write_message.assert_called_once()
             msg = ws.write_message.call_args[0][0]
-            assert msg["OP"] == "ROOM_CLOSED"
+            assert msg["OP"] == "NOOP"
+            assert msg["ACTION"] == "ROOM_CLOSED"
             assert msg["DATA"]["room_id"] == "draft_42"
 
         # Observing should be stopped (subscription cleared)

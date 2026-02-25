@@ -134,38 +134,15 @@ export default class ScriptDocProvider {
   }
 
   /**
-   * Handle an incoming WebSocket message from the server.
-   * Should be called from the Vuex SOCKET_ONMESSAGE handler.
+   * Apply a YJS_SYNC message from the server.
+   * Accepts sync messages even before the room is marked connected,
+   * since step 0 is what triggers the connected state.
    *
-   * @param {object} message - The parsed WebSocket message
-   * @returns {boolean|object} true/data if handled, false if not
+   * @param {object} data - The DATA payload from the server message
+   * @returns {boolean} true if handled, false if filtered
    */
-  handleMessage(message) {
-    if (!this._connected && message.OP !== 'YJS_SYNC') return false;
-
-    const data = message.DATA || {};
+  applySync(data) {
     if (data.room_id && data.room_id !== this.roomId) return false;
-
-    switch (message.OP) {
-      case 'YJS_SYNC':
-        return this._handleSync(data);
-      case 'YJS_UPDATE':
-        return this._handleUpdate(data);
-      case 'YJS_AWARENESS':
-        return this._handleAwareness(data);
-      case 'ROOM_MEMBERS':
-        return { type: 'ROOM_MEMBERS', members: data.members || [] };
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Handle YJS_SYNC messages from the server.
-   * @param {object} data
-   * @returns {boolean}
-   */
-  _handleSync(data) {
     const payload = data.payload;
     if (!payload) return false;
 
@@ -201,11 +178,15 @@ export default class ScriptDocProvider {
   }
 
   /**
-   * Handle YJS_UPDATE messages from the server (other clients' changes).
-   * @param {object} data
-   * @returns {boolean}
+   * Apply a YJS_UPDATE message from the server (other clients' changes).
+   * Requires the room to be connected; filters mismatched room IDs.
+   *
+   * @param {object} data - The DATA payload from the server message
+   * @returns {boolean} true if handled, false if filtered
    */
-  _handleUpdate(data) {
+  applyUpdate(data) {
+    if (!this._connected) return false;
+    if (data.room_id && data.room_id !== this.roomId) return false;
     const payload = data.payload;
     if (!payload) return false;
 
@@ -221,14 +202,16 @@ export default class ScriptDocProvider {
   }
 
   /**
-   * Handle YJS_AWARENESS messages from the server.
-   * Decodes the JSON payload and returns the awareness state for
-   * the Vuex store to process.
+   * Apply a YJS_AWARENESS message from the server.
+   * Requires the room to be connected; filters mismatched room IDs.
+   * Returns the decoded awareness state object for the Vuex store to process.
    *
-   * @param {object} data
-   * @returns {object|boolean}
+   * @param {object} data - The DATA payload from the server message
+   * @returns {object|boolean} awareness result object, true (no payload), or false (filtered)
    */
-  _handleAwareness(data) {
+  applyAwareness(data) {
+    if (!this._connected) return false;
+    if (data.room_id && data.room_id !== this.roomId) return false;
     const payload = data.payload;
     if (!payload) return true;
 

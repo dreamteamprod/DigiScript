@@ -503,12 +503,15 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         # First message: YJS_SYNC (initial state)
         sync_msg = await ws.read_message()
-        self.assertEqual("YJS_SYNC", json.loads(sync_msg)["OP"])
+        sync_data = json.loads(sync_msg)
+        self.assertEqual("NOOP", sync_data["OP"])
+        self.assertEqual("YJS_SYNC", sync_data["ACTION"])
 
         # Second message: ROOM_MEMBERS broadcast
         members_msg = await ws.read_message()
         members_data = json.loads(members_msg)
-        self.assertEqual("ROOM_MEMBERS", members_data["OP"])
+        self.assertEqual("NOOP", members_data["OP"])
+        self.assertEqual("ROOM_MEMBERS", members_data["ACTION"])
         members = members_data["DATA"]["members"]
         self.assertEqual(1, len(members))
         self.assertEqual("viewer", members[0]["role"])
@@ -538,7 +541,8 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         # Should receive ROOM_MEMBERS with upgraded role
         response = await ws.read_message()
         response_data = json.loads(response)
-        self.assertEqual("ROOM_MEMBERS", response_data["OP"])
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("ROOM_MEMBERS", response_data["ACTION"])
         self.assertEqual("editor", response_data["DATA"]["members"][0]["role"])
 
         # Also receive GET_SCRIPT_CONFIG_STATUS
@@ -575,12 +579,15 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         # Should receive ROOM_MEMBERS with viewer role
         response = await ws.read_message()
         response_data = json.loads(response)
-        self.assertEqual("ROOM_MEMBERS", response_data["OP"])
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("ROOM_MEMBERS", response_data["ACTION"])
         self.assertEqual("viewer", response_data["DATA"]["members"][0]["role"])
 
         # Room closes since this was the last editor
         room_closed_msg = await ws.read_message()
-        self.assertEqual("ROOM_CLOSED", json.loads(room_closed_msg)["OP"])
+        room_closed_data = json.loads(room_closed_msg)
+        self.assertEqual("NOOP", room_closed_data["OP"])
+        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
 
         # Also receive GET_SCRIPT_CONFIG_STATUS
         config_msg = await ws.read_message()
@@ -618,7 +625,8 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         # Room is closed after checkpoint — client receives ROOM_CLOSED
         room_closed_msg = await ws.read_message()
         room_closed_data = json.loads(room_closed_msg)
-        self.assertEqual("ROOM_CLOSED", room_closed_data["OP"])
+        self.assertEqual("NOOP", room_closed_data["OP"])
+        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # Verify a ScriptDraft record was created (checkpoint happened)
@@ -652,12 +660,15 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         # First message: YJS_SYNC (initial state)
         sync_msg = await ws.read_message()
-        self.assertEqual("YJS_SYNC", json.loads(sync_msg)["OP"])
+        sync_data = json.loads(sync_msg)
+        self.assertEqual("NOOP", sync_data["OP"])
+        self.assertEqual("YJS_SYNC", sync_data["ACTION"])
 
         # Second message: ROOM_MEMBERS broadcast
         members_msg = await ws.read_message()
         members_data = json.loads(members_msg)
-        self.assertEqual("ROOM_MEMBERS", members_data["OP"])
+        self.assertEqual("NOOP", members_data["OP"])
+        self.assertEqual("ROOM_MEMBERS", members_data["ACTION"])
         members = members_data["DATA"]["members"]
         self.assertEqual(1, len(members))
         self.assertEqual("editor", members[0]["role"])
@@ -692,7 +703,8 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         # Should receive ROOM_CLOSED
         room_closed_msg = await ws.read_message()
         room_closed_data = json.loads(room_closed_msg)
-        self.assertEqual("ROOM_CLOSED", room_closed_data["OP"])
+        self.assertEqual("NOOP", room_closed_data["OP"])
+        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
         self.assertEqual(
             f"draft_{self.revision_id}", room_closed_data["DATA"]["room_id"]
         )
@@ -748,8 +760,12 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         # Both receive ROOM_MEMBERS (ws1 downgraded to viewer)
         members_msg1 = await ws1.read_message()
         members_msg2 = await ws2.read_message()
-        self.assertEqual("ROOM_MEMBERS", json.loads(members_msg1)["OP"])
-        self.assertEqual("ROOM_MEMBERS", json.loads(members_msg2)["OP"])
+        msg1 = json.loads(members_msg1)
+        msg2 = json.loads(members_msg2)
+        self.assertEqual("NOOP", msg1["OP"])
+        self.assertEqual("ROOM_MEMBERS", msg1["ACTION"])
+        self.assertEqual("NOOP", msg2["OP"])
+        self.assertEqual("ROOM_MEMBERS", msg2["ACTION"])
 
         # Both receive GET_SCRIPT_CONFIG_STATUS
         await ws1.read_message()
@@ -804,15 +820,16 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         # Viewer receives messages in non-deterministic order due to
         # on_close being sync (sends GET_SCRIPT_CONFIG_STATUS immediately)
         # while room broadcast/close happen via add_callback.
-        # Collect all messages and verify the expected set.
-        received_ops = []
+        # Collect all messages and verify the expected set by ACTION.
+        received_actions = set()
         for _ in range(3):
-            msg = await ws_viewer.read_message()
-            received_ops.append(json.loads(msg)["OP"])
+            msg = json.loads(await ws_viewer.read_message())
+            self.assertEqual("NOOP", msg["OP"])
+            received_actions.add(msg.get("ACTION"))
 
-        self.assertIn("ROOM_MEMBERS", received_ops)
-        self.assertIn("ROOM_CLOSED", received_ops)
-        self.assertIn("NOOP", received_ops)  # GET_SCRIPT_CONFIG_STATUS
+        self.assertIn("ROOM_MEMBERS", received_actions)
+        self.assertIn("ROOM_CLOSED", received_actions)
+        self.assertIn("GET_SCRIPT_CONFIG_STATUS", received_actions)
 
         # Room should be evicted
         self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
@@ -847,11 +864,13 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         response = await ws.read_message()
         response_data = json.loads(response)
-        self.assertEqual("YJS_UPDATE", response_data["OP"])
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("YJS_UPDATE", response_data["ACTION"])
 
         response = await ws.read_message()
         response_data = json.loads(response)
-        self.assertEqual("SCRIPT_SAVED", response_data["OP"])
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("SCRIPT_SAVED", response_data["ACTION"])
         self.assertIn("last_saved_at", response_data["DATA"])
 
         ws.close()
@@ -886,7 +905,8 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         response = await ws.read_message()
         response_data = json.loads(response)
-        self.assertEqual("SAVE_ERROR", response_data["OP"])
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("SAVE_ERROR", response_data["ACTION"])
         self.assertIn("Simulated save failure", response_data["DATA"]["error"])
 
         ws.close()
@@ -919,7 +939,8 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         response = await ws.read_message()
         response_data = json.loads(response)
-        self.assertEqual("ROOM_CLOSED", response_data["OP"])
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("ROOM_CLOSED", response_data["ACTION"])
         self.assertEqual(f"draft_{self.revision_id}", response_data["DATA"]["room_id"])
 
         # Room should be evicted after discard

@@ -232,75 +232,121 @@ export default {
     },
 
     /**
-     * Handle an incoming WebSocket message that might be for the draft provider.
-     * Called from the SOCKET_ONMESSAGE mutation or action.
+     * Handle a YJS_SYNC message: apply to provider, update synced state.
      *
      * @param {object} context
      * @param {object} message - The WebSocket message
      * @returns {boolean} Whether the message was handled
      */
-    HANDLE_DRAFT_MESSAGE(context, message) {
-      // Room closed by server (last editor left) — clean up
-      if (message.OP === 'ROOM_CLOSED') {
-        context.dispatch('LEAVE_DRAFT_ROOM');
-        return { type: 'ROOM_CLOSED' };
-      }
-
-      // Save flow messages — handled regardless of provider state
-      if (message.OP === 'SAVE_PROGRESS') {
-        context.commit('SET_DRAFT_SAVING', true);
-        context.commit('SET_SAVE_PROGRESS', message.DATA);
-        return { type: 'SAVE_PROGRESS', data: message.DATA };
-      }
-
-      if (message.OP === 'SCRIPT_SAVED') {
-        context.commit('SET_DRAFT_SAVING', false);
-        context.commit('SET_DRAFT_SAVE_PHASE', null);
-        context.commit('SET_DRAFT_SAVE_ERROR', null);
-        const timestamp = message.DATA?.last_saved_at;
-        if (timestamp) {
-          context.commit('SET_DRAFT_LAST_SAVED', timestamp);
-        }
-        return { type: 'SCRIPT_SAVED', data: message.DATA };
-      }
-
-      if (message.OP === 'SAVE_ERROR') {
-        context.commit('SET_DRAFT_SAVING', false);
-        context.commit('SET_DRAFT_SAVE_PHASE', null);
-        context.commit('SET_DRAFT_SAVE_ERROR', message.DATA?.error);
-        return { type: 'SAVE_ERROR', error: message.DATA?.error };
-      }
-
+    YJS_SYNC(context, message) {
       if (!_provider) return false;
-
-      const handled = _provider.handleMessage(message);
-
-      // Check if sync status changed
+      const handled = _provider.applySync(message.DATA);
       if (handled && _provider.synced && !context.state.isSynced) {
         context.commit('SET_DRAFT_SYNCED', true);
         context.commit('SET_DRAFT_CONNECTED', true);
       }
+      return handled;
+    },
 
-      // Handle structured responses from the provider
-      if (handled && typeof handled === 'object') {
-        if (handled.type === 'ROOM_MEMBERS') {
-          context.commit('SET_DRAFT_COLLABORATORS', handled.members);
-        } else if (handled.type === 'AWARENESS') {
-          const state = handled.state;
-          if (state && state.userId != null) {
-            if (state.page === null && state.lineIndex === null) {
-              context.commit('REMOVE_AWARENESS_STATE', state.userId);
-            } else {
-              context.commit('SET_AWARENESS_STATE', {
-                userId: state.userId,
-                awarenessState: state,
-              });
-            }
+    /**
+     * Handle a YJS_UPDATE message: apply remote doc update to provider.
+     *
+     * @param {object} context
+     * @param {object} message - The WebSocket message
+     * @returns {boolean} Whether the message was handled
+     */
+    YJS_UPDATE(context, message) {
+      if (!_provider) return false;
+      return _provider.applyUpdate(message.DATA);
+    },
+
+    /**
+     * Handle a YJS_AWARENESS message: decode and commit awareness state.
+     *
+     * @param {object} context
+     * @param {object} message - The WebSocket message
+     * @returns {boolean|object} Whether the message was handled
+     */
+    YJS_AWARENESS(context, message) {
+      if (!_provider) return false;
+      const handled = _provider.applyAwareness(message.DATA);
+      if (handled && typeof handled === 'object' && handled.type === 'AWARENESS') {
+        const state = handled.state;
+        if (state?.userId != null) {
+          if (state.page === null && state.lineIndex === null) {
+            context.commit('REMOVE_AWARENESS_STATE', state.userId);
+          } else {
+            context.commit('SET_AWARENESS_STATE', { userId: state.userId, awarenessState: state });
           }
         }
       }
-
       return handled;
+    },
+
+    /**
+     * Handle a ROOM_MEMBERS message: update collaborator list.
+     *
+     * @param {object} context
+     * @param {object} message - The WebSocket message
+     */
+    ROOM_MEMBERS(context, message) {
+      context.commit('SET_DRAFT_COLLABORATORS', message.DATA?.members || []);
+    },
+
+    /**
+     * Handle a ROOM_CLOSED message: leave the draft room.
+     *
+     * @param {object} context
+     */
+    ROOM_CLOSED(context) {
+      context.dispatch('LEAVE_DRAFT_ROOM');
+    },
+
+    /**
+     * Handle a SCRIPT_SAVED message: clear saving state and record timestamp.
+     *
+     * @param {object} context
+     * @param {object} message - The WebSocket message
+     */
+    SCRIPT_SAVED(context, message) {
+      context.commit('SET_DRAFT_SAVING', false);
+      context.commit('SET_DRAFT_SAVE_PHASE', null);
+      context.commit('SET_DRAFT_SAVE_ERROR', null);
+      const timestamp = message.DATA?.last_saved_at;
+      if (timestamp) context.commit('SET_DRAFT_LAST_SAVED', timestamp);
+    },
+
+    /**
+     * Handle a SAVE_PROGRESS message: update save progress state.
+     *
+     * @param {object} context
+     * @param {object} message - The WebSocket message
+     */
+    SAVE_PROGRESS(context, message) {
+      context.commit('SET_DRAFT_SAVING', true);
+      context.commit('SET_SAVE_PROGRESS', message.DATA);
+    },
+
+    /**
+     * Handle a SAVE_ERROR message: clear saving state and record error.
+     *
+     * @param {object} context
+     * @param {object} message - The WebSocket message
+     */
+    SAVE_ERROR(context, message) {
+      context.commit('SET_DRAFT_SAVING', false);
+      context.commit('SET_DRAFT_SAVE_PHASE', null);
+      context.commit('SET_DRAFT_SAVE_ERROR', message.DATA?.error);
+    },
+
+    /**
+     * Handle a COLLAB_ERROR message: log the error from the server.
+     *
+     * @param {object} _context
+     * @param {object} message - The WebSocket message
+     */
+    COLLAB_ERROR(_context, message) {
+      log.error('Collab error received:', message.DATA?.error);
     },
   },
 
