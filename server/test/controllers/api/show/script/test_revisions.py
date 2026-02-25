@@ -1127,7 +1127,9 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
 
             # Find head (previous_line_id IS NULL)
             heads = [lid for lid, d in by_id.items() if d["prev"] is None]
-            self.assertEqual(1, len(heads), "Branch revision should have exactly one head")
+            self.assertEqual(
+                1, len(heads), "Branch revision should have exactly one head"
+            )
 
             # Walk the chain
             visited = []

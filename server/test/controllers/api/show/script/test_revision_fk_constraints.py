@@ -43,7 +43,9 @@ class TestRevisionLinkedListFKConstraints(DigiScriptTestCase):
         session.flush()
 
         revision = ScriptRevision(
-            script_id=script.id, revision=revision_num, description=f"Rev {revision_num}"
+            script_id=script.id,
+            revision=revision_num,
+            description=f"Rev {revision_num}",
         )
         session.add(revision)
         session.flush()
