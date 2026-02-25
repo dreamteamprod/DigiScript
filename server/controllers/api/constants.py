@@ -123,3 +123,7 @@ ERROR_EDIT_BLOCKED_BY_CUTTER = "Cannot edit: another user is in cuts mode"
 ERROR_CUTS_BLOCKED_BY_EDITOR = "Cannot enter cuts mode: another user is editing"
 ERROR_CUTS_BLOCKED_BY_CUTTER = "Cannot enter cuts mode: another user is already cutting"
 ERROR_CUTS_BLOCKED_BY_DRAFT = "Cannot enter cuts mode: unsaved draft exists"
+ERROR_ROOM_OPEN_LOAD = "Cannot load revision while a collaborative edit session is active for the current revision"
+ERROR_ROOM_OPEN_OR_DRAFT = (
+    "Cannot perform this operation: target revision has an active room or unsaved draft"
+)

@@ -7,6 +7,8 @@ from tornado.web import MissingArgumentError
 
 from controllers.api.constants import (
     ERROR_DESCRIPTION_MISSING,
+    ERROR_ROOM_OPEN_LOAD,
+    ERROR_ROOM_OPEN_OR_DRAFT,
     ERROR_SCRIPT_NOT_FOUND,
     ERROR_SCRIPT_REVISION_NOT_FOUND,
     ERROR_SHOW_NOT_FOUND,
@@ -20,12 +22,32 @@ from models.script import (
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
+from models.script_draft import ScriptDraft
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import ScriptRevisionsSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
+
+
+def _revision_is_locked(session, application, rev_id: int) -> bool:
+    """Return True if a revision has an active draft or a non-empty room.
+
+    :param session: Active SQLAlchemy session.
+    :param application: Tornado application instance.
+    :param rev_id: Revision ID to check.
+    :returns: True if the revision is locked; False otherwise.
+    """
+    draft = session.scalar(select(ScriptDraft).where(ScriptDraft.revision_id == rev_id))
+    if draft:
+        return True
+    room_manager = getattr(application, "room_manager", None)
+    if room_manager:
+        room = room_manager.get_room(rev_id)
+        if room and not room.is_empty:
+            return True
+    return False
 
 
 @ApiRoute("show/script/revisions", ApiVersion.V1)
@@ -44,7 +66,13 @@ class ScriptRevisionsController(BaseAPIController):
                 ).first()
 
                 if script:
-                    revisions = [revisions_schema.dump(c) for c in script.revisions]
+                    revisions = []
+                    for c in script.revisions:
+                        rev_dict = revisions_schema.dump(c)
+                        rev_dict["has_draft"] = _revision_is_locked(
+                            session, self.application, c.id
+                        )
+                        revisions.append(rev_dict)
                     self.set_status(200)
                     self.finish(
                         {
@@ -105,6 +133,11 @@ class ScriptRevisionsController(BaseAPIController):
                     await self.finish(
                         {"message": "Parent revision belongs to different script"}
                     )
+                    return
+
+                if _revision_is_locked(session, self.application, parent_rev.id):
+                    self.set_status(409)
+                    await self.finish({"message": ERROR_ROOM_OPEN_OR_DRAFT})
                     return
 
                 max_rev = session.scalar(
@@ -220,6 +253,11 @@ class ScriptRevisionsController(BaseAPIController):
                     await self.finish(
                         {"message": "Cannot delete first script revision"}
                     )
+                    return
+
+                if _revision_is_locked(session, self.application, rev.id):
+                    self.set_status(409)
+                    await self.finish({"message": ERROR_ROOM_OPEN_OR_DRAFT})
                     return
 
                 changed_rev = False
@@ -340,6 +378,14 @@ class ScriptCurrentRevisionController(BaseAPIController):
                         {"message": "New revision is not for the current script"}
                     )
                     return
+
+                room_manager = getattr(self.application, "room_manager", None)
+                if room_manager:
+                    room = room_manager.get_room(script.current_revision)
+                    if room and not room.is_empty:
+                        self.set_status(409)
+                        await self.finish({"message": ERROR_ROOM_OPEN_LOAD})
+                        return
 
                 script.current_revision = new_rev.id
                 session.commit()

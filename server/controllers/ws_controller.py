@@ -110,6 +110,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     if was_editor and not room.has_editors:
                         if room._dirty:
                             await rm._checkpoint_room(room)
+                            await app.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
                         await rm.close_room(room.revision_id)
 
                 IOLoop.current().add_callback(_broadcast)
@@ -496,6 +497,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                             if not room.has_editors:
                                 if room._dirty:
                                     await room_manager._checkpoint_room(room)
+                                    await self.application.ws_send_to_all(
+                                        "NOOP", "GET_SCRIPT_REVISIONS", {}
+                                    )
                                 await room_manager.close_room(room.revision_id)
 
                     await self.application.ws_send_to_all(
@@ -751,6 +755,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             await room.broadcast_awareness(decoded, sender=self)
         elif ws_op == "SAVE_SCRIPT_DRAFT":
             await room_manager.save_room(self)
+            await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
         elif ws_op == "DISCARD_SCRIPT_DRAFT":
             revision_id = None
             current_show_id = await self.application.digi_settings.get("current_show")
@@ -767,6 +772,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             await self.application.ws_send_to_all(
                 "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
             )
+            await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
 
     def on_pong(self, data: bytes) -> None:
         self._last_pong = IOLoop.current().time()

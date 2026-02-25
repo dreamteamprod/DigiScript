@@ -73,8 +73,9 @@ export default {
         context.dispatch('GET_SCRIPT_REVISIONS');
         Vue.$toast.success('Added new script revision!');
       } else {
+        const data = await response.json().catch(() => ({}));
         log.error('Unable to add new script revision');
-        Vue.$toast.error('Unable to add new script revision');
+        Vue.$toast.error(data.message || 'Unable to add new script revision');
       }
     },
     async DELETE_SCRIPT_REVISION(context, revisionID) {
@@ -91,8 +92,9 @@ export default {
         context.dispatch('GET_SCRIPT_REVISIONS');
         Vue.$toast.success('Deleted script revision!');
       } else {
+        const data = await response.json().catch(() => ({}));
         log.error('Unable to delete script revision');
-        Vue.$toast.error('Unable to delete script revision');
+        Vue.$toast.error(data.message || 'Unable to delete script revision');
       }
     },
     async LOAD_SCRIPT_REVISION(context, revisionID) {
@@ -109,8 +111,9 @@ export default {
         context.dispatch('GET_SCRIPT_REVISIONS');
         Vue.$toast.success('Loaded script revision!');
       } else {
+        const data = await response.json().catch(() => ({}));
         log.error('Unable to load script revision');
-        Vue.$toast.error('Unable to load script revision');
+        Vue.$toast.error(data.message || 'Unable to load script revision');
       }
     },
     async SCRIPT_REVISION_CHANGED(context) {

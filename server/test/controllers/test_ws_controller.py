@@ -622,6 +622,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         # Stop editing (last editor) — should trigger checkpoint + room close
         await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_REVISIONS (broadcast after checkpoint)
         # Room is closed after checkpoint — client receives ROOM_CLOSED
         room_closed_msg = await ws.read_message()
         room_closed_data = json.loads(room_closed_msg)
