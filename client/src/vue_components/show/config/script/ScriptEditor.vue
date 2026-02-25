@@ -642,6 +642,11 @@ export default {
 
         // Pre-load previous page
         await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
+
+        // Overlay Y.Doc data onto the newly current page (matches goToPageInner behaviour)
+        if (this.IS_DRAFT_SYNCED && this.DRAFT_YDOC) {
+          this.syncCurrentPageFromYDoc();
+        }
       }
     },
     async incrPage() {
@@ -651,6 +656,11 @@ export default {
       }
       // Pre-load next page
       await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
+
+      // Overlay Y.Doc data onto the newly current page (matches goToPageInner behaviour)
+      if (this.IS_DRAFT_SYNCED && this.DRAFT_YDOC) {
+        this.syncCurrentPageFromYDoc();
+      }
     },
     /**
      * Common logic for all add-line operations.
@@ -1140,7 +1150,10 @@ export default {
 
       const pages = ydoc.getMap('pages');
 
-      log.debug('ScriptEditor: Initialising Y.Doc bridge observers');
+      log.debug(
+        `ScriptEditor: Initialising Y.Doc bridge; TMP_SCRIPT pages at bridge init: ` +
+          `[${Object.keys(this.TMP_SCRIPT).join(', ')}]`
+      );
 
       // Sync the current page from Y.Doc → TMP_SCRIPT on initial connect
       this.syncCurrentPageFromYDoc();
@@ -1207,10 +1220,20 @@ export default {
      * @returns {import('yjs').Map|null}
      */
     getYLineMap(index) {
-      if (!this.IS_DRAFT_ACTIVE || !this.DRAFT_YDOC) return null;
+      if (!this.IS_DRAFT_ACTIVE || !this.DRAFT_YDOC) {
+        log.debug(
+          `ScriptEditor: getYLineMap(${index}) p=${this.currentEditPage} → null ` +
+            `(IS_DRAFT_ACTIVE=${this.IS_DRAFT_ACTIVE}, DRAFT_YDOC=${!!this.DRAFT_YDOC})`
+        );
+        return null;
+      }
       const pages = this.DRAFT_YDOC.getMap('pages');
       const pageArray = pages.get(this.currentEditPageKey);
       if (!pageArray || index >= pageArray.length) {
+        log.debug(
+          `ScriptEditor: getYLineMap(${index}) p=${this.currentEditPage} → null ` +
+            `(pageArray=${!!pageArray}, len=${pageArray?.length})`
+        );
         return null;
       }
       return pageArray.get(index);

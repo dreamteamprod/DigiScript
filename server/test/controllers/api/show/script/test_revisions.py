@@ -1060,6 +1060,92 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
             script = session.get(Script, self.script_id)
             self.assertEqual(revision2_id, script.current_revision)
 
+    def test_branch_preserves_linked_list_integrity(self):
+        """After branching, the new revision's linked list is fully traversable.
+
+        Regression guard: any change to the revision creation logic that breaks
+        pointer copying will make the full walk return fewer than 5 lines.
+        """
+        # Create 5 lines in revision 1
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": f"Line {i}",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+            for i in range(1, 6)
+        ]
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Branch from revision 1
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {
+                    "description": "Branch from revision 1",
+                    "parent_revision_id": self.revision1_id,
+                    "set_as_current": False,
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+        branch_revision_id = tornado.escape.json_decode(response.body)["id"]
+
+        # Walk the linked list from head to verify all 5 lines are reachable
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == branch_revision_id
+                )
+            ).all()
+
+            by_id = {
+                a.line_id: {"next": a.next_line_id, "prev": a.previous_line_id}
+                for a in assocs
+            }
+
+            # Find head (previous_line_id IS NULL)
+            heads = [lid for lid, d in by_id.items() if d["prev"] is None]
+            self.assertEqual(1, len(heads), "Branch revision should have exactly one head")
+
+            # Walk the chain
+            visited = []
+            current = heads[0]
+            seen = set()
+            while current is not None:
+                self.assertNotIn(current, seen, "Linked list must not contain a loop")
+                self.assertIn(current, by_id, "Broken pointer: line not in revision")
+                seen.add(current)
+                visited.append(current)
+                current = by_id[current]["next"]
+
+            self.assertEqual(
+                5,
+                len(visited),
+                f"All 5 lines must be reachable via the linked list; got {len(visited)}",
+            )
+
 
 class TestScriptRevisionDeletionTreeIntegrity(DigiScriptTestCase):
     """Test that deleting middle nodes maintains tree integrity.

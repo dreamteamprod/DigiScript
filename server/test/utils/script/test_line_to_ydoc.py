@@ -249,6 +249,68 @@ class TestBase64RoundTrip:
         assert meta2["last_saved_at"] == "2026-01-01T00:00:00Z"
 
 
+class TestBuildYdocBrokenChain:
+    """Regression tests documenting build_ydoc traversal behaviour when the
+    linked list has broken pointers.
+
+    build_ydoc stops at the first missing pointer and omits all lines after
+    the break.  These tests document this known behaviour so that any future
+    change that silently skips broken pointers is detected.
+
+    The Alembic migration c2f8d4a6e0b3 repairs all existing broken chains so
+    that build_ydoc always receives a consistent linked list in production.
+    """
+
+    def test_broken_next_link_stops_traversal(self):
+        """build_ydoc stops at a broken next_line_id and omits trailing lines."""
+        # Line 1 → next=2, Line 2 → next=999 (missing), Line 3 has no link to it
+        data = [
+            _make_line_data(line_id=1, next_line_id=2, previous_line_id=None, page=1),
+            _make_line_data(
+                line_id=2, next_line_id=999, previous_line_id=1, page=1
+            ),  # broken pointer
+            _make_line_data(line_id=3, next_line_id=None, previous_line_id=2, page=1),
+        ]
+        doc = build_ydoc(data, revision_id=1)
+        pages = doc.get("pages", type=pycrdt.Map)
+        page_lines = pages["1"]
+        # Line 3 is unreachable — traversal halts when next_line_id=999 is not found
+        assert len(page_lines) == 2
+        assert page_lines[0]["_id"] == "1"
+        assert page_lines[1]["_id"] == "2"
+
+    def test_broken_cross_page_link_stops_traversal(self):
+        """Pages after a broken cross-page pointer are entirely absent from Y.Doc."""
+        # Page 1 has 2 lines; page 2's bridge line has prev_id pointing to a missing line
+        data = [
+            _make_line_data(line_id=1, next_line_id=2, previous_line_id=None, page=1),
+            _make_line_data(
+                line_id=2, next_line_id=999, previous_line_id=1, page=1
+            ),  # broken: next is missing
+            _make_line_data(
+                line_id=3, next_line_id=None, previous_line_id=2, page=2
+            ),  # page 2 unreachable
+        ]
+        doc = build_ydoc(data, revision_id=1)
+        pages = doc.get("pages", type=pycrdt.Map)
+        assert "1" in pages
+        # Page 2 is absent because its bridge line is unreachable from the head
+        assert "2" not in pages
+
+    def test_complete_chain_reaches_all_lines(self):
+        """When all pointers are intact, all lines across all pages are included."""
+        data = [
+            _make_line_data(line_id=1, next_line_id=2, previous_line_id=None, page=1),
+            _make_line_data(line_id=2, next_line_id=3, previous_line_id=1, page=1),
+            _make_line_data(line_id=3, next_line_id=None, previous_line_id=2, page=2),
+        ]
+        doc = build_ydoc(data, revision_id=1)
+        pages = doc.get("pages", type=pycrdt.Map)
+        assert len(pages["1"]) == 2
+        assert "2" in pages
+        assert len(pages["2"]) == 1
+
+
 class TestCrdtConvergence:
     """Test that concurrent edits on separate Y.Doc instances converge."""
 

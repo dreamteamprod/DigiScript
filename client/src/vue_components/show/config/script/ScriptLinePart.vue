@@ -61,6 +61,7 @@
 </template>
 
 <script>
+import log from 'loglevel';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { nullToZero, zeroToNull } from '@/utils/yjs/yjsBridge';
@@ -182,8 +183,10 @@ export default {
      * In collab mode, writes to Y.Text for keystroke-level sync.
      */
     onTextInput() {
+      log.debug(`ScriptLinePart: onTextInput yPartMap=${!!this.yPartMap}`);
       if (!this.yPartMap) return;
       const ytext = this.yPartMap.get('line_text');
+      log.debug(`ScriptLinePart: onTextInput ytext=${!!ytext} doc=${!!(ytext && ytext.doc)}`);
       if (!ytext || !ytext.doc) return;
       ytext.doc.transact(() => {
         ytext.delete(0, ytext.length);

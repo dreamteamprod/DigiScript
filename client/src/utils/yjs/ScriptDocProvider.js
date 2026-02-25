@@ -271,9 +271,16 @@ export default class ScriptDocProvider {
   _onDocUpdate(update, origin) {
     // Don't echo back updates that came from the server
     if (origin === 'server') return;
-    if (!this._connected) return;
+    if (!this._connected) {
+      log.debug(`ScriptDocProvider: _onDocUpdate suppressed (not connected, origin=${origin})`);
+      return;
+    }
+    if (!this._synced) {
+      log.debug(`ScriptDocProvider: _onDocUpdate suppressed (not yet synced, origin=${origin})`);
+      return;
+    }
 
-    log.debug(`ScriptDocProvider: Broadcasting local update (${update.length} bytes)`);
+    log.debug(`ScriptDocProvider: _onDocUpdate sending ${update.length}B (origin=${origin})`);
     this._sendToServer('YJS_UPDATE', {
       payload: encodeBase64(update),
       room_id: this.roomId,
