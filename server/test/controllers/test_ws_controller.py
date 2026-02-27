@@ -1041,3 +1041,155 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         # Room should be evicted
         self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+
+
+class TestLiveSessionGuards(DigiScriptTestCase):
+    """Tests that live show sessions block collaborative editing operations."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            admin = User(username="admin", password="hashed", is_admin=True)
+            session.add(admin)
+            session.flush()
+            self.admin_id = admin.id
+
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Rev"
+            )
+            session.add(revision)
+            session.flush()
+            script.current_revision = revision.id
+            self.revision_id = revision.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+
+    def _set_live_session_active(self):
+        """Create a ShowSession and mark show.current_session_id.
+
+        :returns: The ShowSession ID created.
+        """
+        with self._app.get_db().sessionmaker() as session:
+            show_session = ShowSession(
+                show_id=self.show_id,
+                script_revision_id=self.revision_id,
+            )
+            session.add(show_session)
+            session.flush()
+            show = session.get(Show, self.show_id)
+            show.current_session_id = show_session.id
+            session.commit()
+            return show_session.id
+
+    async def _connect_and_auth(self, user_id=None):
+        """Connect WS and authenticate.
+
+        :param user_id: User ID to authenticate as. If None, no auth is done.
+        :returns: Tuple of (ws, internal_uuid).
+        """
+        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
+        ws = await websocket_connect(ws_url)
+        msg = await ws.read_message()
+        uuid = json.loads(msg)["DATA"]
+        await ws.read_message()  # GET_SETTINGS
+        if user_id:
+            token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
+            await ws.write_message(
+                json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
+            )
+            await ws.read_message()  # WS_AUTH_SUCCESS
+        return ws, uuid
+
+    @gen_test
+    async def test_request_script_edit_blocked_by_live_session(self):
+        """REQUEST_SCRIPT_EDIT is rejected while a live show session is running."""
+        self._set_live_session_active()
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("live session", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    @gen_test
+    async def test_request_script_cuts_blocked_by_live_session(self):
+        """REQUEST_SCRIPT_CUTS is rejected while a live show session is running."""
+        self._set_live_session_active()
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("live session", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    @gen_test
+    async def test_join_script_room_blocked_by_live_session(self):
+        """JOIN_SCRIPT_ROOM is rejected with COLLAB_ERROR while a live session is running."""
+        self._set_live_session_active()
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(
+            json.dumps(
+                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
+            )
+        )
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertIn("live session", response_data["DATA"]["error"])
+
+        ws.close()
+
+    @gen_test
+    async def test_save_script_draft_blocked_by_live_session(self):
+        """SAVE_SCRIPT_DRAFT is rejected with COLLAB_ERROR while a live session is running."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room before activating the live session
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(
+            json.dumps(
+                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
+            )
+        )
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Activate live session now that we're in the room
+        self._set_live_session_active()
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertIn("live session", response_data["DATA"]["error"])
+
+        ws.close()

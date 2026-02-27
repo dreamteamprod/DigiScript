@@ -127,3 +127,6 @@ ERROR_ROOM_OPEN_LOAD = "Cannot load revision while a collaborative edit session 
 ERROR_ROOM_OPEN_OR_DRAFT = (
     "Cannot perform this operation: target revision has an active room or unsaved draft"
 )
+ERROR_EDIT_BLOCKED_BY_LIVE_SESSION = (
+    "Cannot edit script while a live session is in progress"
+)

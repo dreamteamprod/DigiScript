@@ -206,10 +206,12 @@ export default {
     HAS_DRAFT(state) {
       return state.editStatus.hasDraft;
     },
-    CAN_REQUEST_EDIT(state) {
+    CAN_REQUEST_EDIT(state, getters, rootState, rootGetters) {
+      if (rootGetters.CURRENT_SHOW_SESSION) return false;
       return state.editStatus.cutters.length === 0;
     },
-    CAN_REQUEST_CUTS(state) {
+    CAN_REQUEST_CUTS(state, getters, rootState, rootGetters) {
+      if (rootGetters.CURRENT_SHOW_SESSION) return false;
       return (
         state.editStatus.editors.length === 0 &&
         state.editStatus.cutters.length === 0 &&

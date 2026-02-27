@@ -30,7 +30,7 @@
             v-if="IS_SCRIPT_EDITOR"
             v-b-tooltip.hover="
               !canLoadRevision
-                ? 'Cannot load revision while a collaborative editing session is active'
+                ? 'Cannot load revision while a live session is in progress or a collaborative editing session is active'
                 : ''
             "
             class="btn-group-item"
@@ -289,12 +289,18 @@ export default {
       'HAS_DRAFT',
       'IS_SCRIPT_EDITOR',
       'IS_DRAFT_ACTIVE',
+      'CURRENT_SHOW_SESSION',
     ]),
     canLoadRevision() {
-      return this.EDITORS.length === 0 && this.CUTTERS.length === 0 && !this.IS_DRAFT_ACTIVE;
+      return (
+        !this.CURRENT_SHOW_SESSION &&
+        this.EDITORS.length === 0 &&
+        this.CUTTERS.length === 0 &&
+        !this.IS_DRAFT_ACTIVE
+      );
     },
     canDeleteRevision() {
-      return this.EDITORS.length === 0 && this.CUTTERS.length === 0;
+      return !this.CURRENT_SHOW_SESSION && this.EDITORS.length === 0 && this.CUTTERS.length === 0;
     },
   },
   watch: {

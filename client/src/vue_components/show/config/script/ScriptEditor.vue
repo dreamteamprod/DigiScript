@@ -336,10 +336,12 @@ export default {
       return 'primary';
     },
     editDisabledReason() {
+      if (this.CURRENT_SHOW_SESSION) return 'Cannot edit script during a live session';
       if (this.CUTTERS.length > 0) return 'Another user is currently making cuts';
       return '';
     },
     cutsDisabledReason() {
+      if (this.CURRENT_SHOW_SESSION) return 'Cannot make cuts during a live session';
       if (this.EDITORS.length > 0) return 'Another user is currently editing';
       if (this.CUTTERS.length > 0) return 'Another user is currently making cuts';
       if (this.HAS_DRAFT) return 'An unsaved draft exists';
@@ -359,6 +361,7 @@ export default {
     },
     ...mapGetters([
       'CURRENT_SHOW',
+      'CURRENT_SHOW_SESSION',
       'TMP_SCRIPT',
       'ACT_LIST',
       'SCENE_LIST',

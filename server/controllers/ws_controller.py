@@ -17,6 +17,7 @@ from controllers.api.constants import (
     ERROR_CUTS_BLOCKED_BY_DRAFT,
     ERROR_CUTS_BLOCKED_BY_EDITOR,
     ERROR_EDIT_BLOCKED_BY_CUTTER,
+    ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
 )
 from digi_server.logger import get_logger
 from models.script import Script
@@ -339,6 +340,16 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         "NOOP", "GET_SHOW_SESSION_DATA", {}
                     )
             elif ws_op == "REQUEST_SCRIPT_EDIT":
+                # Guard: blocked during a live show session
+                if show and show.current_session_id:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                        }
+                    )
+                    return
                 # RBAC: require admin or Script WRITE role
                 if self.current_user_id:
                     user = session.get(User, self.current_user_id)
@@ -389,6 +400,16 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
                 )
             elif ws_op == "REQUEST_SCRIPT_CUTS":
+                # Guard: blocked during a live show session
+                if show and show.current_session_id:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                        }
+                    )
+                    return
                 # RBAC: require admin or Script WRITE role
                 if self.current_user_id:
                     user = session.get(User, self.current_user_id)
@@ -589,6 +610,18 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     f"WebSocket connection {self.request.remote_ip}"
                 )
 
+    async def _is_live_session_active(self) -> bool:
+        """Return True if a show session is currently running.
+
+        :returns: True if the current show has an active session, False otherwise.
+        """
+        current_show_id = await self.application.digi_settings.get("current_show")
+        if not current_show_id:
+            return False
+        with self.make_session() as session:
+            show = session.get(Show, current_show_id)
+            return bool(show and show.current_session_id)
+
     async def _handle_collab_op(self, ws_op: str, message: dict):
         """Handle collaborative editing WebSocket operations.
 
@@ -610,6 +643,17 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         "OP": "NOOP",
                         "ACTION": "COLLAB_ERROR",
                         "DATA": {"error": "revision_id required"},
+                    }
+                )
+                return
+
+            # Guard: block joining a room during a live show session
+            if await self._is_live_session_active():
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
                     }
                 )
                 return
@@ -714,6 +758,15 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
             elif step == 2:
                 # Client sends its diff; server applies it
+                if await self._is_live_session_active():
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                        }
+                    )
+                    return
                 get_logger().trace(
                     f"YJS_SYNC step=2 rev={room.revision_id} "
                     f"applying {len(decoded)}B update from {self.request.remote_ip}"
@@ -731,6 +784,16 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 decoded = base64.b64decode(payload)
             except Exception:
                 get_logger().warning("Invalid base64 in YJS_UPDATE message")
+                return
+
+            if await self._is_live_session_active():
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                    }
+                )
                 return
 
             get_logger().trace(
@@ -754,6 +817,15 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
             await room.broadcast_awareness(decoded, sender=self)
         elif ws_op == "SAVE_SCRIPT_DRAFT":
+            if await self._is_live_session_active():
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                    }
+                )
+                return
             await room_manager.save_room(self)
             await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
         elif ws_op == "DISCARD_SCRIPT_DRAFT":
