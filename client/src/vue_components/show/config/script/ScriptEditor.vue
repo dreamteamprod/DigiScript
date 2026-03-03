@@ -94,8 +94,8 @@
     <hr />
     <b-row class="script-row">
       <b-col cols="12">
-        <template v-for="(line, index) in TMP_SCRIPT[currentEditPage]">
-          <template v-if="!DELETED_LINES(currentEditPage).includes(index)">
+        <template v-if="IS_DRAFT_ACTIVE">
+          <template v-for="(line, index) in localPageScript">
             <script-line-editor
               v-if="editPages.includes(`page_${currentEditPage}_line_${index}`)"
               :key="`page_${currentEditPage}_line_${index}`"
@@ -105,10 +105,10 @@
               :scenes="SCENE_LIST"
               :characters="CHARACTER_LIST"
               :character-groups="CHARACTER_GROUP_LIST"
-              :value="TMP_SCRIPT[currentEditPage][index]"
+              :value="line"
               :y-line-map="getYLineMap(index)"
-              :previous-line-fn="getPreviousLineForIndex"
-              :next-line-fn="getNextLineForIndex"
+              :previous-line="localPageScript[index - 1] || null"
+              :next-line="localPageScript[index + 1] || null"
               :line-type="line.line_type"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
               @doneEditing="doneEditingLine(currentEditPage, index)"
@@ -118,13 +118,40 @@
               v-else
               :key="`page_${currentEditPage}_line_${index}`"
               :line-index="index"
-              :line="TMP_SCRIPT[currentEditPage][index]"
-              :page="TMP_SCRIPT[currentEditPage]"
+              :line="line"
+              :page="localPageScript"
               :acts="ACT_LIST"
               :scenes="SCENE_LIST"
               :characters="CHARACTER_LIST"
               :character-groups="CHARACTER_GROUP_LIST"
-              :previous-line="TMP_SCRIPT[currentEditPage][index - 1]"
+              :previous-line="localPageScript[index - 1] || null"
+              :can-edit="canEdit"
+              :line-part-cuts="linePartCuts"
+              :stage-direction-styles="STAGE_DIRECTION_STYLES"
+              :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
+              :editing-users="editingUsersForLine(index)"
+              @editLine="beginEditingLine(currentEditPage, index)"
+              @cutLinePart="cutLinePart"
+              @insertDialogue="insertDialogueAt(currentEditPage, index)"
+              @insertStageDirection="insertStageDirectionAt(currentEditPage, index)"
+              @insertCueLine="insertCueLineAt(currentEditPage, index)"
+              @insertSpacing="insertSpacingAt(currentEditPage, index)"
+              @deleteLine="deleteLine(currentEditPage, index)"
+            />
+          </template>
+        </template>
+        <template v-else>
+          <template v-for="(line, index) in GET_SCRIPT_PAGE(currentEditPage)">
+            <script-line-viewer
+              :key="`page_${currentEditPage}_line_${index}`"
+              :line-index="index"
+              :line="line"
+              :page="GET_SCRIPT_PAGE(currentEditPage)"
+              :acts="ACT_LIST"
+              :scenes="SCENE_LIST"
+              :characters="CHARACTER_LIST"
+              :character-groups="CHARACTER_GROUP_LIST"
+              :previous-line="GET_SCRIPT_PAGE(currentEditPage)[index - 1] || null"
               :can-edit="canEdit"
               :line-part-cuts="linePartCuts"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
@@ -258,7 +285,7 @@ import CollaboratorPanel from '@/vue_components/show/config/script/CollaboratorP
 import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
-import { syncPageFromYDoc, addYDocLine, deleteYDocLine } from '@/utils/yjs/yjsBridge';
+import { zeroToNull, addYDocLine, deleteYDocLine } from '@/utils/yjs/yjsBridge';
 
 export default {
   name: 'ScriptConfig',
@@ -293,6 +320,8 @@ export default {
       navbarHeight: 0,
       /** @type {Function|null} Deep observer cleanup for Y.Doc pages */
       ydocObserverCleanup: null,
+      /** Plain-object snapshots of the current draft page (never Y.Maps) */
+      localPageScript: [],
     };
   },
   validations: {
@@ -316,18 +345,7 @@ export default {
       if (this.IS_CUT_MODE) {
         return Object.keys(diff(this.SCRIPT_CUTS, this.linePartCuts)).length > 0;
       }
-      let hasChanges = false;
-      Object.keys(this.TMP_SCRIPT).forEach(function checkPageHasChanges(pageNo) {
-        const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
-        if (
-          Object.keys(lineDiff).length > 0 ||
-          this.DELETED_LINES(pageNo).length > 0 ||
-          this.INSERTED_LINES(pageNo).length > 0
-        ) {
-          hasChanges = true;
-        }
-      }, this);
-      return hasChanges;
+      return false;
     },
     saveProgressVariant() {
       if (!this.savingInProgress) {
@@ -348,13 +366,12 @@ export default {
       return '';
     },
     canEdit() {
-      return this.IS_CURRENT_EDITOR;
+      return this.IS_CURRENT_EDITOR || this.IS_CURRENT_CUTTER;
     },
     canSave() {
-      if (this.IS_CUT_MODE) {
-        return this.scriptChanges;
-      }
-      return this.scriptChanges && this.editPages.length === 0;
+      if (this.IS_CUT_MODE) return this.scriptChanges;
+      if (this.IS_DRAFT_ACTIVE) return this.IS_DRAFT_DIRTY && this.editPages.length === 0;
+      return false;
     },
     pagesWithOpenChanges() {
       return [...new Set(this.editPages.map((x) => parseInt(x.split('_')[1], 10)))];
@@ -362,7 +379,6 @@ export default {
     ...mapGetters([
       'CURRENT_SHOW',
       'CURRENT_SHOW_SESSION',
-      'TMP_SCRIPT',
       'ACT_LIST',
       'SCENE_LIST',
       'CHARACTER_LIST',
@@ -376,12 +392,10 @@ export default {
       'IS_CURRENT_CUTTER',
       'INTERNAL_UUID',
       'GET_SCRIPT_PAGE',
-      'DELETED_LINES',
       'SCENE_BY_ID',
       'ACT_BY_ID',
       'IS_CUT_MODE',
       'SCRIPT_CUTS',
-      'INSERTED_LINES',
       'STAGE_DIRECTION_STYLES',
       'CURRENT_USER',
       'STAGE_DIRECTION_STYLE_OVERRIDES',
@@ -389,6 +403,7 @@ export default {
       'IS_SCRIPT_EDITOR',
       'CURRENT_REVISION',
       'IS_DRAFT_ACTIVE',
+      'IS_DRAFT_DIRTY',
       'IS_DRAFT_SYNCED',
       'DRAFT_YDOC',
       'DRAFT_COLLABORATORS',
@@ -435,7 +450,9 @@ export default {
     IS_DRAFT_ACTIVE(active) {
       if (!active) {
         this.teardownYDocBridge();
-        this.RESET_TO_SAVED(this.currentEditPage);
+        // Reload the current page into the Vuex script store so the non-draft
+        // template branch has data immediately after leaving the room.
+        this.LOAD_SCRIPT_PAGE(this.currentEditPage);
       }
     },
     IS_DRAFT_SYNCED(synced) {
@@ -477,10 +494,8 @@ export default {
           }
         } else if (this.$store.state.scriptDraft.lastSavedAt) {
           this.$toast.success('Script saved successfully');
-          // Refresh script data to match DB
-          this.LOAD_SCRIPT_PAGE(this.currentEditPage).then(() => {
-            this.ADD_BLANK_PAGE(this.currentEditPage);
-          });
+          // Refresh script store so GET_SCRIPT_PAGE reflects saved state
+          this.LOAD_SCRIPT_PAGE(this.currentEditPage);
           this.GET_SCRIPT_CONFIG_STATUS();
           this.getMaxScriptPage();
         }
@@ -617,7 +632,6 @@ export default {
           }
         }
         this.editPages = [];
-        this.RESET_TO_SAVED(this.currentEditPage);
         this.resetCutsToSaved();
         this.$socket.sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
         this.SET_CUT_MODE(false);
@@ -630,61 +644,55 @@ export default {
       this.$socket.sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
       // Server downgrades role; IS_CURRENT_EDITOR goes false via GET_SCRIPT_CONFIG_STATUS
       // → canEdit becomes false → UI switches to read-only
-      // Y.Doc bridge stays active, TMP_SCRIPT stays populated
+      // Y.Doc bridge stays active, localPageScript stays populated
     },
     async decrPage() {
-      if (this.currentEditPage > 1) {
-        const targetPage = this.currentEditPage - 1;
-        // Load from backend if not in buffer
-        if (!Object.keys(this.TMP_SCRIPT).includes(targetPage.toString())) {
-          await this.LOAD_SCRIPT_PAGE(targetPage);
-          this.ADD_BLANK_PAGE(targetPage);
-        }
-        if (this.TMP_SCRIPT[this.currentEditPageKey].length === 0) {
-          this.REMOVE_PAGE(this.currentEditPage);
-        }
+      if (this.currentEditPage <= 1) return;
+      if (this.IS_DRAFT_ACTIVE) {
         this.currentEditPage--;
-
-        // Pre-load previous page
-        await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
-
-        // Overlay Y.Doc data onto the newly current page
-        this.syncCurrentPageFromYDoc();
+        this._syncLocalPageScript();
+        return;
       }
+      const targetPage = this.currentEditPage - 1;
+      await this.LOAD_SCRIPT_PAGE(targetPage);
+      this.currentEditPage--;
+      await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
     },
     async incrPage() {
-      this.currentEditPage++;
-      if (!Object.keys(this.TMP_SCRIPT).includes(this.currentEditPageKey)) {
-        this.ADD_BLANK_PAGE(this.currentEditPage);
+      if (this.IS_DRAFT_ACTIVE) {
+        this.currentEditPage++;
+        this._syncLocalPageScript();
+        return;
       }
-      // Pre-load next page
+      this.currentEditPage++;
+      await this.LOAD_SCRIPT_PAGE(this.currentEditPage);
       await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
-
-      // Overlay Y.Doc data onto the newly current page
-      this.syncCurrentPageFromYDoc();
     },
     /**
      * Common logic for all add-line operations.
      * Builds a complete lineObj (with act_id/scene_id inherited), then writes
-     * to Y.Doc (collab mode) or TMP_SCRIPT (non-collab mode).
+     * to Y.Doc (draft/collab mode).
      * @param {number} lineType - LINE_TYPES value
      * @param {boolean} [trackAsLatest=false] - Whether to track as latestAddedLine
      */
-    async addLineOfType(lineType, trackAsLatest = false) {
+    addLineOfType(lineType, trackAsLatest = false) {
       const lineObj = JSON.parse(JSON.stringify(this.blankLineObj));
       lineObj.line_type = lineType;
 
-      // Determine target index and inherit act_id/scene_id from previous line
-      const currentPageLines = this.TMP_SCRIPT[this.currentEditPageKey] || [];
-      const prevLine = await this.getPreviousLineForIndex(currentPageLines.length);
+      // Inherit act_id/scene_id from the last line on this page
+      const prevLine =
+        this.localPageScript.length > 0
+          ? this.localPageScript[this.localPageScript.length - 1]
+          : null;
       if (prevLine) {
         lineObj.act_id = prevLine.act_id;
         lineObj.scene_id = prevLine.scene_id;
       }
 
+      // addYDocLine transacts synchronously; observer fires and updates localPageScript
       addYDocLine(this.DRAFT_YDOC, this.currentEditPage, lineObj);
 
-      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      const lineIndex = this.localPageScript.length - 1;
       const lineIdent = `page_${this.currentEditPage}_line_${lineIndex}`;
       this.editPages.push(lineIdent);
       this._broadcastAwareness(this.currentEditPage, lineIndex);
@@ -692,94 +700,17 @@ export default {
         this.latestAddedLine = lineIdent;
       }
     },
-    async addNewLine() {
-      await this.addLineOfType(LINE_TYPES.DIALOGUE, true);
+    addNewLine() {
+      this.addLineOfType(LINE_TYPES.DIALOGUE, true);
     },
-    async addStageDirection() {
-      await this.addLineOfType(LINE_TYPES.STAGE_DIRECTION);
+    addStageDirection() {
+      this.addLineOfType(LINE_TYPES.STAGE_DIRECTION);
     },
-    async addCueLine() {
-      await this.addLineOfType(LINE_TYPES.CUE_LINE);
+    addCueLine() {
+      this.addLineOfType(LINE_TYPES.CUE_LINE);
     },
-    async addSpacing() {
-      await this.addLineOfType(LINE_TYPES.SPACING);
-    },
-    async getPreviousLineForIndex(lineIndex) {
-      // Search backwards from lineIndex - 1 on the current page, skipping deleted lines
-      for (let i = lineIndex - 1; i >= 0; i--) {
-        if (!this.DELETED_LINES(this.currentEditPage).includes(i)) {
-          return this.TMP_SCRIPT[this.currentEditPage][i];
-        }
-      }
-
-      // No non-deleted lines before this index on current page, check previous pages
-      if (this.currentEditPage > 1) {
-        let loopPageNo = this.currentEditPage - 1;
-
-        while (loopPageNo >= 1) {
-          let loopPage = null;
-          if (Object.keys(this.TMP_SCRIPT).includes(loopPageNo.toString())) {
-            loopPage = this.TMP_SCRIPT[loopPageNo.toString()];
-          } else {
-            await this.LOAD_SCRIPT_PAGE(loopPageNo);
-            loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
-          }
-          // Find the last non-deleted line on this page
-          const deletedLines = this.DELETED_LINES(loopPageNo);
-          for (let i = loopPage.length - 1; i >= 0; i--) {
-            if (!deletedLines.includes(i)) {
-              return loopPage[i];
-            }
-          }
-          loopPageNo -= 1;
-        }
-      }
-      return null;
-    },
-    async getNextLineForIndex(lineIndex) {
-      // Search forwards from lineIndex + 1 on the current page, skipping deleted lines
-      const currentPageLines = this.TMP_SCRIPT[this.currentEditPage];
-      const deletedLines = this.DELETED_LINES(this.currentEditPage);
-      for (let i = lineIndex + 1; i < currentPageLines.length; i++) {
-        if (!deletedLines.includes(i)) {
-          return currentPageLines[i];
-        }
-      }
-
-      // No non-deleted lines after this index on current page, check next pages
-      // See if there are any edit pages loaded which are after this page
-      const editPages = Object.keys(this.TMP_SCRIPT)
-        .map((x) => parseInt(x, 10))
-        .sort();
-      for (let i = 0; i < editPages.length; i++) {
-        const editPage = editPages[i];
-        if (editPage > this.currentEditPage) {
-          const pageContent = this.TMP_SCRIPT[editPage.toString()];
-          const pageDeletedLines = this.DELETED_LINES(editPage);
-          // Find the first non-deleted line on this page
-          for (let j = 0; j < pageContent.length; j++) {
-            if (!pageDeletedLines.includes(j)) {
-              return pageContent[j];
-            }
-          }
-        }
-      }
-
-      // Edit pages do not have any non-deleted lines, try loading script pages up to the max
-
-      for (let i = this.currentEditPage + 1; i <= this.currentMaxPage; i++) {
-        await this.LOAD_SCRIPT_PAGE(i);
-        const loopPage = this.GET_SCRIPT_PAGE(i);
-        const loopPageDeletedLines = this.DELETED_LINES(i);
-        // Find the first non-deleted line on this page
-        for (let j = 0; j < loopPage.length; j++) {
-          if (!loopPageDeletedLines.includes(j)) {
-            return loopPage[j];
-          }
-        }
-      }
-
-      return null;
+    addSpacing() {
+      this.addLineOfType(LINE_TYPES.SPACING);
     },
     beginEditingLine(pageIndex, lineIndex) {
       const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);
@@ -832,7 +763,7 @@ export default {
         this.linePartCuts.splice(index, 1);
       }
     },
-    async insertLineAt(pageIndex, lineIndex, lineType) {
+    insertLineAt(pageIndex, lineIndex, lineType) {
       // Map line types to their corresponding add methods
       const addMethodMap = {
         [LINE_TYPES.DIALOGUE]: () => this.addNewLine(),
@@ -842,8 +773,8 @@ export default {
       };
 
       // If we're inserting at the end of the page, use the add method instead
-      if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
-        await addMethodMap[lineType]();
+      if (this.localPageScript.length - 1 === lineIndex) {
+        addMethodMap[lineType]();
         return;
       }
 
@@ -852,8 +783,11 @@ export default {
       const newLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
       newLineObject.line_type = lineType;
 
-      // Inherit act and scene from previous line before inserting
-      const prevLine = await this.getPreviousLineForIndex(newLineIndex);
+      // Inherit act and scene from the line at the insert position
+      const prevLine =
+        lineIndex >= 0 && lineIndex < this.localPageScript.length
+          ? this.localPageScript[lineIndex]
+          : null;
       if (prevLine) {
         newLineObject.act_id = prevLine.act_id;
         newLineObject.scene_id = prevLine.scene_id;
@@ -876,17 +810,17 @@ export default {
       this.editPages.push(lineIdent);
       this._broadcastAwareness(this.currentEditPage, newLineIndex);
     },
-    async insertDialogueAt(pageIndex, lineIndex) {
-      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
+    insertDialogueAt(pageIndex, lineIndex) {
+      this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
     },
-    async insertStageDirectionAt(pageIndex, lineIndex) {
-      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.STAGE_DIRECTION);
+    insertStageDirectionAt(pageIndex, lineIndex) {
+      this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.STAGE_DIRECTION);
     },
-    async insertCueLineAt(pageIndex, lineIndex) {
-      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.CUE_LINE);
+    insertCueLineAt(pageIndex, lineIndex) {
+      this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.CUE_LINE);
     },
-    async insertSpacingAt(pageIndex, lineIndex) {
-      await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.SPACING);
+    insertSpacingAt(pageIndex, lineIndex) {
+      this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.SPACING);
     },
     async saveScript() {
       // Collaborative save — server handles persistence via WebSocket
@@ -896,73 +830,10 @@ export default {
         return;
       }
 
-      if (!this.IS_CUT_MODE) {
-        if (this.scriptChanges) {
-          this.savingInProgress = true;
-          this.totalSavePages = Object.keys(this.TMP_SCRIPT).length;
-          this.curSavePage = 0;
-          this.$bvModal.show('save-script');
-
-          const orderedPages = Object.keys(this.TMP_SCRIPT)
-            .map((x) => parseInt(x, 10))
-            .sort((a, b) => a - b);
-
-          for (const pageNo of orderedPages) {
-            this.curSavePage = pageNo;
-            // Check whether the page actually has any lines on it, and if not then skip
-            const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
-            if (tmpScriptPage.length !== 0) {
-              // Check the actual script to see if the page exists or not
-              const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
-              if (actualScriptPage.length === 0) {
-                // New page
-                const response = await this.SAVE_NEW_PAGE(pageNo);
-                if (response) {
-                  await this.LOAD_SCRIPT_PAGE(pageNo);
-                  this.ADD_BLANK_PAGE(pageNo);
-                  this.RESET_DELETED(pageNo);
-                  this.RESET_INSERTED(pageNo);
-                } else {
-                  this.$toast.error('Unable to save script. Please try again.');
-                  this.saveError = true;
-                  break;
-                }
-              } else {
-                // Existing page, check if anything has changed before saving
-                const lineDiff = diff(actualScriptPage, tmpScriptPage);
-                if (
-                  Object.keys(lineDiff).length > 0 ||
-                  this.DELETED_LINES(pageNo).length > 0 ||
-                  this.INSERTED_LINES(pageNo).length > 0
-                ) {
-                  const response = await this.SAVE_CHANGED_PAGE(pageNo);
-                  if (response) {
-                    await this.LOAD_SCRIPT_PAGE(pageNo);
-                    this.ADD_BLANK_PAGE(pageNo);
-                    this.RESET_DELETED(pageNo);
-                    this.RESET_INSERTED(pageNo);
-                  } else {
-                    this.$toast.error('Unable to save script. Please try again.');
-                    this.saveError = true;
-                    break;
-                  }
-                }
-              }
-            }
-          }
-
-          this.savingInProgress = false;
-          // Re-setup autosave (to reset the timer since we have just saved)
-          this.setupAutoSave();
-        } else {
-          this.$toast.warning('No changes to save!');
-        }
-        await this.getMaxScriptPage();
-      } else {
+      if (this.IS_CUT_MODE) {
         this.savingInProgress = true;
         await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
         this.resetCutsToSaved();
-        // Re-setup autosave (to reset the timer since we have just saved)
         this.setupAutoSave();
         this.savingInProgress = false;
       }
@@ -977,18 +848,17 @@ export default {
       this.changingPage = false;
     },
     async goToPageInner(pageNo) {
+      if (this.IS_DRAFT_ACTIVE) {
+        this.currentEditPage = pageNo;
+        this._syncLocalPageScript();
+        return;
+      }
       if (pageNo > 1) {
         await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1);
       }
       await this.LOAD_SCRIPT_PAGE(pageNo);
       this.currentEditPage = pageNo;
-      if (!Object.keys(this.TMP_SCRIPT).includes(this.currentEditPageKey)) {
-        this.ADD_BLANK_PAGE(this.currentEditPage);
-      }
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
-
-      // Overlay collaborative data onto loaded pages
-      this.syncCurrentPageFromYDoc();
     },
     setupAutoSave() {
       const autoSaveInterval = Math.max(
@@ -1011,108 +881,69 @@ export default {
       }
     },
     async autosave() {
-      if (this.isAutoSaving) {
-        return;
-      }
-      // In collab mode, trigger server-side save (no toast for autosave)
+      if (this.isAutoSaving) return;
+      // Collab mode: trigger server-side save (progress shown via isSaving watcher)
       if (this.IS_DRAFT_ACTIVE) {
         this.$socket.sendObj({ OP: 'SAVE_SCRIPT_DRAFT', DATA: {} });
         return;
       }
-      this.isAutoSaving = true;
-      const toastInstance = this.$toast.open({
-        type: 'info',
-        message: 'Performing autosave...',
-        duration: 0,
-        dismissible: false,
-      });
-      if (!this.IS_CUT_MODE) {
-        if (this.scriptChanges) {
-          let curSavePage = 0;
-          const orderedPages = Object.keys(this.TMP_SCRIPT)
-            .map((x) => parseInt(x, 10))
-            .sort((a, b) => a - b);
-          let saveFailure = false;
-
-          for (const pageNo of orderedPages) {
-            curSavePage = pageNo;
-            // If the page we are trying to save currently has edits, then stop
-            // here as we cannot save further changes (ordering is important, so if we have open
-            // edits on line X, then pages Y > X depend on the changes from X being saved
-            if (this.pagesWithOpenChanges.includes(pageNo)) {
-              break;
-            }
-            toastInstance.message = `Performing autosave...<br>Saving page ${curSavePage}`;
-            // Check whether the page actually has any lines on it, and if not then skip
-            const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
-            if (tmpScriptPage.length !== 0) {
-              // Check the actual script to see if the page exists or not
-              const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
-              if (actualScriptPage.length === 0) {
-                // New page
-                const response = await this.SAVE_NEW_PAGE(pageNo);
-                if (response) {
-                  await this.LOAD_SCRIPT_PAGE(pageNo);
-                  this.ADD_BLANK_PAGE(pageNo);
-                  this.RESET_DELETED(pageNo);
-                  this.RESET_INSERTED(pageNo);
-                } else {
-                  saveFailure = true;
-                  break;
-                }
-              } else {
-                // Existing page, check if anything has changed before saving
-                const lineDiff = diff(actualScriptPage, tmpScriptPage);
-                if (
-                  Object.keys(lineDiff).length > 0 ||
-                  this.DELETED_LINES(pageNo).length > 0 ||
-                  this.INSERTED_LINES(pageNo).length > 0
-                ) {
-                  const response = await this.SAVE_CHANGED_PAGE(pageNo);
-                  if (response) {
-                    await this.LOAD_SCRIPT_PAGE(pageNo);
-                    this.ADD_BLANK_PAGE(pageNo);
-                    this.RESET_DELETED(pageNo);
-                    this.RESET_INSERTED(pageNo);
-                  } else {
-                    saveFailure = true;
-                    break;
-                  }
-                }
-              }
-            }
-          }
-
-          if (saveFailure) {
-            toastInstance.message = 'Autosave failed.';
-            toastInstance.type = 'danger';
-          } else {
-            toastInstance.message = `Autosave successful<br>Saved up to page ${curSavePage}`;
-            toastInstance.type = 'success';
-          }
-          setTimeout(() => toastInstance.dismiss(), 5000);
-        } else {
-          toastInstance.message = 'Autosave successful<br>No changes to save';
-          toastInstance.type = 'success';
-          setTimeout(() => toastInstance.dismiss(), 5000);
-        }
-        await this.getMaxScriptPage();
-      } else {
-        await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
-        this.resetCutsToSaved();
-        toastInstance.message = 'Autosave successful';
-        toastInstance.type = 'success';
-        setTimeout(() => toastInstance.dismiss(), 5000);
-      }
-      this.isAutoSaving = false;
     },
     /**
-     * Set up the Y.Doc → TMP_SCRIPT bridge after initial sync completes.
-     * Installs a deep observer on the Y.Doc pages map that updates
-     * TMP_SCRIPT whenever Y.Doc changes (local or remote).
+     * Convert a Y.Map line to a plain JS object safe for Vue 2 reactive state.
+     * Y.Maps must never be stored directly in reactive data — Vue 2 walks their
+     * internal properties, breaking Yjs internals.
      *
-     * Components write directly to Y.Map/Y.Text, and this observer
-     * keeps the TMP_SCRIPT view cache in sync for ScriptLineViewer rendering.
+     * @param {import('yjs').Map} yMap - Y.Map for one script line
+     * @returns {object|null} Plain line object, or null if yMap is falsy
+     */
+    _ydocLineToPlain(yMap) {
+      if (!yMap) return null;
+      const lineId = zeroToNull(yMap.get('_id'));
+      const partsArray = yMap.get('parts');
+      const lineParts = partsArray
+        ? Array.from({ length: partsArray.length }, (_, i) => {
+            const p = partsArray.get(i);
+            return {
+              id: zeroToNull(p.get('_id')),
+              line_id: lineId,
+              part_index: p.get('part_index'),
+              character_id: zeroToNull(p.get('character_id')),
+              character_group_id: zeroToNull(p.get('character_group_id')),
+              line_text: p.get('line_text') ? p.get('line_text').toString() : '',
+            };
+          })
+        : [];
+      return {
+        id: lineId,
+        line_type: yMap.get('line_type'),
+        act_id: zeroToNull(yMap.get('act_id')),
+        scene_id: zeroToNull(yMap.get('scene_id')),
+        stage_direction_style_id: zeroToNull(yMap.get('stage_direction_style_id')),
+        line_parts: lineParts,
+      };
+    },
+    /**
+     * Rebuild localPageScript from the current page in Y.Doc.
+     * Called on initial sync and on every Y.Doc change.
+     */
+    _syncLocalPageScript() {
+      const ydoc = this.DRAFT_YDOC;
+      if (!ydoc) {
+        this.localPageScript = [];
+        return;
+      }
+      const pages = ydoc.getMap('pages');
+      const pageArray = pages.get(this.currentEditPageKey);
+      this.localPageScript = pageArray
+        ? Array.from({ length: pageArray.length }, (_, i) =>
+            this._ydocLineToPlain(pageArray.get(i))
+          )
+        : [];
+    },
+    /**
+     * Set up the Y.Doc → localPageScript bridge after initial sync completes.
+     * Installs a deep observer on the Y.Doc pages map that rebuilds
+     * localPageScript whenever Y.Doc changes (local or remote).
      */
     setupYDocBridge() {
       const ydoc = this.DRAFT_YDOC;
@@ -1120,38 +951,18 @@ export default {
 
       const pages = ydoc.getMap('pages');
 
-      log.debug(
-        `ScriptEditor: Initialising Y.Doc bridge; TMP_SCRIPT pages at bridge init: ` +
-          `[${Object.keys(this.TMP_SCRIPT).join(', ')}]`
-      );
+      // Populate localPageScript from current Y.Doc state
+      this._syncLocalPageScript();
 
-      // Sync the current page from Y.Doc → TMP_SCRIPT on initial connect
-      this.syncCurrentPageFromYDoc();
+      // If there's already a saved draft, mark as having unsaved changes
+      if (this.HAS_DRAFT) {
+        this.$store.commit('SET_DRAFT_DIRTY', true);
+      }
 
-      // Observe deep changes on the pages map — all origins flow through
-      const observer = (events, transaction) => {
-        log.debug(
-          `ScriptEditor: Deep observer fired (origin=${transaction.origin}); syncing to TMP_SCRIPT`
-        );
-        // Determine which pages were affected
-        const affectedPages = new Set();
-        events.forEach((event) => {
-          const path = event.path;
-          if (path.length >= 1) {
-            affectedPages.add(path[0].toString());
-          } else {
-            // Top-level pages map changed — sync all loaded pages
-            Object.keys(this.TMP_SCRIPT).forEach((p) => affectedPages.add(p));
-          }
-        });
-
-        // Sync affected pages that are currently loaded
-        affectedPages.forEach((pageKey) => {
-          if (Object.keys(this.TMP_SCRIPT).includes(pageKey)) {
-            const lines = syncPageFromYDoc(ydoc, pageKey);
-            this.$store.commit('ADD_PAGE', { pageNo: pageKey, pageContents: lines });
-          }
-        });
+      // Observe all changes — rebuild localPageScript and mark dirty
+      const observer = () => {
+        this._syncLocalPageScript();
+        this.$store.commit('SET_DRAFT_DIRTY', true);
       };
 
       pages.observeDeep(observer);
@@ -1160,28 +971,14 @@ export default {
       log.info('ScriptEditor: Y.Doc bridge established');
     },
     /**
-     * Remove the Y.Doc observer.
+     * Remove the Y.Doc observer and clear the local page cache.
      */
     teardownYDocBridge() {
-      log.debug('ScriptEditor: Tearing down Y.Doc bridge observers');
       if (this.ydocObserverCleanup) {
         this.ydocObserverCleanup();
         this.ydocObserverCleanup = null;
       }
-    },
-    /**
-     * Sync all currently loaded TMP_SCRIPT pages from Y.Doc data.
-     */
-    syncCurrentPageFromYDoc() {
-      const ydoc = this.DRAFT_YDOC;
-      if (!ydoc) return;
-
-      Object.keys(this.TMP_SCRIPT).forEach((pageKey) => {
-        const lines = syncPageFromYDoc(ydoc, pageKey);
-        if (lines.length > 0) {
-          this.$store.commit('ADD_PAGE', { pageNo: pageKey, pageContents: lines });
-        }
-      });
+      this.localPageScript = [];
     },
     /**
      * Get the Y.Map for a specific line from the Y.Doc.
@@ -1231,24 +1028,14 @@ export default {
         this.navbarHeight = 56;
       }
     },
-    ...mapMutations([
-      'REMOVE_PAGE',
-      'RESET_DELETED',
-      'SET_CUT_MODE',
-      'RESET_INSERTED',
-      'SET_DRAFT_SAVING',
-    ]),
+    ...mapMutations(['SET_CUT_MODE', 'SET_DRAFT_SAVING']),
     ...mapActions([
       'GET_SCENE_LIST',
       'GET_ACT_LIST',
       'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST',
       'LOAD_SCRIPT_PAGE',
-      'ADD_BLANK_PAGE',
       'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED',
-      'SAVE_NEW_PAGE',
-      'SAVE_CHANGED_PAGE',
       'GET_CUTS',
       'SAVE_SCRIPT_CUTS',
       'GET_STAGE_DIRECTION_STYLES',

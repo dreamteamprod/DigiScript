@@ -406,6 +406,7 @@ class RoomManager:
     def __init__(self, application: DigiScriptServer):
         self._application = application
         self._rooms: dict[int, ScriptRoom] = {}  # revision_id -> ScriptRoom
+        self._room_create_locks: dict[int, asyncio.Lock] = {}  # revision_id -> Lock
         self._eviction_handle = None
 
     def start(self):
@@ -421,6 +422,7 @@ class RoomManager:
         for room in self._rooms.values():
             room.stop_observing()
         self._rooms.clear()
+        self._room_create_locks.clear()
 
     def _schedule_maintenance(self):
         """Schedule the next maintenance cycle."""
@@ -458,16 +460,33 @@ class RoomManager:
         If a draft file exists on disk, the Y.Doc is loaded from it.
         Otherwise, the Y.Doc is built from the ScriptLine models.
 
+        Uses a per-revision lock to prevent concurrent JOIN_SCRIPT_ROOM handlers
+        from each creating a separate ScriptRoom for the same revision (race
+        condition: both see the room absent, both await _load_or_build_doc, the
+        second overwrites _rooms[revision_id] leaving the first client orphaned).
+
         :param revision_id: The script revision ID.
         :returns: The ScriptRoom for this revision.
         """
         if revision_id in self._rooms:
             return self._rooms[revision_id]
 
-        doc = await self._load_or_build_doc(revision_id)
-        room = ScriptRoom(revision_id, doc)
-        room.start_observing()
-        self._rooms[revision_id] = room
+        # Create the lock if it doesn't exist yet.  All non-await code runs
+        # atomically in Tornado's single-threaded event loop, so this dict
+        # access is safe without a higher-level lock.
+        if revision_id not in self._room_create_locks:
+            self._room_create_locks[revision_id] = asyncio.Lock()
+
+        async with self._room_create_locks[revision_id]:
+            # Double-check: another coroutine may have created the room while
+            # we waited to acquire the lock.
+            if revision_id in self._rooms:
+                return self._rooms[revision_id]
+
+            doc = await self._load_or_build_doc(revision_id)
+            room = ScriptRoom(revision_id, doc)
+            room.start_observing()
+            self._rooms[revision_id] = room
 
         get_logger().info(f"Created room for revision {revision_id}")
         return room

@@ -121,7 +121,6 @@ export default {
 
       for (const page of Object.keys(context.state.script)) {
         await context.dispatch('LOAD_SCRIPT_PAGE', page);
-        await context.dispatch('ADD_BLANK_PAGE', page);
       }
       await context.dispatch('LOAD_CUES');
       await context.dispatch('GET_CUTS');

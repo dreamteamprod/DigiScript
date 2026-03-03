@@ -312,6 +312,7 @@ export default {
       context.commit('SET_DRAFT_SAVING', false);
       context.commit('SET_DRAFT_SAVE_PHASE', null);
       context.commit('SET_DRAFT_SAVE_ERROR', null);
+      context.commit('SET_DRAFT_DIRTY', false);
       const timestamp = message.DATA?.last_saved_at;
       if (timestamp) context.commit('SET_DRAFT_LAST_SAVED', timestamp);
     },
@@ -410,6 +411,11 @@ export default {
     /** @returns {{page: number, total: number}} Current save progress */
     DRAFT_SAVE_PROGRESS(state) {
       return { page: state.savePage, total: state.saveTotalPages };
+    },
+
+    /** @returns {boolean} Whether there are unsaved changes in the draft */
+    IS_DRAFT_DIRTY(state) {
+      return state.isDraft;
     },
 
     /** @returns {boolean} Whether initial sync is complete */

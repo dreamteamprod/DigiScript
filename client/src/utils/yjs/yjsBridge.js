@@ -1,16 +1,14 @@
 /**
- * Bridge utilities for Y.Doc ↔ TMP_SCRIPT format conversion.
+ * Bridge utilities for Y.Doc structural operations.
  *
- * Y.Doc is the source of truth during collaborative editing. TMP_SCRIPT is a
- * read-only view cache populated one-way from Y.Doc via observers.
+ * Y.Doc is the source of truth during collaborative editing.
  * Components write directly to Y.Map/Y.Text; this module provides:
- *   - Y.Doc → plain object conversion (for the TMP_SCRIPT view cache)
  *   - Structural helpers (add/delete lines in Y.Doc)
  *   - Sentinel conversion (nullToZero / zeroToNull)
  *
- * Schema differences between Y.Doc and TMP_SCRIPT:
- *   - `_id` instead of `id`
- *   - `parts` instead of `line_parts`
+ * Y.Doc schema:
+ *   - `_id` for line/part IDs (string; numeric DB id or UUID for new items)
+ *   - `parts` (Y.Array of Y.Map) instead of `line_parts`
  *   - `0` as sentinel for null on FK fields
  *   - Y.Text for line_text instead of plain strings
  */
@@ -37,70 +35,12 @@ export function nullToZero(val) {
 }
 
 /**
- * Convert a Y.Map line from the Y.Doc to a plain object compatible with TMP_SCRIPT.
- *
- * @param {import('yjs').Map} lineYMap - A Y.Map representing a script line
- * @param {number|string} pageNo - The page number for this line
- * @returns {object} A plain line object for TMP_SCRIPT
- */
-export function ydocLineToPlain(lineYMap, pageNo) {
-  const lineId = zeroToNull(lineYMap.get('_id'));
-  const partsArray = lineYMap.get('parts');
-  const lineParts = [];
-
-  if (partsArray) {
-    for (let i = 0; i < partsArray.length; i++) {
-      const partYMap = partsArray.get(i);
-      const lineText = partYMap.get('line_text');
-      lineParts.push({
-        id: zeroToNull(partYMap.get('_id')),
-        line_id: lineId,
-        part_index: partYMap.get('part_index'),
-        character_id: zeroToNull(partYMap.get('character_id')),
-        character_group_id: zeroToNull(partYMap.get('character_group_id')),
-        line_text: lineText ? lineText.toString() : '',
-      });
-    }
-  }
-
-  return {
-    id: lineId,
-    act_id: zeroToNull(lineYMap.get('act_id')),
-    scene_id: zeroToNull(lineYMap.get('scene_id')),
-    page: parseInt(pageNo, 10),
-    line_type: lineYMap.get('line_type'),
-    line_parts: lineParts,
-    stage_direction_style_id: zeroToNull(lineYMap.get('stage_direction_style_id')),
-  };
-}
-
-/**
- * Convert all lines on a Y.Doc page to an array of plain objects for TMP_SCRIPT.
- *
- * @param {import('yjs').Doc} ydoc - The Y.Doc instance
- * @param {number|string} pageNo - The page number to read
- * @returns {Array<object>} Array of plain line objects, or empty array if page doesn't exist
- */
-export function syncPageFromYDoc(ydoc, pageNo) {
-  const pages = ydoc.getMap('pages');
-  const pageKey = pageNo.toString();
-  const pageArray = pages.get(pageKey);
-  if (!pageArray) return [];
-
-  const lines = [];
-  for (let i = 0; i < pageArray.length; i++) {
-    lines.push(ydocLineToPlain(pageArray.get(i), pageNo));
-  }
-  return lines;
-}
-
-/**
  * Add a new line to a page in the Y.Doc.
  * Creates the necessary Y.Map, Y.Array, and Y.Text structures.
  *
  * @param {import('yjs').Doc} ydoc - The Y.Doc instance
  * @param {number|string} pageNo - The page number
- * @param {object} lineObj - The TMP_SCRIPT line object to add
+ * @param {object} lineObj - The plain script line object to add
  * @param {number} [insertAt] - Index to insert at. If omitted, appends to end.
  */
 export function addYDocLine(ydoc, pageNo, lineObj, insertAt) {

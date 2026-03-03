@@ -109,7 +109,7 @@
 </template>
 
 <script>
-import { mapGetters, mapMutations, mapActions } from 'vuex';
+import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
@@ -272,18 +272,13 @@ export default {
       await this.goToPageInner(pageNumber);
       this.$bvModal.hide('jump-to-cue');
     },
-    ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions([
       'GET_SCENE_LIST',
       'GET_ACT_LIST',
       'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST',
       'LOAD_SCRIPT_PAGE',
-      'ADD_BLANK_PAGE',
       'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED',
-      'SAVE_NEW_PAGE',
-      'SAVE_CHANGED_PAGE',
       'GET_CUE_TYPES',
       'LOAD_CUES',
       'GET_CUTS',

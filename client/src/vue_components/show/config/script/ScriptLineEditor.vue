@@ -137,13 +137,15 @@ export default {
       required: true,
       type: Array,
     },
-    previousLineFn: {
-      required: true,
-      type: Function,
+    previousLine: {
+      required: false,
+      default: null,
+      type: Object,
     },
-    nextLineFn: {
-      required: true,
-      type: Function,
+    nextLine: {
+      required: false,
+      default: null,
+      type: Object,
     },
     lineType: {
       required: true,
@@ -174,10 +176,6 @@ export default {
         character_group_id: null,
         line_text: '',
       },
-      previousLine: null,
-      nextLine: null,
-      recalculationTimeout: null,
-      abortController: null,
       /** @type {Function|null} Y.Map observer cleanup */
       ymapObserverCleanup: null,
     };
@@ -227,13 +225,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'TMP_SCRIPT', 'ALL_DELETED_LINES', 'CURRENT_SHOW']),
-    currentPageScript() {
-      return this.TMP_SCRIPT[this.currentEditPage.toString()] || [];
-    },
-    currentPageDeletedLines() {
-      return this.ALL_DELETED_LINES[this.currentEditPage.toString()] || [];
-    },
+    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'CURRENT_SHOW']),
     nextActs() {
       // Start act is either the first act for the show, or the act of the previous line if there
       // is one
@@ -308,38 +300,15 @@ export default {
     },
   },
   watch: {
-    currentPageScript: {
-      handler() {
-        this.scheduleRecalculation();
-      },
-      deep: true,
-    },
-    currentPageDeletedLines: {
-      handler() {
-        this.scheduleRecalculation();
-      },
-      deep: true,
-    },
-    lineIndex() {
-      this.scheduleRecalculation();
-    },
-    ALL_DELETED_LINES: {
-      handler() {
-        this.scheduleRecalculation();
-      },
-      deep: true,
-    },
     yLineMap(newVal, oldVal) {
       if (oldVal) this.teardownYLineObservers();
       if (newVal) this.setupYLineObservers();
     },
   },
-  async created() {
+  created() {
     if (this.yLineMap) {
       this.setupYLineObservers();
     }
-    this.previousLine = await this.previousLineFn(this.lineIndex);
-    this.nextLine = await this.nextLineFn(this.lineIndex);
     if (
       this.state.line_parts.length === 0 &&
       (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION)
@@ -352,49 +321,8 @@ export default {
   },
   beforeDestroy() {
     this.teardownYLineObservers();
-    if (this.recalculationTimeout) {
-      clearTimeout(this.recalculationTimeout);
-    }
-    if (this.abortController) {
-      this.abortController.abort();
-    }
   },
   methods: {
-    scheduleRecalculation() {
-      // Cancel any pending recalculation
-      if (this.recalculationTimeout) {
-        clearTimeout(this.recalculationTimeout);
-      }
-
-      // Debounce recalculation by 100ms
-      this.recalculationTimeout = setTimeout(() => {
-        this.recalculatePreviousNextLines();
-      }, 100);
-    },
-    async recalculatePreviousNextLines() {
-      // Cancel any in-flight async operations
-      if (this.abortController) {
-        this.abortController.abort();
-      }
-
-      // Create new abort controller for this operation
-      this.abortController = new AbortController();
-      const { signal } = this.abortController;
-
-      try {
-        const prevLine = await this.previousLineFn(this.lineIndex);
-        if (signal.aborted) return;
-        this.previousLine = prevLine;
-
-        const nxtLine = await this.nextLineFn(this.lineIndex);
-        if (signal.aborted) return;
-        this.nextLine = nxtLine;
-      } catch (error) {
-        if (error.name !== 'AbortError') {
-          console.error('Error recalculating previous/next lines:', error);
-        }
-      }
-    },
     validateState(name) {
       const { $dirty, $error } = this.$v.state[name];
       return $dirty ? !$error : null;
