@@ -5,6 +5,15 @@ updates:
     schedule:
       interval: "daily"
     ignore:
+      # Pinned to Vue 2.x - upgrading to Vue 3 requires a full application rewrite.
+      # versions condition applies to both version updates AND security updates,
+      # unlike update-types which only applies to version updates.
+      - dependency-name: "vue"
+        versions: [">=3.0.0"]
+      - dependency-name: "vue-router"
+        versions: [">=4.0.0"]
+      - dependency-name: "vuex"
+        versions: [">=5.0.0"]
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     versioning-strategy: increase
