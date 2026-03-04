@@ -15,7 +15,6 @@ import { getWebSocketURL, isElectron } from '@/js/platform';
 import { initRemoteLogging } from '@/js/logger';
 import log from 'loglevel';
 
-// Expose loglevel globally so `log.setLevel('debug')` works in DevTools
 window.log = log;
 
 import './assets/styles/dark.scss';

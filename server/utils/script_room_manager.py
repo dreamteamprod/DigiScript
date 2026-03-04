@@ -595,6 +595,17 @@ class RoomManager:
         else:
             get_logger().warning("discard_room called with no room and no revision_id")
 
+    async def discard_room_by_revision(self, revision_id: int):
+        """Discard the draft for a revision by ID, without a WebSocket context.
+
+        Deletes the draft file and DB record, then closes the room so all
+        clients receive ``ROOM_CLOSED`` and revert to the saved script.
+
+        :param revision_id: The script revision whose draft to discard.
+        """
+        await self._delete_draft(revision_id)
+        await self.close_room(revision_id)
+
     async def close_active_room(self):
         """Checkpoint if dirty, broadcast ROOM_CLOSED, and tear down the active room.
 

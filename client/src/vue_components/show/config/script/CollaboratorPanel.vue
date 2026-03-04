@@ -17,16 +17,7 @@
 </template>
 
 <script>
-const COLLAB_COLORS = [
-  '#e74c3c',
-  '#3498db',
-  '#2ecc71',
-  '#f39c12',
-  '#9b59b6',
-  '#1abc9c',
-  '#e67e22',
-  '#e91e63',
-];
+import { collabColor } from '@/utils/collabColors';
 
 export default {
   name: 'CollaboratorPanel',
@@ -42,7 +33,7 @@ export default {
   },
   methods: {
     userColor(userId) {
-      return COLLAB_COLORS[userId % COLLAB_COLORS.length];
+      return collabColor(userId);
     },
     chipTitle(collab) {
       const awareness = this.awarenessStates[collab.user_id];

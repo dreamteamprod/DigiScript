@@ -176,7 +176,6 @@ export default {
         character_group_id: null,
         line_text: '',
       },
-      /** @type {Function|null} Y.Map observer cleanup */
       ymapObserverCleanup: null,
     };
   },
@@ -373,11 +372,6 @@ export default {
       }
       this.stateChange();
     },
-    /**
-     * Create a Y.Map for a new line part in the Y.Doc parts array.
-     * @param {object} partObj - The plain part object
-     * @param {number} index - The part index
-     */
     addPartToYDoc(partObj, index) {
       const partsArray = this.yLineMap.get('parts');
       if (!partsArray || !this.yLineMap.doc) return;
@@ -395,21 +389,12 @@ export default {
         }
       }, 'local-edit');
     },
-    /**
-     * Get the Y.Map for a specific line part from the Y.Doc.
-     * Returns null when not in collab mode or if the part doesn't exist.
-     * @param {number} index - Part index
-     * @returns {import('yjs').Map|null}
-     */
     getYPartMap(index) {
       if (!this.yLineMap) return null;
       const parts = this.yLineMap.get('parts');
       if (!parts || index >= parts.length) return null;
       return parts.get(index);
     },
-    /**
-     * Set up Y.Map observer for remote changes to line-level fields.
-     */
     setupYLineObservers() {
       const mapObserver = (event) => {
         if (event.transaction.origin === 'local-edit') return;
@@ -428,9 +413,6 @@ export default {
       this.yLineMap.observe(mapObserver);
       this.ymapObserverCleanup = () => this.yLineMap.unobserve(mapObserver);
     },
-    /**
-     * Remove Y.Map observer.
-     */
     teardownYLineObservers() {
       if (this.ymapObserverCleanup) {
         this.ymapObserverCleanup();

@@ -130,9 +130,7 @@ export default {
     return {
       LINE_TYPES,
       state: this.value,
-      /** @type {Function|null} Y.Text observer cleanup */
       ytextObserverCleanup: null,
-      /** @type {Function|null} Y.Map observer cleanup */
       ymapObserverCleanup: null,
     };
   },
@@ -178,10 +176,6 @@ export default {
     addLinePart() {
       this.$emit('addLinePart');
     },
-    /**
-     * Called on every keystroke in the text input (via @input).
-     * In collab mode, writes to Y.Text for keystroke-level sync.
-     */
     onTextInput() {
       log.debug(`ScriptLinePart: onTextInput yPartMap=${!!this.yPartMap}`);
       if (!this.yPartMap) return;
@@ -193,10 +187,6 @@ export default {
         ytext.insert(0, this.state.line_text || '');
       }, 'local-edit');
     },
-    /**
-     * Called on blur (@change) and dropdown changes.
-     * In collab mode, writes character/group fields to Y.Map.
-     */
     stateChange() {
       this.$v.state.$touch();
       if (this.yPartMap && this.yPartMap.doc) {
@@ -208,9 +198,6 @@ export default {
       this.$emit('input', this.state);
       this.$refs.partInput.focus();
     },
-    /**
-     * Set up Y.Text and Y.Map observers for remote change handling.
-     */
     setupYPartObservers() {
       const ytext = this.yPartMap.get('line_text');
       if (ytext) {
@@ -235,9 +222,6 @@ export default {
       this.yPartMap.observe(mapObserver);
       this.ymapObserverCleanup = () => this.yPartMap.unobserve(mapObserver);
     },
-    /**
-     * Remove Y.Text and Y.Map observers.
-     */
     teardownYPartObservers() {
       if (this.ytextObserverCleanup) {
         this.ytextObserverCleanup();

@@ -16,33 +16,14 @@
 import * as Y from 'yjs';
 import { uuidv4 } from 'lib0/random';
 
-/**
- * Convert 0 → null for FK fields stored as 0 in the Y.Doc.
- * @param {*} val
- * @returns {*}
- */
 export function zeroToNull(val) {
   return val === 0 ? null : val;
 }
 
-/**
- * Convert null → 0 for FK fields that need a non-null value in the Y.Doc.
- * @param {*} val
- * @returns {*}
- */
 export function nullToZero(val) {
   return val == null ? 0 : val;
 }
 
-/**
- * Add a new line to a page in the Y.Doc.
- * Creates the necessary Y.Map, Y.Array, and Y.Text structures.
- *
- * @param {import('yjs').Doc} ydoc - The Y.Doc instance
- * @param {number|string} pageNo - The page number
- * @param {object} lineObj - The plain script line object to add
- * @param {number} [insertAt] - Index to insert at. If omitted, appends to end.
- */
 export function addYDocLine(ydoc, pageNo, lineObj, insertAt) {
   const pages = ydoc.getMap('pages');
   const pageKey = pageNo.toString();
@@ -91,13 +72,6 @@ export function addYDocLine(ydoc, pageNo, lineObj, insertAt) {
   }, 'local-bridge');
 }
 
-/**
- * Delete a line from a page in the Y.Doc.
- *
- * @param {import('yjs').Doc} ydoc - The Y.Doc instance
- * @param {number|string} pageNo - The page number
- * @param {number} lineIndex - Index of the line to delete
- */
 export function deleteYDocLine(ydoc, pageNo, lineIndex) {
   const pages = ydoc.getMap('pages');
   const pageKey = pageNo.toString();

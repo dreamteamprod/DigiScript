@@ -318,9 +318,7 @@ export default {
       autoSaveInterval: null,
       isAutoSaving: false,
       navbarHeight: 0,
-      /** @type {Function|null} Deep observer cleanup for Y.Doc pages */
       ydocObserverCleanup: null,
-      /** Plain-object snapshots of the current draft page (never Y.Maps) */
       localPageScript: [],
     };
   },
@@ -416,6 +414,8 @@ export default {
       'DRAFT_LINE_EDITORS',
       'DRAFT_AWARENESS_STATES',
       'IS_DRAFT_SAVING',
+      'IS_DRAFT_LAST_SAVED',
+      'DRAFT_SAVE_ERROR',
       'DRAFT_SAVE_PHASE',
       'DRAFT_SAVE_PROGRESS',
     ]),
@@ -465,11 +465,9 @@ export default {
       this._collabSaveToast.message =
         page === 0 ? 'Saving script...' : `Saving page ${page} of ${total} (${percent}%)`;
     },
-    '$store.state.scriptDraft.isSaving': function onSavingChanged(saving) {
+    IS_DRAFT_SAVING: function onSavingChanged(saving) {
+      if (!this.IS_CURRENT_EDITOR) return;
       if (saving && !this._collabSaveToast) {
-        // Open toast for all editors — the save-initiating user triggers this via
-        // SET_DRAFT_SAVING(true) in saveScript(); other editors get it when the
-        // first SAVE_PROGRESS message arrives and commits SET_DRAFT_SAVING(true).
         this._collabSaveToast = this.$toast.open({
           type: 'info',
           message: 'Saving script...',
@@ -480,10 +478,9 @@ export default {
         this._collabSaveToast.dismiss();
         this._collabSaveToast = null;
 
-        const error = this.$store.state.scriptDraft.saveError;
+        const error = this.DRAFT_SAVE_ERROR;
         if (error) {
           if (Array.isArray(error)) {
-            // Validation errors
             const messages = error.map(
               (e) => `Page ${e.page}, line ${e.lineIndex + 1}: ${e.message}`
             );
@@ -491,9 +488,8 @@ export default {
           } else {
             this.$toast.error(`Save failed: ${error}`);
           }
-        } else if (this.$store.state.scriptDraft.lastSavedAt) {
+        } else if (this.IS_DRAFT_LAST_SAVED) {
           this.$toast.success('Script saved successfully');
-          // Refresh script store so GET_SCRIPT_PAGE reflects saved state
           this.LOAD_SCRIPT_PAGE(this.currentEditPage);
           this.GET_SCRIPT_CONFIG_STATUS();
           this.getMaxScriptPage();
@@ -584,15 +580,11 @@ export default {
     },
     async discardAndStartFresh() {
       this.$bvModal.hide('draft-resume-modal');
-      this.$socket.sendObj({
-        OP: 'DISCARD_SCRIPT_DRAFT',
-        DATA: {},
-      });
-      // Wait for ROOM_CLOSED + status update, then request edit
-      // Use a short delay to let the server process the discard
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await this.GET_SCRIPT_CONFIG_STATUS();
-      this.requestEdit();
+      const response = await fetch(makeURL('/api/v1/show/script/draft'), { method: 'DELETE' });
+      if (response.ok) {
+        await this.GET_SCRIPT_CONFIG_STATUS();
+        this.requestEdit();
+      }
     },
     async confirmDiscardDraft() {
       const confirmed = await this.$bvModal.msgBoxConfirm(
@@ -641,9 +633,6 @@ export default {
       this.editPages = [];
       this._broadcastAwareness(this.currentEditPage, null);
       this.$socket.sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
-      // Server downgrades role; IS_CURRENT_EDITOR goes false via GET_SCRIPT_CONFIG_STATUS
-      // → canEdit becomes false → UI switches to read-only
-      // Y.Doc bridge stays active, localPageScript stays populated
     },
     async decrPage() {
       if (this.currentEditPage <= 1) return;
@@ -667,13 +656,6 @@ export default {
       await this.LOAD_SCRIPT_PAGE(this.currentEditPage);
       await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
     },
-    /**
-     * Common logic for all add-line operations.
-     * Builds a complete lineObj (with act_id/scene_id inherited), then writes
-     * to Y.Doc (draft/collab mode).
-     * @param {number} lineType - LINE_TYPES value
-     * @param {boolean} [trackAsLatest=false] - Whether to track as latestAddedLine
-     */
     addLineOfType(lineType, trackAsLatest = false) {
       const lineObj = JSON.parse(JSON.stringify(this.blankLineObj));
       lineObj.line_type = lineType;
@@ -979,12 +961,6 @@ export default {
       }
       this.localPageScript = [];
     },
-    /**
-     * Get the Y.Map for a specific line from the Y.Doc.
-     * Returns null when not in collab mode or if the line doesn't exist.
-     * @param {number} index - Line index on the current page
-     * @returns {import('yjs').Map|null}
-     */
     getYLineMap(index) {
       if (!this.DRAFT_YDOC) return null;
       const pages = this.DRAFT_YDOC.getMap('pages');
@@ -992,11 +968,6 @@ export default {
       if (!pageArray || index >= pageArray.length) return null;
       return pageArray.get(index);
     },
-    /**
-     * Broadcast awareness state (which line the user is editing).
-     * @param {number} page - The page number
-     * @param {number|null} lineIndex - The line index, or null if no line is expanded
-     */
     _broadcastAwareness(page, lineIndex) {
       if (!this.DRAFT_PROVIDER) return;
       const user = this.CURRENT_USER;
@@ -1007,15 +978,9 @@ export default {
         lineIndex,
       });
     },
-    /**
-     * Get the list of other users editing a specific line.
-     * @param {number} lineIndex - The line index on the current page
-     * @returns {Array<{userId: number, username: string}>}
-     */
     editingUsersForLine(lineIndex) {
       const key = `${this.currentEditPage}:${lineIndex}`;
       const editors = this.DRAFT_LINE_EDITORS[key] || [];
-      // Exclude current user
       const currentUserId = this.CURRENT_USER ? this.CURRENT_USER.id : null;
       return editors.filter((e) => e.userId !== currentUserId);
     },

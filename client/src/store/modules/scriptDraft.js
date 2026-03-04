@@ -280,6 +280,12 @@ export default {
     IS_DRAFT_SAVING(state) {
       return state.isSaving;
     },
+    IS_DRAFT_LAST_SAVED(state) {
+      return state.lastSavedAt;
+    },
+    DRAFT_SAVE_ERROR(state) {
+      return state.saveError;
+    },
     DRAFT_SAVE_PHASE(state) {
       return state.savePhase;
     },

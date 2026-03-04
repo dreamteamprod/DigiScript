@@ -158,6 +158,7 @@
 import { mapGetters } from 'vuex';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
+import { collabColor } from '@/utils/collabColors';
 
 export default {
   name: 'ScriptLineViewer',
@@ -233,17 +234,7 @@ export default {
   computed: {
     editingBorderStyle() {
       if (this.editingUsers.length === 0) return {};
-      const COLLAB_COLORS = [
-        '#e74c3c',
-        '#3498db',
-        '#2ecc71',
-        '#f39c12',
-        '#9b59b6',
-        '#1abc9c',
-        '#e67e22',
-        '#e91e63',
-      ];
-      const color = COLLAB_COLORS[this.editingUsers[0].userId % COLLAB_COLORS.length];
+      const color = collabColor(this.editingUsers[0].userId);
       return { borderLeft: `3px solid ${color}`, paddingLeft: '5px' };
     },
     editingTooltip() {
