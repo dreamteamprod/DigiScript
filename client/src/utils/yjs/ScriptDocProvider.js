@@ -11,10 +11,8 @@
  *   YJS_AWARENESS ←→ presence/cursor state
  *   LEAVE_SCRIPT_ROOM → server removes client from room
  *
- * The server is the authoritative source for which revision the room belongs
- * to. The client does not send a revision_id when joining — the server picks
- * the current revision automatically. Outgoing and incoming messages no longer
- * include a room_id field (there is only ever one room per server).
+ * The server determines which revision the room belongs to automatically;
+ * there is only ever one active room per server.
  */
 
 import Vue from 'vue';
@@ -67,10 +65,6 @@ export default class ScriptDocProvider {
     this._onDocUpdate = this._onDocUpdate.bind(this);
   }
 
-  /**
-   * Get the WebSocket instance.
-   * @returns {WebSocket|null}
-   */
   get _socket() {
     return Vue.prototype.$socket || null;
   }

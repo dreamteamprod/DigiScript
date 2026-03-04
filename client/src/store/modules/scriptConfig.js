@@ -21,8 +21,7 @@ export default {
   },
   actions: {
     REQUEST_EDIT_FAILURE(context, message) {
-      const reason = message?.DATA?.reason || 'Unable to edit script';
-      Vue.$toast.error(reason);
+      Vue.$toast.error(message?.DATA?.reason || 'Unable to edit script');
       context.dispatch('GET_SCRIPT_CONFIG_STATUS');
       context.commit('SET_CUT_MODE', false);
     },
