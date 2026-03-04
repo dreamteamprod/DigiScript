@@ -10,6 +10,11 @@
  *   YJS_UPDATE ←→ incremental document updates
  *   YJS_AWARENESS ←→ presence/cursor state
  *   LEAVE_SCRIPT_ROOM → server removes client from room
+ *
+ * The server is the authoritative source for which revision the room belongs
+ * to. The client does not send a revision_id when joining — the server picks
+ * the current revision automatically. Outgoing and incoming messages no longer
+ * include a room_id field (there is only ever one room per server).
  */
 
 import Vue from 'vue';
@@ -46,14 +51,11 @@ function decodeBase64(base64) {
 export default class ScriptDocProvider {
   /**
    * @param {Y.Doc} doc - The Yjs document to sync
-   * @param {number} revisionId - The script revision ID for the room
    * @param {object} options
    * @param {string} [options.role='editor'] - 'editor' or 'viewer'
    */
-  constructor(doc, revisionId, options = {}) {
+  constructor(doc, options = {}) {
     this.doc = doc;
-    this.revisionId = revisionId;
-    this.roomId = `draft_${revisionId}`;
     this.role = options.role || 'editor';
 
     this._connected = false;
@@ -76,6 +78,7 @@ export default class ScriptDocProvider {
   /**
    * Connect to the collaborative editing room.
    * Sends JOIN_SCRIPT_ROOM and starts listening for updates.
+   * The server determines which revision to join automatically.
    */
   connect() {
     if (this._destroyed) return;
@@ -86,20 +89,17 @@ export default class ScriptDocProvider {
       return;
     }
 
-    // Join the room
+    // Join the room — no revision_id needed; the server resolves it
     socket.sendObj({
       OP: 'JOIN_SCRIPT_ROOM',
-      DATA: {
-        revision_id: this.revisionId,
-        role: this.role,
-      },
+      DATA: { role: this.role },
     });
 
     // Listen for local doc changes to broadcast
     this.doc.on('update', this._onDocUpdate);
 
     this._connected = true;
-    log.info(`ScriptDocProvider: Joining room ${this.roomId} as ${this.role}`);
+    log.info(`ScriptDocProvider: Joining room as ${this.role}`);
   }
 
   /**
@@ -113,16 +113,13 @@ export default class ScriptDocProvider {
 
     const socket = this._socket;
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.sendObj({
-        OP: 'LEAVE_SCRIPT_ROOM',
-        DATA: { room_id: this.roomId },
-      });
+      socket.sendObj({ OP: 'LEAVE_SCRIPT_ROOM', DATA: {} });
     }
 
     this.doc.off('update', this._onDocUpdate);
     this._connected = false;
     this._synced = false;
-    log.info(`ScriptDocProvider: Left room ${this.roomId}`);
+    log.info('ScriptDocProvider: Left room');
   }
 
   /**
@@ -142,7 +139,6 @@ export default class ScriptDocProvider {
    * @returns {boolean} true if handled, false if filtered
    */
   applySync(data) {
-    if (data.room_id && data.room_id !== this.roomId) return false;
     const payload = data.payload;
     if (!payload) return false;
 
@@ -156,14 +152,13 @@ export default class ScriptDocProvider {
         );
         Y.applyUpdate(this.doc, decoded, 'server');
         this._synced = true;
-        log.info(`ScriptDocProvider: Synced with room ${this.roomId}`);
+        log.info('ScriptDocProvider: Synced with room');
 
         // Send our state vector so server knows what we have
         const stateVector = Y.encodeStateVector(this.doc);
         this._sendToServer('YJS_SYNC', {
           step: 1,
           payload: encodeBase64(stateVector),
-          room_id: this.roomId,
         });
       } else if (data.step === 2) {
         // Server's diff response to our state vector
@@ -179,14 +174,13 @@ export default class ScriptDocProvider {
 
   /**
    * Apply a YJS_UPDATE message from the server (other clients' changes).
-   * Requires the room to be connected; filters mismatched room IDs.
+   * Requires the room to be connected.
    *
    * @param {object} data - The DATA payload from the server message
    * @returns {boolean} true if handled, false if filtered
    */
   applyUpdate(data) {
     if (!this._connected) return false;
-    if (data.room_id && data.room_id !== this.roomId) return false;
     const payload = data.payload;
     if (!payload) return false;
 
@@ -203,7 +197,7 @@ export default class ScriptDocProvider {
 
   /**
    * Apply a YJS_AWARENESS message from the server.
-   * Requires the room to be connected; filters mismatched room IDs.
+   * Requires the room to be connected.
    * Returns the decoded awareness state object for the Vuex store to process.
    *
    * @param {object} data - The DATA payload from the server message
@@ -211,7 +205,6 @@ export default class ScriptDocProvider {
    */
   applyAwareness(data) {
     if (!this._connected) return false;
-    if (data.room_id && data.room_id !== this.roomId) return false;
     const payload = data.payload;
     if (!payload) return true;
 
@@ -238,10 +231,7 @@ export default class ScriptDocProvider {
 
     const jsonStr = JSON.stringify(state);
     const encoded = new TextEncoder().encode(jsonStr);
-    this._sendToServer('YJS_AWARENESS', {
-      payload: encodeBase64(encoded),
-      room_id: this.roomId,
-    });
+    this._sendToServer('YJS_AWARENESS', { payload: encodeBase64(encoded) });
   }
 
   /**
@@ -264,10 +254,7 @@ export default class ScriptDocProvider {
     }
 
     log.debug(`ScriptDocProvider: _onDocUpdate sending ${update.length}B (origin=${origin})`);
-    this._sendToServer('YJS_UPDATE', {
-      payload: encodeBase64(update),
-      room_id: this.roomId,
-    });
+    this._sendToServer('YJS_UPDATE', { payload: encodeBase64(update) });
   }
 
   /**

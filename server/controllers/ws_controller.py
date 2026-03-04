@@ -21,7 +21,6 @@ from controllers.api.constants import (
 )
 from digi_server.logger import get_logger
 from models.script import Script
-from models.script_draft import ScriptDraft
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
 from models.user import User
@@ -468,12 +467,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         select(Script).where(Script.show_id == show.id)
                     )
                     if script and script.current_revision:
-                        draft = session.scalar(
-                            select(ScriptDraft).where(
-                                ScriptDraft.revision_id == script.current_revision
-                            )
-                        )
-                        if draft:
+                        room_manager = getattr(self.application, "room_manager", None)
+                        if room_manager and await room_manager.has_unsaved_changes(
+                            script.current_revision
+                        ):
                             await self.write_message(
                                 {
                                     "OP": "NOOP",
@@ -482,19 +479,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                                 }
                             )
                             return
-                        # Also check in-memory rooms
-                        room_manager = getattr(self.application, "room_manager", None)
-                        if room_manager:
-                            room = room_manager.get_room(script.current_revision)
-                            if room and room.has_editors:
-                                await self.write_message(
-                                    {
-                                        "OP": "NOOP",
-                                        "ACTION": "REQUEST_EDIT_FAILURE",
-                                        "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_DRAFT},
-                                    }
-                                )
-                                return
 
                 entry.is_cutting = True
                 session.commit()
@@ -636,13 +620,34 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         data = message.get("DATA", {})
 
         if ws_op == "JOIN_SCRIPT_ROOM":
-            revision_id = data.get("revision_id")
+            # Server-side revision lookup: the client never needs to tell us which
+            # revision to join — there is only ever one active revision.
+            current_show_id = await self.application.digi_settings.get("current_show")
+            if not current_show_id:
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": "No show loaded"},
+                    }
+                )
+                return
+            with self.make_session() as lookup_session:
+                show_obj = lookup_session.get(Show, current_show_id)
+                script_obj = (
+                    lookup_session.scalar(
+                        select(Script).where(Script.show_id == show_obj.id)
+                    )
+                    if show_obj
+                    else None
+                )
+                revision_id = script_obj.current_revision if script_obj else None
             if not revision_id:
                 await self.write_message(
                     {
                         "OP": "NOOP",
                         "ACTION": "COLLAB_ERROR",
-                        "DATA": {"error": "revision_id required"},
+                        "DATA": {"error": "No active revision"},
                     }
                 )
                 return
@@ -658,30 +663,16 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
                 return
 
-            # Determine role: must have WRITE permission AND be in edit mode
+            # Determine role from the session's is_editor flag (set authoritatively
+            # by REQUEST_SCRIPT_EDIT which runs full RBAC enforcement).
             role = "viewer"
             if self.current_user_id:
-                with self.make_session() as rbac_session:
-                    user = rbac_session.get(User, self.current_user_id)
-                    current_show_id = await self.application.digi_settings.get(
-                        "current_show"
+                with self.make_session() as role_session:
+                    ws_session = role_session.get(
+                        Session, self.__getattribute__("internal_id")
                     )
-                    if user and current_show_id:
-                        show_obj = rbac_session.get(Show, current_show_id)
-                        has_write = show_obj and (
-                            user.is_admin
-                            or self.application.rbac.has_role(
-                                user, show_obj, Role.WRITE
-                            )
-                        )
-                        if has_write:
-                            # Check if this session has actually entered edit mode
-                            ws_session = rbac_session.get(
-                                Session,
-                                self.__getattribute__("internal_id"),
-                            )
-                            if ws_session and ws_session.is_editor:
-                                role = "editor"
+                    if ws_session and ws_session.is_editor:
+                        role = "editor"
 
             room = await room_manager.get_or_create_room(revision_id)
             room.add_client(self, role)
@@ -695,7 +686,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     "DATA": {
                         "step": 0,
                         "payload": base64.b64encode(sync_state).decode("ascii"),
-                        "room_id": f"draft_{revision_id}",
                     },
                 }
             )
@@ -752,7 +742,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         "DATA": {
                             "step": 2,
                             "payload": base64.b64encode(diff).decode("ascii"),
-                            "room_id": f"draft_{room.revision_id}",
                         },
                     }
                 )

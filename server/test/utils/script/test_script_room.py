@@ -198,7 +198,7 @@ class TestScriptRoomBroadcast:
         assert sent_msg["OP"] == "NOOP"
         assert sent_msg["ACTION"] == "YJS_UPDATE"
         assert "payload" in sent_msg["DATA"]
-        assert "room_id" in sent_msg["DATA"]
+        assert "room_id" not in sent_msg["DATA"]
 
     @pytest.mark.asyncio
     async def test_broadcast_awareness_excludes_sender(self):
@@ -273,20 +273,20 @@ class TestRoomManagerCloseRoom:
 
         # Inject room into a RoomManager (no real app needed)
         manager = RoomManager.__new__(RoomManager)
-        manager._rooms = {42: room}
+        manager._room = room
 
         await manager.close_room(42)
 
         # Room should be removed
-        assert 42 not in manager._rooms
+        assert manager._room is None
 
-        # Both clients should have received ROOM_CLOSED
+        # Both clients should have received ROOM_CLOSED with empty DATA
         for ws in (ws1, ws2):
             ws.write_message.assert_called_once()
             msg = ws.write_message.call_args[0][0]
             assert msg["OP"] == "NOOP"
             assert msg["ACTION"] == "ROOM_CLOSED"
-            assert msg["DATA"]["room_id"] == "draft_42"
+            assert msg["DATA"] == {}
 
         # Observing should be stopped (subscription cleared)
         assert room._doc_subscription is None
@@ -295,7 +295,7 @@ class TestRoomManagerCloseRoom:
     async def test_close_room_nonexistent_is_noop(self):
         """Closing a room that doesn't exist does nothing."""
         manager = RoomManager.__new__(RoomManager)
-        manager._rooms = {}
+        manager._room = None
 
         await manager.close_room(999)  # Should not raise
 
@@ -310,13 +310,74 @@ class TestRoomManagerCloseRoom:
         room.add_client(ws_bad, "viewer")
 
         manager = RoomManager.__new__(RoomManager)
-        manager._rooms = {7: room}
+        manager._room = room
 
         await manager.close_room(7)
 
-        assert 7 not in manager._rooms
+        assert manager._room is None
         # The healthy client still receives the message
         ws_ok.write_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_room_returns_none_for_wrong_revision(self):
+        """get_room returns None when the active room belongs to a different revision."""
+        room = _make_room(revision_id=42)
+        manager = RoomManager.__new__(RoomManager)
+        manager._room = room
+
+        assert manager.get_room(42) is room
+        assert manager.get_room(99) is None
+
+    @pytest.mark.asyncio
+    async def test_close_active_room_noop_when_no_room(self):
+        """close_active_room does nothing when no room is active."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._room = None
+
+        await manager.close_active_room()  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_close_active_room_broadcasts_room_closed(self):
+        """close_active_room sends ROOM_CLOSED to all clients with empty DATA."""
+        room = _make_room(revision_id=5)
+        room.start_observing()
+        ws1 = _make_mock_ws()
+        ws2 = _make_mock_ws()
+        room.add_client(ws1, "viewer")
+        room.add_client(ws2, "editor")
+
+        manager = RoomManager.__new__(RoomManager)
+        manager._room = room
+
+        await manager.close_active_room()
+
+        assert manager._room is None
+        for ws in (ws1, ws2):
+            ws.write_message.assert_called_once()
+            msg = ws.write_message.call_args[0][0]
+            assert msg["ACTION"] == "ROOM_CLOSED"
+            assert msg["DATA"] == {}
+
+    @pytest.mark.asyncio
+    async def test_close_active_room_checkpoints_before_close(self):
+        """close_active_room calls _checkpoint_room if the room is dirty."""
+        room = _make_room(revision_id=3)
+        room._dirty = True
+
+        manager = RoomManager.__new__(RoomManager)
+        manager._room = room
+
+        checkpoint_called = []
+
+        async def mock_checkpoint(r):
+            checkpoint_called.append(r.revision_id)
+
+        manager._checkpoint_room = mock_checkpoint
+
+        await manager.close_active_room()
+
+        assert 3 in checkpoint_called
+        assert manager._room is None
 
 
 class TestScriptRoomSaveDraft(_ScriptTestSetup):

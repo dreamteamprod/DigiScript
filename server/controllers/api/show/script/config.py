@@ -1,7 +1,6 @@
 from sqlalchemy import select
 
 from models.script import Script
-from models.script_draft import ScriptDraft
 from models.session import Session
 from models.show import Show
 from models.user import User
@@ -13,7 +12,7 @@ from utils.web.web_decorators import requires_show
 @ApiRoute("show/script/config", ApiVersion.V1)
 class ScriptStatusController(BaseAPIController):
     @requires_show
-    def get(self):
+    async def get(self):
         with self.make_session() as session:
             # Editors
             editor_sessions = session.scalars(
@@ -53,19 +52,11 @@ class ScriptStatusController(BaseAPIController):
                         select(Script).where(Script.show_id == show.id)
                     )
                     if script and script.current_revision:
-                        draft = session.scalar(
-                            select(ScriptDraft).where(
-                                ScriptDraft.revision_id == script.current_revision
+                        room_manager = getattr(self.application, "room_manager", None)
+                        if room_manager:
+                            has_draft = await room_manager.has_unsaved_changes(
+                                script.current_revision
                             )
-                        )
-                        if draft:
-                            has_draft = True
-                        elif hasattr(self.application, "room_manager"):
-                            room_manager = self.application.room_manager
-                            if room_manager:
-                                room = room_manager.get_room(script.current_revision)
-                                if room and room.has_editors and room._dirty:
-                                    has_draft = True
 
             data = {
                 "editors": editors,

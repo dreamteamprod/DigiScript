@@ -263,7 +263,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         room.add_client(mock_viewer_ws, "viewer")
 
         # Inject room into room_manager
-        self._app.room_manager._rooms[self.revision_id] = room
+        self._app.room_manager._room = room
 
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
@@ -282,7 +282,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             self.assertEqual(1, len(cutters))
 
         # Clean up
-        del self._app.room_manager._rooms[self.revision_id]
+        self._app.room_manager._room = None
         ws.close()
 
     # ------------------------------------------------------------------
@@ -486,8 +486,47 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         ws.close()
 
     # ------------------------------------------------------------------
-    # JOIN_SCRIPT_ROOM — role based on edit state, not just RBAC
+    # JOIN_SCRIPT_ROOM — server-side revision lookup, role from session
     # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_join_script_room_no_show_rejected(self):
+        """JOIN_SCRIPT_ROOM is rejected with COLLAB_ERROR when no show is loaded."""
+        # Clear current show
+        self._app.digi_settings.settings["current_show"].set_to_default()
+
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertIn("No show loaded", response_data["DATA"]["error"])
+
+        ws.close()
+
+    @gen_test
+    async def test_join_script_room_no_active_revision_rejected(self):
+        """JOIN_SCRIPT_ROOM is rejected with COLLAB_ERROR when no revision is active."""
+        # Remove current_revision from the script
+        with self._app.get_db().sessionmaker() as session:
+            script = session.scalar(
+                select(Script).where(Script.show_id == self.show_id)
+            )
+            script.current_revision = None
+            session.commit()
+
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertIn("No active revision", response_data["DATA"]["error"])
+
+        ws.close()
 
     @gen_test
     async def test_join_script_room_viewer_when_not_editing(self):
@@ -495,11 +534,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Join room WITHOUT requesting edit first
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
 
         # First message: YJS_SYNC (initial state)
         sync_msg = await ws.read_message()
@@ -524,11 +559,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Join room first (as viewer, since not yet editing)
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         members_msg = await ws.read_message()
         members_data = json.loads(members_msg)
@@ -561,11 +592,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # Join room (as editor)
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         members_msg = await ws.read_message()
         self.assertEqual(
@@ -605,11 +632,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # Join room (as editor)
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
@@ -653,11 +676,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # Consume GET_SCRIPT_CONFIG_STATUS
 
         # Now join room
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
 
         # First message: YJS_SYNC (initial state)
         sync_msg = await ws.read_message()
@@ -685,11 +704,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
@@ -701,14 +716,12 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # ROOM_MEMBERS
 
-        # Should receive ROOM_CLOSED
+        # Should receive ROOM_CLOSED with empty DATA
         room_closed_msg = await ws.read_message()
         room_closed_data = json.loads(room_closed_msg)
         self.assertEqual("NOOP", room_closed_data["OP"])
         self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
-        self.assertEqual(
-            f"draft_{self.revision_id}", room_closed_data["DATA"]["room_id"]
-        )
+        self.assertEqual({}, room_closed_data["DATA"])
 
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
@@ -733,21 +746,13 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws2
 
         # Both join room
-        await ws1.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws1.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws1.read_message()  # YJS_SYNC
         await ws1.read_message()  # ROOM_MEMBERS
         await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
         await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS from join (broadcast)
 
-        await ws2.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws2.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws2.read_message()  # YJS_SYNC
         # Both get ROOM_MEMBERS (ws2 joined)
         await ws1.read_message()  # ROOM_MEMBERS for ws1
@@ -795,9 +800,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         # Both join room
         await ws_editor.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
+            json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}})
         )
         await ws_editor.read_message()  # YJS_SYNC
         await ws_editor.read_message()  # ROOM_MEMBERS
@@ -805,9 +808,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
         await ws_viewer.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
+            json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}})
         )
         await ws_viewer.read_message()  # YJS_SYNC
         await ws_editor.read_message()  # ROOM_MEMBERS
@@ -850,11 +851,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
@@ -885,11 +882,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
@@ -925,11 +918,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
@@ -942,7 +931,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         response_data = json.loads(response)
         self.assertEqual("NOOP", response_data["OP"])
         self.assertEqual("ROOM_CLOSED", response_data["ACTION"])
-        self.assertEqual(f"draft_{self.revision_id}", response_data["DATA"]["room_id"])
+        self.assertEqual({}, response_data["DATA"])
 
         # Room should be evicted after discard
         self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
@@ -966,11 +955,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
@@ -1010,11 +995,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
@@ -1149,11 +1130,7 @@ class TestLiveSessionGuards(DigiScriptTestCase):
         self._set_live_session_active()
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
 
         response = await ws.read_message()
         response_data = json.loads(response)
@@ -1172,11 +1149,7 @@ class TestLiveSessionGuards(DigiScriptTestCase):
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
-        await ws.write_message(
-            json.dumps(
-                {"OP": "JOIN_SCRIPT_ROOM", "DATA": {"revision_id": self.revision_id}}
-            )
-        )
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await ws.read_message()  # YJS_SYNC
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join

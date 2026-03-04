@@ -33,7 +33,7 @@ function makeContext(stateOverrides = {}) {
   const commits = [];
   const dispatches = [];
   return {
-    state: { isSynced: false, roomId: null, ...stateOverrides },
+    state: { isSynced: false, isRoomActive: false, ...stateOverrides },
     commit: vi.fn((type, payload) => commits.push({ type, payload })),
     dispatch: vi.fn((type, payload) => dispatches.push({ type, payload })),
     _commits: commits,

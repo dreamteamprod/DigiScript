@@ -1,7 +1,11 @@
 """Manages collaborative editing rooms for script revisions.
 
 Each ScriptRoom holds a pycrdt Y.Doc and tracks connected WebSocket clients.
-The RoomManager handles room lifecycle: creation, persistence, and eviction.
+The RoomManager handles room lifecycle: creation, persistence, and checkpointing.
+
+DigiScript loads exactly one show at a time, so there is at most one active
+ScriptRoom at any given time. The manager stores a single ``_room`` instead of
+a dict keyed by revision_id.
 """
 
 from __future__ import annotations
@@ -34,9 +38,6 @@ if TYPE_CHECKING:
     from tornado.websocket import WebSocketHandler
 
     from digi_server.app_server import DigiScriptServer
-
-# How long a room stays alive with no clients before eviction (seconds)
-ROOM_IDLE_TIMEOUT = 300  # 5 minutes
 
 # How often to checkpoint the Y.Doc to disk (seconds)
 CHECKPOINT_INTERVAL = 30
@@ -120,10 +121,7 @@ class ScriptRoom:
         message = {
             "OP": "NOOP",
             "ACTION": "YJS_UPDATE",
-            "DATA": {
-                "payload": payload,
-                "room_id": f"draft_{self.revision_id}",
-            },
+            "DATA": {"payload": payload},
         }
 
         for ws in list(self.clients.keys()):
@@ -148,10 +146,7 @@ class ScriptRoom:
         message = {
             "OP": "NOOP",
             "ACTION": "YJS_AWARENESS",
-            "DATA": {
-                "payload": payload,
-                "room_id": f"draft_{self.revision_id}",
-            },
+            "DATA": {"payload": payload},
         }
 
         for ws in list(self.clients.keys()):
@@ -185,10 +180,7 @@ class ScriptRoom:
         message = {
             "OP": "NOOP",
             "ACTION": "ROOM_MEMBERS",
-            "DATA": {
-                "room_id": f"draft_{self.revision_id}",
-                "members": members,
-            },
+            "DATA": {"members": members},
         }
 
         for ws in list(self.clients.keys()):
@@ -397,118 +389,106 @@ class ScriptRoom:
 
 
 class RoomManager:
-    """Manages ScriptRoom instances and their lifecycle.
+    """Manages the single active ScriptRoom for the loaded show.
 
-    Handles room creation (lazy), persistence (checkpointing to disk),
-    and eviction (after idle timeout).
+    DigiScript loads exactly one show at a time, so there is at most one
+    collaborative editing room active at any moment. This manager stores a
+    single ``_room`` (instead of a dict keyed by revision_id) and provides
+    helpers for room lifecycle: creation, checkpointing, closing, and draft
+    status queries.
     """
 
     def __init__(self, application: DigiScriptServer):
         self._application = application
-        self._rooms: dict[int, ScriptRoom] = {}  # revision_id -> ScriptRoom
-        self._room_create_locks: dict[int, asyncio.Lock] = {}  # revision_id -> Lock
-        self._eviction_handle = None
+        self._room: ScriptRoom | None = None
+        self._room_lock: asyncio.Lock = asyncio.Lock()
+        self._maintenance_handle = None
 
     def start(self):
-        """Start the periodic eviction and checkpoint loop."""
+        """Start the periodic checkpoint loop."""
         self._schedule_maintenance()
 
     def stop(self):
-        """Stop the maintenance loop and clean up all rooms."""
-        if self._eviction_handle is not None:
-            IOLoop.current().remove_timeout(self._eviction_handle)
-            self._eviction_handle = None
+        """Stop the maintenance loop and clean up the active room."""
+        if self._maintenance_handle is not None:
+            IOLoop.current().remove_timeout(self._maintenance_handle)
+            self._maintenance_handle = None
 
-        for room in self._rooms.values():
-            room.stop_observing()
-        self._rooms.clear()
-        self._room_create_locks.clear()
+        if self._room is not None:
+            self._room.stop_observing()
+            self._room = None
 
     def _schedule_maintenance(self):
         """Schedule the next maintenance cycle."""
-        self._eviction_handle = IOLoop.current().call_later(
+        self._maintenance_handle = IOLoop.current().call_later(
             CHECKPOINT_INTERVAL, self._run_maintenance
         )
 
     async def _run_maintenance(self):
-        """Run periodic maintenance: checkpoint dirty rooms, evict idle ones."""
+        """Run periodic maintenance: checkpoint dirty rooms."""
         try:
-            evict_ids = []
-
-            for revision_id, room in list(self._rooms.items()):
-                # Checkpoint dirty rooms
-                if room.needs_checkpoint:
-                    await self._checkpoint_room(room)
-
-                # Mark idle empty rooms for eviction
-                if room.is_empty and (
-                    time.monotonic() - room.last_activity > ROOM_IDLE_TIMEOUT
-                ):
-                    evict_ids.append(revision_id)
-
-            # Evict idle rooms
-            for revision_id in evict_ids:
-                await self._evict_room(revision_id)
+            if self._room and self._room.needs_checkpoint:
+                await self._checkpoint_room(self._room)
         except Exception:
             get_logger().exception("Error during room maintenance")
         finally:
             self._schedule_maintenance()
 
     async def get_or_create_room(self, revision_id: int) -> ScriptRoom:
-        """Get an existing room or create a new one for the given revision.
+        """Get the active room or create a new one for the given revision.
+
+        If the current room belongs to a different revision, it is closed
+        first (checkpointing if dirty) before the new room is created.
 
         If a draft file exists on disk, the Y.Doc is loaded from it.
         Otherwise, the Y.Doc is built from the ScriptLine models.
 
-        Uses a per-revision lock to prevent concurrent JOIN_SCRIPT_ROOM handlers
-        from each creating a separate ScriptRoom for the same revision (race
-        condition: both see the room absent, both await _load_or_build_doc, the
-        second overwrites _rooms[revision_id] leaving the first client orphaned).
+        Uses a single lock to prevent concurrent JOIN_SCRIPT_ROOM handlers
+        from each creating a separate ScriptRoom (race condition: both see the
+        room absent, both await _load_or_build_doc, the second overwrites
+        _room leaving the first client orphaned).
 
         :param revision_id: The script revision ID.
         :returns: The ScriptRoom for this revision.
         """
-        if revision_id in self._rooms:
-            return self._rooms[revision_id]
+        # Fast-path: same revision already open (no lock needed)
+        if self._room and self._room.revision_id == revision_id:
+            return self._room
 
-        # Create the lock if it doesn't exist yet.  All non-await code runs
-        # atomically in Tornado's single-threaded event loop, so this dict
-        # access is safe without a higher-level lock.
-        if revision_id not in self._room_create_locks:
-            self._room_create_locks[revision_id] = asyncio.Lock()
+        async with self._room_lock:
+            # Recheck after acquiring lock
+            if self._room and self._room.revision_id == revision_id:
+                return self._room
 
-        async with self._room_create_locks[revision_id]:
-            # Double-check: another coroutine may have created the room while
-            # we waited to acquire the lock.
-            if revision_id in self._rooms:
-                return self._rooms[revision_id]
+            # Close the current room if it belongs to a different revision
+            if self._room is not None:
+                await self.close_active_room()
 
             doc = await self._load_or_build_doc(revision_id)
             room = ScriptRoom(revision_id, doc)
             room.start_observing()
-            self._rooms[revision_id] = room
+            self._room = room
 
         get_logger().info(f"Created room for revision {revision_id}")
         return room
 
     def get_room(self, revision_id: int) -> ScriptRoom | None:
-        """Get an existing room without creating one.
+        """Get the active room if it matches the given revision.
 
         :param revision_id: The script revision ID.
-        :returns: The ScriptRoom if it exists, else None.
+        :returns: The ScriptRoom if it exists for this revision, else None.
         """
-        return self._rooms.get(revision_id)
+        return (
+            self._room if self._room and self._room.revision_id == revision_id else None
+        )
 
     def get_room_for_client(self, ws: WebSocketHandler) -> ScriptRoom | None:
         """Find the room that a WebSocket client belongs to.
 
         :param ws: The WebSocket handler.
-        :returns: The ScriptRoom if found, else None.
+        :returns: The ScriptRoom if the client is in the active room, else None.
         """
-        for room in self._rooms.values():
-            if ws in room.clients:
-                return room
-        return None
+        return self._room if self._room and ws in self._room.clients else None
 
     async def save_room(self, ws: WebSocketHandler):
         """Save the draft for the room that *ws* belongs to.
@@ -557,10 +537,7 @@ class RoomManager:
                         {
                             "OP": "NOOP",
                             "ACTION": "YJS_UPDATE",
-                            "DATA": {
-                                "payload": payload,
-                                "room_id": f"draft_{room.revision_id}",
-                            },
+                            "DATA": {"payload": payload},
                         }
                     )
                 except Exception:
@@ -617,6 +594,48 @@ class RoomManager:
             await self._delete_draft(revision_id)
         else:
             get_logger().warning("discard_room called with no room and no revision_id")
+
+    async def close_active_room(self):
+        """Checkpoint if dirty, broadcast ROOM_CLOSED, and tear down the active room.
+
+        Safe to call when no room is active (no-op). Also safe if called
+        concurrently — ``_room is None`` check is idempotent.
+        """
+        room = self._room
+        if room is None:
+            return
+
+        if room._dirty:
+            await self._checkpoint_room(room)
+
+        message = {"OP": "NOOP", "ACTION": "ROOM_CLOSED", "DATA": {}}
+        for ws in list(room.clients.keys()):
+            try:
+                await ws.write_message(message)
+            except Exception:
+                pass
+
+        room.stop_observing()
+        self._room = None
+        get_logger().info(f"Closed active room for revision {room.revision_id}")
+
+    async def has_unsaved_changes(self, revision_id: int) -> bool:
+        """Return True if there are unsaved changes for the given revision.
+
+        Checks the in-memory room's dirty flag first, then falls back to
+        querying the database for a persisted draft record.
+
+        :param revision_id: The script revision ID to check.
+        :returns: True if an unsaved draft exists (in-memory or on disk).
+        """
+        room = self.get_room(revision_id)
+        if room and room._dirty:
+            return True
+        with self._application.get_db().sessionmaker() as session:
+            draft = session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == revision_id)
+            )
+            return draft is not None
 
     async def _delete_draft(self, revision_id: int):
         """Delete the draft file and DB record for *revision_id*.
@@ -758,15 +777,11 @@ class RoomManager:
 
         :param revision_id: The revision ID of the room to close.
         """
-        room = self._rooms.get(revision_id)
+        room = self.get_room(revision_id)
         if room is None:
             return
 
-        message = {
-            "OP": "NOOP",
-            "ACTION": "ROOM_CLOSED",
-            "DATA": {"room_id": f"draft_{revision_id}"},
-        }
+        message = {"OP": "NOOP", "ACTION": "ROOM_CLOSED", "DATA": {}}
         for ws in list(room.clients.keys()):
             try:
                 await ws.write_message(message)
@@ -774,25 +789,8 @@ class RoomManager:
                 pass
 
         room.stop_observing()
-        del self._rooms[revision_id]
+        self._room = None
         get_logger().info(f"Closed room for revision {revision_id}")
-
-    async def _evict_room(self, revision_id: int):
-        """Evict an idle room, checkpointing first if dirty.
-
-        :param revision_id: The revision ID of the room to evict.
-        """
-        room = self._rooms.get(revision_id)
-        if room is None:
-            return
-
-        # Checkpoint before evicting if there are unsaved changes
-        if room._dirty:
-            await self._checkpoint_room(room)
-
-        room.stop_observing()
-        del self._rooms[revision_id]
-        get_logger().info(f"Evicted idle room for revision {revision_id}")
 
     def _get_draft_path(self, revision_id: int) -> str:
         """Get the filesystem path for a draft file.

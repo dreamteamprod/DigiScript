@@ -336,7 +336,12 @@ export default {
   },
   computed: {
     loaded() {
-      return this.dataLoaded && (!this.IS_DRAFT_ACTIVE || this.IS_DRAFT_SYNCED);
+      if (!this.dataLoaded) return false;
+      // Show spinner while editor is joining the room (server confirmed, room not yet active)
+      if (this.IS_CURRENT_EDITOR && !this.IS_DRAFT_ACTIVE) return false;
+      // Show spinner while the Y.Doc is syncing
+      if (this.IS_DRAFT_ACTIVE && !this.IS_DRAFT_SYNCED) return false;
+      return true;
     },
     currentEditPageKey() {
       return this.currentEditPage.toString();
@@ -425,10 +430,7 @@ export default {
     IS_CURRENT_EDITOR(isEditor) {
       this.setupAutoSave();
       if (isEditor && this.CURRENT_REVISION && !this.IS_DRAFT_ACTIVE) {
-        this.JOIN_DRAFT_ROOM({
-          revisionId: this.CURRENT_REVISION,
-          role: 'editor',
-        });
+        this.JOIN_DRAFT_ROOM({ role: 'editor' });
       }
     },
     EDITORS: {
@@ -439,10 +441,7 @@ export default {
           !this.IS_DRAFT_ACTIVE &&
           this.CURRENT_REVISION
         ) {
-          this.JOIN_DRAFT_ROOM({
-            revisionId: this.CURRENT_REVISION,
-            role: 'viewer',
-          });
+          this.JOIN_DRAFT_ROOM({ role: 'viewer' });
         }
       },
       immediate: true,
@@ -567,7 +566,7 @@ export default {
       }
     },
     onEditClick() {
-      if (this.HAS_DRAFT) {
+      if (this.HAS_DRAFT && this.EDITORS.length === 0) {
         this.$bvModal.show('draft-resume-modal');
       } else {
         this.requestEdit();

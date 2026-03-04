@@ -534,6 +534,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
             await self.digi_settings.set("has_admin_user", has_admin)
 
     async def _show_changed(self):
+        if hasattr(self, "room_manager") and self.room_manager:
+            await self.room_manager.close_active_room()
         await self.ws_send_to_all("NOOP", "SHOW_CHANGED", {})
 
     def get_db(self) -> DigiSQLAlchemy:

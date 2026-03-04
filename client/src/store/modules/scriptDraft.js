@@ -38,8 +38,8 @@ let _syncTimeoutId = null;
 
 export default {
   state: {
-    /** @type {number|null} The revision ID of the active room */
-    roomId: null,
+    /** @type {boolean} Whether a collaborative editing room is active */
+    isRoomActive: false,
 
     /** @type {boolean} Whether we are connected to a collab room */
     isConnected: false,
@@ -76,8 +76,8 @@ export default {
   },
 
   mutations: {
-    SET_DRAFT_ROOM(state, { roomId }) {
-      state.roomId = roomId;
+    SET_DRAFT_ROOM(state) {
+      state.isRoomActive = true;
     },
 
     SET_DRAFT_CONNECTED(state, value) {
@@ -126,7 +126,7 @@ export default {
     },
 
     CLEAR_DRAFT_STATE(state) {
-      state.roomId = null;
+      state.isRoomActive = false;
       state.isConnected = false;
       state.isSynced = false;
       state.isDraft = false;
@@ -145,28 +145,28 @@ export default {
 
   actions: {
     /**
-     * Join a collaborative editing room for a script revision.
+     * Join the collaborative editing room for the current script revision.
      * Creates a Y.Doc and ScriptDocProvider, connects to the server.
+     * The server determines which revision to join automatically.
      *
      * @param {object} context - Vuex action context
      * @param {object} params
-     * @param {number} params.revisionId - Script revision to edit
      * @param {string} [params.role='editor'] - 'editor' or 'viewer'
      */
-    async JOIN_DRAFT_ROOM(context, { revisionId, role = 'editor' }) {
+    async JOIN_DRAFT_ROOM(context, { role = 'editor' } = {}) {
       // Leave existing room first
       if (_provider) {
         await context.dispatch('LEAVE_DRAFT_ROOM');
       }
 
       const ydoc = new Y.Doc();
-      const provider = new ScriptDocProvider(ydoc, revisionId, { role });
+      const provider = new ScriptDocProvider(ydoc, { role });
 
       // Store instances outside reactive state
       _ydoc = ydoc;
       _provider = provider;
 
-      context.commit('SET_DRAFT_ROOM', { roomId: revisionId });
+      context.commit('SET_DRAFT_ROOM');
 
       // Cancel any stale timers from a previous join before creating new ones
       if (_syncIntervalId) {
@@ -203,8 +203,8 @@ export default {
       }, 10000);
 
       provider.connect();
-      log.debug(`ScriptDraft: Provider connect() called for revision ${revisionId}`);
-      log.info(`ScriptDraft: Joined room for revision ${revisionId} as ${role}`);
+      log.debug('ScriptDraft: Provider connect() called');
+      log.info(`ScriptDraft: Joined room as ${role}`);
     },
 
     /**
@@ -354,46 +354,46 @@ export default {
   getters: {
     /** @returns {boolean} Whether a collaborative editing session is active */
     IS_DRAFT_ACTIVE(state) {
-      return state.roomId !== null && state.isConnected;
+      return state.isRoomActive && state.isConnected;
     },
 
     /**
      * @returns {import('yjs').Doc|null} The Y.Doc instance (non-reactive)
      *
-     * NOTE: `state.roomId` is accessed intentionally to create a reactive
+     * NOTE: `state.isRoomActive` is accessed intentionally to create a reactive
      * dependency. Without it, Vue/Vuex caches this getter permanently (since
      * `_ydoc` is a non-reactive module variable). After LEAVE_DRAFT_ROOM +
-     * JOIN_DRAFT_ROOM, `roomId` changes, busting the cache so the new Y.Doc
-     * instance is returned to all components.
+     * JOIN_DRAFT_ROOM, `isRoomActive` toggles, busting the cache so the new
+     * Y.Doc instance is returned to all components.
      */
     DRAFT_YDOC(state) {
-      state.roomId; // reactive dependency — forces re-evaluation on room change
+      state.isRoomActive; // reactive dependency — forces re-evaluation on room change
       return _ydoc;
     },
 
     /** @returns {ScriptDocProvider|null} The provider instance (non-reactive) */
     DRAFT_PROVIDER(state) {
-      state.roomId; // reactive dependency — see DRAFT_YDOC comment
+      state.isRoomActive; // reactive dependency — see DRAFT_YDOC comment
       return _provider;
     },
 
     /** @returns {import('yjs').Map|null} The Y.Doc pages map */
     DRAFT_PAGES(state) {
-      state.roomId; // reactive dependency — see DRAFT_YDOC comment
+      state.isRoomActive; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getMap('pages');
     },
 
     /** @returns {import('yjs').Map|null} The Y.Doc meta map */
     DRAFT_META(state) {
-      state.roomId; // reactive dependency — see DRAFT_YDOC comment
+      state.isRoomActive; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getMap('meta');
     },
 
     /** @returns {import('yjs').Array|null} The deleted line IDs array */
     DRAFT_DELETED_LINE_IDS(state) {
-      state.roomId; // reactive dependency — see DRAFT_YDOC comment
+      state.isRoomActive; // reactive dependency — see DRAFT_YDOC comment
       if (!_ydoc) return null;
       return _ydoc.getArray('deleted_line_ids');
     },
