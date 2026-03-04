@@ -18,10 +18,6 @@ class ScriptDraftController(BaseAPIController):
         Deletes the draft file and DB record, then closes the room so all
         connected clients receive ``ROOM_CLOSED`` and revert to the saved
         script.
-
-        :statuscode 200: Draft discarded successfully.
-        :statuscode 404: No show or script found.
-        :statuscode 403: Insufficient permissions.
         """
         current_show = self.get_current_show()
         show_id = current_show["id"]
