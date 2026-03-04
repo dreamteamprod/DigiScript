@@ -18,16 +18,9 @@ import log from 'loglevel';
 
 import ScriptDocProvider from '@/utils/yjs/ScriptDocProvider';
 
-/** @type {import('yjs').Doc|null} */
 let _ydoc = null;
-
-/** @type {ScriptDocProvider|null} */
 let _provider = null;
-
-/** @type {number|null} Interval ID for the sync-polling loop */
 let _syncIntervalId = null;
-
-/** @type {number|null} Timeout ID for the sync-failure watchdog */
 let _syncTimeoutId = null;
 
 export default {
@@ -103,15 +96,6 @@ export default {
   },
 
   actions: {
-    /**
-     * Join the collaborative editing room for the current script revision.
-     * Creates a Y.Doc and ScriptDocProvider, connects to the server.
-     * The server determines which revision to join automatically.
-     *
-     * @param {object} context - Vuex action context
-     * @param {object} params
-     * @param {string} [params.role='editor'] - 'editor' or 'viewer'
-     */
     async JOIN_DRAFT_ROOM(context, { role = 'editor' } = {}) {
       // Leave existing room first
       if (_provider) {
@@ -245,15 +229,11 @@ export default {
     IS_DRAFT_ACTIVE(state) {
       return state.isRoomActive && state.isConnected;
     },
-    /**
-     * @returns {import('yjs').Doc|null} The Y.Doc instance (non-reactive)
-     *
-     * NOTE: `state.isRoomActive` is accessed intentionally to create a reactive
-     * dependency. Without it, Vue/Vuex caches this getter permanently (since
-     * `_ydoc` is a non-reactive module variable). After LEAVE_DRAFT_ROOM +
-     * JOIN_DRAFT_ROOM, `isRoomActive` toggles, busting the cache so the new
-     * Y.Doc instance is returned to all components.
-     */
+    // NOTE: `state.isRoomActive` is accessed intentionally to create a reactive
+    // dependency. Without it, Vue/Vuex caches this getter permanently (since
+    // `_ydoc` is a non-reactive module variable). After LEAVE_DRAFT_ROOM +
+    // JOIN_DRAFT_ROOM, `isRoomActive` toggles, busting the cache so the new
+    // Y.Doc instance is returned to all components.
     DRAFT_YDOC(state) {
       state.isRoomActive;
       return _ydoc;
@@ -304,12 +284,6 @@ export default {
     DRAFT_AWARENESS_STATES(state) {
       return state.awarenessStates;
     },
-    /**
-     * Map of "page:lineIndex" → array of users editing that line.
-     * Used by ScriptLineViewer to show editing indicators.
-     *
-     * @returns {Object<string, Array<{userId: number, username: string}>>}
-     */
     DRAFT_LINE_EDITORS(state) {
       const result = {};
       for (const [userId, awareness] of Object.entries(state.awarenessStates)) {

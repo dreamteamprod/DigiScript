@@ -13,20 +13,9 @@
 
 import Vue from 'vue';
 
-/**
- * Create a reactive object bound to a Y.Map.
- *
- * Returns a plain reactive object whose properties mirror the Y.Map.
- * Remote changes update the reactive object automatically.
- *
- * @param {import('yjs').Map} ymap - The Y.Map to bind
- * @param {string[]} [keys] - Specific keys to observe (default: all)
- * @returns {{ data: object, destroy: Function }}
- */
 export function useYMap(ymap, keys = null) {
   const data = Vue.observable({});
 
-  // Initialize from current state
   if (keys) {
     keys.forEach((key) => {
       Vue.set(data, key, ymap.get(key));
@@ -37,7 +26,6 @@ export function useYMap(ymap, keys = null) {
     });
   }
 
-  // Observe Y.Map changes
   const observer = (event) => {
     event.changes.keys.forEach((change, key) => {
       if (keys && !keys.includes(key)) return;
@@ -54,32 +42,15 @@ export function useYMap(ymap, keys = null) {
 
   return {
     data,
-    /**
-     * Set a value on the Y.Map (triggers sync to other clients).
-     * @param {string} key
-     * @param {*} value
-     */
     set(key, value) {
       ymap.set(key, value);
     },
-    /**
-     * Stop observing the Y.Map. Call on component destroy.
-     */
     destroy() {
       ymap.unobserve(observer);
     },
   };
 }
 
-/**
- * Create a reactive string bound to a Y.Text.
- *
- * Returns a reactive object with a `value` property that mirrors the Y.Text.
- * Remote changes update the reactive value automatically.
- *
- * @param {import('yjs').Text} ytext - The Y.Text to bind
- * @returns {{ data: { value: string }, set: Function, destroy: Function }}
- */
 export function useYText(ytext) {
   const data = Vue.observable({ value: ytext.toString() });
 
@@ -91,10 +62,6 @@ export function useYText(ytext) {
 
   return {
     data,
-    /**
-     * Replace the entire text content.
-     * @param {string} newValue
-     */
     set(newValue) {
       const doc = ytext.doc;
       if (!doc) return;
@@ -112,19 +79,9 @@ export function useYText(ytext) {
   };
 }
 
-/**
- * Create a reactive array bound to a Y.Array.
- *
- * Returns a reactive array that mirrors the Y.Array contents.
- * Each element is unwrapped: Y.Map → plain object, Y.Text → string.
- *
- * @param {import('yjs').Array} yarray - The Y.Array to bind
- * @returns {{ data: Array, destroy: Function }}
- */
 export function useYArray(yarray) {
   const data = Vue.observable([]);
 
-  // Initialize from current state
   _syncArrayData(yarray, data);
 
   const observer = () => {
@@ -141,11 +98,6 @@ export function useYArray(yarray) {
   };
 }
 
-/**
- * Sync Y.Array contents to a reactive array.
- * @param {import('yjs').Array} yarray
- * @param {Array} target
- */
 function _syncArrayData(yarray, target) {
   // Clear and rebuild — simpler than diffing for array changes
   target.splice(0, target.length);
@@ -154,14 +106,6 @@ function _syncArrayData(yarray, target) {
   });
 }
 
-/**
- * Unwrap a Yjs shared type to a plain JS value.
- * Y.Map → plain object, Y.Text → string, Y.Array → array.
- * Primitive values pass through unchanged.
- *
- * @param {*} value
- * @returns {*}
- */
 function _unwrapYjsValue(value) {
   if (value == null) return value;
 

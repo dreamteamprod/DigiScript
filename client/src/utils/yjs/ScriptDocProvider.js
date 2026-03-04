@@ -19,11 +19,6 @@ import Vue from 'vue';
 import * as Y from 'yjs';
 import log from 'loglevel';
 
-/**
- * Encode a Uint8Array to base64 string for JSON transport.
- * @param {Uint8Array} uint8Array
- * @returns {string}
- */
 function encodeBase64(uint8Array) {
   let binary = '';
   for (let i = 0; i < uint8Array.length; i++) {
@@ -32,11 +27,6 @@ function encodeBase64(uint8Array) {
   return btoa(binary);
 }
 
-/**
- * Decode a base64 string to Uint8Array.
- * @param {string} base64
- * @returns {Uint8Array}
- */
 function decodeBase64(base64) {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -47,11 +37,6 @@ function decodeBase64(base64) {
 }
 
 export default class ScriptDocProvider {
-  /**
-   * @param {Y.Doc} doc - The Yjs document to sync
-   * @param {object} options
-   * @param {string} [options.role='editor'] - 'editor' or 'viewer'
-   */
   constructor(doc, options = {}) {
     this.doc = doc;
     this.role = options.role || 'editor';
@@ -95,14 +80,9 @@ export default class ScriptDocProvider {
     this.disconnect();
     this._destroyed = true;
   }
-  /**
-   * Apply a YJS_SYNC message from the server.
-   * Accepts sync messages even before the room is marked connected,
-   * since step 0 is what triggers the connected state.
-   *
-   * @param {object} data - The DATA payload from the server message
-   * @returns {boolean} true if handled, false if filtered
-   */
+  // Apply a YJS_SYNC message from the server.
+  // Accepts sync messages even before the room is marked connected,
+  // since step 0 is what triggers the connected state.
   applySync(data) {
     const payload = data.payload;
     if (!payload) return false;
@@ -169,13 +149,6 @@ export default class ScriptDocProvider {
     const encoded = new TextEncoder().encode(jsonStr);
     this._sendToServer('YJS_AWARENESS', { payload: encodeBase64(encoded) });
   }
-  /**
-   * Called when the local Y.Doc is updated.
-   * Broadcasts the update to the server for other clients.
-   *
-   * @param {Uint8Array} update
-   * @param {*} origin - 'server' if from remote, otherwise local
-   */
   _onDocUpdate(update, origin) {
     // Don't echo back updates that came from the server
     if (origin === 'server') return;

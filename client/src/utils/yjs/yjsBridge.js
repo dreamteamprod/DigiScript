@@ -30,7 +30,6 @@ export function addYDocLine(ydoc, pageNo, lineObj, insertAt) {
   let pageArray = pages.get(pageKey);
 
   ydoc.transact(() => {
-    // Create page array if it doesn't exist
     if (!pageArray) {
       pageArray = new Y.Array();
       pages.set(pageKey, pageArray);
