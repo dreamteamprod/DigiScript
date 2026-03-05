@@ -104,30 +104,41 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 rm = self.application.room_manager
 
                 async def _broadcast():
-                    with app.get_db().sessionmaker() as session:
-                        await room.broadcast_members(session)
-                    # Checkpoint and close if last editor disconnected
-                    if was_editor and not room.has_editors:
-                        if room._dirty:
-                            await rm._checkpoint_room(room)
-                            await app.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
-                        await rm.close_active_room()
+                    try:
+                        with app.get_db().sessionmaker() as session:
+                            await room.broadcast_members(session)
+                        if was_editor and not room.has_editors:
+                            if room._dirty:
+                                await rm._checkpoint_room(room)
+                                await app.ws_send_to_all(
+                                    "NOOP", "GET_SCRIPT_REVISIONS", {}
+                                )
+                    except Exception:
+                        get_logger().exception("Error in on_close _broadcast callback")
+                    finally:
+                        if was_editor and not room.has_editors:
+                            await rm.close_active_room()
 
                 IOLoop.current().add_callback(_broadcast)
 
         notify_editor_change = False
         elect_live_leader = False
 
-        with self.make_session() as session:
-            entry = session.get(Session, self.__getattribute__("internal_id"))
-            if entry:
-                if entry.is_editor or entry.is_cutting:
-                    notify_editor_change = True
-                if entry.live_session:
-                    elect_live_leader = True
+        try:
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry:
+                    if entry.is_editor or entry.is_cutting:
+                        notify_editor_change = True
+                    if entry.live_session:
+                        elect_live_leader = True
 
-                session.delete(entry)
-                session.commit()
+                    session.delete(entry)
+                    session.commit()
+        except Exception:
+            get_logger().exception(
+                f"Error cleaning up session in on_close for {self.request.remote_ip}"
+            )
 
         if notify_editor_change:
             for client in self.application.clients:
@@ -136,9 +147,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
 
         if elect_live_leader:
-            current_show = self.application.digi_settings.settings.get(
-                "current_show"
-            ).get_value()
+            _show_setting = self.application.digi_settings.settings.get("current_show")
+            if not _show_setting:
+                return
+            current_show = _show_setting.get_value()
             if current_show:
                 with self.make_session() as session:
                     show = session.get(Show, current_show)
@@ -235,8 +247,14 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             f"WebSocket received data from {self.request.remote_ip}: {message}"
         )
 
-        message = json.loads(message)
-        ws_op = message["OP"]
+        try:
+            message = json.loads(message)
+            ws_op = message["OP"]
+        except (json.JSONDecodeError, KeyError) as e:
+            get_logger().warning(
+                f"Malformed WS message from {self.request.remote_ip}: {e}"
+            )
+            return
 
         # Handle JWT authentication operations
         if ws_op == "AUTHENTICATE":
@@ -453,6 +471,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         if ws_op == "REQUEST_SCRIPT_EDIT":
             with self.make_session() as session:
                 entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry is None:
+                    get_logger().warning(
+                        "REQUEST_SCRIPT_EDIT: session entry not found "
+                        "(race with on_close?)"
+                    )
+                    return
                 current_show_id = await self.application.digi_settings.get(
                     "current_show"
                 )
@@ -517,6 +541,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         elif ws_op == "REQUEST_SCRIPT_CUTS":
             with self.make_session() as session:
                 entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry is None:
+                    get_logger().warning(
+                        "REQUEST_SCRIPT_CUTS: session entry not found "
+                        "(race with on_close?)"
+                    )
+                    return
                 current_show_id = await self.application.digi_settings.get(
                     "current_show"
                 )
@@ -794,7 +824,17 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 f"YJS_UPDATE rev={room.revision_id} "
                 f"applying {len(decoded)}B update from {self.request.remote_ip}"
             )
-            await room.apply_update(decoded)
+            try:
+                await room.apply_update(decoded)
+            except Exception:
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": "Failed to apply document update"},
+                    }
+                )
+                return
             await room.broadcast_update(decoded, sender=self)
         elif ws_op == "YJS_AWARENESS":
             room = room_manager.get_room_for_client(self)
@@ -819,9 +859,88 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     }
                 )
                 return
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry is None or not entry.is_editor:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Insufficient permissions"},
+                        }
+                    )
+                    return
+                current_show_id = await self.application.digi_settings.get(
+                    "current_show"
+                )
+                show = session.get(Show, current_show_id) if current_show_id else None
+                user = (
+                    session.get(User, self.current_user_id)
+                    if self.current_user_id
+                    else None
+                )
+                if not user or (
+                    not user.is_admin
+                    and (
+                        not show
+                        or not self.application.rbac.has_role(user, show, Role.WRITE)
+                    )
+                ):
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Insufficient permissions"},
+                        }
+                    )
+                    return
             await room_manager.save_room(self)
             await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
         elif ws_op == "DISCARD_SCRIPT_DRAFT":
+            if await self._is_live_session_active():
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                    }
+                )
+                return
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry is None or not entry.is_editor:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Insufficient permissions"},
+                        }
+                    )
+                    return
+                current_show_id = await self.application.digi_settings.get(
+                    "current_show"
+                )
+                show = session.get(Show, current_show_id) if current_show_id else None
+                user = (
+                    session.get(User, self.current_user_id)
+                    if self.current_user_id
+                    else None
+                )
+                if not user or (
+                    not user.is_admin
+                    and (
+                        not show
+                        or not self.application.rbac.has_role(user, show, Role.WRITE)
+                    )
+                ):
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Insufficient permissions"},
+                        }
+                    )
+                    return
             await room_manager.discard_room(self)
             await self.application.ws_send_to_all(
                 "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
@@ -852,5 +971,4 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 f"{self.__getattribute__('internal_id')} at IP address "
                 f"{self.request.remote_ip}, closing."
             )
-            self.on_close()
             return None

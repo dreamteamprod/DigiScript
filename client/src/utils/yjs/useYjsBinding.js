@@ -18,7 +18,7 @@ export function useYMap(ymap, keys = null) {
 
   if (keys) {
     keys.forEach((key) => {
-      Vue.set(data, key, ymap.get(key));
+      Vue.set(data, key, _unwrapYjsValue(ymap.get(key)));
     });
   } else {
     ymap.forEach((value, key) => {

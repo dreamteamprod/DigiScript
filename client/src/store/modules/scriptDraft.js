@@ -37,6 +37,8 @@ export default {
     saveError: null,
     savePage: 0,
     saveTotalPages: 0,
+    syncError: null,
+    collabError: null,
   },
   mutations: {
     SET_DRAFT_ROOM(state) {
@@ -76,6 +78,12 @@ export default {
       state.savePage = page;
       state.saveTotalPages = total;
     },
+    SET_SYNC_ERROR(state, error) {
+      state.syncError = error;
+    },
+    SET_COLLAB_ERROR(state, error) {
+      state.collabError = error;
+    },
     CLEAR_DRAFT_STATE(state) {
       state.isRoomActive = false;
       state.isConnected = false;
@@ -89,6 +97,8 @@ export default {
       state.saveError = null;
       state.savePage = 0;
       state.saveTotalPages = 0;
+      state.syncError = null;
+      state.collabError = null;
       _ydoc = null;
       _provider = null;
     },
@@ -130,7 +140,7 @@ export default {
         }
       }, 100);
 
-      // Watchdog: log an error only if this is still the active provider
+      // Watchdog: surface a sync failure to the user if this is still the active provider
       _syncTimeoutId = setTimeout(() => {
         clearInterval(_syncIntervalId);
         _syncIntervalId = null;
@@ -140,6 +150,11 @@ export default {
         );
         if (provider === _provider && !provider.synced) {
           log.error('ScriptDraft: Sync timeout after 10 seconds');
+          context.commit(
+            'SET_SYNC_ERROR',
+            'Failed to sync with the collaboration server after 10 seconds. ' +
+              'Please try refreshing the page.'
+          );
         }
       }, 10000);
 
@@ -218,8 +233,10 @@ export default {
       context.commit('SET_DRAFT_SAVE_PHASE', null);
       context.commit('SET_DRAFT_SAVE_ERROR', message.DATA?.error);
     },
-    COLLAB_ERROR(_context, message) {
-      log.error('Collab error received:', message.DATA?.error);
+    COLLAB_ERROR(context, message) {
+      const error = message.DATA?.error || 'A collaboration error occurred';
+      log.error('Collab error received:', error);
+      context.commit('SET_COLLAB_ERROR', error);
     },
   },
   getters: {
@@ -274,6 +291,12 @@ export default {
     },
     IS_DRAFT_SYNCED(state) {
       return state.isSynced;
+    },
+    DRAFT_SYNC_ERROR(state) {
+      return state.syncError;
+    },
+    DRAFT_COLLAB_ERROR(state) {
+      return state.collabError;
     },
     DRAFT_COLLABORATORS(state) {
       return state.collaborators;

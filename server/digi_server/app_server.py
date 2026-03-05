@@ -535,6 +535,22 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     async def _show_changed(self):
         if hasattr(self, "room_manager") and self.room_manager:
+            room = self.room_manager.get_active_room()
+            if room and room._dirty:
+                get_logger().warning(
+                    "Show changed while script draft has unsaved changes "
+                    "— draft will be discarded"
+                )
+                await self.ws_send_to_all(
+                    "NOOP",
+                    "COLLAB_ERROR",
+                    {
+                        "error": (
+                            "Show changed while draft was active; "
+                            "unsaved changes were discarded"
+                        )
+                    },
+                )
             await self.room_manager.close_active_room()
         await self.ws_send_to_all("NOOP", "SHOW_CHANGED", {})
 

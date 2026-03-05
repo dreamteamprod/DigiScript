@@ -108,6 +108,7 @@ export default class ScriptDocProvider {
       }
     } catch (e) {
       log.error('ScriptDocProvider: Failed to handle sync message', e);
+      return false;
     }
 
     return true;
@@ -123,6 +124,7 @@ export default class ScriptDocProvider {
       Y.applyUpdate(this.doc, decoded, 'server');
     } catch (e) {
       log.error('ScriptDocProvider: Failed to apply update', e);
+      return false;
     }
 
     return true;
@@ -130,7 +132,7 @@ export default class ScriptDocProvider {
   applyAwareness(data) {
     if (!this._connected) return false;
     const payload = data.payload;
-    if (!payload) return true;
+    if (!payload) return false;
 
     try {
       const decoded = decodeBase64(payload);
@@ -139,9 +141,8 @@ export default class ScriptDocProvider {
       return { type: 'AWARENESS', state: awarenessState };
     } catch (e) {
       log.error('ScriptDocProvider: Failed to handle awareness message', e);
+      return false;
     }
-
-    return true;
   }
   setLocalAwareness(state) {
     if (!this._connected) return;

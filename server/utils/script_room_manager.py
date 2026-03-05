@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 import pycrdt
 from sqlalchemy import select
 from tornado.ioloop import IOLoop
+from tornado.websocket import WebSocketClosedError
 
 from digi_server.logger import get_logger
 from models.script import CompiledScript, ScriptRevision
@@ -41,6 +42,36 @@ if TYPE_CHECKING:
 
 # How often to checkpoint the Y.Doc to disk (seconds)
 CHECKPOINT_INTERVAL = 30
+
+
+def _write_checkpoint_sync(state: bytes, draft_path: str, draft_dir: str) -> None:
+    """Atomic file write for Y.Doc checkpoints. Runs in a thread pool executor.
+
+    Uses the pattern: write to tmp file → fsync → rename, which is crash-safe
+    because ``rename`` is atomic on POSIX systems.
+
+    :param state: The serialised Y.Doc state bytes.
+    :param draft_path: Final destination path for the checkpoint file.
+    :param draft_dir: Directory for the temporary file (same filesystem as
+        *draft_path* to ensure rename is atomic).
+    """
+    fd, tmp_path = tempfile.mkstemp(dir=draft_dir, suffix=".yjs.tmp")
+    try:
+        os.write(fd, state)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.rename(tmp_path, draft_path)
+
+
+def _read_draft_sync(path: str) -> bytes:
+    """Read the contents of a draft file. Runs in a thread pool executor.
+
+    :param path: Path to the draft ``.yjs`` file.
+    :returns: Raw bytes of the draft file.
+    """
+    with open(path, "rb") as f:
+        return f.read()
 
 
 class ScriptRoom:
@@ -123,9 +154,16 @@ class ScriptRoom:
                 continue
             try:
                 await ws.write_message(message)
-            except Exception:
+            except WebSocketClosedError:
                 get_logger().debug(
-                    f"Failed to send update to client in room {self.revision_id}"
+                    f"Client disconnected during update broadcast "
+                    f"in room {self.revision_id}"
+                )
+            except Exception:
+                get_logger().warning(
+                    f"Unexpected error sending update to client "
+                    f"in room {self.revision_id}",
+                    exc_info=True,
                 )
 
     async def broadcast_awareness(
@@ -148,9 +186,16 @@ class ScriptRoom:
                 continue
             try:
                 await ws.write_message(message)
-            except Exception:
+            except WebSocketClosedError:
                 get_logger().debug(
-                    f"Failed to send awareness to client in room {self.revision_id}"
+                    f"Client disconnected during awareness broadcast "
+                    f"in room {self.revision_id}"
+                )
+            except Exception:
+                get_logger().warning(
+                    f"Unexpected error sending awareness to client "
+                    f"in room {self.revision_id}",
+                    exc_info=True,
                 )
 
     async def broadcast_members(self, session):
@@ -180,9 +225,16 @@ class ScriptRoom:
         for ws in list(self.clients.keys()):
             try:
                 await ws.write_message(message)
-            except Exception:
+            except WebSocketClosedError:
                 get_logger().debug(
-                    f"Failed to send members to client in room {self.revision_id}"
+                    f"Client disconnected during members broadcast "
+                    f"in room {self.revision_id}"
+                )
+            except Exception:
+                get_logger().warning(
+                    f"Unexpected error sending members to client "
+                    f"in room {self.revision_id}",
+                    exc_info=True,
                 )
 
     async def _broadcast_save_progress(self, page: int, total: int) -> None:
@@ -201,8 +253,14 @@ class ScriptRoom:
                         "DATA": {"page": page, "total": total, "percent": percent},
                     }
                 )
-            except Exception:
+            except WebSocketClosedError:
                 pass
+            except Exception:
+                get_logger().debug(
+                    f"Unexpected error sending save progress "
+                    f"in room {self.revision_id}",
+                    exc_info=True,
+                )
 
     async def save_draft(self, session: DigiDBSession) -> bytes:
         """Persist the current Y.Doc state to the database.
@@ -333,9 +391,16 @@ class ScriptRoom:
         interleaved writes during a save.
 
         :param update: The binary update from a client.
+        :raises Exception: Propagates any Y.Doc update error to the caller.
         """
         async with self.save_lock:
-            self.doc.apply_update(update)
+            try:
+                self.doc.apply_update(update)
+            except Exception:
+                get_logger().exception(
+                    f"Failed to apply Y.Doc update for revision {self.revision_id}"
+                )
+                raise
 
     def get_sync_state(self) -> bytes:
         return self.doc.get_update()
@@ -492,7 +557,9 @@ class RoomManager:
                         }
                     )
                 except Exception:
-                    pass
+                    get_logger().warning(
+                        "Failed to notify client of save error", exc_info=True
+                    )
                 return
 
         # Broadcast ID-patch update so all clients get real DB ids
@@ -508,7 +575,9 @@ class RoomManager:
                         }
                     )
                 except Exception:
-                    pass
+                    get_logger().warning(
+                        "Failed to broadcast ID-patch update to client", exc_info=True
+                    )
 
         # Reset dirty so hasDraft → False
         room.mark_checkpointed()
@@ -525,7 +594,9 @@ class RoomManager:
                     }
                 )
             except Exception:
-                pass
+                get_logger().warning(
+                    "Failed to notify client of successful save", exc_info=True
+                )
 
         # Remove draft file and DB record (no longer needed after DB save)
         await self._delete_draft(room.revision_id)
@@ -624,7 +695,7 @@ class RoomManager:
         draft_path = self._get_draft_path(revision_id)
         if os.path.exists(draft_path):
             try:
-                os.remove(draft_path)
+                await IOLoop.current().run_in_executor(None, os.remove, draft_path)
             except Exception:
                 get_logger().exception(f"Failed to remove draft file: {draft_path}")
 
@@ -650,8 +721,9 @@ class RoomManager:
             if draft and draft.data_path and os.path.exists(draft.data_path):
                 # Load from existing draft file
                 try:
-                    with open(draft.data_path, "rb") as f:
-                        data = f.read()
+                    data = await IOLoop.current().run_in_executor(
+                        None, _read_draft_sync, draft.data_path
+                    )
                     doc = pycrdt.Doc()
                     doc.get("meta", type=pycrdt.Map)
                     doc.get("pages", type=pycrdt.Map)
@@ -666,6 +738,17 @@ class RoomManager:
                     get_logger().exception(
                         f"Failed to load draft file {draft.data_path}, "
                         f"rebuilding from ScriptLine models"
+                    )
+                    # Notify all connected clients that the draft was corrupted
+                    await self._application.ws_send_to_all(
+                        "NOOP",
+                        "COLLAB_ERROR",
+                        {
+                            "error": (
+                                "Draft file was corrupted and has been discarded. "
+                                "Work may have been lost."
+                            )
+                        },
                     )
                     # Delete stale DB record
                     session.delete(draft)
@@ -708,14 +791,10 @@ class RoomManager:
             # Get the full doc state
             state = room.get_sync_state()
 
-            # Atomic write: tmp → fsync → rename
-            fd, tmp_path = tempfile.mkstemp(dir=draft_dir, suffix=".yjs.tmp")
-            try:
-                os.write(fd, state)
-                os.fsync(fd)
-            finally:
-                os.close(fd)
-            os.rename(tmp_path, draft_path)
+            # Atomic write: tmp → fsync → rename (blocking I/O in thread pool)
+            await IOLoop.current().run_in_executor(
+                None, _write_checkpoint_sync, state, draft_path, draft_dir
+            )
 
             # Update DB record
             with self._application.get_db().sessionmaker() as session:

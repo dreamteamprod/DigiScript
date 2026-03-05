@@ -409,6 +409,8 @@ export default {
       'DRAFT_SAVE_ERROR',
       'DRAFT_SAVE_PHASE',
       'DRAFT_SAVE_PROGRESS',
+      'DRAFT_SYNC_ERROR',
+      'DRAFT_COLLAB_ERROR',
     ]),
   },
   watch: {
@@ -451,6 +453,16 @@ export default {
       const percent = Math.round((page / total) * 100);
       this._collabSaveToast.message =
         page === 0 ? 'Saving script...' : `Saving page ${page} of ${total} (${percent}%)`;
+    },
+    DRAFT_SYNC_ERROR(error) {
+      if (error) {
+        this.$toast.error(error);
+      }
+    },
+    DRAFT_COLLAB_ERROR(error) {
+      if (error) {
+        this.$toast.error(error);
+      }
     },
     IS_DRAFT_SAVING: function onSavingChanged(saving) {
       if (!this.IS_CURRENT_EDITOR) return;
@@ -543,6 +555,9 @@ export default {
         this.currentMaxPage = respJson.max_page;
       } else {
         log.error('Unable to get current max page');
+        this.$toast.warning(
+          'Failed to load script page count — page navigation may not work correctly.'
+        );
       }
     },
     onEditClick() {
@@ -563,13 +578,14 @@ export default {
       this.requestEdit();
     },
     async discardAndStartFresh() {
-      this.$bvModal.hide('draft-resume-modal');
       const response = await fetch(makeURL('/api/v1/show/script/draft'), { method: 'DELETE' });
       if (response.ok) {
+        this.$bvModal.hide('draft-resume-modal');
         await this.GET_SCRIPT_CONFIG_STATUS();
         this.requestEdit();
       } else {
         log.error('Failed to discard draft');
+        this.$toast.error('Failed to discard draft, please try again.');
       }
     },
     async confirmDiscardDraft() {
@@ -581,6 +597,8 @@ export default {
         const response = await fetch(makeURL('/api/v1/show/script/draft'), { method: 'DELETE' });
         if (response.ok) {
           await this.GET_SCRIPT_CONFIG_STATUS();
+        } else {
+          this.$toast.error('Failed to discard draft, please try again.');
         }
       }
     },
@@ -799,7 +817,6 @@ export default {
         this.savingInProgress = true;
         await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
         this.resetCutsToSaved();
-        this.setupAutoSave();
         this.savingInProgress = false;
       }
     },
@@ -840,22 +857,23 @@ export default {
       const lineParts = partsArray
         ? Array.from({ length: partsArray.length }, (_, i) => {
             const p = partsArray.get(i);
+            if (!p) return null;
             return {
-              id: zeroToNull(p.get('_id')),
+              id: zeroToNull(p.get('_id') ?? 0),
               line_id: lineId,
               part_index: p.get('part_index'),
-              character_id: zeroToNull(p.get('character_id')),
-              character_group_id: zeroToNull(p.get('character_group_id')),
+              character_id: zeroToNull(p.get('character_id') ?? 0),
+              character_group_id: zeroToNull(p.get('character_group_id') ?? 0),
               line_text: p.get('line_text') ? p.get('line_text').toString() : '',
             };
-          })
+          }).filter(Boolean)
         : [];
       return {
         id: lineId,
         line_type: yMap.get('line_type'),
-        act_id: zeroToNull(yMap.get('act_id')),
-        scene_id: zeroToNull(yMap.get('scene_id')),
-        stage_direction_style_id: zeroToNull(yMap.get('stage_direction_style_id')),
+        act_id: zeroToNull(yMap.get('act_id') ?? 0),
+        scene_id: zeroToNull(yMap.get('scene_id') ?? 0),
+        stage_direction_style_id: zeroToNull(yMap.get('stage_direction_style_id') ?? 0),
         line_parts: lineParts,
       };
     },
@@ -869,13 +887,17 @@ export default {
         this.localPageScript = [];
         return;
       }
-      const pages = ydoc.getMap('pages');
-      const pageArray = pages.get(this.currentEditPageKey);
-      this.localPageScript = pageArray
-        ? Array.from({ length: pageArray.length }, (_, i) =>
-            this._ydocLineToPlain(pageArray.get(i))
-          )
-        : [];
+      try {
+        const pages = ydoc.getMap('pages');
+        const pageArray = pages.get(this.currentEditPageKey);
+        this.localPageScript = pageArray
+          ? Array.from({ length: pageArray.length }, (_, i) =>
+              this._ydocLineToPlain(pageArray.get(i))
+            ).filter(Boolean)
+          : [];
+      } catch (e) {
+        log.error('ScriptEditor: Error syncing local page script from Y.Doc', e);
+      }
     },
     /**
      * Set up the Y.Doc → localPageScript bridge after initial sync completes.

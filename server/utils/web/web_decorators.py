@@ -61,14 +61,12 @@ def no_active_script_draft(
                     select(Script).where(Script.show_id == show.id)
                 ).first()
 
-                if script.current_revision:
-                    revision: ScriptRevision = session.get(
-                        ScriptRevision, script.current_revision
-                    )
-                else:
-                    raise HTTPError(
-                        400, log_message="Script does not have a current revision"
-                    )
+                if not script or not script.current_revision:
+                    return await method(self, *args, **kwargs)
+
+                revision: ScriptRevision = session.get(
+                    ScriptRevision, script.current_revision
+                )
 
                 current_revision_id = revision.id
 

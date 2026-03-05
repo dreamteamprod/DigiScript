@@ -152,10 +152,10 @@ describe('ScriptDocProvider', () => {
       expect(provider.applyAwareness({ payload: 'dA==' })).toBe(false);
     });
 
-    it('returns true when payload is missing', () => {
+    it('returns false when payload is missing', () => {
       const { provider } = makeProvider();
       provider._connected = true;
-      expect(provider.applyAwareness({})).toBe(true);
+      expect(provider.applyAwareness({})).toBe(false);
     });
 
     it('decodes payload and returns AWARENESS result', () => {
