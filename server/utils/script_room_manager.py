@@ -561,7 +561,9 @@ class RoomManager:
                 )
                 await self._delete_draft(draft.revision_id)
             else:
-                get_logger().warning("discard_room called with no room and no active draft")
+                get_logger().warning(
+                    "discard_room called with no room and no active draft"
+                )
 
     async def discard_active_room(self):
         """Discard the active draft without a WebSocket context (HTTP DELETE endpoint).

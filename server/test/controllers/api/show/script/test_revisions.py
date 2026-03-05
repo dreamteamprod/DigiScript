@@ -202,7 +202,6 @@ class TestScriptRevisionCreate(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-
         # Create a new revision - this triggers the max query
         response = self.fetch(
             "/api/v1/show/script/revisions",
@@ -292,7 +291,6 @@ class TestScriptRevisionDelete(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-
         # Delete revision 2 - this triggers the "find revision 1" fallback query
         response = self.fetch(
             f"/api/v1/show/script/revisions?rev_id={self.revision2_id}",
@@ -365,7 +363,6 @@ class TestRevisionDeletionWithLines(DigiScriptTestCase):
         self.token = self._app.jwt_service.create_access_token(
             data={"user_id": self.user_id}
         )
-
 
     def test_delete_revision_with_multiple_lines(self):
         """Test deleting a revision that has multiple script lines.
@@ -739,7 +736,6 @@ class TestScriptRevisionBranching(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-
     def test_create_revision_from_current_revision_default_behavior(self):
         """Test creating a revision without specifying parent (backward compatibility).
 
@@ -947,7 +943,6 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
         self.token = self._app.jwt_service.create_access_token(
             data={"user_id": self.user_id}
         )
-
 
     def test_branch_copies_associations_from_parent_not_current(self):
         """Test that branching copies associations from parent, not current revision.
@@ -1232,7 +1227,6 @@ class TestScriptRevisionDeletionTreeIntegrity(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-
     def test_delete_middle_revision_updates_children(self):
         """Test deleting B in chain A→B→C updates C to point to A.
 
@@ -1363,7 +1357,6 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-
     def test_get_revisions_annotates_has_draft(self):
         """GET /revisions annotates each revision with has_draft from DB draft record."""
         with self._app.get_db().sessionmaker() as session:
@@ -1384,7 +1377,6 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
         self.assertFalse(
             rev2["has_draft"], "Revision without draft should have has_draft=False"
         )
-
 
     def test_get_revisions_annotates_has_draft_via_room(self):
         """GET /revisions sets has_draft=True for revision whose room is active."""
