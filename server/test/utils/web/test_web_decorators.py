@@ -101,7 +101,7 @@ class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
         mock_room = MagicMock()
         mock_room.is_empty = False
         mock_manager = MagicMock()
-        mock_manager.get_room.return_value = mock_room
+        mock_manager.get_active_room.return_value = mock_room
         self._app.room_manager = mock_manager
 
         try:
@@ -121,7 +121,7 @@ class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
         mock_room = MagicMock()
         mock_room.is_empty = True
         mock_manager = MagicMock()
-        mock_manager.get_room.return_value = mock_room
+        mock_manager.get_active_room.return_value = mock_room
         self._app.room_manager = mock_manager
 
         try:

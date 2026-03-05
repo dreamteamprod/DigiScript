@@ -84,7 +84,7 @@ def no_active_script_draft(
 
                 room_manager = getattr(self.application, "room_manager", None)
                 if room_manager:
-                    room = room_manager.get_room(current_revision_id)
+                    room = room_manager.get_active_room()
                     if room and not room.is_empty:
                         self.set_status(409)
                         await self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})

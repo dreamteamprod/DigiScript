@@ -263,7 +263,7 @@ class TestScriptRoomDirtyTracking:
 class TestRoomManagerCloseRoom:
     @pytest.mark.asyncio
     async def test_close_room_evicts_and_notifies(self):
-        """close_room sends ROOM_CLOSED to all clients, stops observing, removes room."""
+        """close_active_room sends ROOM_CLOSED to all clients, stops observing, removes room."""
         room = _make_room(revision_id=42)
         room.start_observing()
         ws1 = _make_mock_ws()
@@ -275,7 +275,7 @@ class TestRoomManagerCloseRoom:
         manager = RoomManager.__new__(RoomManager)
         manager._room = room
 
-        await manager.close_room(42)
+        await manager.close_active_room()
 
         # Room should be removed
         assert manager._room is None
@@ -297,7 +297,7 @@ class TestRoomManagerCloseRoom:
         manager = RoomManager.__new__(RoomManager)
         manager._room = None
 
-        await manager.close_room(999)  # Should not raise
+        await manager.close_active_room()  # Should not raise
 
     @pytest.mark.asyncio
     async def test_close_room_handles_failed_write(self):
@@ -312,21 +312,23 @@ class TestRoomManagerCloseRoom:
         manager = RoomManager.__new__(RoomManager)
         manager._room = room
 
-        await manager.close_room(7)
+        await manager.close_active_room()
 
         assert manager._room is None
         # The healthy client still receives the message
         ws_ok.write_message.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_room_returns_none_for_wrong_revision(self):
-        """get_room returns None when the active room belongs to a different revision."""
+    async def test_get_active_room_returns_room(self):
+        """get_active_room returns the active room or None."""
         room = _make_room(revision_id=42)
         manager = RoomManager.__new__(RoomManager)
         manager._room = room
 
-        assert manager.get_room(42) is room
-        assert manager.get_room(99) is None
+        assert manager.get_active_room() is room
+
+        manager._room = None
+        assert manager.get_active_room() is None
 
     @pytest.mark.asyncio
     async def test_close_active_room_noop_when_no_room(self):

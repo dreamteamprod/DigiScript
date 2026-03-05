@@ -52,6 +52,10 @@ class ScriptRoom:
     """
 
     def __init__(self, revision_id: int, doc: pycrdt.Doc):
+        """
+        :param revision_id: The script revision this room belongs to.
+        :param doc: The pycrdt Y.Doc holding the shared document state.
+        """
         self.revision_id = revision_id
         self.doc = doc
         self.clients: dict[WebSocketHandler, str] = {}  # ws -> role
@@ -64,12 +68,10 @@ class ScriptRoom:
         self._trace_deleted_sub = None
 
     def start_observing(self):
-        """Start observing doc changes to track dirty state and emit trace logs."""
         self._doc_subscription = self.doc.observe(self._on_doc_update)
         self._trace_pages_sub, self._trace_deleted_sub = attach_trace_observers(self)
 
     def stop_observing(self):
-        """Stop observing doc changes."""
         if self._doc_subscription is not None:
             del self._doc_subscription
             self._doc_subscription = None
@@ -81,16 +83,11 @@ class ScriptRoom:
             self._trace_deleted_sub = None
 
     def _on_doc_update(self, event):
-        """Called when the Y.Doc is modified."""
         self._dirty = True
         self.last_activity = time.monotonic()
 
     def add_client(self, ws: WebSocketHandler, role: str = "editor"):
-        """Add a WebSocket client to this room.
-
-        :param ws: The WebSocket handler.
-        :param role: 'editor' or 'viewer'.
-        """
+        """Add a WebSocket client to this room."""
         self.clients[ws] = role
         self.last_activity = time.monotonic()
         get_logger().info(
@@ -99,10 +96,7 @@ class ScriptRoom:
         )
 
     def remove_client(self, ws: WebSocketHandler):
-        """Remove a WebSocket client from this room.
-
-        :param ws: The WebSocket handler to remove.
-        """
+        """Remove a WebSocket client from this room."""
         self.clients.pop(ws, None)
         get_logger().info(
             f"Client left room for revision {self.revision_id} "
@@ -344,46 +338,29 @@ class ScriptRoom:
             self.doc.apply_update(update)
 
     def get_sync_state(self) -> bytes:
-        """Get the full document state for initial sync.
-
-        :returns: The complete Y.Doc state as bytes.
-        """
         return self.doc.get_update()
 
     def get_state_vector(self) -> bytes:
-        """Get the state vector for incremental sync.
-
-        :returns: The state vector as bytes.
-        """
         return self.doc.get_state()
 
     def get_update_for(self, state_vector: bytes) -> bytes:
-        """Get a diff update for a client with the given state vector.
-
-        :param state_vector: The client's state vector.
-        :returns: The diff update as bytes.
-        """
         return self.doc.get_update(state_vector)
 
     @property
     def has_editors(self) -> bool:
-        """Whether the room has any connected editor clients."""
         return any(role == "editor" for role in self.clients.values())
 
     @property
     def is_empty(self) -> bool:
-        """Whether the room has no connected clients."""
         return len(self.clients) == 0
 
     @property
     def needs_checkpoint(self) -> bool:
-        """Whether the room needs a checkpoint to disk."""
         return self._dirty and (
             time.monotonic() - self._last_checkpoint > CHECKPOINT_INTERVAL
         )
 
     def mark_checkpointed(self):
-        """Mark the room as having been checkpointed."""
         self._dirty = False
         self._last_checkpoint = time.monotonic()
 
@@ -405,11 +382,9 @@ class RoomManager:
         self._maintenance_handle = None
 
     def start(self):
-        """Start the periodic checkpoint loop."""
         self._schedule_maintenance()
 
     def stop(self):
-        """Stop the maintenance loop and clean up the active room."""
         if self._maintenance_handle is not None:
             IOLoop.current().remove_timeout(self._maintenance_handle)
             self._maintenance_handle = None
@@ -419,13 +394,11 @@ class RoomManager:
             self._room = None
 
     def _schedule_maintenance(self):
-        """Schedule the next maintenance cycle."""
         self._maintenance_handle = IOLoop.current().call_later(
             CHECKPOINT_INTERVAL, self._run_maintenance
         )
 
     async def _run_maintenance(self):
-        """Run periodic maintenance: checkpoint dirty rooms."""
         try:
             if self._room and self._room.needs_checkpoint:
                 await self._checkpoint_room(self._room)
@@ -472,15 +445,9 @@ class RoomManager:
         get_logger().info(f"Created room for revision {revision_id}")
         return room
 
-    def get_room(self, revision_id: int) -> ScriptRoom | None:
-        """Get the active room if it matches the given revision.
-
-        :param revision_id: The script revision ID.
-        :returns: The ScriptRoom if it exists for this revision, else None.
-        """
-        return (
-            self._room if self._room and self._room.revision_id == revision_id else None
-        )
+    def get_active_room(self) -> ScriptRoom | None:
+        """Get the active room, if any."""
+        return self._room
 
     def get_room_for_client(self, ws: WebSocketHandler) -> ScriptRoom | None:
         """Find the room that a WebSocket client belongs to.
@@ -568,43 +535,49 @@ class RoomManager:
             partial(CompiledScript.compile_script, self._application, room.revision_id)
         )
 
-    async def discard_room(self, ws: WebSocketHandler, revision_id: int | None = None):
+    async def discard_room(self, ws: WebSocketHandler):
         """Discard the draft for the room that *ws* belongs to.
 
         Deletes the draft file and DB record, then closes the room so all
         clients receive ``ROOM_CLOSED`` and revert to the saved script.
 
         If the room is no longer active (e.g. the last editor already stopped
-        editing and the room was closed), *revision_id* is used as a fallback
-        to delete the draft directly.
+        editing and the room was closed), derives the revision_id from the
+        active draft in the database.
 
         :param ws: The WebSocket handler that requested the discard.
-        :param revision_id: Fallback revision ID when no active room exists.
         """
         room = self.get_room_for_client(ws)
         if room is not None:
             revision_id = room.revision_id
             await self._delete_draft(revision_id)
-            await self.close_room(revision_id)
-        elif revision_id is not None:
-            # Room was already closed (last editor stopped before discard was confirmed)
-            get_logger().info(
-                f"Discarding draft for revision {revision_id} (no active room)"
-            )
-            await self._delete_draft(revision_id)
+            await self.close_active_room()
         else:
-            get_logger().warning("discard_room called with no room and no revision_id")
+            with self._application.get_db().sessionmaker() as session:
+                draft = session.scalar(select(ScriptDraft))
+            if draft is not None:
+                get_logger().info(
+                    f"Discarding draft for revision {draft.revision_id} (no active room)"
+                )
+                await self._delete_draft(draft.revision_id)
+            else:
+                get_logger().warning("discard_room called with no room and no active draft")
 
-    async def discard_room_by_revision(self, revision_id: int):
-        """Discard the draft for a revision by ID, without a WebSocket context.
+    async def discard_active_room(self):
+        """Discard the active draft without a WebSocket context (HTTP DELETE endpoint).
 
         Deletes the draft file and DB record, then closes the room so all
         clients receive ``ROOM_CLOSED`` and revert to the saved script.
-
-        :param revision_id: The script revision whose draft to discard.
         """
-        await self._delete_draft(revision_id)
-        await self.close_room(revision_id)
+        if self._room is not None:
+            revision_id = self._room.revision_id
+        else:
+            with self._application.get_db().sessionmaker() as session:
+                draft = session.scalar(select(ScriptDraft))
+            revision_id = draft.revision_id if draft else None
+        if revision_id is not None:
+            await self._delete_draft(revision_id)
+        await self.close_active_room()
 
     async def close_active_room(self):
         """Checkpoint if dirty, broadcast ROOM_CLOSED, and tear down the active room.
@@ -630,22 +603,12 @@ class RoomManager:
         self._room = None
         get_logger().info(f"Closed active room for revision {room.revision_id}")
 
-    async def has_unsaved_changes(self, revision_id: int) -> bool:
-        """Return True if there are unsaved changes for the given revision.
-
-        Checks the in-memory room's dirty flag first, then falls back to
-        querying the database for a persisted draft record.
-
-        :param revision_id: The script revision ID to check.
-        :returns: True if an unsaved draft exists (in-memory or on disk).
-        """
-        room = self.get_room(revision_id)
-        if room and room._dirty:
+    async def has_unsaved_changes(self) -> bool:
+        """Return True if there are unsaved changes for the active revision."""
+        if self._room and self._room._dirty:
             return True
         with self._application.get_db().sessionmaker() as session:
-            draft = session.scalar(
-                select(ScriptDraft).where(ScriptDraft.revision_id == revision_id)
-            )
+            draft = session.scalar(select(ScriptDraft))
             return draft is not None
 
     async def _delete_draft(self, revision_id: int):
@@ -778,30 +741,6 @@ class RoomManager:
             get_logger().debug(f"Checkpointed room {room.revision_id} to {draft_path}")
         except Exception:
             get_logger().exception(f"Failed to checkpoint room {room.revision_id}")
-
-    async def close_room(self, revision_id: int):
-        """Close a room: notify all remaining viewers and evict.
-
-        Called when the last editor leaves or disconnects. Sends
-        ``ROOM_CLOSED`` to every remaining client so they can revert
-        to the saved script, then tears down the room.
-
-        :param revision_id: The revision ID of the room to close.
-        """
-        room = self.get_room(revision_id)
-        if room is None:
-            return
-
-        message = {"OP": "NOOP", "ACTION": "ROOM_CLOSED", "DATA": {}}
-        for ws in list(room.clients.keys()):
-            try:
-                await ws.write_message(message)
-            except Exception:
-                pass
-
-        room.stop_observing()
-        self._room = None
-        get_logger().info(f"Closed room for revision {revision_id}")
 
     def _get_draft_path(self, revision_id: int) -> str:
         """Get the filesystem path for a draft file.

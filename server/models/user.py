@@ -80,8 +80,6 @@ class UserSettings(db.Model):
     __tablename__ = "user_settings"
 
     # User editable settings
-    enable_script_auto_save: Mapped[bool | None] = mapped_column(default=True)
-    script_auto_save_interval: Mapped[int | None] = mapped_column(default=10)
     cue_position_right: Mapped[bool | None] = mapped_column(default=False)
     script_text_alignment: Mapped[TextAlignment] = mapped_column(
         TextAlignmentCol, default=TextAlignment.CENTER

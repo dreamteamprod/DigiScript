@@ -638,7 +638,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
         # Make a modification to mark the doc dirty
-        room = self._app.room_manager.get_room(self.revision_id)
+        room = self._app.room_manager.get_active_room()
         meta = room.doc.get("meta", type=pycrdt.Map)
         meta["test_dirty"] = "value"
 
@@ -662,7 +662,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             self.assertIsNotNone(draft.data_path)
 
         # Verify room was evicted
-        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
         ws.close()
 
@@ -710,7 +710,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
         # Verify room exists
-        self.assertIsNotNone(self._app.room_manager.get_room(self.revision_id))
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
 
         # Stop editing (last editor)
         await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
@@ -726,7 +726,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # Room should be evicted
-        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
         ws.close()
 
@@ -778,7 +778,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws2.read_message()
 
         # Room should still exist with the second editor
-        room = self._app.room_manager.get_room(self.revision_id)
+        room = self._app.room_manager.get_active_room()
         self.assertIsNotNone(room)
         self.assertTrue(room.has_editors)
 
@@ -834,7 +834,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         self.assertIn("GET_SCRIPT_CONFIG_STATUS", received_actions)
 
         # Room should be evicted
-        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
         ws_viewer.close()
 
@@ -888,7 +888,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
         # Patch the room's save_draft to raise
-        room = self._app.room_manager.get_room(self.revision_id)
+        room = self._app.room_manager.get_active_room()
 
         async def _raise_save_error(session):
             raise ValueError("Simulated save failure")
@@ -923,7 +923,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
-        self.assertIsNotNone(self._app.room_manager.get_room(self.revision_id))
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
 
         await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
 
@@ -934,7 +934,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         self.assertEqual({}, response_data["DATA"])
 
         # Room should be evicted after discard
-        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
         ws.close()
 
@@ -961,7 +961,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
         # Confirm the room starts clean (no Y.Doc mutations yet)
-        room = self._app.room_manager.get_room(self.revision_id)
+        room = self._app.room_manager.get_active_room()
         self.assertFalse(room._dirty)
 
         # Stop editing (last editor) with a clean room
@@ -978,7 +978,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             self.assertIsNone(draft)
 
         # Room should still be evicted
-        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
         ws.close()
 
@@ -1001,7 +1001,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
         # Mutate the Y.Doc to mark it dirty
-        room = self._app.room_manager.get_room(self.revision_id)
+        room = self._app.room_manager.get_active_room()
         meta = room.doc.get("meta", type=pycrdt.Map)
         meta["dirty_marker"] = "unsaved"
         self.assertTrue(room._dirty)
@@ -1021,7 +1021,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             self.assertIsNotNone(draft.data_path)
 
         # Room should be evicted
-        self.assertIsNone(self._app.room_manager.get_room(self.revision_id))
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
 
 class TestLiveSessionGuards(DigiScriptTestCase):

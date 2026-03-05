@@ -42,14 +42,14 @@
             <template v-if="IS_CURRENT_EDITOR">
               <b-button
                 variant="warning"
-                :disabled="savingInProgress || isAutoSaving || IS_DRAFT_SAVING"
+                :disabled="savingInProgress || IS_DRAFT_SAVING"
                 @click="stopEditing"
               >
                 Stop Editing
               </b-button>
               <b-button
                 variant="success"
-                :disabled="(!canSave && !isAutoSaving) || IS_DRAFT_SAVING"
+                :disabled="!canSave || IS_DRAFT_SAVING"
                 @click="saveScript"
               >
                 {{ IS_DRAFT_SAVING ? 'Saving...' : 'Save' }}
@@ -62,16 +62,10 @@
               </span>
             </template>
             <template v-if="IS_CURRENT_CUTTER">
-              <b-button
-                variant="warning"
-                :disabled="savingInProgress || isAutoSaving"
-                @click="stopEditing"
-              >
+              <b-button variant="warning" :disabled="savingInProgress" @click="stopEditing">
                 Stop Cuts
               </b-button>
-              <b-button variant="success" :disabled="!canSave && !isAutoSaving" @click="saveScript">
-                Save
-              </b-button>
+              <b-button variant="success" :disabled="!canSave" @click="saveScript"> Save </b-button>
             </template>
           </b-button-group>
         </b-col>
@@ -315,8 +309,6 @@ export default {
       dataLoaded: false,
       latestAddedLine: null,
       linePartCuts: [],
-      autoSaveInterval: null,
-      isAutoSaving: false,
       navbarHeight: 0,
       ydocObserverCleanup: null,
       localPageScript: [],
@@ -402,7 +394,6 @@ export default {
       'STAGE_DIRECTION_STYLES',
       'CURRENT_USER',
       'STAGE_DIRECTION_STYLE_OVERRIDES',
-      'USER_SETTINGS',
       'IS_SCRIPT_EDITOR',
       'CURRENT_REVISION',
       'IS_DRAFT_ACTIVE',
@@ -424,11 +415,7 @@ export default {
     currentEditPage(val) {
       localStorage.setItem('scriptEditPage', val);
     },
-    USER_SETTINGS() {
-      this.setupAutoSave();
-    },
     IS_CURRENT_EDITOR(isEditor) {
-      this.setupAutoSave();
       if (isEditor && this.CURRENT_REVISION && !this.IS_DRAFT_ACTIVE) {
         this.JOIN_DRAFT_ROOM({ role: 'editor' });
       }
@@ -540,9 +527,6 @@ export default {
   },
   destroyed() {
     window.removeEventListener('resize', this.calculateNavbarHeight);
-    if (this.autoSaveInterval != null) {
-      clearInterval(this.autoSaveInterval);
-    }
     this.teardownYDocBridge();
     this.LEAVE_DRAFT_ROOM();
   },
@@ -584,6 +568,8 @@ export default {
       if (response.ok) {
         await this.GET_SCRIPT_CONFIG_STATUS();
         this.requestEdit();
+      } else {
+        log.error('Failed to discard draft');
       }
     },
     async confirmDiscardDraft() {
@@ -592,12 +578,10 @@ export default {
         { okVariant: 'danger', okTitle: 'Discard Draft' }
       );
       if (confirmed) {
-        this.$socket.sendObj({
-          OP: 'DISCARD_SCRIPT_DRAFT',
-          DATA: {},
-        });
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        await this.GET_SCRIPT_CONFIG_STATUS();
+        const response = await fetch(makeURL('/api/v1/show/script/draft'), { method: 'DELETE' });
+        if (response.ok) {
+          await this.GET_SCRIPT_CONFIG_STATUS();
+        }
       }
     },
     requestCutEdit() {
@@ -841,34 +825,6 @@ export default {
       this.currentEditPage = pageNo;
       await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
     },
-    setupAutoSave() {
-      const autoSaveInterval = Math.max(
-        this.USER_SETTINGS.script_auto_save_interval * 1000 * 60,
-        1000 * 60
-      );
-      if (!this.IS_CURRENT_EDITOR && this.autoSaveInterval != null) {
-        clearInterval(this.autoSaveInterval);
-      } else if (this.IS_CURRENT_EDITOR) {
-        if (this.USER_SETTINGS.enable_script_auto_save) {
-          if (this.autoSaveInterval == null) {
-            this.autoSaveInterval = setInterval(this.autosave, autoSaveInterval);
-          } else {
-            clearInterval(this.autoSaveInterval);
-            this.autoSaveInterval = setInterval(this.autosave, autoSaveInterval);
-          }
-        } else if (this.autoSaveInterval != null) {
-          clearInterval(this.autoSaveInterval);
-        }
-      }
-    },
-    async autosave() {
-      if (this.isAutoSaving) return;
-      // Collab mode: trigger server-side save (progress shown via isSaving watcher)
-      if (this.IS_DRAFT_ACTIVE) {
-        this.$socket.sendObj({ OP: 'SAVE_SCRIPT_DRAFT', DATA: {} });
-        return;
-      }
-    },
     /**
      * Convert a Y.Map line to a plain JS object safe for Vue 2 reactive state.
      * Y.Maps must never be stored directly in reactive data — Vue 2 walks their
@@ -935,12 +891,10 @@ export default {
       // Populate localPageScript from current Y.Doc state
       this._syncLocalPageScript();
 
-      // If there's already a saved draft, mark as having unsaved changes
       if (this.HAS_DRAFT) {
         this.$store.commit('SET_DRAFT_DIRTY', true);
       }
 
-      // Observe all changes — rebuild localPageScript and mark dirty
       const observer = () => {
         this._syncLocalPageScript();
         this.$store.commit('SET_DRAFT_DIRTY', true);
@@ -951,9 +905,6 @@ export default {
 
       log.info('ScriptEditor: Y.Doc bridge established');
     },
-    /**
-     * Remove the Y.Doc observer and clear the local page cache.
-     */
     teardownYDocBridge() {
       if (this.ydocObserverCleanup) {
         this.ydocObserverCleanup();

@@ -38,7 +38,6 @@ export default {
     savePage: 0,
     saveTotalPages: 0,
   },
-
   mutations: {
     SET_DRAFT_ROOM(state) {
       state.isRoomActive = true;
@@ -94,7 +93,6 @@ export default {
       _provider = null;
     },
   },
-
   actions: {
     async JOIN_DRAFT_ROOM(context, { role = 'editor' } = {}) {
       // Leave existing room first
@@ -224,7 +222,6 @@ export default {
       log.error('Collab error received:', message.DATA?.error);
     },
   },
-
   getters: {
     IS_DRAFT_ACTIVE(state) {
       return state.isRoomActive && state.isConnected;

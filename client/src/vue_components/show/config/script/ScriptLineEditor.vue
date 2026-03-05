@@ -234,12 +234,9 @@ export default {
       }
       const validActs = [];
       let nextAct = startAct;
-      let loopCount = 0;
       // Find all valid acts, if there is no next line then this is all acts after the start act.
       // If there is a next line, this is all acts up to and including the act of the next line
       while (nextAct != null) {
-        loopCount++;
-        if (loopCount > this.acts.length) break;
         validActs.push(JSON.parse(JSON.stringify(nextAct)));
         if (this.nextLine != null && this.nextLine.act_id === nextAct.id) {
           break;
@@ -267,13 +264,10 @@ export default {
       }
       const validScenes = [];
       let nextScene = startScene;
-      let loopCount = 0;
       // Find all valid scenes, if there is no next line then this is all scenes after the start
       // scene. If there is a next line, this is all scenes up to and including the scene of the
       // next line
       while (nextScene != null) {
-        loopCount++;
-        if (loopCount > scenes.length) break;
         validScenes.push(JSON.parse(JSON.stringify(nextScene)));
         if (this.nextLine != null && this.nextLine.scene_id === nextScene.id) {
           break;
@@ -331,7 +325,6 @@ export default {
     },
     /**
      * Called on dropdown changes and when child ScriptLinePart emits input.
-     * In collab mode, writes line-level fields to Y.Map.
      */
     stateChange() {
       this.$v.state.$touch();

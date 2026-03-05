@@ -54,9 +54,7 @@ class ScriptStatusController(BaseAPIController):
                     if script and script.current_revision:
                         room_manager = getattr(self.application, "room_manager", None)
                         if room_manager:
-                            has_draft = await room_manager.has_unsaved_changes(
-                                script.current_revision
-                            )
+                            has_draft = await room_manager.has_unsaved_changes()
 
             data = {
                 "editors": editors,

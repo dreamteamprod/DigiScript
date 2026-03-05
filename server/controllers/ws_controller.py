@@ -111,7 +111,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         if room._dirty:
                             await rm._checkpoint_room(room)
                             await app.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
-                        await rm.close_room(room.revision_id)
+                        await rm.close_active_room()
 
                 IOLoop.current().add_callback(_broadcast)
 
@@ -262,7 +262,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
             return
 
-        # Handle collaborative editing operations (Yjs sync protocol)
+        # Handle script room and collaborative editing operations
         if ws_op in (
             "JOIN_SCRIPT_ROOM",
             "LEAVE_SCRIPT_ROOM",
@@ -271,8 +271,11 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             "YJS_AWARENESS",
             "SAVE_SCRIPT_DRAFT",
             "DISCARD_SCRIPT_DRAFT",
+            "REQUEST_SCRIPT_EDIT",
+            "REQUEST_SCRIPT_CUTS",
+            "STOP_SCRIPT_EDIT",
         ):
-            await self._handle_collab_op(ws_op, message)
+            await self._handle_script_room_op(ws_op, message)
             return
 
         with self.make_session() as session:
@@ -337,178 +340,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     session.commit()
                     await self.application.ws_send_to_all(
                         "NOOP", "GET_SHOW_SESSION_DATA", {}
-                    )
-            elif ws_op == "REQUEST_SCRIPT_EDIT":
-                # Guard: blocked during a live show session
-                if show and show.current_session_id:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
-                        }
-                    )
-                    return
-                # RBAC: require admin or Script WRITE role
-                if self.current_user_id:
-                    user = session.get(User, self.current_user_id)
-                else:
-                    user = None
-                if not user or (
-                    not user.is_admin
-                    and (
-                        not show
-                        or not self.application.rbac.has_role(user, show, Role.WRITE)
-                    )
-                ):
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": "Insufficient permissions"},
-                        }
-                    )
-                    return
-
-                # Mutual exclusion: blocked by cutters
-                cutters = session.scalars(
-                    select(Session).where(Session.is_cutting)
-                ).all()
-                if cutters:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_CUTTER},
-                        }
-                    )
-                    return
-
-                entry.is_editor = True
-                session.commit()
-
-                # Upgrade room role if already in a room
-                room_manager = getattr(self.application, "room_manager", None)
-                if room_manager:
-                    room = room_manager.get_room_for_client(self)
-                    if room:
-                        room.add_client(self, "editor")
-                        await room.broadcast_members(session)
-
-                await self.application.ws_send_to_all(
-                    "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
-                )
-            elif ws_op == "REQUEST_SCRIPT_CUTS":
-                # Guard: blocked during a live show session
-                if show and show.current_session_id:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
-                        }
-                    )
-                    return
-                # RBAC: require admin or Script WRITE role
-                if self.current_user_id:
-                    user = session.get(User, self.current_user_id)
-                else:
-                    user = None
-                if not user or (
-                    not user.is_admin
-                    and (
-                        not show
-                        or not self.application.rbac.has_role(user, show, Role.WRITE)
-                    )
-                ):
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": "Insufficient permissions"},
-                        }
-                    )
-                    return
-
-                # Mutual exclusion: blocked by other cutters
-                cutters = session.scalars(
-                    select(Session).where(
-                        Session.is_cutting,
-                        Session.internal_id != self.__getattribute__("internal_id"),
-                    )
-                ).all()
-                if cutters:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_CUTTER},
-                        }
-                    )
-                    return
-
-                # Mutual exclusion: blocked by editors
-                editors = session.scalars(
-                    select(Session).where(Session.is_editor)
-                ).all()
-                if editors:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_EDITOR},
-                        }
-                    )
-                    return
-
-                # Mutual exclusion: blocked by unsaved draft
-                if show:
-                    script = session.scalar(
-                        select(Script).where(Script.show_id == show.id)
-                    )
-                    if script and script.current_revision:
-                        room_manager = getattr(self.application, "room_manager", None)
-                        if room_manager and await room_manager.has_unsaved_changes(
-                            script.current_revision
-                        ):
-                            await self.write_message(
-                                {
-                                    "OP": "NOOP",
-                                    "ACTION": "REQUEST_EDIT_FAILURE",
-                                    "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_DRAFT},
-                                }
-                            )
-                            return
-
-                entry.is_cutting = True
-                session.commit()
-                await self.application.ws_send_to_all(
-                    "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
-                )
-            elif ws_op == "STOP_SCRIPT_EDIT":
-                if entry.is_editor or entry.is_cutting:
-                    entry.is_editor = False
-                    entry.is_cutting = False
-                    session.commit()
-
-                    # Downgrade room role to viewer + broadcast
-                    room_manager = getattr(self.application, "room_manager", None)
-                    if room_manager:
-                        room = room_manager.get_room_for_client(self)
-                        if room:
-                            room.add_client(self, "viewer")
-                            await room.broadcast_members(session)
-                            # Checkpoint and close if no editors remain
-                            if not room.has_editors:
-                                if room._dirty:
-                                    await room_manager._checkpoint_room(room)
-                                    await self.application.ws_send_to_all(
-                                        "NOOP", "GET_SCRIPT_REVISIONS", {}
-                                    )
-                                await room_manager.close_room(room.revision_id)
-
-                    await self.application.ws_send_to_all(
-                        "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
                     )
             elif ws_op == "SCRIPT_SCROLL":
                 if show and show.current_session_id:
@@ -606,8 +437,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             show = session.get(Show, current_show_id)
             return bool(show and show.current_session_id)
 
-    async def _handle_collab_op(self, ws_op: str, message: dict):
-        """Handle collaborative editing WebSocket operations.
+    async def _handle_script_room_op(self, ws_op: str, message: dict):
+        """Handle script room and collaborative editing WebSocket operations.
 
         :param ws_op: The operation code.
         :param message: The full parsed message dict.
@@ -619,7 +450,184 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
         data = message.get("DATA", {})
 
-        if ws_op == "JOIN_SCRIPT_ROOM":
+        if ws_op == "REQUEST_SCRIPT_EDIT":
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                current_show_id = await self.application.digi_settings.get(
+                    "current_show"
+                )
+                show = session.get(Show, current_show_id) if current_show_id else None
+
+                if show and show.current_session_id:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                        }
+                    )
+                    return
+
+                user = (
+                    session.get(User, self.current_user_id)
+                    if self.current_user_id
+                    else None
+                )
+                if not user or (
+                    not user.is_admin
+                    and (
+                        not show
+                        or not self.application.rbac.has_role(user, show, Role.WRITE)
+                    )
+                ):
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": "Insufficient permissions"},
+                        }
+                    )
+                    return
+
+                cutters = session.scalars(
+                    select(Session).where(Session.is_cutting)
+                ).all()
+                if cutters:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_CUTTER},
+                        }
+                    )
+                    return
+
+                entry.is_editor = True
+                session.commit()
+
+            room = room_manager.get_room_for_client(self)
+            if room:
+                room.add_client(self, "editor")
+                with self.make_session() as session:
+                    await room.broadcast_members(session)
+
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+        elif ws_op == "REQUEST_SCRIPT_CUTS":
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                current_show_id = await self.application.digi_settings.get(
+                    "current_show"
+                )
+                show = session.get(Show, current_show_id) if current_show_id else None
+
+                if show and show.current_session_id:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                        }
+                    )
+                    return
+
+                user = (
+                    session.get(User, self.current_user_id)
+                    if self.current_user_id
+                    else None
+                )
+                if not user or (
+                    not user.is_admin
+                    and (
+                        not show
+                        or not self.application.rbac.has_role(user, show, Role.WRITE)
+                    )
+                ):
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": "Insufficient permissions"},
+                        }
+                    )
+                    return
+
+                cutters = session.scalars(
+                    select(Session).where(
+                        Session.is_cutting,
+                        Session.internal_id != self.__getattribute__("internal_id"),
+                    )
+                ).all()
+                if cutters:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_CUTTER},
+                        }
+                    )
+                    return
+
+                editors = session.scalars(
+                    select(Session).where(Session.is_editor)
+                ).all()
+                if editors:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_EDITOR},
+                        }
+                    )
+                    return
+
+                if show:
+                    script = session.scalar(
+                        select(Script).where(Script.show_id == show.id)
+                    )
+                    if script and script.current_revision:
+                        if await room_manager.has_unsaved_changes():
+                            await self.write_message(
+                                {
+                                    "OP": "NOOP",
+                                    "ACTION": "REQUEST_EDIT_FAILURE",
+                                    "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_DRAFT},
+                                }
+                            )
+                            return
+
+                entry.is_cutting = True
+                session.commit()
+
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+        elif ws_op == "STOP_SCRIPT_EDIT":
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry and (entry.is_editor or entry.is_cutting):
+                    entry.is_editor = False
+                    entry.is_cutting = False
+                    session.commit()
+
+            room = room_manager.get_room_for_client(self)
+            if room:
+                room.add_client(self, "viewer")
+                with self.make_session() as session:
+                    await room.broadcast_members(session)
+                if not room.has_editors:
+                    if room._dirty:
+                        await room_manager._checkpoint_room(room)
+                        await self.application.ws_send_to_all(
+                            "NOOP", "GET_SCRIPT_REVISIONS", {}
+                        )
+                    await room_manager.close_active_room()
+
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+        elif ws_op == "JOIN_SCRIPT_ROOM":
             # Server-side revision lookup: the client never needs to tell us which
             # revision to join — there is only ever one active revision.
             current_show_id = await self.application.digi_settings.get("current_show")
@@ -698,7 +706,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             await self.application.ws_send_to_all(
                 "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
             )
-
         elif ws_op == "LEAVE_SCRIPT_ROOM":
             room = room_manager.get_room_for_client(self)
             if room:
@@ -709,7 +716,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 await self.application.ws_send_to_all(
                     "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
                 )
-
         elif ws_op == "YJS_SYNC":
             room = room_manager.get_room_for_client(self)
             if not room:
@@ -762,7 +768,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
                 await room.apply_update(decoded)
                 await room.broadcast_update(decoded, sender=self)
-
         elif ws_op == "YJS_UPDATE":
             room = room_manager.get_room_for_client(self)
             if not room:
@@ -791,7 +796,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             )
             await room.apply_update(decoded)
             await room.broadcast_update(decoded, sender=self)
-
         elif ws_op == "YJS_AWARENESS":
             room = room_manager.get_room_for_client(self)
             if not room:
@@ -818,18 +822,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             await room_manager.save_room(self)
             await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
         elif ws_op == "DISCARD_SCRIPT_DRAFT":
-            revision_id = None
-            current_show_id = await self.application.digi_settings.get("current_show")
-            if current_show_id:
-                with self.make_session() as session:
-                    show = session.get(Show, current_show_id)
-                    if show:
-                        script = session.scalar(
-                            select(Script).where(Script.show_id == show.id)
-                        )
-                        if script:
-                            revision_id = script.current_revision
-            await room_manager.discard_room(self, revision_id=revision_id)
+            await room_manager.discard_room(self)
             await self.application.ws_send_to_all(
                 "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
             )

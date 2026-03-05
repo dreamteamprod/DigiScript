@@ -44,8 +44,8 @@ def _revision_is_locked(session, application, rev_id: int) -> bool:
         return True
     room_manager = getattr(application, "room_manager", None)
     if room_manager:
-        room = room_manager.get_room(rev_id)
-        if room and not room.is_empty:
+        room = room_manager.get_active_room()
+        if room and room.revision_id == rev_id and not room.is_empty:
             return True
     return False
 
@@ -381,7 +381,7 @@ class ScriptCurrentRevisionController(BaseAPIController):
 
                 room_manager = getattr(self.application, "room_manager", None)
                 if room_manager:
-                    room = room_manager.get_room(script.current_revision)
+                    room = room_manager.get_active_room()
                     if room and not room.is_empty:
                         self.set_status(409)
                         await self.finish({"message": ERROR_ROOM_OPEN_LOAD})

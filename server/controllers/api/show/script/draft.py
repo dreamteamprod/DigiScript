@@ -16,7 +16,7 @@ class ScriptDraftController(BaseAPIController):
         """Discard the current script draft.
 
         Deletes the draft file and DB record, then closes the room so all
-        connected clients receive ``ROOM_CLOSED`` and revert to the saved
+        connected clients receive ROOM_CLOSED and revert to the saved
         script.
         """
         current_show = self.get_current_show()
@@ -38,11 +38,10 @@ class ScriptDraftController(BaseAPIController):
                 return
 
             self.requires_role(script, Role.WRITE)
-            revision_id = script.current_revision
 
         room_manager = getattr(self.application, "room_manager", None)
-        if room_manager and revision_id:
-            await room_manager.discard_room_by_revision(revision_id)
+        if room_manager:
+            await room_manager.discard_active_room()
 
         await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
         await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})

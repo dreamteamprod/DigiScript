@@ -11,32 +11,6 @@
             <div>
               <b-form-group
                 :label-cols="true"
-                label="Enable Script Autosave"
-                label-for="enable-autosave-input"
-              >
-                <b-form-checkbox
-                  id="enable-autosave-input"
-                  v-model="$v.editSettings.enable_script_auto_save.$model"
-                  name="enable-autosave-input"
-                  :switch="true"
-                />
-              </b-form-group>
-              <b-form-group
-                :label-cols="true"
-                label="Script Autosave Interval"
-                label-for="autosave-interval-input"
-              >
-                <b-form-input
-                  id="autosave-interval-input"
-                  v-model="$v.editSettings.script_auto_save_interval.$model"
-                  name="autosave-interval-input"
-                  type="number"
-                  :number="true"
-                  :state="validateState('script_auto_save_interval')"
-                />
-              </b-form-group>
-              <b-form-group
-                :label-cols="true"
                 label="Display cues on right side"
                 label-for="cue-position-input"
               >
@@ -97,10 +71,9 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { required, integer, minValue } from 'vuelidate/lib/validators';
+import { required, integer } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
-import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { TEXT_ALIGNMENT } from '@/constants/textAlignment';
 
 export default {
@@ -109,8 +82,6 @@ export default {
     return {
       loaded: false,
       editSettings: {
-        enable_script_auto_save: false,
-        script_auto_save_interval: 10,
         cue_position_right: false,
         script_text_alignment: TEXT_ALIGNMENT.CENTER,
         console_log_level: 'WARN',
@@ -141,14 +112,6 @@ export default {
   },
   validations: {
     editSettings: {
-      enable_script_auto_save: {},
-      script_auto_save_interval: {
-        required,
-        integer,
-        notNull,
-        notNullAndGreaterThanZero,
-        minValue: minValue(1),
-      },
       cue_position_right: {},
       script_text_alignment: {
         required,
