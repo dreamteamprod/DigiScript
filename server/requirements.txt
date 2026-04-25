@@ -1,5 +1,5 @@
 tornado==6.5.5
-sqlalchemy>=2.0.0,<2.1.0
+sqlalchemy>=2.0.49,<2.1.0
 datetime==4.9
 python-dateutil==2.9.0.post0
 marshmallow-sqlalchemy>=1.4.0
