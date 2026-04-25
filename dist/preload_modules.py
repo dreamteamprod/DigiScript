@@ -24,10 +24,16 @@ except Exception as e:
     print(f'Error preloading controllers.api: {e}')
 
 try:
-    importlib.import_module('controllers.api.auth')
-    print('Preloaded controllers.api.auth')
+    importlib.import_module('controllers.api.constants')
+    print('Preloaded controllers.api.constants')
 except Exception as e:
-    print(f'Error preloading controllers.api.auth: {e}')
+    print(f'Error preloading controllers.api.constants: {e}')
+
+try:
+    importlib.import_module('controllers.api.health')
+    print('Preloaded controllers.api.health')
+except Exception as e:
+    print(f'Error preloading controllers.api.health: {e}')
 
 try:
     importlib.import_module('controllers.api.rbac')
@@ -42,10 +48,34 @@ except Exception as e:
     print(f'Error preloading controllers.api.settings: {e}')
 
 try:
+    importlib.import_module('controllers.api.version')
+    print('Preloaded controllers.api.version')
+except Exception as e:
+    print(f'Error preloading controllers.api.version: {e}')
+
+try:
     importlib.import_module('controllers.api.websocket')
     print('Preloaded controllers.api.websocket')
 except Exception as e:
     print(f'Error preloading controllers.api.websocket: {e}')
+
+try:
+    importlib.import_module('controllers.api.auth')
+    print('Preloaded controllers.api.auth')
+except Exception as e:
+    print(f'Error preloading controllers.api.auth: {e}')
+
+try:
+    importlib.import_module('controllers.api.auth.token')
+    print('Preloaded controllers.api.auth.token')
+except Exception as e:
+    print(f'Error preloading controllers.api.auth.token: {e}')
+
+try:
+    importlib.import_module('controllers.api.auth.user')
+    print('Preloaded controllers.api.auth.user')
+except Exception as e:
+    print(f'Error preloading controllers.api.auth.user: {e}')
 
 try:
     importlib.import_module('controllers.api.show')
@@ -54,40 +84,16 @@ except Exception as e:
     print(f'Error preloading controllers.api.show: {e}')
 
 try:
-    importlib.import_module('controllers.api.show.cast')
-    print('Preloaded controllers.api.show.cast')
-except Exception as e:
-    print(f'Error preloading controllers.api.show.cast: {e}')
-
-try:
-    importlib.import_module('controllers.api.show.shows')
-    print('Preloaded controllers.api.show.shows')
-except Exception as e:
-    print(f'Error preloading controllers.api.show.shows: {e}')
-
-try:
-    importlib.import_module('controllers.api.show.sessions')
-    print('Preloaded controllers.api.show.sessions')
-except Exception as e:
-    print(f'Error preloading controllers.api.show.sessions: {e}')
-
-try:
-    importlib.import_module('controllers.api.show.microphones')
-    print('Preloaded controllers.api.show.microphones')
-except Exception as e:
-    print(f'Error preloading controllers.api.show.microphones: {e}')
-
-try:
     importlib.import_module('controllers.api.show.acts')
     print('Preloaded controllers.api.show.acts')
 except Exception as e:
     print(f'Error preloading controllers.api.show.acts: {e}')
 
 try:
-    importlib.import_module('controllers.api.show.scenes')
-    print('Preloaded controllers.api.show.scenes')
+    importlib.import_module('controllers.api.show.cast')
+    print('Preloaded controllers.api.show.cast')
 except Exception as e:
-    print(f'Error preloading controllers.api.show.scenes: {e}')
+    print(f'Error preloading controllers.api.show.cast: {e}')
 
 try:
     importlib.import_module('controllers.api.show.characters')
@@ -102,22 +108,40 @@ except Exception as e:
     print(f'Error preloading controllers.api.show.cues: {e}')
 
 try:
+    importlib.import_module('controllers.api.show.microphones')
+    print('Preloaded controllers.api.show.microphones')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.microphones: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.scenes')
+    print('Preloaded controllers.api.show.scenes')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.scenes: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.shows')
+    print('Preloaded controllers.api.show.shows')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.shows: {e}')
+
+try:
     importlib.import_module('controllers.api.show.script')
     print('Preloaded controllers.api.show.script')
 except Exception as e:
     print(f'Error preloading controllers.api.show.script: {e}')
 
 try:
+    importlib.import_module('controllers.api.show.script.compiled')
+    print('Preloaded controllers.api.show.script.compiled')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.script.compiled: {e}')
+
+try:
     importlib.import_module('controllers.api.show.script.config')
     print('Preloaded controllers.api.show.script.config')
 except Exception as e:
     print(f'Error preloading controllers.api.show.script.config: {e}')
-
-try:
-    importlib.import_module('controllers.api.show.script.stage_direction_styles')
-    print('Preloaded controllers.api.show.script.stage_direction_styles')
-except Exception as e:
-    print(f'Error preloading controllers.api.show.script.stage_direction_styles: {e}')
 
 try:
     importlib.import_module('controllers.api.show.script.revisions')
@@ -132,10 +156,82 @@ except Exception as e:
     print(f'Error preloading controllers.api.show.script.script: {e}')
 
 try:
+    importlib.import_module('controllers.api.show.script.stage_direction_styles')
+    print('Preloaded controllers.api.show.script.stage_direction_styles')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.script.stage_direction_styles: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.session')
+    print('Preloaded controllers.api.show.session')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.session: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.session.assign_tags')
+    print('Preloaded controllers.api.show.session.assign_tags')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.session.assign_tags: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.session.sessions')
+    print('Preloaded controllers.api.show.session.sessions')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.session.sessions: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.session.tags')
+    print('Preloaded controllers.api.show.session.tags')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.session.tags: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.stage')
+    print('Preloaded controllers.api.show.stage')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.stage: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.stage.crew')
+    print('Preloaded controllers.api.show.stage.crew')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.stage.crew: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.stage.crew_assignments')
+    print('Preloaded controllers.api.show.stage.crew_assignments')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.stage.crew_assignments: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.stage.helpers')
+    print('Preloaded controllers.api.show.stage.helpers')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.stage.helpers: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.stage.props')
+    print('Preloaded controllers.api.show.stage.props')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.stage.props: {e}')
+
+try:
+    importlib.import_module('controllers.api.show.stage.scenery')
+    print('Preloaded controllers.api.show.stage.scenery')
+except Exception as e:
+    print(f'Error preloading controllers.api.show.stage.scenery: {e}')
+
+try:
     importlib.import_module('controllers.api.user')
     print('Preloaded controllers.api.user')
 except Exception as e:
     print(f'Error preloading controllers.api.user: {e}')
+
+try:
+    importlib.import_module('controllers.api.user.overrides')
+    print('Preloaded controllers.api.user.overrides')
+except Exception as e:
+    print(f'Error preloading controllers.api.user.overrides: {e}')
 
 try:
     importlib.import_module('controllers.api.user.settings')
@@ -145,28 +241,10 @@ except Exception as e:
 
 # Preload all model modules
 try:
-    importlib.import_module('models.user')
-    print('Preloaded models.user')
+    importlib.import_module('models.cue')
+    print('Preloaded models.cue')
 except Exception as e:
-    print(f'Error preloading models.user: {e}')
-
-try:
-    importlib.import_module('models.show')
-    print('Preloaded models.show')
-except Exception as e:
-    print(f'Error preloading models.show: {e}')
-
-try:
-    importlib.import_module('models.models')
-    print('Preloaded models.models')
-except Exception as e:
-    print(f'Error preloading models.models: {e}')
-
-try:
-    importlib.import_module('models.session')
-    print('Preloaded models.session')
-except Exception as e:
-    print(f'Error preloading models.session: {e}')
+    print(f'Error preloading models.cue: {e}')
 
 try:
     importlib.import_module('models.mics')
@@ -175,10 +253,10 @@ except Exception as e:
     print(f'Error preloading models.mics: {e}')
 
 try:
-    importlib.import_module('models.settings')
-    print('Preloaded models.settings')
+    importlib.import_module('models.models')
+    print('Preloaded models.models')
 except Exception as e:
-    print(f'Error preloading models.settings: {e}')
+    print(f'Error preloading models.models: {e}')
 
 try:
     importlib.import_module('models.script')
@@ -187,9 +265,33 @@ except Exception as e:
     print(f'Error preloading models.script: {e}')
 
 try:
-    importlib.import_module('models.cue')
-    print('Preloaded models.cue')
+    importlib.import_module('models.session')
+    print('Preloaded models.session')
 except Exception as e:
-    print(f'Error preloading models.cue: {e}')
+    print(f'Error preloading models.session: {e}')
+
+try:
+    importlib.import_module('models.settings')
+    print('Preloaded models.settings')
+except Exception as e:
+    print(f'Error preloading models.settings: {e}')
+
+try:
+    importlib.import_module('models.show')
+    print('Preloaded models.show')
+except Exception as e:
+    print(f'Error preloading models.show: {e}')
+
+try:
+    importlib.import_module('models.stage')
+    print('Preloaded models.stage')
+except Exception as e:
+    print(f'Error preloading models.stage: {e}')
+
+try:
+    importlib.import_module('models.user')
+    print('Preloaded models.user')
+except Exception as e:
+    print(f'Error preloading models.user: {e}')
 
 print('Module preloading complete.')

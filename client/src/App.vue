@@ -60,6 +60,17 @@
               >
                 Jump To Page
               </b-dropdown-item>
+              <b-dropdown-item-btn
+                :disabled="
+                  CURRENT_SHOW_SESSION == null ||
+                  !WEBSOCKET_HEALTHY ||
+                  stoppingSession ||
+                  startingSession
+                "
+                @click.stop.prevent="SET_STAGE_MANAGER_MODE(!STAGE_MANAGER_MODE)"
+              >
+                {{ STAGE_MANAGER_MODE ? 'Disable' : 'Enable' }} Stage Manager
+              </b-dropdown-item-btn>
             </b-nav-item-dropdown>
           </template>
           <b-nav-item
@@ -162,7 +173,7 @@
 </template>
 
 <script>
-import { mapGetters, mapActions } from 'vuex';
+import { mapGetters, mapActions, mapMutations } from 'vuex';
 import log from 'loglevel';
 import CreateUser from '@/vue_components/user/CreateUser.vue';
 import { makeURL } from '@/js/utils';
@@ -227,6 +238,7 @@ export default {
       'IS_SCRIPT_EDITOR',
       'IS_CUE_READER',
       'IS_CUE_EDITOR',
+      'STAGE_MANAGER_MODE',
     ]),
   },
   async created() {
@@ -285,6 +297,7 @@ export default {
       'CHECK_WEBSOCKET_STATE',
       'GET_USER_SETTINGS',
     ]),
+    ...mapMutations(['SET_STAGE_MANAGER_MODE']),
     isElectron,
     async switchServer() {
       // Clear the active connection and disconnect WebSocket
@@ -311,19 +324,15 @@ export default {
     async awaitWSConnect() {
       if (this.WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer);
-        await this.GET_RBAC_ROLES();
 
-        // Check WebSocket state for any pending operations
-        if (this.WEBSOCKET_HAS_PENDING_OPERATIONS) {
-          await this.CHECK_WEBSOCKET_STATE();
-        }
+        await Promise.all([
+          this.GET_RBAC_ROLES(),
+          this.WEBSOCKET_HAS_PENDING_OPERATIONS ? this.CHECK_WEBSOCKET_STATE() : Promise.resolve(),
+        ]);
 
-        // Check for authentication via token first
         if (this.AUTH_TOKEN) {
-          // Then get user data
           await this.GET_CURRENT_USER();
-          await this.GET_CURRENT_RBAC();
-          await this.GET_USER_SETTINGS();
+          await Promise.all([this.GET_CURRENT_RBAC(), this.GET_USER_SETTINGS()]);
         }
 
         if (this.SETTINGS.current_show != null) {

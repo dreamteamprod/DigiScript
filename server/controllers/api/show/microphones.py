@@ -4,6 +4,16 @@ from typing import Dict, List, Tuple
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import (
+    ERROR_CHARACTER_NOT_FOUND,
+    ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
+    ERROR_MICROPHONE_NOT_FOUND,
+    ERROR_NAME_ALREADY_TAKEN,
+    ERROR_NAME_MISSING,
+    ERROR_SCENE_NOT_FOUND,
+    ERROR_SHOW_NOT_FOUND,
+)
 from models.mics import Microphone, MicrophoneAllocation
 from models.script import Script, ScriptRevision
 from models.show import Act, Character, Scene, Show
@@ -38,7 +48,7 @@ class MicrophoneController(BaseAPIController):
                 self.finish({"microphones": mics})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -55,7 +65,7 @@ class MicrophoneController(BaseAPIController):
                 name: str = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 other_named = session.scalars(
@@ -65,7 +75,7 @@ class MicrophoneController(BaseAPIController):
                 ).first()
                 if other_named:
                     self.set_status(400)
-                    await self.finish({"message": "Name already taken"})
+                    await self.finish({"message": ERROR_NAME_ALREADY_TAKEN})
                     return
 
                 description: str = data.get("description", None)
@@ -87,7 +97,7 @@ class MicrophoneController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_MICROPHONE_LIST", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -104,19 +114,19 @@ class MicrophoneController(BaseAPIController):
                 microphone_id = data.get("id", None)
                 if not microphone_id:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 microphone: Microphone = session.get(Microphone, microphone_id)
                 if not microphone:
                     self.set_status(404)
-                    await self.finish({"message": "404 microphone not found"})
+                    await self.finish({"message": ERROR_MICROPHONE_NOT_FOUND})
                     return
 
                 name: str = data.get("name", None)
                 if not name:
                     self.set_status(400)
-                    await self.finish({"message": "Name missing"})
+                    await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
                 other_named = session.scalars(
@@ -128,7 +138,7 @@ class MicrophoneController(BaseAPIController):
                 ).first()
                 if other_named:
                     self.set_status(400)
-                    await self.finish({"message": "Name already taken"})
+                    await self.finish({"message": ERROR_NAME_ALREADY_TAKEN})
                     return
 
                 description: str = data.get("description", None)
@@ -143,7 +153,7 @@ class MicrophoneController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_MICROPHONE_LIST", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -159,14 +169,14 @@ class MicrophoneController(BaseAPIController):
                 microphone_id_str = self.get_argument("id", None)
                 if not microphone_id_str:
                     self.set_status(400)
-                    await self.finish({"message": "ID missing"})
+                    await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
                     microphone_id = int(microphone_id_str)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid ID"})
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry: Microphone = session.get(Microphone, microphone_id)
@@ -182,10 +192,10 @@ class MicrophoneController(BaseAPIController):
                     )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": "404 microphone not found"})
+                    await self.finish({"message": ERROR_MICROPHONE_NOT_FOUND})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 microphone not found"})
+                await self.finish({"message": ERROR_MICROPHONE_NOT_FOUND})
 
 
 @ApiRoute("show/microphones/allocations", ApiVersion.V1)
@@ -213,7 +223,7 @@ class MicrophoneAllocationsController(BaseAPIController):
                 self.finish({"allocations": allocations})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
     @requires_show
     @no_live_session
@@ -231,14 +241,14 @@ class MicrophoneAllocationsController(BaseAPIController):
                     mic = session.get(Microphone, microphone_id)
                     if not mic:
                         self.set_status(404)
-                        await self.finish({"message": "404 microphone not found"})
+                        await self.finish({"message": ERROR_MICROPHONE_NOT_FOUND})
                         return
 
                     for scene_id in data[microphone_id]:
                         scene = session.get(Scene, scene_id)
                         if not scene:
                             self.set_status(404)
-                            await self.finish({"message": "404 scene not found"})
+                            await self.finish({"message": ERROR_SCENE_NOT_FOUND})
                             return
 
                         existing_allocation: MicrophoneAllocation = session.scalars(
@@ -254,7 +264,7 @@ class MicrophoneAllocationsController(BaseAPIController):
                             if not character:
                                 self.set_status(404)
                                 await self.finish(
-                                    {"message": "404 character not found"}
+                                    {"message": ERROR_CHARACTER_NOT_FOUND}
                                 )
                                 return
 
@@ -275,7 +285,7 @@ class MicrophoneAllocationsController(BaseAPIController):
                 await self.application.ws_send_to_all("NOOP", "GET_MIC_ALLOCATIONS", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/microphones/suggest", ApiVersion.V1)
@@ -488,9 +498,11 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
                     ]
                     # Sort by scene position (chronological order)
                     character_scenes.sort(
-                        key=lambda x: scene_metadata[x[0]].position
-                        if x[0] in scene_metadata
-                        else 0
+                        key=lambda x: (
+                            scene_metadata[x[0]].position
+                            if x[0] in scene_metadata
+                            else 0
+                        )
                     )
 
                     # Assign mic for each scene
@@ -579,4 +591,4 @@ class MicrophoneAutoAssignmentController(BaseAPIController):
 
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})

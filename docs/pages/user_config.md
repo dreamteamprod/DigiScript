@@ -4,6 +4,25 @@ The **System Config** section, accessible from the top navigation bar, provides 
 
 ![](../images/config_system/system_overview.png)
 
+### System Tab
+
+The **System** tab provides an overview of the current system state:
+
+- **Current Show**: Displays the currently loaded show name, with buttons to load an existing show or set up a new one.
+- **Connected Clients**: Shows the number of WebSocket clients currently connected to the server. Click "View Clients" to see details about each connected session.
+- **Version**: Displays the current DigiScript version and checks for available updates.
+
+#### Version Checker
+
+The version checker automatically checks for new DigiScript releases when the server starts, and periodically (every hour) thereafter. The version status shows:
+
+- **Current version**: The version of DigiScript currently running
+- **Status badge**: Indicates whether you're up to date (green), an update is available (yellow), or the check failed (red)
+- **Latest version**: When an update is available, shows the newest version number with a link to the release notes
+- **Last checked**: Timestamp of when the version was last checked
+
+Click the **Check Now** button to manually trigger a version check against the GitHub releases.
+
 ### System Settings
 
 The **Settings** tab allows you to configure system-wide settings that apply across all shows:

@@ -62,40 +62,44 @@
       @ok="onSubmitNew"
     >
       <b-form ref="new-character-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="new-name-input-group" label="Name" label-for="new-name-input">
           <b-form-input
-            id="name-input"
+            id="new-name-input"
             v-model="$v.newFormState.name.$model"
-            name="name-input"
-            :state="validateNewState('name')"
-            aria-describedby="name-feedback"
+            name="new-name-input"
+            :state="getValidationState('newFormState', 'name')"
+            aria-describedby="new-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="new-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="new-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="new-description-input"
             v-model="$v.newFormState.description.$model"
-            name="description-input"
-            :state="validateNewState('description')"
+            name="new-description-input"
+            :state="getValidationState('newFormState', 'description')"
           />
         </b-form-group>
-        <b-form-group id="characters-input-group" label="Characters" label-for="characters-input">
+        <b-form-group
+          id="new-characters-input-group"
+          label="Characters"
+          label-for="new-characters-input"
+        >
           <multi-select
-            id="characters-input"
+            id="new-characters-input"
             v-model="tempCharacterList"
-            name="characters-input"
+            name="new-characters-input"
             :multiple="true"
             :options="CHARACTER_LIST"
             track-by="id"
             label="name"
-            :state="validateNewState('characters')"
+            :state="getValidationState('newFormState', 'characters')"
             @input="newSelectChanged"
           />
         </b-form-group>
@@ -111,40 +115,44 @@
       @ok="onSubmitEdit"
     >
       <b-form ref="edit-character-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="edit-name-input-group" label="Name" label-for="edit-name-input">
           <b-form-input
-            id="name-input"
+            id="edit-name-input"
             v-model="$v.editFormState.name.$model"
-            name="name-input"
-            :state="validateEditState('name')"
-            aria-describedby="name-feedback"
+            name="edit-name-input"
+            :state="getValidationState('editFormState', 'name')"
+            aria-describedby="edit-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="edit-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="edit-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="edit-description-input"
             v-model="$v.editFormState.description.$model"
-            name="description-input"
-            :state="validateEditState('description')"
+            name="edit-description-input"
+            :state="getValidationState('editFormState', 'description')"
           />
         </b-form-group>
-        <b-form-group id="characters-input-group" label="Characters" label-for="characters-input">
+        <b-form-group
+          id="edit-characters-input-group"
+          label="Characters"
+          label-for="edit-characters-input"
+        >
           <multi-select
-            id="characters-input"
+            id="edit-characters-input"
             v-model="tempEditCharacterList"
-            name="characters-input"
+            name="edit-characters-input"
             :multiple="true"
             :options="CHARACTER_LIST"
             track-by="id"
             label="name"
-            :state="validateEditState('characters')"
+            :state="getValidationState('editFormState', 'characters')"
             @input="editSelectChanged"
           />
         </b-form-group>
@@ -160,9 +168,11 @@
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'CharacterGroups',
+  mixins: [formValidationMixin],
   data() {
     return {
       loading: true,
@@ -207,8 +217,7 @@ export default {
     ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'IS_SHOW_EDITOR']),
   },
   async mounted() {
-    await this.GET_CHARACTER_LIST();
-    await this.GET_CHARACTER_GROUP_LIST();
+    await Promise.all([this.GET_CHARACTER_LIST(), this.GET_CHARACTER_GROUP_LIST()]);
     this.loading = false;
   },
   methods: {
@@ -217,16 +226,12 @@ export default {
     },
     resetNewForm() {
       this.tempCharacterList = [];
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         description: '',
         characters: [],
-      };
-      this.submittingNewGroup = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.submittingNewGroup = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -246,10 +251,6 @@ export default {
       } finally {
         this.submittingNewGroup = false;
       }
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteCharacterGroup(characterGroup) {
       if (this.deletingGroup) {
@@ -286,19 +287,15 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         name: '',
         description: '',
         characters: [],
-      };
+      });
       this.tempEditCharacterList = [];
       this.submittingEditGroup = false;
       this.deletingGroup = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     editSelectChanged(value, id) {
       this.$v.editFormState.characters.$model = value.map((character) => character.id);
@@ -321,10 +318,6 @@ export default {
       } finally {
         this.submittingEditGroup = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     ...mapActions([
       'GET_CHARACTER_LIST',

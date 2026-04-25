@@ -17,7 +17,15 @@ from tornado_prometheus import PrometheusMixIn
 
 from controllers import controllers
 from controllers.ws_controller import WebSocketController
-from digi_server.logger import configure_db_logging, configure_file_logging, get_logger
+from digi_server.logger import (
+    configure_client_buffer,
+    configure_client_logging,
+    configure_db_logging,
+    configure_file_logging,
+    configure_log_level,
+    configure_server_buffer,
+    get_logger,
+)
 from digi_server.settings import Settings
 from models import models
 from models.cue import CueType
@@ -32,6 +40,7 @@ from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.mdns_service import MDNSAdvertiser
 from utils.module_discovery import get_resource_path, is_frozen
+from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
 from utils.web.route import Route
 
@@ -49,6 +58,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.digi_settings: Settings = Settings(self, settings_path)
         self.app_log_handler = None
         self.db_file_handler = None
+        self.client_file_handler = None
+        self.server_buffer = None
+        self.client_buffer = None
 
         # Controller imports (needed to trigger the decorator)
         controllers.import_all_controllers()
@@ -60,6 +72,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self._db: DigiSQLAlchemy = models.db
         self.jwt_service: JWTService = None
         self.mdns_advertiser: Optional[MDNSAdvertiser] = None
+        self.version_checker: Optional[VersionChecker] = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
         if db_path.startswith("sqlite://"):
@@ -351,6 +364,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
     async def configure(self):
         await self._configure_logging()
         await self.start_mdns_advertising()
+        await self.start_version_checker()
 
     async def _configure_logging(self):
         get_logger().info("Reconfiguring logging!")
@@ -359,23 +373,47 @@ class DigiScriptServer(PrometheusMixIn, Application):
         log_path = await self.digi_settings.get("log_path")
         file_size = await self.digi_settings.get("max_log_mb")
         backups = await self.digi_settings.get("log_backups")
+        log_level = await self.digi_settings.get("log_level")
         if log_path:
             self.app_log_handler = configure_file_logging(
-                log_path, file_size, backups, self.app_log_handler
+                log_path=log_path,
+                max_size_mb=file_size,
+                log_backups=backups,
+                handler=self.app_log_handler,
             )
+        configure_log_level(log_level)
+
+        # Client logging
+        client_log_path = await self.digi_settings.get("client_log_path")
+        client_file_size = await self.digi_settings.get("client_max_log_mb")
+        client_backups = await self.digi_settings.get("client_log_backups")
+        client_log_level = await self.digi_settings.get("client_log_level")
+        self.client_file_handler = configure_client_logging(
+            log_path=client_log_path,
+            max_size_mb=client_file_size,
+            log_backups=client_backups,
+            handler=self.client_file_handler,
+            log_level=client_log_level,
+        )
+
+        # In-memory log buffers (for the log viewer UI)
+        buffer_maxlen = await self.digi_settings.get("log_buffer_size")
+        self.server_buffer = configure_server_buffer(buffer_maxlen)
+        self.client_buffer = configure_client_buffer(buffer_maxlen)
 
         # Database logging
         use_db_logging = await self.digi_settings.get("db_log_enabled")
-        if use_db_logging:
-            db_log_path = await self.digi_settings.get("db_log_path")
-            db_file_size = await self.digi_settings.get("db_max_log_mb")
-            db_backups = await self.digi_settings.get("db_log_backups")
-            self.db_file_handler = configure_db_logging(
-                log_path=db_log_path,
-                max_size_mb=db_file_size,
-                log_backups=db_backups,
-                handler=self.db_file_handler,
-            )
+        db_log_path = await self.digi_settings.get("db_log_path")
+        db_file_size = await self.digi_settings.get("db_max_log_mb")
+        db_backups = await self.digi_settings.get("db_log_backups")
+        self.db_file_handler = configure_db_logging(
+            log_path=db_log_path,
+            max_size_mb=db_file_size,
+            log_backups=db_backups,
+            handler=self.db_file_handler,
+            log_level=log_level,
+            enable_db_logging=use_db_logging,
+        )
 
     def _configure_rbac(self):
         self._db.register_delete_hook(self.rbac.rbac_db.check_object_deletion)
@@ -528,3 +566,16 @@ class DigiScriptServer(PrometheusMixIn, Application):
         else:
             # Stop advertising
             await self.stop_mdns_advertising()
+
+    async def start_version_checker(self) -> None:
+        """Start the version checker service."""
+        if not self.version_checker:
+            self.version_checker = VersionChecker(application=self)
+
+        await self.version_checker.start()
+
+    async def stop_version_checker(self) -> None:
+        """Stop the version checker service if it's running."""
+        if self.version_checker:
+            await self.version_checker.stop()
+            self.version_checker = None

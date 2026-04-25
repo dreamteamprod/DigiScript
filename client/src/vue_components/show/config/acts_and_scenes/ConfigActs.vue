@@ -67,35 +67,39 @@
       @ok="onSubmitNew"
     >
       <b-form ref="new-act-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="new-name-input-group" label="Name" label-for="new-name-input">
           <b-form-input
-            id="name-input"
+            id="new-name-input"
             v-model="$v.newFormState.name.$model"
-            name="name-input"
-            :state="validateNewState('name')"
-            aria-describedby="name-feedback"
+            name="new-name-input"
+            :state="getValidationState('newFormState', 'name')"
+            aria-describedby="new-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="interval-input-group" label="Interval After" label-for="interval-input">
+        <b-form-group
+          id="new-interval-input-group"
+          label="Interval After"
+          label-for="new-interval-input"
+        >
           <b-form-checkbox
-            id="interval-input"
+            id="new-interval-input"
             v-model="newFormState.interval_after"
-            name="interval-input"
+            name="new-interval-input"
           />
         </b-form-group>
         <b-form-group
-          id="previous-act-input-group"
+          id="new-previous-act-input-group"
           label="Previous Act"
-          label-for="previous-act-input"
+          label-for="new-previous-act-input"
         >
           <b-form-select
-            id="previous-act-input"
+            id="new-previous-act-input"
             v-model="newFormState.previous_act_id"
             :options="previousActOptions"
-            aria-describedby="previous-act-feedback"
+            aria-describedby="new-previous-act-feedback"
           />
         </b-form-group>
       </b-form>
@@ -110,38 +114,42 @@
       @ok="onSubmitEdit"
     >
       <b-form ref="edit-act-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="edit-name-input-group" label="Name" label-for="edit-name-input">
           <b-form-input
-            id="name-input"
+            id="edit-name-input"
             v-model="$v.editFormState.name.$model"
-            name="name-input"
-            :state="validateEditState('name')"
-            aria-describedby="name-feedback"
+            name="edit-name-input"
+            :state="getValidationState('editFormState', 'name')"
+            aria-describedby="edit-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="interval-input-group" label="Interval After" label-for="interval-input">
+        <b-form-group
+          id="edit-interval-input-group"
+          label="Interval After"
+          label-for="edit-interval-input"
+        >
           <b-form-checkbox
-            id="interval-input"
+            id="edit-interval-input"
             v-model="editFormState.interval_after"
-            name="interval-input"
+            name="edit-interval-input"
           />
         </b-form-group>
         <b-form-group
-          id="previous-act-input-group"
+          id="edit-previous-act-input-group"
           label="Previous Act"
-          label-for="previous-act-input"
+          label-for="edit-previous-act-input"
         >
           <b-form-select
-            id="previous-act-input"
+            id="edit-previous-act-input"
             v-model="$v.editFormState.previous_act_id.$model"
             :options="editFormActOptions"
-            :state="validateEditState('previous_act_id')"
-            aria-describedby="previous-act-feedback"
+            :state="getValidationState('editFormState', 'previous_act_id')"
+            aria-describedby="edit-previous-act-feedback"
           />
-          <b-form-invalid-feedback id="previous-act-feedback">
+          <b-form-invalid-feedback id="edit-previous-act-feedback">
             This cannot form a circular dependency between acts.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -157,9 +165,11 @@
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'ConfigActs',
+  mixins: [formValidationMixin],
   data() {
     return {
       loading: true,
@@ -263,20 +273,12 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         interval_after: false,
         previous_act_id: null,
-      };
-      this.submittingNewAct = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+      this.submittingNewAct = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -310,19 +312,15 @@ export default {
       }
     },
     resetEditForm() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         showID: null,
         name: '',
         interval_after: false,
         previous_act_id: null,
-      };
+      });
       this.submittingEditAct = false;
       this.deletingAct = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();
@@ -342,10 +340,6 @@ export default {
       } finally {
         this.submittingEditAct = false;
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteAct(act) {
       if (this.deletingAct) {

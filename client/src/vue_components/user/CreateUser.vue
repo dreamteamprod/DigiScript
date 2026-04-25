@@ -15,7 +15,7 @@
         :disabled="isFirstAdmin"
       />
       <b-form-invalid-feedback id="username-feedback">
-        This is a required field.
+        This is a required field and must be a unique username.
       </b-form-invalid-feedback>
     </b-form-group>
     <b-form-group
@@ -64,12 +64,24 @@
 
 <script>
 import { required, minLength, sameAs } from 'vuelidate/lib/validators';
-import { mapActions } from 'vuex';
+import { mapActions, mapGetters } from 'vuex';
+
+function isUsernameUnique(value) {
+  if (value === '') return true;
+  if (this.USERS) {
+    return !this.USERS.map((x) => x.username.toLowerCase()).includes(value.toLowerCase());
+  }
+  return true;
+}
 
 export default {
   name: 'CreateUser',
   props: {
     isFirstAdmin: {
+      type: Boolean,
+      default: false,
+    },
+    isAdmin: {
       type: Boolean,
       default: false,
     },
@@ -80,7 +92,7 @@ export default {
         username: this.isFirstAdmin ? 'admin' : '',
         password: '',
         confirmPassword: '',
-        is_admin: this.isFirstAdmin,
+        is_admin: this.isFirstAdmin || this.isAdmin,
       },
     };
   },
@@ -88,6 +100,7 @@ export default {
     state: {
       username: {
         required,
+        isUsernameUnique,
       },
       password: {
         required,
@@ -103,6 +116,7 @@ export default {
     isDisabled() {
       return Boolean(this.$v.state.$invalid);
     },
+    ...mapGetters(['USERS']),
   },
   methods: {
     validateState(name) {
@@ -115,10 +129,16 @@ export default {
         event.preventDefault();
       } else {
         await this.CREATE_USER(this.state);
+        if (this.isFirstAdmin) {
+          await this.USER_LOGIN({
+            username: this.state.username,
+            password: this.state.password,
+          });
+        }
         this.$emit('created_user');
       }
     },
-    ...mapActions(['CREATE_USER']),
+    ...mapActions(['CREATE_USER', 'USER_LOGIN']),
   },
 };
 </script>

@@ -70,44 +70,44 @@
       @ok="onSubmitNewCueType"
     >
       <b-form ref="new-cue-type-form" @submit.stop.prevent="onSubmitNewCueType">
-        <b-form-group id="prefix-input-group" label="Prefix" label-for="prefix-input">
+        <b-form-group id="new-prefix-input-group" label="Prefix" label-for="new-prefix-input">
           <b-form-input
-            id="prefix-input"
+            id="new-prefix-input"
             v-model="$v.newCueTypeForm.prefix.$model"
-            name="prefix-input"
+            name="new-prefix-input"
             :state="validateNewCueTypeState('prefix')"
-            aria-describedby="prefix-feedback"
+            aria-describedby="new-prefix-feedback"
           />
-          <b-form-invalid-feedback id="prefix-feedback">
+          <b-form-invalid-feedback id="new-prefix-feedback">
             This is a required field and must be 5 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="new-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="new-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="new-description-input"
             v-model="$v.newCueTypeForm.description.$model"
-            name="description-input"
+            name="new-description-input"
             :state="validateNewCueTypeState('description')"
-            aria-describedby="description-feedback"
+            aria-describedby="new-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="new-description-feedback">
             This is a required field and must be 100 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="colour-input-group" label="Colour" label-for="colour-input">
+        <b-form-group id="new-colour-input-group" label="Colour" label-for="new-colour-input">
           <b-form-input
-            id="colour-input"
+            id="new-colour-input"
             v-model="$v.newCueTypeForm.colour.$model"
-            name="colour-input"
+            name="new-colour-input"
             type="color"
             :state="validateNewCueTypeState('colour')"
-            aria-describedby="colour-feedback"
+            aria-describedby="new-colour-feedback"
           />
-          <b-form-invalid-feedback id="colour-feedback">
+          <b-form-invalid-feedback id="new-colour-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -123,44 +123,44 @@
       @ok="onSubmitEditCueType"
     >
       <b-form ref="edit-cue-type-form" @submit.stop.prevent="onSubmitEditCueType">
-        <b-form-group id="prefix-input-group" label="Prefix" label-for="prefix-input">
+        <b-form-group id="edit-prefix-input-group" label="Prefix" label-for="edit-prefix-input">
           <b-form-input
-            id="prefix-input"
+            id="edit-prefix-input"
             v-model="$v.editCueTypeFormState.prefix.$model"
-            name="prefix-input"
+            name="edit-prefix-input"
             :state="validateEditCueTypeState('prefix')"
-            aria-describedby="prefix-feedback"
+            aria-describedby="edit-prefix-feedback"
           />
-          <b-form-invalid-feedback id="prefix-feedback">
+          <b-form-invalid-feedback id="edit-prefix-feedback">
             This is a required field and must be 5 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="description-input-group"
+          id="edit-description-input-group"
           label="Description"
-          label-for="description-input"
+          label-for="edit-description-input"
         >
           <b-form-input
-            id="description-input"
+            id="edit-description-input"
             v-model="$v.editCueTypeFormState.description.$model"
-            name="description-input"
+            name="edit-description-input"
             :state="validateEditCueTypeState('description')"
-            aria-describedby="description-feedback"
+            aria-describedby="edit-description-feedback"
           />
-          <b-form-invalid-feedback id="description-feedback">
+          <b-form-invalid-feedback id="edit-description-feedback">
             This is a required field and must be 100 characters or less.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="colour-input-group" label="Colour" label-for="colour-input">
+        <b-form-group id="edit-colour-input-group" label="Colour" label-for="edit-colour-input">
           <b-form-input
-            id="colour-input"
+            id="edit-colour-input"
             v-model="$v.editCueTypeFormState.colour.$model"
-            name="colour-input"
+            name="edit-colour-input"
             type="color"
             :state="validateEditCueTypeState('colour')"
-            aria-describedby="colour-feedback"
+            aria-describedby="edit-colour-feedback"
           />
-          <b-form-invalid-feedback id="colour-feedback">
+          <b-form-invalid-feedback id="edit-colour-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>

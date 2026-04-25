@@ -14,63 +14,74 @@ from utils.web.web_decorators import (
     allow_when_password_required,
     api_authenticated,
     no_live_session,
+    redact_data_paths,
     require_admin,
-    requires_show,
 )
 
 
 @ApiRoute("auth/create", ApiVersion.V1)
 class UserCreateController(BaseAPIController):
+    @redact_data_paths(paths=["/password", "/confirmPassword"])
     async def post(self):
-        data = escape.json_decode(self.request.body)
-
-        username = data.get("username", "")
-        if not username:
-            self.set_status(400)
-            await self.finish({"message": "Username missing"})
-            return
-
-        password = data.get("password", "")
-        if not password:
-            self.set_status(400)
-            await self.finish({"message": "Password missing"})
-            return
-
-        # Validate password strength
-        is_valid, error_msg = PasswordService.validate_password_strength(password)
-        if not is_valid:
-            self.set_status(400)
-            await self.finish({"message": error_msg})
-            return
-
-        is_admin = data.get("is_admin", False)
-
         with self.make_session() as session:
-            conflict_user = session.scalars(
-                select(User).where(User.username == username)
-            ).first()
-            if conflict_user:
+            # If there are no users, allow creation without authentication, otherwise require admin.
+            has_any_users = session.scalars(select(User)).first() is not None
+            if has_any_users:
+                self.requires_admin()
+
+            data = escape.json_decode(self.request.body)
+
+            username = data.get("username", "")
+            if not username:
                 self.set_status(400)
-                await self.finish({"message": "Username already taken"})
+                await self.finish({"message": "Username missing"})
                 return
 
-            hashed_password = await PasswordService.hash_password(password)
+            password = data.get("password", "")
+            if not password:
+                self.set_status(400)
+                await self.finish({"message": "Password missing"})
+                return
 
-            session.add(
-                User(
-                    username=username,
-                    password=hashed_password,
-                    is_admin=is_admin,
+            is_admin = data.get("is_admin", False)
+            if not has_any_users and not is_admin:
+                self.set_status(400)
+                await self.finish({"message": "First user must be an admin"})
+                return
+
+            # Validate password strength
+            is_valid, error_msg = PasswordService.validate_password_strength(password)
+            if not is_valid:
+                self.set_status(400)
+                await self.finish({"message": error_msg})
+                return
+
+            async with NamedLockRegistry.acquire(f"UserLock::{username}"):
+                conflict_user = session.scalars(
+                    select(User).where(User.username == username)
+                ).first()
+                if conflict_user:
+                    self.set_status(400)
+                    await self.finish({"message": "Username already taken"})
+                    return
+
+                hashed_password = await PasswordService.hash_password(password)
+
+                session.add(
+                    User(
+                        username=username,
+                        password=hashed_password,
+                        is_admin=is_admin,
+                    )
                 )
-            )
-            session.commit()
+                session.commit()
 
-            if is_admin:
-                await self.application.digi_settings.set("has_admin_user", True)
+                if is_admin:
+                    await self.application.digi_settings.set("has_admin_user", True)
 
-            self.set_status(200)
-            await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
-            await self.finish({"message": "Successfully created user"})
+                self.set_status(200)
+                await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
+                await self.finish({"message": "Successfully created user"})
 
 
 @ApiRoute("auth/delete", ApiVersion.V1)
@@ -88,14 +99,24 @@ class UserDeleteController(BaseAPIController):
 
         with self.make_session() as session:
             user_to_delete: User = session.get(User, int(user_to_delete))
+            all_admins = session.scalars(
+                select(User).where(User.is_admin.is_(True))
+            ).all()
             if not user_to_delete:
                 self.set_status(400)
                 await self.finish({"message": "Could not find user to delete"})
                 return
 
-            if user_to_delete.is_admin:
+            if user_to_delete.id == self.current_user["id"]:
                 self.set_status(400)
-                await self.finish({"message": "Cannot delete admin user"})
+                await self.finish(
+                    {"message": "Cannot delete currently authenticated user"}
+                )
+                return
+
+            if user_to_delete.is_admin and len(all_admins) <= 1:
+                self.set_status(400)
+                await self.finish({"message": "Cannot delete the only admin user"})
                 return
 
             async with NamedLockRegistry.acquire(
@@ -120,6 +141,7 @@ class UserDeleteController(BaseAPIController):
 
 @ApiRoute("auth/login", ApiVersion.V1)
 class LoginHandler(BaseAPIController):
+    @redact_data_paths(paths=["/password"])
     async def post(self):
         data = escape.json_decode(self.request.body)
 
@@ -233,7 +255,6 @@ class RefreshTokenHandler(BaseAPIController):
 class UsersHandler(BaseAPIController):
     @api_authenticated
     @require_admin
-    @requires_show
     def get(self):
         user_schema = UserSchema()
         with self.make_session() as session:
@@ -256,6 +277,7 @@ class PasswordChangeController(BaseAPIController):
 
     @api_authenticated
     @allow_when_password_required
+    @redact_data_paths(paths=["/old_password", "/new_password"])
     async def patch(self):
         """
         Change authenticated user's password.

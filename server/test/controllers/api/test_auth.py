@@ -1,7 +1,6 @@
 from sqlalchemy import select
 from tornado import escape
 
-from models.show import Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
 
@@ -51,6 +50,21 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertTrue("message" in response_body)
         self.assertEqual("Successfully created user", response_body["message"])
 
+    def test_create_first_user_must_be_admin(self):
+        """Test that the first user created in the system must be an admin."""
+        response = self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "firstuser", "password": "password", "is_admin": False}
+            ),
+        )
+        response_body = escape.json_decode(response.body)
+
+        self.assertEqual(400, response.code)
+        self.assertTrue("message" in response_body)
+        self.assertEqual("First user must be an admin", response_body["message"])
+
     def test_create_user_duplicate_username(self):
         """Test POST /api/v1/auth/create with duplicate username.
 
@@ -60,11 +74,28 @@ class TestAuthAPI(DigiScriptTestCase):
         When a user with the same username already exists, the query should return
         that user and the endpoint should return a 400 error.
         """
-        # Create an existing user directly in the database
-        with self._app.get_db().sessionmaker() as session:
-            existing_user = User(username="duplicate_test", password="hashed_pw")
-            session.add(existing_user)
-            session.commit()
+        # Create initial admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "duplicate_test",
+                    "password": "adminpass",
+                    "is_admin": True,
+                }
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "duplicate_test", "password": "adminpass"}
+            ),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
 
         # Try to create a user with the same username
         response = self.fetch(
@@ -77,6 +108,7 @@ class TestAuthAPI(DigiScriptTestCase):
                     "is_admin": False,
                 }
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
         response_body = escape.json_decode(response.body)
 
@@ -407,16 +439,6 @@ class TestAuthAPI(DigiScriptTestCase):
             ),
         )
 
-        # Create a test show (required by @requires_show decorator)
-        with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            show_id = show.id
-            session.commit()
-
-        self._app.digi_settings.settings["current_show"].set_value(show_id)
-
         # Login as admin to get token
         response = self.fetch(
             "/api/v1/auth/login",
@@ -433,6 +455,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "userToDelete", "password": "password", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Get the user ID
@@ -479,16 +502,6 @@ class TestAuthAPI(DigiScriptTestCase):
             ),
         )
 
-        # Create a test show (required by @requires_show decorator)
-        with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            show_id = show.id
-            session.commit()
-
-        self._app.digi_settings.settings["current_show"].set_value(show_id)
-
         # Login as admin
         response = self.fetch(
             "/api/v1/auth/login",
@@ -505,6 +518,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "user1", "password": "password", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
         self.fetch(
             "/api/v1/auth/create",
@@ -512,6 +526,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "user2", "password": "password", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Get all users
@@ -535,6 +550,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_change_password_success(self):
         """Test successful password change with valid old password"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create and login a user
         self.fetch(
             "/api/v1/auth/create",
@@ -542,6 +574,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "testuser", "password": "oldpass123", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         response = self.fetch(
@@ -593,6 +626,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_change_password_incorrect_old_password(self):
         """Test password change fails with incorrect old password"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create and login a user
         self.fetch(
             "/api/v1/auth/create",
@@ -600,6 +650,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "testuser", "password": "oldpass123", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         response = self.fetch(
@@ -625,6 +676,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_change_password_missing_new_password(self):
         """Test password change fails when new password is missing"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create and login a user
         self.fetch(
             "/api/v1/auth/create",
@@ -632,6 +700,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "testuser", "password": "oldpass123", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         response = self.fetch(
@@ -655,6 +724,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_change_password_weak_password(self):
         """Test password change fails with weak new password"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create and login a user
         self.fetch(
             "/api/v1/auth/create",
@@ -662,6 +748,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "testuser", "password": "oldpass123", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         response = self.fetch(
@@ -699,6 +786,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_change_password_with_requires_password_change_flag(self):
         """Test password change works without old password when requires_password_change=True"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create user via API to ensure password is properly hashed
         self.fetch(
             "/api/v1/auth/create",
@@ -710,6 +814,7 @@ class TestAuthAPI(DigiScriptTestCase):
                     "is_admin": False,
                 }
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Set requires_password_change flag
@@ -748,6 +853,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_password_enforcement_blocks_regular_endpoints(self):
         """Test that requires_password_change blocks access to regular endpoints"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create user with requires_password_change=True
         self.fetch(
             "/api/v1/auth/create",
@@ -759,6 +881,7 @@ class TestAuthAPI(DigiScriptTestCase):
                     "is_admin": False,
                 }
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Log in to get JWT
@@ -790,6 +913,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_password_enforcement_allows_change_password_endpoint(self):
         """Test that requires_password_change allows access to change-password"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create user with requires_password_change=True
         self.fetch(
             "/api/v1/auth/create",
@@ -801,6 +941,7 @@ class TestAuthAPI(DigiScriptTestCase):
                     "is_admin": False,
                 }
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Log in to get JWT
@@ -833,6 +974,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_password_enforcement_allows_logout_endpoint(self):
         """Test that requires_password_change allows access to logout"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create user with requires_password_change=True
         self.fetch(
             "/api/v1/auth/create",
@@ -844,6 +1002,7 @@ class TestAuthAPI(DigiScriptTestCase):
                     "is_admin": False,
                 }
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Log in to get JWT
@@ -900,6 +1059,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "regularuser", "password": "userpass", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Get user ID
@@ -907,6 +1067,8 @@ class TestAuthAPI(DigiScriptTestCase):
             user = session.scalars(
                 select(User).where(User.username == "regularuser")
             ).first()
+            if not user:
+                self.fail("User 'regularuser' not found in database")
             user_id = user.id
 
         # Admin resets user password
@@ -979,6 +1141,23 @@ class TestAuthAPI(DigiScriptTestCase):
 
     def test_admin_reset_password_requires_admin(self):
         """Test password reset requires admin privileges"""
+        # Create admin user
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+
+        # Login as admin
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": "admin", "password": "adminpass"}),
+        )
+        admin_token = escape.json_decode(response.body)["access_token"]
+
         # Create regular user
         self.fetch(
             "/api/v1/auth/create",
@@ -986,6 +1165,7 @@ class TestAuthAPI(DigiScriptTestCase):
             body=escape.json_encode(
                 {"username": "regularuser", "password": "userpass", "is_admin": False}
             ),
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Login as regular user

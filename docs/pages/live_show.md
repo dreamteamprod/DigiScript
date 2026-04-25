@@ -54,3 +54,31 @@ If the leader's client becomes disconnected, all other clients become "orphaned"
 ### Act Intervals
 
 If your show has intervals configured between acts, an interval screen will automatically appear between the acts during the live show. The interval will only display if there is script content in both acts surrounding the interval.
+
+### Stage Manager Pane
+
+During a live show, you can enable a Stage Manager pane that displays props and scenery allocations for each scene. This provides a quick reference for stage management during performances.
+
+To enable the Stage Manager pane:
+
+1. Click on the **Live Config** dropdown in the navigation bar
+2. Select **Enable Stage Manager**
+
+The Stage Manager pane will appear on the right side of the screen:
+
+![](../images/live_show/live_stage_manager_pane.png)
+
+#### Stage Manager Features
+
+- **Scene List**: Shows all scenes in the show as collapsible cards
+- **Current Scene**: The scene cards can be expanded to show allocated items
+- **Scenery Section**: Lists all scenery items allocated to each scene, grouped by type
+- **Props Section**: Lists all props allocated to each scene, grouped by type
+- **Plan Button**: Opens a planning modal showing which items are being set (brought on stage) and struck (removed) for the selected scene, with crew names listed beneath each assigned item
+- **Auto-scroll**: The current scene card is automatically expanded, and the pane scrolls to keep it visible as the show progresses
+
+![](../images/live_show/live_plan_modal_crew.png)
+
+Click on a scene header to expand or collapse its details. The Stage Manager pane provides a quick at-a-glance view of what items are needed for each scene, helping the stage management team track prop and scenery requirements throughout the performance.
+
+To disable the Stage Manager pane, click **Live Config** and select **Disable Stage Manager**.

@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from tornado import escape
 from tornado.ioloop import IOLoop
 
+from controllers.api.constants import ERROR_SHOW_NOT_FOUND
 from models.cue import CueAssociation
 from models.script import (
     CompiledScript,
@@ -98,7 +99,7 @@ class ScriptController(BaseAPIController):
                 self.finish({"lines": lines, "page": page})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
     @staticmethod
@@ -270,7 +271,7 @@ class ScriptController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
     @staticmethod
@@ -671,7 +672,7 @@ class ScriptController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
 
@@ -707,7 +708,7 @@ class CompiledScriptController(BaseAPIController):
                 self.finish(compiled_script)
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
 
@@ -743,7 +744,7 @@ class ScriptCutsController(BaseAPIController):
                 self.finish({"cuts": line_cuts})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
 
     @requires_show
@@ -845,5 +846,5 @@ class ScriptMaxPageController(BaseAPIController):
                 self.finish({"max_page": max_page})
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return

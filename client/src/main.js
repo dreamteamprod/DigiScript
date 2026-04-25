@@ -5,22 +5,31 @@ import { BootstrapVue, IconsPlugin } from 'bootstrap-vue';
 import Vuelidate from 'vuelidate';
 import ToastPlugin from 'vue-toast-notification';
 import Multiselect from 'vue-multiselect';
+import { Splitpanes, Pane } from 'splitpanes';
 
 import store from '@/store/store';
 import App from './App.vue';
 import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
 import { getWebSocketURL, isElectron } from '@/js/platform';
+import { initRemoteLogging } from '@/js/logger';
+import log from 'loglevel';
 
 import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
+import 'splitpanes/dist/splitpanes.css';
 
 setupHttpInterceptor();
+initRemoteLogging();
+
+log.info(`Running in ${import.meta.env.MODE} mode.`);
 
 Vue.use(BootstrapVue);
 Vue.use(IconsPlugin);
 Vue.component('MultiSelect', Multiselect);
+Vue.component('SplitPanes', Splitpanes);
+Vue.component('SplitPane', Pane);
 
 Vue.use(Vuex);
 Vue.use(Vuelidate);

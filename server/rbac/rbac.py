@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, List, Optional
 
 from models.models import db
@@ -12,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class RBACController:
-    def __init__(self, app: "DigiScriptServer"):
+    def __init__(self, app: DigiScriptServer):
         self.app = app
         self._rbac_db = RBACDatabase(app.get_db(), app)
         self._display_fields = {}

@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import datetime
 import enum
 import json
 from functools import partial
 from typing import TYPE_CHECKING, List, Union
 
-from sqlalchemy import ForeignKey, Integer, Text, TypeDecorator, select
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, TypeDecorator, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -71,7 +73,7 @@ class User(db.Model):
     requires_password_change: Mapped[bool] = mapped_column(default=False)
     token_version: Mapped[int] = mapped_column(default=0)
 
-    sessions: Mapped[List["Session"]] = relationship(back_populates="user")
+    sessions: Mapped[List[Session]] = relationship(back_populates="user")
 
 
 class UserSettings(db.Model):
@@ -83,6 +85,14 @@ class UserSettings(db.Model):
     cue_position_right: Mapped[bool | None] = mapped_column(default=False)
     script_text_alignment: Mapped[TextAlignment] = mapped_column(
         TextAlignmentCol, default=TextAlignment.CENTER
+    )
+    console_log_level: Mapped[str] = mapped_column(default="WARN")
+
+    __table_args__ = (
+        CheckConstraint(
+            "console_log_level IN ('TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'SILENT')",
+            name="ck_user_settings_console_log_level",
+        ),
     )
 
     # Hidden Properties (None user editable, marked with _)

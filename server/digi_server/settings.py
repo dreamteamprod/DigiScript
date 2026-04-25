@@ -4,11 +4,11 @@ import json
 import os
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from tornado.locks import Lock
 
-from digi_server.logger import get_logger
+from digi_server.logger import get_level_names_by_order, get_logger
 from utils.file_watcher import IOLoopFileWatcher
 
 
@@ -17,12 +17,6 @@ if TYPE_CHECKING:
 
 
 def _get_version() -> str:
-    """
-    Read version from pyproject.toml.
-
-    Returns:
-        str: Version string from pyproject.toml, or '0.0.0' if not found
-    """
     try:
         # Get path to pyproject.toml (one directory up from digi_server)
         pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
@@ -37,18 +31,12 @@ def _get_version() -> str:
 
 
 def get_version() -> str:
-    """
-    Get the current application version.
-
-    Public wrapper for _get_version() that can be imported by other modules.
-
-    Returns:
-        str: Version string from pyproject.toml, or '0.0.0' if not found
-    """
     return _get_version()
 
 
 class SettingsObject:
+    ALLOWED_TYPES = [str, bool, int]
+
     def __init__(
         self,
         key,
@@ -60,12 +48,37 @@ class SettingsObject:
         display_name: str = "",
         help_text: str = "",
         hide_from_ui: bool = False,
+        choice_options: Optional[list] = None,
     ):
-        if val_type not in [str, bool, int]:
+        if val_type not in self.ALLOWED_TYPES:
             raise RuntimeError(
                 f"Invalid type {val_type} for {key}. Allowed options are: "
-                f"[str, int, bool]"
+                f"{[t.__name__ for t in self.ALLOWED_TYPES]}."
             )
+
+        if default is None and not nullable:
+            raise RuntimeError(
+                f"Default value for {key} cannot be None if setting is not nullable."
+            )
+
+        if default is not None and not isinstance(default, val_type):
+            raise RuntimeError(
+                f"Default value {default} for {key} is not of type {val_type.__name__}."
+            )
+
+        if choice_options is not None:
+            if len(choice_options) == 0:
+                raise RuntimeError(f"Choice options for {key} cannot be an empty list.")
+
+            if any(not isinstance(option, val_type) for option in choice_options):
+                raise RuntimeError(
+                    f"All choice options for {key} must be of type {val_type.__name__}."
+                )
+
+            if default not in choice_options:
+                raise RuntimeError(
+                    f"Default value for {key} must be one of the choice options."
+                )
 
         self.key = key
         self.val_type = val_type
@@ -78,6 +91,7 @@ class SettingsObject:
         self.display_name = display_name
         self.help_text = help_text
         self.hide_from_ui = hide_from_ui
+        self.choice_options = choice_options
 
     def set_to_default(self):
         self.value = self.default
@@ -94,6 +108,12 @@ class SettingsObject:
                     f"Value for {self.key} of {value} is not of assigned "
                     f"type {self.val_type}"
                 )
+
+        if self.choice_options is not None and value not in self.choice_options:
+            raise ValueError(
+                f"Value for {self.key} must be one of the following options: "
+                f"{self.choice_options}"
+            )
 
         changed = False
         if value != self.value:
@@ -120,6 +140,8 @@ class SettingsObject:
             "display_name": self.display_name,
             "help_text": self.help_text,
             "hide_from_ui": self.hide_from_ui,
+            "choice_options": self.choice_options,
+            "_nullable": self._nullable,
         }
 
 
@@ -145,8 +167,17 @@ class Settings:
             )
             os.makedirs(os.path.dirname(self.settings_path))
 
+        self.categories: Dict[str : List[str]] = {"General": []}
         self.settings: Dict[str, SettingsObject] = {}
+        self.init_settings()
+        self._load(spawn_callbacks=False)
+        self._file_watcher = IOLoopFileWatcher(
+            self.settings_path, self.auto_reload_changes, 100
+        )
+        self._file_watcher.add_error_callback(self.file_deleted)
+        self._file_watcher.watch()
 
+    def init_settings(self):
         db_default = f"sqlite:///{os.path.join(os.path.dirname(__file__), '../conf/digiscript.sqlite')}"
         self.define(
             "has_admin_user",
@@ -176,12 +207,23 @@ class Settings:
         )
         self.define("debug_mode", bool, False, True, display_name="Enable Debug Mode")
         self.define(
+            "log_level",
+            str,
+            "DEBUG",
+            True,
+            self._application.regen_logging,
+            display_name="Log Level",
+            choice_options=get_level_names_by_order(),
+            category="Logging",
+        )
+        self.define(
             "log_path",
             str,
             os.path.join(self._base_path, "digiscript.log"),
             True,
             self._application.regen_logging,
             display_name="Application Log Path",
+            category="Logging",
         )
         self.define(
             "max_log_mb",
@@ -190,6 +232,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Max Log Size (MB)",
+            category="Logging",
         )
         self.define(
             "log_backups",
@@ -198,6 +241,16 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Log Backups",
+            category="Logging",
+        )
+        self.define(
+            "log_redaction",
+            bool,
+            False,
+            True,
+            display_name="Enable Log Redaction",
+            help_text="When enabled, potentially sensitive information will be redacted from logs.",
+            category="Logging",
         )
         self.define(
             "db_log_enabled",
@@ -206,6 +259,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Enable Database Log",
+            category="DB Logging",
         )
         self.define(
             "db_log_path",
@@ -214,6 +268,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Database Log Path",
+            category="DB Logging",
         )
         self.define(
             "db_max_log_mb",
@@ -222,6 +277,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Max Database Log Size (MB)",
+            category="DB Logging",
         )
         self.define(
             "db_log_backups",
@@ -230,6 +286,7 @@ class Settings:
             True,
             self._application.regen_logging,
             display_name="Database Log Backups",
+            category="DB Logging",
         )
         self.define(
             "compiled_script_path",
@@ -248,14 +305,67 @@ class Settings:
             display_name="Enable Network Discovery (mDNS)",
             help_text="Advertise this server on the local network for automatic discovery by desktop clients.",
         )
-
-        self._load(spawn_callbacks=False)
-
-        self._file_watcher = IOLoopFileWatcher(
-            self.settings_path, self.auto_reload_changes, 100
+        self.define(
+            "client_log_enabled",
+            bool,
+            True,
+            True,
+            display_name="Enable Client Log Forwarding",
+            help_text="When enabled, client browsers will forward their logs to the server.",
+            category="Client Logging",
         )
-        self._file_watcher.add_error_callback(self.file_deleted)
-        self._file_watcher.watch()
+        self.define(
+            "client_log_level",
+            str,
+            "INFO",
+            True,
+            self._application.regen_logging,
+            display_name="Client Log Level",
+            help_text="Minimum log level that clients will forward to the server.",
+            choice_options=["TRACE", "DEBUG", "INFO", "WARN", "ERROR"],
+            category="Client Logging",
+        )
+        self.define(
+            "client_log_path",
+            str,
+            os.path.join(self._base_path, "digiscript_client.log"),
+            True,
+            self._application.regen_logging,
+            display_name="Client Log Path",
+            help_text="Path to the log file for client-side log messages.",
+            category="Client Logging",
+        )
+        self.define(
+            "client_max_log_mb",
+            int,
+            100,
+            True,
+            self._application.regen_logging,
+            display_name="Max Client Log Size (MB)",
+            help_text="Maximum size in MB of the client log file before it is rotated.",
+            category="Client Logging",
+        )
+        self.define(
+            "client_log_backups",
+            int,
+            5,
+            True,
+            self._application.regen_logging,
+            display_name="Client Log Backups",
+            help_text="Number of rotated client log file backups to retain.",
+            category="Client Logging",
+        )
+        self.define(
+            "log_buffer_size",
+            int,
+            2000,
+            True,
+            self._application.regen_logging,
+            display_name="Log Buffer Size",
+            help_text="Number of recent log entries to keep in memory for the log viewer. "
+            "Larger values use more memory. Changes take effect after restart.",
+            category="Client Logging",
+        )
 
     def define(
         self,
@@ -268,7 +378,12 @@ class Settings:
         display_name: str = "",
         help_text: str = "",
         hide_from_ui: bool = False,
+        choice_options: Optional[list] = None,
+        category: str = "General",
     ):
+        if key in self.settings:
+            raise KeyError(f"Setting {key} is already defined")
+
         self.settings[key] = SettingsObject(
             key,
             val_type,
@@ -279,7 +394,12 @@ class Settings:
             display_name,
             help_text,
             hide_from_ui,
+            choice_options,
         )
+        if category not in self.categories:
+            self.categories[category] = [key]
+        else:
+            self.categories[category].append(key)
 
     def file_deleted(self):
         get_logger().info("Settings file deleted; recreating from in memory settings")

@@ -9,6 +9,7 @@ export default {
     availableShows: [],
     rawSettings: {},
     rbacRoles: [],
+    settingsCategories: {},
   },
   mutations: {
     UPDATE_SETTINGS(state, settings) {
@@ -23,8 +24,20 @@ export default {
     UPDATE_RBAC_ROLES(state, rbac) {
       state.rbacRoles = rbac;
     },
+    UPDATE_SETTINGS_CATEGORIES(state, categories) {
+      state.settingsCategories = categories;
+    },
   },
   actions: {
+    async GET_AVAILABLE_SHOWS(context) {
+      const response = await fetch(`${makeURL('/api/v1/shows')}`);
+      if (response.ok) {
+        const shows = await response.json();
+        context.commit('UPDATE_SHOWS', shows.shows);
+      } else {
+        log.error('Unable to get available shows');
+      }
+    },
     async GET_RAW_SETTINGS(context) {
       const response = await fetch(`${makeURL('/api/v1/settings/raw')}`);
       if (response.ok) {
@@ -79,8 +92,20 @@ export default {
         log.error('Unable to fetch RBAC roles');
       }
     },
+    async GET_SETTINGS_CATEGORIES(context) {
+      const response = await fetch(makeURL('/api/v1/settings/categories'));
+      if (response.ok) {
+        const categories = await response.json();
+        await context.commit('UPDATE_SETTINGS_CATEGORIES', categories.categories);
+      } else {
+        log.error('Unable to fetch settings categories');
+      }
+    },
   },
   getters: {
+    AVAILABLE_SHOWS(state) {
+      return state.availableShows;
+    },
     SETTINGS(state) {
       return state.settings;
     },
@@ -89,6 +114,9 @@ export default {
     },
     RBAC_ROLES(state) {
       return state.rbacRoles;
+    },
+    SETTINGS_CATEGORIES(state) {
+      return state.settingsCategories;
     },
   },
 };

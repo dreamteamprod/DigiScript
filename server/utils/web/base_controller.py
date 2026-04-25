@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
 import bcrypt
@@ -121,6 +122,12 @@ class BaseController(DatabaseMixin, RequestHandler):
                     self.current_show = show_schema.dump(show)
         return
 
+    def requires_admin(self):
+        if not self.current_user:
+            raise HTTPError(401, log_message="Not logged in")
+        if not self.current_user["is_admin"]:
+            raise HTTPError(403, log_message="Admin access required")
+
     def requires_role(self, resource: db.Model, role: Role):
         if not self.current_user:
             raise HTTPError(401, log_message="Not logged in")
@@ -165,15 +172,33 @@ class BaseAPIController(BaseController):
         self.write({"message": "405 not allowed"})
 
     def on_finish(self):
+        from utils.web.route import Route  # noqa: PLC0415
+
+        if self.request.path in Route.ignored_logging_routes():
+            log_method = get_logger().trace
+        else:
+            log_method = get_logger().debug
+
         if self.request.body:
+            method_name = self.request.method.lower()
+            handler_method = getattr(self, method_name, None)
+            redacted_data_paths = getattr(handler_method, "_redacted_data_paths", None)
             try:
-                get_logger().debug(
-                    f"{self.request.method} "
-                    f"{self.request.path} "
-                    f"{escape.json_decode(self.request.body)}"
-                )
+                body = escape.json_decode(self.request.body)
             except BaseException:
                 get_logger().debug(
                     f"{self.request.method} {self.request.path} {self.request.body}"
                 )
+            else:
+                if (
+                    redacted_data_paths
+                    and self.application.digi_settings.settings[
+                        "log_redaction"
+                    ].get_value()
+                ):
+                    body = deepcopy(body)
+                    redacted_data_paths.apply(body)
+
+                log_method(f"{self.request.method} {self.request.path} {body}")
+
         super().on_finish()

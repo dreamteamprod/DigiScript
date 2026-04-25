@@ -53,19 +53,19 @@
           <h4>Configuration Options</h4>
           <b-form ref="new-config-form" @ok="onSubmitNewOverride">
             <b-form-group
-              id="colour-input-group"
+              id="new-colour-input-group"
               label="Cue Button Colour"
-              label-for="colour-input"
+              label-for="new-colour-input"
             >
               <b-form-input
-                id="colour-input"
+                id="new-colour-input"
                 v-model="$v.newFormState.colour.$model"
-                name="colour-input"
+                name="new-colour-input"
                 type="color"
-                :state="validateNewState('colour')"
-                aria-describedby="colour-feedback"
+                :state="getValidationState('newFormState', 'colour')"
+                aria-describedby="new-colour-feedback"
               />
-              <b-form-invalid-feedback id="colour-feedback">
+              <b-form-invalid-feedback id="new-colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -97,19 +97,19 @@
           <h4>Configuration Options</h4>
           <b-form ref="edit-config-form" @ok="onSubmitEditOverride">
             <b-form-group
-              id="colour-input-group"
+              id="edit-colour-input-group"
               label="Cue Button Colour"
-              label-for="colour-input"
+              label-for="edit-colour-input"
             >
               <b-form-input
-                id="colour-input"
+                id="edit-colour-input"
                 v-model="$v.editFormState.colour.$model"
-                name="colour-input"
+                name="edit-colour-input"
                 type="color"
-                :state="validateEditState('colour')"
-                aria-describedby="colour-feedback"
+                :state="getValidationState('editFormState', 'colour')"
+                aria-describedby="edit-colour-feedback"
               />
-              <b-form-invalid-feedback id="colour-feedback">
+              <b-form-invalid-feedback id="edit-colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
@@ -158,9 +158,11 @@ import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import { contrastColor } from 'contrast-color';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'CueColourPreferences',
+  mixins: [formValidationMixin],
   data() {
     return {
       columns: [
@@ -255,25 +257,19 @@ export default {
       }
     },
     resetNewFormState() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         cueTypeId: null,
         colour: '#FF0000',
-      };
-      this.isSubmittingNew = false;
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.isSubmittingNew = false;
     },
     resetEditFormState() {
-      this.editFormState = {
+      this.resetForm('editFormState', {
         id: null,
         cueTypeId: null,
         colour: '#FF0000',
-      };
-      this.isSubmittingEdit = false;
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.isSubmittingEdit = false;
     },
     async onSubmitNewOverride(event) {
       this.$v.newFormState.$touch();
@@ -326,14 +322,6 @@ export default {
       } finally {
         this.isSubmittingEdit = false;
       }
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async deleteOverride(override) {
       if (this.isDeleting) {

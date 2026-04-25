@@ -3,15 +3,21 @@
     <b-row>
       <b-col>
         <h1>DigiScript Config</h1>
-        <b-tabs content-class="mt-3">
-          <b-tab title="System" active>
+        <b-tabs content-class="mt-3" lazy>
+          <b-tab title="Shows" active>
+            <config-shows />
+          </b-tab>
+          <b-tab title="System">
             <config-system />
           </b-tab>
           <b-tab title="Settings">
             <config-settings />
           </b-tab>
-          <b-tab title="Users" :disabled="CURRENT_SHOW == null">
+          <b-tab title="Users">
             <config-users />
+          </b-tab>
+          <b-tab title="Logs">
+            <config-logs />
           </b-tab>
         </b-tabs>
       </b-col>
@@ -20,17 +26,14 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
-
 import ConfigSystem from '@/vue_components/config/ConfigSystem.vue';
 import ConfigSettings from '@/vue_components/config/ConfigSettings.vue';
 import ConfigUsers from '@/vue_components/config/ConfigUsers.vue';
+import ConfigShows from '@/vue_components/config/ConfigShows.vue';
+import ConfigLogs from '@/vue_components/config/ConfigLogs.vue';
 
 export default {
   name: 'ConfigView',
-  components: { ConfigUsers, ConfigSettings, ConfigSystem },
-  computed: {
-    ...mapGetters(['CURRENT_SHOW']),
-  },
+  components: { ConfigShows, ConfigUsers, ConfigSettings, ConfigSystem, ConfigLogs },
 };
 </script>

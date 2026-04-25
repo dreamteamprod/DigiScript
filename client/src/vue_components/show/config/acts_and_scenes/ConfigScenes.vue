@@ -91,40 +91,40 @@
       @ok="onSubmitNew"
     >
       <b-form ref="new-scene-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="new-name-input-group" label="Name" label-for="new-name-input">
           <b-form-input
-            id="name-input"
+            id="new-name-input"
             v-model="$v.newFormState.name.$model"
-            name="name-input"
-            :state="validateNewState('name')"
-            aria-describedby="name-feedback"
+            name="new-name-input"
+            :state="getValidationState('newFormState', 'name')"
+            aria-describedby="new-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="new-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="act-input-group" label="Act" label-for="act-input">
+        <b-form-group id="new-act-input-group" label="Act" label-for="new-act-input">
           <b-form-select
-            id="act-input"
+            id="new-act-input"
             v-model="$v.newFormState.act_id.$model"
             :options="actOptions"
-            :state="validateNewState('act_id')"
-            aria-describedby="act-feedback"
+            :state="getValidationState('newFormState', 'act_id')"
+            aria-describedby="new-act-feedback"
           />
-          <b-form-invalid-feedback id="act-feedback">
+          <b-form-invalid-feedback id="new-act-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="previous-scene-input-group"
+          id="new-previous-scene-input-group"
           label="Previous Scene"
-          label-for="previous-scene-input"
+          label-for="new-previous-scene-input"
         >
           <b-form-select
-            id="previous-scene-input"
+            id="new-previous-scene-input"
             v-model="$v.newFormState.previous_scene_id.$model"
             :options="previousSceneOptions[$v.newFormState.act_id.$model]"
-            aria-describedby="previous-scene-feedback"
+            aria-describedby="new-previous-scene-feedback"
           />
         </b-form-group>
       </b-form>
@@ -139,44 +139,44 @@
       @ok="onSubmitEdit"
     >
       <b-form ref="edit-act-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
+        <b-form-group id="edit-name-input-group" label="Name" label-for="edit-name-input">
           <b-form-input
-            id="name-input"
+            id="edit-name-input"
             v-model="$v.editFormState.name.$model"
-            name="name-input"
-            :state="validateEditState('name')"
-            aria-describedby="name-feedback"
+            name="edit-name-input"
+            :state="getValidationState('editFormState', 'name')"
+            aria-describedby="edit-name-feedback"
           />
-          <b-form-invalid-feedback id="name-feedback">
+          <b-form-invalid-feedback id="edit-name-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
-        <b-form-group id="act-input-group" label="Act" label-for="act-input">
+        <b-form-group id="edit-act-input-group" label="Act" label-for="edit-act-input">
           <b-form-select
-            id="act-input"
+            id="edit-act-input"
             v-model="$v.editFormState.act_id.$model"
             :options="actOptions"
-            :state="validateEditState('act_id')"
-            aria-describedby="act-feedback"
+            :state="getValidationState('editFormState', 'act_id')"
+            aria-describedby="edit-act-feedback"
             @change="editActChanged"
           />
-          <b-form-invalid-feedback id="act-feedback">
+          <b-form-invalid-feedback id="edit-act-feedback">
             This is a required field.
           </b-form-invalid-feedback>
         </b-form-group>
         <b-form-group
-          id="previous-scene-input-group"
+          id="edit-previous-scene-input-group"
           label="Previous Scene"
-          label-for="previous-scene-input"
+          label-for="edit-previous-scene-input"
         >
           <b-form-select
-            id="previous-scene-input"
+            id="edit-previous-scene-input"
             v-model="$v.editFormState.previous_scene_id.$model"
             :options="editFormPrevScenes"
-            :state="validateEditState('previous_scene_id')"
-            aria-describedby="previous-scene-feedback"
+            :state="getValidationState('editFormState', 'previous_scene_id')"
+            aria-describedby="edit-previous-scene-feedback"
           />
-          <b-form-invalid-feedback id="previous-scene-feedback">
+          <b-form-invalid-feedback id="edit-previous-scene-feedback">
             This cannot form a circular dependency between scenes.
           </b-form-invalid-feedback>
         </b-form-group>
@@ -215,9 +215,11 @@
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
+import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default {
   name: 'ConfigScenes',
+  mixins: [formValidationMixin],
   data() {
     return {
       loading: true,
@@ -420,20 +422,12 @@ export default {
   },
   methods: {
     resetNewForm() {
-      this.newFormState = {
+      this.resetForm('newFormState', {
         name: '',
         act_id: null,
         previous_scene_id: null,
-      };
-      this.submittingNewScene = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
-    },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
-      return $dirty ? !$error : null;
+      this.submittingNewScene = false;
     },
     async onSubmitNew(event) {
       this.$v.newFormState.$touch();
@@ -473,15 +467,11 @@ export default {
       }
     },
     resetFirstSceneForm() {
-      this.firstSceneFormState = {
+      this.resetForm('firstSceneFormState', {
         act_id: null,
         scene_id: null,
-      };
-      this.submittingFirstScene = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
       });
+      this.submittingFirstScene = false;
     },
     openFirstSceneEdit(act) {
       if (act != null) {
@@ -513,18 +503,14 @@ export default {
     },
     resetEditForm() {
       this.editSceneID = null;
-      this.editFormState = {
+      this.resetForm('editFormState', {
         scene_id: null,
         name: '',
         act_id: null,
         previous_scene_id: null,
-      };
+      });
       this.submittingEditScene = false;
       this.deletingScene = false;
-
-      this.$nextTick(() => {
-        this.$v.$reset();
-      });
     },
     openEditForm(scene) {
       if (scene != null) {
@@ -539,10 +525,6 @@ export default {
         }
         this.$bvModal.show('edit-scene');
       }
-    },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
-      return $dirty ? !$error : null;
     },
     async onSubmitEdit(event) {
       this.$v.editFormState.$touch();

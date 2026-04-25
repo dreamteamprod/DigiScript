@@ -54,8 +54,12 @@
         <div>
           <h4>Configuration Options</h4>
           <b-form ref="new-config-form" @ok="onSubmitNewOverride">
-            <b-form-group id="styling-group" label="Default Styles" label-for="styling-input">
-              <b-button-group id="styling-input">
+            <b-form-group
+              id="new-styling-group"
+              label="Default Styles"
+              label-for="new-styling-input"
+            >
+              <b-button-group id="new-styling-input">
                 <b-button
                   v-for="(btn, idx) in $v.newStyleFormState.styleOptions.$model"
                   :key="idx"
@@ -67,12 +71,12 @@
               </b-button-group>
             </b-form-group>
             <b-form-group
-              id="text-formatting-group"
+              id="new-text-formatting-group"
               label="Default Text Format"
-              label-for="text-format-input"
+              label-for="new-text-format-input"
             >
               <b-form-select
-                id="text-format-input"
+                id="new-text-format-input"
                 v-model="$v.newStyleFormState.textFormat.$model"
               >
                 <b-form-select-option value="default"> Default </b-form-select-option>
@@ -81,41 +85,41 @@
               </b-form-select>
             </b-form-group>
             <b-form-group
-              id="text-colour-input-group"
+              id="new-text-colour-input-group"
               label="Text Colour"
-              label-for="text-colour-input"
+              label-for="new-text-colour-input"
             >
               <b-form-input
-                id="text-colour-input"
+                id="new-text-colour-input"
                 v-model="$v.newStyleFormState.textColour.$model"
-                name="text-colour-input"
+                name="new-text-colour-input"
                 type="color"
                 :state="validateNewStyleState('textColour')"
-                aria-describedby="colour-feedback"
+                aria-describedby="new-colour-feedback"
               />
-              <b-form-invalid-feedback id="colour-feedback">
+              <b-form-invalid-feedback id="new-colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
             <b-form-group
-              id="background-colour-enable-group"
+              id="new-background-colour-enable-group"
               label="Background Colour"
-              label-for="background-colour-enable"
+              label-for="new-background-colour-enable"
             >
               <b-form-checkbox
-                id="background-colour-enable"
+                id="new-background-colour-enable"
                 v-model="$v.newStyleFormState.enableBackgroundColour.$model"
                 :switch="true"
               />
             </b-form-group>
             <b-form-group
               v-if="newStyleFormState.enableBackgroundColour"
-              id="background-colour-input-group"
+              id="new-background-colour-input-group"
             >
               <b-form-input
-                id="background-colour-picker"
+                id="new-background-colour-picker"
                 v-model="$v.newStyleFormState.backgroundColour.$model"
-                name="background-colour-picker"
+                name="new-background-colour-picker"
                 type="color"
                 :state="validateNewStyleState('textColour')"
               />
@@ -149,8 +153,12 @@
         <div>
           <h4>Configuration Options</h4>
           <b-form ref="edit-config-form" @ok="onSubmitEditOverride">
-            <b-form-group id="styling-group" label="Default Styles" label-for="styling-input">
-              <b-button-group id="styling-input">
+            <b-form-group
+              id="edit-styling-group"
+              label="Default Styles"
+              label-for="edit-styling-input"
+            >
+              <b-button-group id="edit-styling-input">
                 <b-button
                   v-for="(btn, idx) in $v.editStyleFormState.styleOptions.$model"
                   :key="idx"
@@ -162,12 +170,12 @@
               </b-button-group>
             </b-form-group>
             <b-form-group
-              id="text-formatting-group"
+              id="edit-text-formatting-group"
               label="Default Text Format"
-              label-for="text-format-input"
+              label-for="edit-text-format-input"
             >
               <b-form-select
-                id="text-format-input"
+                id="edit-text-format-input"
                 v-model="$v.editStyleFormState.textFormat.$model"
               >
                 <b-form-select-option value="default"> Default </b-form-select-option>
@@ -176,41 +184,41 @@
               </b-form-select>
             </b-form-group>
             <b-form-group
-              id="text-colour-input-group"
+              id="edit-text-colour-input-group"
               label="Text Colour"
-              label-for="text-colour-input"
+              label-for="edit-text-colour-input"
             >
               <b-form-input
-                id="text-colour-input"
+                id="edit-text-colour-input"
                 v-model="$v.editStyleFormState.textColour.$model"
-                name="text-colour-input"
+                name="edit-text-colour-input"
                 type="color"
                 :state="validateEditStyleState('textColour')"
-                aria-describedby="colour-feedback"
+                aria-describedby="edit-colour-feedback"
               />
-              <b-form-invalid-feedback id="colour-feedback">
+              <b-form-invalid-feedback id="edit-colour-feedback">
                 This is a required field.
               </b-form-invalid-feedback>
             </b-form-group>
             <b-form-group
-              id="background-colour-enable-group"
+              id="edit-background-colour-enable-group"
               label="Background Colour"
-              label-for="background-colour-enable"
+              label-for="edit-background-colour-enable"
             >
               <b-form-checkbox
-                id="background-colour-enable"
+                id="edit-background-colour-enable"
                 v-model="$v.editStyleFormState.enableBackgroundColour.$model"
                 :switch="true"
               />
             </b-form-group>
             <b-form-group
               v-if="editStyleFormState.enableBackgroundColour"
-              id="background-colour-input-group"
+              id="edit-background-colour-input-group"
             >
               <b-form-input
-                id="background-colour-picker"
+                id="edit-background-colour-picker"
                 v-model="$v.editStyleFormState.backgroundColour.$model"
-                name="background-colour-picker"
+                name="edit-background-colour-picker"
                 type="color"
                 :state="validateEditStyleState('textColour')"
               />

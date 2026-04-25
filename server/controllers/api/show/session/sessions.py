@@ -4,6 +4,7 @@ from typing import List
 from sqlalchemy import select
 from tornado import escape
 
+from controllers.api.constants import ERROR_SHOW_NOT_FOUND
 from models.script import Script
 from models.session import Interval, Session, ShowSession
 from models.show import Show
@@ -54,7 +55,7 @@ class SessionsController(BaseAPIController):
                 )
             else:
                 self.set_status(404)
-                self.finish({"message": "404 show not found"})
+                self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/sessions/start", ApiVersion.V1)
@@ -121,7 +122,7 @@ class SessionStartController(BaseAPIController):
                     await self.application.ws_send_to_all("START_SHOW", "NOOP", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
 @ApiRoute("show/sessions/stop", ApiVersion.V1)
@@ -155,4 +156,4 @@ class SessionStopController(BaseAPIController):
                     await self.application.ws_send_to_all("STOP_SHOW", "NOOP", {})
             else:
                 self.set_status(404)
-                await self.finish({"message": "404 show not found"})
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
