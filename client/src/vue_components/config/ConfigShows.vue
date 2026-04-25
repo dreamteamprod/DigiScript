@@ -14,19 +14,29 @@
               <b-button v-b-modal.show-config variant="success"> Setup New Show </b-button>
             </template>
             <template #cell(btn)="data">
-              <b-button
-                variant="primary"
-                :disabled="
-                  isSubmittingLoad || (CURRENT_SHOW != null && CURRENT_SHOW.id === data.item.id)
-                "
-                @click="loadShow(data.item)"
-              >
-                {{
-                  (CURRENT_SHOW != null && CURRENT_SHOW.id !== data.item.id) || CURRENT_SHOW == null
-                    ? 'Load Show'
-                    : 'Loaded'
-                }}
-              </b-button>
+              <b-button-group>
+                <b-button
+                  variant="primary"
+                  :disabled="
+                    isSubmittingLoad || (CURRENT_SHOW != null && CURRENT_SHOW.id === data.item.id)
+                  "
+                  @click="loadShow(data.item)"
+                >
+                  {{
+                    (CURRENT_SHOW != null && CURRENT_SHOW.id !== data.item.id) ||
+                    CURRENT_SHOW == null
+                      ? 'Load Show'
+                      : 'Loaded'
+                  }}
+                </b-button>
+                <b-button
+                  variant="danger"
+                  :disabled="CURRENT_SHOW != null && CURRENT_SHOW.id === data.item.id"
+                  @click.stop.prevent="deleteShow(data.item)"
+                >
+                  Delete
+                </b-button>
+              </b-button-group>
             </template>
           </b-table>
           <b-pagination
@@ -289,6 +299,37 @@ export default {
       this.$nextTick(() => {
         this.$v.$reset();
       });
+    },
+    async deleteShow(item) {
+      if (this.CURRENT_SHOW != null && this.CURRENT_SHOW.id === item.id) {
+        this.$toast.error('Unable to delete currently loaded show');
+        return;
+      }
+
+      const msg = `Are you sure you want to delete ${item.name}? This will delete all data associated with this show and cannot be undone.`;
+      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      if (action !== true) {
+        return;
+      }
+
+      try {
+        const searchParams = new URLSearchParams({
+          id: item.id,
+        });
+        const response = await fetch(`${makeURL('/api/v1/show')}?${searchParams}`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          await this.GET_AVAILABLE_SHOWS();
+          this.$toast.success('Deleted show!');
+        } else {
+          this.$toast.error('Unable to delete show');
+          log.error('Unable to delete show');
+        }
+      } catch (error) {
+        this.$toast.error('Unable to delete show');
+        log.error('Error deleting show:', error);
+      }
     },
     ...mapActions(['GET_AVAILABLE_SHOWS', 'GET_SCRIPT_MODES']),
   },
