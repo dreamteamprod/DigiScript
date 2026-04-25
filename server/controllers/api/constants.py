@@ -111,3 +111,22 @@ ERROR_CREW_ASSIGNMENT_EXISTS = "Crew assignment already exists"
 
 ERROR_NAME_ALREADY_TAKEN = "Name already taken"
 ERROR_TAG_NAME_EXISTS = "Tag name already exists (case-insensitive)"
+ERROR_SCRIPT_DRAFT_ACTIVE = (
+    "409 cannot modify script while collaborative edit in progress"
+)
+
+# =============================================================================
+# WebSocket Edit/Cuts Mode Errors
+# =============================================================================
+
+ERROR_EDIT_BLOCKED_BY_CUTTER = "Cannot edit: another user is in cuts mode"
+ERROR_CUTS_BLOCKED_BY_EDITOR = "Cannot enter cuts mode: another user is editing"
+ERROR_CUTS_BLOCKED_BY_CUTTER = "Cannot enter cuts mode: another user is already cutting"
+ERROR_CUTS_BLOCKED_BY_DRAFT = "Cannot enter cuts mode: unsaved draft exists"
+ERROR_ROOM_OPEN_LOAD = "Cannot load revision while a collaborative edit session is active for the current revision"
+ERROR_ROOM_OPEN_OR_DRAFT = (
+    "Cannot perform this operation: target revision has an active room or unsaved draft"
+)
+ERROR_EDIT_BLOCKED_BY_LIVE_SESSION = (
+    "Cannot edit script while a live session is in progress"
+)

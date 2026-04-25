@@ -15,6 +15,8 @@ import { getWebSocketURL, isElectron } from '@/js/platform';
 import { initRemoteLogging } from '@/js/logger';
 import log from 'loglevel';
 
+window.log = log;
+
 import './assets/styles/dark.scss';
 import 'vue-toast-notification/dist/theme-sugar.css';
 import 'vue-multiselect/dist/vue-multiselect.min.css';

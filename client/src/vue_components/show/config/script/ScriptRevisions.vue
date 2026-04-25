@@ -26,20 +26,29 @@
       <template #cell(current)="data">
         <b-icon-check-square-fill v-if="data.item.id === CURRENT_REVISION" variant="success" />
         <b-button-group v-else>
-          <b-button
+          <span
             v-if="IS_SCRIPT_EDITOR"
-            variant="warning"
-            :disabled="
-              !canChangeRevisions ||
-              data.item.id === CURRENT_REVISION ||
-              submittingLoadRevision ||
-              submittingNewRevision ||
-              deletingRevision
+            v-b-tooltip.hover="
+              !canLoadRevision
+                ? 'Cannot load revision while a live session is in progress or a collaborative editing session is active'
+                : ''
             "
-            @click="loadRevision(data)"
+            class="btn-group-item"
           >
-            Load
-          </b-button>
+            <b-button
+              variant="warning"
+              :disabled="
+                !canLoadRevision ||
+                data.item.id === CURRENT_REVISION ||
+                submittingLoadRevision ||
+                submittingNewRevision ||
+                deletingRevision
+              "
+              @click="loadRevision(data)"
+            >
+              Load
+            </b-button>
+          </span>
         </b-button-group>
       </template>
       <template #cell(previous_revision_id)="data">
@@ -53,7 +62,7 @@
           <b-button
             variant="warning"
             :disabled="
-              !canChangeRevisions ||
+              !canDeleteRevision ||
               submittingLoadRevision ||
               submittingNewRevision ||
               deletingRevision
@@ -62,36 +71,55 @@
           >
             Edit
           </b-button>
-          <b-button
-            variant="danger"
-            :disabled="
-              !canChangeRevisions ||
-              submittingLoadRevision ||
-              submittingNewRevision ||
-              deletingRevision
+          <span
+            v-b-tooltip.hover="
+              !canDeleteRevision || revisionHasDraft(data.item.id)
+                ? 'Cannot delete revision — it has an active room or unsaved draft'
+                : ''
             "
-            @click="deleteRev(data)"
+            class="btn-group-item"
           >
-            Delete
-          </b-button>
+            <b-button
+              variant="danger"
+              :disabled="
+                !canDeleteRevision ||
+                revisionHasDraft(data.item.id) ||
+                submittingLoadRevision ||
+                submittingNewRevision ||
+                deletingRevision
+              "
+              @click="deleteRev(data)"
+            >
+              Delete
+            </b-button>
+          </span>
         </b-button-group>
       </template>
       <template #custom-foot="data">
         <b-tr>
           <b-td>
-            <b-button
+            <span
               v-if="IS_SCRIPT_EDITOR"
-              v-b-modal.new-revision
-              variant="outline-success"
-              :disabled="
-                !canChangeRevisions ||
-                submittingLoadRevision ||
-                submittingNewRevision ||
-                deletingRevision
+              v-b-tooltip.hover="
+                revisionHasDraft(CURRENT_REVISION)
+                  ? 'Cannot create a new revision — the current revision has an unsaved draft'
+                  : ''
               "
+              class="btn-group-item"
             >
-              New Revision
-            </b-button>
+              <b-button
+                v-b-modal.new-revision
+                variant="outline-success"
+                :disabled="
+                  revisionHasDraft(CURRENT_REVISION) ||
+                  submittingLoadRevision ||
+                  submittingNewRevision ||
+                  deletingRevision
+                "
+              >
+                New Revision
+              </b-button>
+            </span>
           </b-td>
           <b-td />
           <b-td />
@@ -144,7 +172,11 @@
       :revision="selectedRevision"
       :revisions="SCRIPT_REVISIONS"
       :current-revision-id="CURRENT_REVISION"
-      :can-edit="IS_SCRIPT_EDITOR && canChangeRevisions"
+      :can-edit="
+        IS_SCRIPT_EDITOR &&
+        canDeleteRevision &&
+        !revisionHasDraft(selectedRevision && selectedRevision.id)
+      "
       :submitting="modalSubmitting"
       @load-revision="handleModalLoadRevision"
       @create-from="handleModalCreateFrom"
@@ -252,12 +284,23 @@ export default {
     ...mapGetters([
       'SCRIPT_REVISIONS',
       'CURRENT_REVISION',
-      'CURRENT_EDITOR',
-      'INTERNAL_UUID',
+      'EDITORS',
+      'CUTTERS',
+      'HAS_DRAFT',
       'IS_SCRIPT_EDITOR',
+      'IS_DRAFT_ACTIVE',
+      'CURRENT_SHOW_SESSION',
     ]),
-    canChangeRevisions() {
-      return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
+    canLoadRevision() {
+      return (
+        !this.CURRENT_SHOW_SESSION &&
+        this.EDITORS.length === 0 &&
+        this.CUTTERS.length === 0 &&
+        !this.IS_DRAFT_ACTIVE
+      );
+    },
+    canDeleteRevision() {
+      return !this.CURRENT_SHOW_SESSION && this.EDITORS.length === 0 && this.CUTTERS.length === 0;
     },
   },
   watch: {
@@ -269,6 +312,10 @@ export default {
     await this.GET_SCRIPT_CONFIG_STATUS();
   },
   methods: {
+    revisionHasDraft(revisionId) {
+      const rev = this.SCRIPT_REVISIONS.find((r) => r.id === revisionId);
+      return rev ? !!rev.has_draft : false;
+    },
     resetNewRevForm() {
       this.newRevFormState = {
         description: '',
@@ -449,5 +496,19 @@ export default {
 /* Remove card body padding when collapsed to minimize visual footprint */
 .collapsed-card >>> .card-body {
   padding: 0;
+}
+
+.btn-group-item {
+  display: flex;
+}
+
+.btn-group-item:not(:last-child) > .btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.btn-group-item:not(:first-child) > .btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 </style>

@@ -5,16 +5,20 @@ the query patterns in ws_controller.py, following our endpoint-based testing app
 """
 
 import json
+from unittest.mock import AsyncMock
 
+import pycrdt
 from sqlalchemy import select
 from tornado.testing import gen_test
 from tornado.websocket import websocket_connect
 
 from models.script import Script, ScriptRevision
+from models.script_draft import ScriptDraft
 from models.session import Session, ShowSession
 from models.show import Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from utils.script_room_manager import ScriptRoom
 
 
 class TestWSControllerIntegration(DigiScriptTestCase):
@@ -22,48 +26,80 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
     def setUp(self):
         super().setUp()
-        # Create a test user for authentication
         with self._app.get_db().sessionmaker() as session:
-            user = User(username="testuser", password="hashed")
-            session.add(user)
+            # Admin user for tests that should succeed
+            admin = User(username="admin", password="hashed", is_admin=True)
+            session.add(admin)
             session.flush()
-            self.user_id = user.id
+            self.admin_id = admin.id
+
+            # Regular user without WRITE role (for RBAC rejection tests)
+            viewer = User(username="viewer", password="hashed", is_admin=False)
+            session.add(viewer)
+            session.flush()
+            self.viewer_id = viewer.id
+
+            # Legacy test user alias
+            self.user_id = self.admin_id
+
+            # Show + Script + Revision (needed for RBAC and draft checks)
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Rev"
+            )
+            session.add(revision)
+            session.flush()
+            script.current_revision = revision.id
+            self.revision_id = revision.id
+
             session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+
+    async def _connect_and_auth(self, user_id=None):
+        """Connect WS and authenticate.
+
+        :param user_id: User ID to authenticate as. If None, no auth is done.
+        :returns: Tuple of (ws, internal_uuid).
+        """
+        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
+        ws = await websocket_connect(ws_url)
+        msg = await ws.read_message()
+        uuid = json.loads(msg)["DATA"]
+        await ws.read_message()  # GET_SETTINGS
+        if user_id:
+            token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
+            await ws.write_message(
+                json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
+            )
+            await ws.read_message()  # WS_AUTH_SUCCESS
+        return ws, uuid
+
+    # ------------------------------------------------------------------
+    # REQUEST_SCRIPT_EDIT tests
+    # ------------------------------------------------------------------
 
     @gen_test
     async def test_request_script_edit_no_editors(self):
-        """Test REQUEST_SCRIPT_EDIT when no editors exist.
+        """Admin requests edit when no editors exist — should succeed."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        This tests the query at lines 288-290 in controllers/ws_controller.py:
-        session.scalars(select(Session).where(Session.is_editor)).all()
-
-        When a user requests script edit permission and no editors exist,
-        the query should return empty list and permission should be granted.
-        """
-        # Connect to WebSocket
-        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
-        ws = await websocket_connect(ws_url)
-
-        # Receive initial messages (SET_UUID and GET_SETTINGS)
-        msg1 = await ws.read_message()
-        msg1_data = json.loads(msg1)
-        self.assertEqual("SET_UUID", msg1_data["OP"])
-
-        msg2 = await ws.read_message()
-        msg2_data = json.loads(msg2)
-        self.assertEqual("NOOP", msg2_data["OP"])
-        self.assertEqual("GET_SETTINGS", msg2_data["ACTION"])
-
-        # Send REQUEST_SCRIPT_EDIT message
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
 
-        # Verify we get GET_SCRIPT_CONFIG_STATUS (indicating success)
         response = await ws.read_message()
         response_data = json.loads(response)
         self.assertEqual("NOOP", response_data["OP"])
         self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response_data["ACTION"])
 
-        # Verify the session was marked as editor
+        # Verify session marked as editor
         with self._app.get_db().sessionmaker() as db_session:
             editors = db_session.scalars(select(Session).where(Session.is_editor)).all()
             self.assertEqual(1, len(editors))
@@ -72,78 +108,253 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         ws.close()
 
     @gen_test
-    async def test_request_script_edit_with_existing_editor(self):
-        """Test REQUEST_SCRIPT_EDIT when an editor already exists.
+    async def test_request_script_edit_multi_editor_allowed(self):
+        """Second editor request is now allowed (multi-editor mode).
 
-        This tests the query at lines 288-290 when an editor session exists.
-        The query should find the existing editor and deny permission.
+        With CRDTs handling conflicts, multiple editors can co-exist.
         """
         # Create an existing editor session
         with self._app.get_db().sessionmaker() as session:
             editor_session = Session(
-                internal_id="existing-editor", user_id=self.user_id, is_editor=True
+                internal_id="existing-editor",
+                user_id=self.admin_id,
+                is_editor=True,
             )
             session.add(editor_session)
             session.commit()
 
-        # Connect to WebSocket
-        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
-        ws = await websocket_connect(ws_url)
+        ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        # Receive initial messages
-        msg1 = await ws.read_message()
-        await ws.read_message()  # Consume GET_SETTINGS
-
-        # Send REQUEST_SCRIPT_EDIT message
         await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
 
-        # Verify we get REQUEST_EDIT_FAILURE (indicating denial)
+        # Multi-editor: should succeed with GET_SCRIPT_CONFIG_STATUS
         response = await ws.read_message()
         response_data = json.loads(response)
         self.assertEqual("NOOP", response_data["OP"])
-        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response_data["ACTION"])
 
-        # Verify the session was NOT marked as editor
-        internal_id = json.loads(msg1)["DATA"]
-        with self._app.get_db().sessionmaker() as session:
-            new_session = session.get(Session, internal_id)
-            self.assertFalse(new_session.is_editor)
+        # Verify 2 editor sessions now exist
+        with self._app.get_db().sessionmaker() as db_session:
+            editors = db_session.scalars(select(Session).where(Session.is_editor)).all()
+            self.assertEqual(2, len(editors))
 
         ws.close()
 
     @gen_test
-    async def test_websocket_close_elects_leader(self):
-        """Test leader election when WebSocket closes during live session.
-
-        This tests the query at lines 118-122 in controllers/ws_controller.py:
-        session.scalars(
-            select(Session).where(Session.user_id == live_session.user_id)
-        ).first()
-
-        When a WebSocket controlling a live session closes, the system should
-        find another session for the same user to elect as new leader.
-        """
-        # Create a show with a live session
+    async def test_request_script_edit_blocked_by_cutter(self):
+        """Edit request is blocked when another session is cutting."""
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Test Revision"
+            cutter_session = Session(
+                internal_id="cutter-session",
+                user_id=self.admin_id,
+                is_cutting=True,
             )
-            session.add(revision)
-            session.flush()
-            revision_id = revision.id
+            session.add(cutter_session)
             session.commit()
 
-        self._app.digi_settings.settings["current_show"].set_value(show_id)
+        ws, uuid = await self._connect_and_auth(self.admin_id)
 
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("cuts mode", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    @gen_test
+    async def test_request_edit_rbac_rejection(self):
+        """Non-admin user without WRITE role is rejected."""
+        ws, uuid = await self._connect_and_auth(self.viewer_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("permissions", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    # ------------------------------------------------------------------
+    # REQUEST_SCRIPT_CUTS tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_request_script_cuts_success(self):
+        """Cuts request succeeds when no editors and no draft exist."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response_data["ACTION"])
+
+        # Verify session marked as cutting
+        with self._app.get_db().sessionmaker() as db_session:
+            cutters = db_session.scalars(
+                select(Session).where(Session.is_cutting)
+            ).all()
+            self.assertEqual(1, len(cutters))
+            self.assertTrue(cutters[0].is_cutting)
+
+        ws.close()
+
+    @gen_test
+    async def test_request_script_cuts_blocked_by_editor(self):
+        """Cuts request is blocked when an editor session exists."""
+        with self._app.get_db().sessionmaker() as session:
+            editor_session = Session(
+                internal_id="editor-session",
+                user_id=self.admin_id,
+                is_editor=True,
+            )
+            session.add(editor_session)
+            session.commit()
+
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("editing", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    @gen_test
+    async def test_request_script_cuts_blocked_by_draft(self):
+        """Cuts request is blocked when an unsaved draft exists."""
+        with self._app.get_db().sessionmaker() as session:
+            draft = ScriptDraft(revision_id=self.revision_id, data_path="/tmp/test.yjs")
+            session.add(draft)
+            session.commit()
+
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("draft", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    @gen_test
+    async def test_request_script_cuts_allowed_with_viewer_room(self):
+        """Cuts request succeeds when room has only viewer clients (no editors)."""
+        # Simulate a viewer-only room via the room manager
+        doc = pycrdt.Doc()
+        doc.get("meta", type=pycrdt.Map)
+        doc.get("pages", type=pycrdt.Map)
+        doc.get("deleted_line_ids", type=pycrdt.Array)
+        room = ScriptRoom(self.revision_id, doc)
+
+        mock_viewer_ws = AsyncMock()
+        room.add_client(mock_viewer_ws, "viewer")
+
+        # Inject room into room_manager
+        self._app.room_manager._room = room
+
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response_data["ACTION"])
+
+        # Verify session marked as cutting
+        with self._app.get_db().sessionmaker() as db_session:
+            cutters = db_session.scalars(
+                select(Session).where(Session.is_cutting)
+            ).all()
+            self.assertEqual(1, len(cutters))
+
+        # Clean up
+        self._app.room_manager._room = None
+        ws.close()
+
+    # ------------------------------------------------------------------
+    # STOP_SCRIPT_EDIT tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_stop_script_edit_clears_both_flags(self):
+        """STOP_SCRIPT_EDIT clears both is_editor and is_cutting flags."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Set both flags directly in DB
+        with self._app.get_db().sessionmaker() as db_session:
+            entry = db_session.get(Session, uuid)
+            entry.is_editor = True
+            entry.is_cutting = True
+            db_session.commit()
+
+        await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response_data["ACTION"])
+
+        # Verify both flags cleared
+        with self._app.get_db().sessionmaker() as db_session:
+            entry = db_session.get(Session, uuid)
+            self.assertFalse(entry.is_editor)
+            self.assertFalse(entry.is_cutting)
+
+        ws.close()
+
+    # ------------------------------------------------------------------
+    # Disconnect tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_disconnect_clears_is_cutting(self):
+        """Disconnecting while cutting triggers GET_SCRIPT_CONFIG_STATUS."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter cuts mode
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+        await ws.read_message()  # Consume GET_SCRIPT_CONFIG_STATUS
+
+        # Connect observer
+        ws_observer, _ = await self._connect_and_auth()
+
+        # Close the cutter
+        ws.close()
+
+        # Observer should receive GET_SCRIPT_CONFIG_STATUS
+        response = await ws_observer.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response_data["ACTION"])
+
+        # Verify session deleted
+        with self._app.get_db().sessionmaker() as db_session:
+            entry = db_session.get(Session, uuid)
+            self.assertIsNone(entry)
+
+        ws_observer.close()
+
+    # ------------------------------------------------------------------
+    # Leader election tests (unchanged from original)
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_websocket_close_elects_leader(self):
+        """Test leader election when WebSocket closes during live session."""
         # Connect first WebSocket (will be the leader)
         ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
         ws1 = await websocket_connect(ws_url)
@@ -168,17 +379,16 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             session.flush()
 
             # Create the show session controlled by first WebSocket
-            # The live_session relationship is auto-populated via client_internal_id
             show_session = ShowSession(
-                show_id=show_id,
-                script_revision_id=revision_id,
+                show_id=self.show_id,
+                script_revision_id=self.revision_id,
                 user_id=self.user_id,
                 client_internal_id=ws1_uuid,
             )
             session.add(show_session)
             session.flush()
 
-            show = session.get(Show, show_id)
+            show = session.get(Show, self.show_id)
             show.current_session_id = show_session.id
             session.commit()
 
@@ -193,7 +403,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
         # Verify the show session now points to second WebSocket
         with self._app.get_db().sessionmaker() as session:
-            show = session.get(Show, show_id)
+            show = session.get(Show, self.show_id)
             show_session = session.get(ShowSession, show.current_session_id)
             self.assertEqual(ws2_uuid, show_session.client_internal_id)
 
@@ -201,33 +411,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
 
     @gen_test
     async def test_websocket_close_no_next_leader(self):
-        """Test leader election when no other session exists for user.
-
-        This tests the query at lines 118-122 when the query returns None.
-        When a WebSocket closes and there's no other session for the user,
-        all clients should receive NO_LEADER message.
-        """
-        # Create a show with a live session
-        with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Test Revision"
-            )
-            session.add(revision)
-            session.flush()
-            revision_id = revision.id
-            session.commit()
-
-        self._app.digi_settings.settings["current_show"].set_value(show_id)
-
+        """Test leader election when no other session exists for user."""
         # Connect WebSocket (will be the only session for this user)
         ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
         ws1 = await websocket_connect(ws_url)
@@ -248,21 +432,21 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             sess1.user_id = self.user_id
             session.flush()
 
-            # Create show session - live_session relationship auto-populated
+            # Create show session
             show_session = ShowSession(
-                show_id=show_id,
-                script_revision_id=revision_id,
+                show_id=self.show_id,
+                script_revision_id=self.revision_id,
                 user_id=self.user_id,
                 client_internal_id=ws1_uuid,
             )
             session.add(show_session)
             session.flush()
 
-            show = session.get(Show, show_id)
+            show = session.get(Show, self.show_id)
             show.current_session_id = show_session.id
             session.commit()
 
-        # Close the WebSocket - should trigger NO_LEADER since no other session exists
+        # Close the WebSocket - should trigger NO_LEADER
         ws1.close()
 
         # Verify observer receives NO_LEADER message
@@ -272,3 +456,713 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         self.assertEqual("NO_LEADER", response_data["ACTION"])
 
         ws_observer.close()
+
+    # ------------------------------------------------------------------
+    # REQUEST_SCRIPT_CUTS — blocked by other cutter
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_request_script_cuts_blocked_by_other_cutter(self):
+        """Cuts request is blocked when another session is already cutting."""
+        with self._app.get_db().sessionmaker() as session:
+            cutter_session = Session(
+                internal_id="existing-cutter",
+                user_id=self.admin_id,
+                is_cutting=True,
+            )
+            session.add(cutter_session)
+            session.commit()
+
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("already cutting", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    # ------------------------------------------------------------------
+    # JOIN_SCRIPT_ROOM — server-side revision lookup, role from session
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_join_script_room_no_show_rejected(self):
+        """JOIN_SCRIPT_ROOM is rejected with COLLAB_ERROR when no show is loaded."""
+        # Clear current show
+        self._app.digi_settings.settings["current_show"].set_to_default()
+
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertIn("No show loaded", response_data["DATA"]["error"])
+
+        ws.close()
+
+    @gen_test
+    async def test_join_script_room_no_active_revision_rejected(self):
+        """JOIN_SCRIPT_ROOM is rejected with COLLAB_ERROR when no revision is active."""
+        # Remove current_revision from the script
+        with self._app.get_db().sessionmaker() as session:
+            script = session.scalar(
+                select(Script).where(Script.show_id == self.show_id)
+            )
+            script.current_revision = None
+            session.commit()
+
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertIn("No active revision", response_data["DATA"]["error"])
+
+        ws.close()
+
+    @gen_test
+    async def test_join_script_room_viewer_when_not_editing(self):
+        """Admin who hasn't entered edit mode joins room as viewer."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Join room WITHOUT requesting edit first
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+
+        # First message: YJS_SYNC (initial state)
+        sync_msg = await ws.read_message()
+        sync_data = json.loads(sync_msg)
+        self.assertEqual("NOOP", sync_data["OP"])
+        self.assertEqual("YJS_SYNC", sync_data["ACTION"])
+
+        # Second message: ROOM_MEMBERS broadcast
+        members_msg = await ws.read_message()
+        members_data = json.loads(members_msg)
+        self.assertEqual("NOOP", members_data["OP"])
+        self.assertEqual("ROOM_MEMBERS", members_data["ACTION"])
+        members = members_data["DATA"]["members"]
+        self.assertEqual(1, len(members))
+        self.assertEqual("viewer", members[0]["role"])
+
+        ws.close()
+
+    @gen_test
+    async def test_request_edit_upgrades_room_role(self):
+        """Admin joins room as viewer, then requests edit — role upgrades to editor."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Join room first (as viewer, since not yet editing)
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        members_msg = await ws.read_message()
+        members_data = json.loads(members_msg)
+        self.assertEqual("viewer", members_data["DATA"]["members"][0]["role"])
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Now request edit — should upgrade role
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+
+        # Should receive ROOM_MEMBERS with upgraded role
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("ROOM_MEMBERS", response_data["ACTION"])
+        self.assertEqual("editor", response_data["DATA"]["members"][0]["role"])
+
+        # Also receive GET_SCRIPT_CONFIG_STATUS
+        config_msg = await ws.read_message()
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", json.loads(config_msg)["ACTION"])
+
+        ws.close()
+
+    @gen_test
+    async def test_stop_edit_downgrades_room_role(self):
+        """Editor sends STOP_SCRIPT_EDIT — role downgrades to viewer."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        # Join room (as editor)
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        members_msg = await ws.read_message()
+        self.assertEqual(
+            "editor", json.loads(members_msg)["DATA"]["members"][0]["role"]
+        )
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Stop editing — should downgrade to viewer, then close room (last editor)
+        await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+
+        # Should receive ROOM_MEMBERS with viewer role
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("ROOM_MEMBERS", response_data["ACTION"])
+        self.assertEqual("viewer", response_data["DATA"]["members"][0]["role"])
+
+        # Room closes since this was the last editor
+        room_closed_msg = await ws.read_message()
+        room_closed_data = json.loads(room_closed_msg)
+        self.assertEqual("NOOP", room_closed_data["OP"])
+        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
+
+        # Also receive GET_SCRIPT_CONFIG_STATUS
+        config_msg = await ws.read_message()
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", json.loads(config_msg)["ACTION"])
+
+        ws.close()
+
+    @gen_test
+    async def test_stop_edit_triggers_checkpoint_when_last_editor(self):
+        """Last editor stops editing — checkpoint is created."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        # Join room (as editor)
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Make a modification to mark the doc dirty
+        room = self._app.room_manager.get_active_room()
+        meta = room.doc.get("meta", type=pycrdt.Map)
+        meta["test_dirty"] = "value"
+
+        # Stop editing (last editor) — should trigger checkpoint + room close
+        await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_REVISIONS (broadcast after checkpoint)
+        # Room is closed after checkpoint — client receives ROOM_CLOSED
+        room_closed_msg = await ws.read_message()
+        room_closed_data = json.loads(room_closed_msg)
+        self.assertEqual("NOOP", room_closed_data["OP"])
+        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        # Verify a ScriptDraft record was created (checkpoint happened)
+        with self._app.get_db().sessionmaker() as db_session:
+            draft = db_session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
+            )
+            self.assertIsNotNone(draft)
+            self.assertIsNotNone(draft.data_path)
+
+        # Verify room was evicted
+        self.assertIsNone(self._app.room_manager.get_active_room())
+
+        ws.close()
+
+    @gen_test
+    async def test_join_script_room_editor_when_editing(self):
+        """Admin who entered edit mode joins room as editor."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode first
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # Consume GET_SCRIPT_CONFIG_STATUS
+
+        # Now join room
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+
+        # First message: YJS_SYNC (initial state)
+        sync_msg = await ws.read_message()
+        sync_data = json.loads(sync_msg)
+        self.assertEqual("NOOP", sync_data["OP"])
+        self.assertEqual("YJS_SYNC", sync_data["ACTION"])
+
+        # Second message: ROOM_MEMBERS broadcast
+        members_msg = await ws.read_message()
+        members_data = json.loads(members_msg)
+        self.assertEqual("NOOP", members_data["OP"])
+        self.assertEqual("ROOM_MEMBERS", members_data["ACTION"])
+        members = members_data["DATA"]["members"]
+        self.assertEqual(1, len(members))
+        self.assertEqual("editor", members[0]["role"])
+
+        ws.close()
+
+    @gen_test
+    async def test_stop_edit_closes_room_when_last_editor(self):
+        """Last editor sends STOP_SCRIPT_EDIT — room is closed, client gets ROOM_CLOSED."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Verify room exists
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
+
+        # Stop editing (last editor)
+        await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # ROOM_MEMBERS
+
+        # Should receive ROOM_CLOSED with empty DATA
+        room_closed_msg = await ws.read_message()
+        room_closed_data = json.loads(room_closed_msg)
+        self.assertEqual("NOOP", room_closed_data["OP"])
+        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
+        self.assertEqual({}, room_closed_data["DATA"])
+
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        # Room should be evicted
+        self.assertIsNone(self._app.room_manager.get_active_room())
+
+        ws.close()
+
+    @gen_test
+    async def test_stop_edit_keeps_room_when_other_editors(self):
+        """Two editors in room, one stops — room stays open, no ROOM_CLOSED."""
+        ws1, uuid1 = await self._connect_and_auth(self.admin_id)
+        ws2, uuid2 = await self._connect_and_auth(self.admin_id)
+
+        # Both enter edit mode
+        await ws1.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws1
+        await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws2 (broadcast)
+
+        await ws2.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws1 (broadcast)
+        await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws2
+
+        # Both join room
+        await ws1.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws1.read_message()  # YJS_SYNC
+        await ws1.read_message()  # ROOM_MEMBERS
+        await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+        await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS from join (broadcast)
+
+        await ws2.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws2.read_message()  # YJS_SYNC
+        # Both get ROOM_MEMBERS (ws2 joined)
+        await ws1.read_message()  # ROOM_MEMBERS for ws1
+        await ws2.read_message()  # ROOM_MEMBERS for ws2
+        await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+        await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # ws1 stops editing — room should stay open (ws2 is still editor)
+        await ws1.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+
+        # Both receive ROOM_MEMBERS (ws1 downgraded to viewer)
+        members_msg1 = await ws1.read_message()
+        members_msg2 = await ws2.read_message()
+        msg1 = json.loads(members_msg1)
+        msg2 = json.loads(members_msg2)
+        self.assertEqual("NOOP", msg1["OP"])
+        self.assertEqual("ROOM_MEMBERS", msg1["ACTION"])
+        self.assertEqual("NOOP", msg2["OP"])
+        self.assertEqual("ROOM_MEMBERS", msg2["ACTION"])
+
+        # Both receive GET_SCRIPT_CONFIG_STATUS
+        await ws1.read_message()
+        await ws2.read_message()
+
+        # Room should still exist with the second editor
+        room = self._app.room_manager.get_active_room()
+        self.assertIsNotNone(room)
+        self.assertTrue(room.has_editors)
+
+        ws1.close()
+        ws2.close()
+
+    @gen_test
+    async def test_disconnect_closes_room_when_last_editor(self):
+        """Editor disconnects — remaining viewer receives ROOM_CLOSED."""
+        ws_editor, _ = await self._connect_and_auth(self.admin_id)
+        ws_viewer, _ = await self._connect_and_auth(self.admin_id)
+
+        # Editor enters edit mode
+        await ws_editor.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}})
+        )
+        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS
+        await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS broadcast
+
+        # Both join room
+        await ws_editor.write_message(
+            json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}})
+        )
+        await ws_editor.read_message()  # YJS_SYNC
+        await ws_editor.read_message()  # ROOM_MEMBERS
+        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+        await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        await ws_viewer.write_message(
+            json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}})
+        )
+        await ws_viewer.read_message()  # YJS_SYNC
+        await ws_editor.read_message()  # ROOM_MEMBERS
+        await ws_viewer.read_message()  # ROOM_MEMBERS
+        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+        await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Editor disconnects
+        ws_editor.close()
+
+        # Viewer receives messages in non-deterministic order due to
+        # on_close being sync (sends GET_SCRIPT_CONFIG_STATUS immediately)
+        # while room broadcast/close happen via add_callback.
+        # Collect all messages and verify the expected set by ACTION.
+        received_actions = set()
+        for _ in range(3):
+            msg = json.loads(await ws_viewer.read_message())
+            self.assertEqual("NOOP", msg["OP"])
+            received_actions.add(msg.get("ACTION"))
+
+        self.assertIn("ROOM_MEMBERS", received_actions)
+        self.assertIn("ROOM_CLOSED", received_actions)
+        self.assertIn("GET_SCRIPT_CONFIG_STATUS", received_actions)
+
+        # Room should be evicted
+        self.assertIsNone(self._app.room_manager.get_active_room())
+
+        ws_viewer.close()
+
+    # ------------------------------------------------------------------
+    # SAVE_SCRIPT_DRAFT tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_save_script_draft_success(self):
+        """SAVE_SCRIPT_DRAFT dispatches to save_room; editor receives SCRIPT_SAVED."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Send save request. save_draft always updates meta.last_saved_at in the Y.Doc,
+        # so save_room always broadcasts YJS_UPDATE first, then SCRIPT_SAVED.
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("YJS_UPDATE", response_data["ACTION"])
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("SCRIPT_SAVED", response_data["ACTION"])
+        self.assertIn("last_saved_at", response_data["DATA"])
+
+        ws.close()
+
+    @gen_test
+    async def test_save_script_draft_error_sent_to_requester(self):
+        """If save_draft raises, the requesting editor receives SAVE_ERROR."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Patch the room's save_draft to raise
+        room = self._app.room_manager.get_active_room()
+
+        async def _raise_save_error(session):
+            raise ValueError("Simulated save failure")
+
+        room.save_draft = _raise_save_error
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("SAVE_ERROR", response_data["ACTION"])
+        self.assertIn("Simulated save failure", response_data["DATA"]["error"])
+
+        ws.close()
+
+    # ------------------------------------------------------------------
+    # DISCARD_SCRIPT_DRAFT tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_discard_script_draft_closes_room(self):
+        """DISCARD_SCRIPT_DRAFT closes the room; editor receives ROOM_CLOSED."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
+
+        await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("ROOM_CLOSED", response_data["ACTION"])
+        self.assertEqual({}, response_data["DATA"])
+
+        # Room should be evicted after discard
+        self.assertIsNone(self._app.room_manager.get_active_room())
+
+        ws.close()
+
+    # ------------------------------------------------------------------
+    # Checkpoint-on-close guard tests
+    # ------------------------------------------------------------------
+
+    @gen_test
+    async def test_stop_edit_clean_room_does_not_checkpoint(self):
+        """Last editor stops editing with a clean room — no checkpoint is written.
+
+        After a save, _dirty is False. STOP_SCRIPT_EDIT should close the room
+        without re-creating the draft file or ScriptDraft DB record.
+        """
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Confirm the room starts clean (no Y.Doc mutations yet)
+        room = self._app.room_manager.get_active_room()
+        self.assertFalse(room._dirty)
+
+        # Stop editing (last editor) with a clean room
+        await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # ROOM_CLOSED
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        # No ScriptDraft record should exist
+        with self._app.get_db().sessionmaker() as db_session:
+            draft = db_session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
+            )
+            self.assertIsNone(draft)
+
+        # Room should still be evicted
+        self.assertIsNone(self._app.room_manager.get_active_room())
+
+        ws.close()
+
+    @gen_test
+    async def test_stop_edit_dirty_room_checkpoints_before_close(self):
+        """Last editor stops editing with a dirty room — checkpoint IS written.
+
+        Any Y.Doc mutation sets _dirty = True. STOP_SCRIPT_EDIT should
+        checkpoint (creating a ScriptDraft) before closing the room.
+        """
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Mutate the Y.Doc to mark it dirty
+        room = self._app.room_manager.get_active_room()
+        meta = room.doc.get("meta", type=pycrdt.Map)
+        meta["dirty_marker"] = "unsaved"
+        self.assertTrue(room._dirty)
+
+        # Stop editing (last editor) with a dirty room
+        await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # ROOM_CLOSED
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        # A ScriptDraft record should have been created by the checkpoint
+        with self._app.get_db().sessionmaker() as db_session:
+            draft = db_session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
+            )
+            self.assertIsNotNone(draft)
+            self.assertIsNotNone(draft.data_path)
+
+        # Room should be evicted
+        self.assertIsNone(self._app.room_manager.get_active_room())
+
+
+class TestLiveSessionGuards(DigiScriptTestCase):
+    """Tests that live show sessions block collaborative editing operations."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            admin = User(username="admin", password="hashed", is_admin=True)
+            session.add(admin)
+            session.flush()
+            self.admin_id = admin.id
+
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test Rev"
+            )
+            session.add(revision)
+            session.flush()
+            script.current_revision = revision.id
+            self.revision_id = revision.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+
+    def _set_live_session_active(self):
+        """Create a ShowSession and mark show.current_session_id.
+
+        :returns: The ShowSession ID created.
+        """
+        with self._app.get_db().sessionmaker() as session:
+            show_session = ShowSession(
+                show_id=self.show_id,
+                script_revision_id=self.revision_id,
+            )
+            session.add(show_session)
+            session.flush()
+            show = session.get(Show, self.show_id)
+            show.current_session_id = show_session.id
+            session.commit()
+            return show_session.id
+
+    async def _connect_and_auth(self, user_id=None):
+        """Connect WS and authenticate.
+
+        :param user_id: User ID to authenticate as. If None, no auth is done.
+        :returns: Tuple of (ws, internal_uuid).
+        """
+        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
+        ws = await websocket_connect(ws_url)
+        msg = await ws.read_message()
+        uuid = json.loads(msg)["DATA"]
+        await ws.read_message()  # GET_SETTINGS
+        if user_id:
+            token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
+            await ws.write_message(
+                json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
+            )
+            await ws.read_message()  # WS_AUTH_SUCCESS
+        return ws, uuid
+
+    @gen_test
+    async def test_request_script_edit_blocked_by_live_session(self):
+        """REQUEST_SCRIPT_EDIT is rejected while a live show session is running."""
+        self._set_live_session_active()
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("live session", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    @gen_test
+    async def test_request_script_cuts_blocked_by_live_session(self):
+        """REQUEST_SCRIPT_CUTS is rejected while a live show session is running."""
+        self._set_live_session_active()
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("REQUEST_EDIT_FAILURE", response_data["ACTION"])
+        self.assertIn("live session", response_data["DATA"]["reason"])
+
+        ws.close()
+
+    @gen_test
+    async def test_join_script_room_blocked_by_live_session(self):
+        """JOIN_SCRIPT_ROOM is rejected with COLLAB_ERROR while a live session is running."""
+        self._set_live_session_active()
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertIn("live session", response_data["DATA"]["error"])
+
+        ws.close()
+
+    @gen_test
+    async def test_save_script_draft_blocked_by_live_session(self):
+        """SAVE_SCRIPT_DRAFT is rejected with COLLAB_ERROR while a live session is running."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+
+        # Enter edit mode and join room before activating the live session
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # Activate live session now that we're in the room
+        self._set_live_session_active()
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertIn("live session", response_data["DATA"]["error"])
+
+        ws.close()

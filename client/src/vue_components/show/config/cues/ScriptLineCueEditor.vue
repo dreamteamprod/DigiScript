@@ -12,7 +12,7 @@
           <b-button
             v-for="cue in cues"
             :key="cue.id"
-            :disabled="!IS_CUE_EDITOR"
+            :disabled="!canEditCues"
             class="cue-button"
             :style="{
               backgroundColor: cueBackgroundColour(cue),
@@ -23,7 +23,7 @@
             {{ cueLabel(cue) }}
           </b-button>
           <b-button
-            v-if="IS_CUE_EDITOR"
+            v-if="canEditCues"
             class="cue-button"
             :disabled="isWholeLineCut(line)"
             @click.stop="openNewForm"
@@ -374,12 +374,16 @@ export default {
   computed: {
     ...mapGetters([
       'IS_CUE_EDITOR',
+      'HAS_DRAFT',
       'RBAC_ROLES',
       'CURRENT_USER_RBAC',
       'IS_ADMIN_USER',
       'SCRIPT_CUES',
       'CUE_COLOUR_OVERRIDES',
     ]),
+    canEditCues() {
+      return this.IS_CUE_EDITOR && !this.HAS_DRAFT;
+    },
     cueTypeOptions() {
       if (this.IS_ADMIN_USER) {
         return [

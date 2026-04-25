@@ -11,6 +11,7 @@ import system from './modules/system';
 import show from './modules/show';
 import script from './modules/script';
 import scriptConfig from './modules/scriptConfig';
+import scriptDraft from './modules/scriptDraft';
 import help from './modules/help';
 import stage from './modules/stage';
 
@@ -203,6 +204,7 @@ export default new Vuex.Store({
     stage,
     script,
     scriptConfig,
+    scriptDraft,
     user,
     help,
   },

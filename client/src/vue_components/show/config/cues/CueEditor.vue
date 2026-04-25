@@ -1,5 +1,9 @@
 <template>
   <b-container class="mx-0 px-0" fluid>
+    <b-alert :show="HAS_DRAFT" variant="warning">
+      Cue editing is disabled while a script draft exists. Save or discard the draft before editing
+      cues.
+    </b-alert>
     <b-row class="script-row">
       <b-col cols="2">
         <b-button-group>
@@ -105,7 +109,7 @@
 </template>
 
 <script>
-import { mapGetters, mapMutations, mapActions } from 'vuex';
+import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
@@ -165,8 +169,6 @@ export default {
       'SCENE_LIST',
       'CHARACTER_LIST',
       'CHARACTER_GROUP_LIST',
-      'CAN_REQUEST_EDIT',
-      'CURRENT_EDITOR',
       'INTERNAL_UUID',
       'GET_SCRIPT_PAGE',
       'CUE_TYPES',
@@ -175,6 +177,7 @@ export default {
       'STAGE_DIRECTION_STYLES',
       'STAGE_DIRECTION_STYLE_OVERRIDES',
       'CURRENT_USER',
+      'HAS_DRAFT',
     ]),
   },
   watch: {
@@ -227,18 +230,6 @@ export default {
         log.error('Unable to get current max page');
       }
     },
-    requestEdit() {
-      this.$socket.sendObj({
-        OP: 'REQUEST_SCRIPT_EDIT',
-        DATA: {},
-      });
-    },
-    async stopEditing() {
-      this.$socket.sendObj({
-        OP: 'STOP_SCRIPT_EDIT',
-        DATA: {},
-      });
-    },
     async decrPage() {
       if (this.currentEditPage > 1) {
         const targetPage = this.currentEditPage - 1;
@@ -281,18 +272,13 @@ export default {
       await this.goToPageInner(pageNumber);
       this.$bvModal.hide('jump-to-cue');
     },
-    ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions([
       'GET_SCENE_LIST',
       'GET_ACT_LIST',
       'GET_CHARACTER_LIST',
       'GET_CHARACTER_GROUP_LIST',
       'LOAD_SCRIPT_PAGE',
-      'ADD_BLANK_PAGE',
       'GET_SCRIPT_CONFIG_STATUS',
-      'RESET_TO_SAVED',
-      'SAVE_NEW_PAGE',
-      'SAVE_CHANGED_PAGE',
       'GET_CUE_TYPES',
       'LOAD_CUES',
       'GET_CUTS',

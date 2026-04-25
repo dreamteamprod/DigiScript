@@ -44,6 +44,7 @@
           v-for="(part, index) in state.line_parts"
           :key="`line_${lineIndex}_part_${index}`"
           v-model="$v.state.line_parts.$model[index]"
+          :y-part-map="getYPartMap(index)"
           :focus-input="index === 0"
           :characters="characters"
           :character-groups="characterGroups"
@@ -98,11 +99,14 @@
 </template>
 
 <script>
+import * as Y from 'yjs';
 import { mapGetters } from 'vuex';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { nullToZero, zeroToNull } from '@/utils/yjs/yjsBridge';
+import { uuidv4 } from 'lib0/random';
 
 export default {
   name: 'ScriptLineEditor',
@@ -133,13 +137,15 @@ export default {
       required: true,
       type: Array,
     },
-    previousLineFn: {
-      required: true,
-      type: Function,
+    previousLine: {
+      required: false,
+      default: null,
+      type: Object,
     },
-    nextLineFn: {
-      required: true,
-      type: Function,
+    nextLine: {
+      required: false,
+      default: null,
+      type: Object,
     },
     lineType: {
       required: true,
@@ -152,6 +158,10 @@ export default {
     value: {
       required: true,
       type: Object,
+    },
+    yLineMap: {
+      type: Object,
+      default: null,
     },
   },
   data() {
@@ -166,10 +176,7 @@ export default {
         character_group_id: null,
         line_text: '',
       },
-      previousLine: null,
-      nextLine: null,
-      recalculationTimeout: null,
-      abortController: null,
+      ymapObserverCleanup: null,
     };
   },
   validations: {
@@ -217,13 +224,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'TMP_SCRIPT', 'ALL_DELETED_LINES', 'CURRENT_SHOW']),
-    currentPageScript() {
-      return this.TMP_SCRIPT[this.currentEditPage.toString()] || [];
-    },
-    currentPageDeletedLines() {
-      return this.ALL_DELETED_LINES[this.currentEditPage.toString()] || [];
-    },
+    ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'CURRENT_SHOW']),
     nextActs() {
       // Start act is either the first act for the show, or the act of the previous line if there
       // is one
@@ -292,31 +293,15 @@ export default {
     },
   },
   watch: {
-    currentPageScript: {
-      handler() {
-        this.scheduleRecalculation();
-      },
-      deep: true,
-    },
-    currentPageDeletedLines: {
-      handler() {
-        this.scheduleRecalculation();
-      },
-      deep: true,
-    },
-    lineIndex() {
-      this.scheduleRecalculation();
-    },
-    ALL_DELETED_LINES: {
-      handler() {
-        this.scheduleRecalculation();
-      },
-      deep: true,
+    yLineMap(newVal, oldVal) {
+      if (oldVal) this.teardownYLineObservers();
+      if (newVal) this.setupYLineObservers();
     },
   },
-  async created() {
-    this.previousLine = await this.previousLineFn(this.lineIndex);
-    this.nextLine = await this.nextLineFn(this.lineIndex);
+  created() {
+    if (this.yLineMap) {
+      this.setupYLineObservers();
+    }
     if (
       this.state.line_parts.length === 0 &&
       (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION)
@@ -328,49 +313,9 @@ export default {
     this.$v.state.$touch();
   },
   beforeDestroy() {
-    if (this.recalculationTimeout) {
-      clearTimeout(this.recalculationTimeout);
-    }
-    if (this.abortController) {
-      this.abortController.abort();
-    }
+    this.teardownYLineObservers();
   },
   methods: {
-    scheduleRecalculation() {
-      // Cancel any pending recalculation
-      if (this.recalculationTimeout) {
-        clearTimeout(this.recalculationTimeout);
-      }
-
-      // Debounce recalculation by 100ms
-      this.recalculationTimeout = setTimeout(() => {
-        this.recalculatePreviousNextLines();
-      }, 100);
-    },
-    async recalculatePreviousNextLines() {
-      // Cancel any in-flight async operations
-      if (this.abortController) {
-        this.abortController.abort();
-      }
-
-      // Create new abort controller for this operation
-      this.abortController = new AbortController();
-      const { signal } = this.abortController;
-
-      try {
-        const prevLine = await this.previousLineFn(this.lineIndex);
-        if (signal.aborted) return;
-        this.previousLine = prevLine;
-
-        const nxtLine = await this.nextLineFn(this.lineIndex);
-        if (signal.aborted) return;
-        this.nextLine = nxtLine;
-      } catch (error) {
-        if (error.name !== 'AbortError') {
-          console.error('Error recalculating previous/next lines:', error);
-        }
-      }
-    },
     validateState(name) {
       const { $dirty, $error } = this.$v.state[name];
       return $dirty ? !$error : null;
@@ -378,8 +323,21 @@ export default {
     doneEditing() {
       this.$emit('doneEditing');
     },
+    /**
+     * Called on dropdown changes and when child ScriptLinePart emits input.
+     */
     stateChange() {
       this.$v.state.$touch();
+      if (this.yLineMap && this.yLineMap.doc) {
+        this.yLineMap.doc.transact(() => {
+          this.yLineMap.set('act_id', nullToZero(this.state.act_id));
+          this.yLineMap.set('scene_id', nullToZero(this.state.scene_id));
+          this.yLineMap.set(
+            'stage_direction_style_id',
+            nullToZero(this.state.stage_direction_style_id)
+          );
+        }, 'local-edit');
+      }
       this.$emit('input', this.state);
     },
     addLinePart() {
@@ -399,7 +357,60 @@ export default {
           }
         }
       }
+      if (this.yLineMap) {
+        this.addPartToYDoc(
+          this.state.line_parts[this.state.line_parts.length - 1],
+          this.state.line_parts.length - 1
+        );
+      }
       this.stateChange();
+    },
+    addPartToYDoc(partObj, index) {
+      const partsArray = this.yLineMap.get('parts');
+      if (!partsArray || !this.yLineMap.doc) return;
+      this.yLineMap.doc.transact(() => {
+        const partMap = new Y.Map();
+        partsArray.push([partMap]);
+        partMap.set('_id', uuidv4());
+        partMap.set('character_id', nullToZero(partObj.character_id));
+        partMap.set('character_group_id', nullToZero(partObj.character_group_id));
+        partMap.set('part_index', partObj.part_index ?? index);
+        const ytext = new Y.Text();
+        partMap.set('line_text', ytext);
+        if (partObj.line_text) {
+          ytext.insert(0, partObj.line_text);
+        }
+      }, 'local-edit');
+    },
+    getYPartMap(index) {
+      if (!this.yLineMap) return null;
+      const parts = this.yLineMap.get('parts');
+      if (!parts || index >= parts.length) return null;
+      return parts.get(index);
+    },
+    setupYLineObservers() {
+      const mapObserver = (event) => {
+        if (event.transaction.origin === 'local-edit') return;
+        for (const key of event.keysChanged) {
+          if (key === 'act_id') {
+            this.state.act_id = zeroToNull(this.yLineMap.get('act_id'));
+          } else if (key === 'scene_id') {
+            this.state.scene_id = zeroToNull(this.yLineMap.get('scene_id'));
+          } else if (key === 'stage_direction_style_id') {
+            this.state.stage_direction_style_id = zeroToNull(
+              this.yLineMap.get('stage_direction_style_id')
+            );
+          }
+        }
+      };
+      this.yLineMap.observe(mapObserver);
+      this.ymapObserverCleanup = () => this.yLineMap.unobserve(mapObserver);
+    },
+    teardownYLineObservers() {
+      if (this.ymapObserverCleanup) {
+        this.ymapObserverCleanup();
+        this.ymapObserverCleanup = null;
+      }
     },
     deleteLine() {
       this.$emit('deleteLine');

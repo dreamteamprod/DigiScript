@@ -30,6 +30,7 @@ from digi_server.settings import Settings
 from models import models
 from models.cue import CueType
 from models.script import CompiledScript, Script
+from models.script_draft import ScriptDraft
 from models.session import Session, ShowSession
 from models.settings import SystemSettings
 from models.show import Show
@@ -40,6 +41,7 @@ from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.mdns_service import MDNSAdvertiser
 from utils.module_discovery import get_resource_path, is_frozen
+from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
 from utils.web.route import Route
@@ -71,6 +73,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         self._db: DigiSQLAlchemy = models.db
         self.jwt_service: JWTService = None
+        self.room_manager: Optional[RoomManager] = None
         self.mdns_advertiser: Optional[MDNSAdvertiser] = None
         self.version_checker: Optional[VersionChecker] = None
 
@@ -233,10 +236,53 @@ class DigiScriptServer(PrometheusMixIn, Application):
                             f"Failed to remove compiled script file: {ds_file}"
                         )
 
+            # 4.5. Tidy up draft script files (same pattern as compiled scripts)
+            draft_script_path = self.digi_settings.settings.get(
+                "draft_script_path"
+            ).get_value()
+            os.makedirs(draft_script_path, exist_ok=True)
+
+            removed_drafts = []
+            drafts: List[ScriptDraft] = session.scalars(select(ScriptDraft)).all()
+            for draft in drafts:
+                if not draft.data_path or not os.path.exists(draft.data_path):
+                    get_logger().info(
+                        f"Removing draft record for revision {draft.revision_id} "
+                        f"as data file not found at {draft.data_path}"
+                    )
+                    session.delete(draft)
+                    removed_drafts.append(draft)
+            if removed_drafts:
+                session.commit()
+                get_logger().info(
+                    f"Removed {len(removed_drafts)} stale draft records from the database."
+                )
+
+            for draft_file in glob.glob(f"{draft_script_path}/*.yjs"):
+                found = False
+                for draft in drafts:
+                    if draft in removed_drafts:
+                        continue
+                    if draft.data_path == draft_file:
+                        found = True
+                        break
+                if not found:
+                    get_logger().info(f"Removing unreferenced draft file: {draft_file}")
+                    try:
+                        os.remove(draft_file)
+                    except Exception:
+                        get_logger().exception(
+                            f"Failed to remove draft file: {draft_file}"
+                        )
+
             # 5. Clear out all sessions since we are starting the app up
             get_logger().debug("Emptying out sessions table!")
             session.execute(delete(Session))
             session.commit()
+
+        # Initialize the RoomManager for collaborative editing
+        self.room_manager = RoomManager(self)
+        self.room_manager.start()
 
         # Get static files path - adjust for PyInstaller if needed
         if is_frozen():
@@ -488,6 +534,24 @@ class DigiScriptServer(PrometheusMixIn, Application):
             await self.digi_settings.set("has_admin_user", has_admin)
 
     async def _show_changed(self):
+        if hasattr(self, "room_manager") and self.room_manager:
+            room = self.room_manager.get_active_room()
+            if room and room._dirty:
+                get_logger().warning(
+                    "Show changed while script draft has unsaved changes "
+                    "— draft will be discarded"
+                )
+                await self.ws_send_to_all(
+                    "NOOP",
+                    "COLLAB_ERROR",
+                    {
+                        "error": (
+                            "Show changed while draft was active; "
+                            "unsaved changes were discarded"
+                        )
+                    },
+                )
+            await self.room_manager.close_active_room()
         await self.ws_send_to_all("NOOP", "SHOW_CHANGED", {})
 
     def get_db(self) -> DigiSQLAlchemy:

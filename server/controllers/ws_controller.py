@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import datetime
 import json
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, Optional, Union
@@ -11,10 +12,19 @@ from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
 from tornado.websocket import WebSocketClosedError, WebSocketHandler
 
+from controllers.api.constants import (
+    ERROR_CUTS_BLOCKED_BY_CUTTER,
+    ERROR_CUTS_BLOCKED_BY_DRAFT,
+    ERROR_CUTS_BLOCKED_BY_EDITOR,
+    ERROR_EDIT_BLOCKED_BY_CUTTER,
+    ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
+)
 from digi_server.logger import get_logger
+from models.script import Script
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
 from models.user import User
+from rbac.role import Role
 from utils.web.base_controller import DatabaseMixin
 from utils.web.route import ApiRoute, ApiVersion
 
@@ -32,7 +42,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         self._last_ping = 0.0
         self._last_pong = 0.0
 
-    def update_session(self, is_editor=False, user_id=None):
+    def update_session(self, is_editor=False, is_cutting=False, user_id=None):
         with self.make_session() as session:
             entry = session.get(Session, self.__getattribute__("internal_id"))
             if entry:
@@ -50,6 +60,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         last_pong=self._last_pong,
                         user_id=user_id,
                         is_editor=is_editor,
+                        is_cutting=is_cutting,
                     )
                 )
             if self.current_user_id:
@@ -82,19 +93,52 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         if self in self.application.clients:
             self.application.clients.remove(self)
 
+        # Remove from any collaborative editing room
+        if hasattr(self.application, "room_manager") and self.application.room_manager:
+            room = self.application.room_manager.get_room_for_client(self)
+            if room:
+                was_editor = room.clients.get(self) == "editor"
+                room.remove_client(self)
+                # Schedule async broadcast (on_close is sync, so use add_callback)
+                app = self.application
+                rm = self.application.room_manager
+
+                async def _broadcast():
+                    try:
+                        with app.get_db().sessionmaker() as session:
+                            await room.broadcast_members(session)
+                        if was_editor and not room.has_editors:
+                            if room._dirty:
+                                await rm._checkpoint_room(room)
+                                await app.ws_send_to_all(
+                                    "NOOP", "GET_SCRIPT_REVISIONS", {}
+                                )
+                    except Exception:
+                        get_logger().exception("Error in on_close _broadcast callback")
+                    finally:
+                        if was_editor and not room.has_editors:
+                            await rm.close_active_room()
+
+                IOLoop.current().add_callback(_broadcast)
+
         notify_editor_change = False
         elect_live_leader = False
 
-        with self.make_session() as session:
-            entry = session.get(Session, self.__getattribute__("internal_id"))
-            if entry:
-                if entry.is_editor:
-                    notify_editor_change = True
-                if entry.live_session:
-                    elect_live_leader = True
+        try:
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry:
+                    if entry.is_editor or entry.is_cutting:
+                        notify_editor_change = True
+                    if entry.live_session:
+                        elect_live_leader = True
 
-                session.delete(entry)
-                session.commit()
+                    session.delete(entry)
+                    session.commit()
+        except Exception:
+            get_logger().exception(
+                f"Error cleaning up session in on_close for {self.request.remote_ip}"
+            )
 
         if notify_editor_change:
             for client in self.application.clients:
@@ -103,9 +147,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
 
         if elect_live_leader:
-            current_show = self.application.digi_settings.settings.get(
-                "current_show"
-            ).get_value()
+            _show_setting = self.application.digi_settings.settings.get("current_show")
+            if not _show_setting:
+                return
+            current_show = _show_setting.get_value()
             if current_show:
                 with self.make_session() as session:
                     show = session.get(Show, current_show)
@@ -202,8 +247,14 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             f"WebSocket received data from {self.request.remote_ip}: {message}"
         )
 
-        message = json.loads(message)
-        ws_op = message["OP"]
+        try:
+            message = json.loads(message)
+            ws_op = message["OP"]
+        except (json.JSONDecodeError, KeyError) as e:
+            get_logger().warning(
+                f"Malformed WS message from {self.request.remote_ip}: {e}"
+            )
+            return
 
         # Handle JWT authentication operations
         if ws_op == "AUTHENTICATE":
@@ -227,6 +278,22 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 await self.write_message(
                     {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
                 )
+            return
+
+        # Handle script room and collaborative editing operations
+        if ws_op in (
+            "JOIN_SCRIPT_ROOM",
+            "LEAVE_SCRIPT_ROOM",
+            "YJS_SYNC",
+            "YJS_UPDATE",
+            "YJS_AWARENESS",
+            "SAVE_SCRIPT_DRAFT",
+            "DISCARD_SCRIPT_DRAFT",
+            "REQUEST_SCRIPT_EDIT",
+            "REQUEST_SCRIPT_CUTS",
+            "STOP_SCRIPT_EDIT",
+        ):
+            await self._handle_script_room_op(ws_op, message)
             return
 
         with self.make_session() as session:
@@ -262,10 +329,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             elif ws_op == "REFRESH_CLIENT":
                 new_uuid = message["DATA"]
                 is_editor = False
+                is_cutting = False
                 update_session_client = False
 
                 if entry:
                     is_editor = entry.is_editor
+                    is_cutting = entry.is_cutting
                     if show and show.current_session_id:
                         show_session = session.get(ShowSession, show.current_session_id)
                         if (
@@ -278,34 +347,17 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     session.commit()
 
                 self.__setattr__("internal_id", new_uuid)
-                self.update_session(is_editor=is_editor, user_id=self.current_user_id)
+                self.update_session(
+                    is_editor=is_editor,
+                    is_cutting=is_cutting,
+                    user_id=self.current_user_id,
+                )
                 if update_session_client:
                     show_session.client_internal_id = new_uuid
                     show_session.last_client_internal_id = None
                     session.commit()
                     await self.application.ws_send_to_all(
                         "NOOP", "GET_SHOW_SESSION_DATA", {}
-                    )
-            elif ws_op == "REQUEST_SCRIPT_EDIT":
-                editors = session.scalars(
-                    select(Session).where(Session.is_editor)
-                ).all()
-                if len(editors) == 0:
-                    entry.is_editor = True
-                    session.commit()
-                    await self.application.ws_send_to_all(
-                        "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
-                    )
-                else:
-                    await self.write_message(
-                        {"OP": "NOOP", "ACTION": "REQUEST_EDIT_FAILURE", "DATA": {}}
-                    )
-            elif ws_op == "STOP_SCRIPT_EDIT":
-                if entry.is_editor:
-                    entry.is_editor = False
-                    session.commit()
-                    await self.application.ws_send_to_all(
-                        "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
                     )
             elif ws_op == "SCRIPT_SCROLL":
                 if show and show.current_session_id:
@@ -391,6 +443,510 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     f"WebSocket connection {self.request.remote_ip}"
                 )
 
+    async def _is_live_session_active(self) -> bool:
+        """Return True if a show session is currently running.
+
+        :returns: True if the current show has an active session, False otherwise.
+        """
+        current_show_id = await self.application.digi_settings.get("current_show")
+        if not current_show_id:
+            return False
+        with self.make_session() as session:
+            show = session.get(Show, current_show_id)
+            return bool(show and show.current_session_id)
+
+    async def _handle_script_room_op(self, ws_op: str, message: dict):
+        """Handle script room and collaborative editing WebSocket operations.
+
+        :param ws_op: The operation code.
+        :param message: The full parsed message dict.
+        """
+        room_manager = getattr(self.application, "room_manager", None)
+        if not room_manager:
+            get_logger().warning("RoomManager not available, ignoring collab OP")
+            return
+
+        data = message.get("DATA", {})
+
+        if ws_op == "REQUEST_SCRIPT_EDIT":
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry is None:
+                    get_logger().warning(
+                        "REQUEST_SCRIPT_EDIT: session entry not found "
+                        "(race with on_close?)"
+                    )
+                    return
+                current_show_id = await self.application.digi_settings.get(
+                    "current_show"
+                )
+                show = session.get(Show, current_show_id) if current_show_id else None
+
+                if show and show.current_session_id:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                        }
+                    )
+                    return
+
+                user = (
+                    session.get(User, self.current_user_id)
+                    if self.current_user_id
+                    else None
+                )
+                if not user or (
+                    not user.is_admin
+                    and (
+                        not show
+                        or not self.application.rbac.has_role(user, show, Role.WRITE)
+                    )
+                ):
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": "Insufficient permissions"},
+                        }
+                    )
+                    return
+
+                cutters = session.scalars(
+                    select(Session).where(Session.is_cutting)
+                ).all()
+                if cutters:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_CUTTER},
+                        }
+                    )
+                    return
+
+                entry.is_editor = True
+                session.commit()
+
+            room = room_manager.get_room_for_client(self)
+            if room:
+                room.add_client(self, "editor")
+                with self.make_session() as session:
+                    await room.broadcast_members(session)
+
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+        elif ws_op == "REQUEST_SCRIPT_CUTS":
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry is None:
+                    get_logger().warning(
+                        "REQUEST_SCRIPT_CUTS: session entry not found "
+                        "(race with on_close?)"
+                    )
+                    return
+                current_show_id = await self.application.digi_settings.get(
+                    "current_show"
+                )
+                show = session.get(Show, current_show_id) if current_show_id else None
+
+                if show and show.current_session_id:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                        }
+                    )
+                    return
+
+                user = (
+                    session.get(User, self.current_user_id)
+                    if self.current_user_id
+                    else None
+                )
+                if not user or (
+                    not user.is_admin
+                    and (
+                        not show
+                        or not self.application.rbac.has_role(user, show, Role.WRITE)
+                    )
+                ):
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": "Insufficient permissions"},
+                        }
+                    )
+                    return
+
+                cutters = session.scalars(
+                    select(Session).where(
+                        Session.is_cutting,
+                        Session.internal_id != self.__getattribute__("internal_id"),
+                    )
+                ).all()
+                if cutters:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_CUTTER},
+                        }
+                    )
+                    return
+
+                editors = session.scalars(
+                    select(Session).where(Session.is_editor)
+                ).all()
+                if editors:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "REQUEST_EDIT_FAILURE",
+                            "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_EDITOR},
+                        }
+                    )
+                    return
+
+                if show:
+                    script = session.scalar(
+                        select(Script).where(Script.show_id == show.id)
+                    )
+                    if script and script.current_revision:
+                        if await room_manager.has_unsaved_changes():
+                            await self.write_message(
+                                {
+                                    "OP": "NOOP",
+                                    "ACTION": "REQUEST_EDIT_FAILURE",
+                                    "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_DRAFT},
+                                }
+                            )
+                            return
+
+                entry.is_cutting = True
+                session.commit()
+
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+        elif ws_op == "STOP_SCRIPT_EDIT":
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry and (entry.is_editor or entry.is_cutting):
+                    entry.is_editor = False
+                    entry.is_cutting = False
+                    session.commit()
+
+            room = room_manager.get_room_for_client(self)
+            if room:
+                room.add_client(self, "viewer")
+                with self.make_session() as session:
+                    await room.broadcast_members(session)
+                if not room.has_editors:
+                    if room._dirty:
+                        await room_manager._checkpoint_room(room)
+                        await self.application.ws_send_to_all(
+                            "NOOP", "GET_SCRIPT_REVISIONS", {}
+                        )
+                    await room_manager.close_active_room()
+
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+        elif ws_op == "JOIN_SCRIPT_ROOM":
+            # Server-side revision lookup: the client never needs to tell us which
+            # revision to join — there is only ever one active revision.
+            current_show_id = await self.application.digi_settings.get("current_show")
+            if not current_show_id:
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": "No show loaded"},
+                    }
+                )
+                return
+            with self.make_session() as lookup_session:
+                show_obj = lookup_session.get(Show, current_show_id)
+                script_obj = (
+                    lookup_session.scalar(
+                        select(Script).where(Script.show_id == show_obj.id)
+                    )
+                    if show_obj
+                    else None
+                )
+                revision_id = script_obj.current_revision if script_obj else None
+            if not revision_id:
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": "No active revision"},
+                    }
+                )
+                return
+
+            # Guard: block joining a room during a live show session
+            if await self._is_live_session_active():
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                    }
+                )
+                return
+
+            # Determine role from the session's is_editor flag (set authoritatively
+            # by REQUEST_SCRIPT_EDIT which runs full RBAC enforcement).
+            role = "viewer"
+            if self.current_user_id:
+                with self.make_session() as role_session:
+                    ws_session = role_session.get(
+                        Session, self.__getattribute__("internal_id")
+                    )
+                    if ws_session and ws_session.is_editor:
+                        role = "editor"
+
+            room = await room_manager.get_or_create_room(revision_id)
+            room.add_client(self, role)
+
+            # Send initial sync: full document state
+            sync_state = room.get_sync_state()
+            await self.write_message(
+                {
+                    "OP": "NOOP",
+                    "ACTION": "YJS_SYNC",
+                    "DATA": {
+                        "step": 0,
+                        "payload": base64.b64encode(sync_state).decode("ascii"),
+                    },
+                }
+            )
+
+            # Broadcast updated member list to all room clients
+            with self.make_session() as session:
+                await room.broadcast_members(session)
+
+            # Notify all clients about the new collaborator
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+        elif ws_op == "LEAVE_SCRIPT_ROOM":
+            room = room_manager.get_room_for_client(self)
+            if room:
+                room.remove_client(self)
+                # Broadcast updated member list to remaining clients
+                with self.make_session() as session:
+                    await room.broadcast_members(session)
+                await self.application.ws_send_to_all(
+                    "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+                )
+        elif ws_op == "YJS_SYNC":
+            room = room_manager.get_room_for_client(self)
+            if not room:
+                return
+
+            payload = data.get("payload", "")
+            step = data.get("step", 1)
+
+            try:
+                decoded = base64.b64decode(payload)
+            except Exception:
+                get_logger().warning("Invalid base64 in YJS_SYNC message")
+                return
+
+            if step == 1:
+                # Client sends its state vector; server responds with diff
+                get_logger().trace(
+                    f"YJS_SYNC step=1 rev={room.revision_id} "
+                    f"state-vector {len(decoded)}B from {self.request.remote_ip}"
+                )
+                diff = room.get_update_for(decoded)
+                get_logger().trace(
+                    f"YJS_SYNC step=2 rev={room.revision_id} "
+                    f"sending diff {len(diff)}B to {self.request.remote_ip}"
+                )
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "YJS_SYNC",
+                        "DATA": {
+                            "step": 2,
+                            "payload": base64.b64encode(diff).decode("ascii"),
+                        },
+                    }
+                )
+            elif step == 2:
+                # Client sends its diff; server applies it
+                if await self._is_live_session_active():
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                        }
+                    )
+                    return
+                get_logger().trace(
+                    f"YJS_SYNC step=2 rev={room.revision_id} "
+                    f"applying {len(decoded)}B update from {self.request.remote_ip}"
+                )
+                await room.apply_update(decoded)
+                await room.broadcast_update(decoded, sender=self)
+        elif ws_op == "YJS_UPDATE":
+            room = room_manager.get_room_for_client(self)
+            if not room:
+                return
+
+            payload = data.get("payload", "")
+            try:
+                decoded = base64.b64decode(payload)
+            except Exception:
+                get_logger().warning("Invalid base64 in YJS_UPDATE message")
+                return
+
+            if await self._is_live_session_active():
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                    }
+                )
+                return
+
+            get_logger().trace(
+                f"YJS_UPDATE rev={room.revision_id} "
+                f"applying {len(decoded)}B update from {self.request.remote_ip}"
+            )
+            try:
+                await room.apply_update(decoded)
+            except Exception:
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": "Failed to apply document update"},
+                    }
+                )
+                return
+            await room.broadcast_update(decoded, sender=self)
+        elif ws_op == "YJS_AWARENESS":
+            room = room_manager.get_room_for_client(self)
+            if not room:
+                return
+
+            payload = data.get("payload", "")
+            try:
+                decoded = base64.b64decode(payload)
+            except Exception:
+                get_logger().warning("Invalid base64 in YJS_AWARENESS message")
+                return
+
+            await room.broadcast_awareness(decoded, sender=self)
+        elif ws_op == "SAVE_SCRIPT_DRAFT":
+            if await self._is_live_session_active():
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                    }
+                )
+                return
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry is None or not entry.is_editor:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Insufficient permissions"},
+                        }
+                    )
+                    return
+                current_show_id = await self.application.digi_settings.get(
+                    "current_show"
+                )
+                show = session.get(Show, current_show_id) if current_show_id else None
+                user = (
+                    session.get(User, self.current_user_id)
+                    if self.current_user_id
+                    else None
+                )
+                if not user or (
+                    not user.is_admin
+                    and (
+                        not show
+                        or not self.application.rbac.has_role(user, show, Role.WRITE)
+                    )
+                ):
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Insufficient permissions"},
+                        }
+                    )
+                    return
+            await room_manager.save_room(self)
+            await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
+        elif ws_op == "DISCARD_SCRIPT_DRAFT":
+            if await self._is_live_session_active():
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                    }
+                )
+                return
+            with self.make_session() as session:
+                entry = session.get(Session, self.__getattribute__("internal_id"))
+                if entry is None or not entry.is_editor:
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Insufficient permissions"},
+                        }
+                    )
+                    return
+                current_show_id = await self.application.digi_settings.get(
+                    "current_show"
+                )
+                show = session.get(Show, current_show_id) if current_show_id else None
+                user = (
+                    session.get(User, self.current_user_id)
+                    if self.current_user_id
+                    else None
+                )
+                if not user or (
+                    not user.is_admin
+                    and (
+                        not show
+                        or not self.application.rbac.has_role(user, show, Role.WRITE)
+                    )
+                ):
+                    await self.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Insufficient permissions"},
+                        }
+                    )
+                    return
+            await room_manager.discard_room(self)
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+            )
+            await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
+
     def on_pong(self, data: bytes) -> None:
         self._last_pong = IOLoop.current().time()
         self.update_session()
@@ -415,5 +971,4 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 f"{self.__getattribute__('internal_id')} at IP address "
                 f"{self.request.remote_ip}, closing."
             )
-            self.on_close()
             return None

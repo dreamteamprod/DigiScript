@@ -12,6 +12,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     TypeDecorator,
@@ -149,6 +150,32 @@ class ScriptLine(db.Model):
 
 class ScriptLineRevisionAssociation(db.Model, DeleteMixin):
     __tablename__ = "script_line_revision_association"
+    __table_args__ = (
+        # Self-referential composite FK constraints enforce that next_line_id and
+        # previous_line_id always point to lines within the same revision.
+        # DEFERRABLE INITIALLY DEFERRED: checked at COMMIT, not at INSERT, so that
+        # lines can be inserted in any order during revision creation.
+        ForeignKeyConstraint(
+            ["revision_id", "next_line_id"],
+            [
+                "script_line_revision_association.revision_id",
+                "script_line_revision_association.line_id",
+            ],
+            name="fk_slra_next_same_revision",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["revision_id", "previous_line_id"],
+            [
+                "script_line_revision_association.revision_id",
+                "script_line_revision_association.line_id",
+            ],
+            name="fk_slra_prev_same_revision",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
 
     revision_id: Mapped[int] = mapped_column(
         ForeignKey("script_revisions.id"), primary_key=True, index=True

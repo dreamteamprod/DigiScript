@@ -1,0 +1,880 @@
+"""Manages collaborative editing rooms for script revisions.
+
+Each ScriptRoom holds a pycrdt Y.Doc and tracks connected WebSocket clients.
+The RoomManager handles room lifecycle: creation, persistence, and checkpointing.
+
+DigiScript loads exactly one show at a time, so there is at most one active
+ScriptRoom at any given time. The manager stores a single ``_room`` instead of
+a dict keyed by revision_id.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import datetime
+import glob
+import os
+import tempfile
+import time
+from functools import partial
+from typing import TYPE_CHECKING
+
+import pycrdt
+from sqlalchemy import select
+from tornado.ioloop import IOLoop
+from tornado.websocket import WebSocketClosedError
+
+from digi_server.logger import get_logger
+from models.script import CompiledScript, ScriptRevision
+from models.script_draft import ScriptDraft
+from models.user import User
+from utils.database import DigiDBSession
+from utils.script.line_to_ydoc import build_ydoc, fetch_script_line_data
+from utils.script.ydoc_to_lines import _save_script_page, extract_lines_from_ydoc
+from utils.script.yjs_debug import attach_trace_observers
+
+
+if TYPE_CHECKING:
+    from tornado.websocket import WebSocketHandler
+
+    from digi_server.app_server import DigiScriptServer
+
+# How often to checkpoint the Y.Doc to disk (seconds)
+CHECKPOINT_INTERVAL = 30
+
+
+def _write_checkpoint_sync(state: bytes, draft_path: str, draft_dir: str) -> None:
+    """Atomic file write for Y.Doc checkpoints. Runs in a thread pool executor.
+
+    Uses the pattern: write to tmp file → fsync → rename, which is crash-safe
+    because ``rename`` is atomic on POSIX systems.
+
+    :param state: The serialised Y.Doc state bytes.
+    :param draft_path: Final destination path for the checkpoint file.
+    :param draft_dir: Directory for the temporary file (same filesystem as
+        *draft_path* to ensure rename is atomic).
+    """
+    fd, tmp_path = tempfile.mkstemp(dir=draft_dir, suffix=".yjs.tmp")
+    try:
+        os.write(fd, state)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.rename(tmp_path, draft_path)
+
+
+def _read_draft_sync(path: str) -> bytes:
+    """Read the contents of a draft file. Runs in a thread pool executor.
+
+    :param path: Path to the draft ``.yjs`` file.
+    :returns: Raw bytes of the draft file.
+    """
+    with open(path, "rb") as f:
+        return f.read()
+
+
+class ScriptRoom:
+    """A collaborative editing room for a single script revision.
+
+    Holds the in-memory Y.Doc and tracks connected WebSocket clients.
+    Each client is stored as a tuple of (ws_handler, role) where role
+    is 'editor' or 'viewer'.
+    """
+
+    def __init__(self, revision_id: int, doc: pycrdt.Doc):
+        """
+        :param revision_id: The script revision this room belongs to.
+        :param doc: The pycrdt Y.Doc holding the shared document state.
+        """
+        self.revision_id = revision_id
+        self.doc = doc
+        self.clients: dict[WebSocketHandler, str] = {}  # ws -> role
+        self.save_lock = asyncio.Lock()
+        self.last_activity = time.monotonic()
+        self._last_checkpoint = time.monotonic()
+        self._dirty = False
+        self._doc_subscription = None
+        self._trace_pages_sub = None
+        self._trace_deleted_sub = None
+
+    def start_observing(self):
+        self._doc_subscription = self.doc.observe(self._on_doc_update)
+        self._trace_pages_sub, self._trace_deleted_sub = attach_trace_observers(self)
+
+    def stop_observing(self):
+        if self._doc_subscription is not None:
+            del self._doc_subscription
+            self._doc_subscription = None
+        if self._trace_pages_sub is not None:
+            del self._trace_pages_sub
+            self._trace_pages_sub = None
+        if self._trace_deleted_sub is not None:
+            del self._trace_deleted_sub
+            self._trace_deleted_sub = None
+
+    def _on_doc_update(self, event):
+        self._dirty = True
+        self.last_activity = time.monotonic()
+
+    def add_client(self, ws: WebSocketHandler, role: str = "editor"):
+        """Add a WebSocket client to this room."""
+        self.clients[ws] = role
+        self.last_activity = time.monotonic()
+        get_logger().info(
+            f"Client joined room for revision {self.revision_id} "
+            f"as {role} ({len(self.clients)} total)"
+        )
+
+    def remove_client(self, ws: WebSocketHandler):
+        """Remove a WebSocket client from this room."""
+        self.clients.pop(ws, None)
+        get_logger().info(
+            f"Client left room for revision {self.revision_id} "
+            f"({len(self.clients)} remaining)"
+        )
+
+    async def broadcast_update(
+        self, update: bytes, sender: WebSocketHandler | None = None
+    ):
+        """Broadcast a Y.Doc update to all clients except the sender.
+
+        :param update: The binary update to broadcast.
+        :param sender: The client that originated the update (excluded from broadcast).
+        """
+        payload = base64.b64encode(update).decode("ascii")
+        message = {
+            "OP": "NOOP",
+            "ACTION": "YJS_UPDATE",
+            "DATA": {"payload": payload},
+        }
+
+        for ws in list(self.clients.keys()):
+            if ws is sender:
+                continue
+            try:
+                await ws.write_message(message)
+            except WebSocketClosedError:
+                get_logger().debug(
+                    f"Client disconnected during update broadcast "
+                    f"in room {self.revision_id}"
+                )
+            except Exception:
+                get_logger().warning(
+                    f"Unexpected error sending update to client "
+                    f"in room {self.revision_id}",
+                    exc_info=True,
+                )
+
+    async def broadcast_awareness(
+        self, data: bytes, sender: WebSocketHandler | None = None
+    ):
+        """Broadcast awareness state to all clients except the sender.
+
+        :param data: The binary awareness data to broadcast.
+        :param sender: The client that originated the update (excluded from broadcast).
+        """
+        payload = base64.b64encode(data).decode("ascii")
+        message = {
+            "OP": "NOOP",
+            "ACTION": "YJS_AWARENESS",
+            "DATA": {"payload": payload},
+        }
+
+        for ws in list(self.clients.keys()):
+            if ws is sender:
+                continue
+            try:
+                await ws.write_message(message)
+            except WebSocketClosedError:
+                get_logger().debug(
+                    f"Client disconnected during awareness broadcast "
+                    f"in room {self.revision_id}"
+                )
+            except Exception:
+                get_logger().warning(
+                    f"Unexpected error sending awareness to client "
+                    f"in room {self.revision_id}",
+                    exc_info=True,
+                )
+
+    async def broadcast_members(self, session):
+        """Broadcast the current room membership to all clients.
+
+        Sent whenever a client joins or leaves the room so all
+        participants have an up-to-date collaborator list.
+
+        :param session: A SQLAlchemy session for looking up usernames.
+        """
+        members = []
+        for ws, role in list(self.clients.items()):
+            user_id = getattr(ws, "current_user_id", None)
+            username = "Unknown"
+            if user_id:
+                user = session.get(User, user_id)
+                if user:
+                    username = user.username or f"User {user_id}"
+            members.append({"user_id": user_id, "username": username, "role": role})
+
+        message = {
+            "OP": "NOOP",
+            "ACTION": "ROOM_MEMBERS",
+            "DATA": {"members": members},
+        }
+
+        for ws in list(self.clients.keys()):
+            try:
+                await ws.write_message(message)
+            except WebSocketClosedError:
+                get_logger().debug(
+                    f"Client disconnected during members broadcast "
+                    f"in room {self.revision_id}"
+                )
+            except Exception:
+                get_logger().warning(
+                    f"Unexpected error sending members to client "
+                    f"in room {self.revision_id}",
+                    exc_info=True,
+                )
+
+    async def _broadcast_save_progress(self, page: int, total: int) -> None:
+        """Broadcast save progress to all connected clients.
+
+        :param page: Number of pages saved so far (0 = starting).
+        :param total: Total number of pages to save.
+        """
+        percent = round((page / total) * 100) if total else 100
+        for client_ws in list(self.clients.keys()):
+            try:
+                await client_ws.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "SAVE_PROGRESS",
+                        "DATA": {"page": page, "total": total, "percent": percent},
+                    }
+                )
+            except WebSocketClosedError:
+                pass
+            except Exception:
+                get_logger().debug(
+                    f"Unexpected error sending save progress "
+                    f"in room {self.revision_id}",
+                    exc_info=True,
+                )
+
+    async def save_draft(self, session: DigiDBSession) -> bytes:
+        """Persist the current Y.Doc state to the database.
+
+        Processes all pages in Y.Doc order, carrying the linked-list
+        ``previous_line`` across page boundaries.  After the commit, patches
+        any UUID ``_id`` values in the Y.Doc with real DB ids, updates
+        ``meta.last_saved_at``, and returns the resulting Y.Doc update delta
+        (so callers can broadcast it to clients).
+
+        :param session: Active SQLAlchemy session.
+        :returns: Y.Doc update bytes containing the id-patch and meta update.
+        :raises Exception: Propagates any save/validation error after rolling
+            back.
+        """
+        log = get_logger()
+        log.info(f"save_draft: starting for revision={self.revision_id}")
+        async with self.save_lock:
+            revision = session.get(ScriptRevision, self.revision_id)
+            if not revision:
+                raise ValueError(f"ScriptRevision {self.revision_id} not found")
+            show = revision.script.show
+
+            lines_by_page, deleted_line_ids = extract_lines_from_ydoc(self.doc)
+            total_lines = sum(len(p["lines"]) for p in lines_by_page)
+            log.info(
+                f"save_draft: revision={self.revision_id} "
+                f"pages={len(lines_by_page)} total_lines={total_lines} "
+                f"deleted_line_ids={deleted_line_ids}"
+            )
+
+            new_line_id_map: dict[str, str] = {}
+            new_part_id_map: dict[str, str] = {}
+
+            total_pages = len(lines_by_page)
+            if total_pages:
+                await self._broadcast_save_progress(0, total_pages)
+
+            previous_line = None
+            for i, page in enumerate(lines_by_page):
+                log.debug(
+                    f"save_draft: processing page {page['page']} "
+                    f"({len(page['lines'])} lines)"
+                )
+                previous_line, line_map, part_map = _save_script_page(
+                    revision,
+                    page["page"],
+                    page["lines"],
+                    deleted_line_ids,
+                    session,
+                    show,
+                    previous_line,
+                )
+                new_line_id_map.update(line_map)
+                new_part_id_map.update(part_map)
+                if total_pages:
+                    await self._broadcast_save_progress(i + 1, total_pages)
+
+            log.info(
+                f"save_draft: revision={self.revision_id} commit starting. "
+                f"new_line_id_map={new_line_id_map} "
+                f"new_part_ids={list(new_part_id_map.keys())}"
+            )
+            session.commit()
+            log.info(f"save_draft: revision={self.revision_id} commit successful")
+
+            # Wipe deleted_line_ids from the Y.Doc now that the commit succeeded.
+            # Entries left here cause stale integer IDs to be re-processed on future
+            # saves, which can delete freshly-created lines if SQLite reuses an ID.
+            deleted_arr = self.doc.get("deleted_line_ids", type=pycrdt.Array)
+            n = len(deleted_arr)
+            if n > 0:
+                del deleted_arr[0:n]
+
+            # Capture state before patching so we can compute the delta to broadcast.
+            # Always update meta.last_saved_at so late-joining clients see the timestamp.
+            state_before = self.doc.get_state()
+            meta = self.doc.get("meta", type=pycrdt.Map)
+            meta["last_saved_at"] = datetime.datetime.now(
+                tz=datetime.timezone.utc
+            ).isoformat()
+
+            if not new_line_id_map and not new_part_id_map:
+                log.info(f"save_draft: revision={self.revision_id} no new IDs to patch")
+                return self.doc.get_update(state_before)
+
+            # Patch the Y.Doc: replace UUID _id values with real DB ids.
+            pages_map = self.doc.get("pages", type=pycrdt.Map)
+            patched_lines = 0
+            patched_parts = 0
+            for page_key in sorted(pages_map.keys(), key=int):
+                page_arr = pages_map[page_key]
+                for i in range(len(page_arr)):
+                    line_map_obj = page_arr[i]
+                    line_id_str = str(line_map_obj["_id"])
+                    if line_id_str in new_line_id_map:
+                        new_id = new_line_id_map[line_id_str]
+                        log.debug(
+                            f"save_draft: patching Y.Doc line _id "
+                            f"{line_id_str!r} → {new_id!r}"
+                        )
+                        line_map_obj["_id"] = new_id
+                        patched_lines += 1
+                    parts_arr = line_map_obj["parts"]
+                    for j in range(len(parts_arr)):
+                        part_map_obj = parts_arr[j]
+                        part_id_str = str(part_map_obj["_id"])
+                        if part_id_str in new_part_id_map:
+                            new_pid = new_part_id_map[part_id_str]
+                            log.debug(
+                                f"save_draft: patching Y.Doc part _id "
+                                f"{part_id_str!r} → {new_pid!r}"
+                            )
+                            part_map_obj["_id"] = new_pid
+                            patched_parts += 1
+
+            log.info(
+                f"save_draft: revision={self.revision_id} Y.Doc patched "
+                f"({patched_lines} line IDs, {patched_parts} part IDs)"
+            )
+            return self.doc.get_update(state_before)
+
+    async def apply_update(self, update: bytes) -> None:
+        """Apply a binary update to the Y.Doc.
+
+        Acquires ``save_lock`` before mutating the Y.Doc so that concurrent
+        ``apply_update`` calls are serialised with ``save_draft``, preventing
+        interleaved writes during a save.
+
+        :param update: The binary update from a client.
+        :raises Exception: Propagates any Y.Doc update error to the caller.
+        """
+        async with self.save_lock:
+            try:
+                self.doc.apply_update(update)
+            except Exception:
+                get_logger().exception(
+                    f"Failed to apply Y.Doc update for revision {self.revision_id}"
+                )
+                raise
+
+    def get_sync_state(self) -> bytes:
+        return self.doc.get_update()
+
+    def get_state_vector(self) -> bytes:
+        return self.doc.get_state()
+
+    def get_update_for(self, state_vector: bytes) -> bytes:
+        return self.doc.get_update(state_vector)
+
+    @property
+    def has_editors(self) -> bool:
+        return any(role == "editor" for role in self.clients.values())
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self.clients) == 0
+
+    @property
+    def needs_checkpoint(self) -> bool:
+        return self._dirty and (
+            time.monotonic() - self._last_checkpoint > CHECKPOINT_INTERVAL
+        )
+
+    def mark_checkpointed(self):
+        self._dirty = False
+        self._last_checkpoint = time.monotonic()
+
+
+class RoomManager:
+    """Manages the single active ScriptRoom for the loaded show.
+
+    DigiScript loads exactly one show at a time, so there is at most one
+    collaborative editing room active at any moment. This manager stores a
+    single ``_room`` (instead of a dict keyed by revision_id) and provides
+    helpers for room lifecycle: creation, checkpointing, closing, and draft
+    status queries.
+    """
+
+    def __init__(self, application: DigiScriptServer):
+        self._application = application
+        self._room: ScriptRoom | None = None
+        self._room_lock: asyncio.Lock = asyncio.Lock()
+        self._maintenance_handle = None
+
+    def start(self):
+        self._schedule_maintenance()
+
+    def stop(self):
+        if self._maintenance_handle is not None:
+            IOLoop.current().remove_timeout(self._maintenance_handle)
+            self._maintenance_handle = None
+
+        if self._room is not None:
+            self._room.stop_observing()
+            self._room = None
+
+    def _schedule_maintenance(self):
+        self._maintenance_handle = IOLoop.current().call_later(
+            CHECKPOINT_INTERVAL, self._run_maintenance
+        )
+
+    async def _run_maintenance(self):
+        try:
+            if self._room and self._room.needs_checkpoint:
+                await self._checkpoint_room(self._room)
+        except Exception:
+            get_logger().exception("Error during room maintenance")
+        finally:
+            self._schedule_maintenance()
+
+    async def get_or_create_room(self, revision_id: int) -> ScriptRoom:
+        """Get the active room or create a new one for the given revision.
+
+        If the current room belongs to a different revision, it is closed
+        first (checkpointing if dirty) before the new room is created.
+
+        If a draft file exists on disk, the Y.Doc is loaded from it.
+        Otherwise, the Y.Doc is built from the ScriptLine models.
+
+        Uses a single lock to prevent concurrent JOIN_SCRIPT_ROOM handlers
+        from each creating a separate ScriptRoom (race condition: both see the
+        room absent, both await _load_or_build_doc, the second overwrites
+        _room leaving the first client orphaned).
+
+        :param revision_id: The script revision ID.
+        :returns: The ScriptRoom for this revision.
+        """
+        # Fast-path: same revision already open (no lock needed)
+        if self._room and self._room.revision_id == revision_id:
+            return self._room
+
+        async with self._room_lock:
+            # Recheck after acquiring lock
+            if self._room and self._room.revision_id == revision_id:
+                return self._room
+
+            # Close the current room if it belongs to a different revision
+            if self._room is not None:
+                await self.close_active_room()
+
+            doc = await self._load_or_build_doc(revision_id)
+            room = ScriptRoom(revision_id, doc)
+            room.start_observing()
+            self._room = room
+
+        get_logger().info(f"Created room for revision {revision_id}")
+        return room
+
+    def get_active_room(self) -> ScriptRoom | None:
+        """Get the active room, if any."""
+        return self._room
+
+    def get_room_for_client(self, ws: WebSocketHandler) -> ScriptRoom | None:
+        """Find the room that a WebSocket client belongs to.
+
+        :param ws: The WebSocket handler.
+        :returns: The ScriptRoom if the client is in the active room, else None.
+        """
+        return self._room if self._room and ws in self._room.clients else None
+
+    async def save_room(self, ws: WebSocketHandler):
+        """Save the draft for the room that *ws* belongs to.
+
+        Sequence:
+        1. Call ``save_draft()`` which commits to DB and returns ID-patch bytes.
+        2. Broadcast the ID-patch update to **all** clients (so everyone's
+           Y.Doc has real DB ids).
+        3. Reset ``_dirty`` so ``hasDraft`` becomes ``False`` immediately.
+        4. Broadcast ``SCRIPT_SAVED`` to all clients.
+        5. Delete the draft file + DB record.
+        6. Schedule script compilation.
+
+        On any error, sends ``SAVE_ERROR`` to the requesting client only.
+
+        :param ws: The WebSocket handler that requested the save.
+        """
+        room = self.get_room_for_client(ws)
+        if room is None:
+            get_logger().warning("Attempted to save draft for client with no room")
+            return
+
+        with self._application.get_db().sessionmaker() as session:
+            try:
+                id_update = await room.save_draft(session)
+            except Exception as e:
+                get_logger().exception("save_draft failed")
+                try:
+                    await ws.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "SAVE_ERROR",
+                            "DATA": {"error": str(e)},
+                        }
+                    )
+                except Exception:
+                    get_logger().warning(
+                        "Failed to notify client of save error", exc_info=True
+                    )
+                return
+
+        # Broadcast ID-patch update so all clients get real DB ids
+        if id_update:
+            payload = base64.b64encode(id_update).decode("ascii")
+            for client_ws in list(room.clients.keys()):
+                try:
+                    await client_ws.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "YJS_UPDATE",
+                            "DATA": {"payload": payload},
+                        }
+                    )
+                except Exception:
+                    get_logger().warning(
+                        "Failed to broadcast ID-patch update to client", exc_info=True
+                    )
+
+        # Reset dirty so hasDraft → False
+        room.mark_checkpointed()
+
+        # Notify all clients of successful save
+        now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+        for client_ws in list(room.clients.keys()):
+            try:
+                await client_ws.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "SCRIPT_SAVED",
+                        "DATA": {"last_saved_at": now},
+                    }
+                )
+            except Exception:
+                get_logger().warning(
+                    "Failed to notify client of successful save", exc_info=True
+                )
+
+        # Remove draft file and DB record (no longer needed after DB save)
+        await self._delete_draft(room.revision_id)
+
+        # Schedule script compilation (fire-and-forget)
+        IOLoop.current().add_callback(
+            partial(CompiledScript.compile_script, self._application, room.revision_id)
+        )
+
+    async def discard_room(self, ws: WebSocketHandler):
+        """Discard the draft for the room that *ws* belongs to.
+
+        Deletes the draft file and DB record, then closes the room so all
+        clients receive ``ROOM_CLOSED`` and revert to the saved script.
+
+        If the room is no longer active (e.g. the last editor already stopped
+        editing and the room was closed), derives the revision_id from the
+        active draft in the database.
+
+        :param ws: The WebSocket handler that requested the discard.
+        """
+        room = self.get_room_for_client(ws)
+        if room is not None:
+            revision_id = room.revision_id
+            await self._delete_draft(revision_id)
+            await self.close_active_room()
+        else:
+            with self._application.get_db().sessionmaker() as session:
+                draft = session.scalar(select(ScriptDraft))
+            if draft is not None:
+                get_logger().info(
+                    f"Discarding draft for revision {draft.revision_id} (no active room)"
+                )
+                await self._delete_draft(draft.revision_id)
+            else:
+                get_logger().warning(
+                    "discard_room called with no room and no active draft"
+                )
+
+    async def discard_active_room(self):
+        """Discard the active draft without a WebSocket context (HTTP DELETE endpoint).
+
+        Deletes the draft file and DB record, then closes the room so all
+        clients receive ``ROOM_CLOSED`` and revert to the saved script.
+        """
+        if self._room is not None:
+            revision_id = self._room.revision_id
+        else:
+            with self._application.get_db().sessionmaker() as session:
+                draft = session.scalar(select(ScriptDraft))
+            revision_id = draft.revision_id if draft else None
+        if revision_id is not None:
+            await self._delete_draft(revision_id)
+        await self.close_active_room()
+
+    async def close_active_room(self):
+        """Checkpoint if dirty, broadcast ROOM_CLOSED, and tear down the active room.
+
+        Safe to call when no room is active (no-op). Also safe if called
+        concurrently — ``_room is None`` check is idempotent.
+        """
+        room = self._room
+        if room is None:
+            return
+
+        if room._dirty:
+            await self._checkpoint_room(room)
+
+        message = {"OP": "NOOP", "ACTION": "ROOM_CLOSED", "DATA": {}}
+        for ws in list(room.clients.keys()):
+            try:
+                await ws.write_message(message)
+            except Exception:
+                pass
+
+        room.stop_observing()
+        self._room = None
+        get_logger().info(f"Closed active room for revision {room.revision_id}")
+
+    async def has_unsaved_changes(self) -> bool:
+        """Return True if there are unsaved changes for the active revision."""
+        if self._room and self._room._dirty:
+            return True
+        with self._application.get_db().sessionmaker() as session:
+            draft = session.scalar(select(ScriptDraft))
+            return draft is not None
+
+    async def _delete_draft(self, revision_id: int):
+        """Delete the draft file and DB record for *revision_id*.
+
+        Does not evict the room — the room stays open so editors can keep
+        working after a save.
+
+        :param revision_id: The script revision whose draft to remove.
+        """
+        draft_path = self._get_draft_path(revision_id)
+        if os.path.exists(draft_path):
+            try:
+                await IOLoop.current().run_in_executor(None, os.remove, draft_path)
+            except Exception:
+                get_logger().exception(f"Failed to remove draft file: {draft_path}")
+
+        with self._application.get_db().sessionmaker() as session:
+            draft = session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == revision_id)
+            )
+            if draft:
+                session.delete(draft)
+                session.commit()
+
+    async def _load_or_build_doc(self, revision_id: int) -> pycrdt.Doc:
+        """Load a Y.Doc from draft file or build from ScriptLine models.
+
+        :param revision_id: The script revision ID.
+        :returns: A pycrdt.Doc instance.
+        """
+        with self._application.get_db().sessionmaker() as session:
+            draft: ScriptDraft | None = session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == revision_id)
+            )
+
+            if draft and draft.data_path and os.path.exists(draft.data_path):
+                # Load from existing draft file
+                try:
+                    data = await IOLoop.current().run_in_executor(
+                        None, _read_draft_sync, draft.data_path
+                    )
+                    doc = pycrdt.Doc()
+                    doc.get("meta", type=pycrdt.Map)
+                    doc.get("pages", type=pycrdt.Map)
+                    doc.get("deleted_line_ids", type=pycrdt.Array)
+                    doc.apply_update(data)
+                    get_logger().info(
+                        f"Loaded draft for revision {revision_id} "
+                        f"from {draft.data_path}"
+                    )
+                    return doc
+                except Exception:
+                    get_logger().exception(
+                        f"Failed to load draft file {draft.data_path}, "
+                        f"rebuilding from ScriptLine models"
+                    )
+                    # Notify all connected clients that the draft was corrupted
+                    await self._application.ws_send_to_all(
+                        "NOOP",
+                        "COLLAB_ERROR",
+                        {
+                            "error": (
+                                "Draft file was corrupted and has been discarded. "
+                                "Work may have been lost."
+                            )
+                        },
+                    )
+                    # Delete stale DB record
+                    session.delete(draft)
+                    session.commit()
+            elif draft and (
+                not draft.data_path or not os.path.exists(draft.data_path or "")
+            ):
+                # Draft record exists but file is missing — clean up
+                get_logger().warning(
+                    f"Draft record for revision {revision_id} has missing file, "
+                    f"removing stale record"
+                )
+                session.delete(draft)
+                session.commit()
+
+            # Build from ScriptLine models
+            script_data = fetch_script_line_data(session, revision_id)
+
+        # Phase B: CPU-bound Y.Doc construction in background thread
+        doc = await IOLoop.current().run_in_executor(
+            None, build_ydoc, script_data, revision_id
+        )
+        get_logger().info(
+            f"Built Y.Doc for revision {revision_id} "
+            f"from {len(script_data)} line associations"
+        )
+        return doc
+
+    async def _checkpoint_room(self, room: ScriptRoom):
+        """Checkpoint a room's Y.Doc to disk using atomic write.
+
+        Uses the pattern: write to tmp → fsync → rename for crash safety.
+
+        :param room: The ScriptRoom to checkpoint.
+        """
+        draft_path = self._get_draft_path(room.revision_id)
+        draft_dir = os.path.dirname(draft_path)
+
+        try:
+            # Get the full doc state
+            state = room.get_sync_state()
+
+            # Atomic write: tmp → fsync → rename (blocking I/O in thread pool)
+            await IOLoop.current().run_in_executor(
+                None, _write_checkpoint_sync, state, draft_path, draft_dir
+            )
+
+            # Update DB record
+            with self._application.get_db().sessionmaker() as session:
+                draft: ScriptDraft | None = session.scalar(
+                    select(ScriptDraft).where(
+                        ScriptDraft.revision_id == room.revision_id
+                    )
+                )
+                now = datetime.datetime.now(tz=datetime.timezone.utc)
+                if draft:
+                    draft.data_path = draft_path
+                    draft.last_modified = now
+                else:
+                    session.add(
+                        ScriptDraft(
+                            revision_id=room.revision_id,
+                            data_path=draft_path,
+                            created_at=now,
+                            last_modified=now,
+                        )
+                    )
+                session.commit()
+
+            room.mark_checkpointed()
+            get_logger().debug(f"Checkpointed room {room.revision_id} to {draft_path}")
+        except Exception:
+            get_logger().exception(f"Failed to checkpoint room {room.revision_id}")
+
+    def _get_draft_path(self, revision_id: int) -> str:
+        """Get the filesystem path for a draft file.
+
+        :param revision_id: The script revision ID.
+        :returns: The full path to the draft .yjs file.
+        """
+        draft_dir = self._application.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+        return os.path.join(draft_dir, f"draft_{revision_id}.yjs")
+
+    async def cleanup_stale_drafts(self):
+        """Clean up stale draft files on startup.
+
+        Removes DB records where the file is missing, and removes files
+        that have no corresponding DB record.
+        """
+        draft_dir = self._application.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+
+        with self._application.get_db().sessionmaker() as session:
+            # Remove DB records with missing files
+            removed_drafts = []
+            drafts: list[ScriptDraft] = session.scalars(select(ScriptDraft)).all()
+            for draft in drafts:
+                if not draft.data_path or not os.path.exists(draft.data_path):
+                    get_logger().info(
+                        f"Removing draft record for revision {draft.revision_id} "
+                        f"— data file not found at {draft.data_path}"
+                    )
+                    session.delete(draft)
+                    removed_drafts.append(draft)
+            if removed_drafts:
+                session.commit()
+                get_logger().info(f"Removed {len(removed_drafts)} stale draft records")
+
+            # Remove unreferenced draft files
+            if os.path.isdir(draft_dir):
+                for yjs_file in glob.glob(os.path.join(draft_dir, "*.yjs")):
+                    found = any(
+                        d.data_path == yjs_file
+                        for d in drafts
+                        if d not in removed_drafts
+                    )
+                    if not found:
+                        get_logger().info(
+                            f"Removing unreferenced draft file: {yjs_file}"
+                        )
+                        try:
+                            os.remove(yjs_file)
+                        except Exception:
+                            get_logger().exception(
+                                f"Failed to remove draft file: {yjs_file}"
+                            )
