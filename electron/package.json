@@ -1,6 +1,6 @@
 {
   "name": "digiscript-electron",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "DigiScript Electron Desktop Application",
   "author": "DreamTeamProd",
   "license": "GPL-3.0",
@@ -39,7 +39,7 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
-    "globals": "^17.5.0",
+    "globals": "^17.6.0",
     "prettier": "^3.8.3"
   },
   "config": {
