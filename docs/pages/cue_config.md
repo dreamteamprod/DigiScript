@@ -10,7 +10,7 @@ The **Cue Types** tab allows you to Add, Edit, and Delete different cue types. C
 
 #### Creating Cue Types
 
-Click **Add** to create a new cue type. For each cue type, you'll need to specify:
+Click **New Cue Type** to create a new cue type. For each cue type, you'll need to specify:
 - **Prefix**: A short identifier (e.g., "LX" for lighting, "SND" for sound)
 - **Description**: A full description of the cue type
 - **Color**: A color code to visually distinguish this cue type in the interface
@@ -20,6 +20,10 @@ After adding cue types, they will appear in the cue types overview:
 ![](../images/config_show/cue_types.png)
 
 The color you choose will be used throughout DigiScript to make different cue types instantly recognizable during configuration and live shows.
+
+#### Importing Cue Types from Another Show
+
+If you have already configured cue types for another show, you can import them into the current show using the **Import Cue Type** button. This opens a panel listing all cue types from your other shows, grouped by show name. Click **Import** next to any cue type to add an independent copy to the current show — changes made after import do not affect the original show.
 
 ### Adding Cues to the Script
 

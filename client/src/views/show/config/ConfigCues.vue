@@ -16,6 +16,14 @@
                 <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-cue-type variant="outline-success">
                   New Cue Type
                 </b-button>
+                <b-button
+                  v-if="IS_SHOW_EDITOR"
+                  variant="outline-info"
+                  class="ml-2"
+                  @click="openImportModal"
+                >
+                  Import Cue Type
+                </b-button>
               </template>
               <template #cell(colour)="data">
                 <p :style="{ color: data.item.colour }">
@@ -166,6 +174,48 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal
+      id="import-cue-type-modal"
+      ref="import-cue-type-modal"
+      title="Import Cue Type"
+      size="xl"
+      hide-footer
+      @hidden="resetImportState"
+    >
+      <div v-if="isLoadingImport" class="text-center">
+        <b-spinner />
+      </div>
+      <div v-else-if="importCueTypeGroups.length === 0">
+        <p class="text-muted">No cue types available to import from other shows.</p>
+      </div>
+      <div v-else>
+        <b-card v-for="show in importCueTypeGroups" :key="show.id" no-body class="mb-2">
+          <b-card-header style="cursor: pointer" @click="toggleImportShow(show.id)">
+            <span>{{ show.name }}</span>
+          </b-card-header>
+          <b-collapse :visible="cueTypeGroupExpanded[show.id]">
+            <b-table :items="show.cue_types" :fields="importCueTypeFields" small>
+              <template #cell(colour)="data">
+                <p :style="{ color: data.item.colour }">
+                  <b-icon-square-fill />
+                </p>
+              </template>
+              <template #cell(action)="data">
+                <b-button
+                  variant="outline-success"
+                  size="sm"
+                  :disabled="!!isImporting[data.item.id]"
+                  @click="importCueType(data.item)"
+                >
+                  <b-spinner v-if="isImporting[data.item.id]" small />
+                  <span v-else>Import</span>
+                </b-button>
+              </template>
+            </b-table>
+          </b-collapse>
+        </b-card>
+      </div>
+    </b-modal>
   </b-container>
 </template>
 
@@ -199,6 +249,16 @@ export default {
       submittingNewCueType: false,
       submittingEditCueType: false,
       deletingCueType: false,
+      importCueTypeGroups: [],
+      cueTypeGroupExpanded: {},
+      isLoadingImport: false,
+      isImporting: {},
+      importCueTypeFields: [
+        { key: 'prefix', label: 'Prefix' },
+        { key: 'description', label: 'Description' },
+        { key: 'colour', label: 'Colour' },
+        { key: 'action', label: '' },
+      ],
     };
   },
   validations: {
@@ -234,7 +294,13 @@ export default {
     await this.GET_CUE_TYPES();
   },
   methods: {
-    ...mapActions(['GET_CUE_TYPES', 'ADD_CUE_TYPE', 'DELETE_CUE_TYPE', 'UPDATE_CUE_TYPE']),
+    ...mapActions([
+      'GET_CUE_TYPES',
+      'ADD_CUE_TYPE',
+      'DELETE_CUE_TYPE',
+      'UPDATE_CUE_TYPE',
+      'GET_IMPORTABLE_CUE_TYPES',
+    ]),
     resetNewCueTypeForm() {
       this.newCueTypeForm = {
         prefix: '',
@@ -333,6 +399,42 @@ export default {
     validateEditCueTypeState(name) {
       const { $dirty, $error } = this.$v.editCueTypeFormState[name];
       return $dirty ? !$error : null;
+    },
+    async openImportModal() {
+      this.$bvModal.show('import-cue-type-modal');
+      this.isLoadingImport = true;
+      try {
+        const data = await this.GET_IMPORTABLE_CUE_TYPES();
+        this.importCueTypeGroups = data.cue_type_groups;
+        data.cue_type_groups.forEach((show) => {
+          this.$set(this.cueTypeGroupExpanded, show.id, true);
+        });
+      } catch (e) {
+        log.error('Error loading importable cue types:', e);
+      } finally {
+        this.isLoadingImport = false;
+      }
+    },
+    toggleImportShow(showId) {
+      this.$set(this.cueTypeGroupExpanded, showId, !this.cueTypeGroupExpanded[showId]);
+    },
+    async importCueType(cueType) {
+      this.$set(this.isImporting, cueType.id, true);
+      try {
+        await this.ADD_CUE_TYPE({
+          prefix: cueType.prefix,
+          description: cueType.description,
+          colour: cueType.colour,
+        });
+      } finally {
+        this.$set(this.isImporting, cueType.id, false);
+      }
+    },
+    resetImportState() {
+      this.importCueTypeGroups = [];
+      this.cueTypeGroupExpanded = {};
+      this.isLoadingImport = false;
+      this.isImporting = {};
     },
   },
 };

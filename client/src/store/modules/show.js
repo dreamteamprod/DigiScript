@@ -455,6 +455,16 @@ export default {
         Vue.$toast.error('Unable to edit cue type');
       }
     },
+    async GET_IMPORTABLE_CUE_TYPES() {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types/import')}`, {
+        method: 'GET',
+      });
+      if (!response.ok) {
+        log.error('Unable to fetch importable cue types');
+        throw new Error('Failed to fetch importable cue types');
+      }
+      return response.json();
+    },
     async GET_SHOW_SESSION_DATA(context) {
       const response = await fetch(`${makeURL('/api/v1/show/sessions')}`);
       if (response.ok) {
