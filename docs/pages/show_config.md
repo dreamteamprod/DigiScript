@@ -15,7 +15,7 @@ The Show Config page is organized into several sections, each accessible from th
 - **Script**: Create and edit the show script with revisions
 - **Cues**: Configure cue types and assign cues to script lines (see [Cue Configuration](./cue_config.md))
 - [Microphones](./show_config/microphones.md): Set up microphones and allocate them to characters
-- **Sessions**: View the history of live show sessions
+- **Sessions**: View the history of live show sessions and manage session tag types
 
 ### Configuration Workflow
 
@@ -47,5 +47,17 @@ A streamlined single-column layout. This mode is ideal for:
 - Simple dialogue-heavy shows
 
 **Note**: The script mode is set during show creation and affects the entire show. It cannot be changed after the fact.
+
+### Sessions
+
+The **Sessions** section shows a history of all live show sessions that have been run. The **Tags** tab lets you create and manage session tag types — coloured labels that can be applied to individual sessions to categorise them (e.g. "Tech", "Dress", "Opening Night").
+
+#### Session Tags
+
+Each tag has a **name** and a **colour**. Tag names must be unique within a show (case-insensitive). Tags can be applied to sessions from the Sessions tab.
+
+#### Importing Session Tags from Another Show
+
+If you have already configured session tags for a different show, you can import them into the current show using the **Import Tag** button on the Tags tab. This opens a panel listing all session tags from your other shows, grouped by show name. Click **Import** next to any tag to add an independent copy to the current show. Tags that already exist in the current show (matched case-insensitively) are shown as disabled and cannot be imported again.
 
 Once your show is fully configured, you're ready to [run a live show](./live_show.md)!

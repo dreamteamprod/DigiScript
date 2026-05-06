@@ -1,5 +1,6 @@
 """Tests for SessionTag CRUD API controller."""
 
+import tornado.escape
 from sqlalchemy import insert, select
 from tornado import escape
 
@@ -438,3 +439,98 @@ class TestSessionTagsController(DigiScriptTestCase):
                 select(ShowSession).where(ShowSession.id == session_id)
             ).first()
             self.assertIsNotNone(show_session)
+
+
+class TestSessionTagImportController(DigiScriptTestCase):
+    """Test suite for GET /api/v1/show/session/tags/import endpoint."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            # Current show — its tags must be excluded from import results
+            current_show = Show(name="Current Show", script_mode=ShowScriptType.FULL)
+            session.add(current_show)
+            session.flush()
+            self.current_show_id = current_show.id
+
+            current_tag = SessionTag(
+                show_id=current_show.id, tag="Tech", colour="#ff0000"
+            )
+            session.add(current_tag)
+            session.flush()
+            self.current_tag_id = current_tag.id
+
+            # Other show — its tags should appear in import results
+            other_show = Show(name="Other Show", script_mode=ShowScriptType.FULL)
+            session.add(other_show)
+            session.flush()
+            self.other_show_id = other_show.id
+
+            other_tag = SessionTag(show_id=other_show.id, tag="Dress", colour="#00ff00")
+            session.add(other_tag)
+            session.flush()
+            self.other_tag_id = other_tag.id
+
+            # Empty show — no tags, must not appear in import results
+            empty_show = Show(name="Empty Show", script_mode=ShowScriptType.FULL)
+            session.add(empty_show)
+            session.flush()
+            self.empty_show_id = empty_show.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.current_show_id)
+
+    def test_get_import_requires_show(self):
+        """Test that the endpoint returns 400 when no current show is set."""
+        self._app.digi_settings.settings["current_show"].set_value(None)
+        response = self.fetch("/api/v1/show/session/tags/import")
+        self.assertEqual(400, response.code)
+
+    def test_get_import_excludes_current_show(self):
+        """Test that the current show's tags are not included in the response."""
+        response = self.fetch("/api/v1/show/session/tags/import")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+        group_ids = [g["id"] for g in body["tag_groups"]]
+        self.assertNotIn(self.current_show_id, group_ids)
+
+    def test_get_import_includes_other_shows(self):
+        """Test that other shows with tags are included with correct data."""
+        response = self.fetch("/api/v1/show/session/tags/import")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+
+        other_group = next(
+            (g for g in body["tag_groups"] if g["id"] == self.other_show_id), None
+        )
+        self.assertIsNotNone(other_group)
+        self.assertEqual("Other Show", other_group["name"])
+        self.assertEqual(1, len(other_group["tags"]))
+
+        tag = other_group["tags"][0]
+        self.assertEqual("Dress", tag["tag"])
+        self.assertEqual("#00ff00", tag["colour"])
+
+    def test_get_import_skips_shows_with_no_tags(self):
+        """Test that shows with no tags are not included in the response."""
+        response = self.fetch("/api/v1/show/session/tags/import")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+        group_ids = [g["id"] for g in body["tag_groups"]]
+        self.assertNotIn(self.empty_show_id, group_ids)
+
+    def test_get_import_returns_correct_structure(self):
+        """Test that the response contains the expected top-level structure."""
+        response = self.fetch("/api/v1/show/session/tags/import")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+
+        self.assertIn("tag_groups", body)
+        self.assertIsInstance(body["tag_groups"], list)
+
+        for group in body["tag_groups"]:
+            self.assertIn("id", group)
+            self.assertIn("name", group)
+            self.assertIn("tags", group)
+            self.assertIsInstance(group["tags"], list)

@@ -652,6 +652,16 @@ export default {
         Vue.$toast.error('Unable to delete session tag');
       }
     },
+    async GET_IMPORTABLE_SESSION_TAGS() {
+      const response = await fetch(`${makeURL('/api/v1/show/session/tags/import')}`, {
+        method: 'GET',
+      });
+      if (!response.ok) {
+        log.error('Unable to fetch importable session tags');
+        throw new Error('Failed to fetch importable session tags');
+      }
+      return response.json();
+    },
     async UPDATE_SESSION_TAGS(context, { sessionId, tagIds }) {
       const response = await fetch(`${makeURL('/api/v1/show/sessions/assign-tags')}`, {
         method: 'PATCH',

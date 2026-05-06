@@ -205,3 +205,38 @@ class SessionTagsController(BaseAPIController):
             else:
                 self.set_status(404)
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
+
+
+@ApiRoute("show/session/tags/import", ApiVersion.V1)
+class SessionTagImportController(BaseAPIController):
+    @requires_show
+    def get(self):
+        """
+        Return all session tags from all other shows, grouped by show.
+
+        :returns: JSON with a ``tag_groups`` key containing a list of show objects,
+            each with ``id``, ``name``, and ``tags`` fields.
+        """
+        current_show_id = self.get_current_show()["id"]
+        schema = ShowSessionTagSchema()
+
+        with self.make_session() as session:
+            rows = session.execute(
+                select(Show, SessionTag)
+                .join(SessionTag, SessionTag.show_id == Show.id)
+                .where(Show.id != current_show_id)
+                .order_by(Show.id)
+            ).all()
+
+            shows_map: dict = {}
+            for show, tag in rows:
+                if show.id not in shows_map:
+                    shows_map[show.id] = {
+                        "id": show.id,
+                        "name": show.name,
+                        "tags": [],
+                    }
+                shows_map[show.id]["tags"].append(schema.dump(tag))
+
+        self.set_status(200)
+        self.finish({"tag_groups": list(shows_map.values())})
