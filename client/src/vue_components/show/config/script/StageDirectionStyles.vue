@@ -11,6 +11,71 @@
       <b-button v-if="IS_SCRIPT_EDITOR" v-b-modal.new-config-modal variant="outline-success">
         New Style
       </b-button>
+      <b-button
+        v-if="IS_SCRIPT_EDITOR"
+        variant="outline-info"
+        class="ml-2"
+        @click="openImportModal"
+      >
+        Import Style
+      </b-button>
+      <b-modal
+        id="import-style-modal"
+        ref="import-style-modal"
+        title="Import Stage Direction Style"
+        size="xl"
+        ok-only
+        ok-title="Close"
+        @hidden="resetImportState"
+      >
+        <div v-if="isLoadingImport" class="text-center py-3">
+          <b-spinner />
+        </div>
+        <div v-else-if="importStyleGroups.length === 0" class="text-muted text-center py-3">
+          No styles available to import from other shows.
+        </div>
+        <div v-else>
+          <b-card v-for="show in importStyleGroups" :key="show.id" no-body class="mb-2">
+            <b-card-header class="section-card-header" @click="toggleImportShow(show.id)">
+              <div class="d-flex justify-content-between align-items-center">
+                <span>{{ show.name }}</span>
+                <b-icon-chevron-down v-if="styleGroupExpanded[show.id]" font-scale="0.8" />
+                <b-icon-chevron-up v-else font-scale="0.8" />
+              </div>
+            </b-card-header>
+            <b-collapse :visible="styleGroupExpanded[show.id]">
+              <b-card-body class="p-0">
+                <b-table :items="show.styles" :fields="importColumns" small show-empty class="mb-0">
+                  <template #cell(example)="row">
+                    <i class="example-stage-direction" :style="exampleCss(row.item)">
+                      <template v-if="row.item.text_format === 'upper'">
+                        {{ exampleText | uppercase }}
+                      </template>
+                      <template v-else-if="row.item.text_format === 'lower'">
+                        {{ exampleText | lowercase }}
+                      </template>
+                      <template v-else>
+                        {{ exampleText }}
+                      </template>
+                    </i>
+                  </template>
+                  <template #cell(btn)="row">
+                    <b-button
+                      variant="outline-success"
+                      size="sm"
+                      :disabled="!!isImporting[row.item.id]"
+                      @click="importStyle(row.item)"
+                    >
+                      <b-spinner v-if="isImporting[row.item.id]" small />
+                      <span v-else>Import</span>
+                    </b-button>
+                  </template>
+                </b-table>
+              </b-card-body>
+            </b-collapse>
+          </b-card>
+        </div>
+      </b-modal>
       <b-modal
         id="new-config-modal"
         ref="new-config-modal"
@@ -292,6 +357,11 @@ export default {
         { key: 'example', label: 'Example Stage Direction' },
         { key: 'btn', label: '' },
       ],
+      importColumns: [
+        'description',
+        { key: 'example', label: 'Example Stage Direction' },
+        { key: 'btn', label: '' },
+      ],
       rowsPerPage: 15,
       currentPage: 1,
       newStyleFormState: {
@@ -322,6 +392,10 @@ export default {
       isSubmittingNew: false,
       isSubmittingEdit: false,
       isDeleting: false,
+      importStyleGroups: [],
+      styleGroupExpanded: {},
+      isLoadingImport: false,
+      isImporting: {},
     };
   },
   computed: {
@@ -587,11 +661,60 @@ export default {
       }
       return style;
     },
+    async openImportModal() {
+      this.$bvModal.show('import-style-modal');
+      this.isLoadingImport = true;
+      try {
+        const data = await this.GET_IMPORTABLE_STAGE_DIRECTION_STYLES();
+        this.importStyleGroups = data.style_groups;
+        const expanded = {};
+        data.style_groups.forEach((group) => {
+          expanded[group.id] = true;
+        });
+        this.styleGroupExpanded = expanded;
+      } catch (error) {
+        log.error('Error fetching importable stage direction styles:', error);
+        this.$toast.error('Failed to load styles for import');
+      } finally {
+        this.isLoadingImport = false;
+      }
+    },
+    resetImportState() {
+      this.importStyleGroups = [];
+      this.styleGroupExpanded = {};
+      this.isLoadingImport = false;
+      this.isImporting = {};
+    },
+    toggleImportShow(showId) {
+      this.$set(this.styleGroupExpanded, showId, !this.styleGroupExpanded[showId]);
+    },
+    async importStyle(style) {
+      this.$set(this.isImporting, style.id, true);
+      try {
+        await this.ADD_STAGE_DIRECTION_STYLE({
+          description: style.description,
+          bold: style.bold,
+          italic: style.italic,
+          underline: style.underline,
+          textFormat: style.text_format,
+          textColour: style.text_colour,
+          enableBackgroundColour: style.enable_background_colour,
+          backgroundColour: style.background_colour,
+        });
+        this.$toast.success(`Imported "${style.description}"`);
+      } catch (error) {
+        log.error('Error importing stage direction style:', error);
+        this.$toast.error(`Failed to import "${style.description}"`);
+      } finally {
+        this.$set(this.isImporting, style.id, false);
+      }
+    },
     ...mapActions([
       'GET_STAGE_DIRECTION_STYLES',
       'ADD_STAGE_DIRECTION_STYLE',
       'DELETE_STAGE_DIRECTION_STYLE',
       'UPDATE_STAGE_DIRECTION_STYLE',
+      'GET_IMPORTABLE_STAGE_DIRECTION_STYLES',
     ]),
   },
 };
