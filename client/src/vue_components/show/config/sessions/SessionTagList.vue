@@ -12,6 +12,14 @@
         <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-tag variant="outline-success">
           New Tag
         </b-button>
+        <b-button
+          v-if="IS_SHOW_EDITOR"
+          variant="outline-info"
+          class="ml-2"
+          @click="openImportModal"
+        >
+          Import Tag
+        </b-button>
       </template>
       <template #cell(tag)="data">
         <span
@@ -141,6 +149,63 @@
         </b-form-group>
       </b-form>
     </b-modal>
+    <b-modal
+      id="import-tag-modal"
+      ref="import-tag-modal"
+      title="Import Session Tag"
+      size="xl"
+      hide-footer
+      @hidden="resetImportState"
+    >
+      <div v-if="isLoadingImport" class="text-center">
+        <b-spinner />
+      </div>
+      <div v-else-if="importTagGroups.length === 0">
+        <p class="text-muted">No session tags available to import from other shows.</p>
+      </div>
+      <div v-else>
+        <b-card v-for="show in importTagGroups" :key="show.id" no-body class="mb-2">
+          <b-card-header style="cursor: pointer" @click="toggleImportShow(show.id)">
+            <div class="d-flex justify-content-between align-items-center">
+              <span>{{ show.name }}</span>
+              <b-icon-chevron-down v-if="tagGroupExpanded[show.id]" font-scale="0.8" />
+              <b-icon-chevron-up v-else font-scale="0.8" />
+            </div>
+          </b-card-header>
+          <b-collapse :visible="tagGroupExpanded[show.id]">
+            <b-table :items="show.tags" :fields="importTagFields" small>
+              <template #cell(tag)="data">
+                <span
+                  class="tag-pill"
+                  :style="{
+                    backgroundColor: data.item.colour,
+                    color: contrastColor({ bgColor: data.item.colour }),
+                  }"
+                >
+                  {{ data.item.tag }}
+                </span>
+              </template>
+              <template #cell(action)="data">
+                <span
+                  v-b-tooltip.hover
+                  :title="tagAlreadyExists(data.item) ? 'Already exists in this show' : ''"
+                >
+                  <b-button
+                    variant="outline-success"
+                    size="sm"
+                    :disabled="!!isImporting[data.item.id] || tagAlreadyExists(data.item)"
+                    @click="importTag(data.item)"
+                  >
+                    <b-spinner v-if="isImporting[data.item.id]" small />
+                    <span v-else>Import</span>
+                  </b-button>
+                </span>
+              </template>
+            </b-table>
+          </b-collapse>
+        </b-card>
+      </div>
+    </b-modal>
   </span>
 </template>
 
@@ -196,6 +261,14 @@ export default {
       isSubmittingNewTag: false,
       isSubmittingEditTag: false,
       isSubmittingDeleteTag: false,
+      importTagGroups: [],
+      tagGroupExpanded: {},
+      isLoadingImport: false,
+      isImporting: {},
+      importTagFields: [
+        { key: 'tag', label: 'Tag' },
+        { key: 'action', label: '' },
+      ],
     };
   },
   validations: {
@@ -222,9 +295,17 @@ export default {
   },
   computed: {
     ...mapGetters(['SESSION_TAGS', 'SHOW_SESSIONS_LIST', 'IS_SHOW_EDITOR']),
+    existingTagNames() {
+      return new Set((this.SESSION_TAGS || []).map((t) => t.tag.toLowerCase()));
+    },
   },
   methods: {
-    ...mapActions(['ADD_SESSION_TAG', 'UPDATE_SESSION_TAG', 'DELETE_SESSION_TAG']),
+    ...mapActions([
+      'ADD_SESSION_TAG',
+      'UPDATE_SESSION_TAG',
+      'DELETE_SESSION_TAG',
+      'GET_IMPORTABLE_SESSION_TAGS',
+    ]),
     contrastColor,
     getSessionCountForTag(tagId) {
       if (!this.SHOW_SESSIONS_LIST || !Array.isArray(this.SHOW_SESSIONS_LIST)) {
@@ -315,6 +396,41 @@ export default {
     validateEditTag(name) {
       const { $dirty, $error } = this.$v.editTagForm[name];
       return $dirty ? !$error : null;
+    },
+    async openImportModal() {
+      this.$bvModal.show('import-tag-modal');
+      this.isLoadingImport = true;
+      try {
+        const data = await this.GET_IMPORTABLE_SESSION_TAGS();
+        this.importTagGroups = data.tag_groups;
+        data.tag_groups.forEach((show) => {
+          this.$set(this.tagGroupExpanded, show.id, true);
+        });
+      } catch (e) {
+        log.error('Error loading importable session tags:', e);
+      } finally {
+        this.isLoadingImport = false;
+      }
+    },
+    toggleImportShow(showId) {
+      this.$set(this.tagGroupExpanded, showId, !this.tagGroupExpanded[showId]);
+    },
+    tagAlreadyExists(tag) {
+      return this.existingTagNames.has(tag.tag.toLowerCase());
+    },
+    async importTag(tag) {
+      this.$set(this.isImporting, tag.id, true);
+      try {
+        await this.ADD_SESSION_TAG({ tag: tag.tag, colour: tag.colour });
+      } finally {
+        this.$set(this.isImporting, tag.id, false);
+      }
+    },
+    resetImportState() {
+      this.importTagGroups = [];
+      this.tagGroupExpanded = {};
+      this.isLoadingImport = false;
+      this.isImporting = {};
     },
     async deleteTag(data) {
       if (this.isSubmittingDeleteTag) {

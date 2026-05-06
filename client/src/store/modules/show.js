@@ -455,6 +455,16 @@ export default {
         Vue.$toast.error('Unable to edit cue type');
       }
     },
+    async GET_IMPORTABLE_CUE_TYPES() {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/types/import')}`, {
+        method: 'GET',
+      });
+      if (!response.ok) {
+        log.error('Unable to fetch importable cue types');
+        throw new Error('Failed to fetch importable cue types');
+      }
+      return response.json();
+    },
     async GET_SHOW_SESSION_DATA(context) {
       const response = await fetch(`${makeURL('/api/v1/show/sessions')}`);
       if (response.ok) {
@@ -641,6 +651,16 @@ export default {
         log.error('Unable to delete session tag');
         Vue.$toast.error('Unable to delete session tag');
       }
+    },
+    async GET_IMPORTABLE_SESSION_TAGS() {
+      const response = await fetch(`${makeURL('/api/v1/show/session/tags/import')}`, {
+        method: 'GET',
+      });
+      if (!response.ok) {
+        log.error('Unable to fetch importable session tags');
+        throw new Error('Failed to fetch importable session tags');
+      }
+      return response.json();
     },
     async UPDATE_SESSION_TAGS(context, { sessionId, tagIds }) {
       const response = await fetch(`${makeURL('/api/v1/show/sessions/assign-tags')}`, {

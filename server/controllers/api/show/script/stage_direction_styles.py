@@ -5,6 +5,7 @@ from controllers.api.constants import (
     ERROR_BACKGROUND_COLOUR_MISSING,
     ERROR_DESCRIPTION_MISSING,
     ERROR_ID_MISSING,
+    ERROR_INVALID_ID,
     ERROR_SHOW_NOT_FOUND,
     ERROR_STAGE_DIRECTION_STYLE_NOT_FOUND,
     ERROR_TEXT_COLOUR_MISSING,
@@ -200,12 +201,17 @@ class StageDirectionStylesController(BaseAPIController):
                     select(Script).where(Script.show_id == show.id)
                 ).first()
                 self.requires_role(script, Role.WRITE)
-                data = escape.json_decode(self.request.body)
 
-                style_id = data.get("id", None)
-                if not style_id:
+                style_id_str = self.get_argument("id", None)
+                if not style_id_str:
                     self.set_status(400)
                     await self.finish({"message": ERROR_ID_MISSING})
+                    return
+                try:
+                    style_id = int(style_id_str)
+                except ValueError:
+                    self.set_status(400)
+                    await self.finish({"message": ERROR_INVALID_ID})
                     return
 
                 entry: StageDirectionStyle = session.get(StageDirectionStyle, style_id)
