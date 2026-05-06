@@ -191,7 +191,11 @@
       <div v-else>
         <b-card v-for="show in importCueTypeGroups" :key="show.id" no-body class="mb-2">
           <b-card-header style="cursor: pointer" @click="toggleImportShow(show.id)">
-            <span>{{ show.name }}</span>
+            <div class="d-flex justify-content-between align-items-center">
+              <span>{{ show.name }}</span>
+              <b-icon-chevron-down v-if="cueTypeGroupExpanded[show.id]" font-scale="0.8" />
+              <b-icon-chevron-up v-else font-scale="0.8" />
+            </div>
           </b-card-header>
           <b-collapse :visible="cueTypeGroupExpanded[show.id]">
             <b-table :items="show.cue_types" :fields="importCueTypeFields" small>
