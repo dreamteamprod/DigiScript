@@ -257,7 +257,11 @@ class StageDirectionStylesImportController(BaseAPIController):
             shows_map: dict = {}
             for show, style in rows:
                 if show.id not in shows_map:
-                    shows_map[show.id] = {"id": show.id, "name": show.name, "styles": []}
+                    shows_map[show.id] = {
+                        "id": show.id,
+                        "name": show.name,
+                        "styles": [],
+                    }
                 shows_map[show.id]["styles"].append(schema.dump(style))
 
         self.set_status(200)

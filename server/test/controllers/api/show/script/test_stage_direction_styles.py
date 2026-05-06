@@ -230,7 +230,9 @@ class TestStageDirectionStylesImport(DigiScriptTestCase):
         )
         self.assertEqual(200, response.code)
         body = tornado.escape.json_decode(response.body)
-        other = next((s for s in body["style_groups"] if s["id"] == self.other_show_id), None)
+        other = next(
+            (s for s in body["style_groups"] if s["id"] == self.other_show_id), None
+        )
         self.assertIsNotNone(other)
         self.assertEqual("Other Show", other["name"])
         self.assertEqual(1, len(other["styles"]))
