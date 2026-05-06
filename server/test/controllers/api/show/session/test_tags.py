@@ -466,9 +466,7 @@ class TestSessionTagImportController(DigiScriptTestCase):
             session.flush()
             self.other_show_id = other_show.id
 
-            other_tag = SessionTag(
-                show_id=other_show.id, tag="Dress", colour="#00ff00"
-            )
+            other_tag = SessionTag(show_id=other_show.id, tag="Dress", colour="#00ff00")
             session.add(other_tag)
             session.flush()
             self.other_tag_id = other_tag.id
