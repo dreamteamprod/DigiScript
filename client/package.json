@@ -59,7 +59,7 @@
     "@types/vuelidate": "^0.7.22",
     "@vitejs/plugin-vue2": "2.3.4",
     "@vitest/ui": "^4.1.5",
-    "@vue/test-utils": "^2.4.8",
+    "@vue/test-utils": "^2.4.10",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
