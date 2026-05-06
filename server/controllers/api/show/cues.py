@@ -183,6 +183,41 @@ class CueTypesController(BaseAPIController):
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
+@ApiRoute("show/cues/types/import", ApiVersion.V1)
+class CueTypesImportController(BaseAPIController):
+    @requires_show
+    def get(self):
+        """
+        Return all cue types from all other shows, grouped by show.
+
+        :returns: JSON with a ``cue_type_groups`` key containing a list of show
+            objects, each with ``id``, ``name``, and ``cue_types`` fields.
+        """
+        current_show_id = self.get_current_show()["id"]
+        schema = CueTypeSchema()
+
+        with self.make_session() as session:
+            rows = session.execute(
+                select(Show, CueType)
+                .join(CueType, CueType.show_id == Show.id)
+                .where(Show.id != current_show_id)
+                .order_by(Show.id)
+            ).all()
+
+            shows_map: dict = {}
+            for show, cue_type in rows:
+                if show.id not in shows_map:
+                    shows_map[show.id] = {
+                        "id": show.id,
+                        "name": show.name,
+                        "cue_types": [],
+                    }
+                shows_map[show.id]["cue_types"].append(schema.dump(cue_type))
+
+        self.set_status(200)
+        self.finish({"cue_type_groups": list(shows_map.values())})
+
+
 @ApiRoute("show/cues", ApiVersion.V1)
 class CueController(BaseAPIController):
     @requires_show

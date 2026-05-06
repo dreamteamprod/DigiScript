@@ -832,3 +832,107 @@ class TestCueSearchController(DigiScriptTestCase):
         # Verify page number is valid (1-3 in our test data)
         self.assertGreaterEqual(location["page"], 1)
         self.assertLessEqual(location["page"], 3)
+
+
+class TestCueTypeImportController(DigiScriptTestCase):
+    """Test suite for GET /api/v1/show/cues/types/import endpoint."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            # Current show — its cue types must be excluded from import results
+            current_show = Show(name="Current Show", script_mode=ShowScriptType.FULL)
+            session.add(current_show)
+            session.flush()
+            self.current_show_id = current_show.id
+
+            current_cue_type = CueType(
+                show_id=current_show.id,
+                prefix="LX",
+                description="Lighting",
+                colour="#ff0000",
+            )
+            session.add(current_cue_type)
+            session.flush()
+            self.current_cue_type_id = current_cue_type.id
+
+            # Other show — its cue types should appear in import results
+            other_show = Show(name="Other Show", script_mode=ShowScriptType.FULL)
+            session.add(other_show)
+            session.flush()
+            self.other_show_id = other_show.id
+
+            other_cue_type = CueType(
+                show_id=other_show.id,
+                prefix="SND",
+                description="Sound",
+                colour="#00ff00",
+            )
+            session.add(other_cue_type)
+            session.flush()
+            self.other_cue_type_id = other_cue_type.id
+
+            # Empty show — no cue types, must not appear in import results
+            empty_show = Show(name="Empty Show", script_mode=ShowScriptType.FULL)
+            session.add(empty_show)
+            session.flush()
+            self.empty_show_id = empty_show.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.current_show_id)
+
+    def test_get_import_requires_show(self):
+        """Test that the endpoint returns 400 when no current show is set."""
+        self._app.digi_settings.settings["current_show"].set_value(None)
+        response = self.fetch("/api/v1/show/cues/types/import")
+        self.assertEqual(400, response.code)
+
+    def test_get_import_excludes_current_show(self):
+        """Test that the current show's cue types are not included in the response."""
+        response = self.fetch("/api/v1/show/cues/types/import")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+        group_ids = [g["id"] for g in body["cue_type_groups"]]
+        self.assertNotIn(self.current_show_id, group_ids)
+
+    def test_get_import_includes_other_shows(self):
+        """Test that other shows with cue types are included with correct data."""
+        response = self.fetch("/api/v1/show/cues/types/import")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+
+        other_group = next(
+            (g for g in body["cue_type_groups"] if g["id"] == self.other_show_id), None
+        )
+        self.assertIsNotNone(other_group)
+        self.assertEqual("Other Show", other_group["name"])
+        self.assertEqual(1, len(other_group["cue_types"]))
+
+        cue_type = other_group["cue_types"][0]
+        self.assertEqual("SND", cue_type["prefix"])
+        self.assertEqual("Sound", cue_type["description"])
+        self.assertEqual("#00ff00", cue_type["colour"])
+
+    def test_get_import_skips_shows_with_no_cue_types(self):
+        """Test that shows with no cue types are not included in the response."""
+        response = self.fetch("/api/v1/show/cues/types/import")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+        group_ids = [g["id"] for g in body["cue_type_groups"]]
+        self.assertNotIn(self.empty_show_id, group_ids)
+
+    def test_get_import_returns_correct_structure(self):
+        """Test that the response contains the expected top-level structure."""
+        response = self.fetch("/api/v1/show/cues/types/import")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+
+        self.assertIn("cue_type_groups", body)
+        self.assertIsInstance(body["cue_type_groups"], list)
+
+        for group in body["cue_type_groups"]:
+            self.assertIn("id", group)
+            self.assertIn("name", group)
+            self.assertIn("cue_types", group)
+            self.assertIsInstance(group["cue_types"], list)
