@@ -64,6 +64,66 @@ class TestStageDirectionStylesController(DigiScriptTestCase):
         self.assertEqual(1, len(response_body["styles"]))
         self.assertEqual("Test Style", response_body["styles"][0]["description"])
 
+    def _login_admin(self):
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+        resp = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"username": "admin", "password": "adminpass"}
+            ),
+        )
+        return tornado.escape.json_decode(resp.body)["access_token"]
+
+    def test_delete_stage_direction_style(self):
+        """DELETE with valid id removes the style and returns 200."""
+        token = self._login_admin()
+        response = self.fetch(
+            f"/api/v1/show/script/stage_direction_styles?id={self.style_id}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(200, response.code)
+        with self._app.get_db().sessionmaker() as session:
+            entry = session.get(StageDirectionStyle, self.style_id)
+            self.assertIsNone(entry)
+
+    def test_delete_stage_direction_style_missing_id(self):
+        """DELETE without id param returns 400."""
+        token = self._login_admin()
+        response = self.fetch(
+            "/api/v1/show/script/stage_direction_styles",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(400, response.code)
+
+    def test_delete_stage_direction_style_invalid_id(self):
+        """DELETE with non-integer id returns 400."""
+        token = self._login_admin()
+        response = self.fetch(
+            "/api/v1/show/script/stage_direction_styles?id=abc",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(400, response.code)
+
+    def test_delete_stage_direction_style_not_found(self):
+        """DELETE with unknown id returns 404."""
+        token = self._login_admin()
+        response = self.fetch(
+            "/api/v1/show/script/stage_direction_styles?id=99999",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(404, response.code)
+
     def test_get_stage_direction_styles_empty(self):
         """Test GET returns empty list when no styles exist."""
         # Create a show with a script but no styles
