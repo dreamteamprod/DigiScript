@@ -64,6 +64,30 @@ Click **New Revision** to create a new revision. You'll need to provide a descri
 
 When you create a new revision, its base state is copied from the currently loaded revision. Any changes you make to the script after that point will only affect the active revision - other revisions remain unchanged, preserving the complete history of your script.
 
+### Stage Direction Styles
+
+The **Stage Direction Styles** tab lets you define the visual appearance of stage direction lines throughout your script. Each style controls the text formatting applied when that style is assigned to a stage direction line.
+
+#### Creating a New Style
+
+Click **New Style** to open the style editor. You can configure:
+
+- **Description** — a name for the style (e.g. "Narrator", "Whisper")
+- **Default Styles** — toggle Bold, Italic, and Underline
+- **Default Text Format** — Default, Uppercase, or Lowercase
+- **Text Colour** — a colour picker for the text colour
+- **Background Colour** — optionally enable and choose a background highlight colour
+
+A live preview of the style is shown at the top of the editor so you can see how it will appear in the script before saving.
+
+#### Importing Styles from Another Show
+
+Click **Import Style** to open the import modal. This shows all stage direction styles from every other show in your DigiScript instance, grouped by show name. Each style is displayed with its live preview so you can see exactly what it will look like.
+
+Click **Import** next to any style to copy it into the current show. The import creates an independent copy — changes to the imported style will not affect the original show, and vice versa. The modal stays open so you can import multiple styles in a single session.
+
+If no other shows have stage direction styles defined, a message is shown indicating there are no styles available to import.
+
 ### Script Content
 
 The **Script** tab is where you edit the actual script content. When you first navigate to this tab, you'll see an empty script interface:

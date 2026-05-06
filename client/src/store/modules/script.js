@@ -326,6 +326,17 @@ export default {
         Vue.$toast.error('Unable to edit stage direction style');
       }
     },
+    async GET_IMPORTABLE_STAGE_DIRECTION_STYLES() {
+      const response = await fetch(
+        `${makeURL('/api/v1/show/script/stage_direction_styles/import')}`,
+        { method: 'GET' }
+      );
+      if (!response.ok) {
+        log.error('Unable to fetch importable stage direction styles');
+        throw new Error('Failed to fetch importable styles');
+      }
+      return response.json();
+    },
     async GET_COMPILED_SCRIPTS(context) {
       const response = await fetch(`${makeURL('/api/v1/show/script/compiled_scripts')}`, {
         method: 'GET',
