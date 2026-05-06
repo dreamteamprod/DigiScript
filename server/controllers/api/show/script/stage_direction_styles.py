@@ -16,7 +16,7 @@ from rbac.role import Role
 from schemas.schemas import StageDirectionStyleSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import no_live_session, requires_show
+from utils.web.web_decorators import api_authenticated, no_live_session, requires_show
 
 
 VALID_TEXT_FORMATS = ("default", "upper", "lower")
@@ -229,3 +229,36 @@ class StageDirectionStylesController(BaseAPIController):
             else:
                 self.set_status(404)
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
+
+
+@ApiRoute("/show/script/stage_direction_styles/import", ApiVersion.V1)
+class StageDirectionStylesImportController(BaseAPIController):
+    @api_authenticated
+    @requires_show
+    def get(self):
+        """
+        Return all stage direction styles from all other shows, grouped by show.
+
+        :returns: JSON with a ``shows`` key containing a list of show objects,
+            each with ``id``, ``name``, and ``styles`` fields.
+        """
+        current_show_id = self.get_current_show()["id"]
+        schema = StageDirectionStyleSchema()
+
+        with self.make_session() as session:
+            rows = session.execute(
+                select(Show, StageDirectionStyle)
+                .join(Script, Script.show_id == Show.id)
+                .join(StageDirectionStyle, StageDirectionStyle.script_id == Script.id)
+                .where(Show.id != current_show_id)
+                .order_by(Show.id)
+            ).all()
+
+            shows_map: dict = {}
+            for show, style in rows:
+                if show.id not in shows_map:
+                    shows_map[show.id] = {"id": show.id, "name": show.name, "styles": []}
+                shows_map[show.id]["styles"].append(schema.dump(style))
+
+        self.set_status(200)
+        self.finish({"style_groups": list(shows_map.values())})
