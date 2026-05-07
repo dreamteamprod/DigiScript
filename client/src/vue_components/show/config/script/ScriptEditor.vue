@@ -712,11 +712,13 @@ export default {
       if (!this.IS_CUT_MODE) {
         if (this.scriptChanges) {
           this.savingInProgress = true;
-          this.totalSavePages = this.currentMaxPage;
+          const tmpPageKeys = Object.keys(this.TMP_SCRIPT).map((x) => Number.parseInt(x, 10));
+          const maxPage = Math.max(this.currentMaxPage, ...tmpPageKeys, 0);
+          this.totalSavePages = maxPage;
           this.curSavePage = 0;
           this.$bvModal.show('save-script');
 
-          for (let pageNo = 1; pageNo <= this.currentMaxPage; pageNo++) {
+          for (let pageNo = 1; pageNo <= maxPage; pageNo++) {
             this.curSavePage = pageNo;
             const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
             if (!tmpScriptPage) continue;
