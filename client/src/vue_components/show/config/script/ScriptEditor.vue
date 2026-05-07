@@ -712,18 +712,15 @@ export default {
       if (!this.IS_CUT_MODE) {
         if (this.scriptChanges) {
           this.savingInProgress = true;
-          this.totalSavePages = Object.keys(this.TMP_SCRIPT).length;
+          this.totalSavePages = this.currentMaxPage;
           this.curSavePage = 0;
           this.$bvModal.show('save-script');
 
-          const orderedPages = Object.keys(this.TMP_SCRIPT)
-            .map((x) => parseInt(x, 10))
-            .sort((a, b) => a - b);
-
-          for (const pageNo of orderedPages) {
+          for (let pageNo = 1; pageNo <= this.currentMaxPage; pageNo++) {
             this.curSavePage = pageNo;
-            // Check whether the page actually has any lines on it, and if not then skip
             const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
+            if (!tmpScriptPage) continue;
+            // Check whether the page actually has any lines on it, and if not then skip
             if (tmpScriptPage.length !== 0) {
               // Check the actual script to see if the page exists or not
               const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
