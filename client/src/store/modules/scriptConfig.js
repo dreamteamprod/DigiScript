@@ -155,9 +155,16 @@ export default {
         });
 
       const deepDiff = detailedDiff(actualScriptPage, tmpScriptPage);
+      // deepDiff.added marks a line index as "added" whenever any nested property is new
+      // (e.g. a new line_part was added to an existing line). Only lines with no id are
+      // truly new; lines with an existing id that have nested additions are updates.
+      const addedIndices = Object.keys(deepDiff.added).map((x) => parseInt(x, 10));
       const pageStatus = {
-        added: Object.keys(deepDiff.added).map((x) => parseInt(x, 10)),
-        updated: Object.keys(deepDiff.updated).map((x) => parseInt(x, 10)),
+        added: addedIndices.filter((idx) => tmpScriptPage[idx]?.id == null),
+        updated: [
+          ...Object.keys(deepDiff.updated).map((x) => parseInt(x, 10)),
+          ...addedIndices.filter((idx) => tmpScriptPage[idx]?.id != null),
+        ],
         deleted: [...context.getters.DELETED_LINES(pageNo)],
         inserted: [...context.getters.INSERTED_LINES(pageNo)],
       };
