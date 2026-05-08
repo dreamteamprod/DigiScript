@@ -1807,8 +1807,12 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
                     ScriptLineRevisionAssociation.revision_id == self.revision_id
                 )
             ).all()
-            self.assertEqual(1, len(assocs), "Must have exactly 1 association — no duplicates")
-            self.assertNotEqual(line_id, assocs[0].line_id, "Association must point to new line")
+            self.assertEqual(
+                1, len(assocs), "Must have exactly 1 association — no duplicates"
+            )
+            self.assertNotEqual(
+                line_id, assocs[0].line_id, "Association must point to new line"
+            )
 
     def test_patch_page_n_then_page_n_plus_1_boundary_intact(self):
         """Patching both page 1 and page 2 with status=added on existing IDs must not
@@ -1917,7 +1921,11 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
                     ScriptLineRevisionAssociation.line.has(page=2),
                 )
             ).all()
-            self.assertEqual(1, len(assocs_p2), "Must have exactly 1 association for page 2")
+            self.assertEqual(
+                1, len(assocs_p2), "Must have exactly 1 association for page 2"
+            )
             prev_line = assocs_p2[0].previous_line
-            self.assertIsNotNone(prev_line, "Page 2 first line must have a previous line")
+            self.assertIsNotNone(
+                prev_line, "Page 2 first line must have a previous line"
+            )
             self.assertEqual(1, prev_line.page, "Previous line must be on page 1")
