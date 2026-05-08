@@ -50,6 +50,13 @@
             >
               Save
             </b-button>
+            <b-button
+              v-if="canEdit && !IS_CUT_MODE"
+              :variant="bulkEditMode ? 'info' : 'outline-info'"
+              @click="bulkEditMode ? exitBulkEditMode() : enterBulkEditMode()"
+            >
+              {{ bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit' }}
+            </b-button>
           </b-button-group>
         </b-col>
       </b-row>
@@ -98,6 +105,9 @@
               :line-part-cuts="linePartCuts"
               :stage-direction-styles="STAGE_DIRECTION_STYLES"
               :stage-direction-style-overrides="STAGE_DIRECTION_STYLE_OVERRIDES"
+              :bulk-edit-mode="bulkEditMode"
+              :is-bulk-start="isBulkStart(index)"
+              :is-bulk-end="isBulkEnd(index)"
               @editLine="beginEditingLine(currentEditPage, index)"
               @cutLinePart="cutLinePart"
               @insertDialogue="insertDialogueAt(currentEditPage, index)"
@@ -105,6 +115,8 @@
               @insertCueLine="insertCueLineAt(currentEditPage, index)"
               @insertSpacing="insertSpacingAt(currentEditPage, index)"
               @deleteLine="deleteLine(currentEditPage, index)"
+              @set-bulk-start="onSetBulkStart(index)"
+              @set-bulk-end="onSetBulkEnd(index)"
             />
           </template>
         </template>
@@ -155,6 +167,13 @@
         />
       </div>
     </b-modal>
+    <bulk-act-scene-modal
+      :previous-line-of-start="previousLineOfStart"
+      :next-line-of-end="nextLineOfEnd"
+      :acts="ACT_LIST"
+      :scenes="SCENE_LIST"
+      @apply="onBulkApply"
+    />
     <b-modal
       id="go-to-page-script-editor"
       ref="go-to-page-script-editor"
@@ -201,6 +220,7 @@ import { diff } from 'deep-object-diff';
 import log from 'loglevel';
 import { sample } from 'lodash';
 
+import BulkActSceneModal from '@/vue_components/show/config/script/BulkActSceneModal.vue';
 import ScriptLineEditor from '@/vue_components/show/config/script/ScriptLineEditor.vue';
 import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineViewer.vue';
 import { makeURL, randInt } from '@/js/utils';
@@ -209,7 +229,7 @@ import { LINE_TYPES } from '@/constants/lineTypes';
 
 export default {
   name: 'ScriptConfig',
-  components: { ScriptLineViewer, ScriptLineEditor },
+  components: { BulkActSceneModal, ScriptLineViewer, ScriptLineEditor },
   data() {
     return {
       currentEditPage: 1,
@@ -238,6 +258,11 @@ export default {
       autoSaveInterval: null,
       isAutoSaving: false,
       navbarHeight: 0,
+      bulkEditMode: false,
+      bulkEditStart: null,
+      bulkEditEnd: null,
+      previousLineOfStart: null,
+      nextLineOfEnd: null,
     };
   },
   validations: {
@@ -316,6 +341,12 @@ export default {
   watch: {
     currentEditPage(val) {
       localStorage.setItem('scriptEditPage', val);
+    },
+    async bulkEditEnd(val) {
+      if (val != null) {
+        await this.loadBoundaryLines();
+        this.$bvModal.show('bulk-act-scene-modal');
+      }
     },
     USER_SETTINGS() {
       this.setupAutoSave();
@@ -412,6 +443,7 @@ export default {
         }
       }
       this.editPages = [];
+      this.exitBulkEditMode();
       this.RESET_TO_SAVED(this.currentEditPage);
       this.resetCutsToSaved();
       this.$socket.sendObj({
@@ -917,6 +949,107 @@ export default {
       } else {
         this.navbarHeight = 56;
       }
+    },
+    enterBulkEditMode() {
+      this.bulkEditMode = true;
+      this.bulkEditStart = null;
+      this.bulkEditEnd = null;
+    },
+    exitBulkEditMode() {
+      this.bulkEditMode = false;
+      this.bulkEditStart = null;
+      this.bulkEditEnd = null;
+      this.previousLineOfStart = null;
+      this.nextLineOfEnd = null;
+    },
+    onSetBulkStart(index) {
+      this.bulkEditStart = {
+        page: this.currentEditPage,
+        lineIndex: index,
+      };
+      this.bulkEditEnd = null;
+    },
+    onSetBulkEnd(index) {
+      const { page: startPage, lineIndex: startIndex } = this.bulkEditStart || {};
+      if (startPage === this.currentEditPage && index <= startIndex) {
+        this.$toast.error('End line must come after start line');
+        return;
+      }
+      if (startPage != null && this.currentEditPage < startPage) {
+        this.$toast.error('End line must come after start line');
+        return;
+      }
+      this.bulkEditEnd = { page: this.currentEditPage, lineIndex: index };
+    },
+    isBulkStart(index) {
+      return (
+        this.bulkEditStart != null &&
+        this.bulkEditStart.page === this.currentEditPage &&
+        this.bulkEditStart.lineIndex === index
+      );
+    },
+    isBulkEnd(index) {
+      return (
+        this.bulkEditEnd != null &&
+        this.bulkEditEnd.page === this.currentEditPage &&
+        this.bulkEditEnd.lineIndex === index
+      );
+    },
+    async loadBoundaryLines() {
+      const { page: startPage, lineIndex: startIndex } = this.bulkEditStart;
+      const { page: endPage, lineIndex: endIndex } = this.bulkEditEnd;
+
+      if (startIndex === 0 && startPage > 1) {
+        await this.LOAD_SCRIPT_PAGE(startPage - 1);
+      }
+      const endPageLines = this.TMP_SCRIPT[endPage.toString()];
+      if (endPageLines && endIndex === endPageLines.length - 1) {
+        await this.LOAD_SCRIPT_PAGE(endPage + 1);
+      }
+
+      const startPageLines = this.TMP_SCRIPT[startPage.toString()];
+      if (startIndex > 0 && startPageLines) {
+        this.previousLineOfStart = startPageLines[startIndex - 1] || null;
+      } else if (startPage > 1) {
+        const prevPage = this.TMP_SCRIPT[(startPage - 1).toString()];
+        this.previousLineOfStart = prevPage ? prevPage[prevPage.length - 1] : null;
+      } else {
+        this.previousLineOfStart = null;
+      }
+
+      const endLines = this.TMP_SCRIPT[endPage.toString()];
+      if (endLines && endIndex < endLines.length - 1) {
+        this.nextLineOfEnd = endLines[endIndex + 1] || null;
+      } else {
+        const nextPage = this.TMP_SCRIPT[(endPage + 1).toString()];
+        this.nextLineOfEnd = nextPage ? nextPage[0] : null;
+      }
+    },
+    async onBulkApply({ actId, sceneId }) {
+      const { page: startPage, lineIndex: startIndex } = this.bulkEditStart;
+      const { page: endPage, lineIndex: endIndex } = this.bulkEditEnd;
+
+      for (let p = startPage; p <= endPage; p++) {
+        await this.LOAD_SCRIPT_PAGE(p);
+      }
+
+      for (let p = startPage; p <= endPage; p++) {
+        const pageLines = this.TMP_SCRIPT[p.toString()];
+        if (!pageLines) continue;
+        const fromIndex = p === startPage ? startIndex : 0;
+        const toIndex = p === endPage ? endIndex : pageLines.length - 1;
+        for (let i = fromIndex; i <= toIndex; i++) {
+          if (this.DELETED_LINES(p).includes(i)) continue;
+          this.SET_LINE({
+            pageNo: p,
+            lineIndex: i,
+            lineObj: { ...pageLines[i], act_id: actId, scene_id: sceneId },
+          });
+        }
+      }
+
+      this.$bvModal.hide('bulk-act-scene-modal');
+      this.exitBulkEditMode();
     },
     ...mapMutations([
       'REMOVE_PAGE',
