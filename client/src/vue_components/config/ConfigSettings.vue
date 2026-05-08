@@ -99,8 +99,8 @@
                 size="md"
                 style="float: right; padding-top: 1rem; padding-bottom: 0.5rem"
               >
-                <b-button type="reset" variant="danger"> Reset </b-button>
-                <b-button type="submit" variant="primary"> Submit </b-button>
+                <b-button type="reset" variant="danger" :disabled="!hasChanges"> Reset </b-button>
+                <b-button type="submit" variant="primary" :disabled="!hasChanges"> Submit </b-button>
               </b-button-group>
             </div>
           </b-form>
@@ -152,6 +152,11 @@ export default {
         });
       });
       return settingsByCategory;
+    },
+    hasChanges() {
+      return Object.keys(this.editSettings).some(
+        (key) => this.editSettings[key] !== this.RAW_SETTINGS[key]?.value,
+      );
     },
     dirtySettingsByCategory() {
       const dirtySettingsByCategory = {};
