@@ -430,7 +430,11 @@ class ScriptController(BaseAPIController):
                     previous_line: Optional[ScriptLineRevisionAssociation] = None
 
                 for index, line in enumerate(lines):
-                    if index in status["added"]:
+                    is_truly_new = index in status["added"] and line.get("id") is None
+                    is_updated = index in status["updated"] or (
+                        index in status["added"] and line.get("id") is not None
+                    )
+                    if is_truly_new:
                         # Validate the line
                         valid_status, valid_reason = self._validate_line(show, line)
                         if not valid_status:
@@ -481,6 +485,102 @@ class ScriptController(BaseAPIController):
                         session.flush()
 
                         previous_line = line_association
+                    elif (
+                        is_updated
+                        and index not in status["deleted"]
+                        and index not in status["inserted"]
+                    ):
+                        # Validate the line
+                        valid_status, valid_reason = self._validate_line(show, line)
+                        if not valid_status:
+                            session.rollback()
+                            self.set_status(400)
+                            await self.finish({"message": valid_reason})
+                            return
+
+                        curr_association: ScriptLineRevisionAssociation = session.get(
+                            ScriptLineRevisionAssociation,
+                            (revision.id, line["id"]),
+                        )
+                        curr_line = curr_association.line
+
+                        if not curr_association:
+                            session.rollback()
+                            self.set_status(500)
+                            await self.finish({"message": "Unable to load line data"})
+                            return
+
+                        line_association, line_object = self._create_new_line(
+                            session,
+                            revision,
+                            line,
+                            previous_line,
+                            with_association=False,
+                        )
+                        curr_association.line = line_object
+                        if previous_line:
+                            previous_line.next_line = line_object
+                            curr_association.previous_line = previous_line.line
+
+                        if curr_association.next_line:
+                            next_association: ScriptLineRevisionAssociation = (
+                                session.get(
+                                    ScriptLineRevisionAssociation,
+                                    (revision.id, curr_association.next_line.id),
+                                )
+                            )
+                            next_association.previous_line = line_object
+                        session.flush()
+
+                        cue_assocs = session.scalars(
+                            select(CueAssociation).where(
+                                CueAssociation.revision_id == revision.id,
+                                CueAssociation.line_id == curr_line.id,
+                            )
+                        ).all()
+
+                        for old_cue_assoc in cue_assocs:
+                            new_cue_assoc = CueAssociation(
+                                revision_id=revision.id,
+                                line_id=line_object.id,
+                                cue_id=old_cue_assoc.cue_id,
+                            )
+                            session.add(new_cue_assoc)
+                            session.delete(old_cue_assoc)
+
+                        old_parts_map = {
+                            part.part_index: part.id for part in curr_line.line_parts
+                        }
+                        new_parts_map = {
+                            part.part_index: part.id for part in line_object.line_parts
+                        }
+
+                        for part_index, old_part_id in old_parts_map.items():
+                            cuts = session.scalars(
+                                select(ScriptCuts).where(
+                                    ScriptCuts.revision_id == revision.id,
+                                    ScriptCuts.line_part_id == old_part_id,
+                                )
+                            ).all()
+
+                            for old_cut in cuts:
+                                new_part_id = new_parts_map.get(part_index)
+                                if new_part_id:
+                                    new_cut = ScriptCuts(
+                                        revision_id=revision.id,
+                                        line_part_id=new_part_id,
+                                    )
+                                    session.add(new_cut)
+                                session.delete(old_cut)
+
+                        session.flush()
+
+                        if len(curr_line.revision_associations) == 0:
+                            session.delete(curr_line)
+
+                        session.flush()
+
+                        previous_line = curr_association
                     elif index in status["deleted"]:
                         curr_association: ScriptLineRevisionAssociation = session.get(
                             ScriptLineRevisionAssociation,
@@ -557,108 +657,6 @@ class ScriptController(BaseAPIController):
                         )
                         for cue_id in cue_ids_to_cleanup:
                             CueAssociation.cleanup_orphaned_cue(session, cue_id)
-                    elif index in status["updated"]:
-                        # Validate the line
-                        valid_status, valid_reason = self._validate_line(show, line)
-                        if not valid_status:
-                            session.rollback()
-                            self.set_status(400)
-                            await self.finish({"message": valid_reason})
-                            return
-
-                        curr_association: ScriptLineRevisionAssociation = session.get(
-                            ScriptLineRevisionAssociation,
-                            (revision.id, line["id"]),
-                        )
-                        curr_line = curr_association.line
-
-                        if not curr_association:
-                            session.rollback()
-                            self.set_status(500)
-                            await self.finish({"message": "Unable to load line data"})
-                            return
-
-                        line_association, line_object = self._create_new_line(
-                            session,
-                            revision,
-                            line,
-                            previous_line,
-                            with_association=False,
-                        )
-                        curr_association.line = line_object
-                        if previous_line:
-                            previous_line.next_line = line_object
-                            curr_association.previous_line = previous_line.line
-
-                        if curr_association.next_line:
-                            next_association: ScriptLineRevisionAssociation = (
-                                session.get(
-                                    ScriptLineRevisionAssociation,
-                                    (revision.id, curr_association.next_line.id),
-                                )
-                            )
-                            next_association.previous_line = line_object
-                        session.flush()
-
-                        # Migrate revision-scoped associations from old line to new line
-                        # CueAssociation and ScriptCuts must be migrated when updating a line
-                        # (which creates new ScriptLine + ScriptLinePart objects)
-
-                        # 1. Migrate CueAssociation: (revision, old_line_id) → (revision, new_line_id)
-                        cue_assocs = session.scalars(
-                            select(CueAssociation).where(
-                                CueAssociation.revision_id == revision.id,
-                                CueAssociation.line_id == curr_line.id,
-                            )
-                        ).all()
-
-                        for old_cue_assoc in cue_assocs:
-                            # Create new association with new line_id
-                            new_cue_assoc = CueAssociation(
-                                revision_id=revision.id,
-                                line_id=line_object.id,  # Point to NEW line
-                                cue_id=old_cue_assoc.cue_id,
-                            )
-                            session.add(new_cue_assoc)
-                            session.delete(old_cue_assoc)
-
-                        # 2. Migrate ScriptCuts: (revision, old_line_part_id) → (revision, new_line_part_id)
-                        # Build mapping of part_index → line_part_id for both old and new
-                        old_parts_map = {
-                            part.part_index: part.id for part in curr_line.line_parts
-                        }
-                        new_parts_map = {
-                            part.part_index: part.id for part in line_object.line_parts
-                        }
-
-                        for part_index, old_part_id in old_parts_map.items():
-                            # Find any cuts for this old line_part in this revision
-                            cuts = session.scalars(
-                                select(ScriptCuts).where(
-                                    ScriptCuts.revision_id == revision.id,
-                                    ScriptCuts.line_part_id == old_part_id,
-                                )
-                            ).all()
-
-                            for old_cut in cuts:
-                                # Create new cut with new line_part_id
-                                new_part_id = new_parts_map.get(part_index)
-                                if new_part_id:
-                                    new_cut = ScriptCuts(
-                                        revision_id=revision.id,
-                                        line_part_id=new_part_id,  # Point to NEW line_part
-                                    )
-                                    session.add(new_cut)
-                                session.delete(old_cut)
-
-                        session.flush()
-
-                        if len(curr_line.revision_associations) == 0:
-                            session.delete(curr_line)
-
-                        session.flush()
-
-                        previous_line = curr_association
                     else:
                         previous_line = session.get(
                             ScriptLineRevisionAssociation,
