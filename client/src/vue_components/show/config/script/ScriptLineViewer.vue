@@ -119,8 +119,24 @@
       </b-col>
     </template>
     <b-col cols="1" align-self="end">
+      <b-button-group v-if="bulkEditMode && canEdit && !IS_CUT_MODE">
+        <b-button
+          size="sm"
+          :variant="isBulkStart ? 'success' : 'outline-secondary'"
+          @click.stop="$emit('set-bulk-start')"
+        >
+          Start
+        </b-button>
+        <b-button
+          size="sm"
+          :variant="isBulkEnd ? 'success' : 'outline-secondary'"
+          @click.stop="$emit('set-bulk-end')"
+        >
+          End
+        </b-button>
+      </b-button-group>
       <b-dropdown
-        v-show="canEdit && !IS_CUT_MODE"
+        v-else-if="canEdit && !IS_CUT_MODE"
         split
         text="Edit"
         right
@@ -165,6 +181,8 @@ export default {
     'insertCueLine',
     'insertSpacing',
     'deleteLine',
+    'set-bulk-start',
+    'set-bulk-end',
   ],
   props: {
     line: {
@@ -214,6 +232,18 @@ export default {
     stageDirectionStyleOverrides: {
       required: true,
       type: Array,
+    },
+    bulkEditMode: {
+      type: Boolean,
+      default: false,
+    },
+    isBulkStart: {
+      type: Boolean,
+      default: false,
+    },
+    isBulkEnd: {
+      type: Boolean,
+      default: false,
     },
   },
   data() {
