@@ -1674,3 +1674,258 @@ class TestLineTypeValidation(DigiScriptTestCase):
         self.assertEqual(400, response.code)
         response_body = tornado.escape.json_decode(response.body)
         self.assertIn("must contain text", response_body["message"])
+
+
+class TestPatchLinePartCountChange(DigiScriptTestCase):
+    """Regression tests for page-boundary corruption when line_parts count changes.
+
+    When a line's line_parts array grows, deep-object-diff classifies the line index
+    as both "added" and "updated". Previously, the backend treated this as "added"
+    (creating a new association without removing the old), which left a split
+    doubly-linked list and broke the page boundary.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
+            script.current_revision = revision.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            self.act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            self.scene_id = scene.id
+
+            character = Character(show_id=show.id, name="Character A")
+            session.add(character)
+            session.flush()
+            self.character_id = character.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def _make_line(self, page, line_id, parts, act_id=None, scene_id=None):
+        return {
+            "id": line_id,
+            "act_id": act_id if act_id is not None else self.act_id,
+            "scene_id": scene_id if scene_id is not None else self.scene_id,
+            "page": page,
+            "line_type": 1,
+            "line_parts": [
+                {
+                    "id": None,
+                    "line_id": line_id,
+                    "part_index": i,
+                    "character_id": self.character_id,
+                    "character_group_id": None,
+                    "line_text": f"Part {i}",
+                }
+                for i in range(parts)
+            ],
+            "stage_direction_style_id": None,
+        }
+
+    def test_patch_existing_line_adding_line_part_does_not_corrupt_page(self):
+        """PATCH a line with status added (misclassified by deep-object-diff when line_parts
+        grows) should not create a duplicate association or leave the old one dangling.
+        After the PATCH, GET should return 200 and yield exactly one association per line.
+        """
+        # Create one line on page 1 with 1 part
+        post_body = [self._make_line(1, None, 1)]
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(post_body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        get_resp = self.fetch(
+            "/api/v1/show/script?page=1",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        existing_line = tornado.escape.json_decode(get_resp.body)["lines"][0]
+        line_id = existing_line["id"]
+
+        # PATCH the line with status=added (as deep-object-diff would send it when
+        # a line_part is added) but with the existing line id present
+        updated_line = self._make_line(1, line_id, 2)  # now 2 parts
+        patch_data = {
+            "page": [updated_line],
+            "status": {"added": [0], "updated": [], "deleted": [], "inserted": []},
+        }
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_data),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # GET must still work (no "Failed to establish page line order")
+        get_resp = self.fetch(
+            "/api/v1/show/script?page=1",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, get_resp.code)
+        lines = tornado.escape.json_decode(get_resp.body)["lines"]
+        self.assertEqual(1, len(lines))
+        self.assertEqual(2, len(lines[0]["line_parts"]))
+
+        # Exactly one association must exist for this revision (no duplicates)
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision_id
+                )
+            ).all()
+            self.assertEqual(
+                1, len(assocs), "Must have exactly 1 association — no duplicates"
+            )
+            self.assertNotEqual(
+                line_id, assocs[0].line_id, "Association must point to new line"
+            )
+
+    def test_patch_page_n_then_page_n_plus_1_boundary_intact(self):
+        """Patching both page 1 and page 2 with status=added on existing IDs must not
+        corrupt the page boundary.
+
+        Without the fix the failure is:
+          1. PATCH page 1 (status=added) creates new associations but leaves old ones.
+          2. PATCH page 2 (status=added) looks up the first page-2 line's previous_line
+             (which still points to the OLD last page-1 line), creates a new association
+             also pointing to that old line.
+          3. GET page 2 now finds TWO associations with previous_line.page == 1 → 400.
+
+        With the fix both PATCHes route through "updated", old associations are replaced,
+        and GET page 2 returns 200 with exactly one association for the page.
+        """
+        # Create 2 lines on page 1 and 1 line on page 2 via POST
+        post_p1 = [
+            self._make_line(1, None, 1),
+            self._make_line(1, None, 1),
+        ]
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(post_p1),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        post_p2 = [self._make_line(2, None, 1)]
+        response = self.fetch(
+            "/api/v1/show/script?page=2",
+            method="POST",
+            body=tornado.escape.json_encode(post_p2),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Get existing line IDs for both pages
+        get_p1 = tornado.escape.json_decode(
+            self.fetch(
+                "/api/v1/show/script?page=1",
+                headers={"Authorization": f"Bearer {self.token}"},
+            ).body
+        )
+        line1_id = get_p1["lines"][0]["id"]
+        line2_id = get_p1["lines"][1]["id"]
+
+        get_p2 = tornado.escape.json_decode(
+            self.fetch(
+                "/api/v1/show/script?page=2",
+                headers={"Authorization": f"Bearer {self.token}"},
+            ).body
+        )
+        line3_id = get_p2["lines"][0]["id"]
+
+        # PATCH page 1: both lines with status=added (simulating deep-object-diff
+        # when line_parts count increases on existing lines)
+        patch_p1 = {
+            "page": [
+                self._make_line(1, line1_id, 2),
+                self._make_line(1, line2_id, 2),
+            ],
+            "status": {"added": [0, 1], "updated": [], "deleted": [], "inserted": []},
+        }
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_p1),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # PATCH page 2 with status=added too — this is the step that creates the second
+        # duplicate association pointing to the old last-page-1 line.
+        patch_p2 = {
+            "page": [self._make_line(2, line3_id, 2)],
+            "status": {"added": [0], "updated": [], "deleted": [], "inserted": []},
+        }
+        response = self.fetch(
+            "/api/v1/show/script?page=2",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_p2),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # GET page 2 must return 200 — without the fix this returns 400
+        # "Failed to establish page line order"
+        get_p2_after = self.fetch(
+            "/api/v1/show/script?page=2",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(
+            200,
+            get_p2_after.code,
+            "GET page 2 must succeed after patching both pages with status=added",
+        )
+        p2_lines = tornado.escape.json_decode(get_p2_after.body)["lines"]
+        self.assertEqual(1, len(p2_lines))
+
+        # Exactly one association must exist for page 2 (no duplicates)
+        with self._app.get_db().sessionmaker() as session:
+            assocs_p2 = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision_id,
+                    ScriptLineRevisionAssociation.line.has(page=2),
+                )
+            ).all()
+            self.assertEqual(
+                1, len(assocs_p2), "Must have exactly 1 association for page 2"
+            )
+            prev_line = assocs_p2[0].previous_line
+            self.assertIsNotNone(
+                prev_line, "Page 2 first line must have a previous line"
+            )
+            self.assertEqual(1, prev_line.page, "Previous line must be on page 1")

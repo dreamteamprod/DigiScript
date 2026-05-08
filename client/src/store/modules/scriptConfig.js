@@ -4,6 +4,40 @@ import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 
+/**
+ * Computes the page status object (added/updated/deleted/inserted) to send to the PATCH endpoint.
+ *
+ * deepDiff.added fires on a line index whenever *any* nested property is new — including a new
+ * element in line_parts. Only lines with id == null are truly new; lines with an existing id that
+ * have nested additions must be treated as updates instead.
+ *
+ * :param actualScriptPage: The current saved page from the store (will be cloned internally).
+ * :param tmpScriptPage: The edited in-progress page.
+ * :param deletedLines: Array of line indices marked for deletion.
+ * :param insertedLines: Array of line indices that were inserted mid-page.
+ * :returns: { added, updated, deleted, inserted }
+ */
+export function computePageStatus(actualScriptPage, tmpScriptPage, deletedLines, insertedLines) {
+  const augmented = JSON.parse(JSON.stringify(actualScriptPage));
+  JSON.parse(JSON.stringify(insertedLines))
+    .sort((a, b) => a - b)
+    .forEach((lineIndex) => {
+      augmented.splice(lineIndex, 0, JSON.parse(JSON.stringify(tmpScriptPage[lineIndex])));
+    });
+
+  const deepDiff = detailedDiff(augmented, tmpScriptPage);
+  const addedIndices = Object.keys(deepDiff.added).map((x) => parseInt(x, 10));
+  return {
+    added: addedIndices.filter((idx) => tmpScriptPage[idx]?.id == null),
+    updated: [
+      ...Object.keys(deepDiff.updated).map((x) => parseInt(x, 10)),
+      ...addedIndices.filter((idx) => tmpScriptPage[idx]?.id != null),
+    ],
+    deleted: [...deletedLines],
+    inserted: [...insertedLines],
+  };
+}
+
 export default {
   state: {
     tmpScript: {},
@@ -137,30 +171,13 @@ export default {
       return true;
     },
     async SAVE_CHANGED_PAGE(context, pageNo) {
-      let actualScriptPage = context.getters.GET_SCRIPT_PAGE(pageNo);
       const tmpScriptPage = context.getters.TMP_SCRIPT[pageNo.toString()];
-
-      // Need to augment the actual script page to include the inserted pages, this is a hack,
-      // but it will allow all the other pages to show as not edited if the really haven't been
-      // changed
-      actualScriptPage = JSON.parse(JSON.stringify(actualScriptPage));
-      JSON.parse(JSON.stringify(context.getters.INSERTED_LINES(pageNo)))
-        .sort((a, b) => a - b)
-        .forEach((lineIndex) => {
-          actualScriptPage.splice(
-            lineIndex,
-            0,
-            JSON.parse(JSON.stringify(tmpScriptPage[lineIndex]))
-          );
-        });
-
-      const deepDiff = detailedDiff(actualScriptPage, tmpScriptPage);
-      const pageStatus = {
-        added: Object.keys(deepDiff.added).map((x) => parseInt(x, 10)),
-        updated: Object.keys(deepDiff.updated).map((x) => parseInt(x, 10)),
-        deleted: [...context.getters.DELETED_LINES(pageNo)],
-        inserted: [...context.getters.INSERTED_LINES(pageNo)],
-      };
+      const pageStatus = computePageStatus(
+        context.getters.GET_SCRIPT_PAGE(pageNo),
+        tmpScriptPage,
+        context.getters.DELETED_LINES(pageNo),
+        context.getters.INSERTED_LINES(pageNo)
+      );
       const searchParams = new URLSearchParams({
         page: pageNo,
       });
