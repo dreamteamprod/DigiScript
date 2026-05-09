@@ -1,12 +1,27 @@
 import Vue from 'vue';
 import log from 'loglevel';
 import { isEmpty } from 'lodash';
+import type { Module } from 'vuex';
 
 import router from '@/router';
 import { makeURL } from '@/js/utils';
+import type { RootState } from '@/types/store';
+import type { User } from '@/types/api/user';
 import settings from './settings';
 
-export default {
+interface UserState {
+  currentUser: User | null;
+  currentRbac: Record<string, [number, number][]> | null;
+  users: User[];
+  authToken: string | null;
+  tokenRefreshInterval: ReturnType<typeof setInterval> | null;
+}
+
+const VueToast = Vue as typeof Vue & {
+  $toast: { success: (m: string) => void; error: (m: string) => void };
+};
+
+const module: Module<UserState, RootState> = {
   state: {
     currentUser: null,
     currentRbac: null,
@@ -15,16 +30,16 @@ export default {
     tokenRefreshInterval: null,
   },
   mutations: {
-    SET_CURRENT_USER(state, user) {
+    SET_CURRENT_USER(state: UserState, user: User | null) {
       state.currentUser = user;
     },
-    SET_USERS(state, users) {
+    SET_USERS(state: UserState, users: User[]) {
       state.users = users;
     },
-    SET_CURRENT_RBAC(state, rbac) {
+    SET_CURRENT_RBAC(state: UserState, rbac: Record<string, [number, number][]> | null) {
       state.currentRbac = rbac;
     },
-    SET_AUTH_TOKEN(state, token) {
+    SET_AUTH_TOKEN(state: UserState, token: string | null) {
       state.authToken = token;
       if (token) {
         localStorage.setItem('digiscript_auth_token', token);
@@ -32,7 +47,10 @@ export default {
         localStorage.removeItem('digiscript_auth_token');
       }
     },
-    SET_TOKEN_REFRESH_INTERVAL(state, intervalId) {
+    SET_TOKEN_REFRESH_INTERVAL(
+      state: UserState,
+      intervalId: ReturnType<typeof setInterval> | null
+    ) {
       if (state.tokenRefreshInterval) {
         clearInterval(state.tokenRefreshInterval);
       }
@@ -50,7 +68,7 @@ export default {
         await context.commit('SET_USERS', users.users);
       } else {
         log.error('Unable to get users');
-        Vue.$toast.error('Unable to fetch users!');
+        VueToast.$toast.error('Unable to fetch users!');
       }
     },
     async CREATE_USER(context, user) {
@@ -61,14 +79,14 @@ export default {
       });
       if (response.ok) {
         await context.dispatch('GET_USERS');
-        Vue.$toast.success('User created!');
+        VueToast.$toast.success('User created!');
       } else {
         const responseBody = await response.json();
         log.error('Unable to create user');
-        Vue.$toast.error(`Unable to create user: ${responseBody.message || 'Unknown error'}`);
+        VueToast.$toast.error(`Unable to create user: ${responseBody.message || 'Unknown error'}`);
       }
     },
-    async DELETE_USER(context, userId) {
+    async DELETE_USER(context, userId: number) {
       const response = await fetch(makeURL('/api/v1/auth/delete'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,14 +94,14 @@ export default {
       });
       if (response.ok) {
         await context.dispatch('GET_USERS');
-        Vue.$toast.success('User deleted!');
+        VueToast.$toast.success('User deleted!');
       } else {
         const responseBody = await response.json();
         log.error('Unable to delete user');
-        Vue.$toast.error(`Unable to delete user: ${responseBody.message || 'Unknown error'}`);
+        VueToast.$toast.error(`Unable to delete user: ${responseBody.message || 'Unknown error'}`);
       }
     },
-    async USER_LOGIN(context, user) {
+    async USER_LOGIN(context, user: { username: string; password: string }) {
       const response = await fetch(makeURL('/api/v1/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -98,23 +116,21 @@ export default {
         if (data.access_token) {
           await context.commit('SET_AUTH_TOKEN', data.access_token);
         }
-
         await context.dispatch('GET_RBAC_ROLES');
         await context.dispatch('GET_CURRENT_USER');
         await context.dispatch('GET_CURRENT_RBAC');
         await context.dispatch('GET_USER_SETTINGS');
-
         await context.dispatch('AUTHENTICATE_WEBSOCKET');
         await context.dispatch('SETUP_TOKEN_REFRESH');
-        Vue.$toast.success('Successfully logged in!');
+        VueToast.$toast.success('Successfully logged in!');
         return true;
       }
       const responseBody = await response.json();
       log.error('Unable to log in');
-      Vue.$toast.error(`Unable to log in! ${responseBody.message}.`);
+      VueToast.$toast.error(`Unable to log in! ${responseBody.message}.`);
       return false;
     },
-    async TOKEN_REFRESH(context, payload) {
+    async TOKEN_REFRESH(context, payload: { DATA: { access_token: string } }) {
       log.info('Received token refresh from server');
       const newToken = payload.DATA.access_token;
       if (newToken) {
@@ -128,16 +144,13 @@ export default {
         clearInterval(context.state.tokenRefreshInterval);
         context.commit('SET_TOKEN_REFRESH_INTERVAL', null);
       }
-
       const token = context.state.authToken;
-
       await context.commit('SET_AUTH_TOKEN', null);
       await context.commit('SET_CURRENT_USER', null);
       await context.commit('SET_CURRENT_RBAC', null);
       await context.commit('SET_USER_SETTINGS', []);
       await context.commit('SET_STAGE_DIRECTION_STYLE_OVERRIDES', []);
       await context.commit('CLEAR_WS_AUTHENTICATION');
-
       if (token) {
         try {
           const response = await fetch(makeURL('/api/v1/auth/logout'), {
@@ -146,9 +159,7 @@ export default {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({
-              session_id: context.rootGetters.INTERNAL_UUID,
-            }),
+            body: JSON.stringify({ session_id: context.rootGetters.INTERNAL_UUID }),
           });
           if (!response.ok) {
             log.error('Logout response was not OK, but local state was cleared');
@@ -159,7 +170,7 @@ export default {
       } else {
         log.info('Logout completed without API call - token already invalid');
       }
-      Vue.$toast.success('Successfully logged out!');
+      VueToast.$toast.success('Successfully logged out!');
       if (router.currentRoute.path !== '/') {
         router.push('/');
       }
@@ -215,10 +226,9 @@ export default {
         },
         1000 * 60 * 30
       );
-
       await context.commit('SET_TOKEN_REFRESH_INTERVAL', refreshInterval);
     },
-    async GENERATE_API_TOKEN(context) {
+    async GENERATE_API_TOKEN() {
       const response = await fetch(makeURL('/api/v1/auth/api-token/generate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -226,53 +236,56 @@ export default {
       });
       if (response.ok) {
         const data = await response.json();
-        Vue.$toast.success('API token generated successfully!');
+        VueToast.$toast.success('API token generated successfully!');
         return data;
       }
       const responseBody = await response.json();
       log.error('Unable to generate API token');
-      Vue.$toast.error(`Unable to generate API token: ${responseBody.message || 'Unknown error'}`);
+      VueToast.$toast.error(
+        `Unable to generate API token: ${responseBody.message || 'Unknown error'}`
+      );
       return null;
     },
-    async REVOKE_API_TOKEN(context) {
+    async REVOKE_API_TOKEN() {
       const response = await fetch(makeURL('/api/v1/auth/api-token/revoke'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
       if (response.ok) {
-        Vue.$toast.success('API token revoked successfully!');
+        VueToast.$toast.success('API token revoked successfully!');
         return true;
       }
       const responseBody = await response.json();
       log.error('Unable to revoke API token');
-      Vue.$toast.error(`Unable to revoke API token: ${responseBody.message || 'Unknown error'}`);
+      VueToast.$toast.error(
+        `Unable to revoke API token: ${responseBody.message || 'Unknown error'}`
+      );
       return false;
     },
-    async GET_API_TOKEN(context) {
+    async GET_API_TOKEN() {
       const response = await fetch(makeURL('/api/v1/auth/api-token'), {
         method: 'GET',
       });
       if (response.ok) {
-        const data = await response.json();
-        return data;
+        return response.json();
       }
       log.error('Unable to get API token');
-      Vue.$toast.error('Unable to get API token!');
+      VueToast.$toast.error('Unable to get API token!');
       return null;
     },
   },
   getters: {
-    CURRENT_USER(state) {
+    CURRENT_USER(state: UserState) {
       return state.currentUser;
     },
-    USERS(state) {
+    USERS(state: UserState) {
       return state.users;
     },
-    CURRENT_USER_RBAC(state) {
+    CURRENT_USER_RBAC(state: UserState) {
       return state.currentRbac;
     },
-    AUTH_TOKEN(state) {
+    AUTH_TOKEN(state: UserState) {
       return state.authToken;
     },
   },
@@ -280,3 +293,5 @@ export default {
     settings,
   },
 };
+
+export default module;

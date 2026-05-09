@@ -9,11 +9,9 @@ declare module 'vue/types/vue' {
     info(message: string, options?: Record<string, unknown>): unknown;
     clear(): void;
   }
+  // Instance-level access (this.$toast in Vue components)
   interface Vue {
     $socket: WebSocket & { sendObj: (obj: object) => void };
-    $toast: VueToastPlugin;
-  }
-  interface VueConstructor {
     $toast: VueToastPlugin;
   }
 }

@@ -1,36 +1,55 @@
 import log from 'loglevel';
 import Fuse from 'fuse.js';
+import type { Module } from 'vuex';
+import type { RootState } from '@/types/store';
 
-export default {
+interface HelpManifestEntry {
+  title: string;
+  slug: string;
+  path: string;
+  category: string;
+}
+
+interface HelpState {
+  manifest: HelpManifestEntry[];
+  documents: Record<string, string>;
+  currentDocument: string | null;
+  loading: boolean;
+  error: string | null;
+  searchIndex: Fuse<HelpManifestEntry> | null;
+  searchResults: HelpManifestEntry[];
+}
+
+const module: Module<HelpState, RootState> = {
   state: {
-    manifest: [], // Array of { title, slug, path, category }
-    documents: {}, // Cache: { slug: markdownContent }
-    currentDocument: null, // Currently viewed doc slug
+    manifest: [],
+    documents: {},
+    currentDocument: null,
     loading: false,
     error: null,
-    searchIndex: null, // Fuse.js instance
+    searchIndex: null,
     searchResults: [],
   },
   mutations: {
-    SET_MANIFEST(state, manifest) {
+    SET_MANIFEST(state: HelpState, manifest: HelpManifestEntry[]) {
       state.manifest = manifest;
     },
-    SET_DOCUMENT(state, { slug, content }) {
+    SET_DOCUMENT(state: HelpState, { slug, content }: { slug: string; content: string }) {
       state.documents[slug] = content;
     },
-    SET_LOADING(state, loading) {
+    SET_LOADING(state: HelpState, loading: boolean) {
       state.loading = loading;
     },
-    SET_ERROR(state, error) {
+    SET_ERROR(state: HelpState, error: string | null) {
       state.error = error;
     },
-    SET_CURRENT_DOCUMENT(state, slug) {
+    SET_CURRENT_DOCUMENT(state: HelpState, slug: string) {
       state.currentDocument = slug;
     },
-    SET_SEARCH_INDEX(state, fuseInstance) {
+    SET_SEARCH_INDEX(state: HelpState, fuseInstance: Fuse<HelpManifestEntry>) {
       state.searchIndex = fuseInstance;
     },
-    SET_SEARCH_RESULTS(state, results) {
+    SET_SEARCH_RESULTS(state: HelpState, results: HelpManifestEntry[]) {
       state.searchResults = results;
     },
   },
@@ -45,7 +64,6 @@ export default {
         const manifest = await response.json();
         context.commit('SET_MANIFEST', manifest);
 
-        // Initialize Fuse.js search
         const fuse = new Fuse(manifest, {
           keys: ['title', 'path'],
           threshold: 0.3,
@@ -60,8 +78,7 @@ export default {
       }
     },
 
-    async LOAD_DOCUMENT(context, slug) {
-      // Check cache first
+    async LOAD_DOCUMENT(context, slug: string) {
       if (context.state.documents[slug]) {
         context.commit('SET_CURRENT_DOCUMENT', slug);
         context.commit('SET_ERROR', null);
@@ -95,7 +112,7 @@ export default {
       }
     },
 
-    SEARCH_DOCUMENTS(context, query) {
+    SEARCH_DOCUMENTS(context, query: string) {
       if (!context.state.searchIndex) {
         log.warn('Search index not initialized');
         return;
@@ -118,11 +135,13 @@ export default {
     },
   },
   getters: {
-    DOCUMENTATION_MANIFEST: (state) => state.manifest,
-    CURRENT_DOCUMENT_CONTENT: (state) =>
+    DOCUMENTATION_MANIFEST: (state: HelpState) => state.manifest,
+    CURRENT_DOCUMENT_CONTENT: (state: HelpState) =>
       state.currentDocument ? state.documents[state.currentDocument] : null,
-    IS_LOADING: (state) => state.loading,
-    ERROR: (state) => state.error,
-    SEARCH_RESULTS: (state) => state.searchResults,
+    IS_LOADING: (state: HelpState) => state.loading,
+    ERROR: (state: HelpState) => state.error,
+    SEARCH_RESULTS: (state: HelpState) => state.searchResults,
   },
 };
+
+export default module;

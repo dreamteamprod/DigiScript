@@ -1,18 +1,42 @@
 import Vue from 'vue';
 import log from 'loglevel';
 import { debounce } from 'lodash';
+import type { Module } from 'vuex';
 
 import router from '@/router';
+import type { RootState } from '@/types/store';
+
+interface WebsocketState {
+  isConnected: boolean;
+  message: string;
+  reconnectError: boolean;
+  internalUUID: string | null;
+  errorCount: number;
+  error: boolean;
+  authenticated: boolean;
+  authenticationInProgress: boolean;
+  pendingAuthentication: boolean;
+  newConnection: boolean;
+  authSucceeded: boolean;
+}
+
+const VueToast = Vue as typeof Vue & {
+  $toast: {
+    success: (m: string) => void;
+    error: (m: string) => void;
+    info: (m: string) => void;
+  };
+};
 
 const settingsToast = debounce(
   () => {
-    Vue.$toast.info('Settings synced from server');
+    VueToast.$toast.info('Settings synced from server');
   },
   1000,
   { leading: true, trailing: false }
 );
 
-export default {
+const module: Module<WebsocketState, RootState> = {
   state: {
     isConnected: false,
     message: '',
@@ -27,29 +51,28 @@ export default {
     authSucceeded: false,
   },
   mutations: {
-    SOCKET_ONOPEN(state, event) {
-      Vue.prototype.$socket = event.currentTarget;
+    SOCKET_ONOPEN(state: WebsocketState, event: Event) {
+      Vue.prototype.$socket = (event as { currentTarget: unknown }).currentTarget;
       state.isConnected = true;
       state.error = false;
       state.reconnectError = false;
       if (state.errorCount !== 0) {
-        Vue.$toast.success(`Websocket reconnected after ${state.errorCount} attempts`);
+        VueToast.$toast.success(`Websocket reconnected after ${state.errorCount} attempts`);
         state.errorCount = 0;
-        if (router.currentRoute !== '/') {
+        if (router.currentRoute.path !== '/') {
           window.location.reload();
         }
       }
     },
-    SOCKET_ONCLOSE(state, event) {
+    SOCKET_ONCLOSE(state: WebsocketState) {
       state.isConnected = false;
       state.authenticated = false;
     },
-    SOCKET_ONERROR(state, event) {
+    SOCKET_ONERROR(state: WebsocketState) {
       state.error = true;
     },
-    // default handler called for all methods
-    SOCKET_ONMESSAGE(state, message) {
-      state.message = message;
+    SOCKET_ONMESSAGE(state: WebsocketState, message: { OP: string; DATA: unknown }) {
+      state.message = JSON.stringify(message);
       switch (message.OP) {
         case 'SET_UUID':
           if (state.internalUUID != null) {
@@ -60,7 +83,7 @@ export default {
             });
           } else {
             log.debug('Connecting to WebSocket as new client, with UUID:', message.DATA);
-            state.internalUUID = message.DATA;
+            state.internalUUID = message.DATA as string;
             state.newConnection = true;
           }
           if (!state.authenticated && !state.authenticationInProgress) {
@@ -88,12 +111,12 @@ export default {
         case 'GET_CAST_LIST':
           break;
         case 'START_SHOW':
-          if (router.currentRoute !== '/live') {
+          if (router.currentRoute.path !== '/live') {
             router.push('/live');
           }
           break;
         case 'STOP_SHOW':
-          if (router.currentRoute !== '/') {
+          if (router.currentRoute.path !== '/') {
             router.push('/');
           }
           break;
@@ -104,32 +127,31 @@ export default {
           log.error(`Unknown OP received from websocket: ${message.OP}`);
       }
     },
-    // mutations for reconnect methods
-    SOCKET_RECONNECT(state, count) {
+    SOCKET_RECONNECT(state: WebsocketState, count: number) {
       if (state.errorCount === 0) {
-        Vue.$toast.error('Websocket connection lost');
+        VueToast.$toast.error('Websocket connection lost');
       }
       state.errorCount = count;
       state.authenticated = false;
     },
-    SOCKET_RECONNECT_ERROR(state) {
+    SOCKET_RECONNECT_ERROR(state: WebsocketState) {
       state.reconnectError = true;
     },
-    CLEAR_WS_AUTHENTICATION(state) {
+    CLEAR_WS_AUTHENTICATION(state: WebsocketState) {
       state.authenticated = false;
       state.authSucceeded = false;
       state.pendingAuthentication = true;
     },
-    SET_WS_AUTHENTICATION_IN_PROGRESS(state, value) {
+    SET_WS_AUTHENTICATION_IN_PROGRESS(state: WebsocketState, value: boolean) {
       state.authenticationInProgress = value;
     },
-    CLEAR_PENDING_AUTHENTICATION(state) {
+    CLEAR_PENDING_AUTHENTICATION(state: WebsocketState) {
       state.pendingAuthentication = false;
     },
-    CLEAR_NEW_CONNECTION(state) {
+    CLEAR_NEW_CONNECTION(state: WebsocketState) {
       state.newConnection = false;
     },
-    CLEAR_AUTH_SUCCEEDED(state) {
+    CLEAR_AUTH_SUCCEEDED(state: WebsocketState) {
       state.authSucceeded = false;
     },
   },
@@ -180,7 +202,6 @@ export default {
       log.debug('Sent WebSocket authentication request');
     },
     async HANDLE_WS_AUTH_SUCCESS(context) {
-      // After successful authentication, register as a new client if this is a new connection
       if (context.state.newConnection) {
         if (Vue.prototype.$socket && Vue.prototype.$socket.readyState === WebSocket.OPEN) {
           Vue.prototype.$socket.sendObj({
@@ -209,14 +230,16 @@ export default {
     },
   },
   getters: {
-    WEBSOCKET_HEALTHY(state) {
+    WEBSOCKET_HEALTHY(state: WebsocketState) {
       return !state.error && state.isConnected && !state.reconnectError && state.errorCount === 0;
     },
-    INTERNAL_UUID(state) {
+    INTERNAL_UUID(state: WebsocketState) {
       return state.internalUUID;
     },
-    WEBSOCKET_HAS_PENDING_OPERATIONS(state) {
+    WEBSOCKET_HAS_PENDING_OPERATIONS(state: WebsocketState) {
       return state.pendingAuthentication || state.newConnection || state.authSucceeded;
     },
   },
 };
+
+export default module;

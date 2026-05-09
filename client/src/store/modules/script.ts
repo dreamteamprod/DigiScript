@@ -1,9 +1,33 @@
 import Vue from 'vue';
 import log from 'loglevel';
+import type { Module } from 'vuex';
 
 import { makeURL } from '@/js/utils';
+import type { RootState } from '@/types/store';
+import type {
+  ScriptLine,
+  ScriptRevision,
+  StageDirectionStyle,
+  ScriptCut,
+  CompiledScript,
+} from '@/types/api/script';
+import type { Cue } from '@/types/api/cues';
 
-export default {
+interface ScriptState {
+  currentRevision: number | null;
+  revisions: ScriptRevision[];
+  script: Record<string, ScriptLine[]>;
+  cues: Record<string, Cue[]>;
+  cuts: ScriptCut[];
+  stageDirectionStyles: StageDirectionStyle[];
+  compiledScripts: CompiledScript[];
+}
+
+const VueToast = Vue as typeof Vue & {
+  $toast: { success: (m: string) => void; error: (m: string) => void };
+};
+
+const module: Module<ScriptState, RootState> = {
   state: {
     currentRevision: null,
     revisions: [],
@@ -14,25 +38,28 @@ export default {
     compiledScripts: [],
   },
   mutations: {
-    SET_REVISIONS(state, revisions) {
+    SET_REVISIONS(state: ScriptState, revisions: ScriptRevision[]) {
       state.revisions = revisions;
     },
-    SET_CURRENT_REVISION(state, currentRevision) {
+    SET_CURRENT_REVISION(state: ScriptState, currentRevision: number | null) {
       state.currentRevision = currentRevision;
     },
-    SET_SCRIPT_PAGE(state, { pageNumber, page }) {
+    SET_SCRIPT_PAGE(
+      state: ScriptState,
+      { pageNumber, page }: { pageNumber: string; page: ScriptLine[] }
+    ) {
       Vue.set(state.script, pageNumber, page);
     },
-    SET_CUES(state, cues) {
+    SET_CUES(state: ScriptState, cues: Record<string, Cue[]>) {
       state.cues = cues;
     },
-    SET_CUTS(state, cuts) {
+    SET_CUTS(state: ScriptState, cuts: ScriptCut[]) {
       state.cuts = cuts;
     },
-    SET_STAGE_DIRECTION_STYLES(state, styles) {
+    SET_STAGE_DIRECTION_STYLES(state: ScriptState, styles: StageDirectionStyle[]) {
       state.stageDirectionStyles = styles;
     },
-    SET_COMPILED_SCRIPTS(state, compiledScripts) {
+    SET_COMPILED_SCRIPTS(state: ScriptState, compiledScripts: CompiledScript[]) {
       state.compiledScripts = compiledScripts;
     },
   },
@@ -47,70 +74,65 @@ export default {
         log.error('Unable to get script revisions');
       }
     },
-    async ADD_SCRIPT_REVISION(context, scriptRevision) {
-      const payload = {
+    async ADD_SCRIPT_REVISION(
+      context,
+      scriptRevision: {
+        description: string;
+        parent_revision_id?: number | null;
+        set_as_current?: boolean | null;
+      }
+    ) {
+      const payload: Record<string, unknown> = {
         description: scriptRevision.description,
       };
 
-      // Add optional parent_revision_id if provided
       if (scriptRevision.parent_revision_id != null) {
         payload.parent_revision_id = scriptRevision.parent_revision_id;
       }
 
-      // Add optional set_as_current if provided (defaults to true on backend)
       if (scriptRevision.set_as_current != null) {
         payload.set_as_current = scriptRevision.set_as_current;
       }
 
       const response = await fetch(`${makeURL('/api/v1/show/script/revisions')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (response.ok) {
         context.dispatch('GET_SCRIPT_REVISIONS');
-        Vue.$toast.success('Added new script revision!');
+        VueToast.$toast.success('Added new script revision!');
       } else {
         log.error('Unable to add new script revision');
-        Vue.$toast.error('Unable to add new script revision');
+        VueToast.$toast.error('Unable to add new script revision');
       }
     },
-    async DELETE_SCRIPT_REVISION(context, revisionID) {
-      const searchParams = new URLSearchParams({
-        rev_id: revisionID,
-      });
+    async DELETE_SCRIPT_REVISION(context, revisionID: number) {
+      const searchParams = new URLSearchParams({ rev_id: String(revisionID) });
       const response = await fetch(`${makeURL('/api/v1/show/script/revisions')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_SCRIPT_REVISIONS');
-        Vue.$toast.success('Deleted script revision!');
+        VueToast.$toast.success('Deleted script revision!');
       } else {
         log.error('Unable to delete script revision');
-        Vue.$toast.error('Unable to delete script revision');
+        VueToast.$toast.error('Unable to delete script revision');
       }
     },
-    async LOAD_SCRIPT_REVISION(context, revisionID) {
+    async LOAD_SCRIPT_REVISION(context, revisionID: number) {
       const response = await fetch(`${makeURL('/api/v1/show/script/revisions/current')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          new_rev_id: revisionID,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_rev_id: revisionID }),
       });
       if (response.ok) {
         context.dispatch('GET_SCRIPT_REVISIONS');
-        Vue.$toast.success('Loaded script revision!');
+        VueToast.$toast.success('Loaded script revision!');
       } else {
         log.error('Unable to load script revision');
-        Vue.$toast.error('Unable to load script revision');
+        VueToast.$toast.error('Unable to load script revision');
       }
     },
     async SCRIPT_REVISION_CHANGED(context) {
@@ -123,22 +145,15 @@ export default {
       await context.dispatch('LOAD_CUES');
       await context.dispatch('GET_CUTS');
     },
-    async LOAD_SCRIPT_PAGE(context, page) {
-      const searchParams = new URLSearchParams({
-        page,
-      });
+    async LOAD_SCRIPT_PAGE(context, page: string | number) {
+      const searchParams = new URLSearchParams({ page: String(page) });
       const response = await fetch(`${makeURL('/api/v1/show/script')}?${searchParams}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         const respJson = await response.json();
-        context.commit('SET_SCRIPT_PAGE', {
-          pageNumber: respJson.page,
-          page: respJson.lines,
-        });
+        context.commit('SET_SCRIPT_PAGE', { pageNumber: respJson.page, page: respJson.lines });
       } else {
         log.error('Unable to load script page');
       }
@@ -146,9 +161,7 @@ export default {
     async LOAD_CUES(context) {
       const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         const respJson = await response.json();
@@ -157,72 +170,66 @@ export default {
         log.error('Unable to load cues');
       }
     },
-    async ADD_NEW_CUE(context, cue) {
+    async ADD_NEW_CUE(context, cue: Partial<Cue>) {
       const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cue),
       });
       if (response.ok) {
         context.dispatch('LOAD_CUES');
-        Vue.$toast.success('Added new cue!');
+        VueToast.$toast.success('Added new cue!');
       } else {
         log.error('Unable to add new cue');
-        Vue.$toast.error('Unable to add new cue');
+        VueToast.$toast.error('Unable to add new cue');
       }
     },
-    async EDIT_CUE(context, cue) {
+    async EDIT_CUE(context, cue: Partial<Cue>) {
       const response = await fetch(`${makeURL('/api/v1/show/cues')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cue),
       });
       if (response.ok) {
         context.dispatch('LOAD_CUES');
-        Vue.$toast.success('Edited cue!');
+        VueToast.$toast.success('Edited cue!');
       } else {
         log.error('Unable to edit cue');
-        Vue.$toast.error('Unable to edit cue');
+        VueToast.$toast.error('Unable to edit cue');
       }
     },
-    async DELETE_CUE(context, cue) {
+    async DELETE_CUE(context, cue: { cueId: number; lineId: number }) {
       const searchParams = new URLSearchParams({
-        cueId: cue.cueId,
-        lineId: cue.lineId,
+        cueId: String(cue.cueId),
+        lineId: String(cue.lineId),
       });
       const response = await fetch(`${makeURL('/api/v1/show/cues')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('LOAD_CUES');
-        Vue.$toast.success('Deleted cue!');
+        VueToast.$toast.success('Deleted cue!');
       } else {
         log.error('Unable to delete cue');
-        Vue.$toast.error('Unable to delete cue');
+        VueToast.$toast.error('Unable to delete cue');
       }
     },
-    async SEARCH_CUES(context, { identifier, cueTypeId }) {
+    async SEARCH_CUES(
+      _context,
+      { identifier, cueTypeId }: { identifier: string; cueTypeId: number }
+    ) {
       const params = new URLSearchParams();
       params.append('identifier', identifier);
-      params.append('cue_type_id', cueTypeId);
+      params.append('cue_type_id', String(cueTypeId));
 
       const response = await fetch(`${makeURL('/api/v1/show/cues/search')}?${params}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
-        const result = await response.json();
-        return result;
+        return response.json();
       }
       log.error('Unable to search for cue');
       throw new Error('Cue search failed');
@@ -230,9 +237,7 @@ export default {
     async GET_CUTS(context) {
       const response = await fetch(`${makeURL('/api/v1/show/script/cuts')}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         const respJson = await response.json();
@@ -241,30 +246,24 @@ export default {
         log.error('Unable to load script cuts');
       }
     },
-    async SAVE_SCRIPT_CUTS(context, cuts) {
+    async SAVE_SCRIPT_CUTS(context, cuts: ScriptCut[]) {
       const response = await fetch(`${makeURL('/api/v1/show/script/cuts')}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cuts,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cuts }),
       });
       if (response.ok) {
         await context.dispatch('GET_CUTS');
-        Vue.$toast.success('Saved script cuts!');
+        VueToast.$toast.success('Saved script cuts!');
       } else {
         log.error('Unable to save script cuts');
-        Vue.$toast.error('Unable to save script cuts');
+        VueToast.$toast.error('Unable to save script cuts');
       }
     },
     async GET_STAGE_DIRECTION_STYLES(context) {
       const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         const respJson = await response.json();
@@ -273,57 +272,46 @@ export default {
         log.error('Unable to load stage direction styles');
       }
     },
-    async ADD_STAGE_DIRECTION_STYLE(context, style) {
+    async ADD_STAGE_DIRECTION_STYLE(context, style: Partial<StageDirectionStyle>) {
       const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(style),
       });
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLES');
-        Vue.$toast.success('Added new stage direction style!');
+        VueToast.$toast.success('Added new stage direction style!');
       } else {
         log.error('Unable to add new stage direction style');
-        Vue.$toast.error('Unable to add new stage direction style');
+        VueToast.$toast.error('Unable to add new stage direction style');
       }
     },
-    async DELETE_STAGE_DIRECTION_STYLE(context, styleId) {
-      const searchParams = new URLSearchParams({
-        id: styleId,
-      });
+    async DELETE_STAGE_DIRECTION_STYLE(context, styleId: number) {
+      const searchParams = new URLSearchParams({ id: String(styleId) });
       const response = await fetch(
         `${makeURL('/api/v1/show/script/stage_direction_styles')}?${searchParams}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
+        { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
       );
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLES');
-        Vue.$toast.success('Deleted stage direction style!');
+        VueToast.$toast.success('Deleted stage direction style!');
       } else {
         log.error('Unable to delete stage direction style');
-        Vue.$toast.error('Unable to delete stage direction style');
+        VueToast.$toast.error('Unable to delete stage direction style');
       }
     },
-    async UPDATE_STAGE_DIRECTION_STYLE(context, style) {
+    async UPDATE_STAGE_DIRECTION_STYLE(context, style: Partial<StageDirectionStyle>) {
       const response = await fetch(`${makeURL('/api/v1/show/script/stage_direction_styles')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(style),
       });
       if (response.ok) {
         context.dispatch('GET_STAGE_DIRECTION_STYLES');
-        Vue.$toast.success('Updated stage direction style!');
+        VueToast.$toast.success('Updated stage direction style!');
       } else {
         log.error('Unable to edit stage direction style');
-        Vue.$toast.error('Unable to edit stage direction style');
+        VueToast.$toast.error('Unable to edit stage direction style');
       }
     },
     async GET_IMPORTABLE_STAGE_DIRECTION_STYLES() {
@@ -340,9 +328,7 @@ export default {
     async GET_COMPILED_SCRIPTS(context) {
       const response = await fetch(`${makeURL('/api/v1/show/script/compiled_scripts')}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         const respJson = await response.json();
@@ -353,30 +339,32 @@ export default {
     },
   },
   getters: {
-    SCRIPT_REVISIONS(state) {
+    SCRIPT_REVISIONS(state: ScriptState) {
       return state.revisions;
     },
-    CURRENT_REVISION(state) {
+    CURRENT_REVISION(state: ScriptState) {
       return state.currentRevision;
     },
-    GET_SCRIPT_PAGE: (state) => (page) => {
+    GET_SCRIPT_PAGE: (state: ScriptState) => (page: string | number) => {
       const pageStr = page.toString();
       if (Object.keys(state.script).includes(pageStr)) {
         return state.script[pageStr];
       }
       return [];
     },
-    SCRIPT_CUES(state) {
+    SCRIPT_CUES(state: ScriptState) {
       return state.cues;
     },
-    SCRIPT_CUTS(state) {
+    SCRIPT_CUTS(state: ScriptState) {
       return state.cuts;
     },
-    STAGE_DIRECTION_STYLES(state) {
+    STAGE_DIRECTION_STYLES(state: ScriptState) {
       return state.stageDirectionStyles;
     },
-    COMPILED_SCRIPTS(state) {
+    COMPILED_SCRIPTS(state: ScriptState) {
       return state.compiledScripts;
     },
   },
 };
+
+export default module;
