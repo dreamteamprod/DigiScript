@@ -10,6 +10,8 @@ export const LINE_TYPES = {
   STAGE_DIRECTION: 2,
   CUE_LINE: 3,
   SPACING: 4,
-};
+} as const;
+
+export type LineType = (typeof LINE_TYPES)[keyof typeof LINE_TYPES];
 
 export default LINE_TYPES;

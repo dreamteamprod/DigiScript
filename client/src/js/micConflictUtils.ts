@@ -1,29 +1,80 @@
-export function buildSceneGraph(scenes, acts, currentShow) {
+import type { Act, Character, Scene, Show } from '@/types/api/show';
+
+export interface SceneGraphNode {
+  sceneId: number;
+  actId: number;
+  sceneName: string;
+  actName: string;
+  globalPosition: number;
+  scenePositionInAct: number;
+  previousSceneInAct: number | null;
+  nextSceneInAct: number | null;
+  previousSceneInShow: number | null;
+  nextSceneInShow: number | null;
+}
+
+export interface AdjacentScenes {
+  sameActPrev: number | null;
+  sameActNext: number | null;
+  crossActPrev: number | null;
+  crossActNext: number | null;
+}
+
+export interface MicConflict {
+  micId: number;
+  sceneId: number;
+  sceneName: string;
+  actName: string;
+  characterId: number;
+  characterName: string;
+  adjacentSceneId: number;
+  adjacentSceneName: string;
+  adjacentActName: string;
+  adjacentCharacterId: number;
+  adjacentCharacterName: string;
+  severity: 'WARNING' | 'INFO';
+  message: string;
+}
+
+export interface MicConflictResult {
+  conflicts: MicConflict[];
+  conflictsByScene: Record<number, MicConflict[]>;
+  conflictsByMic: Record<number, MicConflict[]>;
+}
+
+// Nested dict: { micId: { sceneId: characterId | null } }
+type MicAllocations = Record<string, Record<string, number | null> | null>;
+
+export function buildSceneGraph(
+  scenes: Scene[],
+  acts: Act[],
+  currentShow: Pick<Show, 'first_act_id'> | null
+): SceneGraphNode[] {
   if (!currentShow?.first_act_id || !scenes?.length || !acts?.length) {
     return [];
   }
 
-  const sceneById = {};
+  const sceneById: Record<number, Scene> = {};
   scenes.forEach((scene) => {
     sceneById[scene.id] = scene;
   });
 
-  const actById = {};
+  const actById: Record<number, Act> = {};
   acts.forEach((act) => {
     actById[act.id] = act;
   });
 
-  const graph = [];
-  const graphById = {}; // Lookup object to avoid .find() in loops
+  const graph: SceneGraphNode[] = [];
+  const graphById: Record<number, SceneGraphNode> = {}; // Lookup object to avoid .find() in loops
   let globalPosition = 0;
 
   // Traverse acts in linked list order
   let currentAct = actById[currentShow.first_act_id];
-  let previousActLastSceneId = null;
+  let previousActLastSceneId: number | null = null;
 
   while (currentAct != null) {
     let scenePosition = 0;
-    let previousSceneId = null;
+    let previousSceneId: number | null = null;
 
     // Traverse scenes within this act
     let currentScene = currentAct.first_scene ? sceneById[currentAct.first_scene] : null;
@@ -82,7 +133,7 @@ export function buildSceneGraph(scenes, acts, currentShow) {
   return graph;
 }
 
-export function getAdjacentScenes(sceneId, sceneGraph) {
+export function getAdjacentScenes(sceneId: number, sceneGraph: SceneGraphNode[]): AdjacentScenes {
   const node = sceneGraph.find((n) => n.sceneId === sceneId);
 
   if (!node) {
@@ -111,7 +162,11 @@ export function getAdjacentScenes(sceneId, sceneGraph) {
   };
 }
 
-export function areScenesInSameAct(sceneId1, sceneId2, sceneGraph) {
+export function areScenesInSameAct(
+  sceneId1: number,
+  sceneId2: number,
+  sceneGraph: SceneGraphNode[]
+): boolean {
   const node1 = sceneGraph.find((n) => n.sceneId === sceneId1);
   const node2 = sceneGraph.find((n) => n.sceneId === sceneId2);
 
@@ -122,7 +177,12 @@ export function areScenesInSameAct(sceneId1, sceneId2, sceneGraph) {
   return node1.actId === node2.actId;
 }
 
-export function isSameCastMember(characterId1, characterId2, characters, castList) {
+export function isSameCastMember(
+  characterId1: number,
+  characterId2: number,
+  characters: Character[],
+  castList: unknown[]
+): boolean {
   if (characterId1 === characterId2) {
     return true; // Same character, trivially same cast member
   }
@@ -146,12 +206,23 @@ export function isSameCastMember(characterId1, characterId2, characters, castLis
   return castId1 === castId2;
 }
 
-export function getConflictSeverity(sceneId1, sceneId2, sceneGraph) {
+export function getConflictSeverity(
+  sceneId1: number,
+  sceneId2: number,
+  sceneGraph: SceneGraphNode[]
+): 'WARNING' | 'INFO' {
   const sameAct = areScenesInSameAct(sceneId1, sceneId2, sceneGraph);
   return sameAct ? 'WARNING' : 'INFO';
 }
 
-export function detectMicConflicts(allocations, scenes, acts, currentShow, characters, castList) {
+export function detectMicConflicts(
+  allocations: MicAllocations,
+  scenes: Scene[],
+  acts: Act[],
+  currentShow: Pick<Show, 'first_act_id'> | null,
+  characters: Character[],
+  castList: unknown[]
+): MicConflictResult {
   if (!allocations || !scenes?.length || !acts?.length || !currentShow) {
     return {
       conflicts: [],
@@ -170,7 +241,7 @@ export function detectMicConflicts(allocations, scenes, acts, currentShow, chara
     };
   }
 
-  const conflicts = [];
+  const conflicts: MicConflict[] = [];
 
   // For each microphone
   Object.keys(allocations).forEach((micId) => {
@@ -265,8 +336,8 @@ export function detectMicConflicts(allocations, scenes, acts, currentShow, chara
   });
 
   // Build indexed lookups
-  const conflictsByScene = {};
-  const conflictsByMic = {};
+  const conflictsByScene: Record<number, MicConflict[]> = {};
+  const conflictsByMic: Record<number, MicConflict[]> = {};
 
   conflicts.forEach((conflict) => {
     // Index by scene

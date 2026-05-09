@@ -7,14 +7,20 @@ let isInitialized = false;
 const FLUSH_INTERVAL_MS = 1000;
 const MAX_QUEUE_SIZE = 50;
 
-let logQueue = [];
-let flushTimer = null;
+interface LogEntry {
+  level: string;
+  message: string;
+  extra: Record<string, unknown>;
+}
+
+let logQueue: LogEntry[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Buffer a log entry and schedule a debounced flush.
  * Flushes immediately if the queue reaches MAX_QUEUE_SIZE.
  */
-function enqueueLog(level, message, extra) {
+function enqueueLog(level: string, message: string, extra: Record<string, unknown>): void {
   logQueue.push({ level, message, extra });
   if (logQueue.length >= MAX_QUEUE_SIZE) {
     flushQueue();
@@ -36,7 +42,7 @@ function flushQueue() {
   const batch = logQueue.splice(0);
 
   const token = store.getters.AUTH_TOKEN;
-  const headers = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   fetch(makeURL('/api/v1/logs/batch'), {
@@ -52,7 +58,7 @@ function flushQueue() {
  * Initialize remote logging.
  * This hooks into the loglevel library to send logs to the server.
  */
-export function initRemoteLogging() {
+export function initRemoteLogging(): void {
   if (isInitialized) return;
   isInitialized = true;
 
@@ -84,7 +90,7 @@ export function initRemoteLogging() {
         }
       }
 
-      const extra = {};
+      const extra: Record<string, unknown> = {};
       if (args.length > 0) {
         extra.args = args.map((arg) =>
           arg instanceof Error ? { message: arg.message, stack: arg.stack, name: arg.name } : arg

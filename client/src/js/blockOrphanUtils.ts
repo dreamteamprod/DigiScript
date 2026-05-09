@@ -7,16 +7,37 @@
  * server/utils/show/block_computation.py.
  */
 
-/**
- * Compute allocation blocks from ordered scenes and a set of allocated scene IDs.
- *
- * Blocks break at act boundaries and allocation gaps.
- *
- * @param {Array<{id: number, act: number}>} orderedScenes - Scenes in display order
- * @param {Set<number>} allocatedSceneIds - Scene IDs where the item is allocated
- * @returns {Array<{actId: number, sceneIds: number[], setSceneId: number, strikeSceneId: number}>}
- */
-export function computeBlocks(orderedScenes, allocatedSceneIds) {
+export interface OrderedScene {
+  id: number;
+  act: number;
+}
+
+export interface AllocationBlock {
+  actId: number;
+  sceneIds: number[];
+  setSceneId: number;
+  strikeSceneId: number;
+}
+
+export interface CrewAssignmentRecord {
+  id: number;
+  scene_id: number;
+  assignment_type: string;
+  crew_id: number;
+}
+
+export interface FindOrphanedParams {
+  orderedScenes: OrderedScene[];
+  currentAllocations: Array<{ scene_id: number }>;
+  crewAssignments: CrewAssignmentRecord[];
+  changeType: 'add' | 'remove';
+  changeSceneId: number;
+}
+
+export function computeBlocks(
+  orderedScenes: OrderedScene[] | null | undefined,
+  allocatedSceneIds: Set<number> | null | undefined
+): AllocationBlock[] {
   if (
     !orderedScenes ||
     orderedScenes.length === 0 ||
@@ -26,9 +47,9 @@ export function computeBlocks(orderedScenes, allocatedSceneIds) {
     return [];
   }
 
-  const blocks = [];
-  let currentBlockScenes = [];
-  let currentActId = null;
+  const blocks: AllocationBlock[] = [];
+  let currentBlockScenes: number[] = [];
+  let currentActId: number | null = null;
 
   for (const scene of orderedScenes) {
     // Act boundary breaks the current block
@@ -61,7 +82,7 @@ export function computeBlocks(orderedScenes, allocatedSceneIds) {
   // Flush last block
   if (currentBlockScenes.length > 0) {
     blocks.push({
-      actId: currentActId,
+      actId: currentActId as number,
       sceneIds: [...currentBlockScenes],
       setSceneId: currentBlockScenes[0],
       strikeSceneId: currentBlockScenes[currentBlockScenes.length - 1],
@@ -71,25 +92,13 @@ export function computeBlocks(orderedScenes, allocatedSceneIds) {
   return blocks;
 }
 
-/**
- * Find crew assignments that would become orphaned by adding or removing
- * a scene allocation.
- *
- * @param {Object} params
- * @param {Array<{id: number, act: number}>} params.orderedScenes - All scenes in order
- * @param {Array<{scene_id: number}>} params.currentAllocations - Current allocations for the item
- * @param {Array<{id: number, scene_id: number, assignment_type: string, crew_id: number}>} params.crewAssignments - Current crew assignments for the item
- * @param {'add'|'remove'} params.changeType - Whether a scene allocation is being added or removed
- * @param {number} params.changeSceneId - The scene ID being added/removed
- * @returns {Array<{id: number, scene_id: number, assignment_type: string, crew_id: number}>} Orphaned assignments
- */
 export function findOrphanedAssignments({
   orderedScenes,
   currentAllocations,
   crewAssignments,
   changeType,
   changeSceneId,
-}) {
+}: FindOrphanedParams): CrewAssignmentRecord[] {
   if (!crewAssignments || crewAssignments.length === 0) {
     return [];
   }
