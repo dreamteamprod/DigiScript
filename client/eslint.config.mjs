@@ -2,6 +2,8 @@ import js from '@eslint/js';
 import pluginVue from 'eslint-plugin-vue';
 import globals from 'globals';
 import babelParser from '@babel/eslint-parser';
+import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
 import prettierConfig from 'eslint-config-prettier';
 import prettierPlugin from 'eslint-plugin-prettier';
 
@@ -66,7 +68,43 @@ export default [
     },
   },
   {
-    files: ['**/*.test.js'],
+    files: ['**/*.ts'],
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+      prettier: prettierPlugin,
+    },
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        ...globals.es2021,
+      },
+    },
+    rules: {
+      ...tsPlugin.configs.recommended.rules,
+      'prettier/prettier': 'error',
+      ...prettierConfig.rules,
+      'max-len': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-unused-vars': 'off',
+      'no-plusplus': 'off',
+      'no-param-reassign': [
+        'error',
+        {
+          props: true,
+          ignorePropertyModificationsFor: ['state', 'acc', 'e'],
+        },
+      ],
+    },
+  },
+  {
+    files: ['**/*.test.{js,ts}'],
     languageOptions: {
       globals: {
         describe: 'readonly',

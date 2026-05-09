@@ -75,7 +75,7 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'src'),
       },
     ],
-    extensions: ['.js', '.vue', '.json'],
+    extensions: ['.ts', '.js', '.vue', '.json'],
   },
   css: {
     preprocessorOptions: {
