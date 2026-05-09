@@ -76,11 +76,12 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { makeURL } from '@/js/utils';
 import passwordValidationMixin from '@/mixins/passwordValidation';
 
-export default {
+export default defineComponent({
   name: 'ForcePasswordChangeView',
   mixins: [passwordValidationMixin],
   data() {
@@ -95,20 +96,20 @@ export default {
   validations() {
     return {
       state: {
-        newPassword: this.getPasswordValidations(),
-        confirmPassword: this.getConfirmPasswordValidations('newPassword'),
+        newPassword: (this as any).getPasswordValidations(),
+        confirmPassword: (this as any).getConfirmPasswordValidations('newPassword'),
       },
     };
   },
   computed: {
-    isDisabled() {
-      return Boolean(this.$v.state.$invalid);
+    isDisabled(): boolean {
+      return Boolean((this as any).$v.state.$invalid);
     },
   },
   methods: {
-    async handlePasswordChange() {
-      this.$v.state.$touch();
-      if (this.$v.state.$anyError) {
+    async handlePasswordChange(): Promise<void> {
+      (this as any).$v.state.$touch();
+      if ((this as any).$v.state.$anyError) {
         return;
       }
 
@@ -117,45 +118,34 @@ export default {
       try {
         const response = await fetch(makeURL('/api/v1/auth/change-password'), {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            new_password: this.state.newPassword,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_password: this.state.newPassword }),
         });
 
         if (response.ok) {
           const data = await response.json();
-
-          // Update auth token with new token
           if (data.access_token) {
             await this.$store.commit('SET_AUTH_TOKEN', data.access_token);
           }
-
-          // Refresh current user to clear requires_password_change flag
           await this.$store.dispatch('GET_CURRENT_USER');
-
           this.$toast.success('Password changed successfully!');
-
-          // Redirect to home page
           this.$router.push('/');
         } else {
           const error = await response.json();
           this.$toast.error(error.message || 'Failed to change password');
         }
-      } catch (error) {
+      } catch {
         this.$toast.error('An error occurred while changing password');
       } finally {
         this.loading = false;
       }
     },
-    async handleLogout() {
+    async handleLogout(): Promise<void> {
       await this.$store.dispatch('USER_LOGOUT');
       this.$router.push('/login');
     },
   },
-};
+});
 </script>
 
 <style scoped>

@@ -40,10 +40,16 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { makeURL } from '@/js/utils';
 
-export default {
+interface RbacRole {
+  key: string;
+  value: number;
+}
+
+export default defineComponent({
   name: 'RbacResource',
   props: {
     resource: {
@@ -59,19 +65,19 @@ export default {
     return {
       loaded: false,
       error: false,
-      rbacObjects: null,
-      displayFields: null,
-      roles: null,
+      rbacObjects: null as Array<[unknown, number]> | null,
+      displayFields: null as string[] | null,
+      roles: null as RbacRole[] | null,
       processing: false,
     };
   },
   computed: {
-    rbacRoles() {
-      return this.roles.map((x) => x.key);
+    rbacRoles(): string[] {
+      return (this.roles ?? []).map((x) => x.key);
     },
-    rbacRolesDict() {
-      const ret = {};
-      this.roles.forEach((role) => {
+    rbacRolesDict(): Record<string, number> {
+      const ret: Record<string, number> = {};
+      (this.roles ?? []).forEach((role) => {
         ret[role.key] = role.value;
       });
       return ret;
@@ -83,16 +89,14 @@ export default {
     this.loaded = true;
   },
   methods: {
-    getCellName(slot) {
+    getCellName(slot: string): string {
       return `cell(${slot})`;
     },
-    async getRoles() {
+    async getRoles(): Promise<void> {
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/roles')}`, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
         if (response.ok) {
           const rbacRoles = await response.json();
@@ -106,17 +110,15 @@ export default {
         this.error = true;
       }
     },
-    async getObjects() {
+    async getObjects(): Promise<void> {
       const searchParams = new URLSearchParams({
         resource: this.resource,
-        user: this.userId,
+        user: String(this.userId),
       });
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/user/objects')}?${searchParams}`, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
         if (response.ok) {
           const rbacObjects = await response.json();
@@ -131,20 +133,13 @@ export default {
         this.error = true;
       }
     },
-    async giveRole(object, role) {
+    async giveRole(object: unknown, role: number): Promise<void> {
       this.processing = true;
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/user/roles/grant')}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            resource: this.resource,
-            user: this.userId,
-            object,
-            role,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resource: this.resource, user: this.userId, object, role }),
         });
         if (response.ok) {
           this.$toast.success('Granted role to user');
@@ -157,20 +152,13 @@ export default {
       await this.getObjects();
       this.processing = false;
     },
-    async revokeRole(object, role) {
+    async revokeRole(object: unknown, role: number): Promise<void> {
       this.processing = true;
       try {
         const response = await fetch(`${makeURL('/api/v1/rbac/user/roles/revoke')}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            resource: this.resource,
-            user: this.userId,
-            object,
-            role,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resource: this.resource, user: this.userId, object, role }),
         });
         if (response.ok) {
           this.$toast.success('Revoked role from user');
@@ -184,5 +172,5 @@ export default {
       this.processing = false;
     },
   },
-};
+});
 </script>

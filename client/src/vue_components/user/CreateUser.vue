@@ -62,19 +62,22 @@
   </b-form>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required, minLength, sameAs } from 'vuelidate/lib/validators';
 import { mapActions, mapGetters } from 'vuex';
 
-function isUsernameUnique(value) {
+function isUsernameUnique(this: any, value: string): boolean {
   if (value === '') return true;
   if (this.USERS) {
-    return !this.USERS.map((x) => x.username.toLowerCase()).includes(value.toLowerCase());
+    return !this.USERS.map((x: { username: string }) => x.username.toLowerCase()).includes(
+      value.toLowerCase()
+    );
   }
   return true;
 }
 
-export default {
+export default defineComponent({
   name: 'CreateUser',
   props: {
     isFirstAdmin: {
@@ -98,39 +101,30 @@ export default {
   },
   validations: {
     state: {
-      username: {
-        required,
-        isUsernameUnique,
-      },
-      password: {
-        required,
-        minLength: minLength(6),
-      },
-      confirmPassword: {
-        required,
-        sameAsPassword: sameAs('password'),
-      },
+      username: { required, isUsernameUnique },
+      password: { required, minLength: minLength(6) },
+      confirmPassword: { required, sameAsPassword: sameAs('password') },
     },
   },
   computed: {
-    isDisabled() {
-      return Boolean(this.$v.state.$invalid);
+    isDisabled(): boolean {
+      return Boolean((this as any).$v.state.$invalid);
     },
     ...mapGetters(['USERS']),
   },
   methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.state[name];
       return $dirty ? !$error : null;
     },
-    async createUser(event) {
-      this.$v.state.$touch();
-      if (this.$v.state.$anyError) {
+    async createUser(event: Event): Promise<void> {
+      (this as any).$v.state.$touch();
+      if ((this as any).$v.state.$anyError) {
         event.preventDefault();
       } else {
-        await this.CREATE_USER(this.state);
+        await (this as any).CREATE_USER(this.state);
         if (this.isFirstAdmin) {
-          await this.USER_LOGIN({
+          await (this as any).USER_LOGIN({
             username: this.state.username,
             password: this.state.password,
           });
@@ -140,5 +134,5 @@ export default {
     },
     ...mapActions(['CREATE_USER', 'USER_LOGIN']),
   },
-};
+});
 </script>

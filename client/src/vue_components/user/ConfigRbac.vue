@@ -23,11 +23,12 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { makeURL } from '@/js/utils';
 import RbacResource from '@/vue_components/user/RbacResource.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigRBAC',
   components: { RbacResource },
   props: {
@@ -40,16 +41,14 @@ export default {
     return {
       loaded: false,
       error: false,
-      rbacResources: null,
+      rbacResources: null as string[] | null,
     };
   },
   async mounted() {
     try {
       const response = await fetch(`${makeURL('/api/v1/rbac/user/resources')}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         const rbacResources = await response.json();
@@ -64,5 +63,5 @@ export default {
     }
     this.loaded = true;
   },
-};
+});
 </script>

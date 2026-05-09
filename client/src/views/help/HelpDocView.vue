@@ -10,30 +10,31 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import MarkdownRenderer from '@/vue_components/MarkdownRenderer.vue';
 
-export default {
+export default defineComponent({
   name: 'HelpDocView',
   components: {
     MarkdownRenderer,
   },
   computed: {
     ...mapGetters(['CURRENT_DOCUMENT_CONTENT', 'IS_LOADING', 'ERROR', 'DOCUMENTATION_MANIFEST']),
-    documentContent() {
+    documentContent(): string | null {
       return this.CURRENT_DOCUMENT_CONTENT;
     },
-    loading() {
+    loading(): boolean {
       return this.IS_LOADING;
     },
-    error() {
+    error(): string | null {
       return this.ERROR;
     },
   },
   watch: {
     '$route.params.slug': {
-      handler(newSlug) {
+      handler(newSlug: string) {
         if (newSlug) {
           this.loadDocument(newSlug);
         }
@@ -43,19 +44,18 @@ export default {
   },
   methods: {
     ...mapActions(['LOAD_DOCUMENT', 'LOAD_MANIFEST']),
-    async loadDocument(slug) {
-      // Wait for manifest to load if it hasn't been loaded yet
+    async loadDocument(slug: string): Promise<void> {
       if (!this.DOCUMENTATION_MANIFEST || this.DOCUMENTATION_MANIFEST.length === 0) {
-        await this.LOAD_MANIFEST();
+        await (this as any).LOAD_MANIFEST();
       }
-      await this.LOAD_DOCUMENT(slug);
+      await (this as any).LOAD_DOCUMENT(slug);
     },
-    async retry() {
+    async retry(): Promise<void> {
       const { slug } = this.$route.params;
       if (slug) {
         await this.loadDocument(slug);
       }
     },
   },
-};
+});
 </script>

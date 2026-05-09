@@ -59,10 +59,11 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { makeURL } from '@/js/utils';
 
-export default {
+export default defineComponent({
   name: 'ResetPassword',
   props: {
     userId: {
@@ -77,23 +78,19 @@ export default {
   data() {
     return {
       loading: false,
-      temporaryPassword: null,
+      temporaryPassword: null as string | null,
       showPassword: false,
     };
   },
   methods: {
-    async handleReset() {
+    async handleReset(): Promise<void> {
       this.loading = true;
 
       try {
         const response = await fetch(makeURL('/api/v1/auth/reset-password'), {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            user_id: this.userId,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: this.userId }),
         });
 
         if (response.ok) {
@@ -105,20 +102,20 @@ export default {
           const error = await response.json();
           this.$toast.error(error.message || 'Failed to reset password');
         }
-      } catch (error) {
+      } catch {
         this.$toast.error('An error occurred while resetting password');
       } finally {
         this.loading = false;
       }
     },
-    async copyToClipboard() {
+    async copyToClipboard(): Promise<void> {
       try {
-        await navigator.clipboard.writeText(this.temporaryPassword);
+        await navigator.clipboard.writeText(this.temporaryPassword!);
         this.$toast.success('Password copied to clipboard');
-      } catch (error) {
+      } catch {
         this.$toast.error('Failed to copy to clipboard');
       }
     },
   },
-};
+});
 </script>

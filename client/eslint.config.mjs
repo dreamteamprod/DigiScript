@@ -30,7 +30,10 @@ export default [
       sourceType: 'module',
       parser: pluginVue.processors['.vue'].parser,
       parserOptions: {
-        parser: babelParser,
+        parser: {
+          js: babelParser,
+          ts: tsParser,
+        },
         requireConfigFile: false,
         ecmaVersion: 13,
         sourceType: 'module',
