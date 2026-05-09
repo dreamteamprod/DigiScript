@@ -1,13 +1,7 @@
 import { LINE_TYPES } from '@/constants/lineTypes';
+import type { ScriptLine } from '@/types/api/script';
 
-/**
- * Determines if a script line is completely cut (all parts cut or empty).
- *
- * @param {Object} line - The script line object
- * @param {Array} cuts - Array of cut line part IDs
- * @returns {boolean} - True if the entire line is cut, false otherwise
- */
-export function isWholeLineCut(line, cuts) {
+export function isWholeLineCut(line: ScriptLine, cuts: (number | null)[]): boolean {
   // CUE_LINE can never be completely cut
   if (line.line_type === LINE_TYPES.CUE_LINE) {
     return false;

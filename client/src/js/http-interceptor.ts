@@ -1,9 +1,14 @@
 import store from '@/store/store';
 import Vue from 'vue';
 import log from 'loglevel';
+
+// vue-toast-notification v0.6.x predates @types — cast the constructor for static toast calls
+const VueWithToast = Vue as typeof Vue & {
+  $toast: { warning: (m: string) => void; error: (m: string) => void };
+};
 import { makeURL } from '@/js/utils';
 
-export default function setupHttpInterceptor() {
+export default function setupHttpInterceptor(): void {
   // Store the original fetch function
   const originalFetch = window.fetch;
 
@@ -51,7 +56,7 @@ export default function setupHttpInterceptor() {
 
           if (isRefreshRequest || isRefreshingToken) {
             log.warn('Token refresh failed with 401 or already refreshing, logging out');
-            Vue.$toast.warning('Your session has expired. Please log in again.');
+            VueWithToast.$toast.warning('Your session has expired. Please log in again.');
             await store.dispatch('USER_LOGOUT');
             return response;
           }
@@ -78,7 +83,7 @@ export default function setupHttpInterceptor() {
               }
               // If refresh fails, handle unauthorized state
               log.warn('Token refresh failed, logging out');
-              Vue.$toast.warning('Your session has expired. Please log in again.');
+              VueWithToast.$toast.warning('Your session has expired. Please log in again.');
               await store.dispatch('USER_LOGOUT');
 
               // Return the original 401 response
@@ -86,7 +91,7 @@ export default function setupHttpInterceptor() {
             } catch (refreshError) {
               isRefreshingToken = false;
               log.error('Error during token refresh:', refreshError);
-              Vue.$toast.error('Authentication error - please log in again');
+              VueWithToast.$toast.error('Authentication error - please log in again');
               await store.dispatch('USER_LOGOUT');
               return response;
             }

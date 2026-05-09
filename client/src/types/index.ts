@@ -1,2 +1,9 @@
-// Type definitions for DigiScript frontend.
-// Populated in Stage 2 of the TypeScript migration (issue #906).
+export type * from './api/show';
+export type * from './api/script';
+export type * from './api/cues';
+export type * from './api/stage';
+export type * from './api/microphones';
+export type * from './api/session';
+export type * from './api/user';
+export type * from './api/settings';
+export type * from './api/websocket';
