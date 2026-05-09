@@ -1,8 +1,24 @@
 import Vue from 'vue';
 import { detailedDiff } from 'deep-object-diff';
 import log from 'loglevel';
+import type { Module } from 'vuex';
 
 import { makeURL } from '@/js/utils';
+import type { RootState } from '@/types/store';
+import type { ScriptLine, PageStatus } from '@/types/api/script';
+
+interface EditStatus {
+  canRequestEdit: boolean;
+  currentEditor: string | null;
+}
+
+interface ScriptConfigState {
+  tmpScript: Record<string, ScriptLine[]>;
+  deletedLines: Record<string, number[]>;
+  editStatus: EditStatus;
+  cutMode: boolean;
+  insertedLines: Record<string, number[]>;
+}
 
 /**
  * Computes the page status object (added/updated/deleted/inserted) to send to the PATCH endpoint.
@@ -10,18 +26,17 @@ import { makeURL } from '@/js/utils';
  * deepDiff.added fires on a line index whenever *any* nested property is new — including a new
  * element in line_parts. Only lines with id == null are truly new; lines with an existing id that
  * have nested additions must be treated as updates instead.
- *
- * :param actualScriptPage: The current saved page from the store (will be cloned internally).
- * :param tmpScriptPage: The edited in-progress page.
- * :param deletedLines: Array of line indices marked for deletion.
- * :param insertedLines: Array of line indices that were inserted mid-page.
- * :returns: { added, updated, deleted, inserted }
  */
-export function computePageStatus(actualScriptPage, tmpScriptPage, deletedLines, insertedLines) {
-  const augmented = JSON.parse(JSON.stringify(actualScriptPage));
+export function computePageStatus(
+  actualScriptPage: ScriptLine[],
+  tmpScriptPage: ScriptLine[],
+  deletedLines: number[],
+  insertedLines: number[]
+): PageStatus {
+  const augmented: ScriptLine[] = JSON.parse(JSON.stringify(actualScriptPage));
   JSON.parse(JSON.stringify(insertedLines))
-    .sort((a, b) => a - b)
-    .forEach((lineIndex) => {
+    .sort((a: number, b: number) => a - b)
+    .forEach((lineIndex: number) => {
       augmented.splice(lineIndex, 0, JSON.parse(JSON.stringify(tmpScriptPage[lineIndex])));
     });
 
@@ -38,7 +53,9 @@ export function computePageStatus(actualScriptPage, tmpScriptPage, deletedLines,
   };
 }
 
-export default {
+const VueToast = Vue as typeof Vue & { $toast: { error: (m: string) => void } };
+
+const module: Module<ScriptConfigState, RootState> = {
   state: {
     tmpScript: {},
     deletedLines: {},
@@ -50,21 +67,30 @@ export default {
     insertedLines: {},
   },
   mutations: {
-    SET_EDIT_STATUS(state, editStatus) {
+    SET_EDIT_STATUS(state: ScriptConfigState, editStatus: EditStatus) {
       state.editStatus = editStatus;
     },
-    ADD_PAGE(state, { pageNo, pageContents }) {
+    ADD_PAGE(
+      state: ScriptConfigState,
+      { pageNo, pageContents }: { pageNo: number; pageContents: ScriptLine[] }
+    ) {
       Vue.set(state.tmpScript, pageNo, pageContents);
     },
-    REMOVE_PAGE(state, pageNo) {
+    REMOVE_PAGE(state: ScriptConfigState, pageNo: number) {
       Vue.delete(state.tmpScript, pageNo);
     },
-    ADD_BLANK_LINE(state, { pageNo, lineObj }) {
-      const line = JSON.parse(JSON.stringify(lineObj));
+    ADD_BLANK_LINE(
+      state: ScriptConfigState,
+      { pageNo, lineObj }: { pageNo: number; lineObj: ScriptLine }
+    ) {
+      const line: ScriptLine = JSON.parse(JSON.stringify(lineObj));
       line.page = pageNo;
       state.tmpScript[pageNo].push(line);
     },
-    INSERT_BLANK_LINE(state, { pageNo, lineIndex, lineObj }) {
+    INSERT_BLANK_LINE(
+      state: ScriptConfigState,
+      { pageNo, lineIndex, lineObj }: { pageNo: number; lineIndex: number; lineObj: ScriptLine }
+    ) {
       const pageNoStr = pageNo.toString();
 
       if (
@@ -72,13 +98,13 @@ export default {
         state.deletedLines[pageNoStr].includes(lineIndex)
       ) {
         const lineId = state.tmpScript[pageNoStr][lineIndex].id;
-        const line = JSON.parse(JSON.stringify(lineObj));
+        const line: ScriptLine = JSON.parse(JSON.stringify(lineObj));
         line.page = pageNo;
         line.id = lineId;
         state.tmpScript[pageNo].splice(lineIndex, 1, line);
         state.deletedLines[pageNoStr].splice(state.deletedLines[pageNoStr].indexOf(lineIndex), 1);
       } else {
-        const line = JSON.parse(JSON.stringify(lineObj));
+        const line: ScriptLine = JSON.parse(JSON.stringify(lineObj));
         line.page = pageNo;
         state.tmpScript[pageNo].splice(lineIndex, 0, line);
         if (!Object.keys(state.insertedLines).includes(pageNoStr)) {
@@ -87,10 +113,16 @@ export default {
         state.insertedLines[pageNoStr].push(lineIndex);
       }
     },
-    SET_LINE(state, { pageNo, lineIndex, lineObj }) {
+    SET_LINE(
+      state: ScriptConfigState,
+      { pageNo, lineIndex, lineObj }: { pageNo: number; lineIndex: number; lineObj: ScriptLine }
+    ) {
       Vue.set(state.tmpScript[pageNo], lineIndex, lineObj);
     },
-    DELETE_LINE(state, { pageNo, lineIndex }) {
+    DELETE_LINE(
+      state: ScriptConfigState,
+      { pageNo, lineIndex }: { pageNo: number; lineIndex: number }
+    ) {
       const pageNoStr = pageNo.toString();
       if (state.tmpScript[pageNoStr][lineIndex].id !== null) {
         if (!Object.keys(state.deletedLines).includes(pageNoStr)) {
@@ -107,28 +139,28 @@ export default {
         state.insertedLines[pageNoStr].splice(lineIndex, 1);
       }
     },
-    RESET_DELETED(state, pageNo) {
+    RESET_DELETED(state: ScriptConfigState, pageNo: number) {
       const pageNoStr = pageNo.toString();
       if (Object.keys(state.deletedLines).includes(pageNoStr)) {
         Vue.set(state.deletedLines, pageNoStr, []);
       }
     },
-    RESET_INSERTED(state, pageNo) {
+    RESET_INSERTED(state: ScriptConfigState, pageNo: number) {
       const pageNoStr = pageNo.toString();
       if (Object.keys(state.insertedLines).includes(pageNoStr)) {
         Vue.set(state.insertedLines, pageNoStr, []);
       }
     },
-    EMPTY_SCRIPT(state) {
+    EMPTY_SCRIPT(state: ScriptConfigState) {
       state.tmpScript = {};
     },
-    SET_CUT_MODE(state, cutMode) {
+    SET_CUT_MODE(state: ScriptConfigState, cutMode: boolean) {
       state.cutMode = cutMode;
     },
   },
   actions: {
     REQUEST_EDIT_FAILURE(context) {
-      Vue.$toast.error('Unable to edit script');
+      VueToast.$toast.error('Unable to edit script');
       context.dispatch('GET_SCRIPT_CONFIG_STATUS');
       context.commit('SET_CUT_MODE', false);
     },
@@ -141,7 +173,7 @@ export default {
         log.error('Unable to get script config status');
       }
     },
-    ADD_BLANK_PAGE(context, pageNo) {
+    ADD_BLANK_PAGE(context, pageNo: number) {
       const pageNoStr = pageNo.toString();
       const pageContents = JSON.parse(JSON.stringify(context.getters.GET_SCRIPT_PAGE(pageNoStr)));
       context.commit('ADD_PAGE', {
@@ -149,13 +181,13 @@ export default {
         pageContents,
       });
     },
-    RESET_TO_SAVED(context, pageNo) {
+    RESET_TO_SAVED(context, pageNo: number) {
       context.commit('EMPTY_SCRIPT');
       context.dispatch('ADD_BLANK_PAGE', pageNo);
     },
-    async SAVE_NEW_PAGE(context, pageNo) {
+    async SAVE_NEW_PAGE(context, pageNo: number) {
       const searchParams = new URLSearchParams({
-        page: pageNo,
+        page: String(pageNo),
       });
       const response = await fetch(`${makeURL('/api/v1/show/script')}?${searchParams}`, {
         method: 'POST',
@@ -170,8 +202,8 @@ export default {
       }
       return true;
     },
-    async SAVE_CHANGED_PAGE(context, pageNo) {
-      const tmpScriptPage = context.getters.TMP_SCRIPT[pageNo.toString()];
+    async SAVE_CHANGED_PAGE(context, pageNo: number) {
+      const tmpScriptPage: ScriptLine[] = context.getters.TMP_SCRIPT[pageNo.toString()];
       const pageStatus = computePageStatus(
         context.getters.GET_SCRIPT_PAGE(pageNo),
         tmpScriptPage,
@@ -179,7 +211,7 @@ export default {
         context.getters.INSERTED_LINES(pageNo)
       );
       const searchParams = new URLSearchParams({
-        page: pageNo,
+        page: String(pageNo),
       });
       const response = await fetch(`${makeURL('/api/v1/show/script')}?${searchParams}`, {
         method: 'PATCH',
@@ -199,29 +231,29 @@ export default {
     },
   },
   getters: {
-    TMP_SCRIPT(state) {
+    TMP_SCRIPT(state: ScriptConfigState) {
       return state.tmpScript;
     },
-    DELETED_LINES: (state) => (page) => {
+    DELETED_LINES: (state: ScriptConfigState) => (page: number | string) => {
       const pageStr = page.toString();
       if (Object.keys(state.deletedLines).includes(pageStr)) {
         return state.deletedLines[pageStr];
       }
       return [];
     },
-    ALL_DELETED_LINES(state) {
+    ALL_DELETED_LINES(state: ScriptConfigState) {
       return state.deletedLines;
     },
-    CAN_REQUEST_EDIT(state) {
+    CAN_REQUEST_EDIT(state: ScriptConfigState) {
       return state.editStatus.canRequestEdit;
     },
-    CURRENT_EDITOR(state) {
+    CURRENT_EDITOR(state: ScriptConfigState) {
       return state.editStatus.currentEditor;
     },
-    IS_CUT_MODE(state) {
+    IS_CUT_MODE(state: ScriptConfigState) {
       return state.cutMode;
     },
-    INSERTED_LINES: (state) => (page) => {
+    INSERTED_LINES: (state: ScriptConfigState) => (page: number | string) => {
       const pageStr = page.toString();
       if (Object.keys(state.insertedLines).includes(pageStr)) {
         return state.insertedLines[pageStr];
@@ -230,3 +262,5 @@ export default {
     },
   },
 };
+
+export default module;

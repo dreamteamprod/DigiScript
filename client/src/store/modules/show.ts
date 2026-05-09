@@ -1,10 +1,53 @@
 import Vue from 'vue';
 import log from 'loglevel';
+import type { Module } from 'vuex';
 
 import { makeURL } from '@/js/utils';
-import { buildSceneGraph, detectMicConflicts } from '@/js/micConflictUtils';
+import { detectMicConflicts } from '@/js/micConflictUtils';
+import type { RootState } from '@/types/store';
+import type { Cast, Character, CharacterGroup, Act, Scene } from '@/types/api/show';
+import type { CueType } from '@/types/api/cues';
+import type { ShowSession, Interval, SessionTag } from '@/types/api/session';
+import type { Microphone, MicrophoneAllocation } from '@/types/api/microphones';
 
-export default {
+interface ToastInstance {
+  dismiss: () => void;
+}
+
+interface ScriptMode {
+  key: string;
+  value: number;
+}
+
+interface ShowState {
+  castList: Cast[];
+  characterList: Character[];
+  characterGroupList: CharacterGroup[];
+  actList: Act[];
+  sceneList: Scene[];
+  cueTypes: CueType[];
+  sessions: ShowSession[];
+  currentSession: ShowSession | null;
+  currentInterval: Interval | null;
+  sessionFollowData: Record<string, unknown>;
+  microphones: Microphone[];
+  micAllocations: MicrophoneAllocation[];
+  noLeaderToast: ToastInstance | null;
+  scriptModes: ScriptMode[];
+  sessionTags: SessionTag[];
+  stageManagerMode: boolean;
+}
+
+const VueToast = Vue as typeof Vue & {
+  $toast: {
+    success: (m: string) => void;
+    error: (m: string, opts?: { duration: number }) => void;
+    info: (m: string, opts?: { duration: number }) => void;
+    warning: (m: string, opts?: { duration: number }) => ToastInstance;
+  };
+};
+
+const module: Module<ShowState, RootState> = {
   state: {
     castList: [],
     characterList: [],
@@ -24,59 +67,59 @@ export default {
     stageManagerMode: false,
   },
   mutations: {
-    SET_CAST_LIST(state, castList) {
+    SET_CAST_LIST(state: ShowState, castList: Cast[]) {
       state.castList = castList;
     },
-    SET_CHARACTER_LIST(state, characterList) {
+    SET_CHARACTER_LIST(state: ShowState, characterList: Character[]) {
       state.characterList = characterList;
     },
-    SET_CHARACTER_GROUP_LIST(state, characterGroupList) {
+    SET_CHARACTER_GROUP_LIST(state: ShowState, characterGroupList: CharacterGroup[]) {
       state.characterGroupList = characterGroupList;
     },
-    SET_ACT_LIST(state, actList) {
+    SET_ACT_LIST(state: ShowState, actList: Act[]) {
       state.actList = actList;
     },
-    SET_SCENE_LIST(state, sceneList) {
+    SET_SCENE_LIST(state: ShowState, sceneList: Scene[]) {
       state.sceneList = sceneList;
     },
-    SET_CUE_TYPES(state, cueTypes) {
+    SET_CUE_TYPES(state: ShowState, cueTypes: CueType[]) {
       state.cueTypes = cueTypes;
     },
-    CLEAR_CURRENT_SHOW(state) {
+    CLEAR_CURRENT_SHOW(state: ShowState) {
       state.castList = [];
       state.characterList = [];
       state.actList = [];
       state.sceneList = [];
       state.sessionTags = [];
     },
-    SET_SESSIONS_LIST(state, sessions) {
+    SET_SESSIONS_LIST(state: ShowState, sessions: ShowSession[]) {
       state.sessions = sessions;
     },
-    SET_CURRENT_SESSION(state, session) {
+    SET_CURRENT_SESSION(state: ShowState, session: ShowSession | null) {
       state.currentSession = session;
     },
-    SET_CURRENT_INTERVAL(state, interval) {
+    SET_CURRENT_INTERVAL(state: ShowState, interval: Interval | null) {
       state.currentInterval = interval;
     },
-    SET_SESSION_FOLLOW_DATA(state, data) {
+    SET_SESSION_FOLLOW_DATA(state: ShowState, data: Record<string, unknown>) {
       state.sessionFollowData = data;
     },
-    SET_MIC_LIST(state, micList) {
+    SET_MIC_LIST(state: ShowState, micList: Microphone[]) {
       state.microphones = micList;
     },
-    SET_MIC_ALLOCATIONS_LIST(state, micAllocations) {
+    SET_MIC_ALLOCATIONS_LIST(state: ShowState, micAllocations: MicrophoneAllocation[]) {
       state.micAllocations = micAllocations;
     },
-    SET_TOAST_INSTANCE(state, toast) {
+    SET_TOAST_INSTANCE(state: ShowState, toast: ToastInstance | null) {
       state.noLeaderToast = toast;
     },
-    UPDATE_SCRIPT_MODES(state, modes) {
+    UPDATE_SCRIPT_MODES(state: ShowState, modes: ScriptMode[]) {
       state.scriptModes = modes;
     },
-    SET_SESSION_TAGS(state, tags) {
+    SET_SESSION_TAGS(state: ShowState, tags: SessionTag[]) {
       state.sessionTags = tags;
     },
-    SET_STAGE_MANAGER_MODE(state, enabled) {
+    SET_STAGE_MANAGER_MODE(state: ShowState, enabled: boolean) {
       state.stageManagerMode = enabled;
     },
   },
@@ -90,54 +133,46 @@ export default {
         log.error('Unable to get cast list');
       }
     },
-    async ADD_CAST_MEMBER(context, castMember) {
+    async ADD_CAST_MEMBER(context, castMember: Partial<Cast>) {
       const response = await fetch(`${makeURL('/api/v1/show/cast')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(castMember),
       });
       if (response.ok) {
         context.dispatch('GET_CAST_LIST');
-        Vue.$toast.success('Added new cast member!');
+        VueToast.$toast.success('Added new cast member!');
       } else {
         log.error('Unable to add new cast member');
-        Vue.$toast.error('Unable to add new cast member');
+        VueToast.$toast.error('Unable to add new cast member');
       }
     },
-    async DELETE_CAST_MEMBER(context, castID) {
-      const searchParams = new URLSearchParams({
-        id: castID,
-      });
+    async DELETE_CAST_MEMBER(context, castID: number) {
+      const searchParams = new URLSearchParams({ id: String(castID) });
       const response = await fetch(`${makeURL('/api/v1/show/cast')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_CAST_LIST');
-        Vue.$toast.success('Deleted cast member!');
+        VueToast.$toast.success('Deleted cast member!');
       } else {
         log.error('Unable to delete cast member');
-        Vue.$toast.error('Unable to delete cast member');
+        VueToast.$toast.error('Unable to delete cast member');
       }
     },
-    async UPDATE_CAST_MEMBER(context, castMember) {
+    async UPDATE_CAST_MEMBER(context, castMember: Partial<Cast>) {
       const response = await fetch(`${makeURL('/api/v1/show/cast')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(castMember),
       });
       if (response.ok) {
         context.dispatch('GET_CAST_LIST');
-        Vue.$toast.success('Updated cast member!');
+        VueToast.$toast.success('Updated cast member!');
       } else {
         log.error('Unable to edit cast member');
-        Vue.$toast.error('Unable to edit cast member');
+        VueToast.$toast.error('Unable to edit cast member');
       }
     },
     async GET_CHARACTER_LIST(context) {
@@ -149,54 +184,46 @@ export default {
         log.error('Unable to get characters list');
       }
     },
-    async ADD_CHARACTER(context, character) {
+    async ADD_CHARACTER(context, character: Partial<Character>) {
       const response = await fetch(`${makeURL('/api/v1/show/character')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(character),
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_LIST');
-        Vue.$toast.success('Added new character!');
+        VueToast.$toast.success('Added new character!');
       } else {
         log.error('Unable to add new character');
-        Vue.$toast.error('Unable to add new character');
+        VueToast.$toast.error('Unable to add new character');
       }
     },
-    async DELETE_CHARACTER(context, characterID) {
-      const searchParams = new URLSearchParams({
-        id: characterID,
-      });
+    async DELETE_CHARACTER(context, characterID: number) {
+      const searchParams = new URLSearchParams({ id: String(characterID) });
       const response = await fetch(`${makeURL('/api/v1/show/character')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_LIST');
-        Vue.$toast.success('Deleted character!');
+        VueToast.$toast.success('Deleted character!');
       } else {
         log.error('Unable to delete character');
-        Vue.$toast.error('Unable to delete character');
+        VueToast.$toast.error('Unable to delete character');
       }
     },
-    async UPDATE_CHARACTER(context, character) {
+    async UPDATE_CHARACTER(context, character: Partial<Character>) {
       const response = await fetch(`${makeURL('/api/v1/show/character')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(character),
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_LIST');
-        Vue.$toast.success('Updated character!');
+        VueToast.$toast.success('Updated character!');
       } else {
         log.error('Unable to edit character');
-        Vue.$toast.error('Unable to edit character');
+        VueToast.$toast.error('Unable to edit character');
       }
     },
     async GET_CHARACTER_GROUP_LIST(context) {
@@ -209,54 +236,46 @@ export default {
         log.error('Unable to get characters list');
       }
     },
-    async ADD_CHARACTER_GROUP(context, act) {
+    async ADD_CHARACTER_GROUP(context, act: Partial<CharacterGroup>) {
       const response = await fetch(`${makeURL('/api/v1/show/character/group')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(act),
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_GROUP_LIST');
-        Vue.$toast.success('Added new character group!');
+        VueToast.$toast.success('Added new character group!');
       } else {
         log.error('Unable to add new character group');
-        Vue.$toast.error('Unable to add new character group');
+        VueToast.$toast.error('Unable to add new character group');
       }
     },
-    async DELETE_CHARACTER_GROUP(context, characterGroupID) {
-      const searchParams = new URLSearchParams({
-        id: characterGroupID,
-      });
+    async DELETE_CHARACTER_GROUP(context, characterGroupID: number) {
+      const searchParams = new URLSearchParams({ id: String(characterGroupID) });
       const response = await fetch(`${makeURL('/api/v1/show/character/group')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_GROUP_LIST');
-        Vue.$toast.success('Deleted character group!');
+        VueToast.$toast.success('Deleted character group!');
       } else {
         log.error('Unable to delete character group');
-        Vue.$toast.error('Unable to delete character group');
+        VueToast.$toast.error('Unable to delete character group');
       }
     },
-    async UPDATE_CHARACTER_GROUP(context, characterGroup) {
+    async UPDATE_CHARACTER_GROUP(context, characterGroup: Partial<CharacterGroup>) {
       const response = await fetch(`${makeURL('/api/v1/show/character/group')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(characterGroup),
       });
       if (response.ok) {
         context.dispatch('GET_CHARACTER_GROUP_LIST');
-        Vue.$toast.success('Updated character group!');
+        VueToast.$toast.success('Updated character group!');
       } else {
         log.error('Unable to edit character group');
-        Vue.$toast.error('Unable to edit character group');
+        VueToast.$toast.error('Unable to edit character group');
       }
     },
     async GET_ACT_LIST(context) {
@@ -268,70 +287,60 @@ export default {
         log.error('Unable to get acts list');
       }
     },
-    async ADD_ACT(context, act) {
+    async ADD_ACT(context, act: Partial<Act>) {
       const response = await fetch(`${makeURL('/api/v1/show/act')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(act),
       });
       if (response.ok) {
         context.dispatch('GET_ACT_LIST');
-        Vue.$toast.success('Added new act!');
+        VueToast.$toast.success('Added new act!');
       } else {
         log.error('Unable to add new act');
-        Vue.$toast.error('Unable to add new act');
+        VueToast.$toast.error('Unable to add new act');
       }
     },
-    async DELETE_ACT(context, actID) {
-      const searchParams = new URLSearchParams({
-        id: actID,
-      });
+    async DELETE_ACT(context, actID: number) {
+      const searchParams = new URLSearchParams({ id: String(actID) });
       const response = await fetch(`${makeURL('/api/v1/show/act')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_ACT_LIST');
-        Vue.$toast.success('Deleted act!');
+        VueToast.$toast.success('Deleted act!');
       } else {
         log.error('Unable to delete act');
-        Vue.$toast.error('Unable to delete act');
+        VueToast.$toast.error('Unable to delete act');
       }
     },
-    async UPDATE_ACT(context, act) {
+    async UPDATE_ACT(context, act: Partial<Act>) {
       const response = await fetch(`${makeURL('/api/v1/show/act')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(act),
       });
       if (response.ok) {
         context.dispatch('GET_ACT_LIST');
-        Vue.$toast.success('Updated act!');
+        VueToast.$toast.success('Updated act!');
       } else {
         log.error('Unable to edit act');
-        Vue.$toast.error('Unable to edit act');
+        VueToast.$toast.error('Unable to edit act');
       }
     },
-    async SET_ACT_FIRST_SCENE(context, act) {
+    async SET_ACT_FIRST_SCENE(context, act: Partial<Act>) {
       const response = await fetch(`${makeURL('/api/v1/show/act/first_scene')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(act),
       });
       if (response.ok) {
         context.dispatch('GET_ACT_LIST');
-        Vue.$toast.success('Updated act!');
+        VueToast.$toast.success('Updated act!');
       } else {
         log.error('Unable to edit act');
-        Vue.$toast.error('Unable to edit act');
+        VueToast.$toast.error('Unable to edit act');
       }
     },
     async GET_SCENE_LIST(context) {
@@ -343,57 +352,49 @@ export default {
         log.error('Unable to get scenes list');
       }
     },
-    async ADD_SCENE(context, scene) {
+    async ADD_SCENE(context, scene: Partial<Scene>) {
       const response = await fetch(`${makeURL('/api/v1/show/scene')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scene),
       });
       if (response.ok) {
         context.dispatch('GET_SCENE_LIST');
         context.dispatch('GET_ACT_LIST');
-        Vue.$toast.success('Added new scene!');
+        VueToast.$toast.success('Added new scene!');
       } else {
         log.error('Unable to add new scene');
-        Vue.$toast.error('Unable to add new scene');
+        VueToast.$toast.error('Unable to add new scene');
       }
     },
-    async DELETE_SCENE(context, sceneID) {
-      const searchParams = new URLSearchParams({
-        id: sceneID,
-      });
+    async DELETE_SCENE(context, sceneID: number) {
+      const searchParams = new URLSearchParams({ id: String(sceneID) });
       const response = await fetch(`${makeURL('/api/v1/show/scene')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_SCENE_LIST');
         context.dispatch('GET_ACT_LIST');
-        Vue.$toast.success('Deleted scene!');
+        VueToast.$toast.success('Deleted scene!');
       } else {
         log.error('Unable to delete scene');
-        Vue.$toast.error('Unable to delete scene');
+        VueToast.$toast.error('Unable to delete scene');
       }
     },
-    async UPDATE_SCENE(context, scene) {
+    async UPDATE_SCENE(context, scene: Partial<Scene>) {
       const response = await fetch(`${makeURL('/api/v1/show/scene')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scene),
       });
       if (response.ok) {
         context.dispatch('GET_SCENE_LIST');
         context.dispatch('GET_ACT_LIST');
-        Vue.$toast.success('Updated scene!');
+        VueToast.$toast.success('Updated scene!');
       } else {
         log.error('Unable to edit scene');
-        Vue.$toast.error('Unable to edit scene');
+        VueToast.$toast.error('Unable to edit scene');
       }
     },
     async GET_CUE_TYPES(context) {
@@ -405,54 +406,46 @@ export default {
         log.error('Unable to get cue types');
       }
     },
-    async ADD_CUE_TYPE(context, cueType) {
+    async ADD_CUE_TYPE(context, cueType: Partial<CueType>) {
       const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cueType),
       });
       if (response.ok) {
         context.dispatch('GET_CUE_TYPES');
-        Vue.$toast.success('Added new cue type!');
+        VueToast.$toast.success('Added new cue type!');
       } else {
         log.error('Unable to add new cue type');
-        Vue.$toast.error('Unable to add new cue type');
+        VueToast.$toast.error('Unable to add new cue type');
       }
     },
-    async DELETE_CUE_TYPE(context, cueTypeID) {
-      const searchParams = new URLSearchParams({
-        id: cueTypeID,
-      });
+    async DELETE_CUE_TYPE(context, cueTypeID: number) {
+      const searchParams = new URLSearchParams({ id: String(cueTypeID) });
       const response = await fetch(`${makeURL('/api/v1/show/cues/types')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_CUE_TYPES');
-        Vue.$toast.success('Deleted cue type!');
+        VueToast.$toast.success('Deleted cue type!');
       } else {
         log.error('Unable to delete cue type');
-        Vue.$toast.error('Unable to delete cue type');
+        VueToast.$toast.error('Unable to delete cue type');
       }
     },
-    async UPDATE_CUE_TYPE(context, cueType) {
+    async UPDATE_CUE_TYPE(context, cueType: Partial<CueType>) {
       const response = await fetch(`${makeURL('/api/v1/show/cues/types')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cueType),
       });
       if (response.ok) {
         context.dispatch('GET_CUE_TYPES');
-        Vue.$toast.success('Updated cue type!');
+        VueToast.$toast.success('Updated cue type!');
       } else {
         log.error('Unable to edit cue type');
-        Vue.$toast.error('Unable to edit cue type');
+        VueToast.$toast.error('Unable to edit cue type');
       }
     },
     async GET_IMPORTABLE_CUE_TYPES() {
@@ -483,24 +476,23 @@ export default {
         log.error('Unable to get show sessions');
       }
     },
-    async ELECTED_LEADER(context, payload) {
-      Vue.$toast.info('You are now leader of the script - other clients will follow your view', {
-        duration: 0,
-      });
+    async ELECTED_LEADER(_context, _payload: unknown) {
+      VueToast.$toast.info(
+        'You are now leader of the script - other clients will follow your view',
+        { duration: 0 }
+      );
     },
-    async NO_LEADER(context, payload) {
+    async NO_LEADER(context, _payload: unknown) {
       await context.dispatch('GET_SHOW_SESSION_DATA');
       if (context.getters.NO_LEADER_TOAST == null) {
-        const instance = Vue.$toast.warning(
+        const instance = VueToast.$toast.warning(
           'There is no script leader. Please scroll your own script!',
-          {
-            duration: 0,
-          }
+          { duration: 0 }
         );
         context.commit('SET_TOAST_INSTANCE', instance);
       }
     },
-    SCRIPT_SCROLL(context, payload) {
+    SCRIPT_SCROLL(context, payload: { DATA: Record<string, unknown> }) {
       context.commit('SET_SESSION_FOLLOW_DATA', payload.DATA);
     },
     async GET_MICROPHONE_LIST(context) {
@@ -512,54 +504,46 @@ export default {
         log.error('Unable to get microphone list');
       }
     },
-    async ADD_MICROPHONE(context, microphone) {
+    async ADD_MICROPHONE(context, microphone: Partial<Microphone>) {
       const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(microphone),
       });
       if (response.ok) {
         context.dispatch('GET_MICROPHONE_LIST');
-        Vue.$toast.success('Added new microphone!');
+        VueToast.$toast.success('Added new microphone!');
       } else {
         log.error('Unable to add new microphone');
-        Vue.$toast.error('Unable to add new microphone');
+        VueToast.$toast.error('Unable to add new microphone');
       }
     },
-    async DELETE_MICROPHONE(context, microphoneId) {
-      const searchParams = new URLSearchParams({
-        id: microphoneId,
-      });
+    async DELETE_MICROPHONE(context, microphoneId: number) {
+      const searchParams = new URLSearchParams({ id: String(microphoneId) });
       const response = await fetch(`${makeURL('/api/v1/show/microphones')}?${searchParams}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_MICROPHONE_LIST');
-        Vue.$toast.success('Deleted microphone!');
+        VueToast.$toast.success('Deleted microphone!');
       } else {
         log.error('Unable to delete microphone');
-        Vue.$toast.error('Unable to delete microphone');
+        VueToast.$toast.error('Unable to delete microphone');
       }
     },
-    async UPDATE_MICROPHONE(context, microphone) {
+    async UPDATE_MICROPHONE(context, microphone: Partial<Microphone>) {
       const response = await fetch(`${makeURL('/api/v1/show/microphones')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(microphone),
       });
       if (response.ok) {
         context.dispatch('GET_MICROPHONE_LIST');
-        Vue.$toast.success('Updated microphone!');
+        VueToast.$toast.success('Updated microphone!');
       } else {
         log.error('Unable to edit microphone');
-        Vue.$toast.error('Unable to edit microphone');
+        VueToast.$toast.error('Unable to edit microphone');
       }
     },
     async GET_MIC_ALLOCATIONS(context) {
@@ -571,20 +555,18 @@ export default {
         log.error('Unable to get microphone allocations');
       }
     },
-    async UPDATE_MIC_ALLOCATIONS(context, allocations) {
+    async UPDATE_MIC_ALLOCATIONS(context, allocations: unknown) {
       const response = await fetch(`${makeURL('/api/v1/show/microphones/allocations')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(allocations),
       });
       if (response.ok) {
         context.dispatch('GET_MIC_ALLOCATIONS');
-        Vue.$toast.success('Updated microphone allocations!');
+        VueToast.$toast.success('Updated microphone allocations!');
       } else {
         log.error('Unable to edit microphone allocations');
-        Vue.$toast.error('Unable to edit microphone allocations');
+        VueToast.$toast.error('Unable to edit microphone allocations');
       }
     },
     async GET_SCRIPT_MODES(context) {
@@ -605,51 +587,45 @@ export default {
         log.error('Unable to get session tags');
       }
     },
-    async ADD_SESSION_TAG(context, tag) {
+    async ADD_SESSION_TAG(context, tag: Partial<SessionTag>) {
       const response = await fetch(`${makeURL('/api/v1/show/session/tags')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tag),
       });
       if (response.ok) {
         context.dispatch('GET_SESSION_TAGS');
-        Vue.$toast.success('Added new session tag!');
+        VueToast.$toast.success('Added new session tag!');
       } else {
         log.error('Unable to add session tag');
-        Vue.$toast.error('Unable to add session tag');
+        VueToast.$toast.error('Unable to add session tag');
       }
     },
-    async UPDATE_SESSION_TAG(context, tag) {
+    async UPDATE_SESSION_TAG(context, tag: Partial<SessionTag>) {
       const response = await fetch(`${makeURL('/api/v1/show/session/tags')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tag),
       });
       if (response.ok) {
         context.dispatch('GET_SESSION_TAGS');
-        Vue.$toast.success('Updated session tag!');
+        VueToast.$toast.success('Updated session tag!');
       } else {
         log.error('Unable to edit session tag');
-        Vue.$toast.error('Unable to edit session tag');
+        VueToast.$toast.error('Unable to edit session tag');
       }
     },
-    async DELETE_SESSION_TAG(context, tagId) {
+    async DELETE_SESSION_TAG(context, tagId: number) {
       const response = await fetch(`${makeURL('/api/v1/show/session/tags')}?id=${tagId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
         context.dispatch('GET_SESSION_TAGS');
-        Vue.$toast.success('Deleted session tag!');
+        VueToast.$toast.success('Deleted session tag!');
       } else {
         log.error('Unable to delete session tag');
-        Vue.$toast.error('Unable to delete session tag');
+        VueToast.$toast.error('Unable to delete session tag');
       }
     },
     async GET_IMPORTABLE_SESSION_TAGS() {
@@ -662,144 +638,130 @@ export default {
       }
       return response.json();
     },
-    async UPDATE_SESSION_TAGS(context, { sessionId, tagIds }) {
+    async UPDATE_SESSION_TAGS(
+      context,
+      { sessionId, tagIds }: { sessionId: number; tagIds: number[] }
+    ) {
       const response = await fetch(`${makeURL('/api/v1/show/sessions/assign-tags')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          session_id: sessionId,
-          tag_ids: tagIds,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, tag_ids: tagIds }),
       });
       if (response.ok) {
         await context.dispatch('GET_SHOW_SESSION_DATA');
-        Vue.$toast.success('Updated session tags!');
+        VueToast.$toast.success('Updated session tags!');
       } else {
         const errorData = await response.json().catch(() => ({}));
         log.error('Unable to update session tags:', errorData);
-        Vue.$toast.error(errorData.message || 'Unable to update session tags');
+        VueToast.$toast.error(errorData.message || 'Unable to update session tags');
         throw new Error('Failed to update session tags');
       }
     },
   },
   getters: {
-    CAST_LIST(state) {
+    CAST_LIST(state: ShowState) {
       return state.castList;
     },
-    CAST_DICT(state) {
+    CAST_DICT(state: ShowState) {
       return Object.fromEntries(state.castList.map((cast) => [cast.id, cast]));
     },
-    CAST_BY_ID: (state, getters) => (castId) => {
-      if (castId == null) {
-        return null;
-      }
+    CAST_BY_ID: (_state: ShowState, getters) => (castId: number | null) => {
+      if (castId == null) return null;
       const castStr = castId.toString();
       if (Object.keys(getters.CAST_DICT).includes(castStr)) {
         return getters.CAST_DICT[castStr];
       }
       return null;
     },
-    CHARACTER_LIST(state) {
+    CHARACTER_LIST(state: ShowState) {
       return state.characterList;
     },
-    CHARACTER_DICT(state) {
+    CHARACTER_DICT(state: ShowState) {
       return Object.fromEntries(state.characterList.map((character) => [character.id, character]));
     },
-    CHARACTER_BY_ID: (state, getters) => (characterId) => {
-      if (characterId == null) {
-        return null;
-      }
+    CHARACTER_BY_ID: (_state: ShowState, getters) => (characterId: number | null) => {
+      if (characterId == null) return null;
       const characterStr = characterId.toString();
       if (Object.keys(getters.CHARACTER_DICT).includes(characterStr)) {
         return getters.CHARACTER_DICT[characterStr];
       }
       return null;
     },
-    CHARACTER_GROUP_LIST(state) {
+    CHARACTER_GROUP_LIST(state: ShowState) {
       return state.characterGroupList;
     },
-    ACT_LIST(state) {
+    ACT_LIST(state: ShowState) {
       return state.actList;
     },
-    ACT_DICT(state) {
+    ACT_DICT(state: ShowState) {
       return Object.fromEntries(state.actList.map((act) => [act.id, act]));
     },
-    ACT_BY_ID: (state, getters) => (actId) => {
-      if (actId == null) {
-        return null;
-      }
+    ACT_BY_ID: (_state: ShowState, getters) => (actId: number | null) => {
+      if (actId == null) return null;
       const actStr = actId.toString();
       if (Object.keys(getters.ACT_DICT).includes(actStr)) {
         return getters.ACT_DICT[actStr];
       }
       return null;
     },
-    SCENE_LIST(state) {
+    SCENE_LIST(state: ShowState) {
       return state.sceneList;
     },
-    SCENE_DICT(state) {
+    SCENE_DICT(state: ShowState) {
       return Object.fromEntries(state.sceneList.map((scene) => [scene.id, scene]));
     },
-    SCENE_BY_ID: (state, getters) => (sceneId) => {
-      if (sceneId == null) {
-        return null;
-      }
+    SCENE_BY_ID: (_state: ShowState, getters) => (sceneId: number | null) => {
+      if (sceneId == null) return null;
       const sceneStr = sceneId.toString();
       if (Object.keys(getters.SCENE_DICT).includes(sceneStr)) {
         return getters.SCENE_DICT[sceneStr];
       }
       return null;
     },
-    CUE_TYPES(state) {
+    CUE_TYPES(state: ShowState) {
       return state.cueTypes;
     },
-    CUE_TYPES_DICT(state) {
+    CUE_TYPES_DICT(state: ShowState) {
       return Object.fromEntries(state.cueTypes.map((cueType) => [cueType.id, cueType]));
     },
-    CUE_TYPE_BY_ID: (state, getters) => (cueTypeId) => {
-      if (cueTypeId == null) {
-        return null;
-      }
+    CUE_TYPE_BY_ID: (_state: ShowState, getters) => (cueTypeId: number | null) => {
+      if (cueTypeId == null) return null;
       const cueTypeStr = cueTypeId.toString();
       if (Object.keys(getters.CUE_TYPES_DICT).includes(cueTypeStr)) {
         return getters.CUE_TYPES_DICT[cueTypeStr];
       }
       return null;
     },
-    SHOW_SESSIONS_LIST(state) {
+    SHOW_SESSIONS_LIST(state: ShowState) {
       return state.sessions;
     },
-    CURRENT_SHOW_SESSION(state) {
+    CURRENT_SHOW_SESSION(state: ShowState) {
       return state.currentSession;
     },
-    CURRENT_SHOW_INTERVAL(state) {
+    CURRENT_SHOW_INTERVAL(state: ShowState) {
       return state.currentInterval;
     },
-    SESSION_FOLLOW_DATA(state) {
+    SESSION_FOLLOW_DATA(state: ShowState) {
       return state.sessionFollowData;
     },
-    MICROPHONES(state) {
+    MICROPHONES(state: ShowState) {
       return state.microphones;
     },
-    MICROPHONE_DICT(state) {
+    MICROPHONE_DICT(state: ShowState) {
       return Object.fromEntries(state.microphones.map((mic) => [mic.id, mic]));
     },
-    MICROPHONE_BY_ID: (state, getters) => (micId) => {
-      if (micId == null) {
-        return null;
-      }
+    MICROPHONE_BY_ID: (_state: ShowState, getters) => (micId: number | null) => {
+      if (micId == null) return null;
       const micStr = micId.toString();
       if (Object.keys(getters.MICROPHONE_DICT).includes(micStr)) {
         return getters.MICROPHONE_DICT[micStr];
       }
       return null;
     },
-    MIC_ALLOCATIONS(state) {
+    MIC_ALLOCATIONS(state: ShowState) {
       return state.micAllocations;
     },
-    ORDERED_SCENES(state, getters) {
+    ORDERED_SCENES(_state: ShowState, getters) {
       if (
         !getters.CURRENT_SHOW?.first_act_id ||
         !getters.SCENE_LIST?.length ||
@@ -808,7 +770,7 @@ export default {
         return [];
       }
 
-      const scenes = [];
+      const scenes: Scene[] = [];
       let currentAct = getters.ACT_BY_ID(getters.CURRENT_SHOW.first_act_id);
 
       while (currentAct != null) {
@@ -822,14 +784,13 @@ export default {
 
       return scenes;
     },
-    MIC_CONFLICTS(state, getters) {
-      // Transform MIC_ALLOCATIONS from array format to object format
-      const allocationsObj = {};
+    MIC_CONFLICTS(_state: ShowState, getters) {
+      const allocationsObj: Record<string, Record<number, number>> = {};
       Object.keys(getters.MIC_ALLOCATIONS).forEach((micId) => {
         const allocs = getters.MIC_ALLOCATIONS[micId];
-        const sceneData = {};
+        const sceneData: Record<number, number> = {};
         if (Array.isArray(allocs)) {
-          allocs.forEach((alloc) => {
+          allocs.forEach((alloc: { scene_id: number; character_id: number }) => {
             sceneData[alloc.scene_id] = alloc.character_id;
           });
         }
@@ -845,49 +806,45 @@ export default {
         getters.CAST_LIST
       );
     },
-    CONFLICTS_BY_SCENE(state, getters) {
+    CONFLICTS_BY_SCENE(_state: ShowState, getters) {
       return getters.MIC_CONFLICTS.conflictsByScene || {};
     },
-    CONFLICTS_BY_MIC(state, getters) {
+    CONFLICTS_BY_MIC(_state: ShowState, getters) {
       return getters.MIC_CONFLICTS.conflictsByMic || {};
     },
-    MIC_TIMELINE_DATA(state, getters) {
-      const scenes = getters.ORDERED_SCENES;
-      const allocations = getters.MIC_ALLOCATIONS;
-      const conflicts = getters.MIC_CONFLICTS.conflicts || [];
-
+    MIC_TIMELINE_DATA(_state: ShowState, getters) {
       return {
-        scenes,
-        allocations,
-        conflicts,
+        scenes: getters.ORDERED_SCENES,
+        allocations: getters.MIC_ALLOCATIONS,
+        conflicts: getters.MIC_CONFLICTS.conflicts || [],
         microphones: getters.MICROPHONES,
         characters: getters.CHARACTER_LIST,
       };
     },
-    NO_LEADER_TOAST(state) {
+    NO_LEADER_TOAST(state: ShowState) {
       return state.noLeaderToast;
     },
-    SCRIPT_MODES(state) {
+    SCRIPT_MODES(state: ShowState) {
       return state.scriptModes;
     },
-    SESSION_TAGS(state) {
+    SESSION_TAGS(state: ShowState) {
       return state.sessionTags;
     },
-    SESSION_TAGS_DICT(state) {
+    SESSION_TAGS_DICT(state: ShowState) {
       return Object.fromEntries(state.sessionTags.map((tag) => [tag.id, tag]));
     },
-    SESSION_TAG_BY_ID: (state, getters) => (tagId) => {
-      if (tagId == null) {
-        return null;
-      }
+    SESSION_TAG_BY_ID: (_state: ShowState, getters) => (tagId: number | null) => {
+      if (tagId == null) return null;
       const tagStr = tagId.toString();
       if (Object.keys(getters.SESSION_TAGS_DICT).includes(tagStr)) {
         return getters.SESSION_TAGS_DICT[tagStr];
       }
       return null;
     },
-    STAGE_MANAGER_MODE(state) {
+    STAGE_MANAGER_MODE(state: ShowState) {
       return state.stageManagerMode;
     },
   },
 };
+
+export default module;

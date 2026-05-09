@@ -8,6 +8,12 @@ export interface User {
   token_version: number;
 }
 
+export interface CueColourOverride {
+  id: number;
+  cue_type_id: number | null;
+  colour: string | null;
+}
+
 export interface UserSettings {
   enable_script_auto_save: boolean | null;
   script_auto_save_interval: number | null;

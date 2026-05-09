@@ -1,9 +1,21 @@
 import log from 'loglevel';
+import type { Module } from 'vuex';
 
 import router from '@/router';
 import { makeURL } from '@/js/utils';
+import type { RootState } from '@/types/store';
+import type { Show } from '@/types/api/show';
+import type { SystemSettings } from '@/types/api/settings';
 
-export default {
+interface SystemState {
+  settings: SystemSettings | Record<string, never>;
+  availableShows: Show[];
+  rawSettings: Record<string, unknown>;
+  rbacRoles: Array<{ key: string; value: number }>;
+  settingsCategories: Record<string, unknown>;
+}
+
+const module: Module<SystemState, RootState> = {
   state: {
     settings: {},
     availableShows: [],
@@ -12,19 +24,19 @@ export default {
     settingsCategories: {},
   },
   mutations: {
-    UPDATE_SETTINGS(state, settings) {
+    UPDATE_SETTINGS(state: SystemState, settings: SystemSettings) {
       state.settings = settings;
     },
-    UPDATE_SHOWS(state, shows) {
+    UPDATE_SHOWS(state: SystemState, shows: Show[]) {
       state.availableShows = shows;
     },
-    UPDATE_RAW_SETTINGS(state, settings) {
+    UPDATE_RAW_SETTINGS(state: SystemState, settings: Record<string, unknown>) {
       state.rawSettings = settings;
     },
-    UPDATE_RBAC_ROLES(state, rbac) {
+    UPDATE_RBAC_ROLES(state: SystemState, rbac: Array<{ key: string; value: number }>) {
       state.rbacRoles = rbac;
     },
-    UPDATE_SETTINGS_CATEGORIES(state, categories) {
+    UPDATE_SETTINGS_CATEGORIES(state: SystemState, categories: Record<string, unknown>) {
       state.settingsCategories = categories;
     },
   },
@@ -56,7 +68,7 @@ export default {
         log.error('Unable to fetch settings');
       }
     },
-    async UPDATE_SETTINGS(context, payload) {
+    async UPDATE_SETTINGS(context, payload: SystemSettings) {
       context.commit('UPDATE_SETTINGS', payload);
       await context.dispatch('SETTINGS_CHANGED');
     },
@@ -65,7 +77,7 @@ export default {
 
       if (context.state.settings.current_show) {
         const currShow = context.state.settings.current_show;
-        if (!context.state.currentShow || context.state.currentShow.id !== currShow) {
+        if (!context.rootState.currentShow || context.rootState.currentShow.id !== currShow) {
           const response = await fetch(`${makeURL('/api/v1/show')}`);
           if (response.ok) {
             const show = await response.json();
@@ -103,20 +115,22 @@ export default {
     },
   },
   getters: {
-    AVAILABLE_SHOWS(state) {
+    AVAILABLE_SHOWS(state: SystemState) {
       return state.availableShows;
     },
-    SETTINGS(state) {
+    SETTINGS(state: SystemState) {
       return state.settings;
     },
-    RAW_SETTINGS(state) {
+    RAW_SETTINGS(state: SystemState) {
       return state.rawSettings;
     },
-    RBAC_ROLES(state) {
+    RBAC_ROLES(state: SystemState) {
       return state.rbacRoles;
     },
-    SETTINGS_CATEGORIES(state) {
+    SETTINGS_CATEGORIES(state: SystemState) {
       return state.settingsCategories;
     },
   },
 };
+
+export default module;

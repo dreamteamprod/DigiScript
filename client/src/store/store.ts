@@ -5,6 +5,7 @@ import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
 import { getStorageAdapter } from '@/js/platform';
+import type { Show } from '@/types/api/show';
 import user from '@/store/modules/user/user';
 import websocket from './modules/websocket';
 import system from './modules/system';
@@ -16,12 +17,16 @@ import stage from './modules/stage';
 
 Vue.use(Vuex);
 
-export default new Vuex.Store({
+const VueToast = Vue as typeof Vue & {
+  $toast: { success: (m: string) => void; error: (m: string) => void };
+};
+
+export default new Vuex.Store<{ currentShow: Show | null }>({
   state: {
     currentShow: null,
   },
   mutations: {
-    SET_CURRENT_SHOW(state, currShow) {
+    SET_CURRENT_SHOW(state, currShow: Show | null) {
       state.currentShow = currShow;
     },
   },
@@ -35,20 +40,18 @@ export default new Vuex.Store({
         log.error('Unable to get show details');
       }
     },
-    async UPDATE_SHOW(context, showDetails) {
+    async UPDATE_SHOW(context, showDetails: Partial<Show>) {
       const response = await fetch(`${makeURL('/api/v1/show')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(showDetails),
       });
       if (response.ok) {
         context.dispatch('GET_SHOW_DETAILS');
-        Vue.$toast.success('Updated show!');
+        VueToast.$toast.success('Updated show!');
       } else {
         log.error('Unable to edit show');
-        Vue.$toast.error('Unable to edit show');
+        VueToast.$toast.error('Unable to edit show');
       }
     },
     async SHOW_CHANGED(context) {
@@ -63,136 +66,109 @@ export default new Vuex.Store({
     CURRENT_SHOW(state) {
       return state.currentShow;
     },
-    IS_ADMIN_USER(state, getters) {
+    IS_ADMIN_USER(_state, getters) {
       return getters.CURRENT_USER != null && getters.CURRENT_USER.is_admin;
     },
-    IS_SHOW_EDITOR(state, getters) {
-      if (getters.IS_ADMIN_USER) {
-        return true;
-      }
-      if (getters.RBAC_ROLES.length === 0) {
-        return false;
-      }
+    IS_SHOW_EDITOR(_state, getters) {
+      if (getters.IS_ADMIN_USER) return true;
+      if (getters.RBAC_ROLES.length === 0) return false;
       if (
         getters.CURRENT_USER_RBAC == null ||
         !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')
       ) {
         return false;
       }
-      const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
+      const writeMask = getters.RBAC_ROLES.find((x: { key: string }) => x.key === 'WRITE').value;
       return (
         getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.shows[0][1] & writeMask) !== 0
       );
     },
-    IS_SHOW_READER(state, getters) {
-      if (getters.IS_ADMIN_USER) {
-        return true;
-      }
-      if (getters.RBAC_ROLES.length === 0) {
-        return false;
-      }
+    IS_SHOW_READER(_state, getters) {
+      if (getters.IS_ADMIN_USER) return true;
+      if (getters.RBAC_ROLES.length === 0) return false;
       if (
         getters.CURRENT_USER_RBAC == null ||
         !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')
       ) {
         return false;
       }
-      const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
+      const readMask = getters.RBAC_ROLES.find((x: { key: string }) => x.key === 'READ').value;
       return (
         getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.shows[0][1] & readMask) !== 0
       );
     },
-    IS_SHOW_EXECUTOR(state, getters) {
-      if (getters.IS_ADMIN_USER) {
-        return true;
-      }
-      if (getters.RBAC_ROLES.length === 0) {
-        return false;
-      }
+    IS_SHOW_EXECUTOR(_state, getters) {
+      if (getters.IS_ADMIN_USER) return true;
+      if (getters.RBAC_ROLES.length === 0) return false;
       if (
         getters.CURRENT_USER_RBAC == null ||
         !Object.keys(getters.CURRENT_USER_RBAC).includes('shows')
       ) {
         return false;
       }
-      const execMask = getters.RBAC_ROLES.find((x) => x.key === 'EXECUTE').value;
-
+      const execMask = getters.RBAC_ROLES.find((x: { key: string }) => x.key === 'EXECUTE').value;
       return (
         getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.shows[0][1] & execMask) !== 0
       );
     },
-    IS_SCRIPT_EDITOR(state, getters) {
-      if (getters.IS_ADMIN_USER) {
-        return true;
-      }
-      if (getters.RBAC_ROLES.length === 0) {
-        return false;
-      }
+    IS_SCRIPT_EDITOR(_state, getters) {
+      if (getters.IS_ADMIN_USER) return true;
+      if (getters.RBAC_ROLES.length === 0) return false;
       if (
         getters.CURRENT_USER_RBAC == null ||
         !Object.keys(getters.CURRENT_USER_RBAC).includes('script')
       ) {
         return false;
       }
-      const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
+      const writeMask = getters.RBAC_ROLES.find((x: { key: string }) => x.key === 'WRITE').value;
       return (
         getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.script[0][1] & writeMask) !== 0
       );
     },
-    IS_SCRIPT_READER(state, getters) {
-      if (getters.IS_ADMIN_USER) {
-        return true;
-      }
-      if (getters.RBAC_ROLES.length === 0) {
-        return false;
-      }
+    IS_SCRIPT_READER(_state, getters) {
+      if (getters.IS_ADMIN_USER) return true;
+      if (getters.RBAC_ROLES.length === 0) return false;
       if (
         getters.CURRENT_USER_RBAC == null ||
         !Object.keys(getters.CURRENT_USER_RBAC).includes('script')
       ) {
         return false;
       }
-      const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
+      const readMask = getters.RBAC_ROLES.find((x: { key: string }) => x.key === 'READ').value;
       return (
         getters.CURRENT_USER != null && (getters.CURRENT_USER_RBAC.script[0][1] & readMask) !== 0
       );
     },
-    IS_CUE_EDITOR(state, getters) {
-      if (getters.IS_ADMIN_USER) {
-        return true;
-      }
-      if (getters.RBAC_ROLES.length === 0) {
-        return false;
-      }
+    IS_CUE_EDITOR(_state, getters) {
+      if (getters.IS_ADMIN_USER) return true;
+      if (getters.RBAC_ROLES.length === 0) return false;
       if (
         getters.CURRENT_USER_RBAC == null ||
         !Object.keys(getters.CURRENT_USER_RBAC).includes('cuetypes')
       ) {
         return false;
       }
-      const writeMask = getters.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
+      const writeMask = getters.RBAC_ROLES.find((x: { key: string }) => x.key === 'WRITE').value;
       return (
         getters.CURRENT_USER != null &&
-        getters.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & writeMask) !== 0).length > 0
+        getters.CURRENT_USER_RBAC.cuetypes.filter((x: [number, number]) => (x[1] & writeMask) !== 0)
+          .length > 0
       );
     },
-    IS_CUE_READER(state, getters) {
-      if (getters.IS_ADMIN_USER) {
-        return true;
-      }
-      if (getters.RBAC_ROLES.length === 0) {
-        return false;
-      }
+    IS_CUE_READER(_state, getters) {
+      if (getters.IS_ADMIN_USER) return true;
+      if (getters.RBAC_ROLES.length === 0) return false;
       if (
         getters.CURRENT_USER_RBAC == null ||
         !Object.keys(getters.CURRENT_USER_RBAC).includes('cuetypes')
       ) {
         return false;
       }
-      const readMask = getters.RBAC_ROLES.find((x) => x.key === 'READ').value;
+      const readMask = getters.RBAC_ROLES.find((x: { key: string }) => x.key === 'READ').value;
       return (
         getters.CURRENT_USER != null &&
-        getters.CURRENT_USER_RBAC.cuetypes.filter((x) => (x[1] & readMask) !== 0).length > 0
+        getters.CURRENT_USER_RBAC.cuetypes.filter((x: [number, number]) => (x[1] & readMask) !== 0)
+          .length > 0
       );
     },
   },
