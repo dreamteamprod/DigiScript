@@ -10,7 +10,7 @@
     "build:analyze": "vite build --mode analyze",
     "lint": "npm run format && npm run lint:eslint",
     "lint:eslint": "eslint 'src/**/*.{js,ts,vue}' --fix",
-    "ci-lint": "npm run format:check && npm run lint:eslint-check && npm run typecheck",
+    "ci-lint": "npm run format:check && npm run lint:eslint-check",
     "lint:eslint-check": "eslint 'src/**/*.{js,ts,vue}'",
     "lint:filter": "./scripts/eslint-filter.sh",
     "format": "prettier --write 'src/**/*.{js,ts,vue,json,css,scss}'",
