@@ -41,10 +41,7 @@ export interface StageDirectionStyle {
   background_colour: string | null;
 }
 
-export interface ScriptCut {
-  line_part_id: number;
-  revision_id: number;
-}
+export type ScriptCut = number;
 
 export interface CompiledScript {
   revision_id: number;
