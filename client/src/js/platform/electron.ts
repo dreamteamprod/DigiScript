@@ -3,6 +3,7 @@ declare global {
     electronAPI?: {
       getServerURLSync?: () => string | null;
       getAppVersion?: () => string;
+      getActiveConnection?: () => Promise<boolean>;
       storageGet?: (key: string) => string | null;
       storageSet?: (key: string, value: string) => void;
       storageDelete?: (key: string) => void;
