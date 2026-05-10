@@ -164,13 +164,14 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'CharacterGroups',
   mixins: [formValidationMixin],
   data() {
@@ -179,18 +180,18 @@ export default {
       characterGroupFields: ['name', 'description', 'characters', { key: 'btn', label: '' }],
       rowsPerPage: 15,
       currentPage: 1,
-      tempCharacterList: [],
+      tempCharacterList: [] as any[],
       newFormState: {
         name: '',
         description: '',
-        characters: [],
+        characters: [] as number[],
       },
-      tempEditCharacterList: [],
+      tempEditCharacterList: [] as any[],
       editFormState: {
-        id: null,
+        id: null as number | null,
         name: '',
         description: '',
-        characters: [],
+        characters: [] as number[],
       },
       submittingNewGroup: false,
       submittingEditGroup: false,
@@ -199,16 +200,12 @@ export default {
   },
   validations: {
     newFormState: {
-      name: {
-        required,
-      },
+      name: { required },
       description: {},
       characters: {},
     },
     editFormState: {
-      name: {
-        required,
-      },
+      name: { required },
       description: {},
       characters: {},
     },
@@ -216,34 +213,32 @@ export default {
   computed: {
     ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'IS_SHOW_EDITOR']),
   },
-  async mounted() {
-    await Promise.all([this.GET_CHARACTER_LIST(), this.GET_CHARACTER_GROUP_LIST()]);
+  async mounted(): Promise<void> {
+    await Promise.all([
+      (this as any).GET_CHARACTER_LIST(),
+      (this as any).GET_CHARACTER_GROUP_LIST(),
+    ]);
     this.loading = false;
   },
   methods: {
-    newSelectChanged(value, id) {
-      this.$v.newFormState.characters.$model = value.map((character) => character.id);
+    newSelectChanged(value: any[]): void {
+      (this as any).$v.newFormState.characters.$model = value.map((character) => character.id);
     },
-    resetNewForm() {
+    resetNewForm(): void {
       this.tempCharacterList = [];
-      this.resetForm('newFormState', {
-        name: '',
-        description: '',
-        characters: [],
-      });
+      (this as any).resetForm('newFormState', { name: '', description: '', characters: [] });
       this.submittingNewGroup = false;
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError || this.submittingNewGroup) {
+    async onSubmitNew(event: Event): Promise<void> {
+      (this as any).$v.newFormState.$touch();
+      if ((this as any).$v.newFormState.$anyError || this.submittingNewGroup) {
         event.preventDefault();
         return;
       }
-
       this.submittingNewGroup = true;
       try {
-        await this.ADD_CHARACTER_GROUP(this.newFormState);
-        this.$bvModal.hide('new-character-group');
+        await (this as any).ADD_CHARACTER_GROUP(this.newFormState);
+        (this as any).$bvModal.hide('new-character-group');
         this.resetNewForm();
       } catch (error) {
         log.error('Error submitting new character group:', error);
@@ -252,17 +247,16 @@ export default {
         this.submittingNewGroup = false;
       }
     },
-    async deleteCharacterGroup(characterGroup) {
+    async deleteCharacterGroup(characterGroup: any): Promise<void> {
       if (this.deletingGroup) {
         return;
       }
-
       const msg = `Are you sure you want to delete ${characterGroup.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.deletingGroup = true;
         try {
-          await this.DELETE_CHARACTER_GROUP(characterGroup.item.id);
+          await (this as any).DELETE_CHARACTER_GROUP(characterGroup.item.id);
         } catch (error) {
           log.error('Error deleting character group:', error);
         } finally {
@@ -270,24 +264,22 @@ export default {
         }
       }
     },
-    openEditForm(characterGroup) {
+    openEditForm(characterGroup: any): void {
       if (characterGroup != null) {
         this.editFormState.id = characterGroup.item.id;
         this.editFormState.name = characterGroup.item.name;
         this.editFormState.description = characterGroup.item.description;
         this.editFormState.characters = characterGroup.item.characters;
-
         this.tempEditCharacterList.push(
-          ...this.CHARACTER_LIST.filter((character) =>
+          ...(this as any).CHARACTER_LIST.filter((character: any) =>
             this.editFormState.characters.includes(character.id)
           )
         );
-
-        this.$bvModal.show('edit-character-group');
+        (this as any).$bvModal.show('edit-character-group');
       }
     },
-    resetEditForm() {
-      this.resetForm('editFormState', {
+    resetEditForm(): void {
+      (this as any).resetForm('editFormState', {
         id: null,
         name: '',
         description: '',
@@ -297,20 +289,19 @@ export default {
       this.submittingEditGroup = false;
       this.deletingGroup = false;
     },
-    editSelectChanged(value, id) {
-      this.$v.editFormState.characters.$model = value.map((character) => character.id);
+    editSelectChanged(value: any[]): void {
+      (this as any).$v.editFormState.characters.$model = value.map((character) => character.id);
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError || this.submittingEditGroup) {
+    async onSubmitEdit(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError || this.submittingEditGroup) {
         event.preventDefault();
         return;
       }
-
       this.submittingEditGroup = true;
       try {
-        await this.UPDATE_CHARACTER_GROUP(this.editFormState);
-        this.$bvModal.hide('edit-character-group');
+        await (this as any).UPDATE_CHARACTER_GROUP(this.editFormState);
+        (this as any).$bvModal.hide('edit-character-group');
         this.resetEditForm();
       } catch (error) {
         log.error('Error submitting edit character group:', error);
@@ -327,7 +318,7 @@ export default {
       'UPDATE_CHARACTER_GROUP',
     ]),
   },
-};
+});
 </script>
 
 <style scoped></style>
