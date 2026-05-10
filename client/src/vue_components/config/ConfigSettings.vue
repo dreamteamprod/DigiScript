@@ -115,39 +115,50 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { required, integer } from 'vuelidate/lib/validators';
 import log from 'loglevel';
-
 import { makeURL } from '@/js/utils';
 
-export default {
+export default defineComponent({
   name: 'ConfigSettings',
   data() {
     return {
       loaded: false,
-      editSettings: {},
+      editSettings: {} as Record<string, unknown>,
       toggle: 0,
-      expandedCategories: ['General'],
+      expandedCategories: ['General'] as string[],
     };
+  },
+  validations() {
+    const editSettings: Record<string, unknown> = {};
+    Object.keys(this.editSettings).forEach((x) => {
+      if ((this as any).RAW_SETTINGS[x].type === 'int') {
+        editSettings[x] = { required, integer };
+      } else {
+        editSettings[x] = {};
+      }
+    });
+    return { editSettings };
   },
   computed: {
     ...mapGetters(['RAW_SETTINGS', 'SETTINGS_CATEGORIES']),
-    visibleSettings() {
-      const visibleSettings = {};
-      Object.keys(this.RAW_SETTINGS).forEach((x) => {
-        if (!this.RAW_SETTINGS[x].hide_from_ui) {
-          visibleSettings[x] = this.RAW_SETTINGS[x];
+    visibleSettings(): Record<string, any> {
+      const visibleSettings: Record<string, any> = {};
+      Object.keys((this as any).RAW_SETTINGS).forEach((x) => {
+        if (!(this as any).RAW_SETTINGS[x].hide_from_ui) {
+          visibleSettings[x] = (this as any).RAW_SETTINGS[x];
         }
       });
       return visibleSettings;
     },
-    settingsByCategory() {
-      const settingsByCategory = {};
-      Object.keys(this.SETTINGS_CATEGORIES).forEach((category) => {
+    settingsByCategory(): Record<string, Record<string, any>> {
+      const settingsByCategory: Record<string, Record<string, any>> = {};
+      Object.keys((this as any).SETTINGS_CATEGORIES).forEach((category) => {
         settingsByCategory[category] = {};
-        this.SETTINGS_CATEGORIES[category].forEach((setting) => {
+        (this as any).SETTINGS_CATEGORIES[category].forEach((setting: string) => {
           if (Object.keys(this.visibleSettings).includes(setting)) {
             settingsByCategory[category][setting] = this.visibleSettings[setting];
           }
@@ -155,24 +166,24 @@ export default {
       });
       return settingsByCategory;
     },
-    hasChanges() {
+    hasChanges(): boolean {
       return Object.keys(this.editSettings).some(
-        (key) => this.editSettings[key] !== this.RAW_SETTINGS[key]?.value
+        (key) => this.editSettings[key] !== (this as any).RAW_SETTINGS[key]?.value
       );
     },
-    dirtySettingsByCategory() {
-      const dirtySettingsByCategory = {};
-      Object.keys(this.SETTINGS_CATEGORIES).forEach((category) => {
-        dirtySettingsByCategory[category] = 0;
-        this.SETTINGS_CATEGORIES[category].forEach((setting) => {
+    dirtySettingsByCategory(): Record<string, number> {
+      const dirty: Record<string, number> = {};
+      Object.keys((this as any).SETTINGS_CATEGORIES).forEach((category) => {
+        dirty[category] = 0;
+        (this as any).SETTINGS_CATEGORIES[category].forEach((setting: string) => {
           if (Object.keys(this.visibleSettings).includes(setting)) {
-            if (this.$v.editSettings[setting].$dirty) {
-              dirtySettingsByCategory[category] += 1;
+            if ((this as any).$v.editSettings[setting].$dirty) {
+              dirty[category] += 1;
             }
           }
         });
       });
-      return dirtySettingsByCategory;
+      return dirty;
     },
   },
   watch: {
@@ -184,55 +195,33 @@ export default {
     },
   },
   async mounted() {
-    await this.GET_SETTINGS_CATEGORIES();
+    await (this as any).GET_SETTINGS_CATEGORIES();
     this.resetEditSettings();
     this.loaded = true;
   },
-  validations() {
-    const editSettings = {};
-    Object.keys(this.editSettings).forEach((x) => {
-      if (this.RAW_SETTINGS[x].type === 'int') {
-        editSettings[x] = {
-          required,
-          integer,
-        };
-      } else {
-        editSettings[x] = {};
-      }
-    }, this);
-    return { editSettings };
-  },
   methods: {
-    inputType(fieldType) {
-      const mapping = {
-        int: 'number',
-        str: 'text',
-      };
-      if (!Object.keys(mapping).includes(fieldType)) {
-        return 'text';
-      }
-      return mapping[fieldType];
+    inputType(fieldType: string): string {
+      const mapping: Record<string, string> = { int: 'number', str: 'text' };
+      return mapping[fieldType] ?? 'text';
     },
-    getChoiceOptions(setting) {
-      const options = [];
+    getChoiceOptions(setting: any): Array<{ value: unknown; text: string }> {
+      const options: Array<{ value: unknown; text: string }> = [];
       if (setting._nullable) {
         options.push({ value: null, text: 'N/A' });
       }
-      setting.choice_options.forEach((option) => {
-        options.push({ value: option, text: option });
+      setting.choice_options.forEach((option: unknown) => {
+        options.push({ value: option, text: String(option) });
       });
       return options;
     },
-    validateState(name) {
-      const { $dirty, $error } = this.$v.editSettings[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editSettings[name];
       return $dirty ? !$error : null;
     },
-    async handleSubmit() {
+    async handleSubmit(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/settings')}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(this.editSettings),
       });
       if (!response.ok) {
@@ -242,35 +231,31 @@ export default {
         this.$toast.success('Saved settings');
       }
     },
-    resetEditSettings() {
-      Object.keys(this.visibleSettings).forEach(function setEditSettings(x) {
+    resetEditSettings(): void {
+      Object.keys(this.visibleSettings).forEach((x) => {
         this.editSettings[x] = this.visibleSettings[x].value;
-      }, this);
+      });
     },
-    resetForm(toggleLoaded) {
-      if (toggleLoaded) {
-        this.loaded = false;
-      }
-      this.toggle = !this.toggle;
-      Object.keys(this.RAW_SETTINGS).forEach(function resetEditSettings(x) {
-        this.editSettings[x] = this.RAW_SETTINGS[x].value;
-      }, this);
-      this.$v.editSettings.$reset();
-      if (toggleLoaded) {
-        this.loaded = true;
-      }
+    resetForm(toggleLoaded: boolean): void {
+      if (toggleLoaded) this.loaded = false;
+      this.toggle = this.toggle === 0 ? 1 : 0;
+      Object.keys((this as any).RAW_SETTINGS).forEach((x) => {
+        this.editSettings[x] = (this as any).RAW_SETTINGS[x].value;
+      });
+      (this as any).$v.editSettings.$reset();
+      if (toggleLoaded) this.loaded = true;
     },
-    expandCategory(category) {
+    expandCategory(category: string): void {
       if (this.categoryExpanded(category)) {
         this.expandedCategories = this.expandedCategories.filter((x) => x !== category);
       } else {
         this.expandedCategories.push(category);
       }
     },
-    categoryExpanded(category) {
+    categoryExpanded(category: string): boolean {
       return this.expandedCategories.includes(category);
     },
     ...mapActions(['GET_SETTINGS_CATEGORIES']),
   },
-};
+});
 </script>

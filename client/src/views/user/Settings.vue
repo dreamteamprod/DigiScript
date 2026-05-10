@@ -24,7 +24,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import StageDirectionStyles from '@/vue_components/user/settings/StageDirectionStyles.vue';
 import CueColourPreferences from '@/vue_components/user/settings/CueColourPreferences.vue';
 import AboutUser from '@/vue_components/user/settings/AboutUser.vue';
@@ -32,7 +33,7 @@ import UserSettingsConfig from '@/vue_components/user/settings/Settings.vue';
 import ApiToken from '@/vue_components/user/settings/ApiToken.vue';
 import ChangePassword from '@/vue_components/user/settings/ChangePassword.vue';
 
-export default {
+export default defineComponent({
   name: 'UserSettings',
   components: {
     UserSettingsConfig,
@@ -42,5 +43,5 @@ export default {
     ApiToken,
     ChangePassword,
   },
-};
+});
 </script>

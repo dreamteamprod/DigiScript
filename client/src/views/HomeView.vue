@@ -21,16 +21,17 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 
-export default {
+export default defineComponent({
   name: 'HomeView',
   computed: {
-    isAdminUser() {
+    isAdminUser(): boolean {
       return this.CURRENT_USER != null && this.CURRENT_USER.is_admin;
     },
     ...mapGetters(['SETTINGS', 'CURRENT_SHOW_SESSION', 'CURRENT_SHOW', 'CURRENT_USER']),
   },
-};
+});
 </script>

@@ -47,11 +47,12 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapActions } from 'vuex';
 
-export default {
+export default defineComponent({
   name: 'LoginView',
   data() {
     return {
@@ -64,31 +65,27 @@ export default {
   },
   validations: {
     state: {
-      username: {
-        required,
-      },
-      password: {
-        required,
-      },
+      username: { required },
+      password: { required },
     },
   },
   computed: {
-    isDisabled() {
-      return Boolean(this.$v.state.$invalid);
+    isDisabled(): boolean {
+      return Boolean((this as any).$v.state.$invalid);
     },
   },
   methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.state[name];
       return $dirty ? !$error : null;
     },
-    async doLogin(event) {
-      this.$v.state.$touch();
-      if (this.$v.state.$anyError) {
+    async doLogin(event: Event): Promise<void> {
+      (this as any).$v.state.$touch();
+      if ((this as any).$v.state.$anyError) {
         event.preventDefault();
       } else {
         this.showLoginFeedback = false;
-        const loginSuccess = await this.USER_LOGIN(this.state);
+        const loginSuccess = await (this as any).USER_LOGIN(this.state);
         if (loginSuccess) {
           this.$router.replace('/');
         } else {
@@ -98,7 +95,7 @@ export default {
     },
     ...mapActions(['USER_LOGIN']),
   },
-};
+});
 </script>
 
 <style scoped></style>

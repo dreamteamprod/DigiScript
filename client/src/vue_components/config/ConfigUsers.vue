@@ -80,27 +80,28 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 
 import CreateUser from '@/vue_components/user/CreateUser.vue';
 import ConfigRbac from '@/vue_components/user/ConfigRbac.vue';
 import ResetPassword from '@/vue_components/user/ResetPassword.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigUsers',
   components: { CreateUser, ConfigRbac, ResetPassword },
   data() {
     return {
       userFields: ['username', 'last_login', 'last_seen', 'is_admin', { key: 'btn', label: '' }],
-      editUser: null,
-      resetUser: null,
-      clientTimeout: null,
+      editUser: null as number | null,
+      resetUser: null as { id: number; username: string } | null,
+      clientTimeout: null as ReturnType<typeof setTimeout> | null,
     };
   },
   computed: {
-    allAdmins() {
-      return this.USERS.filter((user) => user.is_admin);
+    allAdmins(): unknown[] {
+      return (this.USERS as any[]).filter((user) => user.is_admin);
     },
     ...mapGetters(['USERS', 'CURRENT_SHOW', 'CURRENT_USER']),
   },
@@ -108,40 +109,40 @@ export default {
     await this.getUsers();
   },
   destroyed() {
-    clearTimeout(this.clientTimeout);
+    clearTimeout(this.clientTimeout ?? undefined);
   },
   methods: {
-    resetNewForm() {
-      this.$bvModal.hide('new-user');
+    resetNewForm(): void {
+      (this as any).$bvModal.hide('new-user');
     },
-    resetNewAdminForm() {
-      this.$bvModal.hide('new-admin-user');
+    resetNewAdminForm(): void {
+      (this as any).$bvModal.hide('new-admin-user');
     },
-    setEditUser(userId) {
+    setEditUser(userId: number): void {
       this.editUser = userId;
     },
-    setResetUser(user) {
+    setResetUser(user: { id: number; username: string }): void {
       this.resetUser = user;
     },
-    async handlePasswordReset() {
+    async handlePasswordReset(): Promise<void> {
       await this.getUsers();
     },
-    closeResetPasswordModal() {
-      this.$bvModal.hide('reset-password');
+    closeResetPasswordModal(): void {
+      (this as any).$bvModal.hide('reset-password');
       this.resetUser = null;
     },
-    async deleteUser(data) {
+    async deleteUser(data: any): Promise<void> {
       const msg = `Are you sure you want to delete ${data.item.username}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_USER(data.item.id);
+        await (this as any).DELETE_USER(data.item.id);
       }
     },
-    async getUsers() {
-      await this.GET_USERS();
+    async getUsers(): Promise<void> {
+      await (this as any).GET_USERS();
       this.clientTimeout = setTimeout(this.getUsers, 5000);
     },
     ...mapActions(['GET_USERS', 'DELETE_USER']),
   },
-};
+});
 </script>
