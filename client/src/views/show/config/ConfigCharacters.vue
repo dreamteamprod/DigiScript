@@ -162,7 +162,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
@@ -170,7 +171,7 @@ import log from 'loglevel';
 import CharacterGroups from '@/vue_components/show/config/characters/CharacterGroups.vue';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'ConfigCharacters',
   components: { CharacterGroups, CharacterLineStats },
   mixins: [formValidationMixin],
@@ -187,14 +188,14 @@ export default {
       newFormState: {
         name: '',
         description: '',
-        played_by: null,
+        played_by: null as number | null,
       },
       editFormState: {
-        id: null,
-        showID: null,
+        id: null as number | null,
+        showID: null as number | null,
         name: '',
         description: '',
-        played_by: null,
+        played_by: null as number | null,
       },
       submittingNewCharacter: false,
       submittingEditCharacter: false,
@@ -203,55 +204,46 @@ export default {
   },
   validations: {
     newFormState: {
-      name: {
-        required,
-      },
+      name: { required },
       description: {},
       played_by: {},
     },
     editFormState: {
-      name: {
-        required,
-      },
+      name: { required },
       description: {},
       played_by: {},
     },
   },
   computed: {
     ...mapGetters(['CHARACTER_LIST', 'CAST_LIST', 'IS_SHOW_EDITOR']),
-    castOptions() {
+    castOptions(): unknown[] {
       return [
         { value: null, text: 'Please select an option', disabled: true },
-        ...this.CAST_LIST.map((castMember) => ({
+        ...(this as any).CAST_LIST.map((castMember: any) => ({
           value: castMember.id,
           text: `${castMember.first_name} ${castMember.last_name}`,
         })),
       ];
     },
   },
-  async mounted() {
-    await Promise.all([this.GET_CHARACTER_LIST(), this.GET_CAST_LIST()]);
+  async mounted(): Promise<void> {
+    await Promise.all([(this as any).GET_CHARACTER_LIST(), (this as any).GET_CAST_LIST()]);
   },
   methods: {
-    resetNewForm() {
-      this.resetForm('newFormState', {
-        name: '',
-        description: '',
-        played_by: null,
-      });
+    resetNewForm(): void {
+      (this as any).resetForm('newFormState', { name: '', description: '', played_by: null });
       this.submittingNewCharacter = false;
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError || this.submittingNewCharacter) {
+    async onSubmitNew(event: Event): Promise<void> {
+      (this as any).$v.newFormState.$touch();
+      if ((this as any).$v.newFormState.$anyError || this.submittingNewCharacter) {
         event.preventDefault();
         return;
       }
-
       this.submittingNewCharacter = true;
       try {
-        await this.ADD_CHARACTER(this.newFormState);
-        this.$bvModal.hide('new-character');
+        await (this as any).ADD_CHARACTER(this.newFormState);
+        (this as any).$bvModal.hide('new-character');
         this.resetNewForm();
       } catch (error) {
         log.error('Error submitting new character:', error);
@@ -260,18 +252,18 @@ export default {
         this.submittingNewCharacter = false;
       }
     },
-    openEditForm(character) {
+    openEditForm(character: any): void {
       if (character != null) {
         this.editFormState.id = character.item.id;
         this.editFormState.showID = character.item.show_id;
         this.editFormState.name = character.item.name;
         this.editFormState.description = character.item.description;
         this.editFormState.played_by = character.item.played_by;
-        this.$bvModal.show('edit-character');
+        (this as any).$bvModal.show('edit-character');
       }
     },
-    resetEditForm() {
-      this.resetForm('editFormState', {
+    resetEditForm(): void {
+      (this as any).resetForm('editFormState', {
         id: null,
         showID: null,
         name: '',
@@ -281,17 +273,16 @@ export default {
       this.submittingEditCharacter = false;
       this.deletingCharacter = false;
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError || this.submittingEditCharacter) {
+    async onSubmitEdit(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError || this.submittingEditCharacter) {
         event.preventDefault();
         return;
       }
-
       this.submittingEditCharacter = true;
       try {
-        await this.UPDATE_CHARACTER(this.editFormState);
-        this.$bvModal.hide('edit-character');
+        await (this as any).UPDATE_CHARACTER(this.editFormState);
+        (this as any).$bvModal.hide('edit-character');
         this.resetEditForm();
       } catch (error) {
         log.error('Error submitting edit character:', error);
@@ -300,17 +291,16 @@ export default {
         this.submittingEditCharacter = false;
       }
     },
-    async deleteCharacter(character) {
+    async deleteCharacter(character: any): Promise<void> {
       if (this.deletingCharacter) {
         return;
       }
-
       const msg = `Are you sure you want to delete ${character.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.deletingCharacter = true;
         try {
-          await this.DELETE_CHARACTER(character.item.id);
+          await (this as any).DELETE_CHARACTER(character.item.id);
         } catch (error) {
           log.error('Error deleting character:', error);
         } finally {
@@ -326,7 +316,7 @@ export default {
       'DELETE_CHARACTER',
     ]),
   },
-};
+});
 </script>
 
 <style scoped></style>

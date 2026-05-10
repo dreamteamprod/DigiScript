@@ -143,14 +143,15 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import CastLineStats from '@/vue_components/show/config/cast/CastLineStats.vue';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'ConfigCast',
   components: { CastLineStats },
   mixins: [formValidationMixin],
@@ -164,8 +165,8 @@ export default {
       rowsPerPage: 15,
       currentPage: 1,
       editFormState: {
-        id: null,
-        showID: null,
+        id: null as number | null,
+        showID: null as number | null,
         firstName: '',
         lastName: '',
       },
@@ -176,47 +177,35 @@ export default {
   },
   validations: {
     newFormState: {
-      firstName: {
-        required,
-      },
-      lastName: {
-        required,
-      },
+      firstName: { required },
+      lastName: { required },
     },
     editFormState: {
-      firstName: {
-        required,
-      },
-      lastName: {
-        required,
-      },
+      firstName: { required },
+      lastName: { required },
     },
   },
   computed: {
     ...mapGetters(['CAST_LIST', 'IS_SHOW_EDITOR']),
   },
-  async mounted() {
-    await this.GET_CAST_LIST();
+  async mounted(): Promise<void> {
+    await (this as any).GET_CAST_LIST();
   },
   methods: {
-    resetNewForm() {
-      this.resetForm('newFormState', {
-        firstName: '',
-        lastName: '',
-      });
+    resetNewForm(): void {
+      (this as any).resetForm('newFormState', { firstName: '', lastName: '' });
       this.submittingNewCast = false;
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError || this.submittingNewCast) {
+    async onSubmitNew(event: Event): Promise<void> {
+      (this as any).$v.newFormState.$touch();
+      if ((this as any).$v.newFormState.$anyError || this.submittingNewCast) {
         event.preventDefault();
         return;
       }
-
       this.submittingNewCast = true;
       try {
-        await this.ADD_CAST_MEMBER(this.newFormState);
-        this.$bvModal.hide('new-cast');
+        await (this as any).ADD_CAST_MEMBER(this.newFormState);
+        (this as any).$bvModal.hide('new-cast');
         this.resetNewForm();
       } catch (error) {
         log.error('Error submitting new cast member:', error);
@@ -225,17 +214,17 @@ export default {
         this.submittingNewCast = false;
       }
     },
-    openEditForm(castMember) {
+    openEditForm(castMember: any): void {
       if (castMember != null) {
         this.editFormState.id = castMember.item.id;
         this.editFormState.showID = castMember.item.show_id;
         this.editFormState.firstName = castMember.item.first_name;
         this.editFormState.lastName = castMember.item.last_name;
-        this.$bvModal.show('edit-cast');
+        (this as any).$bvModal.show('edit-cast');
       }
     },
-    resetEditForm() {
-      this.resetForm('editFormState', {
+    resetEditForm(): void {
+      (this as any).resetForm('editFormState', {
         id: null,
         showID: null,
         firstName: '',
@@ -244,17 +233,16 @@ export default {
       this.submittingEditCast = false;
       this.deletingCast = false;
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError || this.submittingEditCast) {
+    async onSubmitEdit(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError || this.submittingEditCast) {
         event.preventDefault();
         return;
       }
-
       this.submittingEditCast = true;
       try {
-        await this.UPDATE_CAST_MEMBER(this.editFormState);
-        this.$bvModal.hide('edit-cast');
+        await (this as any).UPDATE_CAST_MEMBER(this.editFormState);
+        (this as any).$bvModal.hide('edit-cast');
         this.resetEditForm();
       } catch (error) {
         log.error('Error submitting edit cast member:', error);
@@ -263,17 +251,16 @@ export default {
         this.submittingEditCast = false;
       }
     },
-    async deleteCastMember(castMember) {
+    async deleteCastMember(castMember: any): Promise<void> {
       if (this.deletingCast) {
         return;
       }
-
       const msg = `Are you sure you want to delete ${castMember.item.first_name} ${castMember.item.last_name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.deletingCast = true;
         try {
-          await this.DELETE_CAST_MEMBER(castMember.item.id);
+          await (this as any).DELETE_CAST_MEMBER(castMember.item.id);
         } catch (error) {
           log.error('Error deleting cast member:', error);
         } finally {
@@ -283,7 +270,7 @@ export default {
     },
     ...mapActions(['GET_CAST_LIST', 'ADD_CAST_MEMBER', 'DELETE_CAST_MEMBER', 'UPDATE_CAST_MEMBER']),
   },
-};
+});
 </script>
 
 <style scoped></style>

@@ -211,13 +211,14 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'ConfigScenes',
   mixins: [formValidationMixin],
   data() {
@@ -234,8 +235,8 @@ export default {
       ],
       newFormState: {
         name: '',
-        act_id: null,
-        previous_scene_id: null,
+        act_id: null as number | null,
+        previous_scene_id: null as number | null,
       },
       firstSceneFields: [
         { key: 'name', label: 'Act' },
@@ -243,15 +244,15 @@ export default {
         { key: 'btn', label: '' },
       ],
       firstSceneFormState: {
-        act_id: null,
-        scene_id: null,
+        act_id: null as number | null,
+        scene_id: null as number | null,
       },
-      editSceneID: null,
+      editSceneID: null as number | null,
       editFormState: {
-        scene_id: null,
+        scene_id: null as number | null,
         name: '',
-        act_id: null,
-        previous_scene_id: null,
+        act_id: null as number | null,
+        previous_scene_id: null as number | null,
       },
       submittingNewScene: false,
       submittingEditScene: false,
@@ -261,21 +262,15 @@ export default {
   },
   validations: {
     newFormState: {
-      name: {
-        required,
-      },
+      name: { required },
       act_id: {
         notNullAndGreaterThanZero: (value) => value != null && value > 0,
       },
-      previous_scene_id: {
-        integer,
-      },
+      previous_scene_id: { integer },
     },
     firstSceneFormState: {},
     editFormState: {
-      name: {
-        required,
-      },
+      name: { required },
       act_id: {
         notNullAndGreaterThanZero: (value) => value != null && value > 0,
       },
@@ -304,33 +299,32 @@ export default {
       'ACT_BY_ID',
       'IS_SHOW_EDITOR',
     ]),
-    sceneTableItems() {
-      // Get ordering of Acts
-      const acts = [];
-      if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
-        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+    sceneTableItems(): unknown[] {
+      const acts: number[] = [];
+      if ((this as any).CURRENT_SHOW.first_act_id != null && (this as any).ACT_LIST.length > 0) {
+        let act = (this as any).ACT_BY_ID((this as any).CURRENT_SHOW.first_act_id);
         while (act != null) {
           acts.push(act.id);
-          act = this.ACT_BY_ID(act.next_act);
+          act = (this as any).ACT_BY_ID(act.next_act);
         }
       }
-      this.ACT_LIST.forEach((act) => {
+      (this as any).ACT_LIST.forEach((act: any) => {
         if (!acts.includes(act.id)) {
           acts.push(act.id);
         }
       });
-      const ret = [];
+      const ret: any[] = [];
       acts.forEach((actId) => {
-        const act = this.ACT_LIST.find((a) => a.id === actId);
+        const act = (this as any).ACT_LIST.find((a: any) => a.id === actId);
         if (act.first_scene != null) {
-          let scene = this.SCENE_BY_ID(act.first_scene);
+          let scene = (this as any).SCENE_BY_ID(act.first_scene);
           while (scene != null) {
-            ret.push(this.SCENE_BY_ID(scene.id));
-            scene = this.SCENE_BY_ID(scene.next_scene);
+            ret.push((this as any).SCENE_BY_ID(scene.id));
+            scene = (this as any).SCENE_BY_ID(scene.next_scene);
           }
         }
         const sceneIds = ret.map((s) => s.id);
-        this.SCENE_LIST.filter((s) => s.act === actId).forEach((scene) => {
+        (this as any).SCENE_LIST.filter((s: any) => s.act === actId).forEach((scene: any) => {
           if (!sceneIds.includes(scene.id)) {
             ret.push(scene);
           }
@@ -338,108 +332,101 @@ export default {
       });
       return ret;
     },
-    actOptions() {
+    actOptions(): unknown[] {
       return [
         { value: null, text: 'Please select an option', disabled: true },
-        ...this.ACT_LIST.map((act) => ({ value: act.id, text: act.name })),
+        ...(this as any).ACT_LIST.map((act: any) => ({ value: act.id, text: act.name })),
       ];
     },
-    previousSceneOptions() {
-      const ret = {
+    previousSceneOptions(): Record<string | number, unknown[]> {
+      const ret: Record<string | number, unknown[]> = {
         null: [{ value: null, text: 'None', disabled: false }],
       };
-      this.ACT_LIST.forEach((act) => {
+      (this as any).ACT_LIST.forEach((act: any) => {
         ret[act.id] = [
-          {
-            value: null,
-            text: 'None',
-            disabled: false,
-          },
-          ...this.SCENE_LIST.filter(
-            (scene) =>
-              scene.act === act.id && scene.next_scene == null && this.ACT_BY_ID(scene.act) != null,
-            this
-          ).map((scene) => ({
+          { value: null, text: 'None', disabled: false },
+          ...(this as any).SCENE_LIST.filter(
+            (scene: any) =>
+              scene.act === act.id &&
+              scene.next_scene == null &&
+              (this as any).ACT_BY_ID(scene.act) != null
+          ).map((scene: any) => ({
             value: scene.id,
-            text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
+            text: `${(this as any).ACT_BY_ID(scene.act).name}: ${scene.name}`,
           })),
         ];
-      }, this);
-
+      });
       return ret;
     },
-    firstSceneOptions() {
-      const ret = {};
-      this.ACT_LIST.forEach((act) => {
+    firstSceneOptions(): Record<number, unknown[]> {
+      const ret: Record<number, unknown[]> = {};
+      (this as any).ACT_LIST.forEach((act: any) => {
         ret[act.id] = [
-          {
-            value: null,
-            text: 'None',
-            disabled: false,
-          },
+          { value: null, text: 'None', disabled: false },
           ...act.scene_list
             .filter(
-              (scene) =>
-                this.SCENE_BY_ID(scene) != null && this.SCENE_BY_ID(scene).previous_scene == null,
-              this
+              (scene: any) =>
+                (this as any).SCENE_BY_ID(scene) != null &&
+                (this as any).SCENE_BY_ID(scene).previous_scene == null
             )
-            .map((scene) => ({
+            .map((scene: any) => ({
               value: scene,
-              text: `${act.name}: ${this.SCENE_BY_ID(scene).name}`,
+              text: `${act.name}: ${(this as any).SCENE_BY_ID(scene).name}`,
             })),
         ];
-      }, this);
+      });
       return ret;
     },
-    firstSceneModalLabel() {
+    firstSceneModalLabel(): string {
       if (this.firstSceneFormState.act_id == null) {
         return '';
       }
-      return `${this.ACT_LIST.find((act) => act.id === this.firstSceneFormState.act_id).name} First Scene`;
+      return `${(this as any).ACT_LIST.find((act: any) => act.id === this.firstSceneFormState.act_id).name} First Scene`;
     },
-    editFormPrevScenes() {
-      const ret = [];
+    editFormPrevScenes(): unknown[] {
+      const ret: any[] = [];
       ret.push(
-        ...this.previousSceneOptions[this.editFormState.act_id].filter(
+        ...(this.previousSceneOptions[this.editFormState.act_id as number] as any[]).filter(
           (scene) => scene.value !== this.editFormState.scene_id
         )
       );
       if (this.editFormState.previous_scene_id != null) {
-        const scene = this.SCENE_LIST.find((s) => s.id === this.editFormState.previous_scene_id);
+        const scene = (this as any).SCENE_LIST.find(
+          (s: any) => s.id === this.editFormState.previous_scene_id
+        );
         ret.push({
           value: this.editFormState.previous_scene_id,
-          text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
+          text: `${(this as any).ACT_BY_ID(scene.act).name}: ${scene.name}`,
           disabled: false,
         });
       }
       return ret;
     },
   },
-  async mounted() {
-    await this.GET_SCENE_LIST();
-    await this.GET_ACT_LIST();
+  async mounted(): Promise<void> {
+    await (this as any).GET_SCENE_LIST();
+    await (this as any).GET_ACT_LIST();
     this.loading = false;
   },
   methods: {
-    resetNewForm() {
-      this.resetForm('newFormState', {
+    resetNewForm(): void {
+      (this as any).resetForm('newFormState', {
         name: '',
         act_id: null,
         previous_scene_id: null,
       });
       this.submittingNewScene = false;
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError || this.submittingNewScene) {
+    async onSubmitNew(event: Event): Promise<void> {
+      (this as any).$v.newFormState.$touch();
+      if ((this as any).$v.newFormState.$anyError || this.submittingNewScene) {
         event.preventDefault();
         return;
       }
-
       this.submittingNewScene = true;
       try {
-        await this.ADD_SCENE(this.newFormState);
-        this.$bvModal.hide('new-scene');
+        await (this as any).ADD_SCENE(this.newFormState);
+        (this as any).$bvModal.hide('new-scene');
         this.resetNewForm();
       } catch (error) {
         log.error('Error submitting new scene:', error);
@@ -448,17 +435,16 @@ export default {
         this.submittingNewScene = false;
       }
     },
-    async deleteAct(act) {
+    async deleteAct(act: any): Promise<void> {
       if (this.deletingScene) {
         return;
       }
-
       const msg = `Are you sure you want to delete ${act.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.deletingScene = true;
         try {
-          await this.DELETE_SCENE(act.item.id);
+          await (this as any).DELETE_SCENE(act.item.id);
         } catch (error) {
           log.error('Error deleting scene:', error);
         } finally {
@@ -466,33 +452,29 @@ export default {
         }
       }
     },
-    resetFirstSceneForm() {
-      this.resetForm('firstSceneFormState', {
-        act_id: null,
-        scene_id: null,
-      });
+    resetFirstSceneForm(): void {
+      (this as any).resetForm('firstSceneFormState', { act_id: null, scene_id: null });
       this.submittingFirstScene = false;
     },
-    openFirstSceneEdit(act) {
+    openFirstSceneEdit(act: any): void {
       if (act != null) {
         this.firstSceneFormState.act_id = act.item.id;
         if (act.item.first_scene != null) {
           this.firstSceneFormState.scene_id = act.item.first_scene;
         }
-        this.$bvModal.show('set-first-scene');
+        (this as any).$bvModal.show('set-first-scene');
       }
     },
-    async onSubmitFirstScene(event) {
-      this.$v.firstSceneFormState.$touch();
-      if (this.$v.firstSceneFormState.$anyError || this.submittingFirstScene) {
+    async onSubmitFirstScene(event: Event): Promise<void> {
+      (this as any).$v.firstSceneFormState.$touch();
+      if ((this as any).$v.firstSceneFormState.$anyError || this.submittingFirstScene) {
         event.preventDefault();
         return;
       }
-
       this.submittingFirstScene = true;
       try {
-        await this.SET_ACT_FIRST_SCENE(this.firstSceneFormState);
-        this.$bvModal.hide('set-first-scene');
+        await (this as any).SET_ACT_FIRST_SCENE(this.firstSceneFormState);
+        (this as any).$bvModal.hide('set-first-scene');
         this.resetFirstSceneForm();
       } catch (error) {
         log.error('Error submitting first scene:', error);
@@ -501,9 +483,9 @@ export default {
         this.submittingFirstScene = false;
       }
     },
-    resetEditForm() {
+    resetEditForm(): void {
       this.editSceneID = null;
-      this.resetForm('editFormState', {
+      (this as any).resetForm('editFormState', {
         scene_id: null,
         name: '',
         act_id: null,
@@ -512,7 +494,7 @@ export default {
       this.submittingEditScene = false;
       this.deletingScene = false;
     },
-    openEditForm(scene) {
+    openEditForm(scene: any): void {
       if (scene != null) {
         this.editSceneID = scene.item.id;
         this.editFormState.scene_id = scene.item.id;
@@ -523,20 +505,19 @@ export default {
         if (scene.item.previous_scene != null) {
           this.editFormState.previous_scene_id = scene.item.previous_scene;
         }
-        this.$bvModal.show('edit-scene');
+        (this as any).$bvModal.show('edit-scene');
       }
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError || this.submittingEditScene) {
+    async onSubmitEdit(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError || this.submittingEditScene) {
         event.preventDefault();
         return;
       }
-
       this.submittingEditScene = true;
       try {
-        await this.UPDATE_SCENE(this.editFormState);
-        this.$bvModal.hide('edit-scene');
+        await (this as any).UPDATE_SCENE(this.editFormState);
+        (this as any).$bvModal.hide('edit-scene');
         this.resetEditForm();
       } catch (error) {
         log.error('Error submitting edit scene:', error);
@@ -545,8 +526,8 @@ export default {
         this.submittingEditScene = false;
       }
     },
-    editActChanged(newActID) {
-      const editScene = this.SCENE_LIST.find((s) => s.id === this.editSceneID);
+    editActChanged(newActID: number | null): void {
+      const editScene = (this as any).SCENE_LIST.find((s: any) => s.id === this.editSceneID);
       if (newActID !== editScene.act) {
         this.editFormState.previous_scene_id = null;
       } else if (editScene.previous_scene != null) {
@@ -564,7 +545,7 @@ export default {
       'UPDATE_SCENE',
     ]),
   },
-};
+});
 </script>
 
 <style scoped></style>

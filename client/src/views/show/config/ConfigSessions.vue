@@ -20,12 +20,13 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions } from 'vuex';
 import SessionList from '@/vue_components/show/config/sessions/SessionList.vue';
 import SessionTagList from '@/vue_components/show/config/sessions/SessionTagList.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigSessions',
   components: { SessionTagList, SessionList },
   data() {
@@ -33,14 +34,14 @@ export default {
       loaded: false,
     };
   },
-  async mounted() {
-    await this.GET_SHOW_SESSION_DATA();
-    await this.GET_SESSION_TAGS();
-    await this.GET_SCRIPT_REVISIONS();
+  async mounted(): Promise<void> {
+    await (this as any).GET_SHOW_SESSION_DATA();
+    await (this as any).GET_SESSION_TAGS();
+    await (this as any).GET_SCRIPT_REVISIONS();
     this.loaded = true;
   },
   methods: {
     ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_SESSION_TAGS', 'GET_SCRIPT_REVISIONS']),
   },
-};
+});
 </script>

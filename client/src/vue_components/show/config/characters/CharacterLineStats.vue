@@ -52,40 +52,36 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import { makeURL } from '@/js/utils';
 import log from 'loglevel';
 import statsTableMixin from '@/mixins/statsTableMixin';
 
-export default {
+export default defineComponent({
   name: 'CharacterLineStats',
   mixins: [statsTableMixin],
   data() {
     return {
       loaded: false,
-      characterStats: {},
+      characterStats: {} as Record<string, any>,
     };
   },
   computed: {
-    tableData() {
+    tableData(): unknown[] {
       if (!this.loaded) {
         return [];
       }
-      return this.CHARACTER_LIST.map(
-        (character) => ({
-          Character: character.id,
-        }),
-        this
-      );
+      return (this as any).CHARACTER_LIST.map((character: any) => ({ Character: character.id }));
     },
-    tableFields() {
-      return ['Character', ...this.sortedScenes.map((scene) => scene.id.toString())];
+    tableFields(): string[] {
+      return ['Character', ...(this as any).sortedScenes.map((scene: any) => scene.id.toString())];
     },
     ...mapGetters(['CHARACTER_BY_ID', 'CHARACTER_LIST']),
   },
   methods: {
-    async getStats() {
+    async getStats(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/show/character/stats')}`);
       if (response.ok) {
         this.characterStats = await response.json();
@@ -93,7 +89,7 @@ export default {
         log.error('Unable to get character stats!');
       }
     },
-    getLineCountForCharacter(characterId, actId, sceneId) {
+    getLineCountForCharacter(characterId: number, actId: number, sceneId: number): number {
       if (!Object.keys(this.characterStats).includes('line_counts')) {
         return 0;
       }
@@ -110,5 +106,5 @@ export default {
       return 0;
     },
   },
-};
+});
 </script>
