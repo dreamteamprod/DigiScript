@@ -35,11 +35,12 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { debounce } from 'lodash';
 
-export default {
+export default defineComponent({
   name: 'HelpView',
   data() {
     return {
@@ -49,43 +50,43 @@ export default {
   },
   computed: {
     ...mapGetters(['DOCUMENTATION_MANIFEST', 'SEARCH_RESULTS']),
-    displayedDocs() {
-      if (this.searchQuery && this.SEARCH_RESULTS.length > 0) {
-        return this.SEARCH_RESULTS;
+    displayedDocs(): unknown[] {
+      if (this.searchQuery && (this as any).SEARCH_RESULTS.length > 0) {
+        return (this as any).SEARCH_RESULTS;
       }
-      return this.DOCUMENTATION_MANIFEST;
+      return (this as any).DOCUMENTATION_MANIFEST;
     },
   },
   watch: {
-    searchQuery() {
+    searchQuery(): void {
       if (!this.searchQuery || this.searchQuery.trim() === '') {
-        this.CLEAR_SEARCH();
+        (this as any).CLEAR_SEARCH();
       }
     },
   },
-  async mounted() {
-    await this.LOAD_MANIFEST();
+  async mounted(): Promise<void> {
+    await (this as any).LOAD_MANIFEST();
     this.calculateNavbarHeight();
     window.addEventListener('resize', this.calculateNavbarHeight);
   },
-  beforeDestroy() {
+  beforeDestroy(): void {
     window.removeEventListener('resize', this.calculateNavbarHeight);
   },
   methods: {
     ...mapActions(['LOAD_MANIFEST', 'SEARCH_DOCUMENTS', 'CLEAR_SEARCH']),
-    calculateNavbarHeight() {
+    calculateNavbarHeight(): void {
       const navbar = document.querySelector('.navbar');
       if (navbar) {
-        this.navbarHeight = navbar.offsetHeight;
+        this.navbarHeight = (navbar as HTMLElement).offsetHeight;
       } else {
         this.navbarHeight = 56;
       }
     },
-    handleSearch: debounce(function handleSearchDebounced() {
+    handleSearch: debounce(function handleSearchDebounced(this: any) {
       this.SEARCH_DOCUMENTS(this.searchQuery);
     }, 300),
   },
-};
+});
 </script>
 
 <style scoped>

@@ -105,10 +105,11 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 
-export default {
+export default defineComponent({
   name: 'ShowView',
   data() {
     return {
@@ -125,19 +126,25 @@ export default {
       'IS_SCRIPT_READER',
       'IS_SHOW_EXECUTOR',
     ]),
-    shouldViewShowConfig() {
-      return this.IS_SHOW_EDITOR || this.IS_SHOW_READER;
+    shouldViewShowConfig(): boolean {
+      return (this as any).IS_SHOW_EDITOR || (this as any).IS_SHOW_READER;
     },
-    shouldShowCueConfig() {
-      return this.shouldViewShowConfig || this.IS_CUE_EDITOR || this.IS_CUE_READER;
+    shouldShowCueConfig(): boolean {
+      return (
+        this.shouldViewShowConfig || (this as any).IS_CUE_EDITOR || (this as any).IS_CUE_READER
+      );
     },
-    shouldShowScriptConfig() {
-      return this.shouldViewShowConfig || this.IS_SCRIPT_EDITOR || this.IS_SCRIPT_READER;
+    shouldShowScriptConfig(): boolean {
+      return (
+        this.shouldViewShowConfig ||
+        (this as any).IS_SCRIPT_EDITOR ||
+        (this as any).IS_SCRIPT_READER
+      );
     },
-    shouldShowSessionConfig() {
-      return this.shouldViewShowConfig || this.IS_SHOW_EXECUTOR;
+    shouldShowSessionConfig(): boolean {
+      return this.shouldViewShowConfig || (this as any).IS_SHOW_EXECUTOR;
     },
-    requiresRedirect() {
+    requiresRedirect(): boolean {
       return (
         !this.shouldViewShowConfig &&
         !this.shouldShowCueConfig &&
@@ -147,14 +154,14 @@ export default {
     },
   },
   watch: {
-    requiresRedirect() {
+    requiresRedirect(): void {
       if (this.requiresRedirect) {
-        this.$toast.warning('Something went wrong viewing show config page');
+        (this as any).$toast.warning('Something went wrong viewing show config page');
         this.$router.replace('/');
       }
     },
   },
-  beforeMount() {
+  beforeMount(): void {
     if (!this.shouldViewShowConfig) {
       if (this.shouldShowCueConfig) {
         this.$router.replace({ name: 'show-config-cues' });
@@ -164,29 +171,29 @@ export default {
       } else if (this.shouldShowSessionConfig) {
         this.$router.replace({ name: 'show-sessions' });
       } else {
-        this.$toast.warning('Something went wrong viewing show config page');
+        (this as any).$toast.warning('Something went wrong viewing show config page');
         this.$router.replace('/');
       }
     }
   },
-  mounted() {
+  mounted(): void {
     this.calculateNavbarHeight();
     window.addEventListener('resize', this.calculateNavbarHeight);
   },
-  beforeDestroy() {
+  beforeDestroy(): void {
     window.removeEventListener('resize', this.calculateNavbarHeight);
   },
   methods: {
-    calculateNavbarHeight() {
+    calculateNavbarHeight(): void {
       const navbar = document.querySelector('.navbar');
       if (navbar) {
-        this.navbarHeight = navbar.offsetHeight;
+        this.navbarHeight = (navbar as HTMLElement).offsetHeight;
       } else {
         this.navbarHeight = 56;
       }
     },
   },
-};
+});
 </script>
 
 <style scoped>

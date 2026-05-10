@@ -77,14 +77,15 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 
 import { formatTimerParts, msToTimerParts, msToTimerString } from '@/js/utils';
 import ScriptViewPane from '@/vue_components/show/live/ScriptViewPane.vue';
 import StageManagerPane from '@/vue_components/show/live/StageManagerPane.vue';
 
-export default {
+export default defineComponent({
   name: 'ShowLiveView',
   components: {
     ScriptViewPane,
@@ -92,54 +93,56 @@ export default {
   },
   data() {
     return {
-      // Session timing
       elapsedTime: 0,
-      elapsedTimer: null,
-      startTime: null,
+      elapsedTimer: null as ReturnType<typeof setInterval> | null,
+      startTime: null as Date | null,
       loadedSessionData: false,
-
-      // Page display (updated via event from ScriptViewPane)
       currentPage: 1,
-
-      // Interval display state
-      intervalTimer: null,
-      intervalStartDate: null,
+      intervalTimer: null as ReturnType<typeof setInterval> | null,
+      intervalStartDate: null as Date | null,
       isIntervalLong: false,
-      intervalTimerValues: [0, 0, 0],
+      intervalTimerValues: [0, 0, 0] as (string | number)[],
       intervalRemainingTime: 0,
     };
   },
   computed: {
-    isScriptFollowing() {
+    isScriptFollowing(): boolean {
       if (this.loadedSessionData) {
-        return this.CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader;
+        return (
+          (this as any).CURRENT_SHOW_SESSION.client_internal_id != null && !this.isScriptLeader
+        );
       }
       return false;
     },
-    isScriptLeader() {
+    isScriptLeader(): boolean {
       if (this.loadedSessionData) {
-        return this.CURRENT_SHOW_SESSION.client_internal_id === this.INTERNAL_UUID;
+        return (
+          (this as any).CURRENT_SHOW_SESSION.client_internal_id === (this as any).INTERNAL_UUID
+        );
       }
       return false;
     },
-    intervalOverlayHeading() {
-      if (this.CURRENT_SHOW_INTERVAL == null || this.ACT_LIST.length === 0) {
+    intervalOverlayHeading(): string {
+      if ((this as any).CURRENT_SHOW_INTERVAL == null || (this as any).ACT_LIST.length === 0) {
         return '';
       }
-      return this.ACT_LIST.find((act) => act.id === this.CURRENT_SHOW_INTERVAL.act_id).name;
+      return (this as any).ACT_LIST.find(
+        (act: any) => act.id === (this as any).CURRENT_SHOW_INTERVAL.act_id
+      ).name;
     },
-    intervalTimerColour() {
+    intervalTimerColour(): string {
       if (this.isIntervalLong) {
         return '#cc0000';
       }
       const intervalProgress =
-        Math.abs(this.intervalRemainingTime) / (this.CURRENT_SHOW_INTERVAL.initial_length * 1000);
+        Math.abs(this.intervalRemainingTime) /
+        ((this as any).CURRENT_SHOW_INTERVAL.initial_length * 1000);
       if (intervalProgress > 0.25) {
         return '#00cc00';
       }
       return '#d76113';
     },
-    intervalTimerStyle() {
+    intervalTimerStyle(): Record<string, string> {
       return {
         margin: '.5rem',
         'border-radius': '3px',
@@ -161,31 +164,30 @@ export default {
     }),
   },
   watch: {
-    CURRENT_SHOW_INTERVAL() {
+    CURRENT_SHOW_INTERVAL(): void {
       this.setupIntervalTimer();
     },
   },
-  async mounted() {
-    await Promise.all([this.GET_SHOW_SESSION_DATA(), this.GET_ACT_LIST()]);
+  async mounted(): Promise<void> {
+    await Promise.all([(this as any).GET_SHOW_SESSION_DATA(), (this as any).GET_ACT_LIST()]);
     this.loadedSessionData = true;
 
-    if (this.CURRENT_SHOW_INTERVAL != null) {
+    if ((this as any).CURRENT_SHOW_INTERVAL != null) {
       this.setupIntervalTimer();
     }
 
-    // Setup elapsed time tracking
     this.updateElapsedTime();
     this.startTime = this.createDateAsUTC(
-      new Date(this.CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T'))
+      new Date((this as any).CURRENT_SHOW_SESSION.start_date_time.replace(' ', 'T'))
     );
     this.elapsedTimer = setInterval(this.updateElapsedTime, 1000);
   },
-  destroyed() {
-    clearInterval(this.elapsedTimer);
+  destroyed(): void {
+    if (this.elapsedTimer !== null) clearInterval(this.elapsedTimer);
   },
   methods: {
     msToTimerString,
-    createDateAsUTC(date) {
+    createDateAsUTC(date: Date): Date {
       return new Date(
         Date.UTC(
           date.getFullYear(),
@@ -197,43 +199,43 @@ export default {
         )
       );
     },
-    updateElapsedTime() {
+    updateElapsedTime(): void {
       if (this.startTime != null) {
-        this.elapsedTime = Date.now() - this.startTime;
+        this.elapsedTime = Date.now() - this.startTime.getTime();
       }
     },
-    stopInterval() {
-      this.$socket.sendObj({
+    stopInterval(): void {
+      (this as any).$socket.sendObj({
         OP: 'END_INTERVAL',
         DATA: {},
       });
-      this.$toast.success('Interval stopped!');
+      (this as any).$toast.success('Interval stopped!');
     },
-    onOverlayShown() {
-      this.$refs['interval-overlay'].focus();
+    onOverlayShown(): void {
+      (this.$refs['interval-overlay'] as HTMLElement).focus();
     },
-    onOverlayHidden() {
-      this.$refs.scriptPane?.focusScript();
+    onOverlayHidden(): void {
+      (this.$refs.scriptPane as any)?.focusScript();
     },
-    setupIntervalTimer() {
-      clearInterval(this.intervalTimer);
+    setupIntervalTimer(): void {
+      if (this.intervalTimer !== null) clearInterval(this.intervalTimer);
       this.intervalTimer = null;
       this.intervalTimerValues = [0, 0, 0];
       this.isIntervalLong = false;
       this.intervalRemainingTime = 0;
-      if (this.CURRENT_SHOW_INTERVAL != null) {
+      if ((this as any).CURRENT_SHOW_INTERVAL != null) {
         this.intervalStartDate = this.createDateAsUTC(
-          new Date(this.CURRENT_SHOW_INTERVAL.start_datetime.replace(' ', 'T'))
+          new Date((this as any).CURRENT_SHOW_INTERVAL.start_datetime.replace(' ', 'T'))
         );
         this.updateIntervalTimer();
         this.intervalTimer = setInterval(this.updateIntervalTimer, 500);
       }
     },
-    updateIntervalTimer() {
+    updateIntervalTimer(): void {
       if (this.intervalStartDate != null) {
-        const intervalElapsedTime = Date.now() - this.intervalStartDate;
+        const intervalElapsedTime = Date.now() - this.intervalStartDate.getTime();
         this.intervalRemainingTime =
-          this.CURRENT_SHOW_INTERVAL.initial_length * 1000 - intervalElapsedTime;
+          (this as any).CURRENT_SHOW_INTERVAL.initial_length * 1000 - intervalElapsedTime;
         if (this.intervalRemainingTime < 0) {
           this.isIntervalLong = true;
         }
@@ -244,7 +246,7 @@ export default {
     },
     ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_ACT_LIST']),
   },
-};
+});
 </script>
 
 <style scoped>

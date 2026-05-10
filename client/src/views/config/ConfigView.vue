@@ -25,15 +25,16 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import ConfigSystem from '@/vue_components/config/ConfigSystem.vue';
 import ConfigSettings from '@/vue_components/config/ConfigSettings.vue';
 import ConfigUsers from '@/vue_components/config/ConfigUsers.vue';
 import ConfigShows from '@/vue_components/config/ConfigShows.vue';
 import ConfigLogs from '@/vue_components/config/ConfigLogs.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigView',
   components: { ConfigShows, ConfigUsers, ConfigSettings, ConfigSystem, ConfigLogs },
-};
+});
 </script>

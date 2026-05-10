@@ -265,12 +265,36 @@
   <b-alert v-else variant="danger"> No show loaded. </b-alert>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 
-export default {
+interface StyleOption {
+  caption: string;
+  state: boolean;
+}
+
+interface StyleFormState {
+  styleId: number | null;
+  styleOptions: StyleOption[];
+  textFormat: string;
+  textColour: string;
+  enableBackgroundColour: boolean;
+  backgroundColour: string;
+}
+
+interface EditStyleFormState {
+  id: number | null;
+  styleOptions: StyleOption[];
+  textFormat: string;
+  textColour: string;
+  enableBackgroundColour: boolean;
+  backgroundColour: string;
+}
+
+export default defineComponent({
   name: 'StageDirectionStyles',
   data() {
     return {
@@ -283,63 +307,64 @@ export default {
       rowsPerPage: 15,
       currentPage: 1,
       newStyleFormState: {
-        styleId: null,
+        styleId: null as number | null,
         styleOptions: [
           { caption: 'Bold', state: false },
           { caption: 'Italic', state: false },
           { caption: 'Underline', state: false },
-        ],
+        ] as StyleOption[],
         textFormat: 'default',
         textColour: '#FFFFFF',
         enableBackgroundColour: false,
         backgroundColour: '#000000',
-      },
+      } as StyleFormState,
       editStyleFormState: {
-        id: null,
+        id: null as number | null,
         styleOptions: [
           { caption: 'Bold', state: false },
           { caption: 'Italic', state: false },
           { caption: 'Underline', state: false },
-        ],
+        ] as StyleOption[],
         textFormat: 'default',
         textColour: '#FFFFFF',
         enableBackgroundColour: false,
         backgroundColour: '#000000',
-      },
+      } as EditStyleFormState,
       isSubmittingNew: false,
       isSubmittingEdit: false,
       isDeleting: false,
     };
   },
   computed: {
-    overrideChoices() {
+    overrideChoices(): unknown[] {
       return [
         { value: null, text: 'Please select an option', disabled: true },
-        ...this.STAGE_DIRECTION_STYLES.filter(
-          (item) =>
-            !this.STAGE_DIRECTION_STYLE_OVERRIDES.map((elem) => elem.settings.id).includes(item.id),
-          this
-        ).map((item) => ({ value: item.id, text: item.description })),
+        ...(this as any).STAGE_DIRECTION_STYLES.filter(
+          (item: any) =>
+            !(this as any).STAGE_DIRECTION_STYLE_OVERRIDES.map(
+              (elem: any) => elem.settings.id
+            ).includes(item.id)
+        ).map((item: any) => ({ value: item.id, text: item.description })),
       ];
     },
-    tableData() {
-      return this.STAGE_DIRECTION_STYLE_OVERRIDES.filter(
-        (item) => this.STAGE_DIRECTION_STYLES.map((elem) => elem.id).includes(item.settings.id),
-        this
+    tableData(): unknown[] {
+      return (this as any).STAGE_DIRECTION_STYLE_OVERRIDES.filter((item: any) =>
+        (this as any).STAGE_DIRECTION_STYLES.map((elem: any) => elem.id).includes(item.settings.id)
       );
     },
-    newFormExampleCss() {
-      const style = {
-        'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state
+    newFormExampleCss(): Record<string, string> {
+      const style: Record<string, string> = {
+        'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold')!
+          .state
           ? 'bold'
           : 'normal',
-        'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic')
+        'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic')!
           .state
           ? 'italic'
           : 'normal',
         'text-decoration-line': this.newStyleFormState.styleOptions.find(
           (el) => el.caption === 'Underline'
-        ).state
+        )!.state
           ? 'underline'
           : 'none',
         color: this.newStyleFormState.textColour,
@@ -349,19 +374,19 @@ export default {
       }
       return style;
     },
-    editFormExampleCss() {
-      const style = {
-        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold')
+    editFormExampleCss(): Record<string, string> {
+      const style: Record<string, string> = {
+        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold')!
           .state
           ? 'bold'
           : 'normal',
-        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic')
+        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic')!
           .state
           ? 'italic'
           : 'normal',
         'text-decoration-line': this.editStyleFormState.styleOptions.find(
           (el) => el.caption === 'Underline'
-        ).state
+        )!.state
           ? 'underline'
           : 'none',
         color: this.editStyleFormState.textColour,
@@ -371,12 +396,12 @@ export default {
       }
       return style;
     },
-    createPayload() {
+    createPayload(): Record<string, unknown> {
       return {
         styleId: this.newStyleFormState.styleId,
-        bold: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
-        italic: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
-        underline: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline')
+        bold: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold')!.state,
+        italic: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic')!.state,
+        underline: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline')!
           .state,
         textFormat: this.newStyleFormState.textFormat,
         textColour: this.newStyleFormState.textColour,
@@ -384,12 +409,12 @@ export default {
         backgroundColour: this.newStyleFormState.backgroundColour,
       };
     },
-    editPayload() {
+    editPayload(): Record<string, unknown> {
       return {
         id: this.editStyleFormState.id,
-        bold: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
-        italic: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
-        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline')
+        bold: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold')!.state,
+        italic: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic')!.state,
+        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline')!
           .state,
         text_format: this.editStyleFormState.textFormat,
         text_colour: this.editStyleFormState.textColour,
@@ -399,16 +424,16 @@ export default {
     },
     ...mapGetters(['CURRENT_SHOW', 'STAGE_DIRECTION_STYLES', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
   },
-  async beforeMount() {
-    await this.GET_SHOW_DETAILS();
-    if (this.CURRENT_SHOW != null) {
-      await this.GET_STAGE_DIRECTION_STYLES();
-      await this.GET_STAGE_DIRECTION_STYLE_OVERRIDES();
+  async beforeMount(): Promise<void> {
+    await (this as any).GET_SHOW_DETAILS();
+    if ((this as any).CURRENT_SHOW != null) {
+      await (this as any).GET_STAGE_DIRECTION_STYLES();
+      await (this as any).GET_STAGE_DIRECTION_STYLE_OVERRIDES();
     }
   },
   methods: {
-    exampleCss(data) {
-      const style = {
+    exampleCss(data: any): Record<string, string> {
+      const style: Record<string, string> = {
         'font-weight': data.bold ? 'bold' : 'normal',
         'font-style': data.italic ? 'italic' : 'normal',
         'text-decoration-line': data.underline ? 'underline' : 'none',
@@ -419,17 +444,16 @@ export default {
       }
       return style;
     },
-    resetOverrideSelect() {
+    resetOverrideSelect(): void {
       this.newStyleFormState.styleId = null;
     },
-    openNewOverrideModal(event) {
-      const styleToOverride = this.STAGE_DIRECTION_STYLES.find(
-        (item) => item.id === this.newStyleFormState.styleId,
-        this
+    openNewOverrideModal(event: Event): void {
+      const styleToOverride = (this as any).STAGE_DIRECTION_STYLES.find(
+        (item: any) => item.id === this.newStyleFormState.styleId
       );
       if (styleToOverride == null) {
         log.error('Could not find style to override!');
-        this.$toast.error('Could not find style to override!');
+        (this as any).$toast.error('Could not find style to override!');
       } else {
         this.newStyleFormState.styleId = styleToOverride.id;
         this.newStyleFormState.styleOptions = [
@@ -441,10 +465,10 @@ export default {
         this.newStyleFormState.textColour = styleToOverride.text_colour;
         this.newStyleFormState.enableBackgroundColour = styleToOverride.enable_background_colour;
         this.newStyleFormState.backgroundColour = styleToOverride.background_colour;
-        this.$bvModal.show('new-override-modal');
+        (this as any).$bvModal.show('new-override-modal');
       }
     },
-    resetNewFormState() {
+    resetNewFormState(): void {
       this.newStyleFormState = {
         styleId: null,
         styleOptions: [
@@ -459,10 +483,10 @@ export default {
       };
       this.isSubmittingNew = false;
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    resetEditFormState() {
+    resetEditFormState(): void {
       this.editStyleFormState = {
         id: null,
         styleOptions: [
@@ -477,12 +501,12 @@ export default {
       };
       this.isSubmittingEdit = false;
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    async onSubmitNewOverride(event) {
-      this.$v.newStyleFormState.$touch();
-      if (this.$v.newStyleFormState.$anyError) {
+    async onSubmitNewOverride(event: Event): Promise<void> {
+      (this as any).$v.newStyleFormState.$touch();
+      if ((this as any).$v.newStyleFormState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -495,20 +519,20 @@ export default {
       this.isSubmittingNew = true;
 
       try {
-        await this.ADD_STAGE_DIRECTION_STYLE_OVERRIDE(this.createPayload);
-        this.$refs['new-override-modal'].hide();
+        await (this as any).ADD_STAGE_DIRECTION_STYLE_OVERRIDE(this.createPayload);
+        (this.$refs['new-override-modal'] as any).hide();
         this.resetNewFormState();
       } catch (error) {
         log.error('Error adding new stage direction style override:', error);
-        this.$toast.error('Failed to add new override');
+        (this as any).$toast.error('Failed to add new override');
         event.preventDefault();
       } finally {
         this.isSubmittingNew = false;
       }
     },
-    async onSubmitEditOverride(event) {
-      this.$v.editStyleFormState.$touch();
-      if (this.$v.editStyleFormState.$anyError) {
+    async onSubmitEditOverride(event: Event): Promise<void> {
+      (this as any).$v.editStyleFormState.$touch();
+      if ((this as any).$v.editStyleFormState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -521,45 +545,45 @@ export default {
       this.isSubmittingEdit = true;
 
       try {
-        await this.UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE(this.editPayload);
-        this.$refs['edit-override-modal'].hide();
+        await (this as any).UPDATE_STAGE_DIRECTION_STYLE_OVERRIDE(this.editPayload);
+        (this.$refs['edit-override-modal'] as any).hide();
         this.resetEditFormState();
       } catch (error) {
         log.error('Error updating stage direction style override:', error);
-        this.$toast.error('Failed to update override');
+        (this as any).$toast.error('Failed to update override');
         event.preventDefault();
       } finally {
         this.isSubmittingEdit = false;
       }
     },
-    validateNewStyleState(name) {
-      const { $dirty, $error } = this.$v.newStyleFormState[name];
+    validateNewStyleState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newStyleFormState[name];
       return $dirty ? !$error : null;
     },
-    validateEditStyleState(name) {
-      const { $dirty, $error } = this.$v.editStyleFormState[name];
+    validateEditStyleState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editStyleFormState[name];
       return $dirty ? !$error : null;
     },
-    async deleteStyleOverride(style) {
+    async deleteStyleOverride(style: any): Promise<void> {
       if (this.isDeleting) {
         return;
       }
 
       const msg = 'Are you sure you want to delete this override?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.isDeleting = true;
         try {
-          await this.DELETE_STAGE_DIRECTION_STYLE_OVERRIDE(style.item.id);
+          await (this as any).DELETE_STAGE_DIRECTION_STYLE_OVERRIDE(style.item.id);
         } catch (error) {
           log.error('Error deleting stage direction style override:', error);
-          this.$toast.error('Failed to delete override');
+          (this as any).$toast.error('Failed to delete override');
         } finally {
           this.isDeleting = false;
         }
       }
     },
-    openEditStyleForm(style) {
+    openEditStyleForm(style: any): void {
       if (style != null) {
         const { settings } = style.item;
         this.editStyleFormState.id = style.item.id;
@@ -572,7 +596,7 @@ export default {
         this.editStyleFormState.textColour = settings.text_colour;
         this.editStyleFormState.enableBackgroundColour = settings.enable_background_colour;
         this.editStyleFormState.backgroundColour = settings.background_colour;
-        this.$bvModal.show('edit-override-modal');
+        (this as any).$bvModal.show('edit-override-modal');
       }
     },
     ...mapActions([
@@ -586,39 +610,19 @@ export default {
   },
   validations: {
     newStyleFormState: {
-      styleOptions: {
-        required,
-      },
-      textFormat: {
-        required,
-      },
-      textColour: {
-        required,
-      },
-      enableBackgroundColour: {
-        required,
-      },
-      backgroundColour: {
-        required,
-      },
+      styleOptions: { required },
+      textFormat: { required },
+      textColour: { required },
+      enableBackgroundColour: { required },
+      backgroundColour: { required },
     },
     editStyleFormState: {
-      styleOptions: {
-        required,
-      },
-      textFormat: {
-        required,
-      },
-      textColour: {
-        required,
-      },
-      enableBackgroundColour: {
-        required,
-      },
-      backgroundColour: {
-        required,
-      },
+      styleOptions: { required },
+      textFormat: { required },
+      textColour: { required },
+      enableBackgroundColour: { required },
+      backgroundColour: { required },
     },
   },
-};
+});
 </script>
