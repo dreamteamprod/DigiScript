@@ -228,6 +228,8 @@ import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
 
+const MRU_LOOK_BACK = 4;
+
 export default defineComponent({
   name: 'ScriptConfig',
   components: { BulkActSceneModal, ScriptLineViewer, ScriptLineEditor },
@@ -829,8 +831,13 @@ export default defineComponent({
       this.changingPage = false;
     },
     async goToPageInner(pageNo: number): Promise<void> {
-      if (pageNo > 1) {
-        await (this as any).LOAD_SCRIPT_PAGE(pageNo - 1);
+      const loadedPages = new Set(Object.keys((this as any).TMP_SCRIPT).map(Number));
+      const lookBackStart = Math.max(1, pageNo - MRU_LOOK_BACK);
+      for (let p = lookBackStart; p < pageNo; p++) {
+        if (!loadedPages.has(p)) {
+          await (this as any).LOAD_SCRIPT_PAGE(p);
+          (this as any).ADD_BLANK_PAGE(p);
+        }
       }
       await (this as any).LOAD_SCRIPT_PAGE(pageNo);
       this.currentEditPage = pageNo;

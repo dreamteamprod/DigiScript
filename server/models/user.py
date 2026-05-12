@@ -87,6 +87,7 @@ class UserSettings(db.Model):
         TextAlignmentCol, default=TextAlignment.CENTER
     )
     console_log_level: Mapped[str] = mapped_column(default="WARN")
+    character_mru_sort: Mapped[bool] = mapped_column(default=False)
 
     __table_args__ = (
         CheckConstraint(
