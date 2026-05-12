@@ -146,7 +146,9 @@ export default defineComponent({
   mounted(): void {
     (this as any).$v.state.$touch();
     if (this.focusInput) {
-      (this.$refs.partInput as HTMLElement).focus();
+      this.$nextTick(() => {
+        (this.$refs.partInput as HTMLElement).focus();
+      });
     }
   },
   methods: {
