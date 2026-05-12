@@ -146,8 +146,16 @@ export default defineComponent({
   mounted(): void {
     (this as any).$v.state.$touch();
     if (this.focusInput) {
-      this.$nextTick(() => {
-        (this.$refs.partInput as HTMLElement).focus();
+      // Use rAF + $nextTick so our focus fires after Bootstrap Vue's dropdown
+      // focusToggler (which runs in its own rAF → $nextTick chain). Our rAF is
+      // registered during the post-click microtask phase, so it fires after the
+      // dropdown's earlier-registered rAF. Our $nextTick then runs last and wins.
+      requestAnimationFrame(() => {
+        this.$nextTick(() => {
+          if (this.$refs.partInput) {
+            (this.$refs.partInput as HTMLElement).focus();
+          }
+        });
       });
     }
   },
