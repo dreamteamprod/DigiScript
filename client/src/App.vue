@@ -172,7 +172,8 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions, mapMutations } from 'vuex';
 import log from 'loglevel';
 import CreateUser from '@/vue_components/user/CreateUser.vue';
@@ -181,15 +182,15 @@ import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { required, minValue } from 'vuelidate/lib/validators';
 import { isElectron } from '@/js/platform';
 
-export default {
+export default defineComponent({
   components: { CreateUser },
   data() {
     return {
       loaded: false,
-      loadTimer: null,
+      loadTimer: null as ReturnType<typeof setTimeout> | null,
       stoppingSession: false,
       startingSession: false,
-      wsStateCheckInterval: null,
+      wsStateCheckInterval: null as ReturnType<typeof setInterval> | null,
       changingPage: false,
       pageInputFormState: {
         pageNo: 1,
@@ -208,16 +209,16 @@ export default {
     },
   },
   computed: {
-    isAllowedScriptConfig() {
+    isAllowedScriptConfig(): boolean {
       return (
-        this.IS_ADMIN_USER ||
-        this.IS_SHOW_EDITOR ||
-        this.IS_SHOW_READER ||
-        this.IS_SHOW_EXECUTOR ||
-        this.IS_SCRIPT_READER ||
-        this.IS_SCRIPT_EDITOR ||
-        this.IS_CUE_READER ||
-        this.IS_CUE_EDITOR
+        (this as any).IS_ADMIN_USER ||
+        (this as any).IS_SHOW_EDITOR ||
+        (this as any).IS_SHOW_READER ||
+        (this as any).IS_SHOW_EXECUTOR ||
+        (this as any).IS_SCRIPT_READER ||
+        (this as any).IS_SCRIPT_EDITOR ||
+        (this as any).IS_CUE_READER ||
+        (this as any).IS_CUE_EDITOR
       );
     },
     ...mapGetters([
@@ -241,45 +242,38 @@ export default {
       'STAGE_MANAGER_MODE',
     ]),
   },
-  async created() {
-    // Check if we're in Electron without an active connection
-    // If so, skip all initialization - the router will redirect to ServerSelector
+  async created(): Promise<void> {
     if (isElectron()) {
       try {
-        const activeConnection = await window.electronAPI.getActiveConnection();
+        const activeConnection = await (window as any).electronAPI.getActiveConnection();
         if (!activeConnection) {
           console.log('No active connection in Electron - skipping App initialization');
-          this.loaded = true; // Set loaded so router-view renders
-          return; // Skip all initialization
+          this.loaded = true;
+          return;
         }
-        // Set the server connection name for the navbar
         this.serverConnectionName = activeConnection.nickname || activeConnection.url;
       } catch (error) {
         console.error('Error checking active connection:', error);
-        this.loaded = true; // Set loaded so router-view renders
-        return; // Skip initialization on error
+        this.loaded = true;
+        return;
       }
     }
 
-    // If we have a stored auth token, refresh the token to validate we are still logged in,
-    // and then set up token refresh
-    if (this.AUTH_TOKEN) {
-      await this.REFRESH_TOKEN();
-      await this.SETUP_TOKEN_REFRESH();
+    if ((this as any).AUTH_TOKEN) {
+      await (this as any).REFRESH_TOKEN();
+      await (this as any).SETUP_TOKEN_REFRESH();
     }
 
-    await this.GET_SETTINGS();
+    await (this as any).GET_SETTINGS();
     await this.awaitWSConnect();
 
-    // Set up an interval to check WebSocket state
     this.wsStateCheckInterval = setInterval(() => {
-      if (this.WEBSOCKET_HEALTHY && this.WEBSOCKET_HAS_PENDING_OPERATIONS) {
-        this.CHECK_WEBSOCKET_STATE();
+      if ((this as any).WEBSOCKET_HEALTHY && (this as any).WEBSOCKET_HAS_PENDING_OPERATIONS) {
+        (this as any).CHECK_WEBSOCKET_STATE();
       }
     }, 500);
   },
-  beforeDestroy() {
-    // Clean up interval
+  beforeDestroy(): void {
     if (this.wsStateCheckInterval) {
       clearInterval(this.wsStateCheckInterval);
     }
@@ -299,21 +293,15 @@ export default {
     ]),
     ...mapMutations(['SET_STAGE_MANAGER_MODE']),
     isElectron,
-    async switchServer() {
-      // Clear the active connection and disconnect WebSocket
+    async switchServer(): Promise<void> {
       if (isElectron()) {
-        // Close WebSocket connection if it exists
-        if (this.$socket) {
-          this.$socket.close();
+        if ((this as any).$socket) {
+          (this as any).$socket.close();
         }
 
-        // Clear the active connection
-        await window.electronAPI.clearActiveConnection();
+        await (window as any).electronAPI.clearActiveConnection();
 
-        // Navigate to ServerSelector and reload to clean up state
-        // In history mode (dev), use router to navigate before reload
-        // In hash mode (prod), set hash before reload
-        if (this.$router.mode === 'history') {
+        if ((this.$router as any).mode === 'history') {
           await this.$router.push('/electron/server-selector');
         } else {
           window.location.hash = '/electron/server-selector';
@@ -321,24 +309,29 @@ export default {
         window.location.reload();
       }
     },
-    async awaitWSConnect() {
-      if (this.WEBSOCKET_HEALTHY) {
-        clearTimeout(this.loadTimer);
+    async awaitWSConnect(): Promise<void> {
+      if ((this as any).WEBSOCKET_HEALTHY) {
+        clearTimeout(this.loadTimer!);
 
         await Promise.all([
-          this.GET_RBAC_ROLES(),
-          this.WEBSOCKET_HAS_PENDING_OPERATIONS ? this.CHECK_WEBSOCKET_STATE() : Promise.resolve(),
+          (this as any).GET_RBAC_ROLES(),
+          (this as any).WEBSOCKET_HAS_PENDING_OPERATIONS
+            ? (this as any).CHECK_WEBSOCKET_STATE()
+            : Promise.resolve(),
         ]);
 
-        if (this.AUTH_TOKEN) {
-          await this.GET_CURRENT_USER();
-          await Promise.all([this.GET_CURRENT_RBAC(), this.GET_USER_SETTINGS()]);
+        if ((this as any).AUTH_TOKEN) {
+          await (this as any).GET_CURRENT_USER();
+          await Promise.all([(this as any).GET_CURRENT_RBAC(), (this as any).GET_USER_SETTINGS()]);
         }
 
-        if (this.SETTINGS.current_show != null) {
-          await this.GET_SHOW_SESSION_DATA();
+        if ((this as any).SETTINGS.current_show != null) {
+          await (this as any).GET_SHOW_SESSION_DATA();
           this.loaded = true;
-          if (this.CURRENT_SHOW_SESSION != null && this.$router.currentRoute.fullPath !== '/live') {
+          if (
+            (this as any).CURRENT_SHOW_SESSION != null &&
+            this.$router.currentRoute.fullPath !== '/live'
+          ) {
             this.$router.push('/live');
           }
         } else {
@@ -348,10 +341,10 @@ export default {
         this.loadTimer = setTimeout(this.awaitWSConnect, 150);
       }
     },
-    async stopShowSession() {
+    async stopShowSession(): Promise<void> {
       this.stoppingSession = true;
       const msg = 'Are you sure you want to stop the show?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         const response = await fetch(makeURL('/api/v1/show/sessions/stop'), {
           method: 'POST',
@@ -359,61 +352,61 @@ export default {
         });
 
         if (response.ok) {
-          this.$toast.success('Stopped show session');
+          (this as any).$toast.success('Stopped show session');
         } else {
           log.error('Unable to stop show session');
-          this.$toast.error('Unable to stop show session');
+          (this as any).$toast.error('Unable to stop show session');
         }
       }
       this.stoppingSession = false;
     },
-    async startShowSession() {
-      if (this.INTERNAL_UUID == null) {
-        this.$toast.error('Unable to start new show session');
+    async startShowSession(): Promise<void> {
+      if ((this as any).INTERNAL_UUID == null) {
+        (this as any).$toast.error('Unable to start new show session');
         return;
       }
       this.startingSession = true;
       const msg = 'Are you sure you want to start a show?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         const response = await fetch(makeURL('/api/v1/show/sessions/start'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            session_id: this.INTERNAL_UUID,
+            session_id: (this as any).INTERNAL_UUID,
           }),
         });
 
         if (response.ok) {
-          this.$toast.success('Started new show session');
+          (this as any).$toast.success('Started new show session');
         } else {
           log.error('Unable to start new show session');
-          this.$toast.error('Unable to start new show session');
+          (this as any).$toast.error('Unable to start new show session');
         }
       }
       this.startingSession = false;
     },
-    async reloadClients() {
-      if (this.INTERNAL_UUID == null) {
-        this.$toast.error('Unable to start new show session');
+    async reloadClients(): Promise<void> {
+      if ((this as any).INTERNAL_UUID == null) {
+        (this as any).$toast.error('Unable to start new show session');
         return;
       }
       this.startingSession = true;
       const msg = 'Are you sure you want to reload all connected clients?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        this.$socket.sendObj({
+        (this as any).$socket.sendObj({
           OP: 'RELOAD_CLIENTS',
           DATA: {},
         });
       }
     },
-    validatePageState(name) {
-      const { $dirty, $error } = this.$v.pageInputFormState[name];
+    validatePageState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.pageInputFormState[name];
       return $dirty ? !$error : null;
     },
-    async goToLivePage() {
-      this.$socket.sendObj({
+    async goToLivePage(): Promise<void> {
+      (this as any).$socket.sendObj({
         OP: 'LIVE_SHOW_JUMP_TO_PAGE',
         DATA: {
           page: this.pageInputFormState.pageNo,
@@ -421,7 +414,7 @@ export default {
       });
     },
   },
-};
+});
 </script>
 
 <style scoped>

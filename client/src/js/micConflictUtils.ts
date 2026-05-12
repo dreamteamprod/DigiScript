@@ -69,7 +69,7 @@ export function buildSceneGraph(
   let globalPosition = 0;
 
   // Traverse acts in linked list order
-  let currentAct = actById[currentShow.first_act_id];
+  let currentAct: Act | null = actById[currentShow.first_act_id];
   let previousActLastSceneId: number | null = null;
 
   while (currentAct != null) {
@@ -80,11 +80,11 @@ export function buildSceneGraph(
     let currentScene = currentAct.first_scene ? sceneById[currentAct.first_scene] : null;
 
     while (currentScene != null) {
-      const node = {
+      const node: SceneGraphNode = {
         sceneId: currentScene.id,
-        actId: currentScene.act,
-        sceneName: currentScene.name,
-        actName: currentAct.name,
+        actId: currentScene.act!, // scenes within an act always have act set
+        sceneName: currentScene.name!, // name is required when a scene exists
+        actName: currentAct.name!, // same for acts
         globalPosition,
         scenePositionInAct: scenePosition,
         // Within-act adjacency
@@ -268,7 +268,7 @@ export function detectMicConflicts(
         adjacentScenes.sameActNext,
         adjacentScenes.crossActPrev,
         adjacentScenes.crossActNext,
-      ].filter((id) => id != null);
+      ].filter((id): id is number => id != null);
 
       adjacentSceneIds.forEach((adjacentSceneId) => {
         const adjacentCharacterId = micAllocations[adjacentSceneId];

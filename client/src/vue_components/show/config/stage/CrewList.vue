@@ -118,12 +118,13 @@
   </span>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'CrewList',
   mixins: [formValidationMixin],
   data() {
@@ -136,8 +137,8 @@ export default {
       rowsPerPage: 15,
       currentPage: 1,
       editFormState: {
-        id: null,
-        showID: null,
+        id: null as number | null,
+        showID: null as number | null,
         firstName: '',
         lastName: '',
       },
@@ -164,59 +165,59 @@ export default {
   computed: {
     ...mapGetters(['CREW_LIST', 'IS_SHOW_EDITOR']),
   },
-  async mounted() {
-    await this.GET_CREW_LIST();
+  async mounted(): Promise<void> {
+    await (this as any).GET_CREW_LIST();
   },
   methods: {
-    resetNewForm() {
-      this.resetForm('newFormState', {
+    resetNewForm(): void {
+      (this as any).resetForm('newFormState', {
         firstName: '',
         lastName: '',
       });
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+    async onSubmitNew(event: Event): Promise<void> {
+      (this as any).$v.newFormState.$touch();
+      if ((this as any).$v.newFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.ADD_CREW_MEMBER(this.newFormState);
+        await (this as any).ADD_CREW_MEMBER(this.newFormState);
         this.resetNewForm();
       }
     },
-    openEditForm(crewMember) {
+    openEditForm(crewMember: any): void {
       if (crewMember != null) {
         this.editFormState.id = crewMember.item.id;
         this.editFormState.showID = crewMember.item.show_id;
         this.editFormState.firstName = crewMember.item.first_name;
         this.editFormState.lastName = crewMember.item.last_name;
-        this.$bvModal.show('edit-crew');
+        (this as any).$bvModal.show('edit-crew');
       }
     },
-    resetEditForm() {
-      this.resetForm('editFormState', {
+    resetEditForm(): void {
+      (this as any).resetForm('editFormState', {
         id: null,
         showID: null,
         firstName: '',
         lastName: '',
       });
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+    async onSubmitEdit(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.UPDATE_CREW_MEMBER(this.editFormState);
+        await (this as any).UPDATE_CREW_MEMBER(this.editFormState);
         this.resetEditForm();
       }
     },
-    async deleteCrewMember(crewMember) {
+    async deleteCrewMember(crewMember: any): Promise<void> {
       const msg = `Are you sure you want to delete ${crewMember.item.first_name} ${crewMember.item.last_name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_CREW_MEMBER(crewMember.item.id);
+        await (this as any).DELETE_CREW_MEMBER(crewMember.item.id);
       }
     },
     ...mapActions(['GET_CREW_LIST', 'ADD_CREW_MEMBER', 'DELETE_CREW_MEMBER', 'UPDATE_CREW_MEMBER']),
   },
-};
+});
 </script>

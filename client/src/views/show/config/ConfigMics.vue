@@ -29,7 +29,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions } from 'vuex';
 import MicList from '@/vue_components/show/config/mics/MicList.vue';
 import MicAllocations from '@/vue_components/show/config/mics/MicAllocations.vue';
@@ -37,7 +38,7 @@ import MicTimeline from '@/vue_components/show/config/mics/MicTimeline.vue';
 import SceneDensityHeatmap from '@/vue_components/show/config/mics/SceneDensityHeatmap.vue';
 import ResourceAvailability from '@/vue_components/show/config/mics/ResourceAvailability.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigMics',
   components: {
     MicAllocations,
@@ -51,14 +52,14 @@ export default {
       loaded: false,
     };
   },
-  async mounted() {
+  async mounted(): Promise<void> {
     await Promise.all([
-      this.GET_SCENE_LIST(),
-      this.GET_ACT_LIST(),
-      this.GET_CHARACTER_LIST(),
-      this.GET_CAST_LIST(),
-      this.GET_MICROPHONE_LIST(),
-      this.GET_MIC_ALLOCATIONS(),
+      (this as any).GET_SCENE_LIST(),
+      (this as any).GET_ACT_LIST(),
+      (this as any).GET_CHARACTER_LIST(),
+      (this as any).GET_CAST_LIST(),
+      (this as any).GET_MICROPHONE_LIST(),
+      (this as any).GET_MIC_ALLOCATIONS(),
     ]);
     this.loaded = true;
   },
@@ -72,5 +73,5 @@ export default {
       'GET_MIC_ALLOCATIONS',
     ]),
   },
-};
+});
 </script>

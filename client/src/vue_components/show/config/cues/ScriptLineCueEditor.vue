@@ -263,7 +263,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapActions, mapGetters } from 'vuex';
 import { contrastColor } from 'contrast-color';
@@ -272,7 +273,7 @@ import { LINE_TYPES } from '@/constants/lineTypes';
 import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 
-export default {
+export default defineComponent({
   name: 'ScriptLineCueEditor',
   mixins: [scriptDisplayMixin],
   props: {
@@ -329,15 +330,15 @@ export default {
     return {
       LINE_TYPES,
       newFormState: {
-        cueType: null,
-        ident: null,
-        lineId: null,
+        cueType: null as number | null,
+        ident: null as string | null,
+        lineId: null as number | null,
       },
       editFormState: {
-        cueId: null,
-        cueType: null,
-        ident: null,
-        lineId: null,
+        cueId: null as number | null,
+        cueType: null as number | null,
+        ident: null as string | null,
+        lineId: null as number | null,
       },
       submittingNewCue: false,
       submittingEditCue: false,
@@ -380,24 +381,26 @@ export default {
       'SCRIPT_CUES',
       'CUE_COLOUR_OVERRIDES',
     ]),
-    cueTypeOptions() {
-      if (this.IS_ADMIN_USER) {
+    cueTypeOptions(): unknown[] {
+      if ((this as any).IS_ADMIN_USER) {
         return [
           { value: null, text: 'N/A' },
-          ...this.cueTypes.map((cueType) => ({
+          ...(this.cueTypes as any[]).map((cueType) => ({
             value: cueType.id,
             text: `${cueType.prefix}: ${cueType.description}`,
           })),
         ];
       }
-      const writeMask = this.RBAC_ROLES.find((x) => x.key === 'WRITE').value;
+      const writeMask = ((this as any).RBAC_ROLES as any[]).find(
+        (x: any) => x.key === 'WRITE'
+      ).value;
 
-      const allowableCueTypes = this.CURRENT_USER_RBAC.cuetypes
-        .filter((x) => (x[1] & writeMask) !== 0)
-        .map((x) => x[0].id);
+      const allowableCueTypes = (this as any).CURRENT_USER_RBAC.cuetypes
+        .filter((x: any) => (x[1] & writeMask) !== 0)
+        .map((x: any) => x[0].id);
       return [
         { value: null, text: 'N/A' },
-        ...this.cueTypes
+        ...(this.cueTypes as any[])
           .filter((cueType) => allowableCueTypes.includes(cueType.id))
           .map((cueType) => ({
             value: cueType.id,
@@ -405,17 +408,17 @@ export default {
           })),
       ];
     },
-    needsHeadings() {
-      const ret = [];
-      this.line.line_parts.forEach(function checkLinePartNeedsHeading(part) {
+    needsHeadings(): boolean[] {
+      const ret: boolean[] = [];
+      (this.line as any).line_parts.forEach((part: any) => {
         if (
           this.previousLine == null ||
-          this.previousLine.line_parts.length !== this.line.line_parts.length
+          (this.previousLine as any).line_parts.length !== (this.line as any).line_parts.length
         ) {
           ret.push(true);
         } else {
-          const matchingIndex = this.previousLine.line_parts.find(
-            (prevPart) => prevPart.part_index === part.part_index
+          const matchingIndex = (this.previousLine as any).line_parts.find(
+            (prevPart: any) => prevPart.part_index === part.part_index
           );
           if (matchingIndex == null) {
             ret.push(true);
@@ -428,24 +431,24 @@ export default {
             );
           }
         }
-      }, this);
+      });
       return ret;
     },
-    needsActSceneLabelSimple() {
+    needsActSceneLabelSimple(): boolean {
       if (this.previousLine == null) {
         return true;
       }
       return !(
-        this.previousLine.act_id === this.line.act_id &&
-        this.previousLine.scene_id === this.line.scene_id
+        (this.previousLine as any).act_id === (this.line as any).act_id &&
+        (this.previousLine as any).scene_id === (this.line as any).scene_id
       );
     },
-    flatScriptCues() {
-      return Object.keys(this.SCRIPT_CUES)
-        .map((key) => this.SCRIPT_CUES[key])
+    flatScriptCues(): any[] {
+      return Object.keys((this as any).SCRIPT_CUES)
+        .map((key) => (this as any).SCRIPT_CUES[key])
         .flat();
     },
-    isDuplicateNewCue() {
+    isDuplicateNewCue(): boolean {
       if (this.newFormState.ident == null || this.newFormState.cueType == null) {
         return false;
       }
@@ -454,7 +457,7 @@ export default {
           cue.cue_type_id === this.newFormState.cueType && cue.ident === this.newFormState.ident
       );
     },
-    isDuplicateEditCue() {
+    isDuplicateEditCue(): boolean {
       if (this.editFormState.ident == null || this.editFormState.cueType == null) {
         return false;
       }
@@ -468,12 +471,12 @@ export default {
   },
   methods: {
     contrastColor,
-    openNewForm() {
+    openNewForm(): void {
       this.resetNewForm();
-      this.newFormState.lineId = this.line.id;
-      this.$bvModal.show(`line_${this.lineIndex}_-new-cue`);
+      this.newFormState.lineId = (this.line as any).id;
+      (this as any).$bvModal.show(`line_${this.lineIndex}_-new-cue`);
     },
-    resetNewForm() {
+    resetNewForm(): void {
       this.newFormState = {
         cueType: null,
         ident: null,
@@ -482,24 +485,24 @@ export default {
       this.submittingNewCue = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    validateNewState(name) {
-      const { $dirty, $error } = this.$v.newFormState[name];
+    validateNewState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError || this.submittingNewCue) {
+    async onSubmitNew(event: Event): Promise<void> {
+      (this as any).$v.newFormState.$touch();
+      if ((this as any).$v.newFormState.$anyError || this.submittingNewCue) {
         event.preventDefault();
         return;
       }
 
       this.submittingNewCue = true;
       try {
-        await this.ADD_NEW_CUE(this.newFormState);
-        this.$bvModal.hide(`line_${this.lineIndex}_-new-cue`);
+        await (this as any).ADD_NEW_CUE(this.newFormState);
+        (this as any).$bvModal.hide(`line_${this.lineIndex}_-new-cue`);
         this.resetNewForm();
       } catch (error) {
         log.error('Error submitting new cue:', error);
@@ -508,15 +511,15 @@ export default {
         this.submittingNewCue = false;
       }
     },
-    openEditForm(cue) {
+    openEditForm(cue: any): void {
       this.resetEditForm();
       this.editFormState.cueId = cue.id;
       this.editFormState.cueType = cue.cue_type_id;
       this.editFormState.ident = cue.ident;
-      this.editFormState.lineId = this.line.id;
-      this.$bvModal.show(`line_${this.lineIndex}_-edit-cue`);
+      this.editFormState.lineId = (this.line as any).id;
+      (this as any).$bvModal.show(`line_${this.lineIndex}_-edit-cue`);
     },
-    resetEditForm() {
+    resetEditForm(): void {
       this.editFormState = {
         cueId: null,
         cueType: null,
@@ -527,24 +530,24 @@ export default {
       this.deletingCue = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    validateEditState(name) {
-      const { $dirty, $error } = this.$v.editFormState[name];
+    validateEditState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError || this.submittingEditCue) {
+    async onSubmitEdit(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError || this.submittingEditCue) {
         event.preventDefault();
         return;
       }
 
       this.submittingEditCue = true;
       try {
-        await this.EDIT_CUE(this.editFormState);
-        this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
+        await (this as any).EDIT_CUE(this.editFormState);
+        (this as any).$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
         this.resetEditForm();
       } catch (error) {
         log.error('Error submitting edit cue:', error);
@@ -553,23 +556,23 @@ export default {
         this.submittingEditCue = false;
       }
     },
-    async deleteCue(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError || this.deletingCue) {
+    async deleteCue(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError || this.deletingCue) {
         event.preventDefault();
         return;
       }
 
       const msg = 'Are you sure you want to delete this cue?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.deletingCue = true;
         try {
-          await this.DELETE_CUE({
+          await (this as any).DELETE_CUE({
             cueId: this.editFormState.cueId,
             lineId: this.editFormState.lineId,
           });
-          this.$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
+          (this as any).$bvModal.hide(`line_${this.lineIndex}_-edit-cue`);
           this.resetEditForm();
         } catch (error) {
           log.error('Error deleting cue:', error);
@@ -578,28 +581,29 @@ export default {
         }
       }
     },
-    cueLabel(cue) {
-      const cueType = this.cueTypes.find((cT) => cT.id === cue.cue_type_id);
+    cueLabel(cue: any): string {
+      const cueType = (this.cueTypes as any[]).find((cT) => cT.id === cue.cue_type_id);
       return `${cueType.prefix} ${cue.ident}`;
     },
-    cueBackgroundColour(cue) {
-      const cueType = this.cueTypes.find((ct) => ct.id === cue.cue_type_id);
-      if (!cueType) return '#000000'; // Fallback
+    cueBackgroundColour(cue: any): string {
+      const cueType = (this.cueTypes as any[]).find((ct) => ct.id === cue.cue_type_id);
+      if (!cueType) return '#000000';
 
-      // Check if user has an override for this cue type
-      const override = this.CUE_COLOUR_OVERRIDES.find((o) => o.settings.id === cueType.id);
+      const override = ((this as any).CUE_COLOUR_OVERRIDES as any[]).find(
+        (o) => o.settings.id === cueType.id
+      );
       if (override) {
         return override.settings.colour;
       }
 
       return cueType.colour;
     },
-    isWholeLineCut(line) {
-      return isWholeLineCutUtil(line, this.linePartCuts);
+    isWholeLineCut(line: any): boolean {
+      return isWholeLineCutUtil(line, this.linePartCuts as any[]);
     },
     ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE']),
   },
-};
+});
 </script>
 
 <style scoped>

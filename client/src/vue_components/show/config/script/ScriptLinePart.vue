@@ -59,11 +59,12 @@
   </b-col>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import { LINE_TYPES } from '@/constants/lineTypes';
 
-export default {
+export default defineComponent({
   name: 'ScriptLinePart',
   events: ['input', 'addLinePart', 'tryFinishLine'],
   props: {
@@ -126,42 +127,45 @@ export default {
     };
   },
   computed: {
-    characterOptions() {
+    characterOptions(): any[] {
       return [
         { value: null, text: 'N/A' },
-        ...this.characters.map((char) => ({ value: char.id, text: char.name })),
+        ...(this.characters as any[]).map((char: any) => ({ value: char.id, text: char.name })),
       ];
     },
-    characterGroupOptions() {
+    characterGroupOptions(): any[] {
       return [
         { value: null, text: 'N/A' },
-        ...this.characterGroups.map((char) => ({ value: char.id, text: char.name })),
+        ...(this.characterGroups as any[]).map((char: any) => ({
+          value: char.id,
+          text: char.name,
+        })),
       ];
     },
   },
-  mounted() {
-    this.$v.state.$touch();
+  mounted(): void {
+    (this as any).$v.state.$touch();
     if (this.focusInput) {
-      this.$refs.partInput.focus();
+      (this.$refs.partInput as HTMLElement).focus();
     }
   },
   methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.state[name];
       return $dirty ? !$error : null;
     },
-    addLinePart() {
+    addLinePart(): void {
       this.$emit('addLinePart');
     },
-    stateChange() {
-      this.$v.state.$touch();
-      this.$emit('input', this.state);
-      this.$refs.partInput.focus();
+    stateChange(): void {
+      (this as any).$v.state.$touch();
+      this.$emit('input', (this as any).state);
+      (this.$refs.partInput as HTMLElement).focus();
     },
-    handleEnterPress() {
-      this.$v.state.$touch();
+    handleEnterPress(): void {
+      (this as any).$v.state.$touch();
       this.$emit('tryFinishLine');
     },
   },
-};
+});
 </script>

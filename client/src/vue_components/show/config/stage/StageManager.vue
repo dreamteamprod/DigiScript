@@ -442,13 +442,14 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapActions, mapGetters } from 'vuex';
 import { notNull } from '@/js/customValidators';
 import { findOrphanedAssignments } from '@/js/blockOrphanUtils';
 
-export default {
+export default defineComponent({
   name: 'StageManager',
   data() {
     return {
@@ -456,12 +457,12 @@ export default {
       navbarHeight: 0,
       currentSceneIndex: 0,
       goToSceneFormState: {
-        scene_index: null,
+        scene_index: null as number | null,
       },
-      addSceneryFormState: { scenery_id: null },
-      addPropFormState: { props_id: null },
+      addSceneryFormState: { scenery_id: null as number | null },
+      addPropFormState: { props_id: null as number | null },
       savingAssignment: false,
-      newCrewSelections: {},
+      newCrewSelections: {} as Record<string, number | null>,
       allocationsExpanded: true,
       setExpanded: false,
       strikeExpanded: false,
@@ -501,10 +502,10 @@ export default {
     },
   },
   computed: {
-    orderedScenes() {
-      return this.ORDERED_SCENES;
+    orderedScenes(): any[] {
+      return (this as any).ORDERED_SCENES;
     },
-    currentScene() {
+    currentScene(): any {
       if (
         this.currentSceneIndex >= 0 &&
         this.orderedScenes.length > 0 &&
@@ -514,83 +515,83 @@ export default {
       }
       return null;
     },
-    currentSceneLabel() {
+    currentSceneLabel(): string {
       if (this.currentScene != null) {
-        return `${this.ACT_BY_ID(this.currentScene.act).name}: ${this.currentScene.name}`;
+        return `${(this as any).ACT_BY_ID(this.currentScene.act).name}: ${this.currentScene.name}`;
       }
       return 'N/A';
     },
-    sceneFormOptions() {
+    sceneFormOptions(): any[] {
       return [
         { value: null, text: 'Please select an option', disabled: true },
-        ...this.orderedScenes.map((scene, index) => ({
+        ...this.orderedScenes.map((scene: any, index: number) => ({
           value: index,
-          text: `${this.ACT_BY_ID(scene.act).name}: ${scene.name}`,
+          text: `${(this as any).ACT_BY_ID(scene.act).name}: ${scene.name}`,
         })),
       ];
     },
-    availableSceneryForScene() {
+    availableSceneryForScene(): any[] {
       if (!this.currentScene) return [];
-      const allocatedIds = this.SCENERY_ALLOCATIONS.filter(
-        (a) => a.scene_id === this.currentScene.id
-      ).map((a) => a.scenery_id);
-      return this.SCENERY_LIST.filter((s) => !allocatedIds.includes(s.id));
+      const allocatedIds = (this as any).SCENERY_ALLOCATIONS.filter(
+        (a: any) => a.scene_id === this.currentScene.id
+      ).map((a: any) => a.scenery_id);
+      return (this as any).SCENERY_LIST.filter((s: any) => !allocatedIds.includes(s.id));
     },
-    availablePropsForScene() {
+    availablePropsForScene(): any[] {
       if (!this.currentScene) return [];
-      const allocatedIds = this.PROPS_ALLOCATIONS.filter(
-        (a) => a.scene_id === this.currentScene.id
-      ).map((a) => a.props_id);
-      return this.PROPS_LIST.filter((p) => !allocatedIds.includes(p.id));
+      const allocatedIds = (this as any).PROPS_ALLOCATIONS.filter(
+        (a: any) => a.scene_id === this.currentScene.id
+      ).map((a: any) => a.props_id);
+      return (this as any).PROPS_LIST.filter((p: any) => !allocatedIds.includes(p.id));
     },
-    sceneryOptionsByType() {
-      return this.SCENERY_TYPES.map((type) => ({
+    sceneryOptionsByType(): any[] {
+      return (this as any).SCENERY_TYPES.map((type: any) => ({
         label: type.name,
         options: this.availableSceneryForScene
-          .filter((s) => s.scenery_type_id === type.id)
-          .map((s) => ({ value: s.id, text: s.name })),
-      })).filter((group) => group.options.length > 0);
+          .filter((s: any) => s.scenery_type_id === type.id)
+          .map((s: any) => ({ value: s.id, text: s.name })),
+      })).filter((group: any) => group.options.length > 0);
     },
-    propOptionsByType() {
-      return this.PROP_TYPES.map((type) => ({
+    propOptionsByType(): any[] {
+      return (this as any).PROP_TYPES.map((type: any) => ({
         label: type.name,
         options: this.availablePropsForScene
-          .filter((p) => p.prop_type_id === type.id)
-          .map((p) => ({ value: p.id, text: p.name })),
-      })).filter((group) => group.options.length > 0);
+          .filter((p: any) => p.prop_type_id === type.id)
+          .map((p: any) => ({ value: p.id, text: p.name })),
+      })).filter((group: any) => group.options.length > 0);
     },
-    previousSceneInAct() {
+    previousSceneInAct(): any {
       if (this.currentSceneIndex <= 0 || !this.currentScene) return null;
       const prev = this.orderedScenes[this.currentSceneIndex - 1];
       return prev && prev.act === this.currentScene.act ? prev : null;
     },
-    nextSceneInAct() {
+    nextSceneInAct(): any {
       if (!this.currentScene || this.currentSceneIndex >= this.orderedScenes.length - 1)
         return null;
       const next = this.orderedScenes[this.currentSceneIndex + 1];
       return next && next.act === this.currentScene.act ? next : null;
     },
-    setItems() {
+    setItems(): any[] {
       if (!this.currentScene) return [];
-      const items = [];
+      const items: any[] = [];
       const sceneId = this.currentScene.id;
       const prevSceneId = this.previousSceneInAct?.id;
 
-      for (const scenery of this.SCENERY_LIST) {
-        const allocs = this.SCENERY_ALLOCATIONS_BY_ITEM[scenery.id] || [];
-        const inCurrent = allocs.some((a) => a.scene_id === sceneId);
+      for (const scenery of (this as any).SCENERY_LIST) {
+        const allocs = (this as any).SCENERY_ALLOCATIONS_BY_ITEM[scenery.id] || [];
+        const inCurrent = allocs.some((a: any) => a.scene_id === sceneId);
         if (!inCurrent) continue;
-        const inPrev = prevSceneId && allocs.some((a) => a.scene_id === prevSceneId);
+        const inPrev = prevSceneId && allocs.some((a: any) => a.scene_id === prevSceneId);
         if (!inPrev) {
           items.push({ itemId: scenery.id, itemType: 'scenery', name: scenery.name });
         }
       }
 
-      for (const prop of this.PROPS_LIST) {
-        const allocs = this.PROPS_ALLOCATIONS_BY_ITEM[prop.id] || [];
-        const inCurrent = allocs.some((a) => a.scene_id === sceneId);
+      for (const prop of (this as any).PROPS_LIST) {
+        const allocs = (this as any).PROPS_ALLOCATIONS_BY_ITEM[prop.id] || [];
+        const inCurrent = allocs.some((a: any) => a.scene_id === sceneId);
         if (!inCurrent) continue;
-        const inPrev = prevSceneId && allocs.some((a) => a.scene_id === prevSceneId);
+        const inPrev = prevSceneId && allocs.some((a: any) => a.scene_id === prevSceneId);
         if (!inPrev) {
           items.push({ itemId: prop.id, itemType: 'prop', name: prop.name });
         }
@@ -598,27 +599,27 @@ export default {
 
       return items;
     },
-    strikeItems() {
+    strikeItems(): any[] {
       if (!this.currentScene) return [];
-      const items = [];
+      const items: any[] = [];
       const sceneId = this.currentScene.id;
       const nextSceneId = this.nextSceneInAct?.id;
 
-      for (const scenery of this.SCENERY_LIST) {
-        const allocs = this.SCENERY_ALLOCATIONS_BY_ITEM[scenery.id] || [];
-        const inCurrent = allocs.some((a) => a.scene_id === sceneId);
+      for (const scenery of (this as any).SCENERY_LIST) {
+        const allocs = (this as any).SCENERY_ALLOCATIONS_BY_ITEM[scenery.id] || [];
+        const inCurrent = allocs.some((a: any) => a.scene_id === sceneId);
         if (!inCurrent) continue;
-        const inNext = nextSceneId && allocs.some((a) => a.scene_id === nextSceneId);
+        const inNext = nextSceneId && allocs.some((a: any) => a.scene_id === nextSceneId);
         if (!inNext) {
           items.push({ itemId: scenery.id, itemType: 'scenery', name: scenery.name });
         }
       }
 
-      for (const prop of this.PROPS_LIST) {
-        const allocs = this.PROPS_ALLOCATIONS_BY_ITEM[prop.id] || [];
-        const inCurrent = allocs.some((a) => a.scene_id === sceneId);
+      for (const prop of (this as any).PROPS_LIST) {
+        const allocs = (this as any).PROPS_ALLOCATIONS_BY_ITEM[prop.id] || [];
+        const inCurrent = allocs.some((a: any) => a.scene_id === sceneId);
         if (!inCurrent) continue;
-        const inNext = nextSceneId && allocs.some((a) => a.scene_id === nextSceneId);
+        const inNext = nextSceneId && allocs.some((a: any) => a.scene_id === nextSceneId);
         if (!inNext) {
           items.push({ itemId: prop.id, itemType: 'prop', name: prop.name });
         }
@@ -626,23 +627,27 @@ export default {
 
       return items;
     },
-    unassignedSetCount() {
+    unassignedSetCount(): number {
       return this.setItems.filter(
-        (item) => this.getAssignmentsForItem(item.itemId, item.itemType, 'set').length === 0
+        (item: any) => this.getAssignmentsForItem(item.itemId, item.itemType, 'set').length === 0
       ).length;
     },
-    unassignedStrikeCount() {
+    unassignedStrikeCount(): number {
       return this.strikeItems.filter(
-        (item) => this.getAssignmentsForItem(item.itemId, item.itemType, 'strike').length === 0
+        (item: any) => this.getAssignmentsForItem(item.itemId, item.itemType, 'strike').length === 0
       ).length;
     },
-    currentSceneSceneryAllocations() {
+    currentSceneSceneryAllocations(): any[] {
       if (!this.currentScene) return [];
-      return this.SCENERY_ALLOCATIONS.filter((a) => a.scene_id === this.currentScene.id);
+      return (this as any).SCENERY_ALLOCATIONS.filter(
+        (a: any) => a.scene_id === this.currentScene.id
+      );
     },
-    currentScenePropsAllocations() {
+    currentScenePropsAllocations(): any[] {
       if (!this.currentScene) return [];
-      return this.PROPS_ALLOCATIONS.filter((a) => a.scene_id === this.currentScene.id);
+      return (this as any).PROPS_ALLOCATIONS.filter(
+        (a: any) => a.scene_id === this.currentScene.id
+      );
     },
     ...mapGetters([
       'ORDERED_SCENES',
@@ -663,81 +668,79 @@ export default {
       'CREW_ASSIGNMENTS_BY_SCENERY',
     ]),
   },
-  async mounted() {
+  async mounted(): Promise<void> {
     await Promise.all([
-      this.GET_ACT_LIST(),
-      this.GET_SCENE_LIST(),
-      this.GET_SCENERY_TYPES(),
-      this.GET_SCENERY_LIST(),
-      this.GET_SCENERY_ALLOCATIONS(),
-      this.GET_PROP_TYPES(),
-      this.GET_PROPS_LIST(),
-      this.GET_PROPS_ALLOCATIONS(),
-      this.GET_CREW_LIST(),
-      this.GET_CREW_ASSIGNMENTS(),
+      (this as any).GET_ACT_LIST(),
+      (this as any).GET_SCENE_LIST(),
+      (this as any).GET_SCENERY_TYPES(),
+      (this as any).GET_SCENERY_LIST(),
+      (this as any).GET_SCENERY_ALLOCATIONS(),
+      (this as any).GET_PROP_TYPES(),
+      (this as any).GET_PROPS_LIST(),
+      (this as any).GET_PROPS_ALLOCATIONS(),
+      (this as any).GET_CREW_LIST(),
+      (this as any).GET_CREW_ASSIGNMENTS(),
     ]);
     this.loaded = true;
     this.calculateNavbarHeight();
   },
-  created() {
+  created(): void {
     window.addEventListener('resize', this.calculateNavbarHeight);
   },
-  destroyed() {
+  destroyed(): void {
     window.removeEventListener('resize', this.calculateNavbarHeight);
   },
   methods: {
-    calculateNavbarHeight() {
-      const navbar = document.querySelector('.navbar');
+    calculateNavbarHeight(): void {
+      const navbar = document.querySelector('.navbar') as HTMLElement | null;
       if (navbar) {
         this.navbarHeight = navbar.offsetHeight;
       } else {
         this.navbarHeight = 56;
       }
     },
-    incrScene() {
+    incrScene(): void {
       if (this.currentSceneIndex < this.orderedScenes.length - 1) {
         this.currentSceneIndex += 1;
       }
     },
-    decrScene() {
+    decrScene(): void {
       if (this.currentSceneIndex > 0) {
         this.currentSceneIndex -= 1;
       }
     },
-    resetGoToSceneForm() {
-      this.goToSceneFormState = {
-        scene_index: null,
-      };
+    resetGoToSceneForm(): void {
+      this.goToSceneFormState = { scene_index: null };
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    onSubmitGoToScene(event) {
-      this.$v.goToSceneFormState.$touch();
-      if (this.$v.goToSceneFormState.$anyError) {
+    onSubmitGoToScene(event: Event): void {
+      (this as any).$v.goToSceneFormState.$touch();
+      if ((this as any).$v.goToSceneFormState.$anyError) {
         event.preventDefault();
       } else {
-        this.currentSceneIndex = this.goToSceneFormState.scene_index;
+        this.currentSceneIndex = this.goToSceneFormState.scene_index!;
         this.resetGoToSceneForm();
       }
     },
-    validateGoToSceneState(name) {
-      const { $dirty, $error } = this.$v.goToSceneFormState[name];
+    validateGoToSceneState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.goToSceneFormState[name];
       return $dirty ? !$error : null;
     },
-    resetAddSceneryForm() {
+    resetAddSceneryForm(): void {
       this.addSceneryFormState = { scenery_id: null };
       this.$nextTick(() => {
-        this.$v.addSceneryFormState.$reset();
+        (this as any).$v.addSceneryFormState.$reset();
       });
     },
-    validateAddSceneryState(name) {
-      const { $dirty, $error } = this.$v.addSceneryFormState[name];
+    validateAddSceneryState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.addSceneryFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitAddScenery(event) {
-      this.$v.addSceneryFormState.$touch();
-      if (this.$v.addSceneryFormState.$anyError) {
+    async onSubmitAddScenery(event: Event): Promise<void> {
+      (this as any).$v.addSceneryFormState.$touch();
+      if ((this as any).$v.addSceneryFormState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -746,39 +749,39 @@ export default {
       if (orphans.length > 0) {
         event.preventDefault();
         const msgVNode = this.buildOrphanWarningVNode(orphans);
-        const confirmed = await this.$bvModal.msgBoxConfirm([msgVNode], {
+        const confirmed = await (this as any).$bvModal.msgBoxConfirm([msgVNode], {
           title: 'Crew assignments will be removed',
           okTitle: 'Continue',
           okVariant: 'warning',
         });
         if (confirmed !== true) return;
-        await this.ADD_SCENERY_ALLOCATION({
+        await (this as any).ADD_SCENERY_ALLOCATION({
           scenery_id: sceneryId,
           scene_id: this.currentScene.id,
         });
         this.resetAddSceneryForm();
-        this.$bvModal.hide('add-scenery');
+        (this as any).$bvModal.hide('add-scenery');
       } else {
-        await this.ADD_SCENERY_ALLOCATION({
+        await (this as any).ADD_SCENERY_ALLOCATION({
           scenery_id: sceneryId,
           scene_id: this.currentScene.id,
         });
         this.resetAddSceneryForm();
       }
     },
-    resetAddPropForm() {
+    resetAddPropForm(): void {
       this.addPropFormState = { props_id: null };
       this.$nextTick(() => {
-        this.$v.addPropFormState.$reset();
+        (this as any).$v.addPropFormState.$reset();
       });
     },
-    validateAddPropState(name) {
-      const { $dirty, $error } = this.$v.addPropFormState[name];
+    validateAddPropState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.addPropFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitAddProp(event) {
-      this.$v.addPropFormState.$touch();
-      if (this.$v.addPropFormState.$anyError) {
+    async onSubmitAddProp(event: Event): Promise<void> {
+      (this as any).$v.addPropFormState.$touch();
+      if ((this as any).$v.addPropFormState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -787,59 +790,63 @@ export default {
       if (orphans.length > 0) {
         event.preventDefault();
         const msgVNode = this.buildOrphanWarningVNode(orphans);
-        const confirmed = await this.$bvModal.msgBoxConfirm([msgVNode], {
+        const confirmed = await (this as any).$bvModal.msgBoxConfirm([msgVNode], {
           title: 'Crew assignments will be removed',
           okTitle: 'Continue',
           okVariant: 'warning',
         });
         if (confirmed !== true) return;
-        await this.ADD_PROPS_ALLOCATION({
+        await (this as any).ADD_PROPS_ALLOCATION({
           props_id: propsId,
           scene_id: this.currentScene.id,
         });
         this.resetAddPropForm();
-        this.$bvModal.hide('add-prop');
+        (this as any).$bvModal.hide('add-prop');
       } else {
-        await this.ADD_PROPS_ALLOCATION({
+        await (this as any).ADD_PROPS_ALLOCATION({
           props_id: propsId,
           scene_id: this.currentScene.id,
         });
         this.resetAddPropForm();
       }
     },
-    getAssignmentsForItem(itemId, itemType, assignmentType) {
+    getAssignmentsForItem(itemId: number, itemType: string, assignmentType: string): any[] {
       const assignments =
         itemType === 'prop'
-          ? this.CREW_ASSIGNMENTS_BY_PROP[itemId] || []
-          : this.CREW_ASSIGNMENTS_BY_SCENERY[itemId] || [];
+          ? (this as any).CREW_ASSIGNMENTS_BY_PROP[itemId] || []
+          : (this as any).CREW_ASSIGNMENTS_BY_SCENERY[itemId] || [];
       return assignments.filter(
-        (a) => a.assignment_type === assignmentType && a.scene_id === this.currentScene?.id
+        (a: any) => a.assignment_type === assignmentType && a.scene_id === this.currentScene?.id
       );
     },
-    getAvailableCrewForItem(itemId, itemType, assignmentType) {
+    getAvailableCrewForItem(itemId: number, itemType: string, assignmentType: string): any[] {
       const assigned = new Set(
-        this.getAssignmentsForItem(itemId, itemType, assignmentType).map((a) => a.crew_id)
+        this.getAssignmentsForItem(itemId, itemType, assignmentType).map((a: any) => a.crew_id)
       );
-      return this.CREW_LIST.filter((c) => !assigned.has(c.id)).map((c) => ({
+      return (this as any).CREW_LIST.filter((c: any) => !assigned.has(c.id)).map((c: any) => ({
         value: c.id,
         text: this.formatCrewName(c),
       }));
     },
-    formatCrewName(crew) {
+    formatCrewName(crew: any): string {
       if (!crew) return 'Unknown';
       return crew.last_name ? `${crew.first_name} ${crew.last_name}` : crew.first_name;
     },
-    crewSelectionKey(itemId, itemType, assignmentType) {
+    crewSelectionKey(itemId: number, itemType: string, assignmentType: string): string {
       return `${itemType}-${itemId}-${assignmentType}`;
     },
-    async addCrewAssignment(itemId, itemType, assignmentType) {
+    async addCrewAssignment(
+      itemId: number,
+      itemType: string,
+      assignmentType: string
+    ): Promise<void> {
       const key = this.crewSelectionKey(itemId, itemType, assignmentType);
       const crewId = this.newCrewSelections[key];
       if (!crewId || !this.currentScene || this.savingAssignment) return;
 
       this.savingAssignment = true;
       try {
-        const assignment = {
+        const assignment: any = {
           crew_id: crewId,
           scene_id: this.currentScene.id,
           assignment_type: assignmentType,
@@ -850,7 +857,7 @@ export default {
           assignment.scenery_id = itemId;
         }
 
-        const result = await this.ADD_CREW_ASSIGNMENT(assignment);
+        const result = await (this as any).ADD_CREW_ASSIGNMENT(assignment);
         if (result.success) {
           this.$set(this.newCrewSelections, key, null);
         }
@@ -858,45 +865,50 @@ export default {
         this.savingAssignment = false;
       }
     },
-    async removeCrewAssignment(assignment) {
+    async removeCrewAssignment(assignment: any): Promise<void> {
       if (this.savingAssignment) return;
 
-      const crew = this.CREW_MEMBER_BY_ID(assignment.crew_id);
+      const crew = (this as any).CREW_MEMBER_BY_ID(assignment.crew_id);
       const crewName = this.formatCrewName(crew);
-      const confirmed = await this.$bvModal.msgBoxConfirm(
+      const confirmed = await (this as any).$bvModal.msgBoxConfirm(
         `Remove ${crewName} from this ${assignment.assignment_type.toUpperCase()} assignment?`,
         { okTitle: 'Remove', okVariant: 'danger' }
       );
       if (confirmed) {
         this.savingAssignment = true;
         try {
-          await this.DELETE_CREW_ASSIGNMENT(assignment.id);
+          await (this as any).DELETE_CREW_ASSIGNMENT(assignment.id);
         } finally {
           this.savingAssignment = false;
         }
       }
     },
-    getSceneryById(id) {
-      return this.SCENERY_LIST.find((s) => s.id === id);
+    getSceneryById(id: number): any {
+      return (this as any).SCENERY_LIST.find((s: any) => s.id === id);
     },
-    getPropById(id) {
-      return this.PROPS_LIST.find((p) => p.id === id);
+    getPropById(id: number): any {
+      return (this as any).PROPS_LIST.find((p: any) => p.id === id);
     },
-    getItemAllocationsForScenery(sceneryId) {
-      return this.SCENERY_ALLOCATIONS.filter((a) => a.scenery_id === sceneryId);
+    getItemAllocationsForScenery(sceneryId: number): any[] {
+      return (this as any).SCENERY_ALLOCATIONS.filter((a: any) => a.scenery_id === sceneryId);
     },
-    getItemAllocationsForProp(propId) {
-      return this.PROPS_ALLOCATIONS.filter((a) => a.props_id === propId);
+    getItemAllocationsForProp(propId: number): any[] {
+      return (this as any).PROPS_ALLOCATIONS.filter((a: any) => a.props_id === propId);
     },
-    findOrphansForItem(itemId, itemType, changeType, sceneId) {
+    findOrphansForItem(
+      itemId: number | null,
+      itemType: string,
+      changeType: string,
+      sceneId: number
+    ): any[] {
       const allocations =
         itemType === 'scenery'
-          ? this.getItemAllocationsForScenery(itemId)
-          : this.getItemAllocationsForProp(itemId);
+          ? this.getItemAllocationsForScenery(itemId!)
+          : this.getItemAllocationsForProp(itemId!);
       const crewAssignments =
         itemType === 'scenery'
-          ? this.CREW_ASSIGNMENTS_BY_SCENERY[itemId] || []
-          : this.CREW_ASSIGNMENTS_BY_PROP[itemId] || [];
+          ? (this as any).CREW_ASSIGNMENTS_BY_SCENERY[itemId!] || []
+          : (this as any).CREW_ASSIGNMENTS_BY_PROP[itemId!] || [];
       return findOrphanedAssignments({
         orderedScenes: this.orderedScenes,
         currentAllocations: allocations,
@@ -905,19 +917,19 @@ export default {
         changeSceneId: sceneId,
       });
     },
-    buildOrphanWarningVNode(orphanedAssignments) {
+    buildOrphanWarningVNode(orphanedAssignments: any[]): any {
       const h = this.$createElement;
-      const groups = {};
+      const groups: Record<string, string[]> = {};
       for (const assignment of orphanedAssignments) {
         const itemName =
           assignment.prop_id != null
             ? this.getPropById(assignment.prop_id)?.name || 'Unknown Prop'
             : this.getSceneryById(assignment.scenery_id)?.name || 'Unknown Scenery';
-        const scene = this.orderedScenes.find((s) => s.id === assignment.scene_id);
+        const scene = this.orderedScenes.find((s: any) => s.id === assignment.scene_id);
         const sceneName = scene?.name || 'Unknown Scene';
         const key = `${itemName} - ${assignment.assignment_type.toUpperCase()} (${sceneName})`;
         if (!groups[key]) groups[key] = [];
-        const crew = this.CREW_MEMBER_BY_ID(assignment.crew_id);
+        const crew = (this as any).CREW_MEMBER_BY_ID(assignment.crew_id);
         groups[key].push(this.formatCrewName(crew));
       }
       const items = Object.entries(groups).map(([label, names]) =>
@@ -929,7 +941,7 @@ export default {
         h('p', { class: 'text-muted mb-0' }, 'You can reassign crew after the change.'),
       ]);
     },
-    async deleteSceneryAllocation(allocation) {
+    async deleteSceneryAllocation(allocation: any): Promise<void> {
       const scenery = this.getSceneryById(allocation.scenery_id);
       const orphans = this.findOrphansForItem(
         allocation.scenery_id,
@@ -939,7 +951,7 @@ export default {
       );
       if (orphans.length > 0) {
         const msgVNode = this.buildOrphanWarningVNode(orphans);
-        const action = await this.$bvModal.msgBoxConfirm([msgVNode], {
+        const action = await (this as any).$bvModal.msgBoxConfirm([msgVNode], {
           title: 'Crew assignments will be removed',
           okTitle: 'Continue',
           okVariant: 'danger',
@@ -947,12 +959,12 @@ export default {
         if (action !== true) return;
       } else {
         const msg = `Remove "${scenery?.name}" from this scene?`;
-        const action = await this.$bvModal.msgBoxConfirm(msg, {});
+        const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
         if (action !== true) return;
       }
-      await this.DELETE_SCENERY_ALLOCATION(allocation.id);
+      await (this as any).DELETE_SCENERY_ALLOCATION(allocation.id);
     },
-    async deletePropAllocation(allocation) {
+    async deletePropAllocation(allocation: any): Promise<void> {
       const prop = this.getPropById(allocation.props_id);
       const orphans = this.findOrphansForItem(
         allocation.props_id,
@@ -962,7 +974,7 @@ export default {
       );
       if (orphans.length > 0) {
         const msgVNode = this.buildOrphanWarningVNode(orphans);
-        const action = await this.$bvModal.msgBoxConfirm([msgVNode], {
+        const action = await (this as any).$bvModal.msgBoxConfirm([msgVNode], {
           title: 'Crew assignments will be removed',
           okTitle: 'Continue',
           okVariant: 'danger',
@@ -970,10 +982,10 @@ export default {
         if (action !== true) return;
       } else {
         const msg = `Remove "${prop?.name}" from this scene?`;
-        const action = await this.$bvModal.msgBoxConfirm(msg, {});
+        const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
         if (action !== true) return;
       }
-      await this.DELETE_PROPS_ALLOCATION(allocation.id);
+      await (this as any).DELETE_PROPS_ALLOCATION(allocation.id);
     },
     ...mapActions([
       'GET_ACT_LIST',
@@ -994,7 +1006,7 @@ export default {
       'DELETE_CREW_ASSIGNMENT',
     ]),
   },
-};
+});
 </script>
 
 <style scoped>

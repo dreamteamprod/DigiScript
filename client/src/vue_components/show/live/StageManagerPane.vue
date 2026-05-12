@@ -220,12 +220,13 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { debounce } from 'lodash';
 import Vue from 'vue';
 
-export default {
+export default defineComponent({
   name: 'StageManagerPane',
   props: {
     sessionFollowData: {
@@ -236,25 +237,25 @@ export default {
   data() {
     return {
       loaded: false,
-      expandedScenes: {},
-      pinnedScenes: {},
-      debounceContentSize: null,
-      smPlanScene: null,
+      expandedScenes: {} as Record<number, boolean>,
+      pinnedScenes: {} as Record<number, boolean>,
+      debounceContentSize: null as any,
+      smPlanScene: null as any,
       smPlanSet: true,
       smPlanStrike: true,
     };
   },
   computed: {
-    orderedScenes() {
-      return this.ORDERED_SCENES;
+    orderedScenes(): any[] {
+      return (this as any).ORDERED_SCENES || [];
     },
-    currentSceneId() {
-      if (!this.sessionFollowData?.current_line) {
+    currentSceneId(): number | null {
+      const followData = this.sessionFollowData as any;
+      if (!followData?.current_line) {
         return null;
       }
 
-      // Parse page_X_line_Y format
-      const parts = this.sessionFollowData.current_line.split('_');
+      const parts = followData.current_line.split('_');
       if (parts.length < 4) {
         return null;
       }
@@ -262,32 +263,32 @@ export default {
       const pageNumber = parseInt(parts[1], 10);
       const lineIndex = parseInt(parts[3], 10);
 
-      // Get the lines for this page
-      const pageLines = this.GET_SCRIPT_PAGE(pageNumber);
+      const pageLines = (this as any).GET_SCRIPT_PAGE(pageNumber);
       if (!pageLines || lineIndex >= pageLines.length) {
         return null;
       }
 
-      // Return the scene_id from the current line
       return pageLines[lineIndex]?.scene_id || null;
     },
-    nextSceneId() {
+    nextSceneId(): number | null {
       if (this.currentSceneId === null) {
         return null;
       }
-      const currentIndex = this.orderedScenes.findIndex((s) => s.id === this.currentSceneId);
+      const currentIndex = this.orderedScenes.findIndex((s: any) => s.id === this.currentSceneId);
       if (currentIndex === -1 || currentIndex >= this.orderedScenes.length - 1) {
         return null;
       }
       return this.orderedScenes[currentIndex + 1].id;
     },
-    propsDict() {
-      // Create a lookup dictionary for props by ID
-      return Object.fromEntries(this.PROPS_LIST.map((prop) => [prop.id, prop]));
+    propsDict(): Record<number, any> {
+      return Object.fromEntries(
+        ((this as any).PROPS_LIST as any[]).map((prop: any) => [prop.id, prop])
+      );
     },
-    sceneryDict() {
-      // Create a lookup dictionary for scenery by ID
-      return Object.fromEntries(this.SCENERY_LIST.map((item) => [item.id, item]));
+    sceneryDict(): Record<number, any> {
+      return Object.fromEntries(
+        ((this as any).SCENERY_LIST as any[]).map((item: any) => [item.id, item])
+      );
     },
     ...mapGetters([
       'ORDERED_SCENES',
@@ -305,30 +306,25 @@ export default {
     ]),
   },
   watch: {
-    currentSceneId(newSceneId, oldSceneId) {
+    currentSceneId(newSceneId: number | null, oldSceneId: number | null): void {
       if (newSceneId !== null && newSceneId !== oldSceneId) {
-        const currentIndex = this.orderedScenes.findIndex((s) => s.id === newSceneId);
+        const currentIndex = this.orderedScenes.findIndex((s: any) => s.id === newSceneId);
 
-        // Determine which scenes should be auto-expanded: current + next
         const autoExpandIds = new Set([newSceneId]);
         if (currentIndex !== -1 && currentIndex < this.orderedScenes.length - 1) {
           autoExpandIds.add(this.orderedScenes[currentIndex + 1].id);
         }
 
-        // Collapse all scenes that aren't current/next and aren't pinned
-        // This handles both forward and backward navigation
-        this.orderedScenes.forEach((scene) => {
+        this.orderedScenes.forEach((scene: any) => {
           if (!autoExpandIds.has(scene.id) && !this.pinnedScenes[scene.id]) {
             Vue.set(this.expandedScenes, scene.id, false);
           }
         });
 
-        // Expand current and next scenes
         autoExpandIds.forEach((sceneId) => {
           Vue.set(this.expandedScenes, sceneId, true);
         });
 
-        // Auto-scroll to keep current scene visible with previous scene above
         this.$nextTick(() => {
           this.autoScrollToCurrentScene(newSceneId);
         });
@@ -336,9 +332,8 @@ export default {
     },
     orderedScenes: {
       immediate: true,
-      handler(scenes) {
-        // Initialize expanded state for all scenes (expand first scene by default)
-        scenes.forEach((scene, index) => {
+      handler(scenes: any[]): void {
+        scenes.forEach((scene: any, index: number) => {
           if (this.expandedScenes[scene.id] === undefined) {
             Vue.set(this.expandedScenes, scene.id, index === 0);
           }
@@ -346,105 +341,96 @@ export default {
       },
     },
   },
-  created() {
+  created(): void {
     this.debounceContentSize = debounce(this.computeContentSize, 100);
   },
-  async mounted() {
-    // Load required data
+  async mounted(): Promise<void> {
     await Promise.all([
-      this.GET_ACT_LIST(),
-      this.GET_SCENE_LIST(),
-      this.GET_PROPS_LIST(),
-      this.GET_SCENERY_LIST(),
-      this.GET_PROPS_ALLOCATIONS(),
-      this.GET_SCENERY_ALLOCATIONS(),
-      this.GET_PROP_TYPES(),
-      this.GET_SCENERY_TYPES(),
-      this.GET_CREW_LIST(),
-      this.GET_CREW_ASSIGNMENTS(),
+      (this as any).GET_ACT_LIST(),
+      (this as any).GET_SCENE_LIST(),
+      (this as any).GET_PROPS_LIST(),
+      (this as any).GET_SCENERY_LIST(),
+      (this as any).GET_PROPS_ALLOCATIONS(),
+      (this as any).GET_SCENERY_ALLOCATIONS(),
+      (this as any).GET_PROP_TYPES(),
+      (this as any).GET_SCENERY_TYPES(),
+      (this as any).GET_CREW_LIST(),
+      (this as any).GET_CREW_ASSIGNMENTS(),
     ]);
     this.loaded = true;
 
-    // Compute initial size and listen for resize
     this.$nextTick(() => {
       this.computeContentSize();
     });
     window.addEventListener('resize', this.debounceContentSize);
   },
-  destroyed() {
+  destroyed(): void {
     window.removeEventListener('resize', this.debounceContentSize);
   },
   methods: {
-    computeContentSize() {
-      const container = this.$refs.paneContainer;
+    computeContentSize(): void {
+      const container = this.$refs.paneContainer as HTMLElement | undefined;
       if (!container) return;
 
-      // Calculate available height from viewport minus container's top position
       const containerTop = container.getBoundingClientRect().top;
       const availableHeight = document.documentElement.clientHeight - containerTop;
       container.style.height = `${availableHeight}px`;
     },
-    toggleScene(sceneId) {
+    toggleScene(sceneId: number): void {
       const isCurrentlyExpanded = this.expandedScenes[sceneId];
       Vue.set(this.expandedScenes, sceneId, !isCurrentlyExpanded);
 
-      // Track pinned state: opening = pin, closing = unpin
       if (isCurrentlyExpanded) {
-        // User is closing - unpin the scene
         Vue.set(this.pinnedScenes, sceneId, false);
       } else {
-        // User is opening - pin the scene so it won't auto-collapse
         Vue.set(this.pinnedScenes, sceneId, true);
       }
     },
-    getSceneDisplayName(scene) {
-      // Scene uses 'act' field, not 'act_id'
-      const act = this.ACT_BY_ID(scene.act);
+    getSceneDisplayName(scene: any): string {
+      const act = (this as any).ACT_BY_ID(scene.act);
       const actName = act?.name || 'Unknown Act';
       return `${actName}: ${scene.name}`;
     },
-    getPropsForScene(sceneId) {
-      // Filter props allocations for this scene and map to prop details
-      // Note: allocation uses 'props_id' not 'prop_id'
-      return this.PROPS_ALLOCATIONS.filter((alloc) => alloc.scene_id === sceneId)
-        .map((alloc) => this.propsDict[alloc.props_id])
-        .filter((prop) => prop != null);
+    getPropsForScene(sceneId: number): any[] {
+      const propsAllocations = (this as any).PROPS_ALLOCATIONS as any[];
+      return propsAllocations
+        .filter((alloc: any) => alloc.scene_id === sceneId)
+        .map((alloc: any) => this.propsDict[alloc.props_id])
+        .filter((prop: any) => prop != null);
     },
-    getSceneryForScene(sceneId) {
-      // Filter scenery allocations for this scene and map to scenery details
-      return this.SCENERY_ALLOCATIONS.filter((alloc) => alloc.scene_id === sceneId)
-        .map((alloc) => this.sceneryDict[alloc.scenery_id])
-        .filter((scenery) => scenery != null);
+    getSceneryForScene(sceneId: number): any[] {
+      const sceneryAllocations = (this as any).SCENERY_ALLOCATIONS as any[];
+      return sceneryAllocations
+        .filter((alloc: any) => alloc.scene_id === sceneId)
+        .map((alloc: any) => this.sceneryDict[alloc.scenery_id])
+        .filter((scenery: any) => scenery != null);
     },
-    getPropDisplayName(prop) {
-      const propType = this.PROP_TYPES_DICT[prop.prop_type_id];
+    getPropDisplayName(prop: any): string {
+      const propType = ((this as any).PROP_TYPES_DICT as Record<number, any>)[prop.prop_type_id];
       return propType ? `${propType.name}: ${prop.name}` : prop.name;
     },
-    getSceneryDisplayName(scenery) {
-      const sceneryType = this.SCENERY_TYPES_DICT[scenery.scenery_type_id];
+    getSceneryDisplayName(scenery: any): string {
+      const sceneryType = ((this as any).SCENERY_TYPES_DICT as Record<number, any>)[
+        scenery.scenery_type_id
+      ];
       return sceneryType ? `${sceneryType.name}: ${scenery.name}` : scenery.name;
     },
-    autoScrollToCurrentScene(currentSceneId) {
-      const container = this.$refs.scrollContainer;
+    autoScrollToCurrentScene(currentSceneId: number): void {
+      const container = this.$refs.scrollContainer as HTMLElement | undefined;
       if (!container) return;
 
-      // Find the index of the current scene
-      const currentIndex = this.orderedScenes.findIndex((s) => s.id === currentSceneId);
+      const currentIndex = this.orderedScenes.findIndex((s: any) => s.id === currentSceneId);
       if (currentIndex === -1) return;
 
-      // Determine target element: previous scene if exists, otherwise current scene
-      let targetSceneId;
+      let targetSceneId: number;
       if (currentIndex > 0) {
-        // Scroll to show previous scene at top, so current scene is visible below
         targetSceneId = this.orderedScenes[currentIndex - 1].id;
       } else {
-        // First scene - scroll to top
         targetSceneId = currentSceneId;
       }
 
-      const targetRef = this.$refs[`scene-card-${targetSceneId}`];
+      const targetRef = this.$refs[`scene-card-${targetSceneId}`] as any;
       if (targetRef && targetRef[0]) {
-        // Scroll within the container only, not the whole page
         const element = targetRef[0].$el || targetRef[0];
         const containerTop = container.getBoundingClientRect().top;
         const elementTop = element.getBoundingClientRect().top;
@@ -452,89 +438,91 @@ export default {
         container.scrollTo({ top: scrollOffset, behavior: 'smooth' });
       }
     },
-    resetSMPlanScene() {
+    resetSMPlanScene(): void {
       this.smPlanScene = null;
     },
-    showSMPlanModal(scene) {
+    showSMPlanModal(scene: any): void {
       this.smPlanScene = scene;
-      this.$bvModal.show('sm-plan-modal');
+      (this as any).$bvModal.show('sm-plan-modal');
     },
-    togglePlanSet() {
+    togglePlanSet(): void {
       this.smPlanSet = !this.smPlanSet;
     },
-    togglePlanStrike() {
+    togglePlanStrike(): void {
       this.smPlanStrike = !this.smPlanStrike;
     },
-    getPreviousScene(scene) {
-      const currentIndex = this.orderedScenes.findIndex((s) => s.id === scene.id);
+    getPreviousScene(scene: any): any | null {
+      const currentIndex = this.orderedScenes.findIndex((s: any) => s.id === scene.id);
       if (currentIndex <= 0) {
-        return null; // First scene or not found
+        return null;
       }
       return this.orderedScenes[currentIndex - 1];
     },
-    getSettingScenery(scene) {
+    getSettingScenery(scene: any): any[] {
       const currentScenery = this.getSceneryForScene(scene.id);
       const previousScene = this.getPreviousScene(scene);
       if (!previousScene) {
-        return currentScenery; // First scene - all items are being set
+        return currentScenery;
       }
       const previousSceneryIds = new Set(
-        this.getSceneryForScene(previousScene.id).map((s) => s.id)
+        this.getSceneryForScene(previousScene.id).map((s: any) => s.id)
       );
-      return currentScenery.filter((item) => !previousSceneryIds.has(item.id));
+      return currentScenery.filter((item: any) => !previousSceneryIds.has(item.id));
     },
-    getSettingProps(scene) {
+    getSettingProps(scene: any): any[] {
       const currentProps = this.getPropsForScene(scene.id);
       const previousScene = this.getPreviousScene(scene);
       if (!previousScene) {
-        return currentProps; // First scene - all items are being set
+        return currentProps;
       }
-      const previousPropsIds = new Set(this.getPropsForScene(previousScene.id).map((p) => p.id));
-      return currentProps.filter((item) => !previousPropsIds.has(item.id));
+      const previousPropsIds = new Set(
+        this.getPropsForScene(previousScene.id).map((p: any) => p.id)
+      );
+      return currentProps.filter((item: any) => !previousPropsIds.has(item.id));
     },
-    getStrikingScenery(scene) {
+    getStrikingScenery(scene: any): any[] {
       const previousScene = this.getPreviousScene(scene);
       if (!previousScene) {
-        return []; // First scene - nothing to strike
+        return [];
       }
-      const currentSceneryIds = new Set(this.getSceneryForScene(scene.id).map((s) => s.id));
+      const currentSceneryIds = new Set(this.getSceneryForScene(scene.id).map((s: any) => s.id));
       return this.getSceneryForScene(previousScene.id).filter(
-        (item) => !currentSceneryIds.has(item.id)
+        (item: any) => !currentSceneryIds.has(item.id)
       );
     },
-    getStrikingProps(scene) {
+    getStrikingProps(scene: any): any[] {
       const previousScene = this.getPreviousScene(scene);
       if (!previousScene) {
-        return []; // First scene - nothing to strike
+        return [];
       }
-      const currentPropsIds = new Set(this.getPropsForScene(scene.id).map((p) => p.id));
+      const currentPropsIds = new Set(this.getPropsForScene(scene.id).map((p: any) => p.id));
       return this.getPropsForScene(previousScene.id).filter(
-        (item) => !currentPropsIds.has(item.id)
+        (item: any) => !currentPropsIds.has(item.id)
       );
     },
-    formatCrewName(crew) {
+    formatCrewName(crew: any): string {
       if (!crew) return 'Unknown';
       return crew.last_name ? `${crew.first_name} ${crew.last_name}` : crew.first_name;
     },
-    getCrewNamesForSettingItem(item, itemType, scene) {
-      const assignments =
+    getCrewNamesForSettingItem(item: any, itemType: string, scene: any): string[] {
+      const assignmentsByCrew =
         itemType === 'scenery'
-          ? this.CREW_ASSIGNMENTS_BY_SCENERY[item.id] || []
-          : this.CREW_ASSIGNMENTS_BY_PROP[item.id] || [];
-      return assignments
-        .filter((a) => a.assignment_type === 'set' && a.scene_id === scene.id)
-        .map((a) => this.formatCrewName(this.CREW_MEMBER_BY_ID(a.crew_id)));
+          ? ((this as any).CREW_ASSIGNMENTS_BY_SCENERY as Record<number, any[]>)[item.id] || []
+          : ((this as any).CREW_ASSIGNMENTS_BY_PROP as Record<number, any[]>)[item.id] || [];
+      return assignmentsByCrew
+        .filter((a: any) => a.assignment_type === 'set' && a.scene_id === scene.id)
+        .map((a: any) => this.formatCrewName((this as any).CREW_MEMBER_BY_ID(a.crew_id)));
     },
-    getCrewNamesForStrikingItem(item, itemType, scene) {
+    getCrewNamesForStrikingItem(item: any, itemType: string, scene: any): string[] {
       const previousScene = this.getPreviousScene(scene);
       if (!previousScene) return [];
-      const assignments =
+      const assignmentsByCrew =
         itemType === 'scenery'
-          ? this.CREW_ASSIGNMENTS_BY_SCENERY[item.id] || []
-          : this.CREW_ASSIGNMENTS_BY_PROP[item.id] || [];
-      return assignments
-        .filter((a) => a.assignment_type === 'strike' && a.scene_id === previousScene.id)
-        .map((a) => this.formatCrewName(this.CREW_MEMBER_BY_ID(a.crew_id)));
+          ? ((this as any).CREW_ASSIGNMENTS_BY_SCENERY as Record<number, any[]>)[item.id] || []
+          : ((this as any).CREW_ASSIGNMENTS_BY_PROP as Record<number, any[]>)[item.id] || [];
+      return assignmentsByCrew
+        .filter((a: any) => a.assignment_type === 'strike' && a.scene_id === previousScene.id)
+        .map((a: any) => this.formatCrewName((this as any).CREW_MEMBER_BY_ID(a.crew_id)));
     },
     ...mapActions([
       'GET_ACT_LIST',
@@ -549,7 +537,7 @@ export default {
       'GET_CREW_ASSIGNMENTS',
     ]),
   },
-};
+});
 </script>
 
 <style scoped>

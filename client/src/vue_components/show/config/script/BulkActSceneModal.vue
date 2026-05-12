@@ -31,8 +31,10 @@
   </b-modal>
 </template>
 
-<script>
-export default {
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+export default defineComponent({
   name: 'BulkActSceneModal',
   events: ['apply'],
   props: {
@@ -130,5 +132,5 @@ export default {
       this.selectedSceneId = null;
     },
   },
-};
+});
 </script>

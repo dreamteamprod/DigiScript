@@ -32,7 +32,7 @@ Vue.component('SplitPanes', Splitpanes);
 Vue.component('SplitPane', Pane);
 
 Vue.use(Vuex);
-Vue.use(Vuelidate);
+Vue.use(Vuelidate as any); // @types/vuelidate bundles its own Vue copy that conflicts with main package
 Vue.use(ToastPlugin, {
   position: 'top-right',
 });
@@ -49,7 +49,7 @@ async function shouldInitializeWebSocket() {
 
   // Electron mode: check if there's an active connection
   try {
-    const activeConnection = await window.electronAPI.getActiveConnection();
+    const activeConnection = await (window as any).electronAPI.getActiveConnection();
     return activeConnection !== null;
   } catch (error) {
     console.warn('Could not check active connection, skipping WebSocket initialization:', error);
@@ -68,7 +68,12 @@ function initializeWebSocket() {
       reconnection: true,
       format: 'json',
       store,
-      passToStoreHandler(eventName, event, next) {
+      passToStoreHandler(
+        this: any,
+        eventName: string,
+        event: any,
+        next: (eventName: string, event: any) => void
+      ) {
         // Ignore anything that doesn't start with SOCKET_ as per
         // https://www.npmjs.com/package/vue-native-websocket
         if (!eventName.startsWith('SOCKET_')) {
@@ -116,25 +121,23 @@ shouldInitializeWebSocket().then((shouldInit) => {
 Vue.config.productionTip = false;
 Vue.config.devtools = import.meta.env.MODE === 'development';
 
-Vue.filter('capitalize', (value) => {
+Vue.filter('capitalize', (value: any) => {
   if (!value) return '';
   return value
     .toString()
     .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 });
-Vue.filter('uppercase', (value) => {
+Vue.filter('uppercase', (value: any) => {
   if (!value) return '';
   return value.toString().toUpperCase();
 });
-Vue.filter('lowercase', (value) => {
+Vue.filter('lowercase', (value: any) => {
   if (!value) return '';
   return value.toString().toLowerCase();
 });
 
-new Vue({
-  router,
-  store,
-  render: (h) => h(App),
-}).$mount('#app');
+// vue-router's ComponentOptions augmentation is shadowed by @types/vuelidate's bundled
+// Vue copy; cast away the conflict until vuelidate is upgraded to vuelidate-next.
+new (Vue as any)({ router, store, render: (h: any) => h(App) }).$mount('#app');

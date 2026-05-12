@@ -268,13 +268,14 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import { notNull } from '@/js/customValidators';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'PropsList',
   mixins: [formValidationMixin],
   data() {
@@ -293,21 +294,21 @@ export default {
       newPropFormState: {
         name: '',
         description: '',
-        prop_type_id: null,
+        prop_type_id: null as number | null,
       },
       rowsPerPage: 15,
       currentPropPage: 1,
       currentPropTypePage: 1,
       editPropTypeFormState: {
-        id: null,
+        id: null as number | null,
         name: '',
         description: '',
       },
       editPropFormState: {
-        id: null,
+        id: null as number | null,
         name: '',
         description: '',
-        prop_type_id: null,
+        prop_type_id: null as number | null,
       },
     };
   },
@@ -346,133 +347,136 @@ export default {
     },
   },
   computed: {
-    propTypeOptions() {
+    propTypeOptions(): any[] {
       return [
         { value: null, text: 'Please select an option', disabled: true },
-        ...this.PROP_TYPES.map((propType) => ({ value: propType.id, text: propType.name })),
+        ...(this as any).PROP_TYPES.map((propType: any) => ({
+          value: propType.id,
+          text: propType.name,
+        })),
       ];
     },
     ...mapGetters(['PROPS_LIST', 'PROP_TYPES', 'IS_SHOW_EDITOR', 'PROP_TYPE_BY_ID']),
   },
-  async mounted() {
-    await Promise.all([this.GET_PROP_TYPES(), this.GET_PROPS_LIST()]);
+  async mounted(): Promise<void> {
+    await Promise.all([(this as any).GET_PROP_TYPES(), (this as any).GET_PROPS_LIST()]);
   },
   methods: {
-    resetNewPropTypeForm() {
-      this.resetForm('newPropTypeFormState', {
+    resetNewPropTypeForm(): void {
+      (this as any).resetForm('newPropTypeFormState', {
         name: '',
         description: '',
       });
     },
-    resetNewPropForm() {
-      this.resetForm('newPropFormState', {
+    resetNewPropForm(): void {
+      (this as any).resetForm('newPropFormState', {
         name: '',
         description: '',
         prop_type: null,
       });
     },
-    async onSubmitNewPropType(event) {
-      this.$v.newPropTypeFormState.$touch();
-      if (this.$v.newPropTypeFormState.$anyError) {
+    async onSubmitNewPropType(event: Event): Promise<void> {
+      (this as any).$v.newPropTypeFormState.$touch();
+      if ((this as any).$v.newPropTypeFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.ADD_PROP_TYPE(this.newPropTypeFormState);
+        await (this as any).ADD_PROP_TYPE(this.newPropTypeFormState);
         this.resetNewPropTypeForm();
       }
     },
-    async onSubmitNewProp(event) {
-      this.$v.newPropFormState.$touch();
-      if (this.$v.newPropFormState.$anyError) {
+    async onSubmitNewProp(event: Event): Promise<void> {
+      (this as any).$v.newPropFormState.$touch();
+      if ((this as any).$v.newPropFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.ADD_PROP(this.newPropFormState);
+        await (this as any).ADD_PROP(this.newPropFormState);
         this.resetNewPropForm();
       }
     },
-    validateNewPropTypeState(name) {
-      const { $dirty, $error } = this.$v.newPropTypeFormState[name];
+    validateNewPropTypeState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newPropTypeFormState[name];
       return $dirty ? !$error : null;
     },
-    validateNewPropState(name) {
-      const { $dirty, $error } = this.$v.newPropFormState[name];
+    validateNewPropState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newPropFormState[name];
       return $dirty ? !$error : null;
     },
-    openEditPropTypeForm(propType) {
+    openEditPropTypeForm(propType: any): void {
       if (propType != null) {
         this.editPropTypeFormState.id = propType.item.id;
         this.editPropTypeFormState.name = propType.item.name;
         this.editPropTypeFormState.description = propType.item.description;
-        this.$bvModal.show('edit-prop-type');
+        (this as any).$bvModal.show('edit-prop-type');
       }
     },
-    openEditPropForm(propsMember) {
+    openEditPropForm(propsMember: any): void {
       if (propsMember != null) {
         this.editPropFormState.id = propsMember.item.id;
         this.editPropFormState.name = propsMember.item.name;
         this.editPropFormState.description = propsMember.item.description;
         this.editPropFormState.prop_type_id = propsMember.item.prop_type_id;
-        this.$bvModal.show('edit-props');
+        (this as any).$bvModal.show('edit-props');
       }
     },
-    resetEditPropTypeForm() {
-      this.resetForm('editPropTypeFormState', {
+    resetEditPropTypeForm(): void {
+      (this as any).resetForm('editPropTypeFormState', {
         id: null,
         name: '',
         description: '',
       });
     },
-    resetEditPropForm() {
-      this.resetForm('editPropFormState', {
+    resetEditPropForm(): void {
+      (this as any).resetForm('editPropFormState', {
         id: null,
         name: '',
         description: '',
         prop_type_id: null,
       });
     },
-    async onSubmitEditPropType(event) {
-      this.$v.editPropTypeFormState.$touch();
-      if (this.$v.editPropTypeFormState.$anyError) {
+    async onSubmitEditPropType(event: Event): Promise<void> {
+      (this as any).$v.editPropTypeFormState.$touch();
+      if ((this as any).$v.editPropTypeFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.UPDATE_PROP_TYPE(this.editPropTypeFormState);
+        await (this as any).UPDATE_PROP_TYPE(this.editPropTypeFormState);
         this.resetEditPropTypeForm();
       }
     },
-    async onSubmitEditProp(event) {
-      this.$v.editPropFormState.$touch();
-      if (this.$v.editPropFormState.$anyError) {
+    async onSubmitEditProp(event: Event): Promise<void> {
+      (this as any).$v.editPropFormState.$touch();
+      if ((this as any).$v.editPropFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.UPDATE_PROP(this.editPropFormState);
+        await (this as any).UPDATE_PROP(this.editPropFormState);
         this.resetEditPropForm();
       }
     },
-    validateEditPropTypeState(name) {
-      const { $dirty, $error } = this.$v.editPropTypeFormState[name];
+    validateEditPropTypeState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editPropTypeFormState[name];
       return $dirty ? !$error : null;
     },
-    validateEditPropState(name) {
-      const { $dirty, $error } = this.$v.editPropFormState[name];
+    validateEditPropState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editPropFormState[name];
       return $dirty ? !$error : null;
     },
-    async deletePropType(propType) {
-      const propsDeleted = this.PROPS_LIST.filter(
-        (prop) => prop.prop_type_id === propType.item.id
+    async deletePropType(propType: any): Promise<void> {
+      const propsDeleted = (this as any).PROPS_LIST.filter(
+        (prop: any) => prop.prop_type_id === propType.item.id
       ).length;
       let msg = `Are you sure you want to delete ${propType.item.name}?`;
       if (propsDeleted > 0) {
         msg = `${msg} This will also delete ${propsDeleted} props.`;
       }
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_PROP_TYPE(propType.item.id);
+        await (this as any).DELETE_PROP_TYPE(propType.item.id);
       }
     },
-    async deletePropsItem(propsMember) {
+    async deletePropsItem(propsMember: any): Promise<void> {
       const msg = `Are you sure you want to delete ${propsMember.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_PROP(propsMember.item.id);
+        await (this as any).DELETE_PROP(propsMember.item.id);
       }
     },
     ...mapActions([
@@ -486,5 +490,5 @@ export default {
       'UPDATE_PROP',
     ]),
   },
-};
+});
 </script>
