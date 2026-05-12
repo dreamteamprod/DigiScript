@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import type { ScriptLine } from '@/types/api/script';
 import { computePageStatus } from './scriptConfig';
 
-function makeLine(id, numParts) {
+function makeLine(id: number | null, numParts: number): ScriptLine {
   return {
     id,
     act_id: 1,

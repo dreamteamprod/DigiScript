@@ -29,7 +29,7 @@
     // skipLibCheck: third-party packages (bootstrap-vue, vue-native-websocket,
     // @types/vuelidate) carry incomplete or conflicting .d.ts files.
     "skipLibCheck": true,
-    "allowJs": true,      // Allows the one remaining .js test file (scriptConfig.test.js)
+    "allowJs": true,      // Retained for vite.config.js and other tooling config files outside src/
     "checkJs": false,     // Don't type-check .js files
     "jsx": "preserve",    // Vue template compiler handles JSX transform
     "baseUrl": ".",
