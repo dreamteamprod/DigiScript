@@ -99,9 +99,10 @@ The `BUILD_TARGET` environment variable controls how the Vue client is built:
 Contributions are welcome! Please ensure all client and server code passes linting checks before submitting pull requests:
 
 ```shell
-# Client linting
+# Client linting and type checking
 cd client
 npm run lint
+npm run typecheck
 
 # Server linting
 cd server
@@ -131,7 +132,7 @@ Messages should be structured with the following data format:
 }
 ```
 
-On the client side, the messages are handled in 2 places (in the [Vuex store](client/src/store/store.js)):
+On the client side, the messages are handled in 2 places (in the [Vuex store](client/src/store/store.ts)):
 
 1. Vuex mutation `SOCKET_ONMESSAGE` is called for every message, and should handle each OP code as needed
 2. Vuex action `SOME_ACTION` needs to be defined, and is called only if the data contains an `ACTION` key/value pair
