@@ -276,13 +276,14 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import { notNull } from '@/js/customValidators';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'SceneryList',
   mixins: [formValidationMixin],
   data() {
@@ -301,21 +302,21 @@ export default {
       newSceneryFormState: {
         name: '',
         description: '',
-        scenery_type_id: null,
+        scenery_type_id: null as number | null,
       },
       rowsPerPage: 15,
       currentSceneryPage: 1,
       currentSceneryTypesPage: 1,
       editSceneryTypeFormState: {
-        id: null,
+        id: null as number | null,
         name: '',
         description: '',
       },
       editSceneryFormState: {
-        id: null,
+        id: null as number | null,
         name: '',
         description: '',
-        scenery_type_id: null,
+        scenery_type_id: null as number | null,
       },
     };
   },
@@ -354,10 +355,10 @@ export default {
     },
   },
   computed: {
-    sceneryTypeOptions() {
+    sceneryTypeOptions(): any[] {
       return [
         { value: null, text: 'Please select an option', disabled: true },
-        ...this.SCENERY_TYPES.map((sceneryType) => ({
+        ...(this as any).SCENERY_TYPES.map((sceneryType: any) => ({
           value: sceneryType.id,
           text: sceneryType.name,
         })),
@@ -365,122 +366,122 @@ export default {
     },
     ...mapGetters(['SCENERY_LIST', 'SCENERY_TYPES', 'IS_SHOW_EDITOR', 'SCENERY_TYPE_BY_ID']),
   },
-  async mounted() {
-    await Promise.all([this.GET_SCENERY_TYPES(), this.GET_SCENERY_LIST()]);
+  async mounted(): Promise<void> {
+    await Promise.all([(this as any).GET_SCENERY_TYPES(), (this as any).GET_SCENERY_LIST()]);
   },
   methods: {
-    resetNewSceneryTypeForm() {
-      this.resetForm('newSceneryTypeFormState', {
+    resetNewSceneryTypeForm(): void {
+      (this as any).resetForm('newSceneryTypeFormState', {
         name: '',
         description: '',
       });
     },
-    resetNewSceneryForm() {
-      this.resetForm('newSceneryFormState', {
+    resetNewSceneryForm(): void {
+      (this as any).resetForm('newSceneryFormState', {
         name: '',
         description: '',
       });
     },
-    async onSubmitNewSceneryType(event) {
-      this.$v.newSceneryTypeFormState.$touch();
-      if (this.$v.newSceneryTypeFormState.$anyError) {
+    async onSubmitNewSceneryType(event: Event): Promise<void> {
+      (this as any).$v.newSceneryTypeFormState.$touch();
+      if ((this as any).$v.newSceneryTypeFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.ADD_SCENERY_TYPE(this.newSceneryTypeFormState);
+        await (this as any).ADD_SCENERY_TYPE(this.newSceneryTypeFormState);
         this.resetNewSceneryTypeForm();
       }
     },
-    async onSubmitNewScenery(event) {
-      this.$v.newSceneryFormState.$touch();
-      if (this.$v.newSceneryFormState.$anyError) {
+    async onSubmitNewScenery(event: Event): Promise<void> {
+      (this as any).$v.newSceneryFormState.$touch();
+      if ((this as any).$v.newSceneryFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.ADD_SCENERY(this.newSceneryFormState);
+        await (this as any).ADD_SCENERY(this.newSceneryFormState);
         this.resetNewSceneryForm();
       }
     },
-    validateNewSceneryTypeState(name) {
-      const { $dirty, $error } = this.$v.newSceneryTypeFormState[name];
+    validateNewSceneryTypeState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newSceneryTypeFormState[name];
       return $dirty ? !$error : null;
     },
-    validateNewSceneryState(name) {
-      const { $dirty, $error } = this.$v.newSceneryFormState[name];
+    validateNewSceneryState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newSceneryFormState[name];
       return $dirty ? !$error : null;
     },
-    openEditSceneryTypeForm(sceneryType) {
+    openEditSceneryTypeForm(sceneryType: any): void {
       if (sceneryType != null) {
         this.editSceneryTypeFormState.id = sceneryType.item.id;
         this.editSceneryTypeFormState.name = sceneryType.item.name;
         this.editSceneryTypeFormState.description = sceneryType.item.description;
-        this.$bvModal.show('edit-scenery-type');
+        (this as any).$bvModal.show('edit-scenery-type');
       }
     },
-    openEditSceneryForm(sceneryMember) {
+    openEditSceneryForm(sceneryMember: any): void {
       if (sceneryMember != null) {
         this.editSceneryFormState.id = sceneryMember.item.id;
         this.editSceneryFormState.name = sceneryMember.item.name;
         this.editSceneryFormState.description = sceneryMember.item.description;
-        this.$bvModal.show('edit-scenery');
+        (this as any).$bvModal.show('edit-scenery');
       }
     },
-    resetEditSceneryTypeForm() {
-      this.resetForm('editSceneryTypeFormState', {
+    resetEditSceneryTypeForm(): void {
+      (this as any).resetForm('editSceneryTypeFormState', {
         id: null,
         name: '',
         description: '',
       });
     },
-    resetEditSceneryForm() {
-      this.resetForm('editSceneryFormState', {
+    resetEditSceneryForm(): void {
+      (this as any).resetForm('editSceneryFormState', {
         id: null,
         name: '',
         description: '',
       });
     },
-    async onSubmitEditSceneryType(event) {
-      this.$v.editSceneryTypeFormState.$touch();
-      if (this.$v.editSceneryTypeFormState.$anyError) {
+    async onSubmitEditSceneryType(event: Event): Promise<void> {
+      (this as any).$v.editSceneryTypeFormState.$touch();
+      if ((this as any).$v.editSceneryTypeFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.UPDATE_SCENERY_TYPE(this.editSceneryTypeFormState);
+        await (this as any).UPDATE_SCENERY_TYPE(this.editSceneryTypeFormState);
         this.resetEditSceneryTypeForm();
       }
     },
-    async onSubmitEditScenery(event) {
-      this.$v.editSceneryFormState.$touch();
-      if (this.$v.editSceneryFormState.$anyError) {
+    async onSubmitEditScenery(event: Event): Promise<void> {
+      (this as any).$v.editSceneryFormState.$touch();
+      if ((this as any).$v.editSceneryFormState.$anyError) {
         event.preventDefault();
       } else {
-        await this.UPDATE_SCENERY(this.editSceneryFormState);
+        await (this as any).UPDATE_SCENERY(this.editSceneryFormState);
         this.resetEditSceneryForm();
       }
     },
-    validateEditSceneryTypeState(name) {
-      const { $dirty, $error } = this.$v.editSceneryTypeFormState[name];
+    validateEditSceneryTypeState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editSceneryTypeFormState[name];
       return $dirty ? !$error : null;
     },
-    validateEditSceneryState(name) {
-      const { $dirty, $error } = this.$v.editSceneryFormState[name];
+    validateEditSceneryState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editSceneryFormState[name];
       return $dirty ? !$error : null;
     },
-    async deleteSceneryType(sceneryType) {
-      const sceneryDeleted = this.SCENERY_LIST.filter(
-        (scenery) => scenery.scenery_type_id === sceneryType.item.id
+    async deleteSceneryType(sceneryType: any): Promise<void> {
+      const sceneryDeleted = (this as any).SCENERY_LIST.filter(
+        (scenery: any) => scenery.scenery_type_id === sceneryType.item.id
       ).length;
       let msg = `Are you sure you want to delete ${sceneryType.item.name}?`;
       if (sceneryDeleted > 0) {
         msg = `${msg} This will also delete ${sceneryDeleted} scenery items.`;
       }
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_SCENERY_TYPE(sceneryType.item.id);
+        await (this as any).DELETE_SCENERY_TYPE(sceneryType.item.id);
       }
     },
-    async deleteSceneryItem(sceneryMember) {
+    async deleteSceneryItem(sceneryMember: any): Promise<void> {
       const msg = `Are you sure you want to delete ${sceneryMember.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
-        await this.DELETE_SCENERY(sceneryMember.item.id);
+        await (this as any).DELETE_SCENERY(sceneryMember.item.id);
       }
     },
     ...mapActions([
@@ -494,5 +495,5 @@ export default {
       'UPDATE_SCENERY',
     ]),
   },
-};
+});
 </script>

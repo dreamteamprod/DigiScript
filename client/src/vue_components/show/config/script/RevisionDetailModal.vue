@@ -90,8 +90,10 @@
   </b-modal>
 </template>
 
-<script>
-export default {
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+export default defineComponent({
   name: 'RevisionDetailModal',
   props: {
     modalId: {
@@ -155,7 +157,7 @@ export default {
       this.$emit('hidden');
     },
   },
-};
+});
 </script>
 
 <style scoped>

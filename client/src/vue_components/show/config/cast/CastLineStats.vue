@@ -50,40 +50,36 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import { makeURL } from '@/js/utils';
 import log from 'loglevel';
 import statsTableMixin from '@/mixins/statsTableMixin';
 
-export default {
+export default defineComponent({
   name: 'CastLineStats',
   mixins: [statsTableMixin],
   data() {
     return {
       loaded: false,
-      castStats: {},
+      castStats: {} as Record<string, any>,
     };
   },
   computed: {
-    tableData() {
+    tableData(): unknown[] {
       if (!this.loaded) {
         return [];
       }
-      return this.CAST_LIST.map(
-        (cast) => ({
-          Cast: cast.id,
-        }),
-        this
-      );
+      return (this as any).CAST_LIST.map((cast: any) => ({ Cast: cast.id }));
     },
-    tableFields() {
-      return ['Cast', ...this.sortedScenes.map((scene) => scene.id.toString())];
+    tableFields(): string[] {
+      return ['Cast', ...(this as any).sortedScenes.map((scene: any) => scene.id.toString())];
     },
     ...mapGetters(['CAST_BY_ID', 'CAST_LIST']),
   },
   methods: {
-    async getStats() {
+    async getStats(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/show/cast/stats')}`);
       if (response.ok) {
         this.castStats = await response.json();
@@ -91,7 +87,7 @@ export default {
         log.error('Unable to get cast stats!');
       }
     },
-    getLineCountForCast(castId, actId, sceneId) {
+    getLineCountForCast(castId: number, actId: number, sceneId: number): number {
       if (!Object.keys(this.castStats).includes('line_counts')) {
         return 0;
       }
@@ -108,5 +104,5 @@ export default {
       return 0;
     },
   },
-};
+});
 </script>

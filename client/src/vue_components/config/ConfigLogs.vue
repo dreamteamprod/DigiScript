@@ -106,16 +106,25 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import $ from 'jquery';
 import { debounce } from 'lodash';
 import { makeURL } from '@/js/utils';
 
-export default {
+interface LogEntry {
+  ts: string;
+  level: string;
+  filename: string;
+  lineno: number;
+  message: string;
+}
+
+export default defineComponent({
   name: 'ConfigLogs',
   data() {
     return {
-      entries: [],
+      entries: [] as LogEntry[],
       totalEntries: 0,
       source: 'server',
       levelFilter: '',
@@ -124,9 +133,13 @@ export default {
       limit: 500,
       liveRefresh: false,
       loading: false,
-      error: null,
+      error: null as string | null,
       autoScroll: true,
-      debounceContentSize: debounce(this.computeContentSize, 100),
+      searchDebounceTimer: null as ReturnType<typeof setTimeout> | null,
+      usernameDebounceTimer: null as ReturnType<typeof setTimeout> | null,
+      streamReader: null as ReadableStreamDefaultReader<Uint8Array> | null,
+      streamAborted: false,
+      debounceContentSize: null as ((...args: unknown[]) => void) | null,
 
       sourceOptions: [
         { text: 'Server', value: 'server' },
@@ -143,7 +156,7 @@ export default {
     };
   },
   watch: {
-    source() {
+    source(): void {
       this.usernameInput = '';
       if (this.liveRefresh) {
         this.restartStream();
@@ -151,15 +164,15 @@ export default {
         this.fetchLogs();
       }
     },
-    levelFilter() {
+    levelFilter(): void {
       if (this.liveRefresh) {
         this.restartStream();
       } else {
         this.fetchLogs();
       }
     },
-    searchInput() {
-      clearTimeout(this.searchDebounceTimer);
+    searchInput(): void {
+      clearTimeout(this.searchDebounceTimer ?? undefined);
       this.searchDebounceTimer = setTimeout(() => {
         if (this.liveRefresh) {
           this.restartStream();
@@ -168,8 +181,8 @@ export default {
         }
       }, 400);
     },
-    usernameInput() {
-      clearTimeout(this.usernameDebounceTimer);
+    usernameInput(): void {
+      clearTimeout(this.usernameDebounceTimer ?? undefined);
       this.usernameDebounceTimer = setTimeout(() => {
         if (this.liveRefresh) {
           this.restartStream();
@@ -178,7 +191,7 @@ export default {
         }
       }, 400);
     },
-    liveRefresh(val) {
+    liveRefresh(val: boolean): void {
       if (val) {
         this.startStream();
       } else {
@@ -186,35 +199,26 @@ export default {
       }
     },
   },
-  created() {
-    this.searchDebounceTimer = null;
-    this.usernameDebounceTimer = null;
-    // Non-reactive stream state kept off Vue's reactivity system.
-    this.streamReader = null;
-    this.streamAborted = false;
-  },
   async mounted() {
+    this.debounceContentSize = debounce(this.computeContentSize, 100);
     await this.fetchLogs();
     this.computeContentSize();
     window.addEventListener('resize', this.debounceContentSize);
   },
   beforeDestroy() {
     this.stopStream();
-    clearTimeout(this.searchDebounceTimer);
-    clearTimeout(this.usernameDebounceTimer);
+    clearTimeout(this.searchDebounceTimer ?? undefined);
+    clearTimeout(this.usernameDebounceTimer ?? undefined);
     window.removeEventListener('resize', this.debounceContentSize);
   },
   methods: {
-    computeContentSize() {
+    computeContentSize(): void {
       const scriptContainer = $('#log-console');
-      const startPos = scriptContainer.offset().top;
+      const startPos = scriptContainer.offset()!.top;
       const boxHeight = document.documentElement.clientHeight - startPos;
       scriptContainer.height(boxHeight - 50);
     },
-    // ------------------------------------------------------------------ //
-    // One-shot snapshot fetch (used when live stream is off)
-    // ------------------------------------------------------------------ //
-    async fetchLogs() {
+    async fetchLogs(): Promise<void> {
       this.loading = true;
       this.error = null;
       try {
@@ -240,16 +244,13 @@ export default {
         if (wasAtBottom) {
           this.$nextTick(() => this.scrollToBottom());
         }
-      } catch (err) {
+      } catch (err: any) {
         this.error = err.message || 'Failed to fetch logs';
       } finally {
         this.loading = false;
       }
     },
-    // ------------------------------------------------------------------ //
-    // SSE live stream (used when liveRefresh is true)
-    // ------------------------------------------------------------------ //
-    buildStreamUrl() {
+    buildStreamUrl(): string {
       const params = new URLSearchParams({
         source: this.source,
         level: this.levelFilter,
@@ -260,15 +261,15 @@ export default {
       }
       return `${makeURL('/api/v1/logs/stream')}?${params}`;
     },
-    async startStream() {
+    async startStream(): Promise<void> {
       this.stopStream();
       this.streamAborted = false;
       this.error = null;
 
-      let response;
+      let response: Response;
       try {
         response = await fetch(this.buildStreamUrl());
-      } catch (err) {
+      } catch (err: any) {
         this.error = err.message || 'Failed to connect to log stream';
         return;
       }
@@ -278,17 +279,12 @@ export default {
         return;
       }
 
-      // Clear existing entries — the stream sends backfill from scratch.
       this.entries = [];
       this.totalEntries = 0;
 
-      const reader = response.body.getReader();
+      const reader = response.body!.getReader();
       this.streamReader = reader;
       const decoder = new TextDecoder();
-
-      // SSE events are separated by "\n\n".  Because TCP packets don't align
-      // with event boundaries, we accumulate chunks in a string buffer and
-      // split on the separator, keeping any incomplete trailing chunk.
       let buffer = '';
 
       try {
@@ -297,9 +293,8 @@ export default {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-
           const events = buffer.split('\n\n');
-          buffer = events.pop(); // last element may be an incomplete event
+          buffer = events.pop()!;
 
           for (const event of events) {
             if (event.startsWith('data: ')) {
@@ -315,10 +310,9 @@ export default {
                   this.$nextTick(() => this.scrollToBottom());
                 }
               } catch {
-                // Ignore malformed JSON — should never happen in practice.
+                // ignore malformed SSE JSON
               }
             }
-            // Comment lines (": keepalive") are intentionally ignored.
           }
         }
       } catch {
@@ -330,22 +324,18 @@ export default {
         this.streamReader = null;
       }
     },
-    stopStream() {
+    stopStream(): void {
       if (this.streamReader) {
         this.streamAborted = true;
         this.streamReader.cancel();
         this.streamReader = null;
       }
     },
-    restartStream() {
+    restartStream(): void {
       this.stopStream();
       this.startStream();
     },
-
-    // ------------------------------------------------------------------ //
-    // Formatting helpers
-    // ------------------------------------------------------------------ //
-    formatEntry(entry) {
+    formatEntry(entry: LogEntry): string {
       const dt = new Date(entry.ts);
       const yy = String(dt.getUTCFullYear()).slice(2);
       const mo = String(dt.getUTCMonth() + 1).padStart(2, '0');
@@ -357,7 +347,7 @@ export default {
       const letter = this.levelLetter(entry.level);
       return `[${letter} ${yy}-${mo}-${dd} ${hh}:${mm}:${ss}.${ms} ${entry.filename}:${entry.lineno}] ${entry.message}`;
     },
-    levelClass(level) {
+    levelClass(level: string): string {
       switch (level) {
         case 'TRACE':
           return 'text-secondary';
@@ -376,8 +366,8 @@ export default {
           return 'text-light';
       }
     },
-    levelLetter(level) {
-      const map = {
+    levelLetter(level: string): string {
+      const map: Record<string, string> = {
         TRACE: 'T',
         DEBUG: 'D',
         INFO: 'I',
@@ -388,16 +378,16 @@ export default {
       };
       return map[level] || level[0];
     },
-    onScroll() {
-      const el = this.$refs.console;
+    onScroll(): void {
+      const el = this.$refs.console as HTMLElement | undefined;
       if (!el) return;
       const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
       this.autoScroll = atBottom;
     },
-    scrollToBottom() {
-      const el = this.$refs.console;
+    scrollToBottom(): void {
+      const el = this.$refs.console as HTMLElement | undefined;
       if (el) el.scrollTop = el.scrollHeight;
     },
   },
-};
+});
 </script>

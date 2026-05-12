@@ -97,14 +97,15 @@
   </b-form-row>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import ScriptLinePart from '@/vue_components/show/config/script/ScriptLinePart.vue';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
 
-export default {
+export default defineComponent({
   name: 'ScriptLineEditor',
   components: { ScriptLinePart },
   events: ['input', 'doneEditing', 'deleteLine'],
@@ -166,10 +167,10 @@ export default {
         character_group_id: null,
         line_text: '',
       },
-      previousLine: null,
-      nextLine: null,
-      recalculationTimeout: null,
-      abortController: null,
+      previousLine: null as any,
+      nextLine: null as any,
+      recalculationTimeout: null as ReturnType<typeof setTimeout> | null,
+      abortController: null as AbortController | null,
     };
   },
   validations: {
@@ -218,116 +219,119 @@ export default {
   },
   computed: {
     ...mapGetters(['SCENE_BY_ID', 'ACT_BY_ID', 'TMP_SCRIPT', 'ALL_DELETED_LINES', 'CURRENT_SHOW']),
-    currentPageScript() {
-      return this.TMP_SCRIPT[this.currentEditPage.toString()] || [];
+    currentPageScript(): any[] {
+      return (
+        ((this as any).TMP_SCRIPT as Record<string, any[]>)[this.currentEditPage.toString()] || []
+      );
     },
-    currentPageDeletedLines() {
-      return this.ALL_DELETED_LINES[this.currentEditPage.toString()] || [];
+    currentPageDeletedLines(): any[] {
+      return (
+        ((this as any).ALL_DELETED_LINES as Record<string, any[]>)[
+          this.currentEditPage.toString()
+        ] || []
+      );
     },
-    nextActs() {
-      // Start act is either the first act for the show, or the act of the previous line if there
-      // is one
-      let startAct = this.acts.find((act) => act.previous_act == null);
+    nextActs(): any[] {
+      const acts = this.acts as any[];
+      let startAct = acts.find((act: any) => act.previous_act == null);
       if (this.previousLine != null) {
-        startAct = this.acts.find((act) => act.id === this.previousLine.act_id);
+        startAct = acts.find((act: any) => act.id === this.previousLine.act_id);
       }
-      const validActs = [];
+      const validActs: any[] = [];
       let nextAct = startAct;
-      // Find all valid acts, if there is no next line then this is all acts after the start act.
-      // If there is a next line, this is all acts up to and including the act of the next line
       while (nextAct != null) {
         validActs.push(JSON.parse(JSON.stringify(nextAct)));
         if (this.nextLine != null && this.nextLine.act_id === nextAct.id) {
           break;
         }
-        nextAct = this.ACT_BY_ID(nextAct.next_act);
+        nextAct = (this as any).ACT_BY_ID(nextAct.next_act);
       }
       return validActs;
     },
-    actOptions() {
+    actOptions(): any[] {
       return [
         { value: null, text: 'N/A', disabled: true },
-        ...this.nextActs.map((act) => ({ value: act.id, text: act.name })),
+        ...(this as any).nextActs.map((act: any) => ({ value: act.id, text: act.name })),
       ];
     },
-    nextScenes() {
-      if (this.state.act_id == null) {
+    nextScenes(): any[] {
+      const state = (this as any).state;
+      if (state.act_id == null) {
         return [];
       }
-      const scenes = this.scenes.filter((scene) => scene.act === this.state.act_id);
-      // Start scene is either the first scene of the act, or the scene of the previous line if
-      // there is one
-      let startScene = scenes.find((scene) => scene.previous_scene == null);
-      if (this.previousLine != null && this.previousLine.act_id === this.state.act_id) {
-        startScene = scenes.find((scene) => scene.id === this.previousLine.scene_id);
+      const scenes = (this.scenes as any[]).filter((scene: any) => scene.act === state.act_id);
+      let startScene = scenes.find((scene: any) => scene.previous_scene == null);
+      if (this.previousLine != null && this.previousLine.act_id === state.act_id) {
+        startScene = scenes.find((scene: any) => scene.id === this.previousLine.scene_id);
       }
-      const validScenes = [];
+      const validScenes: any[] = [];
       let nextScene = startScene;
-      // Find all valid scenes, if there is no next line then this is all scenes after the start
-      // scene. If there is a next line, this is all scenes up to and including the scene of the
-      // next line
       while (nextScene != null) {
         validScenes.push(JSON.parse(JSON.stringify(nextScene)));
         if (this.nextLine != null && this.nextLine.scene_id === nextScene.id) {
           break;
         }
-        nextScene = this.SCENE_BY_ID(nextScene.next_scene);
+        nextScene = (this as any).SCENE_BY_ID(nextScene.next_scene);
       }
       return validScenes;
     },
-    sceneOptions() {
+    sceneOptions(): any[] {
       return [
         { value: null, text: 'N/A', disabled: true },
-        ...this.nextScenes.map((scene) => ({ value: scene.id, text: scene.name })),
+        ...(this as any).nextScenes.map((scene: any) => ({ value: scene.id, text: scene.name })),
       ];
     },
-    lineValid() {
-      return !this.$v.state.$anyError;
+    lineValid(): boolean {
+      return !(this as any).$v.state.$anyError;
     },
-    stageDirectionStylesOptions() {
+    stageDirectionStylesOptions(): any[] {
       return [
         { value: null, text: 'N/A' },
-        ...this.stageDirectionStyles.map((style) => ({ value: style.id, text: style.description })),
+        ...(this.stageDirectionStyles as any[]).map((style: any) => ({
+          value: style.id,
+          text: style.description,
+        })),
       ];
     },
   },
   watch: {
     currentPageScript: {
-      handler() {
+      handler(): void {
         this.scheduleRecalculation();
       },
       deep: true,
     },
     currentPageDeletedLines: {
-      handler() {
+      handler(): void {
         this.scheduleRecalculation();
       },
       deep: true,
     },
-    lineIndex() {
+    lineIndex(): void {
       this.scheduleRecalculation();
     },
     ALL_DELETED_LINES: {
-      handler() {
+      handler(): void {
         this.scheduleRecalculation();
       },
       deep: true,
     },
   },
-  async created() {
-    this.previousLine = await this.previousLineFn(this.lineIndex);
-    this.nextLine = await this.nextLineFn(this.lineIndex);
+  async created(): Promise<void> {
+    this.previousLine = await (this.previousLineFn as Function)(this.lineIndex);
+    this.nextLine = await (this.nextLineFn as Function)(this.lineIndex);
+    const state = (this as any).state;
     if (
-      this.state.line_parts.length === 0 &&
+      state.line_parts.length === 0 &&
       (this.lineType === LINE_TYPES.DIALOGUE || this.lineType === LINE_TYPES.STAGE_DIRECTION)
     ) {
       this.addLinePart();
     }
   },
-  mounted() {
-    this.$v.state.$touch();
+  mounted(): void {
+    (this as any).$v.state.$touch();
   },
-  beforeDestroy() {
+  beforeDestroy(): void {
     if (this.recalculationTimeout) {
       clearTimeout(this.recalculationTimeout);
     }
@@ -336,60 +340,57 @@ export default {
     }
   },
   methods: {
-    scheduleRecalculation() {
-      // Cancel any pending recalculation
+    scheduleRecalculation(): void {
       if (this.recalculationTimeout) {
         clearTimeout(this.recalculationTimeout);
       }
 
-      // Debounce recalculation by 100ms
       this.recalculationTimeout = setTimeout(() => {
         this.recalculatePreviousNextLines();
       }, 100);
     },
-    async recalculatePreviousNextLines() {
-      // Cancel any in-flight async operations
+    async recalculatePreviousNextLines(): Promise<void> {
       if (this.abortController) {
         this.abortController.abort();
       }
 
-      // Create new abort controller for this operation
       this.abortController = new AbortController();
       const { signal } = this.abortController;
 
       try {
-        const prevLine = await this.previousLineFn(this.lineIndex);
+        const prevLine = await (this.previousLineFn as Function)(this.lineIndex);
         if (signal.aborted) return;
         this.previousLine = prevLine;
 
-        const nxtLine = await this.nextLineFn(this.lineIndex);
+        const nxtLine = await (this.nextLineFn as Function)(this.lineIndex);
         if (signal.aborted) return;
         this.nextLine = nxtLine;
-      } catch (error) {
+      } catch (error: any) {
         if (error.name !== 'AbortError') {
           console.error('Error recalculating previous/next lines:', error);
         }
       }
     },
-    validateState(name) {
-      const { $dirty, $error } = this.$v.state[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.state[name];
       return $dirty ? !$error : null;
     },
-    doneEditing() {
+    doneEditing(): void {
       this.$emit('doneEditing');
     },
-    stateChange() {
-      this.$v.state.$touch();
-      this.$emit('input', this.state);
+    stateChange(): void {
+      (this as any).$v.state.$touch();
+      this.$emit('input', (this as any).state);
     },
-    addLinePart() {
+    addLinePart(): void {
+      const state = (this as any).state;
       const blankLine = JSON.parse(JSON.stringify(this.blankLinePartObj));
-      blankLine.line_id = this.state.id;
-      blankLine.part_index = this.state.line_parts.length;
-      this.state.line_parts.push(blankLine);
+      blankLine.line_id = state.id;
+      blankLine.part_index = state.line_parts.length;
+      state.line_parts.push(blankLine);
       if (this.lineType === LINE_TYPES.DIALOGUE && this.previousLine != null) {
-        const newPartIndex = this.state.line_parts.length - 1;
-        const newPart = this.state.line_parts[newPartIndex];
+        const newPartIndex = state.line_parts.length - 1;
+        const newPart = state.line_parts[newPartIndex];
         if (this.previousLine.line_parts.length >= newPartIndex + 1) {
           const previousPart = this.previousLine.line_parts[newPartIndex];
           if (previousPart.character_id != null) {
@@ -401,17 +402,17 @@ export default {
       }
       this.stateChange();
     },
-    deleteLine() {
+    deleteLine(): void {
       this.$emit('deleteLine');
     },
-    tryFinishLine() {
-      this.$v.state.$touch();
+    tryFinishLine(): void {
+      (this as any).$v.state.$touch();
       if (this.lineValid) {
         this.doneEditing();
       }
     },
   },
-};
+});
 </script>
 
 <style scoped></style>

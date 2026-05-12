@@ -133,13 +133,14 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import { makeURL } from '@/js/utils';
 import log from 'loglevel';
 
-export default {
+export default defineComponent({
   name: 'ConfigShows',
   data() {
     return {
@@ -157,10 +158,10 @@ export default {
       isSubmittingLoad: false,
       isSubmittingShow: false,
       formState: {
-        name: null,
-        start: null,
-        end: null,
-        script_mode: null,
+        name: null as string | null,
+        start: null as string | null,
+        end: null as string | null,
+        script_mode: null as number | null,
       },
     };
   },
@@ -172,36 +173,34 @@ export default {
       },
       start: {
         required,
-        beforeEnd: (value, vm) =>
-          value == null && vm.end != null ? false : new Date(value) <= new Date(vm.end),
+        beforeEnd: (value: string | null, vm: { end: string | null }) =>
+          value == null && vm.end != null ? false : new Date(value!) <= new Date(vm.end!),
       },
       end: {
         required,
-        afterStart: (value, vm) =>
-          value == null && vm.start != null ? false : new Date(value) >= new Date(vm.start),
+        afterStart: (value: string | null, vm: { start: string | null }) =>
+          value == null && vm.start != null ? false : new Date(value!) >= new Date(vm.start!),
       },
-      script_mode: {
-        required,
-      },
+      script_mode: { required },
     },
   },
   computed: {
     ...mapGetters(['AVAILABLE_SHOWS', 'CURRENT_SHOW', 'SCRIPT_MODES']),
   },
   async mounted() {
-    await Promise.all([this.GET_AVAILABLE_SHOWS(), this.GET_SCRIPT_MODES()]);
+    await Promise.all([(this as any).GET_AVAILABLE_SHOWS(), (this as any).GET_SCRIPT_MODES()]);
     this.loaded = true;
   },
   methods: {
-    async saveAndLoad(event) {
+    async saveAndLoad(event: Event): Promise<void> {
       await this.saveShow(event, true);
     },
-    async onSubmit(event) {
+    async onSubmit(event: Event): Promise<void> {
       await this.saveShow(event, false);
     },
-    async saveShow(event, load) {
-      this.$v.formState.$touch();
-      if (this.$v.formState.$anyError) {
+    async saveShow(event: Event, load: boolean): Promise<void> {
+      (this as any).$v.formState.$touch();
+      if ((this as any).$v.formState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -214,20 +213,16 @@ export default {
       this.isSubmittingShow = true;
 
       try {
-        const searchParams = new URLSearchParams({
-          load,
-        });
+        const searchParams = new URLSearchParams({ load: String(load) });
         const response = await fetch(`${makeURL('/api/v1/show')}?${searchParams}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(this.formState),
         });
         if (response.ok) {
-          await this.GET_AVAILABLE_SHOWS();
+          await (this as any).GET_AVAILABLE_SHOWS();
           this.$toast.success('Created new show!');
-          this.$bvModal.hide('show-config');
+          (this as any).$bvModal.hide('show-config');
           this.resetForm();
         } else {
           this.$toast.error('Unable to save show');
@@ -242,26 +237,20 @@ export default {
         this.isSubmittingShow = false;
       }
     },
-    async loadShow(show) {
-      if (this.isSubmittingLoad) {
-        return;
-      }
+    async loadShow(show: { id: number }): Promise<void> {
+      if (this.isSubmittingLoad) return;
 
       this.isSubmittingLoad = true;
 
       try {
         const response = await fetch(`${makeURL('/api/v1/settings')}`, {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            current_show: show.id,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_show: show.id }),
         });
         if (response.ok) {
           this.$toast.success('Loaded show!');
-          this.$bvModal.hide('show-load');
+          (this as any).$bvModal.hide('show-load');
         } else {
           this.$toast.error('Unable to load show');
           log.error('Unable to load show');
@@ -273,24 +262,23 @@ export default {
         this.isSubmittingLoad = false;
       }
     },
-    validateState(name) {
-      const { $dirty, $error } = this.$v.formState[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.formState[name];
       return $dirty ? !$error : null;
     },
-    resetForm() {
+    resetForm(): void {
       this.formState = {
         name: null,
         start: null,
         end: null,
-        script_mode: this.SCRIPT_MODES[0].value,
+        script_mode: (this as any).SCRIPT_MODES[0].value,
       };
       this.isSubmittingShow = false;
-
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
     ...mapActions(['GET_AVAILABLE_SHOWS', 'GET_SCRIPT_MODES']),
   },
-};
+});
 </script>

@@ -165,7 +165,8 @@
   </b-row>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions, mapMutations } from 'vuex';
 import $ from 'jquery';
@@ -178,7 +179,7 @@ import ScriptLineViewerCompact from '@/vue_components/show/live/ScriptLineViewer
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
 
-export default {
+export default defineComponent({
   name: 'ScriptViewPane',
   components: {
     ScriptLineViewer,
@@ -235,26 +236,26 @@ export default {
       // Navigation state
       currentPage: 1,
       currentLineOnPage: 0,
-      currentLine: null,
-      previousLine: null,
+      currentLine: null as string | null,
+      previousLine: null as string | null,
       isScrollingProgrammatically: false,
 
       // UI state
       cueAddMode: false,
-      debounceContentSize: debounce(this.computeContentSize, 100),
+      debounceContentSize: debounce((this as any).computeContentSize, 100) as any,
 
       // Cue modal state
       newCueFormState: {
-        cueType: null,
-        ident: null,
-        lineId: null,
+        cueType: null as any,
+        ident: null as string | null,
+        lineId: null as number | null,
       },
       submittingNewCue: false,
 
       // Interval modal state
-      intervalActId: null,
+      intervalActId: null as number | null,
       intervalTimerValue: '00:00:00',
-      intervalTimerContext: null,
+      intervalTimerContext: null as any,
 
       // Session control
       stoppingSession: false,
@@ -274,10 +275,10 @@ export default {
     },
   },
   computed: {
-    pageIter() {
+    pageIter(): number[] {
       return [...Array(this.currentMaxPage).keys()].map((i) => i + 1);
     },
-    intervalTimerLength() {
+    intervalTimerLength(): number {
       if (this.intervalTimerContext == null) {
         return 0;
       }
@@ -287,33 +288,35 @@ export default {
         this.intervalTimerContext.seconds
       );
     },
-    cueTypeOptions() {
+    cueTypeOptions(): any[] {
       return [
         { value: null, text: 'N/A' },
-        ...this.CUE_TYPES.map((cueType) => ({
+        ...(this as any).CUE_TYPES.map((cueType: any) => ({
           value: cueType.id,
           text: `${cueType.prefix}: ${cueType.description}`,
         })),
       ];
     },
-    totalCueCount() {
+    totalCueCount(): number {
       let count = 0;
-      Object.keys(this.SCRIPT_CUES).forEach((line) => {
-        count += this.SCRIPT_CUES[line].length;
-      }, this);
+      const scriptCues = (this as any).SCRIPT_CUES as Record<string, any[]>;
+      Object.keys(scriptCues).forEach((line) => {
+        count += scriptCues[line].length;
+      });
       return count;
     },
-    flatScriptCues() {
-      return Object.keys(this.SCRIPT_CUES)
-        .map((key) => this.SCRIPT_CUES[key])
+    flatScriptCues(): any[] {
+      const scriptCues = (this as any).SCRIPT_CUES as Record<string, any[]>;
+      return Object.keys(scriptCues)
+        .map((key) => scriptCues[key])
         .flat();
     },
-    isDuplicateCue() {
+    isDuplicateCue(): boolean {
       if (!this.newCueFormState.ident || !this.newCueFormState.cueType) {
         return false;
       }
       return this.flatScriptCues.some(
-        (cue) =>
+        (cue: any) =>
           cue.cue_type_id === this.newCueFormState.cueType &&
           cue.ident === this.newCueFormState.ident
       );
@@ -335,11 +338,12 @@ export default {
     ]),
   },
   watch: {
-    sessionFollowData() {
-      if (this.isScriptFollowing && this.sessionFollowData.current_line) {
-        const currentLineElement = document.getElementById(this.sessionFollowData.current_line);
+    sessionFollowData(): void {
+      const followData = this.sessionFollowData as any;
+      if (this.isScriptFollowing && followData.current_line) {
+        const currentLineElement = document.getElementById(followData.current_line);
         if (currentLineElement != null) {
-          const idParts = this.sessionFollowData.current_line.split('_');
+          const idParts = followData.current_line.split('_');
           const page = parseInt(idParts[1], 10);
           const line = parseInt(idParts[3], 10);
 
@@ -360,7 +364,7 @@ export default {
         }
       }
     },
-    totalCueCount() {
+    totalCueCount(): void {
       this.$nextTick(() => {
         if (this.initialLoad) {
           this.resumeNavigation();
@@ -368,27 +372,27 @@ export default {
       });
     },
   },
-  async mounted() {
+  async mounted(): Promise<void> {
     // Load all independent data in parallel
     await Promise.all([
       // User data (style overrides loaded after user resolves)
-      this.GET_CURRENT_USER().then(() => {
-        if (this.CURRENT_USER != null) {
+      (this as any).GET_CURRENT_USER().then(() => {
+        if ((this as any).CURRENT_USER != null) {
           return Promise.all([
-            this.GET_STAGE_DIRECTION_STYLE_OVERRIDES(),
-            this.GET_CUE_COLOUR_OVERRIDES(),
+            (this as any).GET_STAGE_DIRECTION_STYLE_OVERRIDES(),
+            (this as any).GET_CUE_COLOUR_OVERRIDES(),
           ]);
         }
         return Promise.resolve();
       }),
       // Show metadata
-      this.GET_SCENE_LIST(),
-      this.GET_CHARACTER_LIST(),
-      this.GET_CHARACTER_GROUP_LIST(),
-      this.GET_CUE_TYPES(),
-      this.LOAD_CUES(),
-      this.GET_CUTS(),
-      this.GET_STAGE_DIRECTION_STYLES(),
+      (this as any).GET_SCENE_LIST(),
+      (this as any).GET_CHARACTER_LIST(),
+      (this as any).GET_CHARACTER_GROUP_LIST(),
+      (this as any).GET_CUE_TYPES(),
+      (this as any).LOAD_CUES(),
+      (this as any).GET_CUTS(),
+      (this as any).GET_STAGE_DIRECTION_STYLES(),
       // Script page count
       this.getMaxScriptPage(),
     ]);
@@ -451,20 +455,20 @@ export default {
     window.addEventListener('resize', this.debounceContentSize);
     this.$emit('script-loaded');
   },
-  destroyed() {
+  destroyed(): void {
     this.removeNavigation();
     window.removeEventListener('resize', this.debounceContentSize);
   },
   methods: {
     // Navigation setup/teardown
-    setupNavigation() {
+    setupNavigation(): void {
       window.addEventListener('keydown', this.handleKeyPress);
       const scriptContainer = document.getElementById('script-container');
       if (scriptContainer) {
         scriptContainer.addEventListener('wheel', this.handleWheelNavigation, { passive: false });
       }
     },
-    removeNavigation() {
+    removeNavigation(): void {
       window.removeEventListener('keydown', this.handleKeyPress);
       const scriptContainer = document.getElementById('script-container');
       if (scriptContainer) {
@@ -473,12 +477,12 @@ export default {
     },
 
     // Navigation execution
-    navigateTo(targetPage, targetLineOnPage, preventScroll = false) {
+    navigateTo(targetPage: number, targetLineOnPage: number, preventScroll = false): boolean {
       if (targetPage > Number(this.currentLoadedPage)) {
         return false;
       }
 
-      const pageLines = this.GET_SCRIPT_PAGE(targetPage);
+      const pageLines = (this as any).GET_SCRIPT_PAGE(targetPage);
       if (!pageLines || targetLineOnPage >= pageLines.length) {
         return false;
       }
@@ -513,7 +517,7 @@ export default {
         }
 
         if (this.fullLoad) {
-          this.$socket.sendObj({
+          (this as any).$socket.sendObj({
             OP: 'SCRIPT_SCROLL',
             DATA: {
               previous_line: this.previousLine,
@@ -530,7 +534,11 @@ export default {
 
       return true;
     },
-    findContextElement(targetPage, targetLineOnPage, contextLines) {
+    findContextElement(
+      targetPage: number,
+      targetLineOnPage: number,
+      contextLines: number
+    ): Element | null {
       let currentPage = targetPage;
       let currentLine = targetLineOnPage;
       let visibleLinesFound = 0;
@@ -544,7 +552,7 @@ export default {
             return document.getElementById('page_1_line_0');
           }
 
-          const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
+          const prevPageLines = (this as any).GET_SCRIPT_PAGE(currentPage);
           if (!prevPageLines || prevPageLines.length === 0) {
             continue;
           }
@@ -552,7 +560,7 @@ export default {
           currentLine = prevPageLines.length - 1;
         }
 
-        const pageLines = this.GET_SCRIPT_PAGE(currentPage);
+        const pageLines = (this as any).GET_SCRIPT_PAGE(currentPage);
         if (pageLines && currentLine < pageLines.length) {
           const line = pageLines[currentLine];
           if (!this.isWholeLineCut(line)) {
@@ -571,7 +579,7 @@ export default {
 
       return null;
     },
-    navigateRelative(deltaPage, deltaLine) {
+    navigateRelative(deltaPage: number, deltaLine: number): boolean {
       if (deltaLine === 0 && deltaPage === 0) return true;
 
       const direction = deltaLine > 0 ? 1 : -1;
@@ -591,13 +599,13 @@ export default {
             newLineOnPage = 0;
             break;
           } else {
-            const prevPageLines = this.GET_SCRIPT_PAGE(newPage);
+            const prevPageLines = (this as any).GET_SCRIPT_PAGE(newPage);
             if (!prevPageLines) break;
             newLineOnPage = prevPageLines.length - 1;
             if (newLineOnPage < 0) newLineOnPage = 0;
           }
         } else {
-          const currentPageLines = this.GET_SCRIPT_PAGE(newPage);
+          const currentPageLines = (this as any).GET_SCRIPT_PAGE(newPage);
           if (!currentPageLines) break;
           if (newLineOnPage >= currentPageLines.length) {
             newPage++;
@@ -611,7 +619,7 @@ export default {
           }
         }
 
-        const pageLines = this.GET_SCRIPT_PAGE(newPage);
+        const pageLines = (this as any).GET_SCRIPT_PAGE(newPage);
         if (pageLines && newLineOnPage < pageLines.length) {
           const currentLine = pageLines[newLineOnPage];
           if (!this.isWholeLineCut(currentLine)) {
@@ -629,7 +637,7 @@ export default {
     },
 
     // Input handlers
-    handleKeyPress(event) {
+    handleKeyPress(event: KeyboardEvent): void {
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         this.handleKeyNavigation(event);
       } else if (event.key === 'PageUp' || event.key === 'PageDown') {
@@ -638,9 +646,9 @@ export default {
         this.handleCueEditToggle(event);
       }
     },
-    handleCueEditToggle(event) {
+    handleCueEditToggle(event: KeyboardEvent): void {
       event.preventDefault();
-      if (this.IS_SHOW_EDITOR) {
+      if ((this as any).IS_SHOW_EDITOR) {
         this.cueAddMode = !this.cueAddMode;
         this.$nextTick(() => {
           if (this.initialLoad) {
@@ -651,7 +659,7 @@ export default {
         this.cueAddMode = false;
       }
     },
-    handleKeyNavigation(event) {
+    handleKeyNavigation(event: KeyboardEvent): void {
       if (
         !this.isScriptLeader ||
         !this.initialLoad ||
@@ -666,7 +674,7 @@ export default {
       const delta = event.key === 'ArrowDown' ? 1 : -1;
       this.navigateRelative(0, delta);
     },
-    handlePageNavigation(event) {
+    handlePageNavigation(event: KeyboardEvent): void {
       if (
         !this.isScriptLeader ||
         !this.initialLoad ||
@@ -689,7 +697,7 @@ export default {
 
       this.navigateTo(targetPage, 0);
     },
-    handleWheelNavigation(event) {
+    handleWheelNavigation(event: WheelEvent): void {
       if (
         !this.isScriptLeader ||
         !this.initialLoad ||
@@ -700,9 +708,10 @@ export default {
         return;
 
       const scriptContainer = document.getElementById('script-container');
-      const isAtTop = scriptContainer.scrollTop === 0;
+      const isAtTop = scriptContainer!.scrollTop === 0;
       const isAtBottom =
-        scriptContainer.scrollHeight - scriptContainer.scrollTop === scriptContainer.clientHeight;
+        scriptContainer!.scrollHeight - scriptContainer!.scrollTop ===
+        scriptContainer!.clientHeight;
 
       if ((event.deltaY > 0 && !isAtBottom) || (event.deltaY < 0 && !isAtTop)) {
         event.preventDefault();
@@ -713,7 +722,7 @@ export default {
     },
 
     // Navigation initialization
-    initializeNavigation() {
+    initializeNavigation(): void {
       if (this.initialLineRef) {
         const parts = this.initialLineRef.split('_');
         if (parts.length >= 4) {
@@ -731,9 +740,9 @@ export default {
         this.navigateTo(1, 0);
       }
     },
-    resumeNavigation() {
-      if (this.sessionFollowData.current_line) {
-        const parts = this.sessionFollowData.current_line.split('_');
+    resumeNavigation(): void {
+      if ((this.sessionFollowData as any).current_line) {
+        const parts = (this.sessionFollowData as any).current_line.split('_');
         if (parts.length >= 4) {
           const page = parseInt(parts[1], 10);
           const line = parseInt(parts[3], 10);
@@ -749,7 +758,7 @@ export default {
     },
 
     // Script loading
-    async loadCompiledScript() {
+    async loadCompiledScript(): Promise<boolean> {
       const response = await fetch(`${makeURL('/api/v1/show/script/compiled')}`, {
         method: 'GET',
         headers: {
@@ -770,24 +779,24 @@ export default {
           if (pageNumber < minLoadedPage) {
             minLoadedPage = pageNumber;
           }
-          this.SET_SCRIPT_PAGE({
+          (this as any).SET_SCRIPT_PAGE({
             pageNumber,
             page: pageContents,
           });
-        }, this);
+        });
         this.currentLoadedPage = maxLoadedPage;
         this.currentMinLoadedPage = minLoadedPage;
         return true;
       }
       return false;
     },
-    async loadNextPage() {
+    async loadNextPage(): Promise<void> {
       if (this.currentLoadedPage < this.currentMaxPage) {
         this.currentLoadedPage += 1;
-        await this.LOAD_SCRIPT_PAGE(this.currentLoadedPage);
+        await (this as any).LOAD_SCRIPT_PAGE(this.currentLoadedPage);
       }
     },
-    async getMaxScriptPage() {
+    async getMaxScriptPage(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
         method: 'GET',
         headers: {
@@ -861,14 +870,13 @@ export default {
     },
 
     // Line/cue helpers
-    getPreviousLineForIndex(pageIndex, lineIndex) {
+    getPreviousLineForIndex(pageIndex: number, lineIndex: number): any {
       if (lineIndex > 0) {
-        return this.GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1];
+        return (this as any).GET_SCRIPT_PAGE(pageIndex)[lineIndex - 1];
       }
       let loopPageNo = pageIndex - 1;
       while (loopPageNo >= 1) {
-        let loopPage = null;
-        loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        const loopPage = (this as any).GET_SCRIPT_PAGE(loopPageNo);
         if (loopPage.length > 0) {
           return loopPage[loopPage.length - 1];
         }
@@ -876,14 +884,13 @@ export default {
       }
       return null;
     },
-    getPreviousLineIndex(pageIndex, lineIndex) {
+    getPreviousLineIndex(pageIndex: number, lineIndex: number): number | null {
       if (lineIndex > 0) {
         return lineIndex - 1;
       }
       let loopPageNo = pageIndex - 1;
       while (loopPageNo >= 1) {
-        let loopPage = null;
-        loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+        const loopPage = (this as any).GET_SCRIPT_PAGE(loopPageNo);
         if (loopPage.length > 0) {
           return loopPage.length - 1;
         }
@@ -891,28 +898,29 @@ export default {
       }
       return null;
     },
-    getCuesForLine(line) {
-      if (Object.keys(this.SCRIPT_CUES).includes(line.id.toString())) {
-        return this.SCRIPT_CUES[line.id.toString()];
+    getCuesForLine(line: any): any[] {
+      const scriptCues = (this as any).SCRIPT_CUES as Record<string, any[]>;
+      if (Object.keys(scriptCues).includes(line.id.toString())) {
+        return scriptCues[line.id.toString()];
       }
       return [];
     },
-    isWholeLineCut(line) {
-      return isWholeLineCutUtil(line, this.SCRIPT_CUTS);
+    isWholeLineCut(line: any): boolean {
+      return isWholeLineCutUtil(line, (this as any).SCRIPT_CUTS);
     },
-    getSpacingBefore(page, index) {
+    getSpacingBefore(page: number, index: number): number {
       let spacingCount = 0;
       let currentPage = page;
       let currentIndex = index - 1;
 
       while (currentPage >= 1) {
-        const pageLines = this.GET_SCRIPT_PAGE(currentPage);
+        const pageLines = (this as any).GET_SCRIPT_PAGE(currentPage);
 
         if (currentIndex < 0) {
           currentPage--;
           if (currentPage < 1) break;
 
-          const prevPageLines = this.GET_SCRIPT_PAGE(currentPage);
+          const prevPageLines = (this as any).GET_SCRIPT_PAGE(currentPage);
           if (!prevPageLines || prevPageLines.length === 0) break;
           currentIndex = prevPageLines.length - 1;
 
@@ -935,7 +943,7 @@ export default {
     },
 
     // Line change handlers
-    async handleLastLineChange(lastPage, lineIndex) {
+    async handleLastLineChange(lastPage: number, lineIndex: number): Promise<void> {
       this.previousLastPage = this.currentLastPage;
       this.currentLastPage = lastPage;
       const cutoffPage = this.currentLoadedPage - this.pageBatchSize;
@@ -953,54 +961,58 @@ export default {
       }
       await this.$nextTick();
     },
-    async handleFirstLineChange(firstPage, lineIndex, previousLine) {
+    async handleFirstLineChange(
+      firstPage: number,
+      lineIndex: number,
+      previousLine: string
+    ): Promise<void> {
       this.previousFirstPage = this.currentFirstPage;
       this.currentFirstPage = firstPage;
       this.previousLine = previousLine;
       this.currentLine = `page_${firstPage}_line_${lineIndex}`;
 
       const cutoffPage = firstPage - this.pageBatchSize;
-      if (this.currentMinLoadedPage > cutoffPage) {
+      if ((this.currentMinLoadedPage ?? 0) > cutoffPage) {
         for (let pageLoop = 0; pageLoop < this.pageBatchSize; pageLoop++) {
-          if (this.currentMinLoadedPage > 1) {
-            this.currentMinLoadedPage -= 1;
+          if ((this.currentMinLoadedPage ?? 0) > 1) {
+            this.currentMinLoadedPage = (this.currentMinLoadedPage ?? 1) - 1;
 
-            await this.LOAD_SCRIPT_PAGE(this.currentMinLoadedPage);
+            await (this as any).LOAD_SCRIPT_PAGE(this.currentMinLoadedPage);
           }
         }
       }
     },
 
     // Interval modal methods
-    configureInterval(actId) {
+    configureInterval(actId: number): void {
       this.intervalActId = actId;
-      this.$bvModal.show('start-interval-modal');
+      (this as any).$bvModal.show('start-interval-modal');
     },
-    resetIntervalState() {
+    resetIntervalState(): void {
       this.intervalTimerContext = null;
       this.intervalTimerValue = '00:00:00';
     },
-    onIntervalTimerContext(ctx) {
+    onIntervalTimerContext(ctx: any): void {
       this.intervalTimerContext = ctx;
     },
-    startInterval() {
-      this.$socket.sendObj({
+    startInterval(): void {
+      (this as any).$socket.sendObj({
         OP: 'BEGIN_INTERVAL',
         DATA: {
           actId: this.intervalActId,
           length: this.intervalTimerLength,
         },
       });
-      this.$toast.success('Interval started!');
+      (this as any).$toast.success('Interval started!');
     },
 
     // Cue modal methods
-    openNewCueModal(lineId) {
+    openNewCueModal(lineId: number): void {
       this.resetNewCueForm();
       this.newCueFormState.lineId = lineId;
-      this.$bvModal.show('new-cue-modal');
+      (this as any).$bvModal.show('new-cue-modal');
     },
-    resetNewCueForm() {
+    resetNewCueForm(): void {
       this.newCueFormState = {
         cueType: null,
         ident: null,
@@ -1009,24 +1021,24 @@ export default {
       this.submittingNewCue = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    validateNewCueState(name) {
-      const { $dirty, $error } = this.$v.newCueFormState[name];
+    validateNewCueState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newCueFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitNewCue(event) {
-      this.$v.newCueFormState.$touch();
-      if (this.$v.newCueFormState.$anyError || this.submittingNewCue) {
+    async onSubmitNewCue(event: Event): Promise<void> {
+      (this as any).$v.newCueFormState.$touch();
+      if ((this as any).$v.newCueFormState.$anyError || this.submittingNewCue) {
         event.preventDefault();
         return;
       }
 
       this.submittingNewCue = true;
       try {
-        await this.ADD_NEW_CUE(this.newCueFormState);
-        this.$bvModal.hide('new-cue-modal');
+        await (this as any).ADD_NEW_CUE(this.newCueFormState);
+        (this as any).$bvModal.hide('new-cue-modal');
         this.resetNewCueForm();
       } catch (error) {
         log.error('Error submitting new cue:', error);
@@ -1037,38 +1049,35 @@ export default {
     },
 
     // Scroll helper - scrolls element into view within the script container only
-    scrollToElement(element) {
+    scrollToElement(element: Element | null): void {
       const container = document.getElementById('script-container');
       if (!container || !element) return;
 
-      // Calculate the element's position relative to the container
       const elementRect = element.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
 
-      // Calculate where the element is relative to the container's scroll position
       const elementTopRelativeToContainer =
         elementRect.top - containerRect.top + container.scrollTop;
 
-      // Scroll the container to show the element at the top
       container.scrollTop = elementTopRelativeToContainer;
     },
 
     // Exposed methods (called via ref from parent)
-    focusScript() {
-      this.$refs['script-container']?.focus();
+    focusScript(): void {
+      (this.$refs['script-container'] as HTMLElement | undefined)?.focus();
     },
 
     // Session control
-    async stopShow() {
+    async stopShow(): Promise<void> {
       this.stoppingSession = true;
       const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
         method: 'POST',
       });
       if (response.ok) {
-        this.$toast.success('Stopped show session');
+        (this as any).$toast.success('Stopped show session');
       } else {
         log.error('Unable to stop show session');
-        this.$toast.error('Unable to stop show session');
+        (this as any).$toast.error('Unable to stop show session');
       }
       this.stoppingSession = false;
     },
@@ -1089,7 +1098,7 @@ export default {
     ]),
     ...mapMutations(['SET_SCRIPT_PAGE']),
   },
-};
+});
 </script>
 
 <style scoped>

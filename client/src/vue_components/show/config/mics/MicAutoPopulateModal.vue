@@ -195,27 +195,28 @@
   </b-modal>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { makeURL } from '@/js/utils';
 import { mapGetters } from 'vuex';
 import log from 'loglevel';
 
-export default {
+export default defineComponent({
   name: 'MicAutoPopulateModal',
   events: ['autoPopulateResult'],
   data() {
     return {
       modalMode: 'create',
       submitting: false,
-      excludedMics: [],
-      staticCharacters: [],
+      excludedMics: [] as any[],
+      staticCharacters: [] as any[],
       formState: {
-        excludedMics: [],
-        staticCharacters: [],
+        excludedMics: [] as number[],
+        staticCharacters: [] as number[],
         gapMode: 'leave_gaps',
       },
-      suggestionHints: [],
-      allocations: {},
+      suggestionHints: [] as any[],
+      allocations: {} as Record<string, any>,
     };
   },
   validations: {
@@ -226,19 +227,19 @@ export default {
     },
   },
   computed: {
-    allocationHints() {
+    allocationHints(): any[] {
       return this.suggestionHints.filter((hint) => hint.type === 'allocation');
     },
-    staticAllocationHints() {
+    staticAllocationHints(): any[] {
       return this.suggestionHints.filter((hint) => hint.type === 'static');
     },
-    gapFillHints() {
+    gapFillHints(): any[] {
       return this.suggestionHints.filter((hint) => hint.type === 'gap_fill');
     },
     ...mapGetters(['MICROPHONES', 'CHARACTER_LIST', 'CHARACTER_BY_ID', 'SCENE_BY_ID', 'ACT_BY_ID']),
   },
   methods: {
-    async performGeneration() {
+    async performGeneration(): Promise<void> {
       this.submitting = true;
       try {
         const response = await fetch(`${makeURL('/api/v1/show/microphones/suggest')}`, {
@@ -257,27 +258,27 @@ export default {
           this.modalMode = 'review';
         } else {
           log.error('Unable to auto populate microphones');
-          this.$toast.error('Unable to auto populate microphones');
+          (this as any).$toast.error('Unable to auto populate microphones');
           this.modalMode = 'error';
         }
       } catch (error) {
         log.error('Error during microphone auto-population:', error);
-        this.$toast.error('Error during microphone auto-population');
+        (this as any).$toast.error('Error during microphone auto-population');
         this.modalMode = 'error';
       }
       this.submitting = false;
     },
-    validateState(name) {
-      const { $dirty, $error } = this.$v.formState[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.formState[name];
       return $dirty ? !$error : null;
     },
-    newExcludedMicSelectChanged(value, id) {
-      this.$v.formState.excludedMics.$model = value.map((mic) => mic.id);
+    newExcludedMicSelectChanged(value: any[]): void {
+      (this as any).$v.formState.excludedMics.$model = value.map((mic) => mic.id);
     },
-    newStaticCharacterSelectChanged(value, id) {
-      this.$v.formState.staticCharacters.$model = value.map((char) => char.id);
+    newStaticCharacterSelectChanged(value: any[]): void {
+      (this as any).$v.formState.staticCharacters.$model = value.map((char) => char.id);
     },
-    resetState() {
+    resetState(): void {
       this.modalMode = 'create';
       this.excludedMics = [];
       this.staticCharacters = [];
@@ -289,15 +290,15 @@ export default {
       this.suggestionHints = [];
       this.allocations = {};
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    applyPendingChanges() {
+    applyPendingChanges(): void {
       this.$emit('autoPopulateResult', this.allocations);
-      this.$bvModal.hide('mic-auto-populate-modal');
+      (this as any).$bvModal.hide('mic-auto-populate-modal');
     },
   },
-};
+});
 </script>
 
 <style scoped></style>

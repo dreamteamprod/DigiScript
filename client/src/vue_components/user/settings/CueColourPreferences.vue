@@ -153,14 +153,15 @@
   <b-alert v-else variant="danger"> No show loaded. </b-alert>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import { contrastColor } from 'contrast-color';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'CueColourPreferences',
   mixins: [formValidationMixin],
   data() {
@@ -173,12 +174,12 @@ export default {
       rowsPerPage: 15,
       currentPage: 1,
       newFormState: {
-        cueTypeId: null,
+        cueTypeId: null as number | null,
         colour: '#FF0000',
       },
       editFormState: {
-        id: null,
-        cueTypeId: null,
+        id: null as number | null,
+        cueTypeId: null as number | null,
         colour: '#FF0000',
       },
       isSubmittingNew: false,
@@ -187,42 +188,47 @@ export default {
     };
   },
   computed: {
-    overrideChoices() {
+    overrideChoices(): unknown[] {
       return [
         { value: null, text: 'Please select a cue type', disabled: true },
-        ...this.CUE_TYPES.filter(
-          (item) => !this.CUE_COLOUR_OVERRIDES.map((elem) => elem.settings.id).includes(item.id),
-          this
-        ).map((item) => ({ value: item.id, text: `${item.prefix} - ${item.description}` })),
+        ...(this as any).CUE_TYPES.filter(
+          (item: any) =>
+            !(this as any).CUE_COLOUR_OVERRIDES.map((elem: any) => elem.settings.id).includes(
+              item.id
+            )
+        ).map((item: any) => ({ value: item.id, text: `${item.prefix} - ${item.description}` })),
       ];
     },
-    tableData() {
-      return this.CUE_COLOUR_OVERRIDES.filter(
-        (item) => this.CUE_TYPES.map((elem) => elem.id).includes(item.settings.id),
-        this
+    tableData(): unknown[] {
+      return (this as any).CUE_COLOUR_OVERRIDES.filter((item: any) =>
+        (this as any).CUE_TYPES.map((elem: any) => elem.id).includes(item.settings.id)
       );
     },
-    newFormCueTypePrefix() {
+    newFormCueTypePrefix(): string {
       if (this.newFormState.cueTypeId) {
-        const cueType = this.CUE_TYPES.find((ct) => ct.id === this.newFormState.cueTypeId);
+        const cueType = (this as any).CUE_TYPES.find(
+          (ct: any) => ct.id === this.newFormState.cueTypeId
+        );
         return cueType ? cueType.prefix : '';
       }
       return '';
     },
-    editFormCueTypePrefix() {
+    editFormCueTypePrefix(): string {
       if (this.editFormState.cueTypeId) {
-        const cueType = this.CUE_TYPES.find((ct) => ct.id === this.editFormState.cueTypeId);
+        const cueType = (this as any).CUE_TYPES.find(
+          (ct: any) => ct.id === this.editFormState.cueTypeId
+        );
         return cueType ? cueType.prefix : '';
       }
       return '';
     },
-    createPayload() {
+    createPayload(): { cueTypeId: number | null; colour: string } {
       return {
         cueTypeId: this.newFormState.cueTypeId,
         colour: this.newFormState.colour,
       };
     },
-    editPayload() {
+    editPayload(): { id: number | null; colour: string } {
       return {
         id: this.editFormState.id,
         colour: this.editFormState.colour,
@@ -230,50 +236,49 @@ export default {
     },
     ...mapGetters(['CURRENT_SHOW', 'CUE_TYPES', 'CUE_COLOUR_OVERRIDES']),
   },
-  async beforeMount() {
-    await this.GET_SHOW_DETAILS();
-    if (this.CURRENT_SHOW != null) {
-      await this.GET_CUE_TYPES();
-      await this.GET_CUE_COLOUR_OVERRIDES();
+  async beforeMount(): Promise<void> {
+    await (this as any).GET_SHOW_DETAILS();
+    if ((this as any).CURRENT_SHOW != null) {
+      await (this as any).GET_CUE_TYPES();
+      await (this as any).GET_CUE_COLOUR_OVERRIDES();
     }
   },
   methods: {
     contrastColor,
-    resetOverrideSelect() {
+    resetOverrideSelect(): void {
       this.newFormState.cueTypeId = null;
     },
-    openNewOverrideModal(event) {
-      const cueTypeToOverride = this.CUE_TYPES.find(
-        (item) => item.id === this.newFormState.cueTypeId,
-        this
+    openNewOverrideModal(event: Event): void {
+      const cueTypeToOverride = (this as any).CUE_TYPES.find(
+        (item: any) => item.id === this.newFormState.cueTypeId
       );
       if (cueTypeToOverride == null) {
         log.error('Could not find cue type to override!');
-        this.$toast.error('Could not find cue type to override!');
+        (this as any).$toast.error('Could not find cue type to override!');
       } else {
         this.newFormState.cueTypeId = cueTypeToOverride.id;
         this.newFormState.colour = cueTypeToOverride.colour;
-        this.$bvModal.show('cue-colour-new-override-modal');
+        (this as any).$bvModal.show('cue-colour-new-override-modal');
       }
     },
-    resetNewFormState() {
-      this.resetForm('newFormState', {
+    resetNewFormState(): void {
+      (this as any).resetForm('newFormState', {
         cueTypeId: null,
         colour: '#FF0000',
       });
       this.isSubmittingNew = false;
     },
-    resetEditFormState() {
-      this.resetForm('editFormState', {
+    resetEditFormState(): void {
+      (this as any).resetForm('editFormState', {
         id: null,
         cueTypeId: null,
         colour: '#FF0000',
       });
       this.isSubmittingEdit = false;
     },
-    async onSubmitNewOverride(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError) {
+    async onSubmitNewOverride(event: Event): Promise<void> {
+      (this as any).$v.newFormState.$touch();
+      if ((this as any).$v.newFormState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -286,20 +291,20 @@ export default {
       this.isSubmittingNew = true;
 
       try {
-        await this.ADD_CUE_COLOUR_OVERRIDE(this.createPayload);
-        this.$refs['cue-colour-new-override-modal'].hide();
+        await (this as any).ADD_CUE_COLOUR_OVERRIDE(this.createPayload);
+        (this.$refs['cue-colour-new-override-modal'] as any).hide();
         this.resetNewFormState();
       } catch (error) {
         log.error('Error adding new cue colour override:', error);
-        this.$toast.error('Failed to add new override');
+        (this as any).$toast.error('Failed to add new override');
         event.preventDefault();
       } finally {
         this.isSubmittingNew = false;
       }
     },
-    async onSubmitEditOverride(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError) {
+    async onSubmitEditOverride(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -312,43 +317,43 @@ export default {
       this.isSubmittingEdit = true;
 
       try {
-        await this.UPDATE_CUE_COLOUR_OVERRIDE(this.editPayload);
-        this.$refs['cue-colour-edit-override-modal'].hide();
+        await (this as any).UPDATE_CUE_COLOUR_OVERRIDE(this.editPayload);
+        (this.$refs['cue-colour-edit-override-modal'] as any).hide();
         this.resetEditFormState();
       } catch (error) {
         log.error('Error updating cue colour override:', error);
-        this.$toast.error('Failed to update override');
+        (this as any).$toast.error('Failed to update override');
         event.preventDefault();
       } finally {
         this.isSubmittingEdit = false;
       }
     },
-    async deleteOverride(override) {
+    async deleteOverride(override: any): Promise<void> {
       if (this.isDeleting) {
         return;
       }
 
       const msg = 'Are you sure you want to delete this override?';
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.isDeleting = true;
         try {
-          await this.DELETE_CUE_COLOUR_OVERRIDE(override.item.id);
+          await (this as any).DELETE_CUE_COLOUR_OVERRIDE(override.item.id);
         } catch (error) {
           log.error('Error deleting cue colour override:', error);
-          this.$toast.error('Failed to delete override');
+          (this as any).$toast.error('Failed to delete override');
         } finally {
           this.isDeleting = false;
         }
       }
     },
-    openEditForm(override) {
+    openEditForm(override: any): void {
       if (override != null) {
         const { settings } = override.item;
         this.editFormState.id = override.item.id;
         this.editFormState.cueTypeId = settings.id;
         this.editFormState.colour = settings.colour;
-        this.$bvModal.show('cue-colour-edit-override-modal');
+        (this as any).$bvModal.show('cue-colour-edit-override-modal');
       }
     },
     ...mapActions([
@@ -372,7 +377,7 @@ export default {
       },
     },
   },
-};
+});
 </script>
 
 <style scoped>

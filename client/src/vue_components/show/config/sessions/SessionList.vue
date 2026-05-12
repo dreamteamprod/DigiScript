@@ -63,7 +63,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import log from 'loglevel';
 import { contrastColor } from 'contrast-color';
@@ -71,7 +72,7 @@ import { contrastColor } from 'contrast-color';
 import { makeURL, msToTimerString } from '@/js/utils';
 import SessionTagDropdown from './SessionTagDropdown.vue';
 
-export default {
+export default defineComponent({
   name: 'SessionList',
   components: {
     SessionTagDropdown,
@@ -101,54 +102,54 @@ export default {
   },
   methods: {
     contrastColor,
-    async startSession() {
-      if (this.INTERNAL_UUID == null) {
-        this.$toast.error('Unable to start new show session');
+    async startSession(): Promise<void> {
+      if ((this as any).INTERNAL_UUID == null) {
+        (this as any).$toast.error('Unable to start new show session');
         return;
       }
       this.startingSession = true;
       const response = await fetch(`${makeURL('/api/v1/show/sessions/start')}`, {
         method: 'POST',
         body: JSON.stringify({
-          session_id: this.INTERNAL_UUID,
+          session_id: (this as any).INTERNAL_UUID,
         }),
       });
       if (response.ok) {
-        this.$toast.success('Started new show session');
+        (this as any).$toast.success('Started new show session');
       } else {
         log.error('Unable to start new show session');
-        this.$toast.error('Unable to start new show session');
+        (this as any).$toast.error('Unable to start new show session');
       }
       this.startingSession = false;
     },
-    async stopSession() {
+    async stopSession(): Promise<void> {
       this.stoppingSession = true;
       const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
         method: 'POST',
       });
       if (response.ok) {
-        this.$toast.success('Stopped show session');
+        (this as any).$toast.success('Stopped show session');
       } else {
         log.error('Unable to stop show session');
-        this.$toast.error('Unable to stop show session');
+        (this as any).$toast.error('Unable to stop show session');
       }
       this.stoppingSession = false;
     },
-    runTimeCalc(start, end) {
+    runTimeCalc(start: string, end: string): string {
       const startDate = Date.parse(start);
       const endDate = Date.parse(end);
       const diff = endDate - startDate;
       return msToTimerString(diff);
     },
-    scriptRevisionLabel(revisionId) {
-      const revision = this.SCRIPT_REVISIONS.find((rev) => rev.id === revisionId);
+    scriptRevisionLabel(revisionId: number): string {
+      const revision = (this as any).SCRIPT_REVISIONS.find((rev: any) => rev.id === revisionId);
       if (revision) {
         return `${revision.revision}: ${revision.description}`;
       }
       return 'N/A';
     },
   },
-};
+});
 </script>
 
 <style scoped>

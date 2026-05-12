@@ -57,12 +57,13 @@
   </b-dropdown>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent, PropType } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import log from 'loglevel';
 import { contrastColor } from 'contrast-color';
 
-export default {
+export default defineComponent({
   name: 'SessionTagDropdown',
   props: {
     sessionId: {
@@ -70,63 +71,61 @@ export default {
       required: true,
     },
     currentTagIds: {
-      type: Array,
+      type: Array as PropType<number[]>,
       required: true,
     },
   },
   data() {
     return {
       searchQuery: '',
-      selectedTagIds: [...this.currentTagIds],
+      selectedTagIds: [...this.currentTagIds] as number[],
       saving: false,
     };
   },
   computed: {
     ...mapGetters(['SESSION_TAGS']),
-    filteredTags() {
+    filteredTags(): unknown[] {
       if (!this.searchQuery) {
-        return this.SESSION_TAGS || [];
+        return (this as any).SESSION_TAGS || [];
       }
       const query = this.searchQuery.toLowerCase();
-      return (this.SESSION_TAGS || []).filter((tag) => tag.tag.toLowerCase().includes(query));
+      return ((this as any).SESSION_TAGS || []).filter((tag: any) =>
+        tag.tag.toLowerCase().includes(query)
+      );
     },
   },
   methods: {
     ...mapActions(['UPDATE_SESSION_TAGS']),
     contrastColor,
-    isTagSelected(tagId) {
+    isTagSelected(tagId: number): boolean {
       return this.selectedTagIds.includes(tagId);
     },
-    async toggleTag(tagId) {
-      // Optimistic update
+    async toggleTag(tagId: number): Promise<void> {
       if (this.selectedTagIds.includes(tagId)) {
         this.selectedTagIds = this.selectedTagIds.filter((id) => id !== tagId);
       } else {
         this.selectedTagIds.push(tagId);
       }
-
-      // Save immediately
       await this.saveTagAssignment();
     },
-    async saveTagAssignment() {
+    async saveTagAssignment(): Promise<void> {
       if (this.saving) return;
       this.saving = true;
 
       try {
-        await this.UPDATE_SESSION_TAGS({
+        await (this as any).UPDATE_SESSION_TAGS({
           sessionId: this.sessionId,
           tagIds: this.selectedTagIds,
         });
       } catch (error) {
         log.error('Error updating session tags:', error);
-        // Revert optimistic update on error
         this.selectedTagIds = [...this.currentTagIds];
       } finally {
         this.saving = false;
       }
     },
   },
-};
+});
 </script>
 
 <style scoped>

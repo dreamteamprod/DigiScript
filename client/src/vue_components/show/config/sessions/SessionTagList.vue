@@ -209,19 +209,20 @@
   </span>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import log from 'loglevel';
 import { required } from 'vuelidate/lib/validators';
 import { contrastColor } from 'contrast-color';
 
-function isValidHexColor(value) {
+function isValidHexColor(value: string): boolean {
   if (!value) return false;
   const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
   return hexColorRegex.test(value);
 }
 
-function isTagNameUnique(value) {
+function isTagNameUnique(this: any, value: string): boolean {
   if (value === '') {
     return true;
   }
@@ -229,16 +230,16 @@ function isTagNameUnique(value) {
   if (this.editTagForm.id != null) {
     if (this.SESSION_TAGS != null && this.SESSION_TAGS.length > 0) {
       return !this.SESSION_TAGS.some(
-        (tag) => tag.tag.toLowerCase() === lowerValue && tag.id !== this.editTagForm.id
+        (tag: any) => tag.tag.toLowerCase() === lowerValue && tag.id !== this.editTagForm.id
       );
     }
   } else if (this.SESSION_TAGS != null && this.SESSION_TAGS.length > 0) {
-    return !this.SESSION_TAGS.some((tag) => tag.tag.toLowerCase() === lowerValue);
+    return !this.SESSION_TAGS.some((tag: any) => tag.tag.toLowerCase() === lowerValue);
   }
   return true;
 }
 
-export default {
+export default defineComponent({
   name: 'SessionTagList',
   data() {
     return {
@@ -254,17 +255,17 @@ export default {
         colour: '#3498DB',
       },
       editTagForm: {
-        id: null,
+        id: null as number | null,
         tag: '',
         colour: '',
       },
       isSubmittingNewTag: false,
       isSubmittingEditTag: false,
       isSubmittingDeleteTag: false,
-      importTagGroups: [],
-      tagGroupExpanded: {},
+      importTagGroups: [] as any[],
+      tagGroupExpanded: {} as Record<number, boolean>,
       isLoadingImport: false,
-      isImporting: {},
+      isImporting: {} as Record<number, boolean>,
       importTagFields: [
         { key: 'tag', label: 'Tag' },
         { key: 'action', label: '' },
@@ -273,30 +274,18 @@ export default {
   },
   validations: {
     newTagForm: {
-      tag: {
-        required,
-        unique: isTagNameUnique,
-      },
-      colour: {
-        required,
-        validHex: isValidHexColor,
-      },
+      tag: { required, unique: isTagNameUnique },
+      colour: { required, validHex: isValidHexColor },
     },
     editTagForm: {
-      tag: {
-        required,
-        unique: isTagNameUnique,
-      },
-      colour: {
-        required,
-        validHex: isValidHexColor,
-      },
+      tag: { required, unique: isTagNameUnique },
+      colour: { required, validHex: isValidHexColor },
     },
   },
   computed: {
     ...mapGetters(['SESSION_TAGS', 'SHOW_SESSIONS_LIST', 'IS_SHOW_EDITOR']),
-    existingTagNames() {
-      return new Set((this.SESSION_TAGS || []).map((t) => t.tag.toLowerCase()));
+    existingTagNames(): Set<string> {
+      return new Set(((this as any).SESSION_TAGS || []).map((t: any) => t.tag.toLowerCase()));
     },
   },
   methods: {
@@ -307,30 +296,27 @@ export default {
       'GET_IMPORTABLE_SESSION_TAGS',
     ]),
     contrastColor,
-    getSessionCountForTag(tagId) {
-      if (!this.SHOW_SESSIONS_LIST || !Array.isArray(this.SHOW_SESSIONS_LIST)) {
+    getSessionCountForTag(tagId: number): number {
+      if (!(this as any).SHOW_SESSIONS_LIST || !Array.isArray((this as any).SHOW_SESSIONS_LIST)) {
         return 0;
       }
-      return this.SHOW_SESSIONS_LIST.filter((session) => {
+      return (this as any).SHOW_SESSIONS_LIST.filter((session: any) => {
         if (!session.tags || !Array.isArray(session.tags)) {
           return false;
         }
-        return session.tags.some((tag) => tag.id === tagId);
+        return session.tags.some((tag: any) => tag.id === tagId);
       }).length;
     },
-    resetNewTagForm() {
-      this.newTagForm = {
-        tag: '',
-        colour: '#3498DB',
-      };
+    resetNewTagForm(): void {
+      this.newTagForm = { tag: '', colour: '#3498DB' };
       this.isSubmittingNewTag = false;
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    async onSubmitNewTag(event) {
-      this.$v.newTagForm.$touch();
-      if (this.$v.newTagForm.$anyError) {
+    async onSubmitNewTag(event: Event): Promise<void> {
+      (this as any).$v.newTagForm.$touch();
+      if ((this as any).$v.newTagForm.$anyError) {
         event.preventDefault();
         return;
       }
@@ -340,8 +326,8 @@ export default {
       }
       this.isSubmittingNewTag = true;
       try {
-        await this.ADD_SESSION_TAG(this.newTagForm);
-        this.$bvModal.hide('new-tag');
+        await (this as any).ADD_SESSION_TAG(this.newTagForm);
+        (this as any).$bvModal.hide('new-tag');
       } catch (error) {
         log.error('Error adding session tag:', error);
         event.preventDefault();
@@ -349,32 +335,28 @@ export default {
         this.isSubmittingNewTag = false;
       }
     },
-    validateNewTag(name) {
-      const { $dirty, $error } = this.$v.newTagForm[name];
+    validateNewTag(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newTagForm[name];
       return $dirty ? !$error : null;
     },
-    openEditTagForm(data) {
+    openEditTagForm(data: any): void {
       if (data != null && data.item != null) {
         this.editTagForm.id = data.item.id;
         this.editTagForm.tag = data.item.tag;
         this.editTagForm.colour = data.item.colour;
-        this.$bvModal.show('edit-tag');
+        (this as any).$bvModal.show('edit-tag');
       }
     },
-    resetEditTagForm() {
-      this.editTagForm = {
-        id: null,
-        tag: '',
-        colour: '',
-      };
+    resetEditTagForm(): void {
+      this.editTagForm = { id: null, tag: '', colour: '' };
       this.isSubmittingEditTag = false;
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    async onSubmitEditTag(event) {
-      this.$v.editTagForm.$touch();
-      if (this.$v.editTagForm.$anyError) {
+    async onSubmitEditTag(event: Event): Promise<void> {
+      (this as any).$v.editTagForm.$touch();
+      if ((this as any).$v.editTagForm.$anyError) {
         event.preventDefault();
         return;
       }
@@ -384,8 +366,8 @@ export default {
       }
       this.isSubmittingEditTag = true;
       try {
-        await this.UPDATE_SESSION_TAG(this.editTagForm);
-        this.$bvModal.hide('edit-tag');
+        await (this as any).UPDATE_SESSION_TAG(this.editTagForm);
+        (this as any).$bvModal.hide('edit-tag');
       } catch (error) {
         log.error('Error updating session tag:', error);
         event.preventDefault();
@@ -393,17 +375,17 @@ export default {
         this.isSubmittingEditTag = false;
       }
     },
-    validateEditTag(name) {
-      const { $dirty, $error } = this.$v.editTagForm[name];
+    validateEditTag(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editTagForm[name];
       return $dirty ? !$error : null;
     },
-    async openImportModal() {
-      this.$bvModal.show('import-tag-modal');
+    async openImportModal(): Promise<void> {
+      (this as any).$bvModal.show('import-tag-modal');
       this.isLoadingImport = true;
       try {
-        const data = await this.GET_IMPORTABLE_SESSION_TAGS();
+        const data = await (this as any).GET_IMPORTABLE_SESSION_TAGS();
         this.importTagGroups = data.tag_groups;
-        data.tag_groups.forEach((show) => {
+        data.tag_groups.forEach((show: any) => {
           this.$set(this.tagGroupExpanded, show.id, true);
         });
       } catch (e) {
@@ -412,27 +394,27 @@ export default {
         this.isLoadingImport = false;
       }
     },
-    toggleImportShow(showId) {
+    toggleImportShow(showId: number): void {
       this.$set(this.tagGroupExpanded, showId, !this.tagGroupExpanded[showId]);
     },
-    tagAlreadyExists(tag) {
+    tagAlreadyExists(tag: any): boolean {
       return this.existingTagNames.has(tag.tag.toLowerCase());
     },
-    async importTag(tag) {
+    async importTag(tag: any): Promise<void> {
       this.$set(this.isImporting, tag.id, true);
       try {
-        await this.ADD_SESSION_TAG({ tag: tag.tag, colour: tag.colour });
+        await (this as any).ADD_SESSION_TAG({ tag: tag.tag, colour: tag.colour });
       } finally {
         this.$set(this.isImporting, tag.id, false);
       }
     },
-    resetImportState() {
+    resetImportState(): void {
       this.importTagGroups = [];
       this.tagGroupExpanded = {};
       this.isLoadingImport = false;
       this.isImporting = {};
     },
-    async deleteTag(data) {
+    async deleteTag(data: any): Promise<void> {
       if (this.isSubmittingDeleteTag) {
         return;
       }
@@ -441,11 +423,11 @@ export default {
       if (sessionCount > 0) {
         msg += ` This tag is currently applied to ${sessionCount} session(s).`;
       }
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.isSubmittingDeleteTag = true;
         try {
-          await this.DELETE_SESSION_TAG(data.item.id);
+          await (this as any).DELETE_SESSION_TAG(data.item.id);
         } catch (error) {
           log.error('Error deleting session tag:', error);
         } finally {
@@ -454,7 +436,7 @@ export default {
       }
     },
   },
-};
+});
 </script>
 
 <style scoped>

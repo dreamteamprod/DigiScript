@@ -104,7 +104,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapMutations, mapActions } from 'vuex';
 import log from 'loglevel';
 
@@ -114,13 +115,13 @@ import JumpToCueModal from '@/vue_components/show/config/cues/JumpToCueModal.vue
 import { minValue, required } from 'vuelidate/lib/validators';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 
-export default {
+export default defineComponent({
   name: 'CueEditor',
   components: { ScriptLineCueEditor, JumpToCueModal },
   data() {
     return {
       currentEditPage: 1,
-      editPages: [],
+      editPages: [] as any[],
       blankLineObj: {
         id: null,
         act_id: null,
@@ -128,8 +129,8 @@ export default {
         page: null,
         line_parts: [],
       },
-      curSavePage: null,
-      totalSavePages: null,
+      curSavePage: null as number | null,
+      totalSavePages: null as number | null,
       savingInProgress: false,
       saveError: false,
       currentMaxPage: 1,
@@ -150,10 +151,10 @@ export default {
     },
   },
   computed: {
-    currentEditPageKey() {
+    currentEditPageKey(): string {
       return this.currentEditPage.toString();
     },
-    saveProgressVariant() {
+    saveProgressVariant(): string {
       if (!this.savingInProgress) {
         return this.saveError ? 'danger' : 'success';
       }
@@ -178,34 +179,33 @@ export default {
     ]),
   },
   watch: {
-    currentEditPage(val) {
-      localStorage.setItem('cueEditPage', val);
+    currentEditPage(val: number): void {
+      localStorage.setItem('cueEditPage', val.toString());
     },
   },
-  async beforeMount() {
+  async beforeMount(): Promise<void> {
     await Promise.all([
-      this.GET_CURRENT_USER().then(() => {
-        if (this.CURRENT_USER != null) {
+      (this as any).GET_CURRENT_USER().then(() => {
+        if ((this as any).CURRENT_USER != null) {
           return Promise.all([
-            this.GET_STAGE_DIRECTION_STYLE_OVERRIDES(),
-            this.GET_CUE_COLOUR_OVERRIDES(),
+            (this as any).GET_STAGE_DIRECTION_STYLE_OVERRIDES(),
+            (this as any).GET_CUE_COLOUR_OVERRIDES(),
           ]);
         }
         return Promise.resolve();
       }),
-      this.GET_SCRIPT_CONFIG_STATUS(),
-      this.GET_ACT_LIST(),
-      this.GET_SCENE_LIST(),
-      this.GET_CHARACTER_LIST(),
-      this.GET_CHARACTER_GROUP_LIST(),
-      this.GET_CUE_TYPES(),
-      this.LOAD_CUES(),
-      this.GET_CUTS(),
-      this.GET_STAGE_DIRECTION_STYLES(),
+      (this as any).GET_SCRIPT_CONFIG_STATUS(),
+      (this as any).GET_ACT_LIST(),
+      (this as any).GET_SCENE_LIST(),
+      (this as any).GET_CHARACTER_LIST(),
+      (this as any).GET_CHARACTER_GROUP_LIST(),
+      (this as any).GET_CUE_TYPES(),
+      (this as any).LOAD_CUES(),
+      (this as any).GET_CUTS(),
+      (this as any).GET_STAGE_DIRECTION_STYLES(),
       this.getMaxScriptPage(),
     ]);
 
-    // Initialisation of page data
     const storedPage = localStorage.getItem('cueEditPage');
     if (storedPage != null) {
       this.currentEditPage = parseInt(storedPage, 10);
@@ -213,7 +213,7 @@ export default {
     await this.goToPageInner(this.currentEditPage);
   },
   methods: {
-    async getMaxScriptPage() {
+    async getMaxScriptPage(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
         method: 'GET',
         headers: {
@@ -227,59 +227,56 @@ export default {
         log.error('Unable to get current max page');
       }
     },
-    requestEdit() {
-      this.$socket.sendObj({
+    requestEdit(): void {
+      (this as any).$socket.sendObj({
         OP: 'REQUEST_SCRIPT_EDIT',
         DATA: {},
       });
     },
-    async stopEditing() {
-      this.$socket.sendObj({
+    async stopEditing(): Promise<void> {
+      (this as any).$socket.sendObj({
         OP: 'STOP_SCRIPT_EDIT',
         DATA: {},
       });
     },
-    async decrPage() {
+    async decrPage(): Promise<void> {
       if (this.currentEditPage > 1) {
         const targetPage = this.currentEditPage - 1;
-        // Load target page from backend
-        await this.LOAD_SCRIPT_PAGE(targetPage);
+        await (this as any).LOAD_SCRIPT_PAGE(targetPage);
         this.currentEditPage--;
-        // Pre-load previous page
-        await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
+        await (this as any).LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
       }
     },
-    async incrPage() {
+    async incrPage(): Promise<void> {
       this.currentEditPage++;
-      // Pre-load next page
-      await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
+      await (this as any).LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
     },
-    getCuesForLine(line) {
-      if (Object.keys(this.SCRIPT_CUES).includes(line.id.toString())) {
-        return this.SCRIPT_CUES[line.id.toString()];
+    getCuesForLine(line: any): any[] {
+      if (Object.keys((this as any).SCRIPT_CUES).includes(line.id.toString())) {
+        return (this as any).SCRIPT_CUES[line.id.toString()];
       }
       return [];
     },
-    validatePageState(name) {
-      const { $dirty, $error } = this.$v.pageInputFormState[name];
+    validatePageState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.pageInputFormState[name];
       return $dirty ? !$error : null;
     },
-    async goToPage() {
+    async goToPage(): Promise<void> {
       this.changingPage = true;
       await this.goToPageInner(this.pageInputFormState.pageNo);
       this.changingPage = false;
     },
-    async goToPageInner(pageNo) {
+    async goToPageInner(pageNo: number): Promise<void> {
       if (pageNo > 1) {
-        await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1);
+        await (this as any).LOAD_SCRIPT_PAGE(parseInt(pageNo.toString(), 10) - 1);
       }
-      await this.LOAD_SCRIPT_PAGE(pageNo);
+      await (this as any).LOAD_SCRIPT_PAGE(pageNo);
       this.currentEditPage = pageNo;
-      await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
+      await (this as any).LOAD_SCRIPT_PAGE(parseInt(pageNo.toString(), 10) + 1);
     },
-    async handleJumpToCue(pageNumber) {
+    async handleJumpToCue(pageNumber: number): Promise<void> {
       await this.goToPageInner(pageNumber);
-      this.$bvModal.hide('jump-to-cue');
+      (this as any).$bvModal.hide('jump-to-cue');
     },
     ...mapMutations(['REMOVE_PAGE', 'ADD_BLANK_LINE', 'SET_LINE']),
     ...mapActions([
@@ -302,5 +299,5 @@ export default {
       'GET_CURRENT_USER',
     ]),
   },
-};
+});
 </script>

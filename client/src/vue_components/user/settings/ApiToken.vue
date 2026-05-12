@@ -118,12 +118,13 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions } from 'vuex';
 import { baseURL } from '@/js/utils';
 import { BIconClipboard } from 'bootstrap-vue';
 
-export default {
+export default defineComponent({
   name: 'ApiToken',
   components: {
     BIconClipboard,
@@ -131,26 +132,26 @@ export default {
   data() {
     return {
       hasToken: false,
-      newlyGeneratedToken: null,
+      newlyGeneratedToken: null as string | null,
       loading: false,
       showRegenerateConfirm: false,
       showRevokeConfirm: false,
     };
   },
   computed: {
-    apiBaseUrl() {
+    apiBaseUrl(): string {
       return baseURL();
     },
   },
-  async mounted() {
+  async mounted(): Promise<void> {
     await this.checkTokenStatus();
   },
   methods: {
     ...mapActions(['GENERATE_API_TOKEN', 'REVOKE_API_TOKEN', 'GET_API_TOKEN']),
-    async checkTokenStatus() {
+    async checkTokenStatus(): Promise<void> {
       this.loading = true;
       try {
-        const data = await this.GET_API_TOKEN();
+        const data = await (this as any).GET_API_TOKEN();
         if (data) {
           this.hasToken = data.has_token;
         }
@@ -158,10 +159,10 @@ export default {
         this.loading = false;
       }
     },
-    async generateToken() {
+    async generateToken(): Promise<void> {
       this.loading = true;
       try {
-        const data = await this.GENERATE_API_TOKEN();
+        const data = await (this as any).GENERATE_API_TOKEN();
         if (data) {
           this.hasToken = true;
           this.newlyGeneratedToken = data.api_token;
@@ -170,11 +171,11 @@ export default {
         this.loading = false;
       }
     },
-    async regenerateToken() {
+    async regenerateToken(): Promise<void> {
       this.loading = true;
       this.showRegenerateConfirm = false;
       try {
-        const data = await this.GENERATE_API_TOKEN();
+        const data = await (this as any).GENERATE_API_TOKEN();
         if (data) {
           this.hasToken = true;
           this.newlyGeneratedToken = data.api_token;
@@ -183,11 +184,11 @@ export default {
         this.loading = false;
       }
     },
-    async revokeToken() {
+    async revokeToken(): Promise<void> {
       this.loading = true;
       this.showRevokeConfirm = false;
       try {
-        const success = await this.REVOKE_API_TOKEN();
+        const success = await (this as any).REVOKE_API_TOKEN();
         if (success) {
           this.hasToken = false;
           this.newlyGeneratedToken = null;
@@ -196,16 +197,16 @@ export default {
         this.loading = false;
       }
     },
-    async copyToken() {
+    async copyToken(): Promise<void> {
       try {
-        await navigator.clipboard.writeText(this.newlyGeneratedToken);
-        this.$toast.success('Token copied to clipboard!');
-      } catch (err) {
-        this.$toast.error('Failed to copy token to clipboard');
+        await navigator.clipboard.writeText(this.newlyGeneratedToken!);
+        (this as any).$toast.success('Token copied to clipboard!');
+      } catch {
+        (this as any).$toast.error('Failed to copy token to clipboard');
       }
     },
   },
-};
+});
 </script>
 
 <style scoped>
