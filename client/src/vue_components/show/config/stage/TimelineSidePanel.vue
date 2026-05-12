@@ -169,10 +169,11 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 
-export default {
+export default defineComponent({
   name: 'TimelineSidePanel',
   props: {
     selectedItem: {
@@ -186,8 +187,8 @@ export default {
   },
   data() {
     return {
-      newSetCrewId: null,
-      newStrikeCrewId: null,
+      newSetCrewId: null as number | null,
+      newStrikeCrewId: null as number | null,
       saving: false,
     };
   },
@@ -204,93 +205,97 @@ export default {
       'SCENERY_BY_ID',
       'ACT_BY_ID',
     ]),
-    item() {
+    item(): any {
       if (!this.selectedItem) return null;
       return this.selectedItem.type === 'prop'
-        ? this.PROP_BY_ID(this.selectedItem.itemId)
-        : this.SCENERY_BY_ID(this.selectedItem.itemId);
+        ? (this as any).PROP_BY_ID(this.selectedItem.itemId)
+        : (this as any).SCENERY_BY_ID(this.selectedItem.itemId);
     },
-    itemExists() {
+    itemExists(): boolean {
       return this.item != null;
     },
-    itemName() {
+    itemName(): string {
       return this.item?.name || 'Unknown';
     },
-    setScene() {
+    setScene(): any {
       if (!this.selectedItem) return null;
-      return this.ORDERED_SCENES[this.selectedItem.startScene] || null;
+      return (this as any).ORDERED_SCENES[this.selectedItem.startScene] || null;
     },
-    strikeScene() {
+    strikeScene(): any {
       if (!this.selectedItem) return null;
-      return this.ORDERED_SCENES[this.selectedItem.endScene] || null;
+      return (this as any).ORDERED_SCENES[this.selectedItem.endScene] || null;
     },
-    setSceneId() {
+    setSceneId(): number | null {
       return this.setScene?.id || null;
     },
-    strikeSceneId() {
+    strikeSceneId(): number | null {
       return this.strikeScene?.id || null;
     },
-    setSceneName() {
+    setSceneName(): string {
       if (!this.setScene) return '';
-      const act = this.ACT_BY_ID(this.setScene.act);
+      const act = (this as any).ACT_BY_ID(this.setScene.act);
       return `${act?.name || 'Act'}: ${this.setScene.name}`;
     },
-    strikeSceneName() {
+    strikeSceneName(): string {
       if (!this.strikeScene) return '';
-      const act = this.ACT_BY_ID(this.strikeScene.act);
+      const act = (this as any).ACT_BY_ID(this.strikeScene.act);
       return `${act?.name || 'Act'}: ${this.strikeScene.name}`;
     },
-    isSingleSceneBlock() {
+    isSingleSceneBlock(): boolean {
       return this.setSceneId === this.strikeSceneId;
     },
-    blockRange() {
+    blockRange(): string {
       if (this.isSingleSceneBlock) {
         return this.setSceneName;
       }
       return `${this.setSceneName} - ${this.strikeSceneName}`;
     },
-    itemAssignments() {
+    itemAssignments(): any[] {
       if (!this.selectedItem) return [];
       return this.selectedItem.type === 'prop'
-        ? this.CREW_ASSIGNMENTS_BY_PROP[this.selectedItem.itemId] || []
-        : this.CREW_ASSIGNMENTS_BY_SCENERY[this.selectedItem.itemId] || [];
+        ? (this as any).CREW_ASSIGNMENTS_BY_PROP[this.selectedItem.itemId] || []
+        : (this as any).CREW_ASSIGNMENTS_BY_SCENERY[this.selectedItem.itemId] || [];
     },
-    setAssignments() {
+    setAssignments(): any[] {
       return this.itemAssignments.filter(
-        (a) => a.assignment_type === 'set' && a.scene_id === this.setSceneId
+        (a: any) => a.assignment_type === 'set' && a.scene_id === this.setSceneId
       );
     },
-    strikeAssignments() {
+    strikeAssignments(): any[] {
       return this.itemAssignments.filter(
-        (a) => a.assignment_type === 'strike' && a.scene_id === this.strikeSceneId
+        (a: any) => a.assignment_type === 'strike' && a.scene_id === this.strikeSceneId
       );
     },
-    assignedSetCrewIds() {
-      return new Set(this.setAssignments.map((a) => a.crew_id));
+    assignedSetCrewIds(): Set<number> {
+      return new Set(this.setAssignments.map((a: any) => a.crew_id));
     },
-    assignedStrikeCrewIds() {
-      return new Set(this.strikeAssignments.map((a) => a.crew_id));
+    assignedStrikeCrewIds(): Set<number> {
+      return new Set(this.strikeAssignments.map((a: any) => a.crew_id));
     },
-    availableCrewForSet() {
-      return this.CREW_LIST.filter((c) => !this.assignedSetCrewIds.has(c.id)).map((c) => ({
-        value: c.id,
-        text: this.formatCrewName(c),
-      }));
+    availableCrewForSet(): any[] {
+      return (this as any).CREW_LIST.filter((c: any) => !this.assignedSetCrewIds.has(c.id)).map(
+        (c: any) => ({
+          value: c.id,
+          text: this.formatCrewName(c),
+        })
+      );
     },
-    availableCrewForStrike() {
-      return this.CREW_LIST.filter((c) => !this.assignedStrikeCrewIds.has(c.id)).map((c) => ({
-        value: c.id,
-        text: this.formatCrewName(c),
-      }));
+    availableCrewForStrike(): any[] {
+      return (this as any).CREW_LIST.filter((c: any) => !this.assignedStrikeCrewIds.has(c.id)).map(
+        (c: any) => ({
+          value: c.id,
+          text: this.formatCrewName(c),
+        })
+      );
     },
-    conflicts() {
-      const conflicts = [];
+    conflicts(): any[] {
+      const conflicts: any[] = [];
       const allAssignments = [...this.setAssignments, ...this.strikeAssignments];
 
       for (const assignment of allAssignments) {
-        const sceneAssignments = this.CREW_ASSIGNMENTS_BY_SCENE[assignment.scene_id] || [];
+        const sceneAssignments = (this as any).CREW_ASSIGNMENTS_BY_SCENE[assignment.scene_id] || [];
         const otherAssignments = sceneAssignments.filter(
-          (a) =>
+          (a: any) =>
             a.crew_id === assignment.crew_id &&
             a.id !== assignment.id &&
             (a.prop_id !== this.selectedItem?.itemId || this.selectedItem?.type !== 'prop') &&
@@ -300,10 +305,10 @@ export default {
         for (const other of otherAssignments) {
           const otherItem =
             other.prop_id != null
-              ? this.PROP_BY_ID(other.prop_id)
-              : this.SCENERY_BY_ID(other.scenery_id);
-          const crew = this.CREW_MEMBER_BY_ID(assignment.crew_id);
-          const scene = this.ORDERED_SCENES.find((s) => s.id === assignment.scene_id);
+              ? (this as any).PROP_BY_ID(other.prop_id)
+              : (this as any).SCENERY_BY_ID(other.scenery_id);
+          const crew = (this as any).CREW_MEMBER_BY_ID(assignment.crew_id);
+          const scene = (this as any).ORDERED_SCENES.find((s: any) => s.id === assignment.scene_id);
           conflicts.push({
             key: `${assignment.id}-${other.id}`,
             crewName: this.formatCrewName(crew),
@@ -318,13 +323,11 @@ export default {
     },
   },
   watch: {
-    selectedItem() {
-      // Reset selections when item changes
+    selectedItem(): void {
       this.newSetCrewId = null;
       this.newStrikeCrewId = null;
     },
-    itemExists(exists) {
-      // Close panel if the item was deleted
+    itemExists(exists: boolean): void {
       if (!exists && this.selectedItem) {
         this.$emit('close');
       }
@@ -332,20 +335,20 @@ export default {
   },
   methods: {
     ...mapActions(['ADD_CREW_ASSIGNMENT', 'DELETE_CREW_ASSIGNMENT']),
-    formatCrewName(crew) {
+    formatCrewName(crew: any): string {
       if (!crew) return 'Unknown';
       return crew.last_name ? `${crew.first_name} ${crew.last_name}` : crew.first_name;
     },
-    getCrewDisplayName(crewId) {
-      const crew = this.CREW_MEMBER_BY_ID(crewId);
+    getCrewDisplayName(crewId: number): string {
+      const crew = (this as any).CREW_MEMBER_BY_ID(crewId);
       return this.formatCrewName(crew);
     },
-    async addSetAssignment() {
+    async addSetAssignment(): Promise<void> {
       if (!this.newSetCrewId || !this.setSceneId || this.saving) return;
 
       this.saving = true;
       try {
-        const assignment = {
+        const assignment: any = {
           crew_id: this.newSetCrewId,
           scene_id: this.setSceneId,
           assignment_type: 'set',
@@ -357,7 +360,7 @@ export default {
           assignment.scenery_id = this.selectedItem.itemId;
         }
 
-        const result = await this.ADD_CREW_ASSIGNMENT(assignment);
+        const result = await (this as any).ADD_CREW_ASSIGNMENT(assignment);
         if (result.success) {
           this.newSetCrewId = null;
         }
@@ -365,12 +368,12 @@ export default {
         this.saving = false;
       }
     },
-    async addStrikeAssignment() {
+    async addStrikeAssignment(): Promise<void> {
       if (!this.newStrikeCrewId || !this.strikeSceneId || this.saving) return;
 
       this.saving = true;
       try {
-        const assignment = {
+        const assignment: any = {
           crew_id: this.newStrikeCrewId,
           scene_id: this.strikeSceneId,
           assignment_type: 'strike',
@@ -382,7 +385,7 @@ export default {
           assignment.scenery_id = this.selectedItem.itemId;
         }
 
-        const result = await this.ADD_CREW_ASSIGNMENT(assignment);
+        const result = await (this as any).ADD_CREW_ASSIGNMENT(assignment);
         if (result.success) {
           this.newStrikeCrewId = null;
         }
@@ -390,26 +393,26 @@ export default {
         this.saving = false;
       }
     },
-    async removeAssignment(assignment) {
+    async removeAssignment(assignment: any): Promise<void> {
       if (this.saving) return;
 
-      const crew = this.CREW_MEMBER_BY_ID(assignment.crew_id);
+      const crew = (this as any).CREW_MEMBER_BY_ID(assignment.crew_id);
       const crewName = this.formatCrewName(crew);
-      const confirmed = await this.$bvModal.msgBoxConfirm(
+      const confirmed = await (this as any).$bvModal.msgBoxConfirm(
         `Remove ${crewName} from this ${assignment.assignment_type.toUpperCase()} assignment?`,
         { okTitle: 'Remove', okVariant: 'danger' }
       );
       if (confirmed) {
         this.saving = true;
         try {
-          await this.DELETE_CREW_ASSIGNMENT(assignment.id);
+          await (this as any).DELETE_CREW_ASSIGNMENT(assignment.id);
         } finally {
           this.saving = false;
         }
       }
     },
   },
-};
+});
 </script>
 
 <style scoped lang="scss">

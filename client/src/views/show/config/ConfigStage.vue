@@ -31,7 +31,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import CrewList from '@/vue_components/show/config/stage/CrewList.vue';
 import SceneryList from '@/vue_components/show/config/stage/SceneryList.vue';
 import PropsList from '@/vue_components/show/config/stage/PropsList.vue';
@@ -39,7 +40,7 @@ import StageManager from '@/vue_components/show/config/stage/StageManager.vue';
 import StageTimeline from '@/vue_components/show/config/stage/StageTimeline.vue';
 import CrewTimeline from '@/vue_components/show/config/stage/CrewTimeline.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigCrew',
   components: {
     StageManager,
@@ -49,5 +50,5 @@ export default {
     StageTimeline,
     CrewTimeline,
   },
-};
+});
 </script>

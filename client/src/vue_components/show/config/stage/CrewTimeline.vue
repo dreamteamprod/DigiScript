@@ -115,11 +115,12 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import timelineMixin from '@/mixins/timelineMixin';
 
-export default {
+export default defineComponent({
   name: 'CrewTimeline',
   mixins: [timelineMixin],
   data() {
@@ -137,38 +138,40 @@ export default {
       'PROP_BY_ID',
       'SCENERY_BY_ID',
     ]),
-    hasData() {
-      return this.scenes.length > 0 && this.rows.length > 0;
+    hasData(): boolean {
+      return (this as any).scenes.length > 0 && (this as any).rows.length > 0;
     },
-    scenes() {
-      return this.ORDERED_SCENES || [];
+    scenes(): any[] {
+      return (this as any).ORDERED_SCENES || [];
     },
-    sceneIndexMap() {
-      const map = {};
-      this.scenes.forEach((scene, index) => {
+    sceneIndexMap(): Record<number, number> {
+      const map: Record<number, number> = {};
+      (this as any).scenes.forEach((scene: any, index: number) => {
         map[scene.id] = index;
       });
       return map;
     },
-    rows() {
-      return this.CREW_LIST.filter(
-        (crew) => (this.CREW_ASSIGNMENTS_BY_CREW[crew.id] || []).length > 0
-      ).map((crew) => ({
-        id: `crew-${crew.id}`,
-        crewId: crew.id,
-        name: crew.last_name ? `${crew.first_name} ${crew.last_name}` : crew.first_name,
-      }));
+    rows(): any[] {
+      const crewList = (this as any).CREW_LIST as any[];
+      const assignmentsByCrew = (this as any).CREW_ASSIGNMENTS_BY_CREW as Record<number, any[]>;
+      return crewList
+        .filter((crew: any) => (assignmentsByCrew[crew.id] || []).length > 0)
+        .map((crew: any) => ({
+          id: `crew-${crew.id}`,
+          crewId: crew.id,
+          name: crew.last_name ? `${crew.first_name} ${crew.last_name}` : crew.first_name,
+        }));
     },
-    conflicts() {
-      const conflictMap = {};
+    conflicts(): Record<string, string> {
+      const conflictMap: Record<string, string> = {};
+      const assignmentsByCrew = (this as any).CREW_ASSIGNMENTS_BY_CREW as Record<number, any[]>;
 
-      this.rows.forEach((row) => {
-        const assignments = this.CREW_ASSIGNMENTS_BY_CREW[row.crewId] || [];
+      (this as any).rows.forEach((row: any) => {
+        const assignments = assignmentsByCrew[row.crewId] || [];
 
-        // Group assignments by scene, tracking distinct items per scene
-        const byScene = {};
-        const itemsByScene = {};
-        assignments.forEach((a) => {
+        const byScene: Record<string, any[]> = {};
+        const itemsByScene: Record<string, Set<string>> = {};
+        assignments.forEach((a: any) => {
           if (!byScene[a.scene_id]) {
             byScene[a.scene_id] = [];
             itemsByScene[a.scene_id] = new Set();
@@ -180,24 +183,21 @@ export default {
 
         const assignedSceneIds = Object.keys(byScene).map(Number);
 
-        // Hard conflicts: 2+ distinct items in the same scene
         assignedSceneIds.forEach((sceneId) => {
           if (itemsByScene[sceneId].size >= 2) {
             conflictMap[`${row.crewId}-${sceneId}`] = 'hard';
           }
         });
 
-        // Soft conflicts: adjacent scenes (same act) with different item sets
         assignedSceneIds.forEach((sceneId) => {
-          const sceneIndex = this.sceneIndexMap[sceneId];
+          const sceneIndex = (this as any).sceneIndexMap[sceneId];
           if (sceneIndex == null) return;
-          const scene = this.scenes[sceneIndex];
+          const scene = (this as any).scenes[sceneIndex];
 
           const nextIndex = sceneIndex + 1;
-          if (nextIndex < this.scenes.length) {
-            const nextScene = this.scenes[nextIndex];
+          if (nextIndex < (this as any).scenes.length) {
+            const nextScene = (this as any).scenes[nextIndex];
             if (nextScene.act === scene.act && assignedSceneIds.includes(nextScene.id)) {
-              // Compare item sets — only flag if they differ
               const itemsA = itemsByScene[sceneId];
               const itemsB = itemsByScene[nextScene.id];
               const sameItems =
@@ -206,7 +206,6 @@ export default {
               if (!sameItems) {
                 const key1 = `${row.crewId}-${sceneId}`;
                 const key2 = `${row.crewId}-${nextScene.id}`;
-                // Hard takes precedence
                 if (!conflictMap[key1]) conflictMap[key1] = 'soft';
                 if (!conflictMap[key2]) conflictMap[key2] = 'soft';
               }
@@ -217,24 +216,24 @@ export default {
 
       return conflictMap;
     },
-    allocationBars() {
-      const bars = [];
-      this.rows.forEach((row, rowIndex) => {
+    allocationBars(): any[] {
+      const bars: any[] = [];
+      (this as any).rows.forEach((row: any, rowIndex: number) => {
         this.generateBarsForCrew(row.crewId, rowIndex, bars);
       });
       return bars;
     },
   },
-  async mounted() {
+  async mounted(): Promise<void> {
     await Promise.all([
-      this.GET_ACT_LIST(),
-      this.GET_SCENE_LIST(),
-      this.GET_CREW_LIST(),
-      this.GET_CREW_ASSIGNMENTS(),
-      this.GET_PROPS_LIST(),
-      this.GET_SCENERY_LIST(),
-      this.GET_PROPS_ALLOCATIONS(),
-      this.GET_SCENERY_ALLOCATIONS(),
+      (this as any).GET_ACT_LIST(),
+      (this as any).GET_SCENE_LIST(),
+      (this as any).GET_CREW_LIST(),
+      (this as any).GET_CREW_ASSIGNMENTS(),
+      (this as any).GET_PROPS_LIST(),
+      (this as any).GET_SCENERY_LIST(),
+      (this as any).GET_PROPS_ALLOCATIONS(),
+      (this as any).GET_SCENERY_ALLOCATIONS(),
     ]);
     this.dataLoaded = true;
   },
@@ -249,50 +248,48 @@ export default {
       'GET_PROPS_ALLOCATIONS',
       'GET_SCENERY_ALLOCATIONS',
     ]),
-    getItemName(assignment) {
+    getItemName(assignment: any): string {
       if (assignment.prop_id != null) {
-        const prop = this.PROP_BY_ID(assignment.prop_id);
+        const prop = (this as any).PROP_BY_ID(assignment.prop_id);
         return prop?.name || `Prop ${assignment.prop_id}`;
       }
-      const scenery = this.SCENERY_BY_ID(assignment.scenery_id);
+      const scenery = (this as any).SCENERY_BY_ID(assignment.scenery_id);
       return scenery?.name || `Scenery ${assignment.scenery_id}`;
     },
-    getItemId(assignment) {
+    getItemId(assignment: any): number {
       return assignment.prop_id != null ? assignment.prop_id : assignment.scenery_id;
     },
-    getItemType(assignment) {
+    getItemType(assignment: any): string {
       return assignment.prop_id != null ? 'prop' : 'scenery';
     },
-    generateBarsForCrew(crewId, rowIndex, bars) {
-      const assignments = this.CREW_ASSIGNMENTS_BY_CREW[crewId] || [];
+    generateBarsForCrew(crewId: number, rowIndex: number, bars: any[]): void {
+      const assignmentsByCrew = (this as any).CREW_ASSIGNMENTS_BY_CREW as Record<number, any[]>;
+      const assignments = assignmentsByCrew[crewId] || [];
 
-      // Group by scene, then by item within each scene
-      const byScene = {};
-      assignments.forEach((a) => {
+      const byScene: Record<string, Record<string, any[]>> = {};
+      assignments.forEach((a: any) => {
         if (!byScene[a.scene_id]) byScene[a.scene_id] = {};
         const itemKey = a.prop_id != null ? `prop-${a.prop_id}` : `scenery-${a.scenery_id}`;
         if (!byScene[a.scene_id][itemKey]) byScene[a.scene_id][itemKey] = [];
         byScene[a.scene_id][itemKey].push(a);
       });
 
-      const availableHeight = this.rowHeight - 2 * this.barPadding;
+      const availableHeight = (this as any).rowHeight - 2 * (this as any).barPadding;
 
       Object.entries(byScene).forEach(([sceneId, itemGroups]) => {
-        // Bar height based on distinct items in THIS scene
         const itemCount = Object.keys(itemGroups).length;
         const barHeight = availableHeight / itemCount;
-        const sceneIndex = this.sceneIndexMap[sceneId];
+        const sceneIndex = (this as any).sceneIndexMap[sceneId];
         if (sceneIndex == null) return;
 
-        const scene = this.scenes[sceneIndex];
+        const scene = (this as any).scenes[sceneIndex];
         const conflictKey = `${crewId}-${sceneId}`;
-        const conflictType = this.conflicts[conflictKey];
+        const conflictType = (this as any).conflicts[conflictKey];
 
         let cssClass = '';
         if (conflictType === 'hard') cssClass = 'conflict-hard';
         else if (conflictType === 'soft') cssClass = 'conflict-soft';
 
-        // Sort item groups by name for stable ordering
         const sortedKeys = Object.keys(itemGroups).sort((a, b) => {
           const nameA = this.getItemName(itemGroups[a][0]);
           const nameB = this.getItemName(itemGroups[b][0]);
@@ -303,10 +300,11 @@ export default {
           const group = itemGroups[itemKey];
           const representative = group[0];
           const itemName = this.getItemName(representative);
-          const hasSet = group.some((a) => a.assignment_type === 'set');
-          const hasStrike = group.some((a) => a.assignment_type === 'strike');
+          const hasSet = group.some((a: any) => a.assignment_type === 'set');
+          const hasStrike = group.some((a: any) => a.assignment_type === 'strike');
 
-          let label, tooltip;
+          let label: string;
+          let tooltip: string;
           if (hasSet && hasStrike) {
             label = `▲ ${itemName} ▼`;
             tooltip = `SET & STRIKE: ${itemName} (${scene.name})`;
@@ -320,11 +318,11 @@ export default {
 
           bars.push({
             id: `crew-${crewId}-scene-${sceneId}-${stackIndex}`,
-            x: this.getSceneX(sceneIndex),
-            y: this.getRowY(rowIndex) + this.barPadding + stackIndex * barHeight,
-            width: this.sceneWidth,
+            x: (this as any).getSceneX(sceneIndex),
+            y: (this as any).getRowY(rowIndex) + (this as any).barPadding + stackIndex * barHeight,
+            width: (this as any).sceneWidth,
             height: barHeight,
-            color: this.getColorForEntity(
+            color: (this as any).getColorForEntity(
               this.getItemId(representative),
               this.getItemType(representative)
             ),
@@ -335,11 +333,11 @@ export default {
         });
       });
     },
-    handleExport() {
-      this.exportTimeline('crew-timeline', 'Crew');
+    handleExport(): void {
+      (this as any).exportTimeline('crew-timeline', 'Crew');
     },
   },
-};
+});
 </script>
 
 <style lang="scss" scoped>

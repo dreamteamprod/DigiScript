@@ -172,13 +172,14 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import cueDisplayMixin from '@/mixins/cueDisplayMixin';
 import scriptNavigationMixin from '@/mixins/scriptNavigationMixin';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 import { LINE_TYPES } from '@/constants/lineTypes';
 
-export default {
+export default defineComponent({
   name: 'ScriptLineViewerCompact',
   mixins: [cueDisplayMixin, scriptNavigationMixin, scriptDisplayMixin],
   events: ['last-line-change', 'first-line-change', 'start-interval'],
@@ -255,22 +256,22 @@ export default {
     };
   },
   computed: {
-    isFirstRowActScene() {
-      return this.needsActSceneLabel;
+    isFirstRowActScene(): boolean {
+      return (this as any).needsActSceneLabel;
     },
-    isFirstRowCues() {
-      return !this.needsActSceneLabel && this.cues.length > 0;
+    isFirstRowCues(): boolean {
+      return !(this as any).needsActSceneLabel && (this.cues as any[]).length > 0;
     },
-    isFirstRowContent() {
-      return !this.needsActSceneLabel && this.cues.length === 0;
+    isFirstRowContent(): boolean {
+      return !(this as any).needsActSceneLabel && (this.cues as any[]).length === 0;
     },
   },
   methods: {
-    addNewCue() {
-      this.$emit('add-cue', this.line.id);
+    addNewCue(): void {
+      this.$emit('add-cue', (this.line as any).id);
     },
   },
-};
+});
 </script>
 
 <style scoped>

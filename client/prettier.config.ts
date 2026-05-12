@@ -1,10 +1,6 @@
-/**
- * Prettier configuration for DigiScript frontend
- * Based on Vue.js community recommendations
- * @see https://prettier.io/docs/en/configuration.html
- * @see https://vuejs.org/style-guide/
- */
-export default {
+import type { Config } from 'prettier';
+
+const config: Config = {
   // Standard Prettier defaults with Vue community preferences
   printWidth: 100,
   tabWidth: 2,
@@ -38,3 +34,5 @@ export default {
     },
   ],
 };
+
+export default config;

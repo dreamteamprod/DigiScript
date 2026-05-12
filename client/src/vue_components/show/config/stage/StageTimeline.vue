@@ -151,12 +151,13 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import timelineMixin from '@/mixins/timelineMixin';
 import TimelineSidePanel from './TimelineSidePanel.vue';
 
-export default {
+export default defineComponent({
   name: 'StageTimeline',
   components: {
     TimelineSidePanel,
@@ -172,7 +173,7 @@ export default {
     return {
       viewMode: 'combined',
       dataLoaded: false,
-      selectedItem: null,
+      selectedItem: null as any,
       sidePanelOpen: false,
     };
   },
@@ -188,30 +189,33 @@ export default {
       'PROP_BY_ID',
       'SCENERY_BY_ID',
     ]),
-    hasData() {
-      return this.scenes.length > 0 && this.rows.length > 0;
+    hasData(): boolean {
+      return (this as any).scenes.length > 0 && (this as any).rows.length > 0;
     },
-    scenes() {
-      return this.ORDERED_SCENES || [];
+    scenes(): any[] {
+      return (this as any).ORDERED_SCENES || [];
     },
-    rows() {
-      const propsRows = this.PROPS_LIST.filter((prop) => this.hasPropAllocations(prop.id)).map(
-        (prop) => ({
+    rows(): any[] {
+      const propsList = (this as any).PROPS_LIST as any[];
+      const sceneryList = (this as any).SCENERY_LIST as any[];
+
+      const propsRows = propsList
+        .filter((prop: any) => this.hasPropAllocations(prop.id))
+        .map((prop: any) => ({
           id: `prop-${prop.id}`,
           itemId: prop.id,
           name: prop.name,
           type: 'prop',
-        })
-      );
+        }));
 
-      const sceneryRows = this.SCENERY_LIST.filter((scenery) =>
-        this.hasSceneryAllocations(scenery.id)
-      ).map((scenery) => ({
-        id: `scenery-${scenery.id}`,
-        itemId: scenery.id,
-        name: scenery.name,
-        type: 'scenery',
-      }));
+      const sceneryRows = sceneryList
+        .filter((scenery: any) => this.hasSceneryAllocations(scenery.id))
+        .map((scenery: any) => ({
+          id: `scenery-${scenery.id}`,
+          itemId: scenery.id,
+          name: scenery.name,
+          type: 'scenery',
+        }));
 
       if (this.viewMode === 'props') {
         return propsRows;
@@ -219,23 +223,22 @@ export default {
       if (this.viewMode === 'scenery') {
         return sceneryRows;
       }
-      // Combined: props first, then scenery
       return [...propsRows, ...sceneryRows];
     },
-    allocationBars() {
-      const bars = [];
-      this.rows.forEach((row, rowIndex) => {
+    allocationBars(): any[] {
+      const bars: any[] = [];
+      (this as any).rows.forEach((row: any, rowIndex: number) => {
         this.generateBarsForItem(row.itemId, row.type, rowIndex, bars);
       });
       return bars;
     },
   },
   watch: {
-    viewMode() {
+    viewMode(): void {
       this.$forceUpdate();
     },
   },
-  async mounted() {
+  async mounted(): Promise<void> {
     await this.loadData();
   },
   methods: {
@@ -251,58 +254,63 @@ export default {
       'GET_CREW_LIST',
       'GET_CREW_ASSIGNMENTS',
     ]),
-    async loadData() {
+    async loadData(): Promise<void> {
       await Promise.all([
-        this.GET_ACT_LIST(),
-        this.GET_SCENE_LIST(),
-        this.GET_PROP_TYPES(),
-        this.GET_SCENERY_TYPES(),
-        this.GET_PROPS_LIST(),
-        this.GET_SCENERY_LIST(),
-        this.GET_PROPS_ALLOCATIONS(),
-        this.GET_SCENERY_ALLOCATIONS(),
-        this.GET_CREW_LIST(),
-        this.GET_CREW_ASSIGNMENTS(),
+        (this as any).GET_ACT_LIST(),
+        (this as any).GET_SCENE_LIST(),
+        (this as any).GET_PROP_TYPES(),
+        (this as any).GET_SCENERY_TYPES(),
+        (this as any).GET_PROPS_LIST(),
+        (this as any).GET_SCENERY_LIST(),
+        (this as any).GET_PROPS_ALLOCATIONS(),
+        (this as any).GET_SCENERY_ALLOCATIONS(),
+        (this as any).GET_CREW_LIST(),
+        (this as any).GET_CREW_ASSIGNMENTS(),
       ]);
       this.dataLoaded = true;
     },
-    hasPropAllocations(propId) {
-      const allocations = this.PROPS_ALLOCATIONS_BY_ITEM[propId];
+    hasPropAllocations(propId: number): boolean {
+      const allocations = ((this as any).PROPS_ALLOCATIONS_BY_ITEM as Record<number, any[]>)[
+        propId
+      ];
       return allocations && allocations.length > 0;
     },
-    hasSceneryAllocations(sceneryId) {
-      const allocations = this.SCENERY_ALLOCATIONS_BY_ITEM[sceneryId];
+    hasSceneryAllocations(sceneryId: number): boolean {
+      const allocations = ((this as any).SCENERY_ALLOCATIONS_BY_ITEM as Record<number, any[]>)[
+        sceneryId
+      ];
       return allocations && allocations.length > 0;
     },
-
-    formatSceneRange(startScene, endScene) {
+    formatSceneRange(startScene: any, endScene: any): string {
       if (startScene === endScene) {
         return startScene;
       }
       return `${startScene} - ${endScene}`;
     },
-
-    generateBarsForItem(itemId, itemType, rowIndex, bars) {
+    generateBarsForItem(itemId: number, itemType: string, rowIndex: number, bars: any[]): void {
       const allocations =
         itemType === 'prop'
-          ? this.PROPS_ALLOCATIONS_BY_ITEM[itemId] || []
-          : this.SCENERY_ALLOCATIONS_BY_ITEM[itemId] || [];
-      const segments = this.groupConsecutiveScenes(allocations, 'scene_id');
+          ? ((this as any).PROPS_ALLOCATIONS_BY_ITEM as Record<number, any[]>)[itemId] || []
+          : ((this as any).SCENERY_ALLOCATIONS_BY_ITEM as Record<number, any[]>)[itemId] || [];
+      const segments = (this as any).groupConsecutiveScenes(allocations, 'scene_id');
 
-      const item = itemType === 'prop' ? this.PROP_BY_ID(itemId) : this.SCENERY_BY_ID(itemId);
+      const item =
+        itemType === 'prop'
+          ? (this as any).PROP_BY_ID(itemId)
+          : (this as any).SCENERY_BY_ID(itemId);
       const itemName = item?.name || `${itemType === 'prop' ? 'Prop' : 'Scenery'} ${itemId}`;
 
-      segments.forEach((segment, idx) => {
-        const startX = this.getSceneX(segment.startIndex);
-        const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
+      segments.forEach((segment: any, idx: number) => {
+        const startX = (this as any).getSceneX(segment.startIndex);
+        const width = (this as any).sceneWidth * (segment.endIndex - segment.startIndex + 1);
 
         bars.push({
           id: `${itemType}-${itemId}-seg-${idx}`,
           x: startX,
-          y: this.getRowY(rowIndex) + this.barPadding,
+          y: (this as any).getRowY(rowIndex) + (this as any).barPadding,
           width,
-          height: this.rowHeight - 2 * this.barPadding,
-          color: this.getColorForEntity(itemId, itemType),
+          height: (this as any).rowHeight - 2 * (this as any).barPadding,
+          color: (this as any).getColorForEntity(itemId, itemType),
           label: itemName,
           tooltip: `${itemName} (${this.formatSceneRange(segment.startScene, segment.endScene)})`,
           data: {
@@ -314,30 +322,30 @@ export default {
         });
       });
     },
-    handleExport() {
-      const viewModeNames = {
+    handleExport(): void {
+      const viewModeNames: Record<string, string> = {
         combined: 'Combined',
         props: 'Props',
         scenery: 'Scenery',
       };
-      this.exportTimeline('stage-timeline', viewModeNames[this.viewMode]);
+      (this as any).exportTimeline('stage-timeline', viewModeNames[this.viewMode]);
     },
-    handleBarClick(bar) {
+    handleBarClick(bar: any): void {
       this.selectedItem = bar.data;
       this.sidePanelOpen = true;
       this.$emit('bar-click', bar.data);
     },
-    handleBarHover(bar, event) {
+    handleBarHover(bar: any, event: MouseEvent): void {
       this.$emit('bar-hover', { bar: bar.data, event });
     },
-    handleBarLeave() {
+    handleBarLeave(): void {
       this.$emit('bar-leave');
     },
-    closeSidePanel() {
+    closeSidePanel(): void {
       this.sidePanelOpen = false;
       this.selectedItem = null;
     },
-    isBarSelected(bar) {
+    isBarSelected(bar: any): boolean {
       if (!this.selectedItem) return false;
       return (
         this.selectedItem.type === bar.data.type &&
@@ -347,7 +355,7 @@ export default {
       );
     },
   },
-};
+});
 </script>
 
 <style lang="scss">

@@ -50,40 +50,38 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import { makeURL } from '@/js/utils';
 import log from 'loglevel';
 import statsTableMixin from '@/mixins/statsTableMixin';
 
-export default {
+export default defineComponent({
   name: 'CueCountStats',
   mixins: [statsTableMixin],
   data() {
     return {
       loaded: false,
-      cueStats: {},
+      cueStats: {} as Record<string, any>,
     };
   },
   computed: {
-    tableData() {
+    tableData(): unknown[] {
       if (!this.loaded) {
         return [];
       }
-      return this.CUE_TYPES.map(
-        (cueType) => ({
-          CueType: cueType.id,
-        }),
-        this
-      );
+      return ((this as any).CUE_TYPES as any[]).map((cueType) => ({
+        CueType: cueType.id,
+      }));
     },
-    tableFields() {
-      return ['Cues', ...this.sortedScenes.map((scene) => scene.id.toString())];
+    tableFields(): string[] {
+      return ['Cues', ...((this as any).sortedScenes as any[]).map((scene) => scene.id.toString())];
     },
     ...mapGetters(['CUE_TYPES', 'CUE_TYPE_BY_ID']),
   },
   methods: {
-    async getStats() {
+    async getStats(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/show/cues/stats')}`);
       if (response.ok) {
         this.cueStats = await response.json();
@@ -91,7 +89,7 @@ export default {
         log.error('Unable to get cue stats!');
       }
     },
-    getCountForCueType(cueTypeId, actId, sceneId) {
+    getCountForCueType(cueTypeId: number, actId: number, sceneId: number): number {
       if (!Object.keys(this.cueStats).includes('cue_counts')) {
         return 0;
       }
@@ -108,5 +106,5 @@ export default {
       return 0;
     },
   },
-};
+});
 </script>

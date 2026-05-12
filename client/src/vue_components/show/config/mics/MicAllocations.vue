@@ -173,129 +173,132 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import { diff } from 'deep-object-diff';
 import MicAutoPopulateModal from '@/vue_components/show/config/mics/MicAutoPopulateModal.vue';
 
-export default {
+export default defineComponent({
   name: 'MicAllocations',
   components: { MicAutoPopulateModal },
   data() {
     return {
-      selectedMic: null,
-      internalState: {},
+      selectedMic: null as number | null,
+      internalState: {} as Record<string | number, any>,
       loaded: false,
       saving: false,
       editMode: true,
     };
   },
   computed: {
-    micOptions() {
+    micOptions(): any[] {
       return [
         { value: null, text: 'N/A', disabled: true },
-        ...this.MICROPHONES.map((mic) => ({ value: mic.id, text: mic.name })),
+        ...((this as any).MICROPHONES as any[]).map((mic: any) => ({
+          value: mic.id,
+          text: mic.name,
+        })),
       ];
     },
-    tableFields() {
-      return ['Character', ...this.sortedScenes.map((scene) => scene.id.toString())];
+    tableFields(): string[] {
+      return [
+        'Character',
+        ...((this as any).sortedScenes as any[]).map((scene: any) => scene.id.toString()),
+      ];
     },
-    sortedActs() {
-      if (this.CURRENT_SHOW.first_act_id == null) {
+    sortedActs(): any[] {
+      if ((this as any).CURRENT_SHOW.first_act_id == null) {
         return [];
       }
-      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+      let currentAct = (this as any).ACT_BY_ID((this as any).CURRENT_SHOW.first_act_id);
       if (currentAct == null) {
         return [];
       }
-      const acts = [];
+      const acts: any[] = [];
       while (currentAct != null) {
         acts.push(currentAct);
-        currentAct = this.ACT_BY_ID(currentAct.next_act);
+        currentAct = (this as any).ACT_BY_ID(currentAct.next_act);
       }
       return acts;
     },
-    sortedScenes() {
-      if (this.CURRENT_SHOW.first_act_id == null) {
+    sortedScenes(): any[] {
+      if ((this as any).CURRENT_SHOW.first_act_id == null) {
         return [];
       }
 
-      let currentAct = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+      let currentAct = (this as any).ACT_BY_ID((this as any).CURRENT_SHOW.first_act_id);
       if (currentAct == null || currentAct.first_scene == null) {
         return [];
       }
 
-      const scenes = [];
+      const scenes: any[] = [];
       while (currentAct != null) {
-        let currentScene = this.SCENE_BY_ID(currentAct.first_scene);
+        let currentScene = (this as any).SCENE_BY_ID(currentAct.first_scene);
         while (currentScene != null) {
           scenes.push(currentScene);
-          currentScene = this.SCENE_BY_ID(currentScene.next_scene);
+          currentScene = (this as any).SCENE_BY_ID(currentScene.next_scene);
         }
-        currentAct = this.ACT_BY_ID(currentAct.next_act);
+        currentAct = (this as any).ACT_BY_ID(currentAct.next_act);
       }
       return scenes;
     },
-    tableData() {
+    tableData(): unknown[] {
       if (!this.loaded) {
         return [];
       }
-      return this.CHARACTER_LIST.map(
-        (character) => ({
-          Character: character.id,
-        }),
-        this
-      );
+      return ((this as any).CHARACTER_LIST as any[]).map((character: any) => ({
+        Character: character.id,
+      }));
     },
-    allAllocations() {
-      const micData = {};
-      Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
-        const sceneData = {};
-        const allocations = this.MIC_ALLOCATIONS[micId];
-        allocations.forEach((allocation) => {
+    allAllocations(): Record<string, any> {
+      const micData: Record<string, any> = {};
+      Object.keys((this as any).MIC_ALLOCATIONS).forEach((micId) => {
+        const sceneData: Record<string | number, any> = {};
+        const allocations = (this as any).MIC_ALLOCATIONS[micId];
+        allocations.forEach((allocation: any) => {
           sceneData[allocation.scene_id] = allocation.character_id;
         });
-        this.sortedScenes
-          .map((scene) => scene.id)
-          .forEach((sceneId) => {
+        (this as any).sortedScenes
+          .map((scene: any) => scene.id)
+          .forEach((sceneId: number) => {
             if (!Object.keys(sceneData).includes(sceneId.toString())) {
               sceneData[sceneId] = null;
             }
           });
         micData[micId] = sceneData;
-      }, this);
+      });
       return micData;
     },
-    changes() {
-      return diff(this.allAllocations, this.internalState);
+    changes(): Record<string, any> {
+      return diff((this as any).allAllocations, this.internalState) as Record<string, any>;
     },
-    needsSaving() {
+    needsSaving(): boolean {
       return Object.keys(this.changes).length > 0;
     },
-    allocationByCharacter() {
-      const charData = {};
-      // Initialize with empty arrays for each character/scene combination
-      this.CHARACTER_LIST.map((character) => character.id).forEach((characterId) => {
-        const sceneData = {};
-        this.sortedScenes
-          .map((scene) => scene.id)
-          .forEach((sceneId) => {
-            sceneData[sceneId] = [];
-          });
-        charData[characterId] = sceneData;
-      }, this);
-      // Collect all mics assigned to each character in each scene
-      Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
-        this.sortedScenes
-          .map((scene) => scene.id)
-          .forEach((sceneId) => {
-            if (this.allAllocations[micId][sceneId] != null) {
-              const characterId = this.allAllocations[micId][sceneId];
-              charData[characterId][sceneId].push(this.MICROPHONE_BY_ID(micId).name);
+    allocationByCharacter(): Record<string | number, any> {
+      const charData: Record<string | number, any> = {};
+      ((this as any).CHARACTER_LIST as any[])
+        .map((character: any) => character.id)
+        .forEach((characterId: number) => {
+          const sceneData: Record<string | number, any> = {};
+          (this as any).sortedScenes
+            .map((scene: any) => scene.id)
+            .forEach((sceneId: number) => {
+              sceneData[sceneId] = [];
+            });
+          charData[characterId] = sceneData;
+        });
+      Object.keys((this as any).MIC_ALLOCATIONS).forEach((micId) => {
+        (this as any).sortedScenes
+          .map((scene: any) => scene.id)
+          .forEach((sceneId: number) => {
+            if ((this as any).allAllocations[micId][sceneId] != null) {
+              const characterId = (this as any).allAllocations[micId][sceneId];
+              charData[characterId][sceneId].push((this as any).MICROPHONE_BY_ID(micId).name);
             }
-          }, this);
-      }, this);
-      // Convert arrays to comma-separated strings (or null if empty)
+          });
+      });
       Object.keys(charData).forEach((characterId) => {
         Object.keys(charData[characterId]).forEach((sceneId) => {
           const mics = charData[characterId][sceneId];
@@ -318,71 +321,71 @@ export default {
       'CONFLICTS_BY_MIC',
     ]),
   },
-  async mounted() {
+  async mounted(): Promise<void> {
     await this.resetToStoredAlloc();
-    if (this.micOptions.length > 1) {
-      this.selectedMic = this.micOptions[1].value;
+    if ((this as any).micOptions.length > 1) {
+      this.selectedMic = (this as any).micOptions[1].value;
     }
     this.loaded = true;
   },
   methods: {
-    async resetToStoredAlloc() {
-      await this.GET_MIC_ALLOCATIONS();
-      const internalState = {};
-      this.MICROPHONES.forEach(function resetMic(mic) {
-        const micData = {};
-        this.sortedScenes.forEach((scene) => {
-          micData[scene.id] = this.allAllocations[mic.id][scene.id];
-        }, this);
+    async resetToStoredAlloc(): Promise<void> {
+      await (this as any).GET_MIC_ALLOCATIONS();
+      const internalState: Record<string | number, any> = {};
+      ((this as any).MICROPHONES as any[]).forEach((mic: any) => {
+        const micData: Record<string | number, any> = {};
+        (this as any).sortedScenes.forEach((scene: any) => {
+          micData[scene.id] = (this as any).allAllocations[mic.id][scene.id];
+        });
         internalState[mic.id] = micData;
-      }, this);
+      });
       this.internalState = internalState;
     },
-    async resetSelectedToStoredAlloc() {
+    async resetSelectedToStoredAlloc(): Promise<void> {
       if (this.selectedMic == null) {
         return;
       }
-      await this.GET_MIC_ALLOCATIONS();
-      const micData = {};
-      this.sortedScenes.forEach((scene) => {
-        micData[scene.id] = this.allAllocations[this.selectedMic][scene.id];
-      }, this);
+      await (this as any).GET_MIC_ALLOCATIONS();
+      const micData: Record<string | number, any> = {};
+      (this as any).sortedScenes.forEach((scene: any) => {
+        micData[scene.id] = (this as any).allAllocations[this.selectedMic!][scene.id];
+      });
       this.internalState[this.selectedMic] = micData;
     },
-    clearMicAllocations() {
-      const micData = {};
-      this.sortedScenes.forEach((scene) => {
+    clearMicAllocations(): void {
+      const micData: Record<string | number, null> = {};
+      (this as any).sortedScenes.forEach((scene: any) => {
         micData[scene.id] = null;
-      }, this);
+      });
       Object.keys(this.internalState).forEach((micId) => {
         this.internalState[micId] = micData;
-      }, this);
+      });
     },
-    clearSelectedMicAllocations() {
+    clearSelectedMicAllocations(): void {
       if (this.selectedMic == null) {
         return;
       }
-      const micData = {};
-      this.sortedScenes.forEach((scene) => {
+      const micData: Record<string | number, null> = {};
+      (this as any).sortedScenes.forEach((scene: any) => {
         micData[scene.id] = null;
-      }, this);
+      });
       this.internalState[this.selectedMic] = micData;
     },
-    numScenesPerAct(actId) {
-      return this.sortedScenes.filter((scene) => scene.act === actId).length;
+    numScenesPerAct(actId: number): number {
+      return ((this as any).sortedScenes as any[]).filter((scene: any) => scene.act === actId)
+        .length;
     },
-    getHeaderName(sceneId) {
+    getHeaderName(sceneId: number): string {
       return `head(${sceneId})`;
     },
-    getCellName(sceneId) {
+    getCellName(sceneId: number): string {
       return `cell(${sceneId})`;
     },
-    micDisabledForCharacter(micId, sceneId, characterId) {
+    micDisabledForCharacter(micId: number, sceneId: number, characterId: number): boolean {
       if (this.saving) {
         return true;
       }
 
-      // Check this mic isn't allocated to anyone else for this scene
       if (
         this.internalState[micId][sceneId] != null &&
         this.internalState[micId][sceneId] !== characterId
@@ -392,127 +395,119 @@ export default {
 
       return false;
     },
-    micSelectAllDisabledForCharacter(micId, characterId) {
+    micSelectAllDisabledForCharacter(micId: number, characterId: number): boolean {
       if (this.saving) {
         return true;
       }
-      // Check if this mic is used anywhere on another character
       let canAssign = true;
-      this.sortedScenes.forEach((scene) => {
+      (this as any).sortedScenes.forEach((scene: any) => {
         if (
           this.internalState[micId][scene.id] != null &&
           this.internalState[micId][scene.id] !== characterId
         ) {
           canAssign = false;
         }
-      }, this);
+      });
       if (!canAssign) {
         return true;
       }
 
-      // Check if the character already has a different mic assigned anywhere
-      this.MICROPHONES.forEach((otherMic) => {
+      ((this as any).MICROPHONES as any[]).forEach((otherMic: any) => {
         if (otherMic.id !== micId) {
-          this.sortedScenes.forEach((scene) => {
+          (this as any).sortedScenes.forEach((scene: any) => {
             if (this.internalState[otherMic.id][scene.id] === characterId) {
               canAssign = false;
             }
-          }, this);
+          });
         }
-      }, this);
+      });
       return !canAssign;
     },
-    toggleSelectAllAllocation(micId, characterId) {
+    toggleSelectAllAllocation(micId: number, characterId: number): void {
       let allAssigned = true;
-      this.sortedScenes.forEach((scene) => {
+      (this as any).sortedScenes.forEach((scene: any) => {
         if (this.internalState[micId][scene.id] !== characterId) {
           allAssigned = false;
         }
-      }, this);
-      this.sortedScenes.forEach((scene) => {
+      });
+      (this as any).sortedScenes.forEach((scene: any) => {
         if (allAssigned) {
           this.internalState[micId][scene.id] = null;
         } else {
           this.internalState[micId][scene.id] = characterId;
         }
-      }, this);
+      });
     },
-    micSelectedAllForCharacter(micId, characterId) {
+    micSelectedAllForCharacter(micId: number, characterId: number): boolean {
       let allAssigned = true;
-      this.sortedScenes.forEach((scene) => {
+      (this as any).sortedScenes.forEach((scene: any) => {
         if (this.internalState[micId][scene.id] !== characterId) {
           allAssigned = false;
         }
-      }, this);
+      });
       return allAssigned;
     },
-    toggleAllocation(micId, sceneId, characterId) {
+    toggleAllocation(micId: number, sceneId: number, characterId: number): void {
       if (this.internalState[micId][sceneId] === characterId) {
         this.internalState[micId][sceneId] = null;
       } else if (this.internalState[micId][sceneId] === null) {
         this.internalState[micId][sceneId] = characterId;
       }
     },
-    async saveAllocations() {
+    async saveAllocations(): Promise<void> {
       this.saving = true;
-      await this.UPDATE_MIC_ALLOCATIONS(this.changes);
+      await (this as any).UPDATE_MIC_ALLOCATIONS(this.changes);
       await this.resetToStoredAlloc();
       this.saving = false;
     },
-    getConflictsForCell(characterId, sceneId) {
-      // Find all conflicts for this character in this scene (across all their mics)
-      const allConflicts = Object.values(this.CONFLICTS_BY_SCENE).flat();
+    getConflictsForCell(characterId: number, sceneId: number): any[] {
+      const allConflicts = (Object.values((this as any).CONFLICTS_BY_SCENE) as any[][]).flat();
       if (!allConflicts || allConflicts.length === 0) {
         return [];
       }
 
-      // Find all conflicts where this scene is the "change INTO" scene for this character
       return allConflicts.filter(
-        (c) => c.adjacentSceneId === sceneId && c.adjacentCharacterId === characterId
+        (c: any) => c.adjacentSceneId === sceneId && c.adjacentCharacterId === characterId
       );
     },
-    getConflictClassForCell(characterId, sceneId) {
+    getConflictClassForCell(characterId: number, sceneId: number): string {
       const conflicts = this.getConflictsForCell(characterId, sceneId);
       if (conflicts.length === 0) return '';
 
-      // Prioritize WARNING over INFO
-      const hasWarning = conflicts.some((c) => c.severity === 'WARNING');
+      const hasWarning = conflicts.some((c: any) => c.severity === 'WARNING');
       return hasWarning ? 'conflict-warning' : 'conflict-info';
     },
-    getTooltipText(characterId, sceneId) {
-      // Get all mics assigned to this character in this scene
-      const mics = [];
-      Object.keys(this.MIC_ALLOCATIONS).forEach((micId) => {
-        if (this.allAllocations[micId][sceneId] === characterId) {
+    getTooltipText(characterId: number, sceneId: number): string {
+      const mics: any[] = [];
+      Object.keys((this as any).MIC_ALLOCATIONS).forEach((micId) => {
+        if ((this as any).allAllocations[micId][sceneId] === characterId) {
           mics.push({
             id: parseInt(micId, 10),
-            name: this.MICROPHONE_BY_ID(micId).name,
+            name: (this as any).MICROPHONE_BY_ID(micId).name,
           });
         }
       });
 
-      // Get conflicts for this character/scene
       const conflicts = this.getConflictsForCell(characterId, sceneId);
 
-      // Build tooltip text
       let tooltipText = `Assigned mics: ${mics.map((m) => m.name).join(', ')}`;
 
       if (conflicts.length > 0) {
         tooltipText += '\n\nConflicts:';
-        conflicts.forEach((conflict) => {
-          const micName = this.MICROPHONE_BY_ID(conflict.micId).name;
+        conflicts.forEach((conflict: any) => {
+          const micName = (this as any).MICROPHONE_BY_ID(conflict.micId).name;
           tooltipText += `\n• ${micName}: ${conflict.message}`;
         });
       }
 
       return tooltipText;
     },
-    onAutoPopulateResult(data) {
+    onAutoPopulateResult(data: any): void {
       this.internalState = data;
     },
     ...mapActions(['UPDATE_MIC_ALLOCATIONS', 'GET_MIC_ALLOCATIONS']),
   },
-};
+});
 </script>
 
 <style scoped>

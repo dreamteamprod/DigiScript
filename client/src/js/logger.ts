@@ -26,7 +26,7 @@ function enqueueLog(level: string, message: string, extra: Record<string, unknow
     flushQueue();
     return;
   }
-  clearTimeout(flushTimer);
+  clearTimeout(flushTimer ?? undefined);
   flushTimer = setTimeout(flushQueue, FLUSH_INTERVAL_MS);
 }
 
@@ -35,7 +35,7 @@ function enqueueLog(level: string, message: string, extra: Record<string, unknow
  * Uses fetch directly to avoid potential infinite loops with HTTP interceptors.
  */
 function flushQueue() {
-  clearTimeout(flushTimer);
+  clearTimeout(flushTimer ?? undefined);
   flushTimer = null;
   if (logQueue.length === 0) return;
 

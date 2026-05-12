@@ -41,12 +41,13 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import { makeURL } from '@/js/utils';
 import log from 'loglevel';
 
-export default {
+export default defineComponent({
   name: 'CompiledScripts',
   data() {
     return {
@@ -60,14 +61,16 @@ export default {
       ],
       deletingCompiledScript: false,
       generatingCompiledScript: false,
-      pendingRevisionId: null,
+      pendingRevisionId: null as number | null,
     };
   },
   computed: {
-    tableData() {
-      const data = [];
-      this.SCRIPT_REVISIONS.forEach((revision) => {
-        const compiledScript = this.COMPILED_SCRIPTS.find((cs) => cs.revision_id === revision.id);
+    tableData(): any[] {
+      const data: any[] = [];
+      (this as any).SCRIPT_REVISIONS.forEach((revision: any) => {
+        const compiledScript = (this as any).COMPILED_SCRIPTS.find(
+          (cs: any) => cs.revision_id === revision.id
+        );
         data.push({
           revision_id: revision.id,
           created_at: compiledScript?.created_at,
@@ -80,14 +83,14 @@ export default {
     },
     ...mapGetters(['COMPILED_SCRIPTS', 'SCRIPT_REVISIONS', 'IS_SCRIPT_EDITOR', 'CURRENT_REVISION']),
   },
-  async mounted() {
-    await this.GET_COMPILED_SCRIPTS();
+  async mounted(): Promise<void> {
+    await (this as any).GET_COMPILED_SCRIPTS();
     this.loading = false;
   },
   methods: {
-    async deleteCompiledScript(data) {
+    async deleteCompiledScript(data: any): Promise<void> {
       const msg = `Are you sure you want to delete the compiled script for revision ${data.item.revision_id}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === false) {
         return;
       }
@@ -107,20 +110,20 @@ export default {
           }
         );
         if (response.ok) {
-          this.$toast.success('Deleted compiled script!');
+          (this as any).$toast.success('Deleted compiled script!');
         } else {
           log.error('Unable to delete compiled scripts');
-          this.$toast.error('Unable to delete compiled script!');
+          (this as any).$toast.error('Unable to delete compiled script!');
         }
       } catch (e) {
         log.error(e);
-        this.$toast.error('Unable to delete compiled script!');
+        (this as any).$toast.error('Unable to delete compiled script!');
       } finally {
         this.deletingCompiledScript = false;
         this.pendingRevisionId = null;
       }
     },
-    async generateCompiledScript(data) {
+    async generateCompiledScript(data: any): Promise<void> {
       this.generatingCompiledScript = true;
       this.pendingRevisionId = data.item.revision_id;
       try {
@@ -132,14 +135,14 @@ export default {
           body: JSON.stringify({ revision_id: data.item.revision_id }),
         });
         if (response.ok) {
-          this.$toast.success('Generated new compiled script!');
+          (this as any).$toast.success('Generated new compiled script!');
         } else {
           log.error('Unable to load compiled scripts');
-          this.$toast.error('Unable to compile script revision!');
+          (this as any).$toast.error('Unable to compile script revision!');
         }
       } catch (e) {
         log.error(e);
-        this.$toast.error('Unable to compile script revision!');
+        (this as any).$toast.error('Unable to compile script revision!');
       } finally {
         this.generatingCompiledScript = false;
         this.pendingRevisionId = null;
@@ -147,7 +150,7 @@ export default {
     },
     ...mapActions(['GET_COMPILED_SCRIPTS']),
   },
-};
+});
 </script>
 
 <style scoped></style>

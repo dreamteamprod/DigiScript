@@ -95,10 +95,11 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 
-export default {
+export default defineComponent({
   name: 'SceneDensityHeatmap',
   props: {
     loading: {
@@ -108,31 +109,29 @@ export default {
   },
   data() {
     return {
-      maxBarHeight: 200, // Maximum bar height in pixels
-      minBarHeight: 20, // Minimum bar height for visibility
+      maxBarHeight: 200,
+      minBarHeight: 20,
     };
   },
   computed: {
     ...mapGetters(['MIC_TIMELINE_DATA', 'ACT_BY_ID']),
-    hasData() {
+    hasData(): boolean {
       return this.scenes.length > 0 && Object.keys(this.allocations).length > 0;
     },
-    scenes() {
-      return this.MIC_TIMELINE_DATA.scenes || [];
+    scenes(): any[] {
+      return (this as any).MIC_TIMELINE_DATA.scenes || [];
     },
-    allocations() {
-      return this.MIC_TIMELINE_DATA.allocations || {};
+    allocations(): Record<string, any> {
+      return (this as any).MIC_TIMELINE_DATA.allocations || {};
     },
-    sceneDensityData() {
-      // Calculate mic count for each scene
-      return this.scenes.map((scene) => {
-        const micsInScene = new Set();
+    sceneDensityData(): any[] {
+      return this.scenes.map((scene: any) => {
+        const micsInScene = new Set<number>();
 
-        // Check all mic allocations for this scene
         Object.keys(this.allocations).forEach((micId) => {
           const micAllocs = this.allocations[micId];
           if (Array.isArray(micAllocs)) {
-            const hasAllocation = micAllocs.some((alloc) => alloc.scene_id === scene.id);
+            const hasAllocation = micAllocs.some((alloc: any) => alloc.scene_id === scene.id);
             if (hasAllocation) {
               micsInScene.add(parseInt(micId, 10));
             }
@@ -145,17 +144,16 @@ export default {
         };
       });
     },
-    actGroups() {
-      // Group scenes by act
-      const groups = [];
-      const actMap = {};
+    actGroups(): any[] {
+      const groups: any[] = [];
+      const actMap: Record<number, any> = {};
 
-      this.sceneDensityData.forEach((sceneData) => {
+      this.sceneDensityData.forEach((sceneData: any) => {
         const actId = sceneData.scene.act;
         if (!actMap[actId]) {
           actMap[actId] = {
             actId,
-            actName: this.ACT_BY_ID(actId)?.name || 'Unknown Act',
+            actName: (this as any).ACT_BY_ID(actId)?.name || 'Unknown Act',
             scenes: [],
           };
           groups.push(actMap[actId]);
@@ -165,21 +163,21 @@ export default {
 
       return groups;
     },
-    maxDensity() {
+    maxDensity(): number {
       if (this.sceneDensityData.length === 0) return 0;
-      return Math.max(...this.sceneDensityData.map((d) => d.micCount));
+      return Math.max(...this.sceneDensityData.map((d: any) => d.micCount));
     },
-    averageDensity() {
+    averageDensity(): number {
       if (this.sceneDensityData.length === 0) return 0;
-      const total = this.sceneDensityData.reduce((sum, d) => sum + d.micCount, 0);
+      const total = this.sceneDensityData.reduce((sum: number, d: any) => sum + d.micCount, 0);
       return total / this.sceneDensityData.length;
     },
-    peakSceneName() {
-      const peakScene = this.sceneDensityData.find((d) => d.micCount === this.maxDensity);
+    peakSceneName(): string {
+      const peakScene = this.sceneDensityData.find((d: any) => d.micCount === this.maxDensity);
       return peakScene ? peakScene.scene.name : 'N/A';
     },
-    uniqueMicsUsed() {
-      const allMics = new Set();
+    uniqueMicsUsed(): number {
+      const allMics = new Set<number>();
       Object.keys(this.allocations).forEach((micId) => {
         const micAllocs = this.allocations[micId];
         if (Array.isArray(micAllocs) && micAllocs.length > 0) {
@@ -190,42 +188,33 @@ export default {
     },
   },
   methods: {
-    getDensityColor(micCount) {
+    getDensityColor(micCount: number): string {
       if (micCount === 0) {
-        return '#2c3e50'; // Dark gray for no mics
+        return '#2c3e50';
       }
 
-      // Color scale from blue (low) to red (high)
-      // Uses HSL color space for smooth gradient
       const ratio = this.maxDensity > 0 ? micCount / this.maxDensity : 0;
-
-      // Hue: 240 (blue) to 0 (red)
       const hue = 240 - ratio * 240;
-
-      // Saturation: 70% for vibrant colors
       const saturation = 70;
-
-      // Lightness: 45-55% for good visibility on dark background
       const lightness = 45 + ratio * 10;
 
       return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     },
-    getBarHeight(micCount) {
+    getBarHeight(micCount: number): number {
       if (micCount === 0) return this.minBarHeight;
 
-      // Scale bar height based on mic count
       const ratio = this.maxDensity > 0 ? micCount / this.maxDensity : 0;
       const height = this.minBarHeight + ratio * (this.maxBarHeight - this.minBarHeight);
       return Math.round(height);
     },
-    handleBarClick(sceneData) {
+    handleBarClick(sceneData: any): void {
       this.$emit('scene-click', {
         scene: sceneData.scene,
         micCount: sceneData.micCount,
       });
     },
   },
-};
+});
 </script>
 
 <style scoped>

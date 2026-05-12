@@ -195,14 +195,15 @@
   </span>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 import RevisionGraph from '@/vue_components/show/config/script/RevisionGraph.vue';
 import RevisionDetailModal from '@/vue_components/show/config/script/RevisionDetailModal.vue';
 
-export default {
+export default defineComponent({
   name: 'ScriptRevisions',
   components: { RevisionDetailModal, RevisionGraph },
   data() {
@@ -221,8 +222,8 @@ export default {
       },
       branchFormState: {
         description: '',
-        sourceRevisionId: null,
-        sourceRevision: null,
+        sourceRevisionId: null as number | null,
+        sourceRevision: null as number | null,
         isCurrentRevision: false,
       },
       submittingNewRevision: false,
@@ -230,10 +231,10 @@ export default {
       submittingLoadRevision: false,
       deletingRevision: false,
       // Graph state
-      graphCollapsed: this.getGraphCollapseState(),
-      selectedRevisionId: null,
-      selectedRevision: null,
-      modalSubmitting: false,
+      graphCollapsed: (this as any).getGraphCollapseState(),
+      selectedRevisionId: null as number | null,
+      selectedRevision: null as any,
+      modalSubmitting: false as boolean | string,
     };
   },
   validations: {
@@ -256,44 +257,47 @@ export default {
       'INTERNAL_UUID',
       'IS_SCRIPT_EDITOR',
     ]),
-    canChangeRevisions() {
-      return this.CURRENT_EDITOR == null || this.CURRENT_EDITOR === this.INTERNAL_UUID;
+    canChangeRevisions(): boolean {
+      return (
+        (this as any).CURRENT_EDITOR == null ||
+        (this as any).CURRENT_EDITOR === (this as any).INTERNAL_UUID
+      );
     },
   },
   watch: {
-    graphCollapsed(newVal) {
+    graphCollapsed(newVal: boolean): void {
       localStorage.setItem('revisionGraphCollapsed', JSON.stringify(newVal));
     },
   },
-  async beforeMount() {
-    await this.GET_SCRIPT_CONFIG_STATUS();
+  async beforeMount(): Promise<void> {
+    await (this as any).GET_SCRIPT_CONFIG_STATUS();
   },
   methods: {
-    resetNewRevForm() {
+    resetNewRevForm(): void {
       this.newRevFormState = {
         description: '',
       };
       this.submittingNewRevision = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    validateNewRevState(name) {
-      const { $dirty, $error } = this.$v.newRevFormState[name];
+    validateNewRevState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newRevFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitNewRev(event) {
-      this.$v.newRevFormState.$touch();
-      if (this.$v.newRevFormState.$anyError || this.submittingNewRevision) {
+    async onSubmitNewRev(event: Event): Promise<void> {
+      (this as any).$v.newRevFormState.$touch();
+      if ((this as any).$v.newRevFormState.$anyError || this.submittingNewRevision) {
         event.preventDefault();
         return;
       }
 
       this.submittingNewRevision = true;
       try {
-        await this.ADD_SCRIPT_REVISION(this.newRevFormState);
-        this.$bvModal.hide('new-revision');
+        await (this as any).ADD_SCRIPT_REVISION(this.newRevFormState);
+        (this as any).$bvModal.hide('new-revision');
         this.resetNewRevForm();
       } catch (error) {
         log.error('Error submitting new revision:', error);
@@ -302,17 +306,17 @@ export default {
         this.submittingNewRevision = false;
       }
     },
-    async loadRevision(revision) {
+    async loadRevision(revision: any): Promise<void> {
       if (this.submittingLoadRevision) {
         return;
       }
 
       const msg = `Are you sure you want to load revision ${revision.item.revision}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.submittingLoadRevision = true;
         try {
-          await this.LOAD_SCRIPT_REVISION(revision.item.id);
+          await (this as any).LOAD_SCRIPT_REVISION(revision.item.id);
         } catch (error) {
           log.error('Error loading revision:', error);
         } finally {
@@ -320,21 +324,21 @@ export default {
         }
       }
     },
-    openEditRevForm(revision) {},
-    async deleteRev(revision) {
+    openEditRevForm(_revision: any): void {},
+    async deleteRev(revision: any): Promise<void> {
       if (this.deletingRevision) {
         return;
       }
 
       let msg = `Are you sure you want to delete revision ${revision.item.revision}?`;
-      if (this.CURRENT_REVISION === revision.item.id) {
+      if ((this as any).CURRENT_REVISION === revision.item.id) {
         msg = `${msg}  This will load the previous revision, or first revision if this is not available.`;
       }
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.deletingRevision = true;
         try {
-          await this.DELETE_SCRIPT_REVISION(revision.item.id);
+          await (this as any).DELETE_SCRIPT_REVISION(revision.item.id);
         } catch (error) {
           log.error('Error deleting revision:', error);
         } finally {
@@ -342,24 +346,23 @@ export default {
         }
       }
     },
-    // Graph interaction handlers
-    getGraphCollapseState() {
+    getGraphCollapseState(): boolean {
       const saved = localStorage.getItem('revisionGraphCollapsed');
       return saved !== null ? JSON.parse(saved) : false;
     },
-    handleNodeClick(revision) {
+    handleNodeClick(revision: any): void {
       this.selectedRevisionId = revision.id;
       this.selectedRevision = revision;
-      this.$bvModal.show('revision-detail');
+      (this as any).$bvModal.show('revision-detail');
     },
-    async handleModalLoadRevision(revision) {
+    async handleModalLoadRevision(revision: any): Promise<void> {
       const msg = `Are you sure you want to load revision ${revision.revision}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.modalSubmitting = 'load';
         try {
-          await this.LOAD_SCRIPT_REVISION(revision.id);
-          this.$bvModal.hide('revision-detail');
+          await (this as any).LOAD_SCRIPT_REVISION(revision.id);
+          (this as any).$bvModal.hide('revision-detail');
         } catch (error) {
           log.error('Error loading revision:', error);
         } finally {
@@ -367,26 +370,21 @@ export default {
         }
       }
     },
-    handleModalCreateFrom(revision) {
-      // Set up the branch form state with the source revision info
+    handleModalCreateFrom(revision: any): void {
       this.branchFormState.sourceRevisionId = revision.id;
       this.branchFormState.sourceRevision = revision.revision;
-      this.branchFormState.isCurrentRevision = revision.id === this.CURRENT_REVISION;
-
-      // Show the branch creation modal
-      this.$bvModal.show('create-branch-modal');
+      this.branchFormState.isCurrentRevision = revision.id === (this as any).CURRENT_REVISION;
+      (this as any).$bvModal.show('create-branch-modal');
     },
-    setupBranchForm() {
-      // Reset only the description field, preserving the source revision info
-      // that was set in handleModalCreateFrom
+    setupBranchForm(): void {
       this.branchFormState.description = '';
       this.submittingBranch = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    resetBranchForm() {
+    resetBranchForm(): void {
       this.branchFormState = {
         description: '',
         sourceRevisionId: null,
@@ -396,29 +394,29 @@ export default {
       this.submittingBranch = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    validateBranchState(name) {
-      const { $dirty, $error } = this.$v.branchFormState[name];
+    validateBranchState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.branchFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitBranch(event) {
-      this.$v.branchFormState.$touch();
-      if (this.$v.branchFormState.$anyError || this.submittingBranch) {
+    async onSubmitBranch(event: Event): Promise<void> {
+      (this as any).$v.branchFormState.$touch();
+      if ((this as any).$v.branchFormState.$anyError || this.submittingBranch) {
         event.preventDefault();
         return;
       }
 
       this.submittingBranch = true;
       try {
-        await this.ADD_SCRIPT_REVISION({
+        await (this as any).ADD_SCRIPT_REVISION({
           description: this.branchFormState.description,
           parent_revision_id: this.branchFormState.sourceRevisionId,
           set_as_current: this.branchFormState.isCurrentRevision,
         });
-        this.$bvModal.hide('create-branch-modal');
-        this.$bvModal.hide('revision-detail');
+        (this as any).$bvModal.hide('create-branch-modal');
+        (this as any).$bvModal.hide('revision-detail');
         this.resetBranchForm();
       } catch (error) {
         log.error('Error creating branch:', error);
@@ -427,10 +425,10 @@ export default {
         this.submittingBranch = false;
       }
     },
-    handleModalClose() {
-      this.$bvModal.hide('revision-detail');
+    handleModalClose(): void {
+      (this as any).$bvModal.hide('revision-detail');
     },
-    handleModalHidden() {
+    handleModalHidden(): void {
       this.selectedRevisionId = null;
       this.selectedRevision = null;
       this.modalSubmitting = false;
@@ -442,7 +440,7 @@ export default {
       'GET_SCRIPT_CONFIG_STATUS',
     ]),
   },
-};
+});
 </script>
 
 <style scoped>

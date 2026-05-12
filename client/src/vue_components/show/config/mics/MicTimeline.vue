@@ -160,11 +160,12 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import timelineMixin from '@/mixins/timelineMixin';
 
-export default {
+export default defineComponent({
   name: 'MicTimeline',
   mixins: [timelineMixin],
   props: {
@@ -175,7 +176,7 @@ export default {
   },
   data() {
     return {
-      viewMode: 'mic', // 'mic', 'character', or 'cast'
+      viewMode: 'mic',
     };
   },
   computed: {
@@ -186,24 +187,24 @@ export default {
       'CAST_BY_ID',
       'CAST_LIST',
     ]),
-    hasData() {
+    hasData(): boolean {
       return this.scenes.length > 0 && this.rows.length > 0;
     },
-    scenes() {
-      return this.MIC_TIMELINE_DATA.scenes || [];
+    scenes(): any[] {
+      return (this as any).MIC_TIMELINE_DATA.scenes || [];
     },
-    allocations() {
-      return this.MIC_TIMELINE_DATA.allocations || {};
+    allocations(): Record<string, any> {
+      return (this as any).MIC_TIMELINE_DATA.allocations || {};
     },
-    microphones() {
-      return this.MIC_TIMELINE_DATA.microphones || [];
+    microphones(): any[] {
+      return (this as any).MIC_TIMELINE_DATA.microphones || [];
     },
-    characters() {
-      return this.MIC_TIMELINE_DATA.characters || [];
+    characters(): any[] {
+      return (this as any).MIC_TIMELINE_DATA.characters || [];
     },
-    rows() {
+    rows(): any[] {
       if (this.viewMode === 'mic') {
-        return this.microphones.map((mic) => ({
+        return this.microphones.map((mic: any) => ({
           id: mic.id,
           name: mic.name || `Mic ${mic.id}`,
           type: 'mic',
@@ -211,30 +212,30 @@ export default {
       }
       if (this.viewMode === 'character') {
         return this.characters
-          .filter((char) => this.hasCharacterAllocations(char.id))
-          .map((char) => ({
+          .filter((char: any) => this.hasCharacterAllocations(char.id))
+          .map((char: any) => ({
             id: char.id,
             name: char.name,
             type: 'character',
           }));
       }
-      // Cast-centric view
-      return this.CAST_LIST.filter((cast) => this.hasCastAllocations(cast.id)).map((cast) => ({
-        id: cast.id,
-        name: `${cast.first_name} ${cast.last_name}`.trim() || `Cast ${cast.id}`,
-        type: 'cast',
-      }));
+      return ((this as any).CAST_LIST as any[])
+        .filter((cast: any) => this.hasCastAllocations(cast.id))
+        .map((cast: any) => ({
+          id: cast.id,
+          name: `${cast.first_name} ${cast.last_name}`.trim() || `Cast ${cast.id}`,
+          type: 'cast',
+        }));
     },
-    allocationBars() {
-      const bars = [];
+    allocationBars(): any[] {
+      const bars: any[] = [];
 
-      this.rows.forEach((row, rowIndex) => {
+      this.rows.forEach((row: any, rowIndex: number) => {
         if (this.viewMode === 'mic') {
           this.generateBarsForMic(row.id, rowIndex, bars);
         } else if (this.viewMode === 'character') {
           this.generateBarsForCharacter(row.id, rowIndex, bars);
         } else {
-          // Cast view
           this.generateBarsForCast(row.id, rowIndex, bars);
         }
       });
@@ -243,41 +244,36 @@ export default {
     },
   },
   watch: {
-    viewMode() {
-      // Re-render when view mode changes
+    viewMode(): void {
       this.$forceUpdate();
     },
   },
   methods: {
-    hasCharacterAllocations(characterId) {
+    hasCharacterAllocations(characterId: number): boolean {
       return Object.values(this.allocations).some((micAllocs) => {
         if (!Array.isArray(micAllocs)) return false;
-        return micAllocs.some((alloc) => alloc.character_id === characterId);
+        return (micAllocs as any[]).some((alloc) => alloc.character_id === characterId);
       });
     },
-    hasCastAllocations(castId) {
-      // Check if any character played by this cast member has allocations
-      const castCharacters = this.characters.filter((char) => char.cast_member?.id === castId);
-      return castCharacters.some((char) => this.hasCharacterAllocations(char.id));
+    hasCastAllocations(castId: number): boolean {
+      const castCharacters = this.characters.filter((char: any) => char.cast_member?.id === castId);
+      return castCharacters.some((char: any) => this.hasCharacterAllocations(char.id));
     },
-    generateBarsForMic(micId, rowIndex, bars) {
+    generateBarsForMic(micId: number, rowIndex: number, bars: any[]): void {
       const micAllocs = this.allocations[micId];
       if (!Array.isArray(micAllocs)) return;
 
-      // Group consecutive scenes with same character
-      const segments = [];
-      let currentSegment = null;
+      const segments: any[] = [];
+      let currentSegment: any = null;
 
-      this.scenes.forEach((scene, sceneIndex) => {
-        const alloc = micAllocs.find((a) => a.scene_id === scene.id);
+      this.scenes.forEach((scene: any, sceneIndex: number) => {
+        const alloc = micAllocs.find((a: any) => a.scene_id === scene.id);
         const characterId = alloc?.character_id;
 
         if (characterId) {
           if (currentSegment && currentSegment.characterId === characterId) {
-            // Extend current segment
             currentSegment.endIndex = sceneIndex;
           } else {
-            // Start new segment
             if (currentSegment) segments.push(currentSegment);
             currentSegment = {
               characterId,
@@ -286,28 +282,25 @@ export default {
             };
           }
         } else if (currentSegment) {
-          // End current segment
           segments.push(currentSegment);
           currentSegment = null;
         }
       });
 
-      // Push final segment
       if (currentSegment) segments.push(currentSegment);
 
-      // Create bars for segments
-      segments.forEach((segment, segmentIndex) => {
-        const character = this.CHARACTER_BY_ID(segment.characterId);
-        const startX = this.getSceneX(segment.startIndex);
-        const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
+      segments.forEach((segment: any, segmentIndex: number) => {
+        const character = (this as any).CHARACTER_BY_ID(segment.characterId);
+        const startX = (this as any).getSceneX(segment.startIndex);
+        const width = (this as any).sceneWidth * (segment.endIndex - segment.startIndex + 1);
 
         bars.push({
           id: `mic-${micId}-seg-${segmentIndex}`,
           x: startX,
-          y: this.getRowY(rowIndex) + this.barPadding,
+          y: (this as any).getRowY(rowIndex) + (this as any).barPadding,
           width,
-          height: this.rowHeight - 2 * this.barPadding,
-          color: this.getColorForEntity(segment.characterId, 'character'),
+          height: (this as any).rowHeight - 2 * (this as any).barPadding,
+          color: (this as any).getColorForEntity(segment.characterId, 'character'),
           cssClass: '',
           label: character?.name || 'Unknown',
           tooltip: `${character?.name || 'Unknown'} (Scenes ${segment.startIndex + 1}-${segment.endIndex + 1})`,
@@ -320,20 +313,19 @@ export default {
         });
       });
     },
-    generateBarsForCharacter(characterId, rowIndex, bars) {
-      // Find all mics allocated to this character
-      const segmentsByMic = new Map();
+    generateBarsForCharacter(characterId: number, rowIndex: number, bars: any[]): void {
+      const segmentsByMic = new Map<number, any[]>();
 
       Object.keys(this.allocations).forEach((micId) => {
         const micAllocs = this.allocations[micId];
         if (!Array.isArray(micAllocs)) return;
 
-        const segments = [];
-        let currentSegment = null;
+        const segments: any[] = [];
+        let currentSegment: any = null;
 
-        this.scenes.forEach((scene, sceneIndex) => {
+        this.scenes.forEach((scene: any, sceneIndex: number) => {
           const alloc = micAllocs.find(
-            (a) => a.scene_id === scene.id && a.character_id === characterId
+            (a: any) => a.scene_id === scene.id && a.character_id === characterId
           );
 
           if (alloc) {
@@ -360,25 +352,25 @@ export default {
         }
       });
 
-      // Create bars with vertical stacking for multiple mics
       const micIds = Array.from(segmentsByMic.keys());
-      const barHeightPerMic = (this.rowHeight - 2 * this.barPadding) / Math.max(micIds.length, 1);
+      const barHeightPerMic =
+        ((this as any).rowHeight - 2 * (this as any).barPadding) / Math.max(micIds.length, 1);
 
-      micIds.forEach((micId, micIndex) => {
-        const segments = segmentsByMic.get(micId);
-        segments.forEach((segment, segmentIndex) => {
-          const mic = this.MICROPHONE_BY_ID(segment.micId);
-          const startX = this.getSceneX(segment.startIndex);
-          const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
+      micIds.forEach((micId: number, micIndex: number) => {
+        const segments = segmentsByMic.get(micId)!;
+        segments.forEach((segment: any, segmentIndex: number) => {
+          const mic = (this as any).MICROPHONE_BY_ID(segment.micId);
+          const startX = (this as any).getSceneX(segment.startIndex);
+          const width = (this as any).sceneWidth * (segment.endIndex - segment.startIndex + 1);
           const yOffset = micIndex * barHeightPerMic;
 
           bars.push({
             id: `char-${characterId}-mic-${micId}-seg-${segmentIndex}`,
             x: startX,
-            y: this.getRowY(rowIndex) + this.barPadding + yOffset,
+            y: (this as any).getRowY(rowIndex) + (this as any).barPadding + yOffset,
             width,
             height: barHeightPerMic,
-            color: this.getColorForEntity(characterId, 'character'),
+            color: (this as any).getColorForEntity(characterId, 'character'),
             cssClass: '',
             label: mic?.name || `Mic ${segment.micId}`,
             tooltip: `${mic?.name || `Mic ${segment.micId}`} (Scenes ${segment.startIndex + 1}-${segment.endIndex + 1})`,
@@ -392,34 +384,30 @@ export default {
         });
       });
     },
-    generateBarsForCast(castId, rowIndex, bars) {
-      // Find all characters played by this cast member
-      const castCharacters = this.characters.filter((char) => char.cast_member?.id === castId);
+    generateBarsForCast(castId: number, rowIndex: number, bars: any[]): void {
+      const castCharacters = this.characters.filter((char: any) => char.cast_member?.id === castId);
 
-      const segmentsByMic = new Map();
+      const segmentsByMic = new Map<number, any[]>();
 
-      // For each mic, find allocations for any character played by this cast member
       Object.keys(this.allocations).forEach((micId) => {
         const micAllocs = this.allocations[micId];
         if (!Array.isArray(micAllocs)) return;
 
-        const segments = [];
-        let currentSegment = null;
+        const segments: any[] = [];
+        let currentSegment: any = null;
 
-        this.scenes.forEach((scene, sceneIndex) => {
-          // Check if any of this cast member's characters uses this mic in this scene
+        this.scenes.forEach((scene: any, sceneIndex: number) => {
           const alloc = micAllocs.find(
-            (a) =>
-              a.scene_id === scene.id && castCharacters.some((char) => char.id === a.character_id)
+            (a: any) =>
+              a.scene_id === scene.id &&
+              castCharacters.some((char: any) => char.id === a.character_id)
           );
 
           if (alloc) {
             if (currentSegment && currentSegment.micId === parseInt(micId, 10)) {
-              // Extend current segment
               currentSegment.endIndex = sceneIndex;
               currentSegment.characterIds.add(alloc.character_id);
             } else {
-              // Start new segment
               if (currentSegment) segments.push(currentSegment);
               currentSegment = {
                 micId: parseInt(micId, 10),
@@ -429,7 +417,6 @@ export default {
               };
             }
           } else if (currentSegment) {
-            // End current segment
             segments.push(currentSegment);
             currentSegment = null;
           }
@@ -442,35 +429,35 @@ export default {
         }
       });
 
-      // Create bars with vertical stacking for multiple mics
       const micIds = Array.from(segmentsByMic.keys());
-      const barHeightPerMic = (this.rowHeight - 2 * this.barPadding) / Math.max(micIds.length, 1);
+      const barHeightPerMic =
+        ((this as any).rowHeight - 2 * (this as any).barPadding) / Math.max(micIds.length, 1);
 
-      micIds.forEach((micId, micIndex) => {
-        const segments = segmentsByMic.get(micId);
-        segments.forEach((segment, segmentIndex) => {
-          const mic = this.MICROPHONE_BY_ID(segment.micId);
-          const characterNames = Array.from(segment.characterIds)
-            .map((charId) => this.CHARACTER_BY_ID(charId)?.name || 'Unknown')
+      micIds.forEach((micId: number, micIndex: number) => {
+        const segments = segmentsByMic.get(micId)!;
+        segments.forEach((segment: any, segmentIndex: number) => {
+          const mic = (this as any).MICROPHONE_BY_ID(segment.micId);
+          const characterNames = Array.from(segment.characterIds as Set<number>)
+            .map((charId) => (this as any).CHARACTER_BY_ID(charId)?.name || 'Unknown')
             .join(', ');
-          const startX = this.getSceneX(segment.startIndex);
-          const width = this.sceneWidth * (segment.endIndex - segment.startIndex + 1);
+          const startX = (this as any).getSceneX(segment.startIndex);
+          const width = (this as any).sceneWidth * (segment.endIndex - segment.startIndex + 1);
           const yOffset = micIndex * barHeightPerMic;
 
           bars.push({
             id: `cast-${castId}-mic-${micId}-seg-${segmentIndex}`,
             x: startX,
-            y: this.getRowY(rowIndex) + this.barPadding + yOffset,
+            y: (this as any).getRowY(rowIndex) + (this as any).barPadding + yOffset,
             width,
             height: barHeightPerMic,
-            color: this.getColorForEntity(castId, 'cast'),
+            color: (this as any).getColorForEntity(castId, 'cast'),
             cssClass: '',
             label: mic?.name || `Mic ${segment.micId}`,
             tooltip: `${mic?.name || `Mic ${segment.micId}`} - ${characterNames} (Scenes ${segment.startIndex + 1}-${segment.endIndex + 1})`,
             data: {
               castId,
               micId: segment.micId,
-              characterIds: Array.from(segment.characterIds),
+              characterIds: Array.from(segment.characterIds as Set<number>),
               startScene: segment.startIndex,
               endScene: segment.endIndex,
             },
@@ -478,25 +465,25 @@ export default {
         });
       });
     },
-    handleExport() {
-      const viewModeNames = {
+    handleExport(): void {
+      const viewModeNames: Record<string, string> = {
         mic: 'Microphone',
         character: 'Character',
         cast: 'Cast',
       };
-      this.exportTimeline('mic-timeline', viewModeNames[this.viewMode]);
+      (this as any).exportTimeline('mic-timeline', viewModeNames[this.viewMode]);
     },
-    handleBarClick(bar) {
+    handleBarClick(bar: any): void {
       this.$emit('bar-click', bar.data);
     },
-    handleBarHover(bar, event) {
+    handleBarHover(bar: any, event: Event): void {
       this.$emit('bar-hover', { bar: bar.data, event });
     },
-    handleBarLeave() {
+    handleBarLeave(): void {
       this.$emit('bar-leave');
     },
   },
-};
+});
 </script>
 
 <style lang="scss">

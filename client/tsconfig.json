@@ -1,26 +1,51 @@
 {
   "compilerOptions": {
+    // ── Compilation target ──────────────────────────────────────────────────
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
+
+    // ── Strictness ──────────────────────────────────────────────────────────
+    // Full strict mode is the end goal; currently deferred because Vue 2 Options
+    // API's (this as any) patterns and Vuex 3 lack typed dispatch/commit.
+    // Re-evaluate after migration to Vue 3 + Pinia/Vuex 4.
     "strict": false,
-    "noImplicitAny": false,
+    //
+    // These individual strict sub-flags are safe to enable now:
+    "strictNullChecks": true,       // Null/undefined are distinct types — biggest safety win
+    "strictFunctionTypes": true,    // Correct contravariant function parameter checking
+    //
+    // Deferred until (this as any) patterns are removed:
+    //   "noImplicitAny": true      // Needs (this as any) cleanup in all SFCs
+    //   "strictPropertyInitialization": true  // Class properties must be initialised
+
+    // ── Code quality ────────────────────────────────────────────────────────
+    "noImplicitReturns": true,           // All code paths in typed functions must return
+    "noFallthroughCasesInSwitch": true,  // No accidental case fallthrough
+    "forceConsistentCasingInFileNames": true,  // Case-sensitive imports (safe on macOS, required on Linux CI)
+
+    // ── Interop & infrastructure ─────────────────────────────────────────────
+    // skipLibCheck: third-party packages (bootstrap-vue, vue-native-websocket,
+    // @types/vuelidate) carry incomplete or conflicting .d.ts files.
     "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false,
-    "jsx": "preserve",
+    "jsx": "preserve",    // Vue template compiler handles JSX transform
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     },
     "types": ["vitest/globals", "node", "vite/client"],
-    "isolatedModules": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
+    "isolatedModules": true,      // Required: Vite/esbuild transpiles each file independently
+    "esModuleInterop": true,      // Needed for loglevel, lodash, and other CJS packages
+    "resolveJsonModule": true,    // Allow importing .json files
+    // REQUIRED for Vue 2 reactivity: defineProperty semantics, not defineField.
+    // Removing this breaks Vue 2's observed data() properties.
     "useDefineForClassFields": false,
-    "noEmit": true
+    "noEmit": true  // Type-checking only; Vite handles emit via esbuild
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.vue"],
+  // Test files use partial object literals as mocks; vitest type-checks them independently.
+  // browser.test.ts and electron.test.ts also mutate window in ways that conflict with
+  // strict DOM types (location reassignment, electronAPI access).
   "exclude": ["node_modules", "dist", "dist-electron", "src/**/*.test.ts"]
 }

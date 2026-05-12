@@ -165,12 +165,13 @@
   </b-row>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 
-export default {
+export default defineComponent({
   name: 'ScriptLineViewer',
   mixins: [scriptDisplayMixin],
   events: [
@@ -252,27 +253,25 @@ export default {
     };
   },
   computed: {
-    needsHeadings() {
-      let { previousLine } = this;
+    needsHeadings(): boolean[] {
+      const line = this.line as any;
+      let previousLine = this.previousLine as any;
       let previousLineIndex = this.lineIndex - 1;
       while (previousLine != null && previousLine.line_type === LINE_TYPES.STAGE_DIRECTION) {
         if (previousLineIndex === 0) {
           break;
         }
         previousLineIndex -= 1;
-        previousLine = this.page[previousLineIndex];
+        previousLine = (this.page as any[])[previousLineIndex];
       }
 
-      const ret = [];
-      this.line.line_parts.forEach(function checkLinePartNeedsHeading(part) {
-        if (
-          previousLine == null ||
-          previousLine.line_parts.length !== this.line.line_parts.length
-        ) {
+      const ret: boolean[] = [];
+      line.line_parts.forEach((part: any) => {
+        if (previousLine == null || previousLine.line_parts.length !== line.line_parts.length) {
           ret.push(true);
         } else {
           const matchingIndex = previousLine.line_parts.find(
-            (prevPart) => prevPart.part_index === part.part_index
+            (prevPart: any) => prevPart.part_index === part.part_index
           );
           if (matchingIndex == null) {
             ret.push(true);
@@ -285,39 +284,40 @@ export default {
             );
           }
         }
-      }, this);
+      });
       return ret;
     },
-    needsActSceneLabelSimple() {
-      if (this.previousLine == null) {
+    needsActSceneLabelSimple(): boolean {
+      const line = this.line as any;
+      const previousLine = this.previousLine as any;
+      if (previousLine == null) {
         return true;
       }
-      return !(
-        this.previousLine.act_id === this.line.act_id &&
-        this.previousLine.scene_id === this.line.scene_id
-      );
+      return !(previousLine.act_id === line.act_id && previousLine.scene_id === line.scene_id);
     },
-    stageDirectionStylingWithCuts() {
-      if (this.line.stage_direction_style_id == null || this.stageDirectionStyle == null) {
-        const style = {
+    stageDirectionStylingWithCuts(): Record<string, string> {
+      const line = this.line as any;
+      const stageDirectionStyle = (this as any).stageDirectionStyle;
+      if (line.stage_direction_style_id == null || stageDirectionStyle == null) {
+        const style: Record<string, string> = {
           'background-color': 'darkslateblue',
           'font-style': 'italic',
         };
-        if (this.linePartCuts.indexOf(this.line.line_parts[0].id) !== -1) {
+        if ((this.linePartCuts as any[]).indexOf(line.line_parts[0].id) !== -1) {
           style['text-decoration'] = 'line-through';
         }
         return style;
       }
-      const style = {
-        'font-weight': this.stageDirectionStyle.bold ? 'bold' : 'normal',
-        'font-style': this.stageDirectionStyle.italic ? 'italic' : 'normal',
-        'text-decoration-line': this.stageDirectionStyle.underline ? 'underline' : 'none',
-        color: this.stageDirectionStyle.text_colour,
+      const style: Record<string, string> = {
+        'font-weight': stageDirectionStyle.bold ? 'bold' : 'normal',
+        'font-style': stageDirectionStyle.italic ? 'italic' : 'normal',
+        'text-decoration-line': stageDirectionStyle.underline ? 'underline' : 'none',
+        color: stageDirectionStyle.text_colour,
       };
-      if (this.stageDirectionStyle.enable_background_colour) {
-        style['background-color'] = this.stageDirectionStyle.background_colour;
+      if (stageDirectionStyle.enable_background_colour) {
+        style['background-color'] = stageDirectionStyle.background_colour;
       }
-      if (this.linePartCuts.indexOf(this.line.line_parts[0].id) !== -1) {
+      if ((this.linePartCuts as any[]).indexOf(line.line_parts[0].id) !== -1) {
         style['text-decoration-line'] = `${style['text-decoration-line']} line-through`;
       }
       return style;
@@ -325,36 +325,37 @@ export default {
     ...mapGetters(['IS_CUT_MODE']),
   },
   methods: {
-    editLine() {
+    editLine(): void {
       this.$emit('editLine');
     },
-    insertDialogue() {
+    insertDialogue(): void {
       this.$emit('insertDialogue');
     },
-    insertStageDirection() {
+    insertStageDirection(): void {
       this.$emit('insertStageDirection');
     },
-    insertCueLine() {
+    insertCueLine(): void {
       this.$emit('insertCueLine');
     },
-    insertSpacing() {
+    insertSpacing(): void {
       this.$emit('insertSpacing');
     },
-    deleteLine() {
+    deleteLine(): void {
       this.$emit('deleteLine');
     },
-    cutLinePart(partIndex) {
-      if (partIndex < this.line.line_parts.length && this.line.line_parts[partIndex] != null) {
-        const linePart = this.line.line_parts[partIndex];
+    cutLinePart(partIndex: number): void {
+      const line = this.line as any;
+      if (partIndex < line.line_parts.length && line.line_parts[partIndex] != null) {
+        const linePart = line.line_parts[partIndex];
         if (linePart.id != null && linePart.line_id != null) {
           this.$emit('cutLinePart', linePart.id);
           return;
         }
       }
-      this.$toast.error('Unable to cut line part');
+      (this as any).$toast.error('Unable to cut line part');
     },
   },
-};
+});
 </script>
 
 <style scoped>
