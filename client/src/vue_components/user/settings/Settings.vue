@@ -78,6 +78,18 @@
                   :state="validateState('console_log_level')"
                 />
               </b-form-group>
+              <b-form-group
+                :label-cols="true"
+                label="Sort characters by most recently used"
+                label-for="character-mru-sort-input"
+              >
+                <b-form-checkbox
+                  id="character-mru-sort-input"
+                  v-model="$v.editSettings.character_mru_sort.$model"
+                  name="character-mru-sort-input"
+                  :switch="true"
+                />
+              </b-form-group>
               <b-button-group size="md" style="float: right">
                 <b-button type="reset" variant="danger" :disabled="!$v.$anyDirty"> Reset </b-button>
                 <b-button type="submit" variant="primary" :disabled="!$v.$anyDirty || $v.$anyError">
@@ -115,6 +127,7 @@ export default defineComponent({
         cue_position_right: false,
         script_text_alignment: TEXT_ALIGNMENT.CENTER,
         console_log_level: 'WARN',
+        character_mru_sort: false,
       },
       textAlignmentOptions: [
         { value: TEXT_ALIGNMENT.LEFT, text: 'Left' },
@@ -156,6 +169,7 @@ export default defineComponent({
         integer,
       },
       console_log_level: { required },
+      character_mru_sort: {},
     },
   },
   mounted(): void {

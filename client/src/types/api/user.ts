@@ -20,4 +20,5 @@ export interface UserSettings {
   cue_position_right: boolean | null;
   script_text_alignment: number;
   console_log_level: string;
+  character_mru_sort: boolean;
 }

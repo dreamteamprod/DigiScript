@@ -61,8 +61,10 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue';
+import { mapGetters } from 'vuex';
 import { required, requiredIf } from 'vuelidate/lib/validators';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { buildMruCharacterOptions, buildMruCharacterGroupOptions } from '@/js/mruSortUtils';
 
 export default defineComponent({
   name: 'ScriptLinePart',
@@ -127,19 +129,27 @@ export default defineComponent({
     };
   },
   computed: {
+    ...mapGetters(['USER_SETTINGS', 'TMP_SCRIPT']),
     characterOptions(): any[] {
+      const chars = this.characters as any[];
+      if ((this.USER_SETTINGS as any)?.character_mru_sort) {
+        const sorted = buildMruCharacterOptions(chars, this.TMP_SCRIPT);
+        if (sorted) return sorted;
+      }
       return [
         { value: null, text: 'N/A' },
-        ...(this.characters as any[]).map((char: any) => ({ value: char.id, text: char.name })),
+        ...chars.map((c: any) => ({ value: c.id, text: c.name })),
       ];
     },
     characterGroupOptions(): any[] {
+      const groups = this.characterGroups as any[];
+      if ((this.USER_SETTINGS as any)?.character_mru_sort) {
+        const sorted = buildMruCharacterGroupOptions(groups, this.TMP_SCRIPT);
+        if (sorted) return sorted;
+      }
       return [
         { value: null, text: 'N/A' },
-        ...(this.characterGroups as any[]).map((char: any) => ({
-          value: char.id,
-          text: char.name,
-        })),
+        ...groups.map((g: any) => ({ value: g.id, text: g.name })),
       ];
     },
   },
