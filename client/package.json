@@ -61,7 +61,7 @@
     "@typescript-eslint/eslint-plugin": "~7.18.0",
     "@typescript-eslint/parser": "~7.18.0",
     "@vitejs/plugin-vue2": "2.3.4",
-    "@vitest/ui": "^4.1.5",
+    "@vitest/ui": "^4.1.6",
     "@vue/test-utils": "^2.4.10",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
