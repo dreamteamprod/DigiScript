@@ -213,7 +213,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapMutations, mapActions } from 'vuex';
 import { required, minValue } from 'vuelidate/lib/validators';
 import { diff } from 'deep-object-diff';
@@ -227,13 +228,15 @@ import { makeURL, randInt } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { LINE_TYPES } from '@/constants/lineTypes';
 
-export default {
+const MRU_LOOK_BACK = 4;
+
+export default defineComponent({
   name: 'ScriptConfig',
   components: { BulkActSceneModal, ScriptLineViewer, ScriptLineEditor },
   data() {
     return {
       currentEditPage: 1,
-      editPages: [],
+      editPages: [] as string[],
       blankLineObj: {
         id: null,
         act_id: null,
@@ -243,8 +246,8 @@ export default {
         line_parts: [],
         stage_direction_style_id: null,
       },
-      curSavePage: null,
-      totalSavePages: null,
+      curSavePage: null as number | null,
+      totalSavePages: null as number | null,
       savingInProgress: false,
       saveError: false,
       currentMaxPage: 1,
@@ -253,16 +256,16 @@ export default {
       },
       changingPage: false,
       loaded: false,
-      latestAddedLine: null,
-      linePartCuts: [],
-      autoSaveInterval: null,
+      latestAddedLine: null as string | null,
+      linePartCuts: [] as number[],
+      autoSaveInterval: null as ReturnType<typeof setInterval> | null,
       isAutoSaving: false,
       navbarHeight: 0,
       bulkEditMode: false,
-      bulkEditStart: null,
-      bulkEditEnd: null,
-      previousLineOfStart: null,
-      nextLineOfEnd: null,
+      bulkEditStart: null as { page: number; lineIndex: number } | null,
+      bulkEditEnd: null as { page: number; lineIndex: number } | null,
+      previousLineOfStart: null as any,
+      nextLineOfEnd: null as any,
     };
   },
   validations: {
@@ -276,42 +279,45 @@ export default {
     },
   },
   computed: {
-    currentEditPageKey() {
+    currentEditPageKey(): string {
       return this.currentEditPage.toString();
     },
-    scriptChanges() {
-      if (this.IS_CUT_MODE) {
-        return Object.keys(diff(this.SCRIPT_CUTS, this.linePartCuts)).length > 0;
+    scriptChanges(): boolean {
+      if ((this as any).IS_CUT_MODE) {
+        return Object.keys(diff((this as any).SCRIPT_CUTS, this.linePartCuts)).length > 0;
       }
       let hasChanges = false;
-      Object.keys(this.TMP_SCRIPT).forEach(function checkPageHasChanges(pageNo) {
-        const lineDiff = diff(this.GET_SCRIPT_PAGE(pageNo), this.TMP_SCRIPT[pageNo]);
+      Object.keys((this as any).TMP_SCRIPT).forEach((pageNo) => {
+        const lineDiff = diff(
+          (this as any).GET_SCRIPT_PAGE(pageNo),
+          (this as any).TMP_SCRIPT[pageNo]
+        );
         if (
           Object.keys(lineDiff).length > 0 ||
-          this.DELETED_LINES(pageNo).length > 0 ||
-          this.INSERTED_LINES(pageNo).length > 0
+          (this as any).DELETED_LINES(pageNo).length > 0 ||
+          (this as any).INSERTED_LINES(pageNo).length > 0
         ) {
           hasChanges = true;
         }
-      }, this);
+      });
       return hasChanges;
     },
-    saveProgressVariant() {
+    saveProgressVariant(): string {
       if (!this.savingInProgress) {
         return this.saveError ? 'danger' : 'success';
       }
       return 'primary';
     },
-    canEdit() {
-      return this.INTERNAL_UUID === this.CURRENT_EDITOR;
+    canEdit(): boolean {
+      return (this as any).INTERNAL_UUID === (this as any).CURRENT_EDITOR;
     },
-    canSave() {
-      if (this.IS_CUT_MODE) {
+    canSave(): boolean {
+      if ((this as any).IS_CUT_MODE) {
         return this.scriptChanges;
       }
       return this.scriptChanges && this.editPages.length === 0;
     },
-    pagesWithOpenChanges() {
+    pagesWithOpenChanges(): number[] {
       return [...new Set(this.editPages.map((x) => parseInt(x.split('_')[1], 10)))];
     },
     ...mapGetters([
@@ -339,42 +345,43 @@ export default {
     ]),
   },
   watch: {
-    currentEditPage(val) {
-      localStorage.setItem('scriptEditPage', val);
+    currentEditPage(val: number): void {
+      localStorage.setItem('scriptEditPage', val.toString());
     },
-    async bulkEditEnd(val) {
+    async bulkEditEnd(val: { page: number; lineIndex: number } | null): Promise<void> {
       if (val != null) {
         await this.loadBoundaryLines();
-        this.$bvModal.show('bulk-act-scene-modal');
+        (this as any).$bvModal.show('bulk-act-scene-modal');
       }
     },
-    USER_SETTINGS() {
+    USER_SETTINGS(): void {
       this.setupAutoSave();
     },
-    CURRENT_EDITOR() {
+    CURRENT_EDITOR(): void {
       this.setupAutoSave();
     },
   },
-  async beforeMount() {
+  async beforeMount(): Promise<void> {
     await Promise.all([
-      this.GET_CURRENT_USER()
-        .then(() => this.GET_USER_SETTINGS())
+      (this as any)
+        .GET_CURRENT_USER()
+        .then(() => (this as any).GET_USER_SETTINGS())
         .then(() => {
-          if (this.CURRENT_USER != null) {
+          if ((this as any).CURRENT_USER != null) {
             return Promise.all([
-              this.GET_STAGE_DIRECTION_STYLE_OVERRIDES(),
-              this.GET_CUE_COLOUR_OVERRIDES(),
+              (this as any).GET_STAGE_DIRECTION_STYLE_OVERRIDES(),
+              (this as any).GET_CUE_COLOUR_OVERRIDES(),
             ]);
           }
           return Promise.resolve();
         }),
-      this.GET_SCRIPT_CONFIG_STATUS(),
-      this.GET_ACT_LIST(),
-      this.GET_SCENE_LIST(),
-      this.GET_CHARACTER_LIST(),
-      this.GET_CHARACTER_GROUP_LIST(),
-      this.GET_STAGE_DIRECTION_STYLES(),
-      this.GET_CUTS(),
+      (this as any).GET_SCRIPT_CONFIG_STATUS(),
+      (this as any).GET_ACT_LIST(),
+      (this as any).GET_SCENE_LIST(),
+      (this as any).GET_CHARACTER_LIST(),
+      (this as any).GET_CHARACTER_GROUP_LIST(),
+      (this as any).GET_STAGE_DIRECTION_STYLES(),
+      (this as any).GET_CUTS(),
       this.getMaxScriptPage(),
     ]);
 
@@ -388,21 +395,21 @@ export default {
     }
     await this.goToPageInner(this.currentEditPage);
   },
-  mounted() {
+  mounted(): void {
     this.loaded = true;
     this.calculateNavbarHeight();
   },
-  created() {
+  created(): void {
     window.addEventListener('resize', this.calculateNavbarHeight);
   },
-  destroyed() {
+  destroyed(): void {
     window.removeEventListener('resize', this.calculateNavbarHeight);
     if (this.autoSaveInterval != null) {
       clearInterval(this.autoSaveInterval);
     }
   },
   methods: {
-    async getMaxScriptPage() {
+    async getMaxScriptPage(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/show/script/max_page')}`, {
         method: 'GET',
         headers: {
@@ -416,134 +423,134 @@ export default {
         log.error('Unable to get current max page');
       }
     },
-    requestEdit() {
-      this.$socket.sendObj({
+    requestEdit(): void {
+      (this as any).$socket.sendObj({
         OP: 'REQUEST_SCRIPT_EDIT',
         DATA: {},
       });
     },
-    requestCutEdit() {
-      this.SET_CUT_MODE(true);
-      this.$socket.sendObj({
+    requestCutEdit(): void {
+      (this as any).SET_CUT_MODE(true);
+      (this as any).$socket.sendObj({
         OP: 'REQUEST_SCRIPT_EDIT',
         DATA: {},
       });
     },
-    resetCutsToSaved() {
-      this.linePartCuts = JSON.parse(JSON.stringify(this.SCRIPT_CUTS));
+    resetCutsToSaved(): void {
+      this.linePartCuts = JSON.parse(JSON.stringify((this as any).SCRIPT_CUTS));
     },
-    async stopEditing() {
+    async stopEditing(): Promise<void> {
       if (this.scriptChanges) {
         const msg =
           'Are you sure you want to stop editing the script? ' +
           'This will cause all unsaved changes to be lost';
-        const action = await this.$bvModal.msgBoxConfirm(msg, {});
+        const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
         if (action === false) {
           return;
         }
       }
       this.editPages = [];
       this.exitBulkEditMode();
-      this.RESET_TO_SAVED(this.currentEditPage);
+      (this as any).RESET_TO_SAVED(this.currentEditPage);
       this.resetCutsToSaved();
-      this.$socket.sendObj({
+      (this as any).$socket.sendObj({
         OP: 'STOP_SCRIPT_EDIT',
         DATA: {},
       });
-      this.SET_CUT_MODE(false);
+      (this as any).SET_CUT_MODE(false);
     },
-    async decrPage() {
+    async decrPage(): Promise<void> {
       if (this.currentEditPage > 1) {
         const targetPage = this.currentEditPage - 1;
         // Load from backend if not in buffer
-        if (!Object.keys(this.TMP_SCRIPT).includes(targetPage.toString())) {
-          await this.LOAD_SCRIPT_PAGE(targetPage);
-          this.ADD_BLANK_PAGE(targetPage);
+        if (!Object.keys((this as any).TMP_SCRIPT).includes(targetPage.toString())) {
+          await (this as any).LOAD_SCRIPT_PAGE(targetPage);
+          (this as any).ADD_BLANK_PAGE(targetPage);
         }
-        if (this.TMP_SCRIPT[this.currentEditPageKey].length === 0) {
-          this.REMOVE_PAGE(this.currentEditPage);
+        if ((this as any).TMP_SCRIPT[this.currentEditPageKey].length === 0) {
+          (this as any).REMOVE_PAGE(this.currentEditPage);
         }
         this.currentEditPage--;
 
         // Pre-load previous page
-        await this.LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
+        await (this as any).LOAD_SCRIPT_PAGE(this.currentEditPage - 1);
       }
     },
-    async incrPage() {
+    async incrPage(): Promise<void> {
       this.currentEditPage++;
-      if (!Object.keys(this.TMP_SCRIPT).includes(this.currentEditPageKey)) {
-        this.ADD_BLANK_PAGE(this.currentEditPage);
+      if (!Object.keys((this as any).TMP_SCRIPT).includes(this.currentEditPageKey)) {
+        (this as any).ADD_BLANK_PAGE(this.currentEditPage);
       }
       // Pre-load next page
-      await this.LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
+      await (this as any).LOAD_SCRIPT_PAGE(this.currentEditPage + 1);
     },
-    async addNewLine() {
-      this.ADD_BLANK_LINE({
+    async addNewLine(): Promise<void> {
+      (this as any).ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: this.blankLineObj,
       });
-      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      const lineIndex = (this as any).TMP_SCRIPT[this.currentEditPageKey].length - 1;
       const lineIdent = `page_${this.currentEditPage}_line_${lineIndex}`;
       this.editPages.push(lineIdent);
       this.latestAddedLine = lineIdent;
       const prevLine = await this.getPreviousLineForIndex(lineIndex);
       if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
       }
     },
-    async addStageDirection() {
+    async addStageDirection(): Promise<void> {
       const stageDirectionObject = JSON.parse(JSON.stringify(this.blankLineObj));
       stageDirectionObject.line_type = LINE_TYPES.STAGE_DIRECTION;
-      this.ADD_BLANK_LINE({
+      (this as any).ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: stageDirectionObject,
       });
-      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      const lineIndex = (this as any).TMP_SCRIPT[this.currentEditPageKey].length - 1;
       this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
       const prevLine = await this.getPreviousLineForIndex(lineIndex);
       if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
       }
     },
-    async addCueLine() {
+    async addCueLine(): Promise<void> {
       const cueLineObject = JSON.parse(JSON.stringify(this.blankLineObj));
       cueLineObject.line_type = LINE_TYPES.CUE_LINE;
       cueLineObject.line_parts = [];
-      this.ADD_BLANK_LINE({
+      (this as any).ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: cueLineObject,
       });
-      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      const lineIndex = (this as any).TMP_SCRIPT[this.currentEditPageKey].length - 1;
       this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
       const prevLine = await this.getPreviousLineForIndex(lineIndex);
       if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
       }
     },
-    async addSpacing() {
+    async addSpacing(): Promise<void> {
       const spacingObject = JSON.parse(JSON.stringify(this.blankLineObj));
       spacingObject.line_type = LINE_TYPES.SPACING;
       spacingObject.line_parts = [];
-      this.ADD_BLANK_LINE({
+      (this as any).ADD_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineObj: spacingObject,
       });
-      const lineIndex = this.TMP_SCRIPT[this.currentEditPageKey].length - 1;
+      const lineIndex = (this as any).TMP_SCRIPT[this.currentEditPageKey].length - 1;
       this.editPages.push(`page_${this.currentEditPage}_line_${lineIndex}`);
       const prevLine = await this.getPreviousLineForIndex(lineIndex);
       if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][lineIndex].act_id = prevLine.act_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][lineIndex].scene_id = prevLine.scene_id;
       }
     },
-    async getPreviousLineForIndex(lineIndex) {
+    async getPreviousLineForIndex(lineIndex: number): Promise<any> {
       // Search backwards from lineIndex - 1 on the current page, skipping deleted lines
       for (let i = lineIndex - 1; i >= 0; i--) {
-        if (!this.DELETED_LINES(this.currentEditPage).includes(i)) {
-          return this.TMP_SCRIPT[this.currentEditPage][i];
+        if (!(this as any).DELETED_LINES(this.currentEditPage).includes(i)) {
+          return (this as any).TMP_SCRIPT[this.currentEditPage][i];
         }
       }
 
@@ -553,14 +560,14 @@ export default {
 
         while (loopPageNo >= 1) {
           let loopPage = null;
-          if (Object.keys(this.TMP_SCRIPT).includes(loopPageNo.toString())) {
-            loopPage = this.TMP_SCRIPT[loopPageNo.toString()];
+          if (Object.keys((this as any).TMP_SCRIPT).includes(loopPageNo.toString())) {
+            loopPage = (this as any).TMP_SCRIPT[loopPageNo.toString()];
           } else {
-            await this.LOAD_SCRIPT_PAGE(loopPageNo);
-            loopPage = this.GET_SCRIPT_PAGE(loopPageNo);
+            await (this as any).LOAD_SCRIPT_PAGE(loopPageNo);
+            loopPage = (this as any).GET_SCRIPT_PAGE(loopPageNo);
           }
           // Find the last non-deleted line on this page
-          const deletedLines = this.DELETED_LINES(loopPageNo);
+          const deletedLines = (this as any).DELETED_LINES(loopPageNo);
           for (let i = loopPage.length - 1; i >= 0; i--) {
             if (!deletedLines.includes(i)) {
               return loopPage[i];
@@ -571,10 +578,10 @@ export default {
       }
       return null;
     },
-    async getNextLineForIndex(lineIndex) {
+    async getNextLineForIndex(lineIndex: number): Promise<any> {
       // Search forwards from lineIndex + 1 on the current page, skipping deleted lines
-      const currentPageLines = this.TMP_SCRIPT[this.currentEditPage];
-      const deletedLines = this.DELETED_LINES(this.currentEditPage);
+      const currentPageLines = (this as any).TMP_SCRIPT[this.currentEditPage];
+      const deletedLines = (this as any).DELETED_LINES(this.currentEditPage);
       for (let i = lineIndex + 1; i < currentPageLines.length; i++) {
         if (!deletedLines.includes(i)) {
           return currentPageLines[i];
@@ -583,14 +590,14 @@ export default {
 
       // No non-deleted lines after this index on current page, check next pages
       // See if there are any edit pages loaded which are after this page
-      const editPages = Object.keys(this.TMP_SCRIPT)
+      const editPages = Object.keys((this as any).TMP_SCRIPT)
         .map((x) => parseInt(x, 10))
         .sort();
       for (let i = 0; i < editPages.length; i++) {
         const editPage = editPages[i];
         if (editPage > this.currentEditPage) {
-          const pageContent = this.TMP_SCRIPT[editPage.toString()];
-          const pageDeletedLines = this.DELETED_LINES(editPage);
+          const pageContent = (this as any).TMP_SCRIPT[editPage.toString()];
+          const pageDeletedLines = (this as any).DELETED_LINES(editPage);
           // Find the first non-deleted line on this page
           for (let j = 0; j < pageContent.length; j++) {
             if (!pageDeletedLines.includes(j)) {
@@ -603,9 +610,9 @@ export default {
       // Edit pages do not have any non-deleted lines, try loading script pages up to the max
 
       for (let i = this.currentEditPage + 1; i <= this.currentMaxPage; i++) {
-        await this.LOAD_SCRIPT_PAGE(i);
-        const loopPage = this.GET_SCRIPT_PAGE(i);
-        const loopPageDeletedLines = this.DELETED_LINES(i);
+        await (this as any).LOAD_SCRIPT_PAGE(i);
+        const loopPage = (this as any).GET_SCRIPT_PAGE(i);
+        const loopPageDeletedLines = (this as any).DELETED_LINES(i);
         // Find the first non-deleted line on this page
         for (let j = 0; j < loopPage.length; j++) {
           if (!loopPageDeletedLines.includes(j)) {
@@ -616,20 +623,20 @@ export default {
 
       return null;
     },
-    lineChange(line, index) {
-      this.SET_LINE({
+    lineChange(line: any, index: number): void {
+      (this as any).SET_LINE({
         pageNo: this.currentEditPage,
         lineIndex: index,
         lineObj: line,
       });
     },
-    beginEditingLine(pageIndex, lineIndex) {
+    beginEditingLine(pageIndex: number, lineIndex: number): void {
       const index = this.editPages.indexOf(`page_${pageIndex}_line_${lineIndex}`);
       if (index === -1) {
         this.editPages.push(`page_${pageIndex}_line_${lineIndex}`);
       }
     },
-    doneEditingLine(pageIndex, lineIndex) {
+    doneEditingLine(pageIndex: number, lineIndex: number): void {
       const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
       const index = this.editPages.indexOf(lineIdent);
       if (index !== -1) {
@@ -639,24 +646,24 @@ export default {
         this.addNewLine();
       }
     },
-    deleteLine(pageIndex, lineIndex) {
+    deleteLine(pageIndex: number, lineIndex: number): void {
       if (this.latestAddedLine === `page_${pageIndex}_line_${lineIndex}`) {
         this.latestAddedLine = null;
       }
-      this.DELETE_LINE({
+      (this as any).DELETE_LINE({
         pageNo: pageIndex,
         lineIndex,
       });
       this.doneEditingLine(pageIndex, lineIndex);
 
-      this.editPages.forEach(function updateEditPage(editPage, index) {
+      this.editPages.forEach((editPage, index) => {
         const editParts = editPage.split('_');
         const editPageIndex = parseInt(editParts[1], 10);
         const editIndex = parseInt(editParts[3], 10);
         if (editPageIndex === pageIndex && editIndex >= lineIndex) {
           this.editPages[index] = `page_${editPageIndex}_line_${editIndex - 1}`;
         }
-      }, this);
+      });
 
       if (this.latestAddedLine != null) {
         const editParts = this.latestAddedLine.split('_');
@@ -667,7 +674,7 @@ export default {
         }
       }
     },
-    cutLinePart(linePartId) {
+    cutLinePart(linePartId: number): void {
       const index = this.linePartCuts.indexOf(linePartId);
       if (index === -1) {
         this.linePartCuts.push(linePartId);
@@ -675,9 +682,9 @@ export default {
         this.linePartCuts.splice(index, 1);
       }
     },
-    async insertLineAt(pageIndex, lineIndex, lineType) {
+    async insertLineAt(pageIndex: number, lineIndex: number, lineType: number): Promise<void> {
       // Map line types to their corresponding add methods
-      const addMethodMap = {
+      const addMethodMap: Record<number, () => Promise<void>> = {
         [LINE_TYPES.DIALOGUE]: () => this.addNewLine(),
         [LINE_TYPES.STAGE_DIRECTION]: () => this.addStageDirection(),
         [LINE_TYPES.CUE_LINE]: () => this.addCueLine(),
@@ -685,7 +692,7 @@ export default {
       };
 
       // If we're inserting at the end of the page, use the add method instead
-      if (this.TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
+      if ((this as any).TMP_SCRIPT[pageIndex].length - 1 === lineIndex) {
         await addMethodMap[lineType]();
         return;
       }
@@ -701,21 +708,21 @@ export default {
       }
 
       // Insert the blank line
-      this.INSERT_BLANK_LINE({
+      (this as any).INSERT_BLANK_LINE({
         pageNo: this.currentEditPage,
         lineIndex: newLineIndex,
         lineObj: newLineObject,
       });
 
       // Update existing edit page indices
-      this.editPages.forEach(function updateEditPage(editPage, index) {
+      this.editPages.forEach((editPage, index) => {
         const editParts = editPage.split('_');
         const editPageIndex = parseInt(editParts[1], 10);
         const editIndex = parseInt(editParts[3], 10);
         if (editPageIndex === pageIndex && editIndex >= newLineIndex) {
           this.editPages[index] = `page_${editPageIndex}_line_${editIndex + 1}`;
         }
-      }, this);
+      });
 
       // Add new line to edit pages
       const lineIdent = `page_${this.currentEditPage}_line_${newLineIndex}`;
@@ -724,50 +731,53 @@ export default {
       // Inherit act and scene from previous line
       const prevLine = await this.getPreviousLineForIndex(newLineIndex);
       if (prevLine != null) {
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
-        this.TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id = prevLine.scene_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][newLineIndex].act_id = prevLine.act_id;
+        (this as any).TMP_SCRIPT[this.currentEditPageKey][newLineIndex].scene_id =
+          prevLine.scene_id;
       }
     },
-    async insertDialogueAt(pageIndex, lineIndex) {
+    async insertDialogueAt(pageIndex: number, lineIndex: number): Promise<void> {
       await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
     },
-    async insertStageDirectionAt(pageIndex, lineIndex) {
+    async insertStageDirectionAt(pageIndex: number, lineIndex: number): Promise<void> {
       await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.STAGE_DIRECTION);
     },
-    async insertCueLineAt(pageIndex, lineIndex) {
+    async insertCueLineAt(pageIndex: number, lineIndex: number): Promise<void> {
       await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.CUE_LINE);
     },
-    async insertSpacingAt(pageIndex, lineIndex) {
+    async insertSpacingAt(pageIndex: number, lineIndex: number): Promise<void> {
       await this.insertLineAt(pageIndex, lineIndex, LINE_TYPES.SPACING);
     },
-    async saveScript() {
-      if (!this.IS_CUT_MODE) {
+    async saveScript(): Promise<void> {
+      if (!(this as any).IS_CUT_MODE) {
         if (this.scriptChanges) {
           this.savingInProgress = true;
-          const tmpPageKeys = Object.keys(this.TMP_SCRIPT).map((x) => Number.parseInt(x, 10));
+          const tmpPageKeys = Object.keys((this as any).TMP_SCRIPT).map((x) =>
+            Number.parseInt(x, 10)
+          );
           const maxPage = Math.max(this.currentMaxPage, ...tmpPageKeys, 0);
           this.totalSavePages = maxPage;
           this.curSavePage = 0;
-          this.$bvModal.show('save-script');
+          (this as any).$bvModal.show('save-script');
 
           for (let pageNo = 1; pageNo <= maxPage; pageNo++) {
             this.curSavePage = pageNo;
-            const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
+            const tmpScriptPage = (this as any).TMP_SCRIPT[pageNo.toString()];
             if (!tmpScriptPage) continue;
             // Check whether the page actually has any lines on it, and if not then skip
             if (tmpScriptPage.length !== 0) {
               // Check the actual script to see if the page exists or not
-              const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
+              const actualScriptPage = (this as any).GET_SCRIPT_PAGE(pageNo);
               if (actualScriptPage.length === 0) {
                 // New page
-                const response = await this.SAVE_NEW_PAGE(pageNo);
+                const response = await (this as any).SAVE_NEW_PAGE(pageNo);
                 if (response) {
-                  await this.LOAD_SCRIPT_PAGE(pageNo);
-                  this.ADD_BLANK_PAGE(pageNo);
-                  this.RESET_DELETED(pageNo);
-                  this.RESET_INSERTED(pageNo);
+                  await (this as any).LOAD_SCRIPT_PAGE(pageNo);
+                  (this as any).ADD_BLANK_PAGE(pageNo);
+                  (this as any).RESET_DELETED(pageNo);
+                  (this as any).RESET_INSERTED(pageNo);
                 } else {
-                  this.$toast.error('Unable to save script. Please try again.');
+                  (this as any).$toast.error('Unable to save script. Please try again.');
                   this.saveError = true;
                   break;
                 }
@@ -776,17 +786,17 @@ export default {
                 const lineDiff = diff(actualScriptPage, tmpScriptPage);
                 if (
                   Object.keys(lineDiff).length > 0 ||
-                  this.DELETED_LINES(pageNo).length > 0 ||
-                  this.INSERTED_LINES(pageNo).length > 0
+                  (this as any).DELETED_LINES(pageNo).length > 0 ||
+                  (this as any).INSERTED_LINES(pageNo).length > 0
                 ) {
-                  const response = await this.SAVE_CHANGED_PAGE(pageNo);
+                  const response = await (this as any).SAVE_CHANGED_PAGE(pageNo);
                   if (response) {
-                    await this.LOAD_SCRIPT_PAGE(pageNo);
-                    this.ADD_BLANK_PAGE(pageNo);
-                    this.RESET_DELETED(pageNo);
-                    this.RESET_INSERTED(pageNo);
+                    await (this as any).LOAD_SCRIPT_PAGE(pageNo);
+                    (this as any).ADD_BLANK_PAGE(pageNo);
+                    (this as any).RESET_DELETED(pageNo);
+                    (this as any).RESET_INSERTED(pageNo);
                   } else {
-                    this.$toast.error('Unable to save script. Please try again.');
+                    (this as any).$toast.error('Unable to save script. Please try again.');
                     this.saveError = true;
                     break;
                   }
@@ -799,47 +809,55 @@ export default {
           // Re-setup autosave (to reset the timer since we have just saved)
           this.setupAutoSave();
         } else {
-          this.$toast.warning('No changes to save!');
+          (this as any).$toast.warning('No changes to save!');
         }
         await this.getMaxScriptPage();
       } else {
         this.savingInProgress = true;
-        await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
+        await (this as any).SAVE_SCRIPT_CUTS(this.linePartCuts);
         this.resetCutsToSaved();
         // Re-setup autosave (to reset the timer since we have just saved)
         this.setupAutoSave();
         this.savingInProgress = false;
       }
     },
-    validatePageState(name) {
-      const { $dirty, $error } = this.$v.pageInputFormState[name];
+    validatePageState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.pageInputFormState[name];
       return $dirty ? !$error : null;
     },
-    async goToPage() {
+    async goToPage(): Promise<void> {
       this.changingPage = true;
       await this.goToPageInner(this.pageInputFormState.pageNo);
       this.changingPage = false;
     },
-    async goToPageInner(pageNo) {
-      if (pageNo > 1) {
-        await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) - 1);
+    async goToPageInner(pageNo: number): Promise<void> {
+      const loadedPages = new Set(Object.keys((this as any).TMP_SCRIPT).map(Number));
+      const lookBackStart = Math.max(1, pageNo - MRU_LOOK_BACK);
+      for (let p = lookBackStart; p < pageNo; p++) {
+        if (!loadedPages.has(p)) {
+          await (this as any).LOAD_SCRIPT_PAGE(p);
+          (this as any).ADD_BLANK_PAGE(p);
+        }
       }
-      await this.LOAD_SCRIPT_PAGE(pageNo);
+      await (this as any).LOAD_SCRIPT_PAGE(pageNo);
       this.currentEditPage = pageNo;
-      if (!Object.keys(this.TMP_SCRIPT).includes(this.currentEditPageKey)) {
-        this.ADD_BLANK_PAGE(this.currentEditPage);
+      if (!Object.keys((this as any).TMP_SCRIPT).includes(this.currentEditPageKey)) {
+        (this as any).ADD_BLANK_PAGE(this.currentEditPage);
       }
-      await this.LOAD_SCRIPT_PAGE(parseInt(pageNo, 10) + 1);
+      await (this as any).LOAD_SCRIPT_PAGE(pageNo + 1);
     },
-    setupAutoSave() {
+    setupAutoSave(): void {
       const autoSaveInterval = Math.max(
-        this.USER_SETTINGS.script_auto_save_interval * 1000 * 60,
+        (this as any).USER_SETTINGS.script_auto_save_interval * 1000 * 60,
         1000 * 60
       );
-      if (this.INTERNAL_UUID !== this.CURRENT_EDITOR && this.autoSaveInterval != null) {
+      if (
+        (this as any).INTERNAL_UUID !== (this as any).CURRENT_EDITOR &&
+        this.autoSaveInterval != null
+      ) {
         clearInterval(this.autoSaveInterval);
-      } else if (this.INTERNAL_UUID === this.CURRENT_EDITOR) {
-        if (this.USER_SETTINGS.enable_script_auto_save) {
+      } else if ((this as any).INTERNAL_UUID === (this as any).CURRENT_EDITOR) {
+        if ((this as any).USER_SETTINGS.enable_script_auto_save) {
           if (this.autoSaveInterval == null) {
             this.autoSaveInterval = setInterval(this.autosave, autoSaveInterval);
           } else {
@@ -851,21 +869,21 @@ export default {
         }
       }
     },
-    async autosave() {
+    async autosave(): Promise<void> {
       if (this.isAutoSaving) {
         return;
       }
       this.isAutoSaving = true;
-      const toastInstance = this.$toast.open({
+      const toastInstance = (this as any).$toast.open({
         type: 'info',
         message: 'Performing autosave...',
         duration: 0,
         dismissible: false,
       });
-      if (!this.IS_CUT_MODE) {
+      if (!(this as any).IS_CUT_MODE) {
         if (this.scriptChanges) {
           let curSavePage = 0;
-          const orderedPages = Object.keys(this.TMP_SCRIPT)
+          const orderedPages = Object.keys((this as any).TMP_SCRIPT)
             .map((x) => parseInt(x, 10))
             .sort((a, b) => a - b);
           let saveFailure = false;
@@ -880,18 +898,18 @@ export default {
             }
             toastInstance.message = `Performing autosave...<br>Saving page ${curSavePage}`;
             // Check whether the page actually has any lines on it, and if not then skip
-            const tmpScriptPage = this.TMP_SCRIPT[pageNo.toString()];
+            const tmpScriptPage = (this as any).TMP_SCRIPT[pageNo.toString()];
             if (tmpScriptPage.length !== 0) {
               // Check the actual script to see if the page exists or not
-              const actualScriptPage = this.GET_SCRIPT_PAGE(pageNo);
+              const actualScriptPage = (this as any).GET_SCRIPT_PAGE(pageNo);
               if (actualScriptPage.length === 0) {
                 // New page
-                const response = await this.SAVE_NEW_PAGE(pageNo);
+                const response = await (this as any).SAVE_NEW_PAGE(pageNo);
                 if (response) {
-                  await this.LOAD_SCRIPT_PAGE(pageNo);
-                  this.ADD_BLANK_PAGE(pageNo);
-                  this.RESET_DELETED(pageNo);
-                  this.RESET_INSERTED(pageNo);
+                  await (this as any).LOAD_SCRIPT_PAGE(pageNo);
+                  (this as any).ADD_BLANK_PAGE(pageNo);
+                  (this as any).RESET_DELETED(pageNo);
+                  (this as any).RESET_INSERTED(pageNo);
                 } else {
                   saveFailure = true;
                   break;
@@ -901,15 +919,15 @@ export default {
                 const lineDiff = diff(actualScriptPage, tmpScriptPage);
                 if (
                   Object.keys(lineDiff).length > 0 ||
-                  this.DELETED_LINES(pageNo).length > 0 ||
-                  this.INSERTED_LINES(pageNo).length > 0
+                  (this as any).DELETED_LINES(pageNo).length > 0 ||
+                  (this as any).INSERTED_LINES(pageNo).length > 0
                 ) {
-                  const response = await this.SAVE_CHANGED_PAGE(pageNo);
+                  const response = await (this as any).SAVE_CHANGED_PAGE(pageNo);
                   if (response) {
-                    await this.LOAD_SCRIPT_PAGE(pageNo);
-                    this.ADD_BLANK_PAGE(pageNo);
-                    this.RESET_DELETED(pageNo);
-                    this.RESET_INSERTED(pageNo);
+                    await (this as any).LOAD_SCRIPT_PAGE(pageNo);
+                    (this as any).ADD_BLANK_PAGE(pageNo);
+                    (this as any).RESET_DELETED(pageNo);
+                    (this as any).RESET_INSERTED(pageNo);
                   } else {
                     saveFailure = true;
                     break;
@@ -934,7 +952,7 @@ export default {
         }
         await this.getMaxScriptPage();
       } else {
-        await this.SAVE_SCRIPT_CUTS(this.linePartCuts);
+        await (this as any).SAVE_SCRIPT_CUTS(this.linePartCuts);
         this.resetCutsToSaved();
         toastInstance.message = 'Autosave successful';
         toastInstance.type = 'success';
@@ -942,105 +960,107 @@ export default {
       }
       this.isAutoSaving = false;
     },
-    calculateNavbarHeight() {
+    calculateNavbarHeight(): void {
       const navbar = document.querySelector('.navbar');
       if (navbar) {
-        this.navbarHeight = navbar.offsetHeight;
+        this.navbarHeight = (navbar as HTMLElement).offsetHeight;
       } else {
         this.navbarHeight = 56;
       }
     },
-    enterBulkEditMode() {
+    enterBulkEditMode(): void {
       this.bulkEditMode = true;
       this.bulkEditStart = null;
       this.bulkEditEnd = null;
     },
-    exitBulkEditMode() {
+    exitBulkEditMode(): void {
       this.bulkEditMode = false;
       this.bulkEditStart = null;
       this.bulkEditEnd = null;
       this.previousLineOfStart = null;
       this.nextLineOfEnd = null;
     },
-    onSetBulkStart(index) {
+    onSetBulkStart(index: number): void {
       this.bulkEditStart = {
         page: this.currentEditPage,
         lineIndex: index,
       };
       this.bulkEditEnd = null;
     },
-    onSetBulkEnd(index) {
-      const { page: startPage, lineIndex: startIndex } = this.bulkEditStart || {};
-      if (startPage === this.currentEditPage && index <= startIndex) {
-        this.$toast.error('End line must come after start line');
-        return;
-      }
-      if (startPage != null && this.currentEditPage < startPage) {
-        this.$toast.error('End line must come after start line');
-        return;
+    onSetBulkEnd(index: number): void {
+      if (this.bulkEditStart != null) {
+        const { page: startPage, lineIndex: startIndex } = this.bulkEditStart;
+        if (startPage === this.currentEditPage && index <= startIndex) {
+          (this as any).$toast.error('End line must come after start line');
+          return;
+        }
+        if (this.currentEditPage < startPage) {
+          (this as any).$toast.error('End line must come after start line');
+          return;
+        }
       }
       this.bulkEditEnd = { page: this.currentEditPage, lineIndex: index };
     },
-    isBulkStart(index) {
+    isBulkStart(index: number): boolean {
       return (
         this.bulkEditStart != null &&
         this.bulkEditStart.page === this.currentEditPage &&
         this.bulkEditStart.lineIndex === index
       );
     },
-    isBulkEnd(index) {
+    isBulkEnd(index: number): boolean {
       return (
         this.bulkEditEnd != null &&
         this.bulkEditEnd.page === this.currentEditPage &&
         this.bulkEditEnd.lineIndex === index
       );
     },
-    async loadBoundaryLines() {
-      const { page: startPage, lineIndex: startIndex } = this.bulkEditStart;
-      const { page: endPage, lineIndex: endIndex } = this.bulkEditEnd;
+    async loadBoundaryLines(): Promise<void> {
+      const { page: startPage, lineIndex: startIndex } = this.bulkEditStart!;
+      const { page: endPage, lineIndex: endIndex } = this.bulkEditEnd!;
 
       if (startIndex === 0 && startPage > 1) {
-        await this.LOAD_SCRIPT_PAGE(startPage - 1);
+        await (this as any).LOAD_SCRIPT_PAGE(startPage - 1);
       }
-      const endPageLines = this.TMP_SCRIPT[endPage.toString()];
+      const endPageLines = (this as any).TMP_SCRIPT[endPage.toString()];
       if (endPageLines && endIndex === endPageLines.length - 1) {
-        await this.LOAD_SCRIPT_PAGE(endPage + 1);
+        await (this as any).LOAD_SCRIPT_PAGE(endPage + 1);
       }
 
-      const startPageLines = this.TMP_SCRIPT[startPage.toString()];
+      const startPageLines = (this as any).TMP_SCRIPT[startPage.toString()];
       if (startIndex > 0 && startPageLines) {
         this.previousLineOfStart = startPageLines[startIndex - 1] || null;
       } else if (startPage > 1) {
-        const prevPage = this.TMP_SCRIPT[(startPage - 1).toString()];
+        const prevPage = (this as any).TMP_SCRIPT[(startPage - 1).toString()];
         this.previousLineOfStart = prevPage ? prevPage[prevPage.length - 1] : null;
       } else {
         this.previousLineOfStart = null;
       }
 
-      const endLines = this.TMP_SCRIPT[endPage.toString()];
+      const endLines = (this as any).TMP_SCRIPT[endPage.toString()];
       if (endLines && endIndex < endLines.length - 1) {
         this.nextLineOfEnd = endLines[endIndex + 1] || null;
       } else {
-        const nextPage = this.TMP_SCRIPT[(endPage + 1).toString()];
+        const nextPage = (this as any).TMP_SCRIPT[(endPage + 1).toString()];
         this.nextLineOfEnd = nextPage ? nextPage[0] : null;
       }
     },
-    async onBulkApply({ actId, sceneId }) {
-      const { page: startPage, lineIndex: startIndex } = this.bulkEditStart;
-      const { page: endPage, lineIndex: endIndex } = this.bulkEditEnd;
+    async onBulkApply({ actId, sceneId }: { actId: number; sceneId: number }): Promise<void> {
+      const { page: startPage, lineIndex: startIndex } = this.bulkEditStart!;
+      const { page: endPage, lineIndex: endIndex } = this.bulkEditEnd!;
 
       for (let p = startPage; p <= endPage; p++) {
-        await this.LOAD_SCRIPT_PAGE(p);
+        await (this as any).LOAD_SCRIPT_PAGE(p);
       }
 
       for (let p = startPage; p <= endPage; p++) {
-        const pageLines = this.TMP_SCRIPT[p.toString()];
+        const pageLines = (this as any).TMP_SCRIPT[p.toString()];
         if (!pageLines) continue;
         const fromIndex = p === startPage ? startIndex : 0;
         const toIndex = p === endPage ? endIndex : pageLines.length - 1;
         for (let i = fromIndex; i <= toIndex; i++) {
-          if (this.DELETED_LINES(p).includes(i)) continue;
-          this.SET_LINE({
+          if ((this as any).DELETED_LINES(p).includes(i)) continue;
+          (this as any).SET_LINE({
             pageNo: p,
             lineIndex: i,
             lineObj: { ...pageLines[i], act_id: actId, scene_id: sceneId },
@@ -1048,7 +1068,7 @@ export default {
         }
       }
 
-      this.$bvModal.hide('bulk-act-scene-modal');
+      (this as any).$bvModal.hide('bulk-act-scene-modal');
       this.exitBulkEditMode();
     },
     ...mapMutations([
@@ -1081,7 +1101,7 @@ export default {
       'GET_USER_SETTINGS',
     ]),
   },
-};
+});
 </script>
 
 <style scoped>

@@ -15,17 +15,18 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import ScriptConfig from '@/vue_components/show/config/script/ScriptEditor.vue';
 import StageDirectionStyles from '@/vue_components/show/config/script/StageDirectionStyles.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigScript',
   components: {
     ScriptConfig,
     StageDirectionConfigs: StageDirectionStyles,
   },
-};
+});
 </script>
 
 <style scoped></style>

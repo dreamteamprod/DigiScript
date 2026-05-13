@@ -241,14 +241,15 @@
   </b-container>
 </template>
 
-<script>
-import { mapGetters, mapActions } from 'vuex';
+<script lang="ts">
+import { defineComponent } from 'vue';
+import { mapGetters } from 'vuex';
 import cueDisplayMixin from '@/mixins/cueDisplayMixin';
 import scriptNavigationMixin from '@/mixins/scriptNavigationMixin';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 import { LINE_TYPES } from '@/constants/lineTypes';
 
-export default {
+export default defineComponent({
   name: 'ScriptLineViewer',
   mixins: [cueDisplayMixin, scriptNavigationMixin, scriptDisplayMixin],
   events: ['last-line-change', 'first-line-change', 'start-interval'],
@@ -325,23 +326,23 @@ export default {
     };
   },
   computed: {
-    isFirstRowIntervalBanner() {
-      return this.needsIntervalBanner;
+    isFirstRowIntervalBanner(): boolean {
+      return (this as any).needsIntervalBanner;
     },
-    isFirstRowActScene() {
-      return !this.needsIntervalBanner && this.needsActSceneLabel;
+    isFirstRowActScene(): boolean {
+      return !(this as any).needsIntervalBanner && (this as any).needsActSceneLabel;
     },
-    isFirstRowContent() {
-      return !this.needsIntervalBanner && !this.needsActSceneLabel;
+    isFirstRowContent(): boolean {
+      return !(this as any).needsIntervalBanner && !(this as any).needsActSceneLabel;
     },
     ...mapGetters(['USER_SETTINGS']),
   },
   methods: {
-    addNewCue() {
-      this.$emit('add-cue', this.line.id);
+    addNewCue(): void {
+      this.$emit('add-cue', (this.line as any).id);
     },
   },
-};
+});
 </script>
 
 <style scoped>

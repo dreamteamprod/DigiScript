@@ -7,31 +7,32 @@
   </b-table-simple>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import { titleCase } from '@/js/utils';
 
-export default {
+export default defineComponent({
   name: 'AboutUser',
   computed: {
-    tableData() {
-      const data = {};
-      Object.keys(this.CURRENT_USER).forEach(function updateTableDataKey(key) {
-        data[this.titleCase(key, '_')] = this.CURRENT_USER[key];
-      }, this);
+    tableData(): Record<string, unknown> {
+      const data: Record<string, unknown> = {};
+      Object.keys((this as any).CURRENT_USER).forEach((key) => {
+        data[titleCase(key, '_')] = (this as any).CURRENT_USER[key];
+      });
       return data;
     },
-    orderedKeys() {
+    orderedKeys(): string[] {
       return Object.keys(this.tableData).sort();
     },
     ...mapGetters(['CURRENT_USER']),
   },
-  async beforeMount() {
-    await this.GET_CURRENT_USER();
+  async beforeMount(): Promise<void> {
+    await (this as any).GET_CURRENT_USER();
   },
   methods: {
     titleCase,
     ...mapActions(['GET_CURRENT_USER']),
   },
-};
+});
 </script>

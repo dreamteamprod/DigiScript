@@ -84,17 +84,26 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import log from 'loglevel';
-
 import { makeURL } from '@/js/utils';
 
-export default {
+interface VersionStatus {
+  current_version: string | null;
+  latest_version: string | null;
+  update_available: boolean;
+  release_url: string | null;
+  last_checked: string | null;
+  check_error: string | null;
+}
+
+export default defineComponent({
   name: 'ConfigSystem',
   data() {
     return {
       perPage: 5,
-      connectedClients: [],
+      connectedClients: [] as unknown[],
       currentPageClients: 1,
       clientFields: [
         { key: 'internal_id', label: 'UUID' },
@@ -103,7 +112,7 @@ export default {
         'last_ping',
         'last_pong',
       ],
-      clientTimeout: null,
+      clientTimeout: null as ReturnType<typeof setTimeout> | null,
       loading: true,
       versionStatus: {
         current_version: null,
@@ -112,30 +121,28 @@ export default {
         release_url: null,
         last_checked: null,
         check_error: null,
-      },
+      } as VersionStatus,
       isCheckingVersion: false,
       currentTime: Date.now(),
-      timeUpdateInterval: null,
+      timeUpdateInterval: null as ReturnType<typeof setInterval> | null,
     };
   },
   async mounted() {
     await Promise.all([this.getConnectedClients(), this.getVersionStatus()]);
     this.loading = false;
-
-    // Start time update interval for reactive "time ago" display
     this.timeUpdateInterval = setInterval(() => {
       this.currentTime = Date.now();
     }, 1000);
   },
   destroyed() {
-    clearTimeout(this.clientTimeout);
+    clearTimeout(this.clientTimeout ?? undefined);
     if (this.timeUpdateInterval) {
       clearInterval(this.timeUpdateInterval);
       this.timeUpdateInterval = null;
     }
   },
   methods: {
-    async getConnectedClients() {
+    async getConnectedClients(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/ws/sessions')}`);
       if (response.ok) {
         const sessions = await response.json();
@@ -145,7 +152,7 @@ export default {
       }
       this.clientTimeout = setTimeout(this.getConnectedClients, 1000);
     },
-    async getVersionStatus() {
+    async getVersionStatus(): Promise<void> {
       try {
         const response = await fetch(`${makeURL('/api/v1/version/status')}`);
         if (response.ok) {
@@ -157,17 +164,13 @@ export default {
         log.error('Error fetching version status:', error);
       }
     },
-    async checkForUpdates() {
-      if (this.isCheckingVersion) {
-        return;
-      }
+    async checkForUpdates(): Promise<void> {
+      if (this.isCheckingVersion) return;
 
       this.isCheckingVersion = true;
 
       try {
-        const response = await fetch(`${makeURL('/api/v1/version/check')}`, {
-          method: 'POST',
-        });
+        const response = await fetch(`${makeURL('/api/v1/version/check')}`, { method: 'POST' });
         if (response.ok) {
           this.versionStatus = await response.json();
           if (this.versionStatus.update_available) {
@@ -186,52 +189,30 @@ export default {
         this.isCheckingVersion = false;
       }
     },
-    getVersionStatusVariant() {
-      if (!this.versionStatus.current_version) {
-        return 'secondary';
-      }
-      if (this.versionStatus.check_error) {
-        return 'danger';
-      }
-      if (this.versionStatus.update_available) {
-        return 'warning';
-      }
+    getVersionStatusVariant(): string {
+      if (!this.versionStatus.current_version) return 'secondary';
+      if (this.versionStatus.check_error) return 'danger';
+      if (this.versionStatus.update_available) return 'warning';
       return 'success';
     },
-    getVersionStatusText() {
-      if (!this.versionStatus.current_version) {
-        return 'Loading...';
-      }
-      if (this.versionStatus.check_error) {
-        return 'Unable to check';
-      }
-      if (this.versionStatus.update_available) {
-        return 'Update Available';
-      }
+    getVersionStatusText(): string {
+      if (!this.versionStatus.current_version) return 'Loading...';
+      if (this.versionStatus.check_error) return 'Unable to check';
+      if (this.versionStatus.update_available) return 'Update Available';
       return 'Up to date';
     },
-    formatTimeAgo(isoTimestamp) {
-      if (!isoTimestamp) {
-        return 'Never';
-      }
+    formatTimeAgo(isoTimestamp: string | null): string {
+      if (!isoTimestamp) return 'Never';
 
       const timestamp = new Date(isoTimestamp).getTime();
       const seconds = Math.floor((this.currentTime - timestamp) / 1000);
 
-      if (seconds < 10) {
-        return 'Just now';
-      }
-      if (seconds < 60) {
-        return `${seconds} seconds ago`;
-      }
-      if (seconds < 3600) {
-        return `${Math.floor(seconds / 60)} minutes ago`;
-      }
-      if (seconds < 86400) {
-        return `${Math.floor(seconds / 3600)} hours ago`;
-      }
+      if (seconds < 10) return 'Just now';
+      if (seconds < 60) return `${seconds} seconds ago`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
       return `${Math.floor(seconds / 86400)} days ago`;
     },
   },
-};
+});
 </script>

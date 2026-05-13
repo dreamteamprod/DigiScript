@@ -223,7 +223,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
@@ -231,7 +232,7 @@ import log from 'loglevel';
 import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
 import CueCountStats from '@/vue_components/show/config/cues/CueCountStats.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigCues',
   components: { CueCountStats, CueEditor },
   data() {
@@ -245,7 +246,7 @@ export default {
         colour: '#000000',
       },
       editCueTypeFormState: {
-        id: null,
+        id: null as number | null,
         prefix: '',
         description: '',
         colour: '#000000',
@@ -253,10 +254,10 @@ export default {
       submittingNewCueType: false,
       submittingEditCueType: false,
       deletingCueType: false,
-      importCueTypeGroups: [],
-      cueTypeGroupExpanded: {},
+      importCueTypeGroups: [] as any[],
+      cueTypeGroupExpanded: {} as Record<number, boolean>,
       isLoadingImport: false,
-      isImporting: {},
+      isImporting: {} as Record<number, boolean>,
       importCueTypeFields: [
         { key: 'prefix', label: 'Prefix' },
         { key: 'description', label: 'Description' },
@@ -294,8 +295,8 @@ export default {
   computed: {
     ...mapGetters(['CUE_TYPES', 'IS_SHOW_EDITOR']),
   },
-  async mounted() {
-    await this.GET_CUE_TYPES();
+  async mounted(): Promise<void> {
+    await (this as any).GET_CUE_TYPES();
   },
   methods: {
     ...mapActions([
@@ -305,7 +306,7 @@ export default {
       'UPDATE_CUE_TYPE',
       'GET_IMPORTABLE_CUE_TYPES',
     ]),
-    resetNewCueTypeForm() {
+    resetNewCueTypeForm(): void {
       this.newCueTypeForm = {
         prefix: '',
         description: '',
@@ -314,24 +315,24 @@ export default {
       this.submittingNewCueType = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    validateNewCueTypeState(name) {
-      const { $dirty, $error } = this.$v.newCueTypeForm[name];
+    validateNewCueTypeState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newCueTypeForm[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitNewCueType(event) {
-      this.$v.newCueTypeForm.$touch();
-      if (this.$v.newCueTypeForm.$anyError || this.submittingNewCueType) {
+    async onSubmitNewCueType(event: Event): Promise<void> {
+      (this as any).$v.newCueTypeForm.$touch();
+      if ((this as any).$v.newCueTypeForm.$anyError || this.submittingNewCueType) {
         event.preventDefault();
         return;
       }
 
       this.submittingNewCueType = true;
       try {
-        await this.ADD_CUE_TYPE(this.newCueTypeForm);
-        this.$bvModal.hide('new-cue-type');
+        await (this as any).ADD_CUE_TYPE(this.newCueTypeForm);
+        (this as any).$bvModal.hide('new-cue-type');
         this.resetNewCueTypeForm();
       } catch (error) {
         log.error('Error submitting new cue type:', error);
@@ -340,17 +341,17 @@ export default {
         this.submittingNewCueType = false;
       }
     },
-    async deleteCueType(cueType) {
+    async deleteCueType(cueType: any): Promise<void> {
       if (this.deletingCueType) {
         return;
       }
 
       const msg = `Are you sure you want to delete ${cueType.item.prefix}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.deletingCueType = true;
         try {
-          await this.DELETE_CUE_TYPE(cueType.item.id);
+          await (this as any).DELETE_CUE_TYPE(cueType.item.id);
         } catch (error) {
           log.error('Error deleting cue type:', error);
         } finally {
@@ -358,16 +359,16 @@ export default {
         }
       }
     },
-    openEditCueTypeForm(cueType) {
+    openEditCueTypeForm(cueType: any): void {
       if (cueType != null) {
         this.editCueTypeFormState.id = cueType.item.id;
         this.editCueTypeFormState.prefix = cueType.item.prefix;
         this.editCueTypeFormState.description = cueType.item.description;
         this.editCueTypeFormState.colour = cueType.item.colour;
-        this.$bvModal.show('edit-cue-type');
+        (this as any).$bvModal.show('edit-cue-type');
       }
     },
-    resetEditCueTypeForm() {
+    resetEditCueTypeForm(): void {
       this.editCueTypeFormState = {
         id: null,
         prefix: '',
@@ -378,20 +379,20 @@ export default {
       this.deletingCueType = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    async onSubmitEditCueType(event) {
-      this.$v.editCueTypeFormState.$touch();
-      if (this.$v.editCueTypeFormState.$anyError || this.submittingEditCueType) {
+    async onSubmitEditCueType(event: Event): Promise<void> {
+      (this as any).$v.editCueTypeFormState.$touch();
+      if ((this as any).$v.editCueTypeFormState.$anyError || this.submittingEditCueType) {
         event.preventDefault();
         return;
       }
 
       this.submittingEditCueType = true;
       try {
-        await this.UPDATE_CUE_TYPE(this.editCueTypeFormState);
-        this.$bvModal.hide('edit-cue-type');
+        await (this as any).UPDATE_CUE_TYPE(this.editCueTypeFormState);
+        (this as any).$bvModal.hide('edit-cue-type');
         this.resetEditCueTypeForm();
       } catch (error) {
         log.error('Error submitting edit cue type:', error);
@@ -400,17 +401,17 @@ export default {
         this.submittingEditCueType = false;
       }
     },
-    validateEditCueTypeState(name) {
-      const { $dirty, $error } = this.$v.editCueTypeFormState[name];
+    validateEditCueTypeState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editCueTypeFormState[name];
       return $dirty ? !$error : null;
     },
-    async openImportModal() {
-      this.$bvModal.show('import-cue-type-modal');
+    async openImportModal(): Promise<void> {
+      (this as any).$bvModal.show('import-cue-type-modal');
       this.isLoadingImport = true;
       try {
-        const data = await this.GET_IMPORTABLE_CUE_TYPES();
+        const data = await (this as any).GET_IMPORTABLE_CUE_TYPES();
         this.importCueTypeGroups = data.cue_type_groups;
-        data.cue_type_groups.forEach((show) => {
+        data.cue_type_groups.forEach((show: any) => {
           this.$set(this.cueTypeGroupExpanded, show.id, true);
         });
       } catch (e) {
@@ -419,13 +420,13 @@ export default {
         this.isLoadingImport = false;
       }
     },
-    toggleImportShow(showId) {
+    toggleImportShow(showId: number): void {
       this.$set(this.cueTypeGroupExpanded, showId, !this.cueTypeGroupExpanded[showId]);
     },
-    async importCueType(cueType) {
+    async importCueType(cueType: any): Promise<void> {
       this.$set(this.isImporting, cueType.id, true);
       try {
-        await this.ADD_CUE_TYPE({
+        await (this as any).ADD_CUE_TYPE({
           prefix: cueType.prefix,
           description: cueType.description,
           colour: cueType.colour,
@@ -434,12 +435,12 @@ export default {
         this.$set(this.isImporting, cueType.id, false);
       }
     },
-    resetImportState() {
+    resetImportState(): void {
       this.importCueTypeGroups = [];
       this.cueTypeGroupExpanded = {};
       this.isLoadingImport = false;
       this.isImporting = {};
     },
   },
-};
+});
 </script>

@@ -100,10 +100,11 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 
-export default {
+export default defineComponent({
   name: 'ResourceAvailability',
   props: {
     loading: {
@@ -113,30 +114,29 @@ export default {
   },
   computed: {
     ...mapGetters(['MIC_TIMELINE_DATA', 'MICROPHONE_BY_ID', 'CHARACTER_BY_ID', 'MIC_CONFLICTS']),
-    hasData() {
+    hasData(): boolean {
       return this.scenes.length > 0 && this.microphones.length > 0;
     },
-    scenes() {
-      return this.MIC_TIMELINE_DATA.scenes || [];
+    scenes(): any[] {
+      return (this as any).MIC_TIMELINE_DATA.scenes || [];
     },
-    microphones() {
-      return this.MIC_TIMELINE_DATA.microphones || [];
+    microphones(): any[] {
+      return (this as any).MIC_TIMELINE_DATA.microphones || [];
     },
-    allocations() {
-      return this.MIC_TIMELINE_DATA.allocations || {};
+    allocations(): Record<string, any> {
+      return (this as any).MIC_TIMELINE_DATA.allocations || {};
     },
-    totalMicrophones() {
+    totalMicrophones(): number {
       return this.microphones.length;
     },
-    peakUsage() {
-      // Find the maximum number of mics used in any single scene
+    peakUsage(): number {
       let max = 0;
-      this.scenes.forEach((scene) => {
-        const micsInScene = new Set();
+      this.scenes.forEach((scene: any) => {
+        const micsInScene = new Set<number>();
         Object.keys(this.allocations).forEach((micId) => {
           const micAllocs = this.allocations[micId];
           if (Array.isArray(micAllocs)) {
-            const hasAllocation = micAllocs.some((alloc) => alloc.scene_id === scene.id);
+            const hasAllocation = micAllocs.some((alloc: any) => alloc.scene_id === scene.id);
             if (hasAllocation) {
               micsInScene.add(parseInt(micId, 10));
             }
@@ -146,20 +146,19 @@ export default {
       });
       return max;
     },
-    conflictCount() {
-      const conflicts = this.MIC_CONFLICTS?.conflicts || [];
+    conflictCount(): number {
+      const conflicts = (this as any).MIC_CONFLICTS?.conflicts || [];
       return conflicts.length;
     },
-    utilizationRate() {
+    utilizationRate(): number {
       if (this.scenes.length === 0 || this.totalMicrophones === 0) return 0;
 
-      // Calculate average utilization across all scenes
       let totalAllocations = 0;
-      this.scenes.forEach((scene) => {
+      this.scenes.forEach((scene: any) => {
         Object.keys(this.allocations).forEach((micId) => {
           const micAllocs = this.allocations[micId];
           if (Array.isArray(micAllocs)) {
-            const hasAllocation = micAllocs.some((alloc) => alloc.scene_id === scene.id);
+            const hasAllocation = micAllocs.some((alloc: any) => alloc.scene_id === scene.id);
             if (hasAllocation) {
               totalAllocations += 1;
             }
@@ -170,20 +169,19 @@ export default {
       const maxPossibleAllocations = this.scenes.length * this.totalMicrophones;
       return Math.round((totalAllocations / maxPossibleAllocations) * 100);
     },
-    sceneAvailability() {
-      return this.scenes.map((scene) => {
-        const micStatuses = [];
+    sceneAvailability(): any[] {
+      return this.scenes.map((scene: any) => {
+        const micStatuses: any[] = [];
         let available = 0;
         let inUse = 0;
         let conflicts = 0;
 
-        // Get conflicts for this scene
-        const allConflicts = this.MIC_CONFLICTS?.conflicts || [];
+        const allConflicts = (this as any).MIC_CONFLICTS?.conflicts || [];
         const sceneConflicts = allConflicts.filter(
-          (conflict) => conflict.sceneId === scene.id || conflict.adjacentSceneId === scene.id
+          (conflict: any) => conflict.sceneId === scene.id || conflict.adjacentSceneId === scene.id
         );
 
-        this.microphones.forEach((mic) => {
+        this.microphones.forEach((mic: any) => {
           const micAllocs = this.allocations[mic.id];
           let allocation = null;
           let status = 'available';
@@ -191,22 +189,21 @@ export default {
           let character = null;
 
           if (Array.isArray(micAllocs)) {
-            allocation = micAllocs.find((alloc) => alloc.scene_id === scene.id);
+            allocation = micAllocs.find((alloc: any) => alloc.scene_id === scene.id);
           }
 
           if (allocation) {
             status = 'in-use';
             statusClass = 'in-use';
-            character = this.CHARACTER_BY_ID(allocation.character_id);
+            character = (this as any).CHARACTER_BY_ID((allocation as any).character_id);
             inUse += 1;
 
-            // Check if this mic has a conflict in this scene
-            const hasConflict = sceneConflicts.some((conflict) => conflict.micId === mic.id);
+            const hasConflict = sceneConflicts.some((conflict: any) => conflict.micId === mic.id);
             if (hasConflict) {
               status = 'conflict';
               statusClass = 'conflict';
               conflicts += 1;
-              inUse -= 1; // Don't double-count
+              inUse -= 1;
             }
           } else {
             available += 1;
@@ -232,7 +229,7 @@ export default {
     },
   },
   methods: {
-    getMicTooltip(micStatus) {
+    getMicTooltip(micStatus: any): string {
       const micName = micStatus.mic.name || `Mic ${micStatus.mic.id}`;
 
       if (micStatus.status === 'conflict') {
@@ -243,7 +240,7 @@ export default {
       }
       return `${micName}: Available`;
     },
-    handleMicClick(scene, micStatus) {
+    handleMicClick(scene: any, micStatus: any): void {
       this.$emit('mic-click', {
         scene,
         microphone: micStatus.mic,
@@ -252,7 +249,7 @@ export default {
       });
     },
   },
-};
+});
 </script>
 
 <style scoped>

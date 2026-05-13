@@ -161,13 +161,14 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
-export default {
+export default defineComponent({
   name: 'ConfigActs',
   mixins: [formValidationMixin],
   data() {
@@ -185,14 +186,14 @@ export default {
       newFormState: {
         name: '',
         interval_after: false,
-        previous_act_id: null,
+        previous_act_id: null as number | null,
       },
       editFormState: {
-        id: null,
-        showID: null,
+        id: null as number | null,
+        showID: null as number | null,
         name: '',
         interval_after: false,
-        previous_act_id: null,
+        previous_act_id: null as number | null,
       },
       submittingNewAct: false,
       submittingEditAct: false,
@@ -201,14 +202,10 @@ export default {
   },
   validations: {
     newFormState: {
-      name: {
-        required,
-      },
+      name: { required },
     },
     editFormState: {
-      name: {
-        required,
-      },
+      name: { required },
       previous_act_id: {
         integer,
         noLoops(value) {
@@ -226,37 +223,41 @@ export default {
     },
   },
   computed: {
-    actTableItems() {
-      const ret = [];
-      if (this.CURRENT_SHOW.first_act_id != null && this.ACT_LIST.length > 0) {
-        let act = this.ACT_BY_ID(this.CURRENT_SHOW.first_act_id);
+    actTableItems(): unknown[] {
+      const ret: any[] = [];
+      if ((this as any).CURRENT_SHOW.first_act_id != null && (this as any).ACT_LIST.length > 0) {
+        let act = (this as any).ACT_BY_ID((this as any).CURRENT_SHOW.first_act_id);
         while (act != null) {
-          ret.push(this.ACT_BY_ID(act.id));
-          act = this.ACT_BY_ID(act.next_act);
+          ret.push((this as any).ACT_BY_ID(act.id));
+          act = (this as any).ACT_BY_ID(act.next_act);
         }
       }
       const actIds = ret.map((x) => x.id);
-      this.ACT_LIST.forEach((act) => {
+      (this as any).ACT_LIST.forEach((act: any) => {
         if (!actIds.includes(act.id)) {
           ret.push(act);
         }
       });
       return ret;
     },
-    previousActOptions() {
+    previousActOptions(): unknown[] {
       return [
         { value: null, text: 'None', disabled: false },
-        ...this.ACT_LIST.filter((act) => act.next_act == null, this).map((act) => ({
+        ...(this as any).ACT_LIST.filter((act: any) => act.next_act == null).map((act: any) => ({
           value: act.id,
           text: act.name,
         })),
       ];
     },
-    editFormActOptions() {
-      const ret = [];
-      ret.push(...this.previousActOptions.filter((act) => act.value !== this.editFormState.id));
+    editFormActOptions(): unknown[] {
+      const ret: any[] = [];
+      ret.push(
+        ...(this.previousActOptions as any[]).filter((act) => act.value !== this.editFormState.id)
+      );
       if (this.editFormState.previous_act_id != null) {
-        const act = this.ACT_LIST.find((a) => a.id === this.editFormState.previous_act_id);
+        const act = (this as any).ACT_LIST.find(
+          (a: any) => a.id === this.editFormState.previous_act_id
+        );
         ret.push({
           value: this.editFormState.previous_act_id,
           text: act.name,
@@ -267,30 +268,29 @@ export default {
     },
     ...mapGetters(['ACT_LIST', 'CURRENT_SHOW', 'ACT_BY_ID', 'IS_SHOW_EDITOR']),
   },
-  async mounted() {
-    await this.GET_ACT_LIST();
+  async mounted(): Promise<void> {
+    await (this as any).GET_ACT_LIST();
     this.loading = false;
   },
   methods: {
-    resetNewForm() {
-      this.resetForm('newFormState', {
+    resetNewForm(): void {
+      (this as any).resetForm('newFormState', {
         name: '',
         interval_after: false,
         previous_act_id: null,
       });
       this.submittingNewAct = false;
     },
-    async onSubmitNew(event) {
-      this.$v.newFormState.$touch();
-      if (this.$v.newFormState.$anyError || this.submittingNewAct) {
+    async onSubmitNew(event: Event): Promise<void> {
+      (this as any).$v.newFormState.$touch();
+      if ((this as any).$v.newFormState.$anyError || this.submittingNewAct) {
         event.preventDefault();
         return;
       }
-
       this.submittingNewAct = true;
       try {
-        await this.ADD_ACT(this.newFormState);
-        this.$bvModal.hide('new-act');
+        await (this as any).ADD_ACT(this.newFormState);
+        (this as any).$bvModal.hide('new-act');
         this.resetNewForm();
       } catch (error) {
         log.error('Error submitting new act:', error);
@@ -299,7 +299,7 @@ export default {
         this.submittingNewAct = false;
       }
     },
-    openEditForm(act) {
+    openEditForm(act: any): void {
       if (act != null) {
         this.editFormState.id = act.item.id;
         this.editFormState.showID = act.item.show_id;
@@ -308,11 +308,11 @@ export default {
         if (act.item.previous_act != null) {
           this.editFormState.previous_act_id = act.item.previous_act;
         }
-        this.$bvModal.show('edit-act');
+        (this as any).$bvModal.show('edit-act');
       }
     },
-    resetEditForm() {
-      this.resetForm('editFormState', {
+    resetEditForm(): void {
+      (this as any).resetForm('editFormState', {
         id: null,
         showID: null,
         name: '',
@@ -322,17 +322,16 @@ export default {
       this.submittingEditAct = false;
       this.deletingAct = false;
     },
-    async onSubmitEdit(event) {
-      this.$v.editFormState.$touch();
-      if (this.$v.editFormState.$anyError || this.submittingEditAct) {
+    async onSubmitEdit(event: Event): Promise<void> {
+      (this as any).$v.editFormState.$touch();
+      if ((this as any).$v.editFormState.$anyError || this.submittingEditAct) {
         event.preventDefault();
         return;
       }
-
       this.submittingEditAct = true;
       try {
-        await this.UPDATE_ACT(this.editFormState);
-        this.$bvModal.hide('edit-act');
+        await (this as any).UPDATE_ACT(this.editFormState);
+        (this as any).$bvModal.hide('edit-act');
         this.resetEditForm();
       } catch (error) {
         log.error('Error submitting edit act:', error);
@@ -341,17 +340,16 @@ export default {
         this.submittingEditAct = false;
       }
     },
-    async deleteAct(act) {
+    async deleteAct(act: any): Promise<void> {
       if (this.deletingAct) {
         return;
       }
-
       const msg = `Are you sure you want to delete ${act.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.deletingAct = true;
         try {
-          await this.DELETE_ACT(act.item.id);
+          await (this as any).DELETE_ACT(act.item.id);
         } catch (error) {
           log.error('Error deleting act:', error);
         } finally {
@@ -361,7 +359,7 @@ export default {
     },
     ...mapActions(['GET_ACT_LIST', 'ADD_ACT', 'DELETE_ACT', 'UPDATE_ACT']),
   },
-};
+});
 </script>
 
 <style scoped></style>

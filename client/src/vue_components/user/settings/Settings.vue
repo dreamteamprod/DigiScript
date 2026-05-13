@@ -78,6 +78,30 @@
                   :state="validateState('console_log_level')"
                 />
               </b-form-group>
+              <b-form-group
+                :label-cols="true"
+                label="Sort characters by most recently used"
+                label-for="character-mru-sort-input"
+              >
+                <b-form-checkbox
+                  id="character-mru-sort-input"
+                  v-model="$v.editSettings.character_mru_sort.$model"
+                  name="character-mru-sort-input"
+                  :switch="true"
+                />
+              </b-form-group>
+              <b-form-group
+                :label-cols="true"
+                label="Use combined character/group dropdown"
+                label-for="character-combined-dropdown-input"
+              >
+                <b-form-checkbox
+                  id="character-combined-dropdown-input"
+                  v-model="$v.editSettings.character_combined_dropdown.$model"
+                  name="character-combined-dropdown-input"
+                  :switch="true"
+                />
+              </b-form-group>
               <b-button-group size="md" style="float: right">
                 <b-button type="reset" variant="danger" :disabled="!$v.$anyDirty"> Reset </b-button>
                 <b-button type="submit" variant="primary" :disabled="!$v.$anyDirty || $v.$anyError">
@@ -95,7 +119,8 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import { required, integer, minValue } from 'vuelidate/lib/validators';
 import log from 'loglevel';
@@ -103,7 +128,7 @@ import { makeURL } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { TEXT_ALIGNMENT } from '@/constants/textAlignment';
 
-export default {
+export default defineComponent({
   name: 'UserSettingsConfig',
   data() {
     return {
@@ -114,6 +139,8 @@ export default {
         cue_position_right: false,
         script_text_alignment: TEXT_ALIGNMENT.CENTER,
         console_log_level: 'WARN',
+        character_mru_sort: false,
+        character_combined_dropdown: false,
       },
       textAlignmentOptions: [
         { value: TEXT_ALIGNMENT.LEFT, text: 'Left' },
@@ -135,7 +162,7 @@ export default {
     ...mapGetters(['USER_SETTINGS']),
   },
   watch: {
-    USER_SETTINGS() {
+    USER_SETTINGS(): void {
       this.resetForm();
     },
   },
@@ -155,18 +182,20 @@ export default {
         integer,
       },
       console_log_level: { required },
+      character_mru_sort: {},
+      character_combined_dropdown: {},
     },
   },
-  mounted() {
-    this.editSettings = JSON.parse(JSON.stringify(this.USER_SETTINGS));
+  mounted(): void {
+    this.editSettings = JSON.parse(JSON.stringify((this as any).USER_SETTINGS));
     this.loaded = true;
   },
   methods: {
-    validateState(name) {
-      const { $dirty, $error } = this.$v.editSettings[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editSettings[name];
       return $dirty ? !$error : null;
     },
-    async handleSubmit() {
+    async handleSubmit(): Promise<void> {
       const response = await fetch(`${makeURL('/api/v1/user/settings')}`, {
         method: 'PATCH',
         headers: {
@@ -175,20 +204,20 @@ export default {
         body: JSON.stringify(this.editSettings),
       });
       if (!response.ok) {
-        this.$toast.error('Unable to save settings');
+        (this as any).$toast.error('Unable to save settings');
         log.error('Unable to save settings');
       } else {
-        this.$toast.success('Saved settings');
+        (this as any).$toast.success('Saved settings');
       }
     },
-    resetForm() {
+    resetForm(): void {
       this.loaded = false;
-      this.toggle = !this.toggle;
-      this.editSettings = JSON.parse(JSON.stringify(this.USER_SETTINGS));
+      this.toggle = Number(!this.toggle);
+      this.editSettings = JSON.parse(JSON.stringify((this as any).USER_SETTINGS));
       this.loaded = true;
     },
   },
-};
+});
 </script>
 
 <style scoped></style>

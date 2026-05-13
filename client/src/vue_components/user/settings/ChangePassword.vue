@@ -68,12 +68,13 @@
   </b-card>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { makeURL } from '@/js/utils';
 import passwordValidationMixin from '@/mixins/passwordValidation';
 
-export default {
+export default defineComponent({
   name: 'ChangePassword',
   mixins: [passwordValidationMixin],
   data() {
@@ -92,20 +93,20 @@ export default {
         currentPassword: {
           required,
         },
-        newPassword: this.getPasswordValidations(),
-        confirmPassword: this.getConfirmPasswordValidations('newPassword'),
+        newPassword: (this as any).getPasswordValidations(),
+        confirmPassword: (this as any).getConfirmPasswordValidations('newPassword'),
       },
     };
   },
   computed: {
-    isDisabled() {
-      return Boolean(this.$v.state.$invalid);
+    isDisabled(): boolean {
+      return Boolean((this as any).$v.state.$invalid);
     },
   },
   methods: {
-    async handlePasswordChange() {
-      this.$v.state.$touch();
-      if (this.$v.state.$anyError) {
+    async handlePasswordChange(): Promise<void> {
+      (this as any).$v.state.$touch();
+      if ((this as any).$v.state.$anyError) {
         return;
       }
 
@@ -126,31 +127,28 @@ export default {
         if (response.ok) {
           const data = await response.json();
 
-          // Update auth token with new token
           if (data.access_token) {
             await this.$store.commit('SET_AUTH_TOKEN', data.access_token);
           }
 
-          // Refresh current user
           await this.$store.dispatch('GET_CURRENT_USER');
 
-          this.$toast.success('Password changed successfully!');
+          (this as any).$toast.success('Password changed successfully!');
 
-          // Reset form
           this.state.currentPassword = '';
           this.state.newPassword = '';
           this.state.confirmPassword = '';
-          this.$v.$reset();
+          (this as any).$v.$reset();
         } else {
           const error = await response.json();
-          this.$toast.error(error.message || 'Failed to change password');
+          (this as any).$toast.error(error.message || 'Failed to change password');
         }
-      } catch (error) {
-        this.$toast.error('An error occurred while changing password');
+      } catch {
+        (this as any).$toast.error('An error occurred while changing password');
       } finally {
         this.loading = false;
       }
     },
   },
-};
+});
 </script>

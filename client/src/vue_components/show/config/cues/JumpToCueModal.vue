@@ -112,23 +112,24 @@
   </b-modal>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapActions, mapGetters } from 'vuex';
 import log from 'loglevel';
 import Vue from 'vue';
 import { notNull } from '@/js/customValidators';
 
-export default {
+export default defineComponent({
   name: 'JumpToCueModal',
   data() {
     return {
       cueSearchForm: {
-        cueTypeId: null,
+        cueTypeId: null as number | null,
         identifier: '',
       },
-      cueSearchResults: null,
-      generalError: null,
+      cueSearchResults: null as any | null,
+      generalError: null as string | null,
       searching: false,
       showResults: false,
     };
@@ -146,9 +147,9 @@ export default {
   },
   computed: {
     ...mapGetters(['CUE_TYPES']),
-    cueTypeOptions() {
-      const options = [{ value: null, text: 'Select a cue type...', disabled: true }];
-      this.CUE_TYPES.forEach((type) => {
+    cueTypeOptions(): unknown[] {
+      const options: any[] = [{ value: null, text: 'Select a cue type...', disabled: true }];
+      ((this as any).CUE_TYPES as any[]).forEach((type) => {
         options.push({
           value: type.id,
           text: `${type.prefix} - ${type.description || 'No description'}`,
@@ -156,39 +157,45 @@ export default {
       });
       return options;
     },
-    multipleMatches() {
+    multipleMatches(): boolean {
       return this.cueSearchResults?.exact_matches?.length > 1;
     },
-    showSuggestions() {
+    showSuggestions(): boolean {
       return (
         this.cueSearchResults?.exact_matches?.length === 0 &&
         this.cueSearchResults?.suggestions?.length > 0
       );
     },
-    noMatches() {
+    noMatches(): boolean {
       return (
         this.cueSearchResults?.exact_matches?.length === 0 &&
         this.cueSearchResults?.suggestions?.length === 0
       );
     },
-    cueTypeErrorState() {
-      const { $dirty, $error } = this.$v.cueSearchForm.cueTypeId;
+    cueTypeErrorState(): boolean | null {
+      const { $dirty, $error } = (this as any).$v.cueSearchForm.cueTypeId;
       return $dirty ? !$error : null;
     },
-    cueTypeError() {
-      if (this.$v.cueSearchForm.cueTypeId.$dirty) {
-        if (!this.$v.cueSearchForm.cueTypeId.required || !this.$v.cueSearchForm.cueTypeId.notNull) {
+    cueTypeError(): string {
+      if ((this as any).$v.cueSearchForm.cueTypeId.$dirty) {
+        if (
+          !(this as any).$v.cueSearchForm.cueTypeId.required ||
+          !(this as any).$v.cueSearchForm.cueTypeId.notNull
+        ) {
           return 'Cue type is required';
         }
       }
       return '';
     },
-    identifierErrorState() {
-      const { $dirty, $error } = this.$v.cueSearchForm.identifier;
+    identifierErrorState(): boolean | null {
+      const { $dirty, $error } = (this as any).$v.cueSearchForm.identifier;
       return $dirty ? !$error : null;
     },
-    identifierError() {
-      if (this.$v.cueSearchForm.identifier.$dirty && !this.$v.cueSearchForm.identifier.required) {
+    identifierError(): string {
+      if (
+        (this as any).$v.cueSearchForm.identifier.$dirty &&
+        !(this as any).$v.cueSearchForm.identifier.required
+      ) {
         return 'Identifier is required';
       }
       return '';
@@ -196,19 +203,19 @@ export default {
   },
   methods: {
     ...mapActions(['SEARCH_CUES']),
-    async performCueSearch(event) {
+    async performCueSearch(event?: Event): Promise<void> {
       if (event) {
         event.preventDefault();
       }
-      this.$v.$touch();
-      if (this.$v.$anyError) {
+      (this as any).$v.$touch();
+      if ((this as any).$v.$anyError) {
         return;
       }
 
       this.searching = true;
       this.generalError = null;
       try {
-        const result = await this.SEARCH_CUES({
+        const result = await (this as any).SEARCH_CUES({
           identifier: this.cueSearchForm.identifier.trim(),
           cueTypeId: this.cueSearchForm.cueTypeId,
         });
@@ -216,7 +223,7 @@ export default {
 
         if (result.exact_matches?.length === 1) {
           await this.navigateToMatch(result.exact_matches[0]);
-          this.$bvModal.hide('jump-to-cue');
+          (this as any).$bvModal.hide('jump-to-cue');
         } else {
           this.showResults = true;
         }
@@ -227,21 +234,21 @@ export default {
         this.searching = false;
       }
     },
-    async navigateToMatch(match) {
+    async navigateToMatch(match: any): Promise<void> {
       const targetPage = match.location.page;
       this.$emit('navigate', targetPage);
-      Vue.$toast.success(
+      (Vue as any).$toast.success(
         `Jumped to ${match.cue_type.prefix} ${match.cue.ident} on page ${targetPage}`
       );
     },
-    resetCueSearch() {
+    resetCueSearch(): void {
       this.cueSearchForm.identifier = '';
       this.cueSearchForm.cueTypeId = null;
       this.cueSearchResults = null;
       this.generalError = null;
       this.showResults = false;
-      this.$v.$reset();
+      (this as any).$v.$reset();
     },
   },
-};
+});
 </script>

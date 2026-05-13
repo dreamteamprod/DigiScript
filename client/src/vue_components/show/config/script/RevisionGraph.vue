@@ -66,12 +66,13 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { hierarchy, tree } from 'd3-hierarchy';
 import { select } from 'd3-selection';
 import { zoom, zoomIdentity } from 'd3-zoom';
 
-export default {
+export default defineComponent({
   name: 'RevisionGraph',
   props: {
     revisions: {
@@ -102,29 +103,24 @@ export default {
         left: 40,
       },
       nodeRadius: 8,
-      zoomBehavior: null,
-      currentTransform: null,
+      zoomBehavior: null as any,
+      currentTransform: null as any,
     };
   },
   computed: {
-    hasRevisions() {
+    hasRevisions(): boolean {
       return this.revisions && this.revisions.length > 0;
     },
-    /**
-     * Build hierarchical tree structure from flat revision list
-     */
-    treeData() {
+    treeData(): any {
       if (!this.hasRevisions) return null;
 
-      // Find root node (revision with no parent or revision 1)
-      const root = this.revisions.find((r) => !r.previous_revision_id || r.revision === 1);
+      const root = this.revisions.find((r: any) => !r.previous_revision_id || r.revision === 1);
       if (!root) return null;
 
-      // Build tree recursively
-      const buildTree = (revision) => {
+      const buildTree = (revision: any): any => {
         const children = this.revisions
-          .filter((r) => r.previous_revision_id === revision.id)
-          .map((child) => buildTree(child));
+          .filter((r: any) => r.previous_revision_id === revision.id)
+          .map((child: any) => buildTree(child));
 
         return {
           ...revision,
@@ -134,10 +130,7 @@ export default {
 
       return buildTree(root);
     },
-    /**
-     * D3 hierarchy with calculated positions
-     */
-    hierarchyData() {
+    hierarchyData(): any {
       if (!this.treeData) return null;
 
       const root = hierarchy(this.treeData);
@@ -148,17 +141,11 @@ export default {
 
       return treeLayout(root);
     },
-    /**
-     * Array of nodes with positions
-     */
-    nodes() {
+    nodes(): any[] {
       if (!this.hierarchyData) return [];
       return this.hierarchyData.descendants();
     },
-    /**
-     * Array of links between nodes
-     */
-    links() {
+    links(): any[] {
       if (!this.hierarchyData) return [];
       return this.hierarchyData.links();
     },
@@ -198,16 +185,10 @@ export default {
     }
   },
   methods: {
-    /**
-     * Update SVG dimensions based on container size
-     */
-    updateDimensions() {
-      const container = this.$el;
+    updateDimensions(): void {
+      const container = this.$el as HTMLElement;
       if (container) {
-        // Get the container width and update SVG dimensions
         this.width = container.clientWidth || 800;
-
-        // Re-fit content when dimensions change
         this.$nextTick(() => {
           if (this.zoomBehavior) {
             this.fitToContent();
@@ -215,64 +196,48 @@ export default {
         });
       }
     },
-    /**
-     * Initialize D3 zoom behavior
-     */
-    initZoom() {
-      const svg = select(this.$refs.svg);
-      const g = select(this.$refs.zoomGroup);
+    initZoom(): void {
+      const svg = select(this.$refs.svg as Element);
+      const g = select(this.$refs.zoomGroup as Element);
 
       this.zoomBehavior = zoom()
         .scaleExtent([0.1, 4])
-        .on('zoom', (event) => {
+        .on('zoom', (event: any) => {
           g.attr('transform', event.transform);
           this.currentTransform = event.transform;
         });
 
       svg.call(this.zoomBehavior);
     },
-    /**
-     * Zoom in
-     */
-    zoomIn() {
+    zoomIn(): void {
       if (!this.zoomBehavior || !this.$refs.svg) {
         this.initZoom();
       }
-      const svg = select(this.$refs.svg);
+      const svg = select(this.$refs.svg as Element);
       svg.transition().duration(300).call(this.zoomBehavior.scaleBy, 1.3);
     },
-    /**
-     * Zoom out
-     */
-    zoomOut() {
+    zoomOut(): void {
       if (!this.zoomBehavior || !this.$refs.svg) {
         this.initZoom();
       }
-      const svg = select(this.$refs.svg);
+      const svg = select(this.$refs.svg as Element);
       svg.transition().duration(300).call(this.zoomBehavior.scaleBy, 0.7);
     },
-    /**
-     * Reset zoom to initial state
-     */
-    resetZoom() {
+    resetZoom(): void {
       if (!this.zoomBehavior || !this.$refs.svg) {
         this.initZoom();
       }
-      const svg = select(this.$refs.svg);
+      const svg = select(this.$refs.svg as Element);
       svg.transition().duration(300).call(this.zoomBehavior.transform, zoomIdentity);
     },
-    /**
-     * Fit graph to content
-     */
-    fitToContent() {
+    fitToContent(): void {
       if (!this.nodes.length || !this.$refs.svg) return;
 
-      // Calculate bounding box
       const padding = 50;
-      const minX = Math.min(...this.nodes.map((n) => n.x)) - padding;
-      const maxX = Math.max(...this.nodes.map((n) => n.x)) + padding;
-      const minY = Math.min(...this.nodes.map((n) => n.y)) - padding;
-      const maxY = Math.max(...this.nodes.map((n) => n.y)) + padding;
+      const minX = Math.min(...this.nodes.map((n: any) => n.x)) - padding;
+      const maxX = Math.max(...this.nodes.map((n: any) => n.x)) + padding;
+      const minY = Math.min(...this.nodes.map((n: any) => n.y)) - padding;
+      const maxY = Math.max(...this.nodes.map((n: any) => n.y)) + padding;
 
       const contentWidth = maxY - minY;
       const contentHeight = maxX - minX;
@@ -280,27 +245,23 @@ export default {
       const scale = Math.min(
         (this.width - this.margin.left - this.margin.right) / contentWidth,
         (this.height - this.margin.top - this.margin.bottom) / contentHeight,
-        1 // Don't zoom in beyond 1x
+        1
       );
 
       const translateX = (this.width - contentWidth * scale) / 2 - minY * scale;
       const translateY = (this.height - contentHeight * scale) / 2 - minX * scale;
 
-      const svg = select(this.$refs.svg);
+      const svg = select(this.$refs.svg as Element);
       const transform = zoomIdentity.translate(translateX, translateY).scale(scale);
 
       svg.transition().duration(500).call(this.zoomBehavior.transform, transform);
     },
-    /**
-     * Generate SVG path for link (using cubic Bezier curve)
-     */
-    linkPath(link) {
+    linkPath(link: any): string {
       const sourceX = link.source.x;
       const sourceY = link.source.y;
       const targetX = link.target.x;
       const targetY = link.target.y;
 
-      // Horizontal Bezier curve (GitHub style)
       const midY = (sourceY + targetY) / 2;
 
       return `M${sourceY},${sourceX}
@@ -308,10 +269,7 @@ export default {
                ${midY},${targetX}
                ${targetY},${targetX}`;
     },
-    /**
-     * Get CSS class for node based on state
-     */
-    nodeClass(node) {
+    nodeClass(node: any): string {
       const classes = ['revision-node'];
 
       if (this.isCurrentRevision(node)) {
@@ -324,22 +282,13 @@ export default {
 
       return classes.join(' ');
     },
-    /**
-     * Check if node is current revision
-     */
-    isCurrentRevision(node) {
+    isCurrentRevision(node: any): boolean {
       return node.data.id === this.currentRevisionId;
     },
-    /**
-     * Check if node is selected
-     */
-    isSelectedRevision(node) {
+    isSelectedRevision(node: any): boolean {
       return node.data.id === this.selectedRevisionId;
     },
-    /**
-     * Generate tooltip text for a node
-     */
-    nodeTooltip(node) {
+    nodeTooltip(node: any): string {
       const { data } = node;
       const parts = [
         `Revision ${data.revision}`,
@@ -353,14 +302,11 @@ export default {
 
       return parts.join('\n');
     },
-    /**
-     * Handle node click
-     */
-    handleNodeClick(node) {
+    handleNodeClick(node: any): void {
       this.$emit('node-click', node.data);
     },
   },
-};
+});
 </script>
 
 <style scoped>

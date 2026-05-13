@@ -4,11 +4,12 @@
   <!-- eslint-enable vue/no-v-html -->
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
-export default {
+export default defineComponent({
   name: 'MarkdownRenderer',
   props: {
     content: {
@@ -17,11 +18,11 @@ export default {
     },
   },
   computed: {
-    renderedHtml() {
+    renderedHtml(): string {
       if (!this.content) return '';
 
       try {
-        const rawHtml = marked.parse(this.content);
+        const rawHtml = marked.parse(this.content) as string;
         let transformedHtml = this.transformImagePaths(rawHtml);
         transformedHtml = this.transformMarkdownLinks(transformedHtml);
         return DOMPurify.sanitize(transformedHtml, {
@@ -55,39 +56,34 @@ export default {
           ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class'],
         });
       } catch (error) {
-        this.$log.error('Error rendering markdown:', error);
+        (this as any).$log.error('Error rendering markdown:', error);
         return '<p class="text-danger">Error rendering documentation</p>';
       }
     },
   },
   methods: {
-    transformImagePaths(html) {
-      // Transform: ../images/topic/file.png → /docs/images/topic/file.png
-      // Also handles: ../../images/topic/file.png for nested docs
+    transformImagePaths(html: string): string {
       return html
         .replace(/src="\.\.\/\.\.\/images\//g, 'src="/docs/images/')
         .replace(/src="\.\.\/images\//g, 'src="/docs/images/');
     },
-    transformMarkdownLinks(html) {
-      // Transform internal .md links to /help routes
-      // Examples:
-      // href="./pages/getting_started.md" → href="/help/getting-started"
-      // href="../pages/show_config.md" → href="/help/show-config"
+    transformMarkdownLinks(html: string): string {
       return html
-        .replace(/href="(\.\.\/)*(pages\/[^"]+)\.md"/g, (match, dots, path) => {
-          // Remove 'pages/' prefix and convert underscores to dashes
-          const withoutPages = path.replace(/^pages\//, '');
-          const slug = withoutPages.replace(/_/g, '-');
-          return `href="/help/${slug}"`;
-        })
-        .replace(/href="\.\/([^"]+)\.md"/g, (match, path) => {
-          // Handle same-directory links
+        .replace(
+          /href="(\.\.\/)*(pages\/[^"]+)\.md"/g,
+          (_match: string, _dots: string, path: string) => {
+            const withoutPages = path.replace(/^pages\//, '');
+            const slug = withoutPages.replace(/_/g, '-');
+            return `href="/help/${slug}"`;
+          }
+        )
+        .replace(/href="\.\/([^"]+)\.md"/g, (_match: string, path: string) => {
           const slug = path.replace(/_/g, '-');
           return `href="/help/${slug}"`;
         });
     },
   },
-};
+});
 </script>
 
 <style scoped>

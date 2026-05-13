@@ -121,28 +121,29 @@
   </span>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 
-function isNameUnique(value) {
+function isNameUnique(this: any, value: string): boolean {
   if (value === '') {
     return true;
   }
   if (this.editMicrophoneForm.id != null) {
     if (this.MICROPHONES != null && this.MICROPHONES.length > 0) {
       return !this.MICROPHONES.some(
-        (mic) => mic.name === value && mic.id !== this.editMicrophoneForm.id
+        (mic: any) => mic.name === value && mic.id !== this.editMicrophoneForm.id
       );
     }
   } else if (this.MICROPHONES != null && this.MICROPHONES.length > 0) {
-    return !this.MICROPHONES.some((mic) => mic.name === value);
+    return !this.MICROPHONES.some((mic: any) => mic.name === value);
   }
   return true;
 }
 
-export default {
+export default defineComponent({
   name: 'MicList',
   data() {
     return {
@@ -154,7 +155,7 @@ export default {
         description: '',
       },
       editMicrophoneForm: {
-        id: null,
+        id: null as number | null,
         name: '',
         description: '',
       },
@@ -180,7 +181,7 @@ export default {
     },
   },
   computed: {
-    disableButtons() {
+    disableButtons(): boolean {
       return (
         this.isSubmittingNewMicrophone ||
         this.isSubmittingEditMicrophone ||
@@ -190,15 +191,15 @@ export default {
     ...mapGetters(['MICROPHONES', 'IS_SHOW_EDITOR']),
   },
   methods: {
-    openEditMicForm(mic) {
+    openEditMicForm(mic: any): void {
       if (mic != null) {
         this.editMicrophoneForm.id = mic.item.id;
         this.editMicrophoneForm.name = mic.item.name;
         this.editMicrophoneForm.description = mic.item.description;
-        this.$bvModal.show('edit-microphone');
+        (this as any).$bvModal.show('edit-microphone');
       }
     },
-    resetEditMicrophoneForm() {
+    resetEditMicrophoneForm(): void {
       this.editMicrophoneForm = {
         id: null,
         name: '',
@@ -207,12 +208,12 @@ export default {
       this.isSubmittingEditMicrophone = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    async onSubmitEditMicrophone(event) {
-      this.$v.editMicrophoneForm.$touch();
-      if (this.$v.editMicrophoneForm.$anyError) {
+    async onSubmitEditMicrophone(event: Event): Promise<void> {
+      (this as any).$v.editMicrophoneForm.$touch();
+      if ((this as any).$v.editMicrophoneForm.$anyError) {
         event.preventDefault();
         return;
       }
@@ -225,8 +226,8 @@ export default {
       this.isSubmittingEditMicrophone = true;
 
       try {
-        await this.UPDATE_MICROPHONE(this.editMicrophoneForm);
-        this.$refs['edit-microphone'].hide();
+        await (this as any).UPDATE_MICROPHONE(this.editMicrophoneForm);
+        (this as any).$refs['edit-microphone'].hide();
       } catch (error) {
         log.error('Error updating microphone:', error);
         event.preventDefault();
@@ -234,22 +235,22 @@ export default {
         this.isSubmittingEditMicrophone = false;
       }
     },
-    validateEditMicrophone(name) {
-      const { $dirty, $error } = this.$v.editMicrophoneForm[name];
+    validateEditMicrophone(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editMicrophoneForm[name];
       return $dirty ? !$error : null;
     },
-    async deleteMic(mic) {
+    async deleteMic(mic: any): Promise<void> {
       if (this.isSubmittingDeleteMicrophone) {
         return;
       }
 
       const msg = `Are you sure you want to delete ${mic.item.name}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.isSubmittingDeleteMicrophone = true;
 
         try {
-          await this.DELETE_MICROPHONE(mic.item.id);
+          await (this as any).DELETE_MICROPHONE(mic.item.id);
         } catch (error) {
           log.error('Error deleting microphone:', error);
         } finally {
@@ -257,7 +258,7 @@ export default {
         }
       }
     },
-    resetNewMicrophoneForm() {
+    resetNewMicrophoneForm(): void {
       this.newMicrophoneForm = {
         name: '',
         description: '',
@@ -265,12 +266,12 @@ export default {
       this.isSubmittingNewMicrophone = false;
 
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    async onSubmitNewMicrophone(event) {
-      this.$v.newMicrophoneForm.$touch();
-      if (this.$v.newMicrophoneForm.$anyError) {
+    async onSubmitNewMicrophone(event: Event): Promise<void> {
+      (this as any).$v.newMicrophoneForm.$touch();
+      if ((this as any).$v.newMicrophoneForm.$anyError) {
         event.preventDefault();
         return;
       }
@@ -283,8 +284,8 @@ export default {
       this.isSubmittingNewMicrophone = true;
 
       try {
-        await this.ADD_MICROPHONE(this.newMicrophoneForm);
-        this.$refs['new-microphone'].hide();
+        await (this as any).ADD_MICROPHONE(this.newMicrophoneForm);
+        (this as any).$refs['new-microphone'].hide();
       } catch (error) {
         log.error('Error adding microphone:', error);
         event.preventDefault();
@@ -292,11 +293,11 @@ export default {
         this.isSubmittingNewMicrophone = false;
       }
     },
-    validateNewMicrophone(name) {
-      const { $dirty, $error } = this.$v.newMicrophoneForm[name];
+    validateNewMicrophone(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newMicrophoneForm[name];
       return $dirty ? !$error : null;
     },
     ...mapActions(['DELETE_MICROPHONE', 'ADD_MICROPHONE', 'UPDATE_MICROPHONE']),
   },
-};
+});
 </script>

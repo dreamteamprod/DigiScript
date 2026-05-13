@@ -22,13 +22,14 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapActions } from 'vuex';
 
 import ScriptRevisions from '@/vue_components/show/config/script/ScriptRevisions.vue';
 import CompiledScripts from '@/vue_components/show/config/script/CompiledScripts.vue';
 
-export default {
+export default defineComponent({
   name: 'ConfigScriptRevisions',
   components: { CompiledScripts, ScriptRevisions },
   data() {
@@ -36,14 +37,14 @@ export default {
       loading: true,
     };
   },
-  async mounted() {
-    await this.GET_SCRIPT_REVISIONS();
+  async mounted(): Promise<void> {
+    await (this as any).GET_SCRIPT_REVISIONS();
     this.loading = false;
   },
   methods: {
     ...mapActions(['GET_SCRIPT_REVISIONS']),
   },
-};
+});
 </script>
 
 <style scoped></style>

@@ -342,12 +342,13 @@
   </b-table>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 
-export default {
+export default defineComponent({
   name: 'StageDirectionConfigs',
   data() {
     return {
@@ -377,7 +378,7 @@ export default {
         backgroundColour: '#000000',
       },
       editStyleFormState: {
-        id: null,
+        id: null as number | null,
         description: '',
         styleOptions: [
           { caption: 'Bold', state: false },
@@ -392,26 +393,27 @@ export default {
       isSubmittingNew: false,
       isSubmittingEdit: false,
       isDeleting: false,
-      importStyleGroups: [],
-      styleGroupExpanded: {},
+      importStyleGroups: [] as any[],
+      styleGroupExpanded: {} as Record<number, boolean>,
       isLoadingImport: false,
-      isImporting: {},
+      isImporting: {} as Record<number, boolean>,
     };
   },
   computed: {
     ...mapGetters(['STAGE_DIRECTION_STYLES', 'IS_SCRIPT_EDITOR']),
-    newFormExampleCss() {
-      const style = {
-        'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state
+    newFormExampleCss(): Record<string, string> {
+      const style: Record<string, string> = {
+        'font-weight': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold')!
+          .state
           ? 'bold'
           : 'normal',
-        'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic')
+        'font-style': this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic')!
           .state
           ? 'italic'
           : 'normal',
         'text-decoration-line': this.newStyleFormState.styleOptions.find(
           (el) => el.caption === 'Underline'
-        ).state
+        )!.state
           ? 'underline'
           : 'none',
         color: this.newStyleFormState.textColour,
@@ -421,19 +423,19 @@ export default {
       }
       return style;
     },
-    editFormExampleCss() {
-      const style = {
-        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold')
+    editFormExampleCss(): Record<string, string> {
+      const style: Record<string, string> = {
+        'font-weight': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold')!
           .state
           ? 'bold'
           : 'normal',
-        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic')
+        'font-style': this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic')!
           .state
           ? 'italic'
           : 'normal',
         'text-decoration-line': this.editStyleFormState.styleOptions.find(
           (el) => el.caption === 'Underline'
-        ).state
+        )!.state
           ? 'underline'
           : 'none',
         color: this.editStyleFormState.textColour,
@@ -443,12 +445,12 @@ export default {
       }
       return style;
     },
-    createPayload() {
+    createPayload(): any {
       return {
         description: this.newStyleFormState.description,
-        bold: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
-        italic: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
-        underline: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline')
+        bold: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Bold')!.state,
+        italic: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Italic')!.state,
+        underline: this.newStyleFormState.styleOptions.find((el) => el.caption === 'Underline')!
           .state,
         textFormat: this.newStyleFormState.textFormat,
         textColour: this.newStyleFormState.textColour,
@@ -456,13 +458,13 @@ export default {
         backgroundColour: this.newStyleFormState.backgroundColour,
       };
     },
-    editPayload() {
+    editPayload(): any {
       return {
         id: this.editStyleFormState.id,
         description: this.editStyleFormState.description,
-        bold: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold').state,
-        italic: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic').state,
-        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline')
+        bold: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Bold')!.state,
+        italic: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Italic')!.state,
+        underline: this.editStyleFormState.styleOptions.find((el) => el.caption === 'Underline')!
           .state,
         textFormat: this.editStyleFormState.textFormat,
         textColour: this.editStyleFormState.textColour,
@@ -471,8 +473,8 @@ export default {
       };
     },
   },
-  async mounted() {
-    await this.GET_STAGE_DIRECTION_STYLES();
+  async mounted(): Promise<void> {
+    await (this as any).GET_STAGE_DIRECTION_STYLES();
   },
   validations: {
     newStyleFormState: {
@@ -517,7 +519,7 @@ export default {
     },
   },
   methods: {
-    resetNewFormState() {
+    resetNewFormState(): void {
       this.newStyleFormState = {
         description: '',
         styleOptions: [
@@ -532,10 +534,10 @@ export default {
       };
       this.isSubmittingNew = false;
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    resetEditFormState() {
+    resetEditFormState(): void {
       this.editStyleFormState = {
         id: null,
         description: '',
@@ -551,20 +553,20 @@ export default {
       };
       this.isSubmittingEdit = false;
       this.$nextTick(() => {
-        this.$v.$reset();
+        (this as any).$v.$reset();
       });
     },
-    validateNewStyleState(name) {
-      const { $dirty, $error } = this.$v.newStyleFormState[name];
+    validateNewStyleState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.newStyleFormState[name];
       return $dirty ? !$error : null;
     },
-    validateEditStyleState(name) {
-      const { $dirty, $error } = this.$v.editStyleFormState[name];
+    validateEditStyleState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.editStyleFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitNewStyle(event) {
-      this.$v.newStyleFormState.$touch();
-      if (this.$v.newStyleFormState.$anyError) {
+    async onSubmitNewStyle(event: Event): Promise<void> {
+      (this as any).$v.newStyleFormState.$touch();
+      if ((this as any).$v.newStyleFormState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -577,20 +579,20 @@ export default {
       this.isSubmittingNew = true;
 
       try {
-        await this.ADD_STAGE_DIRECTION_STYLE(this.createPayload);
-        this.$refs['new-config-modal'].hide();
+        await (this as any).ADD_STAGE_DIRECTION_STYLE(this.createPayload);
+        (this as any).$refs['new-config-modal'].hide();
         this.resetNewFormState();
       } catch (error) {
         log.error('Error adding new stage direction style:', error);
-        this.$toast.error('Failed to add new style');
+        (this as any).$toast.error('Failed to add new style');
         event.preventDefault();
       } finally {
         this.isSubmittingNew = false;
       }
     },
-    async onSubmitEditStyle(event) {
-      this.$v.editStyleFormState.$touch();
-      if (this.$v.editStyleFormState.$anyError) {
+    async onSubmitEditStyle(event: Event): Promise<void> {
+      (this as any).$v.editStyleFormState.$touch();
+      if ((this as any).$v.editStyleFormState.$anyError) {
         event.preventDefault();
         return;
       }
@@ -603,18 +605,18 @@ export default {
       this.isSubmittingEdit = true;
 
       try {
-        await this.UPDATE_STAGE_DIRECTION_STYLE(this.editPayload);
-        this.$refs['edit-config-modal'].hide();
+        await (this as any).UPDATE_STAGE_DIRECTION_STYLE(this.editPayload);
+        (this as any).$refs['edit-config-modal'].hide();
         this.resetEditFormState();
       } catch (error) {
         log.error('Error updating stage direction style:', error);
-        this.$toast.error('Failed to update style');
+        (this as any).$toast.error('Failed to update style');
         event.preventDefault();
       } finally {
         this.isSubmittingEdit = false;
       }
     },
-    openEditStyleForm(style) {
+    openEditStyleForm(style: any): void {
       if (style != null) {
         this.editStyleFormState.id = style.item.id;
         this.editStyleFormState.description = style.item.description;
@@ -627,30 +629,30 @@ export default {
         this.editStyleFormState.textColour = style.item.text_colour;
         this.editStyleFormState.enableBackgroundColour = style.item.enable_background_colour;
         this.editStyleFormState.backgroundColour = style.item.background_colour;
-        this.$bvModal.show('edit-config-modal');
+        (this as any).$bvModal.show('edit-config-modal');
       }
     },
-    async deleteStyle(style) {
+    async deleteStyle(style: any): Promise<void> {
       if (this.isDeleting) {
         return;
       }
 
       const msg = `Are you sure you want to delete ${style.item.description}?`;
-      const action = await this.$bvModal.msgBoxConfirm(msg, {});
+      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
       if (action === true) {
         this.isDeleting = true;
         try {
-          await this.DELETE_STAGE_DIRECTION_STYLE(style.item.id);
+          await (this as any).DELETE_STAGE_DIRECTION_STYLE(style.item.id);
         } catch (error) {
           log.error('Error deleting stage direction style:', error);
-          this.$toast.error('Failed to delete style');
+          (this as any).$toast.error('Failed to delete style');
         } finally {
           this.isDeleting = false;
         }
       }
     },
-    exampleCss(data) {
-      const style = {
+    exampleCss(data: any): Record<string, string> {
+      const style: Record<string, string> = {
         'font-weight': data.bold ? 'bold' : 'normal',
         'font-style': data.italic ? 'italic' : 'normal',
         'text-decoration-line': data.underline ? 'underline' : 'none',
@@ -661,37 +663,37 @@ export default {
       }
       return style;
     },
-    async openImportModal() {
-      this.$bvModal.show('import-style-modal');
+    async openImportModal(): Promise<void> {
+      (this as any).$bvModal.show('import-style-modal');
       this.isLoadingImport = true;
       try {
-        const data = await this.GET_IMPORTABLE_STAGE_DIRECTION_STYLES();
+        const data = await (this as any).GET_IMPORTABLE_STAGE_DIRECTION_STYLES();
         this.importStyleGroups = data.style_groups;
-        const expanded = {};
-        data.style_groups.forEach((group) => {
+        const expanded: Record<number, boolean> = {};
+        data.style_groups.forEach((group: any) => {
           expanded[group.id] = true;
         });
         this.styleGroupExpanded = expanded;
       } catch (error) {
         log.error('Error fetching importable stage direction styles:', error);
-        this.$toast.error('Failed to load styles for import');
+        (this as any).$toast.error('Failed to load styles for import');
       } finally {
         this.isLoadingImport = false;
       }
     },
-    resetImportState() {
+    resetImportState(): void {
       this.importStyleGroups = [];
       this.styleGroupExpanded = {};
       this.isLoadingImport = false;
       this.isImporting = {};
     },
-    toggleImportShow(showId) {
+    toggleImportShow(showId: number): void {
       this.$set(this.styleGroupExpanded, showId, !this.styleGroupExpanded[showId]);
     },
-    async importStyle(style) {
+    async importStyle(style: any): Promise<void> {
       this.$set(this.isImporting, style.id, true);
       try {
-        await this.ADD_STAGE_DIRECTION_STYLE({
+        await (this as any).ADD_STAGE_DIRECTION_STYLE({
           description: style.description,
           bold: style.bold,
           italic: style.italic,
@@ -701,10 +703,10 @@ export default {
           enableBackgroundColour: style.enable_background_colour,
           backgroundColour: style.background_colour,
         });
-        this.$toast.success(`Imported "${style.description}"`);
+        (this as any).$toast.success(`Imported "${style.description}"`);
       } catch (error) {
         log.error('Error importing stage direction style:', error);
-        this.$toast.error(`Failed to import "${style.description}"`);
+        (this as any).$toast.error(`Failed to import "${style.description}"`);
       } finally {
         this.$set(this.isImporting, style.id, false);
       }
@@ -717,5 +719,5 @@ export default {
       'GET_IMPORTABLE_STAGE_DIRECTION_STYLES',
     ]),
   },
-};
+});
 </script>

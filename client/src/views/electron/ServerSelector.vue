@@ -339,103 +339,105 @@
   </b-container>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { isElectron } from '@/js/platform';
 
-// Custom URL validator
-const validUrl = (value) => {
+interface SavedConnection {
+  id: string;
+  nickname: string;
+  url: string;
+  sslEnabled: boolean;
+}
+
+interface ServerStatus {
+  available: boolean;
+  compatible: boolean;
+  serverVersion: string | null;
+  lastSeen: number | null;
+  lastChecked: number;
+}
+
+interface DiscoveredServer {
+  name: string;
+  url: string;
+  compatible: boolean;
+  serverVersion?: string;
+  versionError?: string;
+}
+
+interface TestResult {
+  variant: string;
+  message: string;
+}
+
+const validUrl = (value: string): boolean => {
   if (!value) return false;
   try {
     const url = new URL(value.startsWith('http') ? value : `http://${value}`);
     return url.protocol === 'http:' || url.protocol === 'https:';
   } catch {
-    // Invalid URL syntax - return false for validation
     return false;
   }
 };
 
-export default {
+export default defineComponent({
   name: 'ServerSelector',
   data() {
     return {
-      savedConnections: [],
-      discoveredServers: [],
+      savedConnections: [] as SavedConnection[],
+      discoveredServers: [] as DiscoveredServer[],
       isDiscovering: false,
       discoveryCompleted: false,
       isTestingConnection: false,
       isConnecting: false,
-      testResult: null,
-      clientVersion: null,
+      testResult: null as TestResult | null,
+      clientVersion: null as string | null,
       manualForm: {
         nickname: '',
         url: '',
         sslEnabled: false,
       },
       showDeleteModal: false,
-      connectionToDelete: null,
+      connectionToDelete: null as SavedConnection | null,
       savedConnsCollapsed: true,
       discoverCollapsed: false,
-      discoveryInterval: null,
-      lastDiscoveryTime: null,
+      discoveryInterval: null as ReturnType<typeof setInterval> | null,
+      lastDiscoveryTime: null as number | null,
       autoDiscoveryEnabled: true,
       currentTime: Date.now(),
-      timeUpdateInterval: null,
-      serverStatusPollingInterval: null,
-      serverStatuses: {}, // Map of connectionId -> status object
+      timeUpdateInterval: null as ReturnType<typeof setInterval> | null,
+      serverStatusPollingInterval: null as ReturnType<typeof setInterval> | null,
+      serverStatuses: {} as Record<string, ServerStatus>,
       isCheckingServers: false,
     };
   },
   computed: {
-    /**
-     * Calculate seconds since last discovery
-     * @returns {number|null} Seconds elapsed or null if never run
-     */
-    secondsSinceLastDiscovery() {
+    secondsSinceLastDiscovery(): number | null {
       if (!this.lastDiscoveryTime) return null;
       return Math.floor((this.currentTime - this.lastDiscoveryTime) / 1000);
     },
-
-    /**
-     * Format last update time for display
-     * @returns {string} Human-readable time string
-     */
-    lastDiscoveryTimeFormatted() {
+    lastDiscoveryTimeFormatted(): string {
       if (!this.lastDiscoveryTime) return 'Never';
-      const seconds = this.secondsSinceLastDiscovery;
-
+      const seconds = this.secondsSinceLastDiscovery!;
       if (seconds < 60) return `${seconds} seconds ago`;
       if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
       return this.formatDate(this.lastDiscoveryTime);
     },
-
-    /**
-     * Count of available servers with compatible versions
-     * @returns {number} Number of available and compatible servers
-     */
-    availableServersCount() {
+    availableServersCount(): number {
       return this.savedConnections.filter((conn) => {
         const status = this.serverStatuses[conn.id];
         return status?.available && status?.compatible;
       }).length;
     },
-
-    /**
-     * Count of available servers with incompatible versions
-     * @returns {number} Number of available but incompatible servers
-     */
-    incompatibleServersCount() {
+    incompatibleServersCount(): number {
       return this.savedConnections.filter((conn) => {
         const status = this.serverStatuses[conn.id];
         return status?.available && !status?.compatible;
       }).length;
     },
-
-    /**
-     * Count of unavailable servers
-     * @returns {number} Number of unavailable servers
-     */
-    unavailableServersCount() {
+    unavailableServersCount(): number {
       return this.savedConnections.filter((conn) => {
         const status = this.serverStatuses[conn.id];
         return status && !status.available;
@@ -448,97 +450,62 @@ export default {
       url: { required, validUrl },
     },
   },
-  async mounted() {
-    // Redirect to home if not in Electron
+  async mounted(): Promise<void> {
     if (!isElectron()) {
       this.$router.push('/');
       return;
     }
 
-    // Load client version
-    this.clientVersion = await window.electronAPI.getAppVersion();
-
-    // Load saved connections
+    this.clientVersion = await (window as any).electronAPI.getAppVersion();
     await this.loadConnections();
 
-    // Start time update interval for reactive timestamp
     this.timeUpdateInterval = setInterval(() => {
       this.currentTime = Date.now();
     }, 1000);
 
-    // Start auto-discovery
     this.startAutoDiscovery();
-
-    // Start server status polling
     this.startServerStatusPolling();
   },
-  beforeDestroy() {
-    // Clean up auto-discovery interval
+  beforeDestroy(): void {
     this.stopAutoDiscovery();
-
-    // Clean up server status polling
     this.stopServerStatusPolling();
-
-    // Clean up time update interval
     if (this.timeUpdateInterval) {
       clearInterval(this.timeUpdateInterval);
       this.timeUpdateInterval = null;
     }
   },
   methods: {
-    /**
-     * Validate form field state for Vuelidate
-     */
-    validateState(name) {
-      const { $dirty, $error } = this.$v.manualForm[name];
+    validateState(name: string): boolean | null {
+      const { $dirty, $error } = (this as any).$v.manualForm[name];
       return $dirty ? !$error : null;
     },
-
-    /**
-     * Load all saved connections from Electron store
-     */
-    async loadConnections() {
+    async loadConnections(): Promise<void> {
       try {
-        this.savedConnections = await window.electronAPI.getAllConnections();
-      } catch (error) {
-        this.$toast.error(`Failed to load connections: ${error.message}`);
+        this.savedConnections = await (window as any).electronAPI.getAllConnections();
+      } catch (error: any) {
+        (this as any).$toast.error(`Failed to load connections: ${error.message}`);
       }
     },
-
-    /**
-     * Discover servers on local network using mDNS
-     * Runs automatically every 15 seconds
-     */
-    async discoverServers() {
-      // Skip if already discovering or disabled
+    async discoverServers(): Promise<void> {
       if (this.isDiscovering || !this.autoDiscoveryEnabled) {
         return;
       }
-
       this.isDiscovering = true;
-
       try {
-        this.discoveredServers = await window.electronAPI.discoverServersWithVersionCheck(5000);
+        this.discoveredServers = await (window as any).electronAPI.discoverServersWithVersionCheck(
+          5000
+        );
         this.discoveryCompleted = true;
         this.lastDiscoveryTime = Date.now();
-      } catch (error) {
-        // Silent failure - log only
+      } catch (error: any) {
         console.warn('[Auto-Discovery] Failed:', error.message);
       } finally {
         this.isDiscovering = false;
       }
     },
-
-    /**
-     * Check status of a single server
-     * @param {Object} connection - Connection object
-     * @returns {Object} Status object with availability, compatibility, version info
-     */
-    async checkServerStatus(connection) {
+    async checkServerStatus(connection: SavedConnection): Promise<ServerStatus> {
       try {
-        const result = await window.electronAPI.checkVersion(connection.url);
-
-        // If there's an error field or no serverVersion, the server is unreachable
+        const result = await (window as any).electronAPI.checkVersion(connection.url);
         if (result.error || !result.serverVersion) {
           return {
             available: false,
@@ -548,8 +515,6 @@ export default {
             lastChecked: Date.now(),
           };
         }
-
-        // Server is reachable, check compatibility
         return {
           available: true,
           compatible: result.compatible,
@@ -557,8 +522,7 @@ export default {
           lastSeen: Date.now(),
           lastChecked: Date.now(),
         };
-      } catch (error) {
-        // Exception thrown - server unavailable or check failed
+      } catch {
         return {
           available: false,
           compatible: false,
@@ -568,48 +532,31 @@ export default {
         };
       }
     },
-
-    /**
-     * Check status of all saved servers
-     * Runs in parallel using Promise.all()
-     */
-    async checkAllServerStatuses() {
+    async checkAllServerStatuses(): Promise<void> {
       if (this.isCheckingServers || this.savedConnections.length === 0) {
         return;
       }
-
       this.isCheckingServers = true;
-
       try {
-        // Check all servers in parallel
         const statusChecks = this.savedConnections.map(async (conn) => {
           const status = await this.checkServerStatus(conn);
           return { id: conn.id, status };
         });
-
         const results = await Promise.all(statusChecks);
-
-        // Update statuses using $set for reactivity
         results.forEach(({ id, status }) => {
           this.$set(this.serverStatuses, id, status);
         });
-      } catch (error) {
+      } catch (error: any) {
         console.warn('[Server Status] Failed to check servers:', error.message);
       } finally {
         this.isCheckingServers = false;
       }
     },
-
-    /**
-     * Test connection to a server URL
-     */
-    async testConnection(url) {
+    async testConnection(url: string): Promise<void> {
       this.isTestingConnection = true;
       this.testResult = null;
-
       try {
-        const result = await window.electronAPI.checkVersion(url);
-
+        const result = await (window as any).electronAPI.checkVersion(url);
         if (result.compatible) {
           this.testResult = {
             variant: 'success',
@@ -621,7 +568,7 @@ export default {
             message: result.error || 'Version mismatch',
           };
         }
-      } catch (error) {
+      } catch (error: any) {
         this.testResult = {
           variant: 'danger',
           message: `Connection failed: ${error.message}`,
@@ -630,104 +577,64 @@ export default {
         this.isTestingConnection = false;
       }
     },
-
-    /**
-     * Test manual connection entry
-     */
-    async testManualConnection() {
+    async testManualConnection(): Promise<void> {
       const url = this.normalizeUrl(this.manualForm.url);
       await this.testConnection(url);
     },
-
-    /**
-     * Connect to a saved server
-     */
-    async connectToServer(connection) {
+    async connectToServer(connection: SavedConnection): Promise<void> {
       this.isConnecting = true;
-
       try {
-        // Verify version compatibility first
-        const versionCheck = await window.electronAPI.checkVersion(connection.url);
-
+        const versionCheck = await (window as any).electronAPI.checkVersion(connection.url);
         if (!versionCheck.compatible) {
-          this.$toast.error(versionCheck.error || 'Server version incompatible');
+          (this as any).$toast.error(versionCheck.error || 'Server version incompatible');
           return;
         }
-
-        // Set as active connection
-        await window.electronAPI.setActiveConnection(connection.id);
-
-        this.$toast.success(`Connected to ${connection.nickname}`);
-
-        // Force full page reload to reinitialize WebSocket
-        // In history mode (dev), use router to navigate before reload
-        // In hash mode (prod), set hash before reload
-        if (this.$router.mode === 'history') {
+        await (window as any).electronAPI.setActiveConnection(connection.id);
+        (this as any).$toast.success(`Connected to ${connection.nickname}`);
+        if ((this.$router as any).mode === 'history') {
           await this.$router.push('/');
         } else {
           window.location.hash = '/';
         }
         window.location.reload();
-      } catch (error) {
-        this.$toast.error(`Connection failed: ${error.message}`);
+      } catch (error: any) {
+        (this as any).$toast.error(`Connection failed: ${error.message}`);
       } finally {
         this.isConnecting = false;
       }
     },
-
-    /**
-     * Add discovered server as saved connection and connect
-     */
-    async addDiscoveredServer(server) {
+    async addDiscoveredServer(server: DiscoveredServer): Promise<void> {
       this.isConnecting = true;
-
       try {
-        // Add connection
-        const newConnection = await window.electronAPI.addConnection({
+        const newConnection = await (window as any).electronAPI.addConnection({
           nickname: server.name,
           url: server.url,
           sslEnabled: server.url.startsWith('https'),
         });
-
-        // Set as active and connect
-        await window.electronAPI.setActiveConnection(newConnection.id);
-
-        this.$toast.success(`Connected to ${server.name}`);
-
-        // Force full page reload to reinitialize WebSocket
-        // In history mode (dev), use router to navigate before reload
-        // In hash mode (prod), set hash before reload
-        if (this.$router.mode === 'history') {
+        await (window as any).electronAPI.setActiveConnection(newConnection.id);
+        (this as any).$toast.success(`Connected to ${server.name}`);
+        if ((this.$router as any).mode === 'history') {
           await this.$router.push('/');
         } else {
           window.location.hash = '/';
         }
         window.location.reload();
-      } catch (error) {
-        this.$toast.error(`Failed to add server: ${error.message}`);
+      } catch (error: any) {
+        (this as any).$toast.error(`Failed to add server: ${error.message}`);
       } finally {
         this.isConnecting = false;
       }
     },
-
-    /**
-     * Add server without connecting
-     */
-    async addServerOnly() {
-      this.$v.manualForm.$touch();
-      if (this.$v.manualForm.$invalid) {
+    async addServerOnly(): Promise<void> {
+      (this as any).$v.manualForm.$touch();
+      if ((this as any).$v.manualForm.$invalid) {
         return;
       }
-
       try {
         const url = this.normalizeUrl(this.manualForm.url);
-
-        // Verify version compatibility first
-        const versionCheck = await window.electronAPI.checkVersion(url);
-
+        const versionCheck = await (window as any).electronAPI.checkVersion(url);
         if (!versionCheck.compatible) {
-          // Show warning but allow adding anyway
-          const proceed = await this.$bvModal.msgBoxConfirm(
+          const proceed = await (this as any).$bvModal.msgBoxConfirm(
             `Server version (${versionCheck.serverVersion}) does not match client version. Add anyway?`,
             {
               title: 'Version Mismatch',
@@ -736,248 +643,137 @@ export default {
               cancelTitle: 'Cancel',
             }
           );
-
           if (!proceed) {
             return;
           }
         }
-
-        // Add connection (don't set as active)
-        await window.electronAPI.addConnection({
+        await (window as any).electronAPI.addConnection({
           nickname: this.manualForm.nickname,
           url,
           sslEnabled: this.manualForm.sslEnabled,
         });
-
-        this.$toast.success(`Saved ${this.manualForm.nickname}`);
-
-        // Reload connections list
+        (this as any).$toast.success(`Saved ${this.manualForm.nickname}`);
         await this.loadConnections();
-
-        // Close modal
-        this.$bvModal.hide('add-server-modal');
-
-        // Trigger immediate status check for new server
+        (this as any).$bvModal.hide('add-server-modal');
         await this.checkAllServerStatuses();
-      } catch (error) {
-        this.$toast.error(`Failed to add server: ${error.message}`);
+      } catch (error: any) {
+        (this as any).$toast.error(`Failed to add server: ${error.message}`);
       }
     },
-
-    /**
-     * Add manual connection and connect immediately
-     */
-    async addAndConnect() {
-      this.$v.manualForm.$touch();
-      if (this.$v.manualForm.$invalid) {
+    async addAndConnect(): Promise<void> {
+      (this as any).$v.manualForm.$touch();
+      if ((this as any).$v.manualForm.$invalid) {
         return;
       }
-
       this.isConnecting = true;
-
       try {
         const url = this.normalizeUrl(this.manualForm.url);
-
-        // Verify version compatibility first
-        const versionCheck = await window.electronAPI.checkVersion(url);
-
+        const versionCheck = await (window as any).electronAPI.checkVersion(url);
         if (!versionCheck.compatible) {
-          this.$toast.error(versionCheck.error || 'Server version incompatible');
+          (this as any).$toast.error(versionCheck.error || 'Server version incompatible');
           return;
         }
-
-        // Add connection
-        const newConnection = await window.electronAPI.addConnection({
+        const newConnection = await (window as any).electronAPI.addConnection({
           nickname: this.manualForm.nickname,
           url,
           sslEnabled: this.manualForm.sslEnabled,
         });
-
-        // Set as active and connect
-        await window.electronAPI.setActiveConnection(newConnection.id);
-
-        this.$toast.success(`Connected to ${this.manualForm.nickname}`);
-
-        // Force full page reload to reinitialize WebSocket
-        // In history mode (dev), use router to navigate before reload
-        // In hash mode (prod), set hash before reload
-        if (this.$router.mode === 'history') {
+        await (window as any).electronAPI.setActiveConnection(newConnection.id);
+        (this as any).$toast.success(`Connected to ${this.manualForm.nickname}`);
+        if ((this.$router as any).mode === 'history') {
           await this.$router.push('/');
         } else {
           window.location.hash = '/';
         }
         window.location.reload();
-      } catch (error) {
-        this.$toast.error(`Failed to add connection: ${error.message}`);
+      } catch (error: any) {
+        (this as any).$toast.error(`Failed to add connection: ${error.message}`);
       } finally {
         this.isConnecting = false;
       }
     },
-
-    /**
-     * Show delete confirmation modal
-     */
-    confirmDeleteConnection(connection) {
+    confirmDeleteConnection(connection: SavedConnection): void {
       this.connectionToDelete = connection;
       this.showDeleteModal = true;
     },
-
-    /**
-     * Delete a saved connection
-     */
-    async deleteConnection() {
+    async deleteConnection(): Promise<void> {
       if (!this.connectionToDelete) return;
-
       try {
-        await window.electronAPI.deleteConnection(this.connectionToDelete.id);
-        this.$toast.success(`Deleted ${this.connectionToDelete.nickname}`);
-
-        // Reload connections
+        await (window as any).electronAPI.deleteConnection(this.connectionToDelete.id);
+        (this as any).$toast.success(`Deleted ${this.connectionToDelete.nickname}`);
         await this.loadConnections();
-      } catch (error) {
-        this.$toast.error(`Failed to delete connection: ${error.message}`);
+      } catch (error: any) {
+        (this as any).$toast.error(`Failed to delete connection: ${error.message}`);
       } finally {
         this.connectionToDelete = null;
       }
     },
-
-    /**
-     * Normalize URL (add protocol if missing)
-     */
-    normalizeUrl(url) {
+    normalizeUrl(url: string): string {
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         return this.manualForm.sslEnabled ? `https://${url}` : `http://${url}`;
       }
       return url;
     },
-
-    /**
-     * Format timestamp for display
-     */
-    formatDate(timestamp) {
+    formatDate(timestamp: number | null): string {
       if (!timestamp) return 'Never';
-      const date = new Date(timestamp);
-      return date.toLocaleString();
+      return new Date(timestamp).toLocaleString();
     },
-
-    /**
-     * Format timestamp as "time ago" string
-     * @param {number} timestamp - Timestamp in milliseconds
-     * @returns {string} Human-readable "time ago" string
-     */
-    formatTimeAgo(timestamp) {
+    formatTimeAgo(timestamp: number | null): string {
       if (!timestamp) return 'Never';
-
       const seconds = Math.floor((this.currentTime - timestamp) / 1000);
-
       if (seconds < 10) return 'Just now';
       if (seconds < 60) return `${seconds} seconds ago`;
       if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
       if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
       return `${Math.floor(seconds / 86400)} days ago`;
     },
-
-    /**
-     * Get badge variant for connection status
-     * @param {string} connectionId - Connection ID
-     * @returns {string} Bootstrap variant (secondary=checking, danger=unavailable, warning=mismatch, success=available)
-     */
-    getStatusVariant(connectionId) {
+    getStatusVariant(connectionId: string): string {
       const status = this.serverStatuses[connectionId];
-
-      // No status yet - still checking
       if (!status) return 'secondary';
-
-      // Server unreachable
       if (!status.available) return 'danger';
-
-      // Server reachable but wrong version
       if (!status.compatible) return 'warning';
-
-      // Server reachable and compatible
       return 'success';
     },
-
-    /**
-     * Get status text for connection
-     * @param {string} connectionId - Connection ID
-     * @returns {string} Status text
-     */
-    getStatusText(connectionId) {
+    getStatusText(connectionId: string): string {
       const status = this.serverStatuses[connectionId];
-
-      // No status yet - still checking
       if (!status) return 'Checking...';
-
-      // Server unreachable
       if (!status.available) return 'Unavailable';
-
-      // Server reachable but wrong version
       if (!status.compatible) return 'Version Mismatch';
-
-      // Server reachable and compatible
       return 'Available';
     },
-
-    /**
-     * Reset manual form when modal is closed
-     */
-    resetManualForm() {
+    resetManualForm(): void {
       this.manualForm.nickname = '';
       this.manualForm.url = '';
       this.manualForm.sslEnabled = false;
       this.testResult = null;
-      this.$v.manualForm.$reset();
+      (this as any).$v.manualForm.$reset();
     },
-
-    /**
-     * Start auto-discovery interval
-     */
-    startAutoDiscovery() {
-      // Run first discovery immediately
+    startAutoDiscovery(): void {
       this.discoverServers();
-
-      // Set up recurring discovery every 15 seconds
       this.discoveryInterval = setInterval(() => {
         this.discoverServers();
       }, 15000);
     },
-
-    /**
-     * Stop auto-discovery interval
-     */
-    stopAutoDiscovery() {
+    stopAutoDiscovery(): void {
       if (this.discoveryInterval) {
         clearInterval(this.discoveryInterval);
         this.discoveryInterval = null;
       }
     },
-
-    /**
-     * Start server status polling
-     * Checks all saved servers every 30 seconds
-     */
-    startServerStatusPolling() {
-      // Run first check immediately
+    startServerStatusPolling(): void {
       this.checkAllServerStatuses();
-
-      // Set up recurring checks every 30 seconds
       this.serverStatusPollingInterval = setInterval(() => {
         this.checkAllServerStatuses();
       }, 30000);
     },
-
-    /**
-     * Stop server status polling
-     */
-    stopServerStatusPolling() {
+    stopServerStatusPolling(): void {
       if (this.serverStatusPollingInterval) {
         clearInterval(this.serverStatusPollingInterval);
         this.serverStatusPollingInterval = null;
       }
     },
   },
-};
+});
 </script>
 
 <style scoped>
