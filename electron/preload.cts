@@ -8,36 +8,36 @@
  * in a special isolated context that doesn't support native ES modules.
  */
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron') as typeof import('electron');
 
-// Expose protected methods to the renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
   // Connection management
   getAllConnections: () => ipcRenderer.invoke('connections:getAll'),
-  addConnection: (connection) => ipcRenderer.invoke('connections:add', connection),
-  updateConnection: (id, updates) => ipcRenderer.invoke('connections:update', id, updates),
-  deleteConnection: (id) => ipcRenderer.invoke('connections:delete', id),
+  addConnection: (connection: unknown) => ipcRenderer.invoke('connections:add', connection),
+  updateConnection: (id: string, updates: unknown) =>
+    ipcRenderer.invoke('connections:update', id, updates),
+  deleteConnection: (id: string) => ipcRenderer.invoke('connections:delete', id),
   getActiveConnection: () => ipcRenderer.invoke('connections:getActive'),
-  setActiveConnection: (id) => ipcRenderer.invoke('connections:setActive', id),
+  setActiveConnection: (id: string) => ipcRenderer.invoke('connections:setActive', id),
   clearActiveConnection: () => ipcRenderer.invoke('connections:clearActive'),
 
   // Server URL (synchronous for platform layer compatibility)
   getServerURLSync: () => ipcRenderer.sendSync('server:getURLSync'),
 
   // Storage operations (for Vuex persistence)
-  storageGet: (key) => ipcRenderer.invoke('storage:get', key),
-  storageSet: (key, value) => ipcRenderer.invoke('storage:set', key, value),
-  storageDelete: (key) => ipcRenderer.invoke('storage:delete', key),
+  storageGet: (key: string) => ipcRenderer.invoke('storage:get', key),
+  storageSet: (key: string, value: unknown) => ipcRenderer.invoke('storage:set', key, value),
+  storageDelete: (key: string) => ipcRenderer.invoke('storage:delete', key),
   storageClear: () => ipcRenderer.invoke('storage:clear'),
 
   // App information
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 
   // Version checking
-  checkVersion: (serverUrl) => ipcRenderer.invoke('version:check', serverUrl),
+  checkVersion: (serverUrl: string) => ipcRenderer.invoke('version:check', serverUrl),
 
   // mDNS discovery
-  discoverServers: (timeout) => ipcRenderer.invoke('mdns:discover', timeout),
-  discoverServersWithVersionCheck: (timeout) =>
+  discoverServers: (timeout: number) => ipcRenderer.invoke('mdns:discover', timeout),
+  discoverServersWithVersionCheck: (timeout: number) =>
     ipcRenderer.invoke('mdns:discoverWithVersionCheck', timeout),
 });
