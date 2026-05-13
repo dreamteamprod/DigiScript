@@ -65,16 +65,7 @@
       <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
         <b-row v-if="isTaggedStageDirection && needsHeadingsAny" style="margin-bottom: 1rem">
           <b-col :style="headingStyle">
-            <b>
-              <template v-if="line.line_parts[0].character_id != null">
-                {{ characters.find((c) => c.id === line.line_parts[0].character_id).name }}
-              </template>
-              <template v-else>
-                {{
-                  characterGroups.find((c) => c.id === line.line_parts[0].character_group_id).name
-                }}
-              </template>
-            </b>
+            <b>{{ taggedStageDirectionHeadingName }}</b>
           </b-col>
         </b-row>
         <i
@@ -312,6 +303,16 @@ export default defineComponent({
       return (
         line.line_type === LINE_TYPES.STAGE_DIRECTION &&
         (part?.character_id != null || part?.character_group_id != null)
+      );
+    },
+    taggedStageDirectionHeadingName(): string {
+      const part = (this.line as any).line_parts?.[0];
+      if (part?.character_id != null) {
+        return (this.characters as any[]).find((c: any) => c.id === part.character_id)?.name ?? '';
+      }
+      return (
+        (this.characterGroups as any[]).find((c: any) => c.id === part?.character_group_id)?.name ??
+        ''
       );
     },
     needsActSceneLabelSimple(): boolean {

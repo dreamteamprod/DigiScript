@@ -84,14 +84,7 @@
               'first-row': isFirstRowContent && index === 0,
             }"
           >
-            <p v-if="needsHeadings[index]">
-              <template v-if="part.character_id != null">
-                {{ characters.find((char) => char.id === part.character_id).name }}
-              </template>
-              <template v-else>
-                {{ characterGroups.find((char) => char.id === part.character_group_id).name }}
-              </template>
-            </p>
+            <p v-if="needsHeadings[index]">{{ characterOrGroupName(part) }}</p>
           </b-col>
           <b-col
             :key="`text_${lineIndex}_part_${index}`"
@@ -120,14 +113,7 @@
       </template>
       <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
         <b-col cols="2" class="cue-column line-part text-right">
-          <p v-if="isTaggedStageDirection">
-            <template v-if="line.line_parts[0].character_id != null">
-              {{ characters.find((c) => c.id === line.line_parts[0].character_id).name }}
-            </template>
-            <template v-else>
-              {{ characterGroups.find((c) => c.id === line.line_parts[0].character_group_id).name }}
-            </template>
-          </p>
+          <p v-if="isTaggedStageDirection">{{ characterOrGroupName(line.line_parts[0]) }}</p>
         </b-col>
         <b-col
           :key="`line_${lineIndex}_stage_direction`"
@@ -284,6 +270,15 @@ export default defineComponent({
     },
   },
   methods: {
+    characterOrGroupName(part: any): string {
+      if (part.character_id != null) {
+        return (this.characters as any[]).find((c: any) => c.id === part.character_id)?.name ?? '';
+      }
+      return (
+        (this.characterGroups as any[]).find((c: any) => c.id === part.character_group_id)?.name ??
+        ''
+      );
+    },
     addNewCue(): void {
       this.$emit('add-cue', (this.line as any).id);
     },
