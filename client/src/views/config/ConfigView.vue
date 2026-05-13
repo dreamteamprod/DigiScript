@@ -19,6 +19,9 @@
           <b-tab title="Logs">
             <config-logs />
           </b-tab>
+          <b-tab title="Backups">
+            <config-backups />
+          </b-tab>
         </b-tabs>
       </b-col>
     </b-row>
@@ -32,9 +35,10 @@ import ConfigSettings from '@/vue_components/config/ConfigSettings.vue';
 import ConfigUsers from '@/vue_components/config/ConfigUsers.vue';
 import ConfigShows from '@/vue_components/config/ConfigShows.vue';
 import ConfigLogs from '@/vue_components/config/ConfigLogs.vue';
+import ConfigBackups from '@/vue_components/config/ConfigBackups.vue';
 
 export default defineComponent({
   name: 'ConfigView',
-  components: { ConfigShows, ConfigUsers, ConfigSettings, ConfigSystem, ConfigLogs },
+  components: { ConfigShows, ConfigUsers, ConfigSettings, ConfigSystem, ConfigLogs, ConfigBackups },
 });
 </script>
