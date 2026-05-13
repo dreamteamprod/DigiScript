@@ -46,6 +46,23 @@ class RootController(BaseController):
             raise HTTPError(500) from e
 
 
+class RootControllerV3(BaseController):
+    def get(self, _path):
+        if is_frozen():
+            full_path = get_resource_path(
+                os.path.join("static", "ui-new", "index.html")
+            )
+        else:
+            file_path = os.path.join(
+                os.path.abspath(os.path.dirname(__file__)), "..", "static", "ui-new"
+            )
+            full_path = os.path.join(file_path, "index.html")
+        if not os.path.isfile(full_path):
+            raise HTTPError(404)
+        with open(full_path, "r", encoding="utf-8") as file:
+            self.write(file.read())
+
+
 class StaticController(BaseController):
     def get(self):
         self.set_header("Content-Type", "")
