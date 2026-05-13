@@ -96,6 +96,18 @@ export default defineComponent({
     needsHeadingsAll(): boolean {
       return (this as any).needsHeadings.every((x: boolean) => x === true);
     },
+    isTaggedStageDirection(): boolean {
+      const line: ScriptLine = (this as any).line;
+      const part = line.line_parts?.[0];
+      return (
+        line.line_type === LINE_TYPES.STAGE_DIRECTION &&
+        (part?.character_id != null || part?.character_group_id != null)
+      );
+    },
+    taggedStageDirectionHeadingName(): string {
+      const part = ((this as any).line as ScriptLine).line_parts?.[0];
+      return part ? (this as any).characterOrGroupName(part) : '';
+    },
     ...mapGetters(['USER_SETTINGS']),
   },
   mounted() {
@@ -122,6 +134,15 @@ export default defineComponent({
     }
   },
   methods: {
+    characterOrGroupName(part: any): string {
+      if (part.character_id != null) {
+        return (this as any).characters?.find((c: any) => c.id === part.character_id)?.name ?? '';
+      }
+      return (
+        (this as any).characterGroups?.find((c: any) => c.id === part.character_group_id)?.name ??
+        ''
+      );
+    },
     onClassChange(classAttrValue: string | null, oldClassAttrValue: string | null): void {
       const classList = classAttrValue?.split(' ') ?? [];
       const oldClassList = oldClassAttrValue?.split(' ') ?? [];

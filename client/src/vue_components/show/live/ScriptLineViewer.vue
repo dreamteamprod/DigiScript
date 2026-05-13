@@ -336,24 +336,6 @@ export default defineComponent({
     };
   },
   computed: {
-    isTaggedStageDirection(): boolean {
-      const line = this.line as any;
-      const part = line.line_parts?.[0];
-      return (
-        line.line_type === LINE_TYPES.STAGE_DIRECTION &&
-        (part?.character_id != null || part?.character_group_id != null)
-      );
-    },
-    taggedStageDirectionHeadingName(): string {
-      const part = (this.line as any).line_parts?.[0];
-      if (part?.character_id != null) {
-        return (this.characters as any[]).find((c: any) => c.id === part.character_id)?.name ?? '';
-      }
-      return (
-        (this.characterGroups as any[]).find((c: any) => c.id === part?.character_group_id)?.name ??
-        ''
-      );
-    },
     isFirstRowIntervalBanner(): boolean {
       return (this as any).needsIntervalBanner;
     },

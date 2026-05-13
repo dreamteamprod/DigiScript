@@ -251,14 +251,6 @@ export default defineComponent({
     };
   },
   computed: {
-    isTaggedStageDirection(): boolean {
-      const line = this.line as any;
-      const part = line.line_parts?.[0];
-      return (
-        line.line_type === LINE_TYPES.STAGE_DIRECTION &&
-        (part?.character_id != null || part?.character_group_id != null)
-      );
-    },
     isFirstRowActScene(): boolean {
       return (this as any).needsActSceneLabel;
     },
@@ -270,15 +262,6 @@ export default defineComponent({
     },
   },
   methods: {
-    characterOrGroupName(part: any): string {
-      if (part.character_id != null) {
-        return (this.characters as any[]).find((c: any) => c.id === part.character_id)?.name ?? '';
-      }
-      return (
-        (this.characterGroups as any[]).find((c: any) => c.id === part.character_group_id)?.name ??
-        ''
-      );
-    },
     addNewCue(): void {
       this.$emit('add-cue', (this.line as any).id);
     },
