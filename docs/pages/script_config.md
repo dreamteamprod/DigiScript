@@ -124,13 +124,24 @@ To create a dialogue line:
 ##### Stage Direction Lines
 
 Non-dialogue text for describing actions, movements, or technical directions. Stage direction lines:
-- Contain a single text field (no character assignment)
+- Contain a single text field
 - Display in italic formatting with customizable styling
 - Can be styled with Stage Direction Styles (system-level or user preferences)
+- Optionally tagged to a character or character group (see below)
 
 ![](../images/config_show/script_stage_direction_editing.png)
 
 To create a stage direction, select **Add Stage Direction** from the dropdown menu.
+
+###### Tagged Stage Directions
+
+A stage direction can optionally be tagged to a **Character** or **Character Group**. This is useful when a stage direction is specific to a character and should appear visually under that character's heading in the script — for example, a move or action described directly after a character speaks.
+
+To tag a stage direction:
+1. In the line editor, use the **Character** or **Character Group** dropdown to select who the stage direction belongs to. Leave both as "N/A" for a generic (untagged) stage direction.
+2. Only one of character or character group can be set — not both.
+
+When a tagged stage direction is displayed in the script, a character heading appears above it (just as one does above dialogue) whenever the character has changed since the previous line. In the compact live view, the character name appears in the left-hand character column.
 
 ##### Cue Lines
 

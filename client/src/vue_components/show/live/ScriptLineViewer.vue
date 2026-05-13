@@ -108,6 +108,21 @@
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
+            <b-row v-if="isTaggedStageDirection && needsHeadingsAny" style="margin-bottom: 1rem">
+              <b-col :style="headingStyle">
+                <b>
+                  <template v-if="line.line_parts[0].character_id != null">
+                    {{ characters.find((c) => c.id === line.line_parts[0].character_id).name }}
+                  </template>
+                  <template v-else>
+                    {{
+                      characterGroups.find((c) => c.id === line.line_parts[0].character_group_id)
+                        .name
+                    }}
+                  </template>
+                </b>
+              </b-col>
+            </b-row>
             <i class="viewable-line" :style="stageDirectionStyling">
               <template
                 v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
@@ -214,6 +229,21 @@
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
+            <b-row v-if="isTaggedStageDirection && needsHeadingsAny" style="margin-bottom: 1rem">
+              <b-col :style="headingStyle">
+                <b>
+                  <template v-if="line.line_parts[0].character_id != null">
+                    {{ characters.find((c) => c.id === line.line_parts[0].character_id).name }}
+                  </template>
+                  <template v-else>
+                    {{
+                      characterGroups.find((c) => c.id === line.line_parts[0].character_group_id)
+                        .name
+                    }}
+                  </template>
+                </b>
+              </b-col>
+            </b-row>
             <i class="viewable-line" :style="stageDirectionStyling">
               <template
                 v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
@@ -326,6 +356,14 @@ export default defineComponent({
     };
   },
   computed: {
+    isTaggedStageDirection(): boolean {
+      const line = this.line as any;
+      const part = line.line_parts?.[0];
+      return (
+        line.line_type === LINE_TYPES.STAGE_DIRECTION &&
+        (part?.character_id != null || part?.character_group_id != null)
+      );
+    },
     isFirstRowIntervalBanner(): boolean {
       return (this as any).needsIntervalBanner;
     },

@@ -55,23 +55,15 @@
           :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
           :line-type="lineType"
           :line-parts="state.line_parts"
+          :stage-direction-styles="
+            lineType === LINE_TYPES.STAGE_DIRECTION ? stageDirectionStyles : []
+          "
+          :stage-direction-style-id="state.stage_direction_style_id"
           @input="stateChange"
           @addLinePart="addLinePart"
           @tryFinishLine="tryFinishLine"
+          @stage-direction-style-change="onStageDirectionStyleChange"
         />
-        <b-col
-          v-if="lineType === LINE_TYPES.STAGE_DIRECTION && stageDirectionStyles.length > 0"
-          cols="2"
-        >
-          <b-form-select
-            id="stage-direction-style"
-            v-model="$v.state.stage_direction_style_id.$model"
-            name="stage-direction-style"
-            :options="stageDirectionStylesOptions"
-            :state="validateState('stage_direction_style_id')"
-            @change="stateChange"
-          />
-        </b-col>
       </template>
       <b-col v-else cols="10" style="text-align: right">
         <b-button v-b-popover.hover.top="'Add line part'" @click="addLinePart">
@@ -400,6 +392,10 @@ export default defineComponent({
           }
         }
       }
+      this.stateChange();
+    },
+    onStageDirectionStyleChange(styleId: number | null): void {
+      (this as any).state.stage_direction_style_id = styleId;
       this.stateChange();
     },
     deleteLine(): void {

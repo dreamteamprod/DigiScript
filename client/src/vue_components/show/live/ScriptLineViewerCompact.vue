@@ -119,7 +119,16 @@
         </b-col>
       </template>
       <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
-        <b-col cols="2" class="cue-column" />
+        <b-col cols="2" class="cue-column line-part text-right">
+          <p v-if="isTaggedStageDirection">
+            <template v-if="line.line_parts[0].character_id != null">
+              {{ characters.find((c) => c.id === line.line_parts[0].character_id).name }}
+            </template>
+            <template v-else>
+              {{ characterGroups.find((c) => c.id === line.line_parts[0].character_group_id).name }}
+            </template>
+          </p>
+        </b-col>
         <b-col
           :key="`line_${lineIndex}_stage_direction`"
           :cols="cueAddMode ? 9 : 10"
@@ -256,6 +265,14 @@ export default defineComponent({
     };
   },
   computed: {
+    isTaggedStageDirection(): boolean {
+      const line = this.line as any;
+      const part = line.line_parts?.[0];
+      return (
+        line.line_type === LINE_TYPES.STAGE_DIRECTION &&
+        (part?.character_id != null || part?.character_group_id != null)
+      );
+    },
     isFirstRowActScene(): boolean {
       return (this as any).needsActSceneLabel;
     },

@@ -94,14 +94,12 @@ class StageDirectionValidator(BaseLineTypeValidator):
 
         line_part = line_parts[0]
 
-        if line_part.get("character_id") is not None:
-            return LineTypeValidationResult(
-                is_valid=False, error_message="Stage directions cannot have characters"
-            )
-        if line_part.get("character_group_id") is not None:
+        has_character = line_part.get("character_id") is not None
+        has_group = line_part.get("character_group_id") is not None
+        if has_character and has_group:
             return LineTypeValidationResult(
                 is_valid=False,
-                error_message="Stage directions cannot have character groups",
+                error_message="Stage directions cannot have both character and character group",
             )
 
         line_text = line_part.get("line_text")

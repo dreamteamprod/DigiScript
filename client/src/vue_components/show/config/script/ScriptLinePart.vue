@@ -1,6 +1,6 @@
 <template>
   <b-col>
-    <b-form-row v-if="lineType === LINE_TYPES.DIALOGUE">
+    <b-form-row v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
       <template v-if="USER_SETTINGS && USER_SETTINGS.character_combined_dropdown">
         <b-col>
           <b-form-group
@@ -56,6 +56,19 @@
           </b-form-group>
         </b-col>
       </template>
+      <b-col
+        v-if="lineType === LINE_TYPES.STAGE_DIRECTION && stageDirectionStyles.length > 0"
+        cols="3"
+      >
+        <b-form-group label-size="sm" label="Style" label-for="stage-direction-style-part">
+          <b-form-select
+            id="stage-direction-style-part"
+            :value="stageDirectionStyleId"
+            :options="stageDirectionStylesOptions"
+            @change="$emit('stage-direction-style-change', $event)"
+          />
+        </b-form-group>
+      </b-col>
     </b-form-row>
     <b-form-row>
       <b-col style="display: inline-flex">
@@ -124,6 +137,16 @@ export default defineComponent({
       required: true,
       type: Array,
     },
+    stageDirectionStyles: {
+      required: false,
+      type: Array,
+      default: () => [],
+    },
+    stageDirectionStyleId: {
+      required: false,
+      type: Number,
+      default: null,
+    },
     value: {
       required: true,
       type: Object,
@@ -176,6 +199,15 @@ export default defineComponent({
       return [
         { value: null, text: 'N/A' },
         ...groups.map((g: any) => ({ value: g.id, text: g.name })),
+      ];
+    },
+    stageDirectionStylesOptions(): { value: number | null; text: string }[] {
+      return [
+        { value: null, text: 'N/A' },
+        ...(this.stageDirectionStyles as any[]).map((s: any) => ({
+          value: s.id,
+          text: s.description,
+        })),
       ];
     },
     combinedOptions(): CombinedSelectOption[] {
