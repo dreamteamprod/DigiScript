@@ -49,7 +49,9 @@ class RootController(BaseController):
 class RootControllerV3(BaseController):
     def get(self, _path):
         if is_frozen():
-            full_path = get_resource_path(os.path.join("static", "ui-new", "index.html"))
+            full_path = get_resource_path(
+                os.path.join("static", "ui-new", "index.html")
+            )
         else:
             file_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static", "ui-new"
