@@ -28,6 +28,12 @@ When enabled, the character and character group dropdown menus in the script edi
 
 This setting is particularly useful when entering a scene with a known cast, as it reduces the need to scroll through the full character list. The ordering updates automatically as you make selections and resets when you load a different show.
 
+#### Use Combined Character/Group Dropdown
+
+When enabled, the separate Character and Character Group dropdowns in the script editor are merged into a single dropdown with two clearly labelled sections — **Characters** and **Character Groups**. Selecting an entry from either section automatically clears the other field, so you can switch freely between assigning a line to an individual character or a group.
+
+When combined with the **Sort Characters by Most Recently Used** setting, each section is independently sorted by frequency so your most-used characters appear at the top of their respective section.
+
 ### Stage Direction Styles
 
 DigiScript allows you to customize how stage directions appear in the script with personal color and style preferences:

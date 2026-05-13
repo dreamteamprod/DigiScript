@@ -90,6 +90,18 @@
                   :switch="true"
                 />
               </b-form-group>
+              <b-form-group
+                :label-cols="true"
+                label="Use combined character/group dropdown"
+                label-for="character-combined-dropdown-input"
+              >
+                <b-form-checkbox
+                  id="character-combined-dropdown-input"
+                  v-model="$v.editSettings.character_combined_dropdown.$model"
+                  name="character-combined-dropdown-input"
+                  :switch="true"
+                />
+              </b-form-group>
               <b-button-group size="md" style="float: right">
                 <b-button type="reset" variant="danger" :disabled="!$v.$anyDirty"> Reset </b-button>
                 <b-button type="submit" variant="primary" :disabled="!$v.$anyDirty || $v.$anyError">
@@ -128,6 +140,7 @@ export default defineComponent({
         script_text_alignment: TEXT_ALIGNMENT.CENTER,
         console_log_level: 'WARN',
         character_mru_sort: false,
+        character_combined_dropdown: false,
       },
       textAlignmentOptions: [
         { value: TEXT_ALIGNMENT.LEFT, text: 'Left' },
@@ -170,6 +183,7 @@ export default defineComponent({
       },
       console_log_level: { required },
       character_mru_sort: {},
+      character_combined_dropdown: {},
     },
   },
   mounted(): void {

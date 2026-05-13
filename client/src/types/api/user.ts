@@ -21,4 +21,5 @@ export interface UserSettings {
   script_text_alignment: number;
   console_log_level: string;
   character_mru_sort: boolean;
+  character_combined_dropdown: boolean;
 }
