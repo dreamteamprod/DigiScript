@@ -1,19 +1,14 @@
-/**
- * Version Checker Service
- *
- * Validates server compatibility by comparing versions.
- * Requires exact version match between client and server.
- */
+interface VersionCheckResult {
+  compatible: boolean;
+  serverVersion: string | null;
+  clientVersion: string;
+  serverUrl: string;
+  error: string | null;
+}
 
 class VersionChecker {
-  /**
-   * Check if a server is compatible with this client
-   * @param {string} serverUrl - Base URL of the server (e.g., "http://192.168.1.100:8080")
-   * @param {string} clientVersion - Client version (e.g., "0.23.0")
-   * @returns {Promise<Object>} Result object with compatibility info
-   */
-  static async checkVersion(serverUrl, clientVersion) {
-    const result = {
+  static async checkVersion(serverUrl: string, clientVersion: string): Promise<VersionCheckResult> {
+    const result: VersionCheckResult = {
       compatible: false,
       serverVersion: null,
       clientVersion,
@@ -22,12 +17,10 @@ class VersionChecker {
     };
 
     try {
-      // Construct the health endpoint URL
       const healthUrl = `${serverUrl}/api/v1/health`;
 
-      // Fetch server health with timeout using native fetch (Node.js 18+)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
       const response = await fetch(healthUrl, {
         method: 'GET',
@@ -39,24 +32,19 @@ class VersionChecker {
 
       clearTimeout(timeoutId);
 
-      // Check if request was successful
       if (!response.ok) {
         result.error = `Server returned ${response.status}: ${response.statusText}`;
         return result;
       }
 
-      // Parse JSON response
-      const health = await response.json();
+      const health = (await response.json()) as { version?: string } | null;
 
-      // Extract version from health response
       if (!health || !health.version) {
         result.error = 'Server response does not contain version information';
         return result;
       }
 
       result.serverVersion = health.version;
-
-      // Compare versions (exact match required)
       result.compatible = result.serverVersion === clientVersion;
 
       if (!result.compatible) {
@@ -64,8 +52,8 @@ class VersionChecker {
       }
 
       return result;
-    } catch (error) {
-      // Handle various error types
+    } catch (err: unknown) {
+      const error = err as NodeJS.ErrnoException;
       if (error.name === 'AbortError') {
         result.error = 'Connection timeout: Server did not respond within 5 seconds';
       } else if (error.code === 'ECONNREFUSED') {
@@ -82,12 +70,7 @@ class VersionChecker {
     }
   }
 
-  /**
-   * Validate server URL format
-   * @param {string} url - URL to validate
-   * @returns {boolean} True if valid, false otherwise
-   */
-  static isValidUrl(url) {
+  static isValidUrl(url: string): boolean {
     try {
       const parsed = new URL(url);
       return parsed.protocol === 'http:' || parsed.protocol === 'https:';
@@ -96,16 +79,9 @@ class VersionChecker {
     }
   }
 
-  /**
-   * Normalize server URL (remove trailing slash, ensure protocol)
-   * @param {string} url - URL to normalize
-   * @returns {string} Normalized URL
-   */
-  static normalizeUrl(url) {
-    // Remove trailing slash
+  static normalizeUrl(url: string): string {
     let normalized = url.replace(/\/$/, '');
 
-    // Add protocol if missing
     if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
       normalized = `http://${normalized}`;
     }
