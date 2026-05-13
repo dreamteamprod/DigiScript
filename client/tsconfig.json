@@ -30,9 +30,8 @@
     // @types/vuelidate) carry incomplete or conflicting .d.ts files.
     "skipLibCheck": true,
     "jsx": "preserve",    // Vue template compiler handles JSX transform
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
     "types": ["vitest/globals", "node", "vite/client"],
     "isolatedModules": true,      // Required: Vite/esbuild transpiles each file independently

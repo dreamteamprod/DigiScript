@@ -5,6 +5,7 @@ import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import prettierConfig from 'eslint-config-prettier';
 import prettierPlugin from 'eslint-plugin-prettier';
+import tseslint from 'typescript-eslint';
 
 const sharedRules = {
   'prettier/prettier': 'error',
@@ -23,12 +24,12 @@ const sharedRules = {
 };
 
 const tsRules = {
-  ...tsPlugin.configs.recommended.rules,
+  ...Object.assign({}, ...tseslint.configs.recommended.map((c) => c.rules ?? {})),
   '@typescript-eslint/no-explicit-any': 'off',
   '@typescript-eslint/no-unused-vars': 'off',
   // Vue 2 Options API patterns that are valid in this codebase
   '@typescript-eslint/no-this-alias': 'off',
-  '@typescript-eslint/ban-types': 'off',
+  '@typescript-eslint/no-unsafe-function-type': 'off', // Function prop types are idiomatic in Vue 2
 };
 
 const sharedGlobals = {

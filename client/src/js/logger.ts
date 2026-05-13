@@ -13,7 +13,7 @@ interface LogEntry {
   extra: Record<string, unknown>;
 }
 
-let logQueue: LogEntry[] = [];
+const logQueue: LogEntry[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
