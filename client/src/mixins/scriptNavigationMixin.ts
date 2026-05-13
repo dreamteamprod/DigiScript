@@ -11,7 +11,7 @@ export default defineComponent({
       let lineIndex: number | null = (this as any).previousLineIndex;
       while (
         previousLine != null &&
-        (previousLine.line_type === LINE_TYPES.STAGE_DIRECTION || this.isWholeLineCut(previousLine))
+        (this.checkIsUntaggedStageDirection(previousLine) || this.isWholeLineCut(previousLine))
       ) {
         [lineIndex, previousLine] = this.getPreviousLineForIndex(previousLine.page, lineIndex!);
       }
@@ -60,6 +60,13 @@ export default defineComponent({
         loopPageNo -= 1;
       }
       return [null, null];
+    },
+    checkIsUntaggedStageDirection(line: ScriptLine): boolean {
+      return (
+        line.line_type === LINE_TYPES.STAGE_DIRECTION &&
+        line.line_parts[0]?.character_id == null &&
+        line.line_parts[0]?.character_group_id == null
+      );
     },
     isWholeLineCut(line: ScriptLine): boolean {
       return isWholeLineCutUtil(line, (this as any).SCRIPT_CUTS);
