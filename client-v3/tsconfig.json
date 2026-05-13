@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    // ── Compilation target ──────────────────────────────────────────────────
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+
+    // ── Strictness ──────────────────────────────────────────────────────────
+    // Full strict mode is enabled from the start — Vue 3 Composition API
+    // avoids (this as any) patterns, making strict mode straightforward.
+    "strict": true,
+
+    // ── Code quality ────────────────────────────────────────────────────────
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // ── Interop & infrastructure ─────────────────────────────────────────────
+    "skipLibCheck": true,
+    "jsx": "preserve",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vitest/globals", "node", "vite/client"],
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    // Vue 3 requires defineField semantics (opposite of Vue 2).
+    "useDefineForClassFields": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue"],
+  "exclude": ["node_modules", "dist", "dist-electron", "src/**/*.test.ts"]
+}

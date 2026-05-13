@@ -242,6 +242,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
         if is_frozen():
             static_files_path = get_resource_path(os.path.join("static", "assets"))
             docs_files_path = get_resource_path(os.path.join("static", "docs"))
+            ui_new_static_files_path = get_resource_path(
+                os.path.join("static", "ui-new", "assets")
+            )
             get_logger().info(f"Using packaged static files path: {static_files_path}")
             get_logger().info(f"Using packaged docs files path: {docs_files_path}")
         else:
@@ -251,6 +254,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
             docs_files_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static", "docs"
             )
+            ui_new_static_files_path = os.path.join(
+                os.path.abspath(os.path.dirname(__file__)), "..", "static", "ui-new", "assets"
+            )
             get_logger().info(f"Using relative static files path: {static_files_path}")
             get_logger().info(f"Using relative docs files path: {docs_files_path}")
 
@@ -259,8 +265,12 @@ class DigiScriptServer(PrometheusMixIn, Application):
         handlers.append(
             (r"/assets/(.*)", StaticFileHandler, {"path": static_files_path})
         )
+        handlers.append(
+            (r"/ui-new/assets/(.*)", StaticFileHandler, {"path": ui_new_static_files_path})
+        )
         handlers.append((r"/docs/(.*)", StaticFileHandler, {"path": docs_files_path}))
         handlers.append((r"/api/.*", controllers.ApiFallback))
+        handlers.append((r"/ui-new(/?.*)", controllers.RootControllerV3))
         handlers.append((r"/(.*)", controllers.RootController))
         super().__init__(
             handlers=handlers,
