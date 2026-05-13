@@ -66,6 +66,18 @@ Once users have been created, their permissions can be configured by clicking th
 
 RBAC configuration determines what shows a user can access and what actions they can perform within those shows.
 
+### Backup Management
+
+The **Backups** tab allows admin users to view and manage database backup files. DigiScript automatically creates a timestamped copy of the database file before running any database migration, ensuring you can recover data if a migration causes issues.
+
+The tab displays:
+- A summary line showing the total number of backups and combined disk usage
+- A table listing each backup file with its filename, size, and creation date
+
+To delete a backup, click the **Delete** button next to it and confirm the action. Deletion is permanent and cannot be undone.
+
+> **Note:** Backup files accumulate over time as you upgrade DigiScript. Periodically reviewing and removing old backups helps reclaim disk space once you are confident the corresponding migrations completed successfully.
+
 ### RBAC Roles and Mappings
 
 The current RBAC mappings are as follows:
