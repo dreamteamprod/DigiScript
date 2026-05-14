@@ -4,7 +4,10 @@ import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 
 import App from './App.vue';
 import router from './router';
+import setupHttpInterceptor from './js/http-interceptor';
+import { initRemoteLogging } from './js/logger';
 import './assets/styles/dark.scss';
+import 'bootstrap-vue-next/dist/bootstrap-vue-next.css';
 
 const app = createApp(App);
 
@@ -13,5 +16,8 @@ pinia.use(piniaPluginPersistedstate);
 
 app.use(pinia);
 app.use(router);
+
+setupHttpInterceptor();
+initRemoteLogging();
 
 app.mount('#app');

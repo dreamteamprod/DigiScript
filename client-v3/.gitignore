@@ -4,3 +4,4 @@ dist-electron/
 junit/
 coverage/
 *.backup
+components.d.ts
