@@ -170,6 +170,7 @@ import type { BModal } from 'bootstrap-vue-next';
 import { useVuelidate } from '@vuelidate/core';
 import { required, minValue } from '@vuelidate/validators';
 import log from 'loglevel';
+import { toast } from '@/js/toast';
 import { useUserStore } from '@/stores/user';
 import { useSystemStore } from '@/stores/system';
 import { useWebSocketStore } from '@/stores/websocket';
@@ -264,12 +265,11 @@ async function stopShowSession(): Promise<void> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
-    const { useToast } = await import('vue-toast-notification');
     if (response.ok) {
-      useToast().success('Stopped show session');
+      toast.success('Stopped show session');
     } else {
       log.error('Unable to stop show session');
-      useToast().error('Unable to stop show session');
+      toast.error('Unable to stop show session');
     }
   }
   stoppingSession.value = false;
@@ -277,8 +277,7 @@ async function stopShowSession(): Promise<void> {
 
 async function startShowSession(): Promise<void> {
   if (!wsStore.internalUUID) {
-    const { useToast } = await import('vue-toast-notification');
-    useToast().error('Unable to start new show session');
+    toast.error('Unable to start new show session');
     return;
   }
   startingSession.value = true;
@@ -289,12 +288,11 @@ async function startShowSession(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: wsStore.internalUUID }),
     });
-    const { useToast } = await import('vue-toast-notification');
     if (response.ok) {
-      useToast().success('Started new show session');
+      toast.success('Started new show session');
     } else {
       log.error('Unable to start new show session');
-      useToast().error('Unable to start new show session');
+      toast.error('Unable to start new show session');
     }
   }
   startingSession.value = false;

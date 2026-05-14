@@ -119,8 +119,8 @@ const router = createRouter({
     {
       path: '/force-password-change',
       name: 'force-password-change',
-      component: PlaceholderView,
-      meta: { requiresAuth: true, requiresPasswordChange: true },
+      component: () => import('@/views/user/ForcePasswordChangeView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/help',
@@ -152,11 +152,10 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const { useSystemStore } = await import('@/stores/system');
   const { useUserStore } = await import('@/stores/user');
-  const { useToast } = await import('vue-toast-notification');
+  const { toast } = await import('@/js/toast');
 
   const systemStore = useSystemStore();
   const userStore = useUserStore();
-  const toast = useToast();
 
   // Electron: require active connection before any page except server-selector
   if (isElectron() && to.path !== '/electron/server-selector') {

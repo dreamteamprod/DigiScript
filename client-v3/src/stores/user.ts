@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import log from 'loglevel';
 import { isEmpty } from 'lodash';
 import { makeURL } from '@/js/utils';
+import { toast } from '@/js/toast';
 import type { User, UserSettings, CueColourOverride } from '@/types/api/user';
 import type { StageDirectionStyle } from '@/types/api/script';
 
@@ -10,15 +11,10 @@ const TOKEN_KEY = 'digiscript_auth_token';
 function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
-function setToken(t: string): void {
-  localStorage.setItem(TOKEN_KEY, t);
-}
-function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
-}
 
 export const useUserStore = defineStore('user', {
   state: () => ({
+    authToken: getToken() as string | null,
     currentUser: null as User | null,
     currentRbac: null as Record<string, [number, number][]> | null,
     users: [] as User[],
@@ -28,10 +24,17 @@ export const useUserStore = defineStore('user', {
     cueColourOverrides: [] as CueColourOverride[],
   }),
   getters: {
-    authToken: (): string | null => getToken(),
-    isAuthenticated: (): boolean => getToken() !== null,
+    isAuthenticated: (state): boolean => state.authToken !== null,
   },
   actions: {
+    _setToken(t: string): void {
+      localStorage.setItem(TOKEN_KEY, t);
+      this.authToken = t;
+    },
+    _clearToken(): void {
+      localStorage.removeItem(TOKEN_KEY);
+      this.authToken = null;
+    },
     async login(username: string, password: string): Promise<boolean> {
       const { useWebSocketStore } = await import('@/stores/websocket');
       const wsStore = useWebSocketStore();
@@ -48,7 +51,7 @@ export const useUserStore = defineStore('user', {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.access_token) setToken(data.access_token);
+        if (data.access_token) this._setToken(data.access_token);
 
         const { useSystemStore } = await import('@/stores/system');
         await useSystemStore().getRbacRoles();
@@ -60,15 +63,13 @@ export const useUserStore = defineStore('user', {
         // Trigger WS authentication if the connection is waiting
         wsStore.triggerAuthentication();
 
-        const { useToast } = await import('vue-toast-notification');
-        useToast().success('Successfully logged in!');
+        toast.success('Successfully logged in!');
         return true;
       }
 
       const responseBody = await response.json();
       log.error('Unable to log in');
-      const { useToast } = await import('vue-toast-notification');
-      useToast().error(`Unable to log in! ${responseBody.message}.`);
+      toast.error(`Unable to log in! ${responseBody.message}.`);
       return false;
     },
 
@@ -78,8 +79,8 @@ export const useUserStore = defineStore('user', {
         this.tokenRefreshInterval = null;
       }
 
-      const token = getToken();
-      clearToken();
+      const token = this.authToken;
+      this._clearToken();
       this.currentUser = null;
       this.currentRbac = null;
       this.userSettings = {};
@@ -95,7 +96,7 @@ export const useUserStore = defineStore('user', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${token}`, // use captured value since store is already cleared
             },
             body: JSON.stringify({ session_id: getWsStore().internalUUID }),
           });
@@ -107,8 +108,7 @@ export const useUserStore = defineStore('user', {
         }
       }
 
-      const { useToast } = await import('vue-toast-notification');
-      useToast().success('Successfully logged out!');
+      toast.success('Successfully logged out!');
 
       const { default: router } = await import('@/router');
       if (router.currentRoute.value.path !== '/') {
@@ -117,7 +117,7 @@ export const useUserStore = defineStore('user', {
     },
 
     async refreshToken(): Promise<boolean> {
-      if (!getToken()) return false;
+      if (!this.authToken) return false;
       const response = await fetch(makeURL('/api/v1/auth/refresh-token'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,7 +125,7 @@ export const useUserStore = defineStore('user', {
       });
       if (response.ok) {
         const data = await response.json();
-        setToken(data.access_token);
+        this._setToken(data.access_token);
         const { useWebSocketStore } = await import('@/stores/websocket');
         useWebSocketStore().refreshWsToken();
         log.debug('Token refreshed successfully');
@@ -138,7 +138,7 @@ export const useUserStore = defineStore('user', {
     async tokenRefreshFromServer(newToken: string): Promise<void> {
       log.info('Received token refresh from server');
       if (newToken) {
-        setToken(newToken);
+        this._setToken(newToken);
         const { useWebSocketStore } = await import('@/stores/websocket');
         useWebSocketStore().refreshWsToken();
         log.info('Auth token updated from server');
@@ -173,8 +173,7 @@ export const useUserStore = defineStore('user', {
         this.users = data.users;
       } else {
         log.error('Unable to get users');
-        const { useToast } = await import('vue-toast-notification');
-        useToast().error('Unable to fetch users!');
+        toast.error('Unable to fetch users!');
       }
     },
 
@@ -184,14 +183,13 @@ export const useUserStore = defineStore('user', {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
       });
-      const { useToast } = await import('vue-toast-notification');
       if (response.ok) {
         await this.getUsers();
-        useToast().success('User created!');
+        toast.success('User created!');
       } else {
         const body = await response.json();
         log.error('Unable to create user');
-        useToast().error(`Unable to create user: ${body.message || 'Unknown error'}`);
+        toast.error(`Unable to create user: ${body.message || 'Unknown error'}`);
       }
     },
 
@@ -201,15 +199,32 @@ export const useUserStore = defineStore('user', {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: userId }),
       });
-      const { useToast } = await import('vue-toast-notification');
       if (response.ok) {
         await this.getUsers();
-        useToast().success('User deleted!');
+        toast.success('User deleted!');
       } else {
         const body = await response.json();
         log.error('Unable to delete user');
-        useToast().error(`Unable to delete user: ${body.message || 'Unknown error'}`);
+        toast.error(`Unable to delete user: ${body.message || 'Unknown error'}`);
       }
+    },
+
+    async changePassword(newPassword: string): Promise<boolean> {
+      const response = await fetch(makeURL('/api/v1/auth/change-password'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_password: newPassword }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.access_token) this._setToken(data.access_token);
+        await this.getCurrentUser();
+        toast.success('Password changed successfully!');
+        return true;
+      }
+      const error = await response.json();
+      toast.error(error.message || 'Failed to change password');
+      return false;
     },
 
     async getUserSettings(): Promise<void> {
@@ -225,7 +240,7 @@ export const useUserStore = defineStore('user', {
       if (this.tokenRefreshInterval) clearInterval(this.tokenRefreshInterval);
       const refreshInterval = setInterval(
         async () => {
-          if (getToken()) {
+          if (this.authToken) {
             await this.refreshToken();
           } else {
             clearInterval(refreshInterval);
@@ -243,13 +258,12 @@ export const useUserStore = defineStore('user', {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
-      const { useToast } = await import('vue-toast-notification');
       if (response.ok) {
-        useToast().success('API token generated successfully!');
+        toast.success('API token generated successfully!');
         return response.json();
       }
       const body = await response.json();
-      useToast().error(`Unable to generate API token: ${body.message || 'Unknown error'}`);
+      toast.error(`Unable to generate API token: ${body.message || 'Unknown error'}`);
       return null;
     },
 
@@ -259,21 +273,19 @@ export const useUserStore = defineStore('user', {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
-      const { useToast } = await import('vue-toast-notification');
       if (response.ok) {
-        useToast().success('API token revoked successfully!');
+        toast.success('API token revoked successfully!');
         return true;
       }
       const body = await response.json();
-      useToast().error(`Unable to revoke API token: ${body.message || 'Unknown error'}`);
+      toast.error(`Unable to revoke API token: ${body.message || 'Unknown error'}`);
       return false;
     },
 
     async getApiToken(): Promise<Record<string, unknown> | null> {
       const response = await fetch(makeURL('/api/v1/auth/api-token'));
       if (response.ok) return response.json();
-      const { useToast } = await import('vue-toast-notification');
-      useToast().error('Unable to get API token!');
+      toast.error('Unable to get API token!');
       return null;
     },
   },

@@ -16,7 +16,7 @@ export const useWebSocketStore = defineStore('websocket', {
     pick: ['internalUUID'],
   },
   getters: {
-    websocketHealthy: (state) => state.isConnected && state.authenticated,
+    websocketHealthy: (state) => state.isConnected,
   },
   actions: {
     // Called by the useWebSocket composable to register the send function
