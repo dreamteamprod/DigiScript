@@ -1,7 +1,16 @@
 <template>
-  <div class="container mt-5">
-    <h1>404 — Page Not Found</h1>
-    <p>The page you are looking for does not exist.</p>
-    <RouterLink to="/">Return to home</RouterLink>
+  <div class="center">
+    <h1>Uh Oh... Something went wrong!</h1>
+    <h2>(404) Page Not Found!</h2>
   </div>
 </template>
+
+<style scoped>
+.center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px;
+}
+</style>

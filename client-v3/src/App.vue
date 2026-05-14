@@ -1,9 +1,10 @@
 <template>
-  <div id="app">
+  <BApp id="app">
     <BNavbar
       v-if="route.path !== '/electron/server-selector'"
       toggleable="lg"
       variant="info"
+      data-bs-theme="dark"
       :sticky="true"
     >
       <BNavbarBrand to="/"> DigiScript </BNavbarBrand>
@@ -109,7 +110,7 @@
         </BNavbarNav>
       </BCollapse>
     </BNavbar>
-    <BNavbar v-else variant="info" :sticky="true">
+    <BNavbar v-else variant="info" data-bs-theme="dark" :sticky="true">
       <BNavbarBrand to="#"> DigiScript </BNavbarBrand>
     </BNavbar>
 
@@ -158,14 +159,14 @@
         </BFormGroup>
       </BForm>
     </BModal>
-  </div>
+  </BApp>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { BModal } from 'bootstrap-vue-next';
+import type { BModal } from 'bootstrap-vue-next';
 import { useVuelidate } from '@vuelidate/core';
 import { required, minValue } from '@vuelidate/validators';
 import log from 'loglevel';

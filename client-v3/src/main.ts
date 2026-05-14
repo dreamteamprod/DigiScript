@@ -7,6 +7,7 @@ import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
 import { initRemoteLogging } from './js/logger';
 import './assets/styles/dark.scss';
+import 'bootstrap-vue-next/dist/bootstrap-vue-next.css';
 
 const app = createApp(App);
 
