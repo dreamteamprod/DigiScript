@@ -1,5 +1,6 @@
 import log from 'loglevel';
 import { debounce } from 'lodash';
+import { toast } from '@/js/toast';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useSystemStore } from '@/stores/system';
 import { useUserStore } from '@/stores/user';
@@ -25,14 +26,10 @@ function sendObj(data: object): void {
   }
 }
 
-const settingsChangedToast = debounce(
-  async () => {
-    const { useToast } = await import('vue-toast-notification');
-    useToast().info('Settings synced from server');
-  },
-  1000,
-  { leading: true, trailing: false }
-);
+const settingsChangedToast = debounce(() => toast.info('Settings synced from server'), 1000, {
+  leading: true,
+  trailing: false,
+});
 
 async function handleMessage(msg: WsMessage): Promise<void> {
   const wsStore = useWebSocketStore();
@@ -156,11 +153,9 @@ function connect(): void {
   ws.onopen = () => {
     wsStore.$patch({ isConnected: true });
     if (errorCount > 0) {
-      import('vue-toast-notification').then(({ useToast }) => {
-        useToast().success(
-          `WebSocket reconnected after ${errorCount} attempt${errorCount > 1 ? 's' : ''}`
-        );
-      });
+      toast.success(
+        `WebSocket reconnected after ${errorCount} attempt${errorCount > 1 ? 's' : ''}`
+      );
     }
     log.info('WebSocket connected');
   };
@@ -184,9 +179,7 @@ function connect(): void {
     log.error('WebSocket error');
     errorCount++;
     if (errorCount === 1) {
-      import('vue-toast-notification').then(({ useToast }) => {
-        useToast().error('WebSocket connection lost');
-      });
+      toast.error('WebSocket connection lost');
     }
   };
 }

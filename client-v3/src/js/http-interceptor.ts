@@ -1,5 +1,6 @@
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
+import { toast } from '@/js/toast';
 
 export default function setupHttpInterceptor(): void {
   const originalFetch = window.fetch;
@@ -10,11 +11,11 @@ export default function setupHttpInterceptor(): void {
     if (typeof resource === 'string' && resource.startsWith(makeURL('/api/'))) {
       // Import store inside the override function — Pinia context isn't active at module load time
       const { useUserStore } = await import('@/stores/user');
-      const { useToast } = await import('vue-toast-notification');
       const userStore = useUserStore();
 
       const token = userStore.authToken;
       const isLogoutRequest = resource.endsWith('/api/v1/auth/logout');
+      const isLoginRequest = resource.endsWith('/api/v1/auth/login');
       const isRefreshRequest = resource.endsWith('/api/v1/auth/refresh-token');
 
       const newOptions = {
@@ -38,12 +39,12 @@ export default function setupHttpInterceptor(): void {
       try {
         const response = await originalFetch(resource, newOptions);
 
-        if (response.status === 401 && !isLogoutRequest) {
+        if (response.status === 401 && !isLogoutRequest && !isLoginRequest) {
           log.warn('Received 401 Unauthorized response');
 
           if (isRefreshRequest || isRefreshingToken) {
             log.warn('Token refresh failed with 401 or already refreshing, logging out');
-            useToast().warning('Your session has expired. Please log in again.');
+            toast.warning('Your session has expired. Please log in again.');
             await userStore.logout();
             return response;
           }
@@ -68,13 +69,13 @@ export default function setupHttpInterceptor(): void {
               }
 
               log.warn('Token refresh failed, logging out');
-              useToast().warning('Your session has expired. Please log in again.');
+              toast.warning('Your session has expired. Please log in again.');
               await userStore.logout();
               return response;
             } catch (refreshError) {
               isRefreshingToken = false;
               log.error('Error during token refresh:', refreshError);
-              useToast().error('Authentication error - please log in again');
+              toast.error('Authentication error - please log in again');
               await userStore.logout();
               return response;
             }
