@@ -22,7 +22,7 @@ const router = createRouter({
     {
       path: '/about',
       name: 'about',
-      component: PlaceholderView,
+      component: () => import('@/views/AboutView.vue'),
       meta: { requiresAuth: false },
     },
     {
@@ -124,14 +124,14 @@ const router = createRouter({
     },
     {
       path: '/help',
-      component: PlaceholderView,
+      component: () => import('@/views/HelpView.vue'),
       meta: { requiresAuth: false },
       children: [
-        { path: '', redirect: 'getting-started' },
+        { path: '', redirect: '/help/getting-started' },
         {
           name: 'help-doc',
           path: ':slug(.*)',
-          component: PlaceholderView,
+          component: () => import('@/views/help/HelpDocView.vue'),
           meta: { requiresAuth: false },
         },
       ],
@@ -144,7 +144,7 @@ const router = createRouter({
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/404',
+      component: NotFoundView,
     },
   ],
 });

@@ -1,24 +1,37 @@
 <template>
-  <div class="container mt-5">
-    <div class="row justify-content-center">
-      <div class="col-md-8 text-center">
-        <h1 class="display-4 mb-4">DigiScript</h1>
-        <div class="alert alert-info" role="alert">
-          <h4 class="alert-heading">Vue 3 Migration in Progress</h4>
-          <p class="mb-0">
-            This is the new Vue 3 frontend served at <code>/ui-new/</code>. The Vue 2 app remains
-            available at <code>/</code> during migration.
-          </p>
-        </div>
-      </div>
-    </div>
+  <div class="home">
+    <template v-if="settings && (settings as Record<string, unknown>).current_show == null">
+      <h1>DigiScript</h1>
+      <b>No show has been loaded. Please create a new one, or load an existing one.</b>
+    </template>
+    <template v-else>
+      <h1>{{ currentShow?.name }}</h1>
+      <b v-if="currentShowSession == null">
+        <template v-if="isAdminUser">
+          No live session has currently been started. Please start a live session to continue.
+        </template>
+        <template v-else>
+          No live session has currently been started. Please wait for a live session to start.
+        </template>
+      </b>
+      <b v-else> Live session has been started. Join <RouterLink to="/live">here</RouterLink>. </b>
+    </template>
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
+<script setup lang="ts">
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useSystemStore } from '@/stores/system';
+import { useUserStore } from '@/stores/user';
 
-export default defineComponent({
-  name: 'HomeView',
-});
+const systemStore = useSystemStore();
+const userStore = useUserStore();
+
+const { currentShow, settings } = storeToRefs(systemStore);
+
+// Stub until Phase 6 wires in the show store
+const currentShowSession = computed(() => null);
+
+const isAdminUser = computed(() => userStore.currentUser?.is_admin ?? false);
 </script>
