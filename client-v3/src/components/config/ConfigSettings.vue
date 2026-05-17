@@ -39,7 +39,6 @@
                     :key="key"
                     :label-for="`${key}-input`"
                     label-cols="4"
-                    style="margin-bottom: 0"
                   >
                     <template #label>
                       <span>
