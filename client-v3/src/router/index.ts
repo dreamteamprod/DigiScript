@@ -34,7 +34,7 @@ const router = createRouter({
     {
       path: '/config',
       name: 'config',
-      component: PlaceholderView,
+      component: () => import('@/views/config/ConfigView.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
