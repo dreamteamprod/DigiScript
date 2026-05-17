@@ -25,10 +25,13 @@
                       {{ dirtyByCategory[String(category)] }}
                     </BBadge>
                   </span>
-                  <span>{{ expandedCategories.includes(String(category)) ? '▲' : '▼' }}</span>
+                  <span>{{ expandedState[String(category)] ? '▲' : '▼' }}</span>
                 </div>
               </BCardHeader>
-              <BCollapse :visible="expandedCategories.includes(String(category))">
+              <BCollapse
+                :model-value="expandedState[String(category)]"
+                @update:model-value="(val) => (expandedState[String(category)] = val)"
+              >
                 <BCardBody>
                   <BFormGroup
                     v-for="(setting, key) in settings"
@@ -110,7 +113,7 @@ const { rawSettings, settingsCategories } = storeToRefs(systemStore);
 
 const loaded = ref(false);
 const editSettings = ref<Record<string, unknown>>({});
-const expandedCategories = ref<string[]>(['General']);
+const expandedState = ref<Record<string, boolean>>({ General: true });
 
 const visibleSettings = computed(() => {
   const result: Record<string, any> = {};
@@ -178,9 +181,7 @@ function getChoiceOptions(setting: any): Array<{ value: unknown; text: string }>
 }
 
 function toggleCategory(category: string): void {
-  const idx = expandedCategories.value.indexOf(category);
-  if (idx >= 0) expandedCategories.value.splice(idx, 1);
-  else expandedCategories.value.push(category);
+  expandedState.value[category] = !expandedState.value[category];
 }
 
 function resetEditSettings(): void {
