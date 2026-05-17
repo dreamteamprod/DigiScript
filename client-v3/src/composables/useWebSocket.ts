@@ -1,5 +1,6 @@
 import log from 'loglevel';
 import { debounce } from 'lodash';
+import { getActivePinia } from 'pinia';
 import { toast } from '@/js/toast';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useSystemStore } from '@/stores/system';
@@ -98,51 +99,54 @@ async function handleMessage(msg: WsMessage): Promise<void> {
   }
 }
 
+// Converts SCREAMING_SNAKE_CASE WS action names to camelCase Pinia action names.
+// e.g. GET_CUE_TYPES → getCueTypes, ELECTED_LEADER → electedLeader
+function screamingToCamel(s: string): string {
+  return s.toLowerCase().replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
 async function dispatchAction(action: string, data: Record<string, unknown>): Promise<void> {
-  const userStore = useUserStore();
-  const systemStore = useSystemStore();
-  const wsStore = useWebSocketStore();
-
-  const actionMap: Record<string, (d: Record<string, unknown>) => Promise<void>> = {
-    TOKEN_REFRESH: async (d) => {
-      const payload = d as { DATA: { access_token: string } };
-      await userStore.tokenRefreshFromServer(payload.DATA.access_token);
-    },
-    SHOW_CHANGED: async () => {
-      if (userStore.currentUser != null) {
-        await userStore.getCurrentUser();
-        await userStore.getCurrentRbac();
-      }
-      window.location.reload();
-    },
-    GET_CAST_LIST: async () => {
-      const { useShowStore } = await import('@/stores/show');
-      await useShowStore().getCastList();
-    },
-    ELECTED_LEADER: async () => {
-      const { useShowStore } = await import('@/stores/show');
-      await useShowStore().electedLeader();
-    },
-    NO_LEADER: async () => {
-      const { useShowStore } = await import('@/stores/show');
-      await useShowStore().noLeader();
-    },
-    SCRIPT_SCROLL: async (d: Record<string, unknown>) => {
-      const { useShowStore } = await import('@/stores/show');
-      useShowStore().scriptScroll(d);
-    },
-  };
-
-  const handler = actionMap[action];
-  if (handler) {
-    await handler(data);
-  } else {
-    log.debug(`No handler for WS action: ${action}`);
+  // Actions that can't be auto-routed by naming convention
+  if (action === 'TOKEN_REFRESH') {
+    const payload = data as { DATA: { access_token: string } };
+    await useUserStore().tokenRefreshFromServer(payload.DATA.access_token);
+    return;
+  }
+  if (action === 'SHOW_CHANGED') {
+    const userStore = useUserStore();
+    if (userStore.currentUser != null) {
+      await userStore.getCurrentUser();
+      await userStore.getCurrentRbac();
+    }
+    window.location.reload();
+    return;
+  }
+  if (action === 'USER_LOGOUT') {
+    await useUserStore().logout();
+    return;
+  }
+  if (action === 'WS_SETTINGS_CHANGED') {
+    await useSystemStore().settingsChanged();
+    settingsChangedToast();
+    return;
   }
 
-  // Suppress unused variable warnings
-  void systemStore;
-  void wsStore;
+  // Convention-based dispatch: searches all instantiated Pinia stores for a method whose
+  // camelCase name matches the WS action. Adding a store action is sufficient to handle
+  // the corresponding WS event — no registration required.
+  const camelAction = screamingToCamel(action);
+  const pinia = getActivePinia();
+  if (pinia) {
+    const storeMap = (pinia as unknown as { _s: Map<string, Record<string, unknown>> })._s;
+    for (const store of storeMap.values()) {
+      if (typeof store[camelAction] === 'function') {
+        await (store[camelAction] as (d: Record<string, unknown>) => Promise<void>)(data);
+        return;
+      }
+    }
+  }
+
+  log.debug(`No handler for WS action: ${action}`);
 }
 
 function connect(): void {
