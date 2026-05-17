@@ -1,8 +1,8 @@
 <template>
   <BContainer class="mx-0" fluid>
     <BRow>
-      <BCol>
-        <BTabs content-class="mt-3" lazy>
+      <BCol v-if="loaded">
+        <BTabs content-class="mt-3">
           <BTab title="Mics" active>
             <MicList />
           </BTab>
@@ -19,6 +19,9 @@
             <ResourceAvailability :loading="!loaded" />
           </BTab>
         </BTabs>
+      </BCol>
+      <BCol v-else class="text-center py-5">
+        <BSpinner style="width: 10rem; height: 10rem" variant="info" />
       </BCol>
     </BRow>
   </BContainer>
