@@ -7,6 +7,7 @@ import type { MicConflict, MicConflictResult } from '@/js/micConflictUtils';
 import type { Cast, Character, CharacterGroup, Act, Scene } from '@/types/api/show';
 import type { CueType } from '@/types/api/cues';
 import type { ShowSession, Interval, SessionTag } from '@/types/api/session';
+import type { ScriptRevision } from '@/types/api/script';
 import type { Microphone } from '@/types/api/microphones';
 import { useSystemStore } from '@/stores/system';
 
@@ -32,6 +33,7 @@ export const useShowStore = defineStore('show', {
     micAllocations: {} as Record<string, { scene_id: number; character_id: number }[]>,
     scriptModes: [] as ScriptMode[],
     sessionTags: [] as SessionTag[],
+    scriptRevisions: [] as ScriptRevision[],
     stageManagerMode: false,
   }),
 
@@ -111,6 +113,12 @@ export const useShowStore = defineStore('show', {
           state.sessionTags.map((t) => [t.id, t])
         );
         return id != null ? (dict[id] ?? null) : null;
+      },
+
+    scriptRevisionById:
+      (state): ((id: number | null) => ScriptRevision | null) =>
+      (id) => {
+        return id != null ? (state.scriptRevisions.find((r) => r.id === id) ?? null) : null;
       },
 
     orderedScenes(state): Scene[] {
@@ -709,12 +717,22 @@ export const useShowStore = defineStore('show', {
       }
     },
 
+    async getScriptRevisions(): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/script/revisions'));
+      if (response.ok) {
+        this.scriptRevisions = await response.json();
+      } else {
+        log.error('Unable to get script revisions');
+      }
+    },
+
     clearCurrentShow(): void {
       this.castList = [];
       this.characterList = [];
       this.actList = [];
       this.sceneList = [];
       this.sessionTags = [];
+      this.scriptRevisions = [];
     },
 
     // WS-triggered actions
