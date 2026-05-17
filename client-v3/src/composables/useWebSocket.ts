@@ -116,7 +116,20 @@ async function dispatchAction(action: string, data: Record<string, unknown>): Pr
       window.location.reload();
     },
     GET_CAST_LIST: async () => {
-      /* handled in show store — Phase 6 */
+      const { useShowStore } = await import('@/stores/show');
+      await useShowStore().getCastList();
+    },
+    ELECTED_LEADER: async () => {
+      const { useShowStore } = await import('@/stores/show');
+      await useShowStore().electedLeader();
+    },
+    NO_LEADER: async () => {
+      const { useShowStore } = await import('@/stores/show');
+      await useShowStore().noLeader();
+    },
+    SCRIPT_SCROLL: async (d: Record<string, unknown>) => {
+      const { useShowStore } = await import('@/stores/show');
+      useShowStore().scriptScroll(d);
     },
   };
 
