@@ -28,7 +28,7 @@
             class="cue-button-example"
             :style="{
               'background-color': data.item.settings.colour,
-              color: contrastColor({ bgColor: data.item.settings.colour }),
+              color: contrastColor(data.item.settings.colour ?? '#ffffff'),
             }"
           >
             {{ cueTypes.find((t) => t.id === data.item.settings.id)?.prefix }}
@@ -85,7 +85,7 @@
           class="cue-button-example"
           :style="{
             'background-color': newFormState.colour,
-            color: contrastColor({ bgColor: newFormState.colour }),
+            color: contrastColor(newFormState.colour),
           }"
         >
           {{ newFormCueTypePrefix }}
@@ -123,7 +123,7 @@
           class="cue-button-example"
           :style="{
             'background-color': editFormState.colour,
-            color: contrastColor({ bgColor: editFormState.colour }),
+            color: contrastColor(editFormState.colour),
           }"
         >
           {{ editFormCueTypePrefix }}
@@ -164,7 +164,7 @@ import { ref, computed, onMounted } from 'vue';
 import type { BModal } from 'bootstrap-vue-next';
 import { useVuelidate } from '@vuelidate/core';
 import { required } from '@vuelidate/validators';
-import { contrastColor } from 'contrast-color';
+import { contrastColor } from '@/js/utils';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import { useUserStore } from '@/stores/user';

@@ -75,7 +75,7 @@ const router = createRouter({
         {
           name: 'show-config-cues',
           path: 'cues',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigCues.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
@@ -99,7 +99,7 @@ const router = createRouter({
         {
           name: 'show-sessions',
           path: 'sessions',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigSessions.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
       ],
