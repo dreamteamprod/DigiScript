@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
+import { toast } from '@/js/toast';
 import type { Show } from '@/types/api/show';
 import type { SystemSettings } from '@/types/api/settings';
 import { useUserStore } from '@/stores/user';
@@ -179,6 +180,28 @@ export const useSystemStore = defineStore('system', {
         }
       } else {
         this.currentShow = null;
+      }
+    },
+    async getShowDetails(): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show'));
+      if (response.ok) {
+        this.currentShow = await response.json();
+      } else {
+        log.error('Unable to get show details');
+      }
+    },
+    async updateShow(showDetails: Partial<Show>): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(showDetails),
+      });
+      if (response.ok) {
+        await this.getShowDetails();
+        toast.success('Updated show!');
+      } else {
+        log.error('Unable to edit show');
+        toast.error('Unable to edit show');
       }
     },
     async getRbacRoles() {
