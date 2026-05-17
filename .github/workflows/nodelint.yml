@@ -41,3 +41,15 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm run ci-lint
+  run-typecheck-electron:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./electron
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run typecheck

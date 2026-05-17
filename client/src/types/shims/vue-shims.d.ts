@@ -17,7 +17,6 @@ declare module 'vue/types/vue' {
 }
 
 declare module 'vue/types/options' {
-  // eslint-disable-next-line no-undef
   interface ComponentOptions<V extends Vue> {
     sockets?: Record<string, (data: unknown) => void>;
   }

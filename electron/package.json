@@ -1,24 +1,25 @@
 {
   "name": "digiscript-electron",
-  "version": "0.29.1",
+  "version": "0.29.2",
   "description": "DigiScript Electron Desktop Application",
   "author": "DreamTeamProd",
   "license": "GPL-3.0",
-  "main": "main.js",
+  "main": "dist/main.js",
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
+    "start": "tsc && electron .",
+    "dev": "tsc && electron . --dev",
+    "typecheck": "tsc --noEmit",
+    "package": "tsc && electron-forge package",
+    "make": "tsc && electron-forge make",
     "build": "cd ../client && BUILD_TARGET=electron npm run build && cd ../electron && npm run make",
     "lint": "npm run format && npm run lint:eslint",
-    "lint:eslint": "eslint '**/*.{js,cjs}' --fix",
+    "lint:eslint": "eslint '**/*.{ts,cts}' --fix",
     "ci-lint": "npm run format:check && npm run lint:eslint-check",
-    "lint:eslint-check": "eslint '**/*.{js,cjs}'",
-    "format": "prettier --write '**/*.{js,cjs,json}'",
-    "format:check": "prettier --check '**/*.{js,cjs,json}'"
+    "lint:eslint-check": "eslint '**/*.{ts,cts}'",
+    "format": "prettier --write '**/*.{ts,cts,json}'",
+    "format:check": "prettier --check '**/*.{ts,cts,json}'"
   },
   "engines": {
     "npm": ">=11.0.0 <12",
@@ -36,11 +37,15 @@
     "@electron-forge/maker-deb": "^7.11.1",
     "@electron-forge/maker-rpm": "^7.11.1",
     "@eslint/js": "^9.39.2",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@types/node": "^22.0.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "globals": "^17.6.0",
-    "prettier": "^3.8.3"
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.0"
   },
   "config": {
     "forge": {

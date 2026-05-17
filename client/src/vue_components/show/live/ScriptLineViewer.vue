@@ -108,6 +108,11 @@
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
+            <b-row v-if="isTaggedStageDirection && needsHeadingsAny" style="margin-bottom: 1rem">
+              <b-col :style="headingStyle">
+                <b>{{ taggedStageDirectionHeadingName }}</b>
+              </b-col>
+            </b-row>
             <i class="viewable-line" :style="stageDirectionStyling">
               <template
                 v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"
@@ -214,6 +219,11 @@
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
+            <b-row v-if="isTaggedStageDirection && needsHeadingsAny" style="margin-bottom: 1rem">
+              <b-col :style="headingStyle">
+                <b>{{ taggedStageDirectionHeadingName }}</b>
+              </b-col>
+            </b-row>
             <i class="viewable-line" :style="stageDirectionStyling">
               <template
                 v-if="stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'"

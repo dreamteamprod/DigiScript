@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    // ── Compilation target ──────────────────────────────────────────────────
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+
+    // ── Strictness ──────────────────────────────────────────────────────────
+    "strict": false,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+
+    // ── Code quality ────────────────────────────────────────────────────────
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // ── Interop & infrastructure ─────────────────────────────────────────────
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+
+    // ── Output ───────────────────────────────────────────────────────────────
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["main.ts", "preload.cts", "services/**/*.ts"],
+  "exclude": ["node_modules", "dist", "out"]
+}

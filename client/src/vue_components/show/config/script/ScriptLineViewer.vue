@@ -63,6 +63,11 @@
     </template>
     <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
       <b-col :key="`line_${lineIndex}_stage_direction`" :style="{ textAlign: scriptTextAlign }">
+        <b-row v-if="isTaggedStageDirection && needsHeadingsAny" style="margin-bottom: 1rem">
+          <b-col :style="headingStyle">
+            <b>{{ taggedStageDirectionHeadingName }}</b>
+          </b-col>
+        </b-row>
         <i
           v-if="(canEdit && !IS_CUT_MODE) || !canEdit"
           class="viewable-line"
@@ -257,7 +262,12 @@ export default defineComponent({
       const line = this.line as any;
       let previousLine = this.previousLine as any;
       let previousLineIndex = this.lineIndex - 1;
-      while (previousLine != null && previousLine.line_type === LINE_TYPES.STAGE_DIRECTION) {
+      while (
+        previousLine != null &&
+        previousLine.line_type === LINE_TYPES.STAGE_DIRECTION &&
+        previousLine.line_parts[0]?.character_id == null &&
+        previousLine.line_parts[0]?.character_group_id == null
+      ) {
         if (previousLineIndex === 0) {
           break;
         }

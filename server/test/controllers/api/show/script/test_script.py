@@ -11,7 +11,7 @@ from models.script import (
     ScriptLineType,
     ScriptRevision,
 )
-from models.show import Act, Character, Scene, Show, ShowScriptType
+from models.show import Act, Character, CharacterGroup, Scene, Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
 
@@ -1368,6 +1368,11 @@ class TestLineTypeValidation(DigiScriptTestCase):
             session.flush()
             self.character_id = character.id
 
+            character_group = CharacterGroup(show_id=show.id, name="Test Group")
+            session.add(character_group)
+            session.flush()
+            self.character_group_id = character_group.id
+
             admin = User(username="admin", is_admin=True, password="test")
             session.add(admin)
             session.flush()
@@ -1607,8 +1612,8 @@ class TestLineTypeValidation(DigiScriptTestCase):
         response_body = tornado.escape.json_decode(response.body)
         self.assertIn("must have exactly 1 line part", response_body["message"])
 
-    def test_post_stage_direction_rejects_with_character(self):
-        """Test STAGE_DIRECTION with character_id returns 400."""
+    def test_post_stage_direction_allows_with_character(self):
+        """Test STAGE_DIRECTION with character_id is accepted."""
         lines = [
             {
                 "id": None,
@@ -1623,6 +1628,38 @@ class TestLineTypeValidation(DigiScriptTestCase):
                         "part_index": 0,
                         "character_id": self.character_id,
                         "character_group_id": None,
+                        "line_text": "Enter stage left",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertEqual(200, response.code)
+
+    def test_post_stage_direction_rejects_with_both_character_and_group(self):
+        """Test STAGE_DIRECTION with both character_id and character_group_id returns 400."""
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 2,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": self.character_group_id,
                         "line_text": "Enter",
                     }
                 ],
@@ -1639,7 +1676,9 @@ class TestLineTypeValidation(DigiScriptTestCase):
 
         self.assertEqual(400, response.code)
         response_body = tornado.escape.json_decode(response.body)
-        self.assertIn("cannot have characters", response_body["message"])
+        self.assertIn(
+            "cannot have both character and character group", response_body["message"]
+        )
 
     def test_post_stage_direction_rejects_empty_text(self):
         """Test STAGE_DIRECTION with empty/whitespace text returns 400."""
