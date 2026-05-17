@@ -1,14 +1,18 @@
 <template>
   <BContainer fluid class="mx-0">
-    <h1>System Configuration</h1>
-    <BTabs pills vertical content-class="flex-fill text-start">
-      <BTab active title="Shows"><ConfigShows /></BTab>
-      <BTab title="System"><ConfigSystem /></BTab>
-      <BTab title="Settings"><ConfigSettings /></BTab>
-      <BTab title="Users"><ConfigUsers /></BTab>
-      <BTab title="Logs"><ConfigLogs /></BTab>
-      <BTab title="Backups"><ConfigBackups /></BTab>
-    </BTabs>
+    <BRow>
+      <BCol>
+        <h1>DigiScript Config</h1>
+        <BTabs content-class="mt-3" lazy>
+          <BTab active title="Shows"><ConfigShows /></BTab>
+          <BTab title="System"><ConfigSystem /></BTab>
+          <BTab title="Settings"><ConfigSettings /></BTab>
+          <BTab title="Users"><ConfigUsers /></BTab>
+          <BTab title="Logs"><ConfigLogs /></BTab>
+          <BTab title="Backups"><ConfigBackups /></BTab>
+        </BTabs>
+      </BCol>
+    </BRow>
   </BContainer>
 </template>
 
