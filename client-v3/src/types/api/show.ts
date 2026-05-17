@@ -32,9 +32,10 @@ export interface CharacterGroup {
   show_id: number | null;
   name: string | null;
   description: string | null;
+  characters: number[];
 }
 
-// first_scene and next_act are serialized as IDs by the marshmallow schema
+// first_scene, next_act, and previous_act are serialized as IDs by the marshmallow schema
 export interface Act {
   id: number;
   show_id: number | null;
@@ -42,13 +43,15 @@ export interface Act {
   interval_after: boolean | null;
   first_scene: number | null;
   next_act: number | null;
+  previous_act: number | null;
 }
 
-// act and next_scene are serialized as IDs by the marshmallow schema
+// act, next_scene, and previous_scene are serialized as IDs by the marshmallow schema
 export interface Scene {
   id: number;
   show_id: number | null;
   act: number | null;
   name: string | null;
   next_scene: number | null;
+  previous_scene: number | null;
 }

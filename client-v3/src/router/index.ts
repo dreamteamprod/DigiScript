@@ -45,13 +45,13 @@ const router = createRouter({
         {
           name: 'show-config',
           path: '',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigShow.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
           name: 'show-config-cast',
           path: 'cast',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigCast.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
@@ -63,13 +63,13 @@ const router = createRouter({
         {
           name: 'show-config-characters',
           path: 'characters',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigCharacters.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
           name: 'show-config-acts-scenes',
           path: 'acts',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigActsAndScenes.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
