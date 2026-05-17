@@ -1,9 +1,11 @@
 <template>
   <BTableSimple class="w-100">
-    <BTr v-for="key in orderedKeys" :key="key">
-      <BTh>{{ key }}</BTh>
-      <BTd>{{ tableData[key] != null ? tableData[key] : 'N/A' }}</BTd>
-    </BTr>
+    <BTbody>
+      <BTr v-for="key in orderedKeys" :key="key">
+        <BTh>{{ key }}</BTh>
+        <BTd>{{ tableData[key] != null ? tableData[key] : 'N/A' }}</BTd>
+      </BTr>
+    </BTbody>
   </BTableSimple>
 </template>
 

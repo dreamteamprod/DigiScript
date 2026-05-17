@@ -5,7 +5,7 @@
         <template v-if="loaded">
           <BForm @submit.prevent="handleSubmit" @reset.prevent="resetForm">
             <BFormGroup
-              label-cols="auto"
+              label-cols="4"
               label="Enable Script Autosave"
               label-for="enable-autosave-input"
             >
@@ -18,7 +18,7 @@
             </BFormGroup>
 
             <BFormGroup
-              label-cols="auto"
+              label-cols="4"
               label="Script Autosave Interval"
               label-for="autosave-interval-input"
             >
@@ -35,7 +35,7 @@
             </BFormGroup>
 
             <BFormGroup
-              label-cols="auto"
+              label-cols="4"
               label="Display cues on right side"
               label-for="cue-position-input"
             >
@@ -48,7 +48,7 @@
             </BFormGroup>
 
             <BFormGroup
-              label-cols="auto"
+              label-cols="4"
               label="Script Text Alignment"
               label-for="text-alignment-input"
             >
@@ -62,7 +62,7 @@
             </BFormGroup>
 
             <BFormGroup
-              label-cols="auto"
+              label-cols="4"
               label="Browser Console Log Level"
               label-for="console-log-level-input"
             >
@@ -76,7 +76,7 @@
             </BFormGroup>
 
             <BFormGroup
-              label-cols="auto"
+              label-cols="4"
               label="Sort characters by most recently used"
               label-for="character-mru-sort-input"
             >
@@ -89,7 +89,7 @@
             </BFormGroup>
 
             <BFormGroup
-              label-cols="auto"
+              label-cols="4"
               label="Use combined character/group dropdown"
               label-for="character-combined-dropdown-input"
             >

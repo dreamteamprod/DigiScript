@@ -1,7 +1,7 @@
 <template>
   <BContainer fluid class="mx-0">
     <h1>User Settings</h1>
-    <BTabs pills vertical content-class="flex-fill">
+    <BTabs pills vertical content-class="flex-fill text-start">
       <BTab active title="About">
         <AboutUser />
       </BTab>
