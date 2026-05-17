@@ -1,3 +1,15 @@
 @import '../../../node_modules/bootswatch/dist/darkly/variables';
 @import 'bootstrap/scss/bootstrap';
 @import '../../../node_modules/bootswatch/dist/darkly/bootswatch';
+
+// Match V2 font stack (from server/static/index.html inline style)
+body {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// BVN's BFormGroup renders .b-form-group; Bootstrap 5 dropped .form-group's built-in margin
+.b-form-group {
+  margin-bottom: 1rem;
+}

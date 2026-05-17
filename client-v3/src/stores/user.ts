@@ -85,6 +85,7 @@ export const useUserStore = defineStore('user', {
       this.currentRbac = null;
       this.userSettings = {};
       this.stageDirectionStyleOverrides = [];
+      this.cueColourOverrides = [];
 
       const { useWebSocketStore } = await import('@/stores/websocket');
       useWebSocketStore().$patch({ authenticated: false, authSucceeded: false });
@@ -209,11 +210,13 @@ export const useUserStore = defineStore('user', {
       }
     },
 
-    async changePassword(newPassword: string): Promise<boolean> {
+    async changePassword(newPassword: string, oldPassword?: string): Promise<boolean> {
+      const body: Record<string, string> = { new_password: newPassword };
+      if (oldPassword) body.old_password = oldPassword;
       const response = await fetch(makeURL('/api/v1/auth/change-password'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ new_password: newPassword }),
+        body: JSON.stringify(body),
       });
       if (response.ok) {
         const data = await response.json();
@@ -287,6 +290,114 @@ export const useUserStore = defineStore('user', {
       if (response.ok) return response.json();
       toast.error('Unable to get API token!');
       return null;
+    },
+
+    async getStageDirectionStyleOverrides(): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/user/settings/stage_direction_overrides'));
+      if (response.ok) {
+        const data = await response.json();
+        this.stageDirectionStyleOverrides = data.overrides;
+      } else {
+        log.error('Unable to load stage direction style overrides');
+      }
+    },
+
+    async addStageDirectionStyleOverride(style: Record<string, unknown>): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/user/settings/stage_direction_overrides'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(style),
+      });
+      if (response.ok) {
+        await this.getStageDirectionStyleOverrides();
+        toast.success('Added new stage direction style override!');
+      } else {
+        log.error('Unable to add stage direction style override');
+        toast.error('Unable to add new stage direction style override');
+      }
+    },
+
+    async updateStageDirectionStyleOverride(style: Record<string, unknown>): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/user/settings/stage_direction_overrides'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(style),
+      });
+      if (response.ok) {
+        await this.getStageDirectionStyleOverrides();
+        toast.success('Updated stage direction style override!');
+      } else {
+        log.error('Unable to edit stage direction style override');
+        toast.error('Unable to edit stage direction style override');
+      }
+    },
+
+    async deleteStageDirectionStyleOverride(styleId: number): Promise<void> {
+      const response = await fetch(
+        makeURL(`/api/v1/user/settings/stage_direction_overrides?id=${styleId}`),
+        { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.ok) {
+        await this.getStageDirectionStyleOverrides();
+        toast.success('Deleted stage direction style override!');
+      } else {
+        log.error('Unable to delete stage direction style override');
+        toast.error('Unable to delete stage direction style override');
+      }
+    },
+
+    async getCueColourOverrides(): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/user/settings/cue_colour_overrides'));
+      if (response.ok) {
+        const data = await response.json();
+        this.cueColourOverrides = data.overrides;
+      } else {
+        log.error('Unable to load cue colour overrides');
+      }
+    },
+
+    async addCueColourOverride(override: Record<string, unknown>): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/user/settings/cue_colour_overrides'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(override),
+      });
+      if (response.ok) {
+        await this.getCueColourOverrides();
+        toast.success('Added new cue colour override!');
+      } else {
+        log.error('Unable to add cue colour override');
+        toast.error('Unable to add new cue colour override');
+      }
+    },
+
+    async updateCueColourOverride(override: Record<string, unknown>): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/user/settings/cue_colour_overrides'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(override),
+      });
+      if (response.ok) {
+        await this.getCueColourOverrides();
+        toast.success('Updated cue colour override!');
+      } else {
+        log.error('Unable to edit cue colour override');
+        toast.error('Unable to edit cue colour override');
+      }
+    },
+
+    async deleteCueColourOverride(overrideId: number): Promise<void> {
+      const response = await fetch(
+        makeURL(`/api/v1/user/settings/cue_colour_overrides?id=${overrideId}`),
+        { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.ok) {
+        await this.getCueColourOverrides();
+        toast.success('Deleted cue colour override!');
+      } else {
+        log.error('Unable to delete cue colour override');
+        toast.error('Unable to delete cue colour override');
+      }
     },
   },
 });
