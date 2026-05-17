@@ -5,12 +5,6 @@ import type { Show } from '@/types/api/show';
 import type { SystemSettings } from '@/types/api/settings';
 import { useUserStore } from '@/stores/user';
 
-// ScriptMode moves to stores/show.ts in Phase 6
-interface ScriptMode {
-  value: number;
-  text: string;
-}
-
 interface ConnectedSession {
   internal_id: string;
   remote_ip: string;
@@ -51,7 +45,6 @@ export const useSystemStore = defineStore('system', {
     rbacRoles: [] as RbacRole[],
     settingsCategories: {} as Record<string, unknown>,
     currentShow: null as Show | null,
-    scriptModes: [] as ScriptMode[],
     connectedSessions: [] as ConnectedSession[],
     versionStatus: null as VersionStatus | null,
   }),
@@ -204,15 +197,6 @@ export const useSystemStore = defineStore('system', {
         this.settingsCategories = data.categories;
       } else {
         log.error('Unable to fetch settings categories');
-      }
-    },
-    async getScriptModes() {
-      const response = await fetch(makeURL('/api/v1/show/script_modes'));
-      if (response.ok) {
-        const data = await response.json();
-        this.scriptModes = data.script_modes ?? [];
-      } else {
-        log.error('Unable to fetch script modes');
       }
     },
     async getConnectedSessions() {

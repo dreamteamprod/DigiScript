@@ -39,7 +39,7 @@ const router = createRouter({
     },
     {
       path: '/show-config',
-      component: PlaceholderView,
+      component: () => import('@/views/show/ShowConfigView.vue'),
       meta: { requiresAuth: true, requiresShowAccess: true },
       children: [
         {

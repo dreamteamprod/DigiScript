@@ -117,11 +117,14 @@ import { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import { useSystemStore } from '@/stores/system';
+import { useShowStore } from '@/stores/show';
 import { toast } from '@/js/toast';
 import type { Show } from '@/types/api/show';
 
 const systemStore = useSystemStore();
-const { availableShows, scriptModes, currentShow } = storeToRefs(systemStore);
+const showStore = useShowStore();
+const { availableShows, currentShow } = storeToRefs(systemStore);
+const { scriptModes } = storeToRefs(showStore);
 
 const loaded = ref(false);
 const newShowModal = ref<InstanceType<typeof BModal>>();
@@ -248,7 +251,7 @@ async function loadShow(show: Show): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.all([systemStore.getAvailableShows(), systemStore.getScriptModes()]);
+  await Promise.all([systemStore.getAvailableShows(), showStore.getScriptModes()]);
   loaded.value = true;
 });
 </script>
