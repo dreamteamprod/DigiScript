@@ -86,11 +86,13 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { storeToRefs } from 'pinia';
 import { BModal } from 'bootstrap-vue-next';
 import { useUserStore } from '@/stores/user';
+import { useConfirm } from '@/composables/useConfirm';
 import CreateUser from '@/components/user/CreateUser.vue';
 import ConfigRbac from '@/components/user/ConfigRbac.vue';
 import ResetPassword from '@/components/user/ResetPassword.vue';
 
 const userStore = useUserStore();
+const { confirm } = useConfirm();
 const { users, currentUser } = storeToRefs(userStore);
 
 const newUserModal = ref<InstanceType<typeof BModal>>();
@@ -127,7 +129,12 @@ function openResetPassword(user: { id: number; username: string }): void {
 }
 
 async function deleteUser(item: { id: number; username: string }): Promise<void> {
-  if (!window.confirm(`Are you sure you want to delete ${item.username}?`)) return;
+  const confirmed = await confirm(`Are you sure you want to delete ${item.username}?`, {
+    title: 'Delete User',
+    okVariant: 'danger',
+    okTitle: 'Delete',
+  });
+  if (!confirmed) return;
   await userStore.deleteUser(item.id);
 }
 

@@ -38,7 +38,10 @@ import { ref, onMounted } from 'vue';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import { toast } from '@/js/toast';
+import { useConfirm } from '@/composables/useConfirm';
 import type { BackupFile, BackupsResponse } from '@/types/api/backup';
+
+const { confirm } = useConfirm();
 
 const loading = ref(true);
 const isDeleting = ref(false);
@@ -70,12 +73,11 @@ async function fetchBackups(): Promise<void> {
 }
 
 async function deleteBackup(backup: BackupFile): Promise<void> {
-  if (
-    !window.confirm(
-      `Are you sure you want to permanently delete "${backup.filename}"? This cannot be undone.`
-    )
-  )
-    return;
+  const confirmed = await confirm(
+    `Are you sure you want to permanently delete "${backup.filename}"? This cannot be undone.`,
+    { title: 'Delete Backup', okVariant: 'danger', okTitle: 'Delete' }
+  );
+  if (!confirmed) return;
 
   isDeleting.value = true;
   try {

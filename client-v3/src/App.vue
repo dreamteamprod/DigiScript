@@ -133,6 +133,8 @@
     </template>
     <RouterView v-else />
 
+    <ConfirmDialog />
+
     <BModal
       ref="goToPageModal"
       title="Go to Page"
@@ -171,6 +173,8 @@ import { useVuelidate } from '@vuelidate/core';
 import { required, minValue } from '@vuelidate/validators';
 import log from 'loglevel';
 import { toast } from '@/js/toast';
+import { useConfirm } from '@/composables/useConfirm';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useUserStore } from '@/stores/user';
 import { useSystemStore } from '@/stores/system';
 import { useWebSocketStore } from '@/stores/websocket';
@@ -187,6 +191,7 @@ const { websocketHealthy } = storeToRefs(wsStore);
 const { currentShow, settings } = storeToRefs(systemStore);
 
 const { sendObj, connect } = useWebSocket();
+const { confirm } = useConfirm();
 
 const isElectronEnv = ref(false);
 
@@ -259,7 +264,11 @@ async function awaitWSConnect(): Promise<void> {
 
 async function stopShowSession(): Promise<void> {
   stoppingSession.value = true;
-  const confirmed = window.confirm('Are you sure you want to stop the show?');
+  const confirmed = await confirm('Are you sure you want to stop the show?', {
+    title: 'Stop Show',
+    okVariant: 'danger',
+    okTitle: 'Stop Show',
+  });
   if (confirmed) {
     const response = await fetch(makeURL('/api/v1/show/sessions/stop'), {
       method: 'POST',
@@ -281,7 +290,11 @@ async function startShowSession(): Promise<void> {
     return;
   }
   startingSession.value = true;
-  const confirmed = window.confirm('Are you sure you want to start a show?');
+  const confirmed = await confirm('Are you sure you want to start a show?', {
+    title: 'Start Show',
+    okVariant: 'success',
+    okTitle: 'Start Show',
+  });
   if (confirmed) {
     const response = await fetch(makeURL('/api/v1/show/sessions/start'), {
       method: 'POST',
@@ -299,7 +312,11 @@ async function startShowSession(): Promise<void> {
 }
 
 async function reloadClients(): Promise<void> {
-  const confirmed = window.confirm('Are you sure you want to reload all connected clients?');
+  const confirmed = await confirm('Are you sure you want to reload all connected clients?', {
+    title: 'Reload Clients',
+    okVariant: 'warning',
+    okTitle: 'Reload All',
+  });
   if (confirmed) {
     sendObj({ OP: 'RELOAD_CLIENTS', DATA: {} });
   }
