@@ -5,6 +5,29 @@ import type { Show } from '@/types/api/show';
 import type { SystemSettings } from '@/types/api/settings';
 import { useUserStore } from '@/stores/user';
 
+// ScriptMode moves to stores/show.ts in Phase 6
+interface ScriptMode {
+  value: number;
+  text: string;
+}
+
+interface ConnectedSession {
+  internal_id: string;
+  remote_ip: string;
+  is_editor: boolean;
+  last_ping: string | null;
+  last_pong: string | null;
+}
+
+interface VersionStatus {
+  current_version: string | null;
+  latest_version: string | null;
+  update_available: boolean;
+  release_url: string | null;
+  last_checked: string | null;
+  check_error: string | null;
+}
+
 interface RbacRole {
   key: string;
   value: number;
@@ -28,6 +51,9 @@ export const useSystemStore = defineStore('system', {
     rbacRoles: [] as RbacRole[],
     settingsCategories: {} as Record<string, unknown>,
     currentShow: null as Show | null,
+    scriptModes: [] as ScriptMode[],
+    connectedSessions: [] as ConnectedSession[],
+    versionStatus: null as VersionStatus | null,
   }),
   getters: {
     isAdminUser(): boolean {
@@ -178,6 +204,43 @@ export const useSystemStore = defineStore('system', {
         this.settingsCategories = data.categories;
       } else {
         log.error('Unable to fetch settings categories');
+      }
+    },
+    async getScriptModes() {
+      const response = await fetch(makeURL('/api/v1/show/script_modes'));
+      if (response.ok) {
+        const data = await response.json();
+        this.scriptModes = data.script_modes ?? [];
+      } else {
+        log.error('Unable to fetch script modes');
+      }
+    },
+    async getConnectedSessions() {
+      const response = await fetch(makeURL('/api/v1/ws/sessions'));
+      if (response.ok) {
+        const data = await response.json();
+        this.connectedSessions = data.sessions ?? [];
+      } else {
+        log.error('Unable to fetch connected sessions');
+      }
+    },
+    async getVersionStatus() {
+      const response = await fetch(makeURL('/api/v1/version/status'));
+      if (response.ok) {
+        this.versionStatus = await response.json();
+      } else {
+        log.error('Unable to fetch version status');
+      }
+    },
+    async checkForUpdates() {
+      const response = await fetch(makeURL('/api/v1/version/check'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        this.versionStatus = await response.json();
+      } else {
+        log.error('Unable to check for updates');
       }
     },
   },
