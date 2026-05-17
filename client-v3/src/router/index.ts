@@ -81,7 +81,7 @@ const router = createRouter({
         {
           name: 'show-config-mics',
           path: 'mics',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigMics.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
