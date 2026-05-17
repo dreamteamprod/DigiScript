@@ -26,7 +26,7 @@
             class="tag-pill-small"
             :style="{
               backgroundColor: tag.colour,
-              color: contrastColor({ bgColor: tag.colour }),
+              color: contrastColor(tag.colour ?? '#ffffff'),
             }"
           >
             {{ tag.tag }}
@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { contrastColor } from 'contrast-color';
+import { contrastColor } from '@/js/utils';
 import log from 'loglevel';
 import { useShowStore } from '@/stores/show';
 

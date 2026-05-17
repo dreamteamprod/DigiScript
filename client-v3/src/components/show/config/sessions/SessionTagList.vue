@@ -21,7 +21,7 @@
           class="tag-pill"
           :style="{
             backgroundColor: data.item.colour,
-            color: contrastColor({ bgColor: data.item.colour }),
+            color: contrastColor(data.item.colour ?? '#ffffff'),
           }"
         >
           {{ data.item.tag }}
@@ -80,7 +80,7 @@
             class="tag-pill"
             :style="{
               backgroundColor: newFormState.colour,
-              color: contrastColor({ bgColor: newFormState.colour }),
+              color: contrastColor(newFormState.colour),
             }"
           >
             {{ newFormState.tag || 'Tag Name' }}
@@ -124,7 +124,7 @@
             class="tag-pill"
             :style="{
               backgroundColor: editFormState.colour,
-              color: contrastColor({ bgColor: editFormState.colour }),
+              color: contrastColor(editFormState.colour),
             }"
           >
             {{ editFormState.tag || 'Tag Name' }}
@@ -162,7 +162,7 @@
                   class="tag-pill"
                   :style="{
                     backgroundColor: data.item.colour,
-                    color: contrastColor({ bgColor: data.item.colour }),
+                    color: contrastColor(data.item.colour ?? '#ffffff'),
                   }"
                 >
                   {{ data.item.tag }}
@@ -193,7 +193,7 @@ import { ref, computed } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required, helpers } from '@vuelidate/validators';
 import { BModal } from 'bootstrap-vue-next';
-import { contrastColor } from 'contrast-color';
+import { contrastColor } from '@/js/utils';
 import log from 'loglevel';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';

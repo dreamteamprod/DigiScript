@@ -720,7 +720,8 @@ export const useShowStore = defineStore('show', {
     async getScriptRevisions(): Promise<void> {
       const response = await fetch(makeURL('/api/v1/show/script/revisions'));
       if (response.ok) {
-        this.scriptRevisions = await response.json();
+        const data = await response.json();
+        this.scriptRevisions = data.revisions ?? [];
       } else {
         log.error('Unable to get script revisions');
       }

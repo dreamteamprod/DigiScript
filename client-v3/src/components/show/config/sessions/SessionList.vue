@@ -40,7 +40,7 @@
                   class="tag-pill"
                   :style="{
                     backgroundColor: tag.colour,
-                    color: contrastColor({ bgColor: tag.colour }),
+                    color: contrastColor(tag.colour ?? '#ffffff'),
                   }"
                 >
                   {{ tag.tag }}
@@ -61,9 +61,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { contrastColor } from 'contrast-color';
 import log from 'loglevel';
-import { makeURL, msToTimerString } from '@/js/utils';
+import { makeURL, msToTimerString, contrastColor } from '@/js/utils';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { toast } from '@/js/toast';

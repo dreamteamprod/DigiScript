@@ -1,4 +1,4 @@
-import { contrastColor } from 'contrast-color';
+import { contrastColor } from '@/js/utils';
 import { useShowStore } from '@/stores/show';
 import { useUserStore } from '@/stores/user';
 import type { Cue } from '@/types/api/cues';
