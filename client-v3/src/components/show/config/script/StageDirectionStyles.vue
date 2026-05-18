@@ -385,7 +385,7 @@ async function importStyle(item: any): Promise<void> {
   }
 }
 
-// Inline style form sub-component
+// Inline style form sub-component using native Bootstrap HTML to avoid component import complexity
 const StyleForm = defineComponent({
   props: { modelValue: { type: Object, required: true } },
   emits: ['update:modelValue'],
@@ -395,23 +395,114 @@ const StyleForm = defineComponent({
     }
     return () => {
       const form = props.modelValue as StyleForm;
+      const previewStyle = formExampleCss(form);
+      const previewText = formatExampleText({
+        text_format: form.textFormat,
+        bold: form.bold,
+        italic: form.italic,
+        underline: form.underline,
+        text_colour: form.textColour,
+        enable_background_colour: form.enableBackgroundColour,
+        background_colour: form.backgroundColour,
+      });
       return h('div', [
         h('div', { class: 'mb-3' }, [
           h('h4', 'Example Stage Direction'),
+          h('i', { class: 'example-stage-direction', style: previewStyle }, previewText),
+        ]),
+        h('div', { class: 'mb-3' }, [
+          h('label', { class: 'form-label' }, 'Description'),
+          h('input', {
+            class: 'form-control',
+            type: 'text',
+            value: form.description,
+            onInput: (e: Event) => update('description', (e.target as HTMLInputElement).value),
+          }),
+        ]),
+        h('div', { class: 'mb-3' }, [
+          h('label', { class: 'form-label d-block' }, 'Default Styles'),
+          h('div', { class: 'btn-group' }, [
+            h(
+              'button',
+              {
+                class: ['btn', form.bold ? 'btn-primary' : 'btn-outline-primary'],
+                type: 'button',
+                onClick: () => update('bold', !form.bold),
+              },
+              'Bold'
+            ),
+            h(
+              'button',
+              {
+                class: ['btn', form.italic ? 'btn-primary' : 'btn-outline-primary'],
+                type: 'button',
+                onClick: () => update('italic', !form.italic),
+              },
+              'Italic'
+            ),
+            h(
+              'button',
+              {
+                class: ['btn', form.underline ? 'btn-primary' : 'btn-outline-primary'],
+                type: 'button',
+                onClick: () => update('underline', !form.underline),
+              },
+              'Underline'
+            ),
+          ]),
+        ]),
+        h('div', { class: 'mb-3' }, [
+          h('label', { class: 'form-label' }, 'Default Text Format'),
           h(
-            'i',
-            { class: 'example-stage-direction', style: formExampleCss(form) },
-            formatExampleText({
-              text_format: form.textFormat,
-              bold: form.bold,
-              italic: form.italic,
-              underline: form.underline,
-              text_colour: form.textColour,
-              enable_background_colour: form.enableBackgroundColour,
-              background_colour: form.backgroundColour,
-            })
+            'select',
+            {
+              class: 'form-select',
+              value: form.textFormat,
+              onChange: (e: Event) => update('textFormat', (e.target as HTMLSelectElement).value),
+            },
+            [
+              h('option', { value: 'default' }, 'Default'),
+              h('option', { value: 'upper' }, 'Uppercase'),
+              h('option', { value: 'lower' }, 'Lowercase'),
+            ]
           ),
         ]),
+        h('div', { class: 'mb-3' }, [
+          h('label', { class: 'form-label' }, 'Text Colour'),
+          h('input', {
+            class: 'form-control form-control-color',
+            type: 'color',
+            value: form.textColour,
+            onInput: (e: Event) => update('textColour', (e.target as HTMLInputElement).value),
+          }),
+        ]),
+        h('div', { class: 'mb-3 form-check form-switch' }, [
+          h('input', {
+            class: 'form-check-input',
+            type: 'checkbox',
+            id: 'style-bg-enable',
+            checked: form.enableBackgroundColour,
+            onChange: (e: Event) =>
+              update('enableBackgroundColour', (e.target as HTMLInputElement).checked),
+          }),
+          h(
+            'label',
+            { class: 'form-check-label', for: 'style-bg-enable' },
+            'Enable Background Colour'
+          ),
+        ]),
+        form.enableBackgroundColour
+          ? h('div', { class: 'mb-3' }, [
+              h('label', { class: 'form-label' }, 'Background Colour'),
+              h('input', {
+                class: 'form-control form-control-color',
+                type: 'color',
+                value: form.backgroundColour,
+                onInput: (e: Event) =>
+                  update('backgroundColour', (e.target as HTMLInputElement).value),
+              }),
+            ])
+          : null,
       ]);
     };
   },

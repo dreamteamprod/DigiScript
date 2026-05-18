@@ -69,7 +69,9 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
 
   actions: {
     addPage(page: number, contents: ScriptLine[]): void {
-      this.tmpScript[String(page)] = structuredClone(contents);
+      // JSON round-trip instead of structuredClone — reactive Pinia arrays (Proxy objects)
+      // cannot be structuredCloned in some environments.
+      this.tmpScript[String(page)] = JSON.parse(JSON.stringify(contents));
       if (!this.deletedLines[String(page)]) this.deletedLines[String(page)] = [];
       if (!this.insertedLines[String(page)]) this.insertedLines[String(page)] = [];
     },
@@ -81,7 +83,7 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     },
 
     addBlankLine(page: number, line: ScriptLine): void {
-      const l = structuredClone(line);
+      const l = JSON.parse(JSON.stringify(line));
       l.page = page;
       this.tmpScript[String(page)].push(l);
     },
@@ -89,13 +91,13 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     insertBlankLine(page: number, lineIndex: number, line: ScriptLine): void {
       const pageStr = String(page);
       if (this.deletedLines[pageStr]?.includes(lineIndex)) {
-        const l = structuredClone(line);
+        const l = JSON.parse(JSON.stringify(line));
         l.page = page;
         l.id = this.tmpScript[pageStr][lineIndex].id;
         this.tmpScript[pageStr].splice(lineIndex, 1, l);
         this.deletedLines[pageStr].splice(this.deletedLines[pageStr].indexOf(lineIndex), 1);
       } else {
-        const l = structuredClone(line);
+        const l = JSON.parse(JSON.stringify(line));
         l.page = page;
         this.tmpScript[pageStr].splice(lineIndex, 0, l);
         if (!this.insertedLines[pageStr]) this.insertedLines[pageStr] = [];
@@ -144,8 +146,8 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       if (response.ok) {
         const data = await response.json();
         this.editStatus = {
-          canRequestEdit: data.can_request_edit,
-          currentEditor: data.current_editor,
+          canRequestEdit: data.canRequestEdit,
+          currentEditor: data.currentEditor,
         };
       } else {
         log.error('Unable to get script config status');

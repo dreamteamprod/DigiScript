@@ -349,6 +349,7 @@ async function stopEditing(): Promise<void> {
   linePartCuts.value = [...scriptStore.cuts];
   sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
   scriptConfigStore.setCutMode(false);
+  await loadPage(currentPage.value);
 }
 
 async function loadPage(page: number): Promise<void> {
