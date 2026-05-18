@@ -57,7 +57,7 @@ const router = createRouter({
         {
           name: 'show-config-stage',
           path: 'stage',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigStage.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
