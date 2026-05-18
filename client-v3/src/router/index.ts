@@ -107,8 +107,8 @@ const router = createRouter({
     {
       path: '/live',
       name: 'live',
-      component: PlaceholderView,
-      meta: { requiresAuth: false },
+      component: () => import('@/views/show/ShowLiveView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/me',

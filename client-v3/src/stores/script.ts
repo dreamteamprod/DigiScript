@@ -8,6 +8,7 @@ import type {
   CompiledScript,
   ScriptCut,
 } from '@/types/api/script';
+import type { Cue } from '@/types/api/cues';
 
 export const useScriptStore = defineStore('script', {
   state: () => ({
@@ -16,6 +17,7 @@ export const useScriptStore = defineStore('script', {
     compiledScripts: [] as CompiledScript[],
     cuts: [] as ScriptCut[],
     maxPage: 1,
+    cues: {} as Record<string, Cue[]>,
   }),
 
   getters: {
@@ -27,6 +29,10 @@ export const useScriptStore = defineStore('script', {
       (state) =>
       (id: number | null): StageDirectionStyle | null =>
         id != null ? (state.stageDirectionStyles.find((s) => s.id === id) ?? null) : null,
+    cuesForLine:
+      (state) =>
+      (lineId: number | null): Cue[] =>
+        lineId != null ? (state.cues[String(lineId)] ?? []) : [],
   },
 
   actions: {
@@ -193,6 +199,30 @@ export const useScriptStore = defineStore('script', {
 
     clearScript(): void {
       this.script = {};
+    },
+
+    async loadCues(): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/cues'));
+      if (response.ok) {
+        const data = await response.json();
+        this.cues = data.cues as Record<string, Cue[]>;
+      } else {
+        log.error('Unable to load cues');
+      }
+    },
+
+    async addNewCue(cue: { cueType: number; ident: string; lineId: number }): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/cues'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cue),
+      });
+      if (response.ok) {
+        await this.loadCues();
+        toast.success('Added new cue!');
+      } else {
+        toast.error('Unable to add new cue');
+      }
     },
   },
 });
