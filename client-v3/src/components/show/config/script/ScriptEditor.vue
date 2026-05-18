@@ -63,7 +63,6 @@
         <BCol cols="1" />
       </BRow>
     </div>
-    <hr />
     <BRow class="script-row">
       <BCol cols="12">
         <template
