@@ -9,6 +9,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+// Map V2's --body-background variable to Bootstrap 5's equivalent
+:root {
+  --body-background: var(--bs-body-bg);
+}
+
 // BVN's BFormGroup renders .b-form-group; Bootstrap 5 dropped .form-group's built-in margin
 .b-form-group {
   margin-bottom: 1rem;

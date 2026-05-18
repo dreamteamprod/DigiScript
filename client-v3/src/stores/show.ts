@@ -34,6 +34,7 @@ export const useShowStore = defineStore('show', {
     scriptModes: [] as ScriptMode[],
     sessionTags: [] as SessionTag[],
     scriptRevisions: [] as ScriptRevision[],
+    currentRevision: null as number | null,
     stageManagerMode: false,
   }),
 
@@ -722,9 +723,63 @@ export const useShowStore = defineStore('show', {
       if (response.ok) {
         const data = await response.json();
         this.scriptRevisions = data.revisions ?? [];
+        this.currentRevision = data.current_revision ?? null;
       } else {
         log.error('Unable to get script revisions');
       }
+    },
+
+    async addScriptRevision(payload: {
+      description: string;
+      parent_revision_id?: number | null;
+      set_as_current?: boolean | null;
+    }): Promise<void> {
+      const body: Record<string, unknown> = { description: payload.description };
+      if (payload.parent_revision_id != null) body.parent_revision_id = payload.parent_revision_id;
+      if (payload.set_as_current != null) body.set_as_current = payload.set_as_current;
+      const response = await fetch(makeURL('/api/v1/show/script/revisions'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (response.ok) {
+        await this.getScriptRevisions();
+        toast.success('Added new script revision!');
+      } else {
+        toast.error('Unable to add new script revision');
+      }
+    },
+
+    async deleteScriptRevision(revisionId: number): Promise<void> {
+      const params = new URLSearchParams({ rev_id: String(revisionId) });
+      const response = await fetch(`${makeURL('/api/v1/show/script/revisions')}?${params}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        await this.getScriptRevisions();
+        toast.success('Deleted script revision!');
+      } else {
+        toast.error('Unable to delete script revision');
+      }
+    },
+
+    async loadScriptRevision(revisionId: number): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/script/revisions/current'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_rev_id: revisionId }),
+      });
+      if (response.ok) {
+        await this.getScriptRevisions();
+        toast.success('Loaded script revision!');
+      } else {
+        toast.error('Unable to load script revision');
+      }
+    },
+
+    async scriptRevisionChanged(): Promise<void> {
+      await this.getScriptRevisions();
     },
 
     clearCurrentShow(): void {
@@ -734,6 +789,7 @@ export const useShowStore = defineStore('show', {
       this.sceneList = [];
       this.sessionTags = [];
       this.scriptRevisions = [];
+      this.currentRevision = null;
     },
 
     // WS-triggered actions
