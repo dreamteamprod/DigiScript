@@ -5,7 +5,7 @@
       toggleable="lg"
       variant="info"
       data-bs-theme="dark"
-      :sticky="true"
+      class="sticky-top"
     >
       <BNavbarBrand to="/"> DigiScript </BNavbarBrand>
       <BNavbarToggle target="nav-collapse" />
