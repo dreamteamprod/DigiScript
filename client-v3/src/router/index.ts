@@ -87,13 +87,13 @@ const router = createRouter({
         {
           name: 'show-config-script',
           path: 'script',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigScript.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
           name: 'show-config-script-revisions',
           path: 'script-revisions',
-          component: PlaceholderView,
+          component: () => import('@/views/show/config/ConfigScriptRevisions.vue'),
           meta: { requiresAuth: true, requiresShowAccess: true },
         },
         {
