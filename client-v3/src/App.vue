@@ -166,7 +166,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import type { BModal } from 'bootstrap-vue-next';
 import { useVuelidate } from '@vuelidate/core';
@@ -177,14 +177,17 @@ import { useConfirm } from '@/composables/useConfirm';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useUserStore } from '@/stores/user';
 import { useSystemStore } from '@/stores/system';
+import { useShowStore } from '@/stores/show';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { makeURL } from '@/js/utils';
 import { isElectron } from '@/js/platform';
 
 const route = useRoute();
+const router = useRouter();
 const userStore = useUserStore();
 const systemStore = useSystemStore();
+const showStore = useShowStore();
 const wsStore = useWebSocketStore();
 
 const { websocketHealthy } = storeToRefs(wsStore);
@@ -203,8 +206,7 @@ const changingPage = ref(false);
 const serverConnectionName = ref('Server');
 const goToPageModal = ref<InstanceType<typeof BModal>>();
 
-// Show session — populated in Phase 6 via show store; null until then
-const currentShowSession = computed(() => null);
+const currentShowSession = computed(() => showStore.currentSession);
 
 // Jump-to-page form
 const pageInputState = ref({ pageNo: 1 });
@@ -255,6 +257,12 @@ async function awaitWSConnect(): Promise<void> {
     if (userStore.authToken) {
       await userStore.getCurrentUser();
       await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);
+    }
+    if (systemStore.currentShow != null) {
+      await showStore.getShowSessionData();
+      if (showStore.currentSession != null && route.path !== '/live') {
+        await router.push('/live');
+      }
     }
     loaded.value = true;
   } else {
