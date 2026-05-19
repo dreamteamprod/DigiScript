@@ -135,7 +135,7 @@
                 class="cue-button"
                 :style="{
                   backgroundColor: cueBackgroundColour(cue),
-                  color: contrastColor({ bgColor: cueBackgroundColour(cue) }),
+                  color: contrastColor(cueBackgroundColour(cue)),
                 }"
               >
                 {{ cueLabel(cue) }}
@@ -160,7 +160,7 @@
                 class="cue-button"
                 :style="{
                   backgroundColor: cueBackgroundColour(cue),
-                  color: contrastColor({ bgColor: cueBackgroundColour(cue) }),
+                  color: contrastColor(cueBackgroundColour(cue)),
                 }"
               >
                 {{ cueLabel(cue) }}
