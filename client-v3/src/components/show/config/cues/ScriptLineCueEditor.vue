@@ -34,16 +34,16 @@
               >
                 {{ cueLabel(cue) }}
               </BButton>
+              <BButton
+                v-if="systemStore.isCueEditor"
+                variant="success"
+                class="cue-button add-cue-button"
+                :disabled="isLineCut"
+                @click.stop="openNewForm"
+              >
+                +
+              </BButton>
             </BButtonGroup>
-            <BButton
-              v-if="systemStore.isCueEditor"
-              variant="success"
-              class="cue-button ms-1"
-              :disabled="isLineCut"
-              @click.stop="openNewForm"
-            >
-              +
-            </BButton>
           </template>
         </BCol>
 
@@ -469,12 +469,21 @@ async function deleteCue(): Promise<void> {
 }
 
 .cue-column {
-  border-right: 0.1rem solid #3498db;
   text-align: right;
 }
 
 .cue-button {
   padding: 0.2rem;
+}
+
+.add-cue-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .stage-direction {
