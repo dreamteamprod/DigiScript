@@ -1,3 +1,8 @@
+// Match V2 Bootswatch darkly (Bootstrap 4) base font size of 15px.
+// Bootstrap 5 darkly drops this override and defaults to 1rem (16px),
+// making every rem-based size ~6.7% larger and reducing visible content.
+$font-size-base: 0.9375rem;
+
 @import '../../../node_modules/bootswatch/dist/darkly/variables';
 @import 'bootstrap/scss/bootstrap';
 @import '../../../node_modules/bootswatch/dist/darkly/bootswatch';
