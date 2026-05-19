@@ -15,7 +15,7 @@
               variant="outline-success"
               @click="newModal?.show()"
             >
-              Add Crew Member
+              New Crew Member
             </BButton>
           </template>
           <template #cell(btn)="data">

@@ -24,14 +24,15 @@ import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useSystemStore } from '@/stores/system';
 import { useUserStore } from '@/stores/user';
+import { useShowStore } from '@/stores/show';
 
 const systemStore = useSystemStore();
 const userStore = useUserStore();
+const showStore = useShowStore();
 
 const { currentShow, settings } = storeToRefs(systemStore);
 
-// Stub until Phase 6 wires in the show store
-const currentShowSession = computed(() => null);
+const currentShowSession = computed(() => showStore.currentSession);
 
 const isAdminUser = computed(() => userStore.currentUser?.is_admin ?? false);
 </script>

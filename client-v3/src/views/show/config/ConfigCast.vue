@@ -142,7 +142,11 @@ const deletingCast = ref(false);
 const newCastModal = ref<InstanceType<typeof BModal>>();
 const editCastModal = ref<InstanceType<typeof BModal>>();
 
-const castFields = ['first_name', 'last_name', { key: 'btn', label: '' }];
+const castFields = [
+  { key: 'first_name', label: 'First Name' },
+  { key: 'last_name', label: 'Last Name' },
+  { key: 'btn', label: '' },
+];
 
 interface NewCastForm {
   firstName: string;

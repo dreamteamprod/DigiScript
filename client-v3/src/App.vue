@@ -63,6 +63,17 @@
               >
                 Jump To Page
               </BDropdownItem>
+              <BDropdownItemButton
+                :disabled="
+                  currentShowSession == null ||
+                  !websocketHealthy ||
+                  stoppingSession ||
+                  startingSession
+                "
+                @click.stop.prevent="showStore.stageManagerMode = !showStore.stageManagerMode"
+              >
+                {{ showStore.stageManagerMode ? 'Disable' : 'Enable' }} Stage Manager
+              </BDropdownItemButton>
             </BNavItemDropdown>
           </template>
           <BNavItem
@@ -129,6 +140,11 @@
             <b>To get started, please create an admin user!</b>
           </BCol>
         </BRow>
+        <BRow class="mt-3">
+          <BCol>
+            <CreateUser :is-first-admin="true" />
+          </BCol>
+        </BRow>
       </BContainer>
     </template>
     <RouterView v-else />
@@ -166,7 +182,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import type { BModal } from 'bootstrap-vue-next';
 import { useVuelidate } from '@vuelidate/core';
@@ -175,16 +191,20 @@ import log from 'loglevel';
 import { toast } from '@/js/toast';
 import { useConfirm } from '@/composables/useConfirm';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import CreateUser from '@/components/user/CreateUser.vue';
 import { useUserStore } from '@/stores/user';
 import { useSystemStore } from '@/stores/system';
+import { useShowStore } from '@/stores/show';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { makeURL } from '@/js/utils';
 import { isElectron } from '@/js/platform';
 
 const route = useRoute();
+const router = useRouter();
 const userStore = useUserStore();
 const systemStore = useSystemStore();
+const showStore = useShowStore();
 const wsStore = useWebSocketStore();
 
 const { websocketHealthy } = storeToRefs(wsStore);
@@ -203,8 +223,7 @@ const changingPage = ref(false);
 const serverConnectionName = ref('Server');
 const goToPageModal = ref<InstanceType<typeof BModal>>();
 
-// Show session — populated in Phase 6 via show store; null until then
-const currentShowSession = computed(() => null);
+const currentShowSession = computed(() => showStore.currentSession);
 
 // Jump-to-page form
 const pageInputState = ref({ pageNo: 1 });
@@ -252,9 +271,16 @@ async function awaitWSConnect(): Promise<void> {
       clearTimeout(loadTimer);
       loadTimer = null;
     }
+    await systemStore.getRbacRoles();
     if (userStore.authToken) {
       await userStore.getCurrentUser();
       await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);
+    }
+    if (systemStore.currentShow != null) {
+      await showStore.getShowSessionData();
+      if (showStore.currentSession != null && router.currentRoute.value.path !== '/live') {
+        await router.push('/live');
+      }
     }
     loaded.value = true;
   } else {

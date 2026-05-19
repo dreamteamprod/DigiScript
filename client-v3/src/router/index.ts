@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { isElectron } from '@/js/platform';
 import HomeView from '@/views/HomeView.vue';
 import NotFoundView from '@/views/NotFoundView.vue';
-import PlaceholderView from '@/views/PlaceholderView.vue';
 
 const router = createRouter({
   history: createWebHistory('/ui-new/'),
@@ -107,7 +106,7 @@ const router = createRouter({
     {
       path: '/live',
       name: 'live',
-      component: PlaceholderView,
+      component: () => import('@/views/show/ShowLiveView.vue'),
       meta: { requiresAuth: false },
     },
     {
@@ -120,7 +119,7 @@ const router = createRouter({
       path: '/force-password-change',
       name: 'force-password-change',
       component: () => import('@/views/user/ForcePasswordChangeView.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, requiresPasswordChange: true },
     },
     {
       path: '/help',
@@ -149,7 +148,7 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   const { useSystemStore } = await import('@/stores/system');
   const { useUserStore } = await import('@/stores/user');
   const { toast } = await import('@/js/toast');
@@ -210,7 +209,7 @@ router.beforeEach(async (to) => {
   // Already logged in — don't show login page
   if (to.path === '/login' && isAuthenticated) {
     toast.info('You are already logged in');
-    return '/';
+    return from.fullPath === '/login' ? '/' : from.fullPath;
   }
 
   // Require auth
@@ -250,10 +249,17 @@ router.beforeEach(async (to) => {
     }
   }
 
-  // Live page requires an active show session
+  // Live page requires an active show session and a healthy WebSocket
   if (to.path === '/live') {
-    // Show session check added in Phase 6 when show store is available
-    // For now, allow navigation (the live page itself will handle the guard)
+    const { useShowStore } = await import('@/stores/show');
+    const { useWebSocketStore } = await import('@/stores/websocket');
+    const showStore = useShowStore();
+    const wsStore = useWebSocketStore();
+    await showStore.getShowSessionData();
+    if (!showStore.currentSession || !wsStore.websocketHealthy) {
+      toast.error('No active show session or connection issue');
+      return '/';
+    }
   }
 
   return undefined;

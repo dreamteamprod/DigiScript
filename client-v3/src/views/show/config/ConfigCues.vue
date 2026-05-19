@@ -60,7 +60,7 @@
             />
           </BTab>
           <BTab title="Cue Configuration">
-            <PlaceholderView />
+            <CueEditor />
           </BTab>
           <BTab title="Cue Counts">
             <CueCountStats />
@@ -222,7 +222,7 @@ import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
 import CueCountStats from '@/components/show/config/cues/CueCountStats.vue';
-import PlaceholderView from '@/views/PlaceholderView.vue';
+import CueEditor from '@/components/show/config/cues/CueEditor.vue';
 import type { CueType } from '@/types/api/cues';
 
 const systemStore = useSystemStore();

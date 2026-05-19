@@ -1,8 +1,8 @@
 <template>
-  <BTableSimple class="w-100">
+  <BTableSimple class="w-100 text-center">
     <BTbody>
       <BTr v-for="key in orderedKeys" :key="key">
-        <BTh>{{ key }}</BTh>
+        <BTh scope="row">{{ key }}</BTh>
         <BTd>{{ tableData[key] != null ? tableData[key] : 'N/A' }}</BTd>
       </BTr>
     </BTbody>

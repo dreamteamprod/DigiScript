@@ -1,3 +1,27 @@
+// Match V2 Bootswatch darkly (Bootstrap 4) base font size of 15px.
+// Bootstrap 5 darkly drops this override and defaults to 1rem (16px),
+// making every rem-based size ~6.7% larger and reducing visible content.
+$font-size-base: 0.9375rem;
+
+// Bootstrap 4 defaulted navbar horizontal padding to $spacer (1rem = 16px).
+// Bootstrap 5 changed this to null → 0px, making navbar content flush to edges.
+$navbar-padding-x: 1rem;
+
+// Bootstrap 4 default border-radius was .25rem (4px); Bootstrap 5 raised it to .375rem (6px).
+$border-radius: 0.25rem;
+$border-radius-sm: 0.2rem;
+$border-radius-lg: 0.3rem;
+
+// Bootstrap 4 table cell padding was .75rem; Bootstrap 5 reduced it to .5rem.
+$table-cell-padding-y: 0.75rem;
+$table-cell-padding-x: 0.75rem;
+
+// Bootstrap 4 dropdown item horizontal padding was 1.5rem; Bootstrap 5 reduced it to 1rem.
+$dropdown-item-padding-x: 1.5rem;
+
+// Bootstrap 4 links had no underline by default; Bootstrap 5 Reboot adds underline.
+$link-decoration: none;
+
 @import '../../../node_modules/bootswatch/dist/darkly/variables';
 @import 'bootstrap/scss/bootstrap';
 @import '../../../node_modules/bootswatch/dist/darkly/bootswatch';
@@ -17,4 +41,23 @@ body {
 // BVN's BFormGroup renders .b-form-group; Bootstrap 5 dropped .form-group's built-in margin
 .b-form-group {
   margin-bottom: 1rem;
+}
+
+// V2 App.vue had `nav a { font-weight: bold }` making navbar brand and links bold.
+// Scoped to .navbar so tab nav-links are unaffected (BV2 tabs aren't inside <nav>).
+.navbar .navbar-brand,
+.navbar .nav-link {
+  font-weight: bold;
+}
+
+// V2 dark.scss highlighted the active navbar route in the darkly primary (teal) colour.
+#nav-collapse a.router-link-active {
+  color: #00bc8c !important;
+}
+
+// Bootstrap 4 vertical pills were full-width block elements; Bootstrap 5 pills are inline.
+// Match V2's full-width centered tab pills in vertical layouts (e.g. User Settings).
+.nav-pills.flex-column .nav-link {
+  width: 100%;
+  text-align: center;
 }

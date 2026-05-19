@@ -77,13 +77,13 @@ async function handleMessage(msg: WsMessage): Promise<void> {
       settingsChangedToast();
       break;
     case 'START_SHOW':
-      if (router.currentRoute.value.path !== '/ui-new/live') {
-        router.push('/ui-new/live');
+      if (router.currentRoute.value.path !== '/live') {
+        router.push('/live');
       }
       break;
     case 'STOP_SHOW':
-      if (router.currentRoute.value.path !== '/ui-new/') {
-        router.push('/ui-new/');
+      if (router.currentRoute.value.path !== '/') {
+        router.push('/');
       }
       break;
     case 'RELOAD_CLIENT':
@@ -167,14 +167,22 @@ function connect(): void {
   log.debug('Connecting to WebSocket:', wsURL);
   ws = new WebSocket(wsURL);
 
-  ws.onopen = () => {
+  ws.onopen = async () => {
+    const wasErrored = errorCount > 0;
     wsStore.$patch({ isConnected: true });
-    if (errorCount > 0) {
+    if (wasErrored) {
       toast.success(
         `WebSocket reconnected after ${errorCount} attempt${errorCount > 1 ? 's' : ''}`
       );
     }
     log.info('WebSocket connected');
+    if (wasErrored) {
+      const { useShowStore } = await import('@/stores/show');
+      const showStore = useShowStore();
+      if (showStore.currentSession != null) {
+        await showStore.getShowSessionData();
+      }
+    }
   };
 
   ws.onmessage = (event: MessageEvent) => {
