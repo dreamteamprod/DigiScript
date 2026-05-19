@@ -224,5 +224,57 @@ export const useScriptStore = defineStore('script', {
         toast.error('Unable to add new cue');
       }
     },
+
+    async editCue(cue: {
+      cueId: number;
+      cueType: number;
+      ident: string;
+      lineId: number;
+    }): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/cues'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cue),
+      });
+      if (response.ok) {
+        await this.loadCues();
+        toast.success('Edited cue!');
+      } else {
+        toast.error('Unable to edit cue');
+      }
+    },
+
+    async deleteCue(cue: { cueId: number; lineId: number }): Promise<void> {
+      const params = new URLSearchParams({
+        cueId: String(cue.cueId),
+        lineId: String(cue.lineId),
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/cues')}?${params}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        await this.loadCues();
+        toast.success('Deleted cue!');
+      } else {
+        toast.error('Unable to delete cue');
+      }
+    },
+
+    async searchCues(payload: {
+      identifier: string;
+      cueTypeId: number;
+    }): Promise<Record<string, unknown>> {
+      const params = new URLSearchParams({
+        identifier: payload.identifier,
+        cue_type_id: String(payload.cueTypeId),
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/cues/search')}?${params}`);
+      if (response.ok) {
+        return response.json() as Promise<Record<string, unknown>>;
+      }
+      log.error('Unable to search for cue');
+      throw new Error('Cue search failed');
+    },
   },
 });
