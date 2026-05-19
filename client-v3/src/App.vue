@@ -63,6 +63,17 @@
               >
                 Jump To Page
               </BDropdownItem>
+              <BDropdownItemButton
+                :disabled="
+                  currentShowSession == null ||
+                  !websocketHealthy ||
+                  stoppingSession ||
+                  startingSession
+                "
+                @click.stop.prevent="showStore.stageManagerMode = !showStore.stageManagerMode"
+              >
+                {{ showStore.stageManagerMode ? 'Disable' : 'Enable' }} Stage Manager
+              </BDropdownItemButton>
             </BNavItemDropdown>
           </template>
           <BNavItem

@@ -140,16 +140,16 @@
               >
                 {{ cueLabel(cue) }}
               </BButton>
-              <BButton
-                v-if="cueAddMode"
-                variant="success"
-                class="cue-button"
-                :disabled="isLineCut"
-                @click.stop="addNewCue"
-              >
-                +
-              </BButton>
             </BButtonGroup>
+            <BButton
+              v-if="cueAddMode"
+              variant="success"
+              class="cue-button ms-1"
+              :disabled="isLineCut"
+              @click.stop="addNewCue"
+            >
+              +
+            </BButton>
           </BCol>
         </template>
         <template v-else>
@@ -166,16 +166,16 @@
               >
                 {{ cueLabel(cue) }}
               </BButton>
-              <BButton
-                v-if="cueAddMode"
-                variant="success"
-                class="cue-button"
-                :disabled="isLineCut"
-                @click.stop="addNewCue"
-              >
-                +
-              </BButton>
             </BButtonGroup>
+            <BButton
+              v-if="cueAddMode"
+              variant="success"
+              class="cue-button ms-1"
+              :disabled="isLineCut"
+              @click.stop="addNewCue"
+            >
+              +
+            </BButton>
           </BCol>
           <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
             <BCol>
@@ -293,7 +293,7 @@ const { cueLabel, cueBackgroundColour, contrastColor } = useCueDisplay();
 const lineContainer = ref<HTMLElement | null>(null);
 let observer: MutationObserver | null = null;
 
-const cuePositionRight = computed(() => userStore.userSettings?.cue_position_right ?? true);
+const cuePositionRight = computed(() => userStore.userSettings?.cue_position_right ?? false);
 
 const needsHeadings = computed(() =>
   computeNeedsHeadings(props.line, props.previousLine, props.cuts, scriptStore.getScriptPage)
@@ -312,9 +312,8 @@ const needsIntervalBanner = computed(() => {
     const idx = prevPage.indexOf(prev);
     prev = idx > 0 ? prevPage[idx - 1] : null;
   }
-  if (prev == null || prev.act_id === props.line.act_id) return false;
-  const prevAct = props.acts.find((a) => a.id === prev!.act_id);
-  return prevAct?.interval_after === true;
+  if (prev == null) return false;
+  return prev.act_id !== props.line.act_id;
 });
 
 const previousActLabel = computed(

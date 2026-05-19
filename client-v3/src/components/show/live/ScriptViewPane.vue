@@ -101,8 +101,14 @@
       :ok-disabled="intervalTimerLength === 0"
       ok-only
       ok-variant="success"
-      @show="resetIntervalState"
-      @hidden="resetIntervalState"
+      @show="
+        intervalModalOpen = true;
+        resetIntervalState();
+      "
+      @hidden="
+        intervalModalOpen = false;
+        resetIntervalState();
+      "
       @ok="startInterval"
     >
       <BContainer fluid class="mx-0">
@@ -160,7 +166,11 @@
       title="Add New Cue"
       size="md"
       :ok-disabled="v$.newCueFormState.$invalid || submittingNewCue"
-      @hidden="resetNewCueForm"
+      @show="newCueModalOpen = true"
+      @hidden="
+        newCueModalOpen = false;
+        resetNewCueForm();
+      "
       @ok="onSubmitNewCue"
     >
       <BForm @submit.stop.prevent="onSubmitNewCue">
@@ -258,6 +268,8 @@ const isScrollingProgrammatically = ref(false);
 
 // UI state
 const cueAddMode = ref(false);
+const intervalModalOpen = ref(false);
+const newCueModalOpen = ref(false);
 
 // Cue modal state
 const newCueFormState = ref({
@@ -521,7 +533,9 @@ function handleKeyNavigation(event: KeyboardEvent): void {
     !props.isScriptLeader ||
     !initialLoad.value ||
     isScrollingProgrammatically.value ||
-    props.intervalActive
+    props.intervalActive ||
+    intervalModalOpen.value ||
+    newCueModalOpen.value
   )
     return;
   event.preventDefault();
@@ -533,7 +547,9 @@ function handlePageNavigation(event: KeyboardEvent): void {
     !props.isScriptLeader ||
     !initialLoad.value ||
     isScrollingProgrammatically.value ||
-    props.intervalActive
+    props.intervalActive ||
+    intervalModalOpen.value ||
+    newCueModalOpen.value
   )
     return;
   event.preventDefault();
@@ -549,7 +565,9 @@ function handleWheelNavigation(event: WheelEvent): void {
     !props.isScriptLeader ||
     !initialLoad.value ||
     isScrollingProgrammatically.value ||
-    props.intervalActive
+    props.intervalActive ||
+    intervalModalOpen.value ||
+    newCueModalOpen.value
   )
     return;
   const scriptContainer = document.getElementById('script-container');
