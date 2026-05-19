@@ -2,6 +2,9 @@ import { defineStore } from 'pinia';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import { toast } from '@/js/toast';
+import type { ActiveToast } from 'vue-toast-notification';
+
+let noLeaderToast: ActiveToast | null = null;
 import { detectMicConflicts } from '@/js/micConflictUtils';
 import type { MicConflict, MicConflictResult } from '@/js/micConflictUtils';
 import type { Cast, Character, CharacterGroup, Act, Scene } from '@/types/api/show';
@@ -544,6 +547,10 @@ export const useShowStore = defineStore('show', {
         this.sessions = data.sessions;
         this.currentSession = data.current_session;
         this.currentInterval = data.current_interval;
+        if (this.currentSession?.client_internal_id != null) {
+          noLeaderToast?.dismiss();
+          noLeaderToast = null;
+        }
       } else {
         log.error('Unable to get show sessions');
       }
@@ -794,11 +801,17 @@ export const useShowStore = defineStore('show', {
 
     // WS-triggered actions
     async electedLeader(): Promise<void> {
+      noLeaderToast?.dismiss();
+      noLeaderToast = null;
       toast.info('You are now leader of the script - other clients will follow your view');
     },
     async noLeader(): Promise<void> {
       await this.getShowSessionData();
-      toast.warning('There is no script leader. Please scroll your own script!');
+      noLeaderToast?.dismiss();
+      noLeaderToast = toast.warning('There is no script leader. Please scroll your own script!', {
+        duration: 0,
+        dismissible: true,
+      });
     },
     scriptScroll(data: Record<string, unknown>): void {
       this.sessionFollowData = data;

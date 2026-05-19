@@ -140,6 +140,11 @@
             <b>To get started, please create an admin user!</b>
           </BCol>
         </BRow>
+        <BRow class="mt-3">
+          <BCol>
+            <CreateUser :is-first-admin="true" />
+          </BCol>
+        </BRow>
       </BContainer>
     </template>
     <RouterView v-else />
@@ -186,6 +191,7 @@ import log from 'loglevel';
 import { toast } from '@/js/toast';
 import { useConfirm } from '@/composables/useConfirm';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import CreateUser from '@/components/user/CreateUser.vue';
 import { useUserStore } from '@/stores/user';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
@@ -265,6 +271,7 @@ async function awaitWSConnect(): Promise<void> {
       clearTimeout(loadTimer);
       loadTimer = null;
     }
+    await systemStore.getRbacRoles();
     if (userStore.authToken) {
       await userStore.getCurrentUser();
       await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);

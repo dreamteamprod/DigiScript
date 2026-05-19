@@ -167,14 +167,22 @@ function connect(): void {
   log.debug('Connecting to WebSocket:', wsURL);
   ws = new WebSocket(wsURL);
 
-  ws.onopen = () => {
+  ws.onopen = async () => {
+    const wasErrored = errorCount > 0;
     wsStore.$patch({ isConnected: true });
-    if (errorCount > 0) {
+    if (wasErrored) {
       toast.success(
         `WebSocket reconnected after ${errorCount} attempt${errorCount > 1 ? 's' : ''}`
       );
     }
     log.info('WebSocket connected');
+    if (wasErrored) {
+      const { useShowStore } = await import('@/stores/show');
+      const showStore = useShowStore();
+      if (showStore.currentSession != null) {
+        await showStore.getShowSessionData();
+      }
+    }
   };
 
   ws.onmessage = (event: MessageEvent) => {

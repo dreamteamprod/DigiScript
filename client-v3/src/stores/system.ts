@@ -5,6 +5,7 @@ import { toast } from '@/js/toast';
 import type { Show } from '@/types/api/show';
 import type { SystemSettings } from '@/types/api/settings';
 import { useUserStore } from '@/stores/user';
+import router from '@/router';
 
 interface ConnectedSession {
   internal_id: string;
@@ -172,14 +173,21 @@ export const useSystemStore = defineStore('system', {
       await this.getRawSettings();
 
       if (this.settings.current_show) {
-        const response = await fetch(makeURL('/api/v1/show'));
-        if (response.ok) {
-          this.currentShow = await response.json();
-        } else {
-          log.error('Unable to fetch current show');
+        const currShowId = this.settings.current_show;
+        if (!this.currentShow || this.currentShow.id !== currShowId) {
+          const response = await fetch(makeURL('/api/v1/show'));
+          if (response.ok) {
+            this.currentShow = await response.json();
+          } else {
+            log.error('Unable to fetch current show');
+          }
         }
       } else {
         this.currentShow = null;
+        const currentPath = router.currentRoute.value.path;
+        if (currentPath.startsWith('/show-config') || currentPath.startsWith('/live')) {
+          router.push('/');
+        }
       }
     },
     async getShowDetails(): Promise<void> {
