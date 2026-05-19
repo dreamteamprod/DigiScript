@@ -77,13 +77,13 @@ async function handleMessage(msg: WsMessage): Promise<void> {
       settingsChangedToast();
       break;
     case 'START_SHOW':
-      if (router.currentRoute.value.path !== '/ui-new/live') {
-        router.push('/ui-new/live');
+      if (router.currentRoute.value.path !== '/live') {
+        router.push('/live');
       }
       break;
     case 'STOP_SHOW':
-      if (router.currentRoute.value.path !== '/ui-new/') {
-        router.push('/ui-new/');
+      if (router.currentRoute.value.path !== '/') {
+        router.push('/');
       }
       break;
     case 'RELOAD_CLIENT':
