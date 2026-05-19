@@ -260,8 +260,8 @@ async function awaitWSConnect(): Promise<void> {
     }
     if (systemStore.currentShow != null) {
       await showStore.getShowSessionData();
-      if (showStore.currentSession != null && route.path !== '/live') {
-        await router.push('/live');
+      if (showStore.currentSession != null && router.currentRoute.value.path !== '/ui-new/live') {
+        await router.push('/ui-new/live');
       }
     }
     loaded.value = true;
