@@ -102,6 +102,18 @@
                   :switch="true"
                 />
               </b-form-group>
+              <b-form-group
+                :label-cols="true"
+                label="Preferred UI Version"
+                label-for="preferred-ui-input"
+              >
+                <b-form-select
+                  id="preferred-ui-input"
+                  v-model="$v.editSettings.preferred_ui.$model"
+                  name="preferred-ui-input"
+                  :options="preferredUiOptions"
+                />
+              </b-form-group>
               <b-button-group size="md" style="float: right">
                 <b-button type="reset" variant="danger" :disabled="!$v.$anyDirty"> Reset </b-button>
                 <b-button type="submit" variant="primary" :disabled="!$v.$anyDirty || $v.$anyError">
@@ -141,6 +153,7 @@ export default defineComponent({
         console_log_level: 'WARN',
         character_mru_sort: false,
         character_combined_dropdown: false,
+        preferred_ui: null as string | null,
       },
       textAlignmentOptions: [
         { value: TEXT_ALIGNMENT.LEFT, text: 'Left' },
@@ -154,6 +167,11 @@ export default defineComponent({
         { value: 'WARN', text: 'WARN' },
         { value: 'ERROR', text: 'ERROR' },
         { value: 'SILENT', text: 'SILENT' },
+      ],
+      preferredUiOptions: [
+        { value: null, text: 'Use system default' },
+        { value: 'old', text: 'Classic UI' },
+        { value: 'new', text: 'New UI' },
       ],
       toggle: 0,
     };
@@ -184,6 +202,7 @@ export default defineComponent({
       console_log_level: { required },
       character_mru_sort: {},
       character_combined_dropdown: {},
+      preferred_ui: {},
     },
   },
   mounted(): void {

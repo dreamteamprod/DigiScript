@@ -23,7 +23,12 @@ def import_all_controllers():
 
 
 class RootController(BaseController):
-    def get(self, _path):
+    def get(self, path):
+        if not path:
+            default_ui = self.application.digi_settings.get("default_ui")
+            if default_ui == "new":
+                self.redirect("/ui-new/")
+                return
         if is_frozen():
             # In PyInstaller mode, use resource path
             full_path = get_resource_path(os.path.join("static", "index.html"))
