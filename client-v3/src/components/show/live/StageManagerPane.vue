@@ -24,11 +24,12 @@
         <BCardHeader class="p-2 scene-header" role="button" @click="toggleScene(scene.id)">
           <div class="d-flex justify-content-between align-items-center">
             <span class="scene-title">
-              <span class="me-1">{{ expandedScenes[scene.id] ? '▼' : '▶' }}</span>
+              <IMdiChevronDown v-if="expandedScenes[scene.id]" class="me-1" />
+              <IMdiChevronRight v-else class="me-1" />
               {{ getSceneDisplayName(scene) }}
             </span>
             <span class="scene-badges d-flex align-items-center gap-1">
-              <span v-if="pinnedScenes[scene.id]" title="Pinned">📌</span>
+              <IMdiPin v-if="pinnedScenes[scene.id]" title="Pinned" />
               <BBadge v-if="scene.id === currentSceneId" variant="success" pill>Current</BBadge>
               <BBadge v-else-if="scene.id === nextSceneId" variant="primary" pill>Next</BBadge>
             </span>
@@ -82,7 +83,7 @@
       <div v-if="smPlanScene">
         <BCard no-body class="mb-2">
           <BCardHeader class="p-2" role="button" @click="smPlanSet = !smPlanSet">
-            <span>{{ smPlanSet ? '▼' : '▶' }} Setting</span>
+            <IMdiChevronDown v-if="smPlanSet" /><IMdiChevronRight v-else /> Setting
           </BCardHeader>
           <BCollapse v-model="smPlanSet">
             <BCardBody class="p-2">
@@ -130,7 +131,7 @@
         </BCard>
         <BCard no-body class="mb-2">
           <BCardHeader class="p-2" role="button" @click="smPlanStrike = !smPlanStrike">
-            <span>{{ smPlanStrike ? '▼' : '▶' }} Striking</span>
+            <IMdiChevronDown v-if="smPlanStrike" /><IMdiChevronRight v-else /> Striking
           </BCardHeader>
           <BCollapse v-model="smPlanStrike">
             <BCardBody class="p-2">

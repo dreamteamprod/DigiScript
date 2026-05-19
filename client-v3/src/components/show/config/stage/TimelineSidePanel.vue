@@ -97,7 +97,7 @@
         </div>
 
         <div v-if="conflicts.length > 0" class="conflicts-section">
-          <h6 class="section-header text-warning">⚠ Conflicts</h6>
+          <h6 class="section-header text-warning"><IMdiAlert /> Conflicts</h6>
           <div v-for="conflict in conflicts" :key="conflict.key" class="conflict-item small">
             <strong>{{ conflict.crewName }}</strong> has conflict in {{ conflict.sceneName }} ({{
               conflict.itemName
