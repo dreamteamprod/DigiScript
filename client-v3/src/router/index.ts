@@ -250,10 +250,17 @@ router.beforeEach(async (to) => {
     }
   }
 
-  // Live page requires an active show session
+  // Live page requires an active show session and a healthy WebSocket
   if (to.path === '/live') {
-    // Show session check added in Phase 6 when show store is available
-    // For now, allow navigation (the live page itself will handle the guard)
+    const { useShowStore } = await import('@/stores/show');
+    const { useWebSocketStore } = await import('@/stores/websocket');
+    const showStore = useShowStore();
+    const wsStore = useWebSocketStore();
+    await showStore.getShowSessionData();
+    if (!showStore.currentSession || !wsStore.websocketHealthy) {
+      toast.error('No active show session or connection issue');
+      return '/';
+    }
   }
 
   return undefined;

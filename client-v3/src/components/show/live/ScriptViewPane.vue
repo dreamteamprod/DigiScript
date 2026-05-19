@@ -21,7 +21,6 @@
               v-show="
                 !isWholeLineCut(line, scriptStore.cuts) && line.line_type !== LINE_TYPES.SPACING
               "
-              v-once
               :id="`page_${page}_line_${index}`"
               :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${scriptStore.cuesForLine(line.id).length}`"
               class="script-item"
@@ -55,7 +54,6 @@
               v-show="
                 !isWholeLineCut(line, scriptStore.cuts) && line.line_type !== LINE_TYPES.SPACING
               "
-              v-once
               :id="`page_${page}_line_${index}`"
               :key="`page_${page}_line_${index}_ADDMODE:${cueAddMode}_CUES:${scriptStore.cuesForLine(line.id).length}`"
               class="script-item"

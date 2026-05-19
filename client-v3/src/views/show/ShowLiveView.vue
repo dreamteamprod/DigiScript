@@ -225,4 +225,8 @@ onUnmounted(() => {
 .interval-overlay {
   padding: 2rem;
 }
+
+:deep(.default-theme.splitpanes .splitpanes__pane) {
+  background-color: var(--bs-body-bg);
+}
 </style>
