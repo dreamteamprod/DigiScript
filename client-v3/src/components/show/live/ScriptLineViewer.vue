@@ -142,6 +142,7 @@
               </BButton>
               <BButton
                 v-if="cueAddMode"
+                variant="success"
                 class="cue-button"
                 :disabled="isLineCut"
                 @click.stop="addNewCue"
@@ -167,6 +168,7 @@
               </BButton>
               <BButton
                 v-if="cueAddMode"
+                variant="success"
                 class="cue-button"
                 :disabled="isLineCut"
                 @click.stop="addNewCue"
