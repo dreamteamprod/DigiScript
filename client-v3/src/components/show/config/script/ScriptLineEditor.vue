@@ -63,7 +63,9 @@
         />
       </template>
       <BCol v-else cols="10" style="text-align: right">
-        <BButton v-b-tooltip.hover.top="'Add line part'" @click="addLinePart">+</BButton>
+        <BButton v-b-tooltip.hover.top="'Add line part'" @click="addLinePart"
+          ><IMdiPlusBox
+        /></BButton>
       </BCol>
     </template>
     <template v-else>

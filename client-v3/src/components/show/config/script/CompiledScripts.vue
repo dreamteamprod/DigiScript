@@ -4,9 +4,10 @@
       <template #cell(revision_id)="data">
         <span>
           {{ data.item.revision }}
-          <span v-if="data.item.revision_id === showStore.currentRevision" class="text-success ms-1"
-            >✓</span
-          >
+          <IMdiCheckboxMarked
+            v-if="data.item.revision_id === showStore.currentRevision"
+            style="color: #06bc8c; margin-left: 0.25rem"
+          />
         </span>
       </template>
       <template #cell(btn)="data">

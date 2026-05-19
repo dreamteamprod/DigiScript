@@ -29,7 +29,7 @@
           </BButton>
         </BButtonGroup>
         <BButton size="sm" variant="outline-secondary" title="Export as PNG" @click="handleExport">
-          ⬇ Export
+          <IMdiDownload /> Export
         </BButton>
       </div>
 

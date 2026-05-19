@@ -4,7 +4,7 @@
       <div class="panel-header">
         <h5>{{ itemName }}</h5>
         <BButton variant="link" size="sm" class="close-btn" @click="$emit('close')">
-          &#215;
+          <IMdiClose />
         </BButton>
       </div>
       <div class="panel-body">
@@ -23,7 +23,7 @@
                 :disabled="saving"
                 @click="removeAssignment(assignment)"
               >
-                &#215;
+                <IMdiClose />
               </BButton>
             </div>
           </div>
@@ -68,7 +68,7 @@
                 :disabled="saving"
                 @click="removeAssignment(assignment)"
               >
-                &#215;
+                <IMdiClose />
               </BButton>
             </div>
           </div>

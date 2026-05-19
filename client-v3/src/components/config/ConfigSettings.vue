@@ -25,7 +25,7 @@
                       {{ dirtyByCategory[String(category)] }}
                     </BBadge>
                   </span>
-                  <span>{{ expandedState[String(category)] ? '▲' : '▼' }}</span>
+                  <IMdiChevronUp v-if="expandedState[String(category)]" /><IMdiChevronDown v-else />
                 </div>
               </BCardHeader>
               <BCollapse

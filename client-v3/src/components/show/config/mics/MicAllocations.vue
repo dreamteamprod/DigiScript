@@ -101,12 +101,11 @@
                   :disabled="micSelectAllDisabledForCharacter(selectedMic, data.item.Character)"
                   @click.stop="toggleSelectAllAllocation(selectedMic, data.item.Character)"
                 >
-                  <span
+                  <IMdiCheckCircle
                     v-if="micSelectedAllForCharacter(selectedMic, data.item.Character)"
-                    class="text-success"
-                    >✓</span
-                  >
-                  <span v-else class="text-danger">✗</span>
+                    style="color: #06bc8c"
+                  />
+                  <IMdiCloseCircle v-else style="color: #e74c3c" />
                 </BButton>
               </div>
             </template>
@@ -119,12 +118,11 @@
                   :disabled="micDisabledForCharacter(selectedMic, scene.id, data.item.Character)"
                   @click.stop="toggleAllocation(selectedMic, scene.id, data.item.Character)"
                 >
-                  <span
+                  <IMdiCheckCircle
                     v-if="internalState[selectedMic]?.[scene.id] === data.item.Character"
-                    class="text-success"
-                    >✓</span
-                  >
-                  <span v-else class="text-danger">✗</span>
+                    style="color: #06bc8c"
+                  />
+                  <IMdiCloseCircle v-else style="color: #e74c3c" />
                 </BButton>
               </template>
               <template v-else>
@@ -135,11 +133,11 @@
                   :title="getTooltipText(data.item.Character, scene.id)"
                 >
                   {{ allocationByCharacter[data.item.Character]?.[scene.id] }}
-                  <span
+                  <IMdiAlert
                     v-if="getConflictsForCell(data.item.Character, scene.id).length > 0"
                     class="conflict-icon"
-                    >⚠</span
-                  >
+                    style="color: #f39c12"
+                  />
                 </div>
               </template>
             </template>

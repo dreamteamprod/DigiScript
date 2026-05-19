@@ -64,7 +64,7 @@
           style="margin-left: 0.5em; float: right"
           @click="$emit('add-line-part')"
         >
-          +
+          <IMdiPlusBox />
         </BButton>
       </BCol>
     </BRow>

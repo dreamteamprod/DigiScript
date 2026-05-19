@@ -148,7 +148,7 @@
               :disabled="isLineCut"
               @click.stop="addNewCue"
             >
-              +
+              <IMdiPlusBox />
             </BButton>
           </BCol>
         </template>
@@ -174,7 +174,7 @@
               :disabled="isLineCut"
               @click.stop="addNewCue"
             >
-              +
+              <IMdiPlusBox />
             </BButton>
           </BCol>
           <template v-if="line.line_type === LINE_TYPES.DIALOGUE">

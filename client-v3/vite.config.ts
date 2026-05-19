@@ -3,12 +3,19 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import Components from 'unplugin-vue-components/vite';
 import { BootstrapVueNextResolver } from 'bootstrap-vue-next';
+import Icons from 'unplugin-icons/vite';
+import IconsResolve from 'unplugin-icons/resolver';
 
 export default defineConfig({
   plugins: [
     vue(),
     Components({
-      resolvers: [BootstrapVueNextResolver()],
+      resolvers: [BootstrapVueNextResolver(), IconsResolve()],
+      dts: true,
+    }),
+    Icons({
+      compiler: 'vue3',
+      autoInstall: false,
     }),
   ],
   base: process.env.BUILD_TARGET === 'electron' ? './' : '/ui-new/',

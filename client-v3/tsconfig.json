@@ -22,7 +22,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vitest/globals", "node", "vite/client"],
+    "types": ["vitest/globals", "node", "vite/client", "unplugin-icons/types/vue"],
     "isolatedModules": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,

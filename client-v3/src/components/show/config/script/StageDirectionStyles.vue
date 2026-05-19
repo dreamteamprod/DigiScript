@@ -107,7 +107,7 @@
           <BCardHeader class="section-card-header" role="button" @click="toggleImportShow(show.id)">
             <div class="d-flex justify-content-between align-items-center">
               <span>{{ show.name }}</span>
-              <span>{{ styleGroupExpanded[show.id] ? '▲' : '▼' }}</span>
+              <IMdiChevronUp v-if="styleGroupExpanded[show.id]" /><IMdiChevronDown v-else />
             </div>
           </BCardHeader>
           <BCollapse :model-value="styleGroupExpanded[show.id]">
