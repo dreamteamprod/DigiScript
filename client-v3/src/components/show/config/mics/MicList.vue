@@ -15,7 +15,7 @@
               variant="outline-success"
               @click="newModal?.show()"
             >
-              Add Microphone
+              New Microphone
             </BButton>
           </template>
           <template #cell(btn)="data">
