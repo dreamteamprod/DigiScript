@@ -5,32 +5,8 @@
         <div class="d-flex justify-content-between align-items-center">
           <h6 class="mb-0">Revision Branch Graph</h6>
           <BButton size="sm" variant="secondary" @click="graphCollapsed = !graphCollapsed">
-            <svg
-              v-if="!graphCollapsed"
-              xmlns="http://www.w3.org/2000/svg"
-              width="1em"
-              height="1em"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M7.646 4.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 5.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z"
-              />
-            </svg>
-            <svg
-              v-else
-              xmlns="http://www.w3.org/2000/svg"
-              width="1em"
-              height="1em"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"
-              />
-            </svg>
+            <IMdiChevronUp v-if="!graphCollapsed" />
+            <IMdiChevronDown v-else />
           </BButton>
         </div>
       </template>
@@ -46,18 +22,10 @@
 
     <BTable :items="showStore.scriptRevisions" :fields="revisionColumns" show-empty>
       <template #cell(current)="data">
-        <svg
+        <IMdiCheckboxMarked
           v-if="data.item.id === showStore.currentRevision"
-          xmlns="http://www.w3.org/2000/svg"
-          width="1em"
-          height="1em"
-          fill="#06BC8C"
-          viewBox="0 0 16 16"
-        >
-          <path
-            d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.03 4.97a.75.75 0 0 1 .011 1.05l-3.992 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.75.75 0 0 1 1.079-.022z"
-          />
-        </svg>
+          style="color: #06bc8c"
+        />
         <BButton
           v-else-if="systemStore.isScriptEditor"
           variant="warning"

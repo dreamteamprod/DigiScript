@@ -35,7 +35,7 @@
             title="Export as PNG"
             @click="handleExport"
           >
-            &#8659;
+            <IMdiDownload />
           </BButton>
         </div>
         <div class="svg-container">

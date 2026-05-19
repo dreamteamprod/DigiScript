@@ -88,7 +88,7 @@
             cols="1"
             class="cue-add-column d-flex align-items-center justify-content-center"
           >
-            <BButton variant="success" size="sm" @click.stop="addNewCue">+</BButton>
+            <BButton variant="success" size="sm" @click.stop="addNewCue"><IMdiPlusBox /></BButton>
           </BCol>
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
@@ -113,7 +113,7 @@
             cols="1"
             class="cue-add-column d-flex align-items-center justify-content-center"
           >
-            <BButton variant="success" size="sm" @click.stop="addNewCue">+</BButton>
+            <BButton variant="success" size="sm" @click.stop="addNewCue"><IMdiPlusBox /></BButton>
           </BCol>
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
@@ -124,7 +124,7 @@
             cols="1"
             class="cue-add-column d-flex align-items-center justify-content-center"
           >
-            <BButton variant="success" size="sm" @click.stop="addNewCue">+</BButton>
+            <BButton variant="success" size="sm" @click.stop="addNewCue"><IMdiPlusBox /></BButton>
           </BCol>
         </template>
       </BRow>

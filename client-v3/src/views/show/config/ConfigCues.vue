@@ -177,7 +177,7 @@
           <BCardHeader style="cursor: pointer" @click="toggleImportShow(show.id)">
             <div class="d-flex justify-content-between align-items-center">
               <span>{{ show.name }}</span>
-              <span>{{ isExpanded[show.id] ? '▲' : '▼' }}</span>
+              <IMdiChevronUp v-if="isExpanded[show.id]" /><IMdiChevronDown v-else />
             </div>
           </BCardHeader>
           <BCollapse :model-value="isExpanded[show.id]">

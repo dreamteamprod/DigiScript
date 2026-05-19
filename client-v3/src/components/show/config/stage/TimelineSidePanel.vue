@@ -4,7 +4,7 @@
       <div class="panel-header">
         <h5>{{ itemName }}</h5>
         <BButton variant="link" size="sm" class="close-btn" @click="$emit('close')">
-          &#215;
+          <IMdiClose />
         </BButton>
       </div>
       <div class="panel-body">
@@ -23,7 +23,7 @@
                 :disabled="saving"
                 @click="removeAssignment(assignment)"
               >
-                &#215;
+                <IMdiClose />
               </BButton>
             </div>
           </div>
@@ -68,7 +68,7 @@
                 :disabled="saving"
                 @click="removeAssignment(assignment)"
               >
-                &#215;
+                <IMdiClose />
               </BButton>
             </div>
           </div>
@@ -97,7 +97,7 @@
         </div>
 
         <div v-if="conflicts.length > 0" class="conflicts-section">
-          <h6 class="section-header text-warning">⚠ Conflicts</h6>
+          <h6 class="section-header text-warning"><IMdiAlert /> Conflicts</h6>
           <div v-for="conflict in conflicts" :key="conflict.key" class="conflict-item small">
             <strong>{{ conflict.crewName }}</strong> has conflict in {{ conflict.sceneName }} ({{
               conflict.itemName

@@ -48,7 +48,7 @@
                 {{ currentSceneSceneryAllocations.length + currentScenePropsAllocations.length }}
               </BBadge>
             </span>
-            <span>{{ allocationsExpanded ? '▲' : '▼' }}</span>
+            <IMdiChevronUp v-if="allocationsExpanded" /><IMdiChevronDown v-else />
           </div>
         </BCardHeader>
         <BCollapse v-model="allocationsExpanded">
@@ -143,7 +143,7 @@
               <BBadge v-if="unassignedSetCount > 0" variant="warning">
                 {{ unassignedSetCount }} unassigned
               </BBadge>
-              <span>{{ setExpanded ? '▲' : '▼' }}</span>
+              <IMdiChevronUp v-if="setExpanded" /><IMdiChevronDown v-else />
             </span>
           </div>
         </BCardHeader>
@@ -173,7 +173,7 @@
                       :disabled="savingAssignment"
                       @click="removeCrewAssignment(assignment)"
                     >
-                      &#215;
+                      <IMdiClose />
                     </BButton>
                   </span>
                   <span
@@ -229,7 +229,7 @@
               <BBadge v-if="unassignedStrikeCount > 0" variant="warning">
                 {{ unassignedStrikeCount }} unassigned
               </BBadge>
-              <span>{{ strikeExpanded ? '▲' : '▼' }}</span>
+              <IMdiChevronUp v-if="strikeExpanded" /><IMdiChevronDown v-else />
             </span>
           </div>
         </BCardHeader>
@@ -263,7 +263,7 @@
                       :disabled="savingAssignment"
                       @click="removeCrewAssignment(assignment)"
                     >
-                      &#215;
+                      <IMdiClose />
                     </BButton>
                   </span>
                   <span

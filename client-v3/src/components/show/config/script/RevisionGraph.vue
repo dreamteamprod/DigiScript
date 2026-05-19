@@ -44,9 +44,15 @@
       </svg>
       <div class="zoom-controls">
         <BButtonGroup vertical>
-          <BButton size="sm" variant="outline-secondary" @click="zoomIn">+</BButton>
-          <BButton size="sm" variant="outline-secondary" @click="zoomOut">-</BButton>
-          <BButton size="sm" variant="outline-secondary" @click="resetZoom">↺</BButton>
+          <BButton size="sm" variant="outline-secondary" @click="zoomIn"
+            ><IMdiMagnifyPlus
+          /></BButton>
+          <BButton size="sm" variant="outline-secondary" @click="zoomOut"
+            ><IMdiMagnifyMinus
+          /></BButton>
+          <BButton size="sm" variant="outline-secondary" @click="resetZoom"
+            ><IMdiRefresh
+          /></BButton>
         </BButtonGroup>
       </div>
     </div>

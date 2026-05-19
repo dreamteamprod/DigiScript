@@ -7,7 +7,7 @@
       <div class="timeline-controls-bar">
         <span class="text-light small">Crew Assignments</span>
         <BButton size="sm" variant="outline-secondary" title="Export as PNG" @click="handleExport">
-          &#8659;
+          <IMdiDownload />
         </BButton>
       </div>
       <div class="svg-container">
