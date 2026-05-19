@@ -3,6 +3,10 @@
 // making every rem-based size ~6.7% larger and reducing visible content.
 $font-size-base: 0.9375rem;
 
+// Bootstrap 4 defaulted navbar horizontal padding to $spacer (1rem = 16px).
+// Bootstrap 5 changed this to null → 0px, making navbar content flush to edges.
+$navbar-padding-x: 1rem;
+
 @import '../../../node_modules/bootswatch/dist/darkly/variables';
 @import 'bootstrap/scss/bootstrap';
 @import '../../../node_modules/bootswatch/dist/darkly/bootswatch';
@@ -22,4 +26,11 @@ body {
 // BVN's BFormGroup renders .b-form-group; Bootstrap 5 dropped .form-group's built-in margin
 .b-form-group {
   margin-bottom: 1rem;
+}
+
+// V2 App.vue had `nav a { font-weight: bold }` making navbar brand and links bold.
+// Scoped to .navbar so tab nav-links are unaffected (BV2 tabs aren't inside <nav>).
+.navbar .navbar-brand,
+.navbar .nav-link {
+  font-weight: bold;
 }
