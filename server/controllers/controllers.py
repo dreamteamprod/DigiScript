@@ -23,9 +23,9 @@ def import_all_controllers():
 
 
 class RootController(BaseController):
-    def get(self, path):
-        if not path:
-            default_ui = self.application.digi_settings.get("default_ui")
+    async def get(self, path):
+        if not path and not self.get_argument("_switch", None):
+            default_ui = await self.application.digi_settings.get("default_ui")
             if default_ui == "new":
                 self.redirect("/ui-new/")
                 return

@@ -111,8 +111,8 @@
             </BFormGroup>
 
             <BButtonGroup size="md" style="float: right">
-              <BButton type="reset" variant="danger" :disabled="!v$.$anyDirty">Reset</BButton>
-              <BButton type="submit" variant="primary" :disabled="!v$.$anyDirty || v$.$anyError">
+              <BButton type="reset" variant="danger" :disabled="!formDirty">Reset</BButton>
+              <BButton type="submit" variant="primary" :disabled="!formDirty || v$.$anyError">
                 Submit
               </BButton>
             </BButtonGroup>
@@ -128,6 +128,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
+
 import { useVuelidate } from '@vuelidate/core';
 import { required, integer, minValue } from '@vuelidate/validators';
 import log from 'loglevel';
@@ -196,10 +197,15 @@ const rules = computed(() => ({
 }));
 
 const v$ = useVuelidate(rules, state);
+const savedSettings = ref<UserSettings>(defaultState());
+const formDirty = computed(
+  () => JSON.stringify(state.value) !== JSON.stringify(savedSettings.value)
+);
 
 function resetForm(): void {
   loaded.value = false;
   const settings = userStore.userSettings as UserSettings;
+  savedSettings.value = { ...defaultState(), ...settings };
   state.value = { ...defaultState(), ...settings };
   v$.value.$reset();
   loaded.value = true;
@@ -209,6 +215,7 @@ watch(() => userStore.userSettings, resetForm, { deep: true });
 
 onMounted(() => {
   const settings = userStore.userSettings as UserSettings;
+  savedSettings.value = { ...defaultState(), ...settings };
   state.value = { ...defaultState(), ...settings };
   loaded.value = true;
 });

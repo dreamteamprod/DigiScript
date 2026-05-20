@@ -91,7 +91,7 @@
           </b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
-          <b-nav-item href="/ui-new/"> Switch to New UI </b-nav-item>
+          <b-nav-item href="/ui-new/?_switch=1"> Switch to New UI </b-nav-item>
           <b-nav-item to="/help"> Help </b-nav-item>
           <b-nav-item to="/about"> About </b-nav-item>
           <b-nav-item-dropdown v-if="isElectron()" text="Server">
@@ -324,9 +324,14 @@ export default defineComponent({
         if ((this as any).AUTH_TOKEN) {
           await (this as any).GET_CURRENT_USER();
           await Promise.all([(this as any).GET_CURRENT_RBAC(), (this as any).GET_USER_SETTINGS()]);
-          if ((this as any).USER_SETTINGS?.preferred_ui === 'new') {
-            window.location.href = '/ui-new/';
-            return;
+          const switching = new URLSearchParams(window.location.search).has('_switch');
+          if (!switching) {
+            const userPref = (this as any).USER_SETTINGS?.preferred_ui as string | null | undefined;
+            const systemDefault = (this as any).SETTINGS?.default_ui as string | undefined;
+            if (userPref === 'new' || (userPref == null && systemDefault === 'new')) {
+              window.location.href = '/ui-new/';
+              return;
+            }
           }
         }
 

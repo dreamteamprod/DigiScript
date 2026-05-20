@@ -94,7 +94,7 @@
           </BNavItem>
         </BNavbarNav>
         <BNavbarNav class="ms-auto">
-          <BNavItem href="/"> Switch to Classic UI </BNavItem>
+          <BNavItem href="/?_switch=1"> Switch to Classic UI </BNavItem>
           <BNavItem to="/help"> Help </BNavItem>
           <BNavItem to="/about"> About </BNavItem>
           <BNavItemDropdown v-if="isElectronEnv" text="Server">
@@ -277,7 +277,8 @@ async function awaitWSConnect(): Promise<void> {
     if (userStore.authToken) {
       await userStore.getCurrentUser();
       await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);
-      if ((userStore.userSettings as UserSettings).preferred_ui === 'old') {
+      const switching = new URLSearchParams(window.location.search).has('_switch');
+      if (!switching && (userStore.userSettings as UserSettings).preferred_ui === 'old') {
         window.location.href = '/';
         return;
       }

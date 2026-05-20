@@ -1,10 +1,29 @@
 import path from 'path';
-import { defineConfig } from 'vite';
+import fs from 'fs';
+import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue2';
+
+function cleanV2StaticPlugin(): Plugin {
+  return {
+    name: 'clean-v2-static',
+    buildStart() {
+      if (process.env.BUILD_TARGET === 'electron') return;
+      const outDir = path.resolve(__dirname, '../server/static');
+      if (fs.existsSync(outDir)) {
+        for (const entry of fs.readdirSync(outDir)) {
+          if (entry !== 'ui-new') {
+            fs.rmSync(path.join(outDir, entry), { recursive: true, force: true });
+          }
+        }
+      }
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
     vue(),
+    cleanV2StaticPlugin(),
   ],
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
@@ -15,7 +34,7 @@ export default defineConfig({
   build: {
     outDir: process.env.BUILD_TARGET === 'electron' ? './dist-electron' : '../server/static/',
     assetsDir: './assets',
-    emptyOutDir: true,
+    emptyOutDir: false,
     minify: 'esbuild',
     cssMinify: 'esbuild',
     rollupOptions: {

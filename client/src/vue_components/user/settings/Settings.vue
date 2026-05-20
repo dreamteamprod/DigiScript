@@ -202,7 +202,7 @@ export default defineComponent({
       console_log_level: { required },
       character_mru_sort: {},
       character_combined_dropdown: {},
-      preferred_ui: {},
+      preferred_ui: { isValidUi: (val: unknown) => val === null || val === 'old' || val === 'new' },
     },
   },
   mounted(): void {
