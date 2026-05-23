@@ -1,13 +1,45 @@
+export interface ElectronConnection {
+  id: string;
+  nickname: string;
+  url: string;
+  sslEnabled: boolean;
+}
+
+export interface ElectronVersionCheckResult {
+  compatible: boolean;
+  serverVersion?: string;
+  error?: string;
+}
+
+export interface ElectronDiscoveredServer {
+  name: string;
+  url: string;
+  compatible: boolean;
+  serverVersion?: string;
+  versionError?: string;
+}
+
 declare global {
   interface Window {
     electronAPI?: {
       getServerURLSync?: () => string | null;
       getAppVersion?: () => string;
-      getActiveConnection?: () => Promise<boolean>;
+      getActiveConnection?: () => Promise<ElectronConnection | null>;
       storageGet?: (key: string) => string | null;
       storageSet?: (key: string, value: string) => void;
       storageDelete?: (key: string) => void;
       storageClear?: () => void;
+      getAllConnections?: () => Promise<ElectronConnection[]>;
+      addConnection?: (conn: Omit<ElectronConnection, 'id'>) => Promise<ElectronConnection>;
+      updateConnection?: (
+        id: string,
+        updates: Partial<ElectronConnection>
+      ) => Promise<ElectronConnection>;
+      deleteConnection?: (id: string) => Promise<void>;
+      setActiveConnection?: (id: string) => Promise<void>;
+      clearActiveConnection?: () => Promise<void>;
+      checkVersion?: (serverUrl: string) => Promise<ElectronVersionCheckResult>;
+      discoverServersWithVersionCheck?: (timeout?: number) => Promise<ElectronDiscoveredServer[]>;
     };
   }
 }

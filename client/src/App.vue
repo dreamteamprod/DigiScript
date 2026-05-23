@@ -91,7 +91,7 @@
           </b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
-          <b-nav-item href="/ui-new/?_switch=1"> Switch to New UI </b-nav-item>
+          <b-nav-item v-if="!isElectron()" href="/ui-new/?_switch=1"> Switch to New UI </b-nav-item>
           <b-nav-item to="/help"> Help </b-nav-item>
           <b-nav-item to="/about"> About </b-nav-item>
           <b-nav-item-dropdown v-if="isElectron()" text="Server">

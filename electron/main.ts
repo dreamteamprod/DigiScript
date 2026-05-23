@@ -36,7 +36,7 @@ function createWindow(): void {
   } else {
     const staticPath = app.isPackaged
       ? path.join(process.resourcesPath, 'dist-electron')
-      : path.join(__dirname, '../client/dist-electron');
+      : path.join(__dirname, '../../client/dist-electron');
 
     win.loadURL(
       url.format({

@@ -1,10 +1,12 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router';
 import { isElectron } from '@/js/platform';
 import HomeView from '@/views/HomeView.vue';
 import NotFoundView from '@/views/NotFoundView.vue';
 
+const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
+
 const router = createRouter({
-  history: createWebHistory('/ui-new/'),
+  history: isFileProtocol ? createWebHashHistory() : createWebHistory('/ui-new/'),
   routes: [
     {
       path: '/electron/server-selector',
