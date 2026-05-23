@@ -122,7 +122,7 @@ const sceneDensityData = computed((): SceneDensityEntry[] =>
     Object.keys(allocations.value).forEach((micId) => {
       const micAllocs = allocations.value[micId];
       if (Array.isArray(micAllocs) && micAllocs.some((a) => a.scene_id === scene.id)) {
-        micsInScene.add(parseInt(micId, 10));
+        micsInScene.add(Number.parseInt(micId, 10));
       }
     });
     return { scene, micCount: micsInScene.size };
@@ -169,7 +169,7 @@ const uniqueMicsUsed = computed(() => {
   Object.keys(allocations.value).forEach((micId) => {
     const micAllocs = allocations.value[micId];
     if (Array.isArray(micAllocs) && micAllocs.length > 0) {
-      allMics.add(parseInt(micId, 10));
+      allMics.add(Number.parseInt(micId, 10));
     }
   });
   return allMics.size;

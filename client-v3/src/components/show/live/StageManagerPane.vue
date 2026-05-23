@@ -225,8 +225,8 @@ const currentSceneId = computed((): number | null => {
   if (!lineRef) return null;
   const parts = lineRef.split('_');
   if (parts.length < 4) return null;
-  const page = parseInt(parts[1], 10);
-  const lineIdx = parseInt(parts[3], 10);
+  const page = Number.parseInt(parts[1], 10);
+  const lineIdx = Number.parseInt(parts[3], 10);
   return scriptStore.getScriptPage(page)[lineIdx]?.scene_id ?? null;
 });
 

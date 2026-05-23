@@ -116,8 +116,9 @@
           <BCol md="auto">
             <div class="d-flex align-items-center gap-2">
               <div class="text-center">
-                <label class="form-label">Hours</label>
+                <label class="form-label" for="interval-hours">Hours</label>
                 <BFormInput
+                  id="interval-hours"
                   v-model.number="intervalHours"
                   type="number"
                   min="0"
@@ -127,8 +128,9 @@
               </div>
               <span class="fs-4 pt-3">:</span>
               <div class="text-center">
-                <label class="form-label">Minutes</label>
+                <label class="form-label" for="interval-minutes">Minutes</label>
                 <BFormInput
+                  id="interval-minutes"
                   v-model.number="intervalMinutes"
                   type="number"
                   min="0"
@@ -138,8 +140,9 @@
               </div>
               <span class="fs-4 pt-3">:</span>
               <div class="text-center">
-                <label class="form-label">Seconds</label>
+                <label class="form-label" for="interval-seconds">Seconds</label>
                 <BFormInput
+                  id="interval-seconds"
                   v-model.number="intervalSeconds"
                   type="number"
                   min="0"
@@ -590,8 +593,8 @@ function handleFollowDataChange(): void {
     const currentLineElement = document.getElementById(lineRef);
     if (currentLineElement != null) {
       const idParts = lineRef.split('_');
-      const page = parseInt(idParts[1], 10);
-      const line = parseInt(idParts[3], 10);
+      const page = Number.parseInt(idParts[1], 10);
+      const line = Number.parseInt(idParts[3], 10);
 
       document
         .querySelectorAll('.script-item')
@@ -670,7 +673,7 @@ async function loadCompiledScript(): Promise<boolean> {
   let maxLoadedPage = 1;
   let minLoadedPage = Number.POSITIVE_INFINITY;
   Object.entries(respJson).forEach(([pageStr, pageContents]) => {
-    const pageNumber = parseInt(pageStr, 10);
+    const pageNumber = Number.parseInt(pageStr, 10);
     if (pageNumber > maxLoadedPage) maxLoadedPage = pageNumber;
     if (pageNumber < minLoadedPage) minLoadedPage = pageNumber;
     scriptStore.script[String(pageNumber)] = pageContents as ScriptLine[];
@@ -843,7 +846,7 @@ onMounted(async () => {
     scrollToElement(document.getElementById(props.initialLineRef));
     const parts = props.initialLineRef.split('_');
     if (parts.length >= 4) {
-      navigateTo(parseInt(parts[1], 10), parseInt(parts[3], 10));
+      navigateTo(Number.parseInt(parts[1], 10), Number.parseInt(parts[3], 10));
     }
     await nextTick();
     computeScriptBoundaries();

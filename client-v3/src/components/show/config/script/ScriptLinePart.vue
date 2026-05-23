@@ -174,11 +174,11 @@ const combinedValue = computed<string | null>({
       state.value.character_id = null;
       state.value.character_group_id = null;
     } else if (val.startsWith('c:')) {
-      state.value.character_id = parseInt(val.slice(2), 10);
+      state.value.character_id = Number.parseInt(val.slice(2), 10);
       state.value.character_group_id = null;
     } else if (val.startsWith('g:')) {
       state.value.character_id = null;
-      state.value.character_group_id = parseInt(val.slice(2), 10);
+      state.value.character_group_id = Number.parseInt(val.slice(2), 10);
     }
     v$.value.$touch();
   },

@@ -145,7 +145,7 @@ onBeforeMount(async () => {
 
   const storedPage = localStorage.getItem('cueEditPage');
   if (storedPage != null) {
-    currentEditPage.value = parseInt(storedPage, 10);
+    currentEditPage.value = Number.parseInt(storedPage, 10);
   }
   await goToPageInner(currentEditPage.value);
 });
