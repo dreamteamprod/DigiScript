@@ -175,49 +175,59 @@ const hasData = computed(() => scenes.value.length > 0 && rows.value.length > 0)
 
 const sceneIndexMap = computed(() => Object.fromEntries(scenes.value.map((s, i) => [s.id, i])));
 
+function detectHardConflicts(
+  rowId: number,
+  byScene: Record<number, Set<string>>
+): Array<[string, 'hard']> {
+  return Object.keys(byScene)
+    .map(Number)
+    .filter((sceneId) => byScene[sceneId].size >= 2)
+    .map((sceneId) => [`${rowId}-${sceneId}`, 'hard'] as [string, 'hard']);
+}
+
+function detectSoftConflicts(
+  rowId: number,
+  byScene: Record<number, Set<string>>,
+  existing: Record<string, 'hard' | 'soft'>
+): Array<[string, 'soft']> {
+  const assignedSceneIds = Object.keys(byScene).map(Number);
+  const softKeys: Array<[string, 'soft']> = [];
+  assignedSceneIds.forEach((sceneId) => {
+    const sceneIndex = sceneIndexMap.value[sceneId];
+    if (sceneIndex == null) return;
+    const scene = scenes.value[sceneIndex];
+    const nextScene = scenes.value[sceneIndex + 1];
+    if (!nextScene || nextScene.act !== scene.act || !assignedSceneIds.includes(nextScene.id))
+      return;
+    const itemsA = byScene[sceneId];
+    const itemsB = byScene[nextScene.id];
+    const sameItems = itemsA.size === itemsB.size && [...itemsA].every((k) => itemsB.has(k));
+    if (!sameItems) {
+      const k1 = `${rowId}-${sceneId}`;
+      const k2 = `${rowId}-${nextScene.id}`;
+      if (!existing[k1]) softKeys.push([k1, 'soft']);
+      if (!existing[k2]) softKeys.push([k2, 'soft']);
+    }
+  });
+  return softKeys;
+}
+
 const conflicts = computed((): Record<string, 'hard' | 'soft'> => {
   const conflictMap: Record<string, 'hard' | 'soft'> = {};
-
   rows.value.forEach((row) => {
     const assignments: CrewAssignment[] = stageStore.crewAssignmentsByCrew[row.id] ?? [];
-
     const byScene: Record<number, Set<string>> = {};
     assignments.forEach((a) => {
       if (!byScene[a.scene_id]) byScene[a.scene_id] = new Set();
-      const itemKey = a.prop_id != null ? `prop-${a.prop_id}` : `scenery-${a.scenery_id}`;
-      byScene[a.scene_id].add(itemKey);
+      byScene[a.scene_id].add(a.prop_id != null ? `prop-${a.prop_id}` : `scenery-${a.scenery_id}`);
     });
-
-    const assignedSceneIds = Object.keys(byScene).map(Number);
-
-    assignedSceneIds.forEach((sceneId) => {
-      if (byScene[sceneId].size >= 2) {
-        conflictMap[`${row.id}-${sceneId}`] = 'hard';
-      }
+    detectHardConflicts(row.id, byScene).forEach(([k, v]) => {
+      conflictMap[k] = v;
     });
-
-    assignedSceneIds.forEach((sceneId) => {
-      const sceneIndex = sceneIndexMap.value[sceneId];
-      if (sceneIndex == null) return;
-      const scene = scenes.value[sceneIndex];
-      const nextIndex = sceneIndex + 1;
-      if (nextIndex < scenes.value.length) {
-        const nextScene = scenes.value[nextIndex];
-        if (nextScene.act === scene.act && assignedSceneIds.includes(nextScene.id)) {
-          const itemsA = byScene[sceneId];
-          const itemsB = byScene[nextScene.id];
-          const sameItems = itemsA.size === itemsB.size && [...itemsA].every((k) => itemsB.has(k));
-          if (!sameItems) {
-            const k1 = `${row.id}-${sceneId}`;
-            const k2 = `${row.id}-${nextScene.id}`;
-            if (!conflictMap[k1]) conflictMap[k1] = 'soft';
-            if (!conflictMap[k2]) conflictMap[k2] = 'soft';
-          }
-        }
-      }
+    detectSoftConflicts(row.id, byScene, conflictMap).forEach(([k, v]) => {
+      conflictMap[k] = v;
     });
   });
-
   return conflictMap;
 });
 
@@ -228,12 +238,64 @@ function getItemName(assignment: CrewAssignment): string {
   return stageStore.sceneryById(assignment.scenery_id)?.name ?? `Scenery ${assignment.scenery_id}`;
 }
 
+function buildBarLabel(
+  hasSet: boolean,
+  hasStrike: boolean,
+  itemName: string,
+  sceneName: string | null
+): { label: string; tooltip: string } {
+  if (hasSet && hasStrike)
+    return { label: `▲ ${itemName} ▼`, tooltip: `SET & STRIKE: ${itemName} (${sceneName})` };
+  if (hasSet) return { label: `▲ ${itemName}`, tooltip: `SET: ${itemName} (${sceneName})` };
+  return { label: `▼ ${itemName}`, tooltip: `STRIKE: ${itemName} (${sceneName})` };
+}
+
+function buildBarsForScene(
+  rowId: number,
+  rowIndex: number,
+  sceneId: number,
+  sceneIndex: number,
+  itemGroups: Record<string, CrewAssignment[]>,
+  availableHeight: number,
+  cssClass: string,
+  bars: CrewBar[]
+): void {
+  const scene = scenes.value[sceneIndex];
+  const itemCount = Object.keys(itemGroups).length;
+  const barHeight = availableHeight / itemCount;
+  const sortedKeys = Object.keys(itemGroups).sort((a, b) =>
+    getItemName(itemGroups[a][0]).localeCompare(getItemName(itemGroups[b][0]))
+  );
+  sortedKeys.forEach((itemKey, stackIndex) => {
+    const group = itemGroups[itemKey];
+    const representative = group[0];
+    const itemName = getItemName(representative);
+    const { label, tooltip } = buildBarLabel(
+      group.some((a) => a.assignment_type === 'set'),
+      group.some((a) => a.assignment_type === 'strike'),
+      itemName,
+      scene.name ?? null
+    );
+    const itemId =
+      representative.prop_id != null ? representative.prop_id : (representative.scenery_id ?? 0);
+    bars.push({
+      id: `crew-${rowId}-scene-${sceneId}-${stackIndex}`,
+      x: getSceneX(sceneIndex),
+      y: getRowY(rowIndex) + barPadding + stackIndex * barHeight,
+      width: sceneWidth,
+      height: barHeight,
+      color: getColorForEntity(itemId, representative.prop_id != null ? 'prop' : 'scenery'),
+      label,
+      tooltip,
+      cssClass,
+    });
+  });
+}
+
 const allocationBars = computed((): CrewBar[] => {
   const bars: CrewBar[] = [];
-
   rows.value.forEach((row, rowIndex) => {
     const assignments: CrewAssignment[] = stageStore.crewAssignmentsByCrew[row.id] ?? [];
-
     const byScene: Record<number, Record<string, CrewAssignment[]>> = {};
     assignments.forEach((a) => {
       if (!byScene[a.scene_id]) byScene[a.scene_id] = {};
@@ -241,69 +303,26 @@ const allocationBars = computed((): CrewBar[] => {
       if (!byScene[a.scene_id][itemKey]) byScene[a.scene_id][itemKey] = [];
       byScene[a.scene_id][itemKey].push(a);
     });
-
     const availableHeight = rowHeight - 2 * barPadding;
-
     Object.entries(byScene).forEach(([sceneIdStr, itemGroups]) => {
       const sceneId = Number(sceneIdStr);
       const sceneIndex = sceneIndexMap.value[sceneId];
       if (sceneIndex == null) return;
-
-      const scene = scenes.value[sceneIndex];
       const conflictType = conflicts.value[`${row.id}-${sceneId}`];
       const cssClass =
         conflictType === 'hard' ? 'conflict-hard' : conflictType === 'soft' ? 'conflict-soft' : '';
-
-      const itemCount = Object.keys(itemGroups).length;
-      const barHeight = availableHeight / itemCount;
-
-      const sortedKeys = Object.keys(itemGroups).sort((a, b) => {
-        const nameA = getItemName(itemGroups[a][0]);
-        const nameB = getItemName(itemGroups[b][0]);
-        return nameA.localeCompare(nameB);
-      });
-
-      sortedKeys.forEach((itemKey, stackIndex) => {
-        const group = itemGroups[itemKey];
-        const representative = group[0];
-        const itemName = getItemName(representative);
-        const hasSet = group.some((a) => a.assignment_type === 'set');
-        const hasStrike = group.some((a) => a.assignment_type === 'strike');
-
-        let label: string;
-        let tooltip: string;
-        if (hasSet && hasStrike) {
-          label = `▲ ${itemName} ▼`;
-          tooltip = `SET & STRIKE: ${itemName} (${scene.name})`;
-        } else if (hasSet) {
-          label = `▲ ${itemName}`;
-          tooltip = `SET: ${itemName} (${scene.name})`;
-        } else {
-          label = `▼ ${itemName}`;
-          tooltip = `STRIKE: ${itemName} (${scene.name})`;
-        }
-
-        const itemId =
-          representative.prop_id != null
-            ? representative.prop_id
-            : (representative.scenery_id ?? 0);
-        const itemType = representative.prop_id != null ? 'prop' : 'scenery';
-
-        bars.push({
-          id: `crew-${row.id}-scene-${sceneId}-${stackIndex}`,
-          x: getSceneX(sceneIndex),
-          y: getRowY(rowIndex) + barPadding + stackIndex * barHeight,
-          width: sceneWidth,
-          height: barHeight,
-          color: getColorForEntity(itemId, itemType),
-          label,
-          tooltip,
-          cssClass,
-        });
-      });
+      buildBarsForScene(
+        row.id,
+        rowIndex,
+        sceneId,
+        sceneIndex,
+        itemGroups,
+        availableHeight,
+        cssClass,
+        bars
+      );
     });
   });
-
   return bars;
 });
 

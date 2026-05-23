@@ -150,15 +150,18 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach(async (to, from) => {
-  const { useSystemStore } = await import('@/stores/system');
-  const { useUserStore } = await import('@/stores/user');
-  const { toast } = await import('@/js/toast');
+import type { RouteLocationNormalized } from 'vue-router';
 
-  const systemStore = useSystemStore();
-  const userStore = useUserStore();
+type ToastFn = {
+  warning: (m: string) => void;
+  error: (m: string) => void;
+  info: (m: string) => void;
+};
 
-  // Electron: require active connection before any page except server-selector
+async function checkElectronGuards(
+  to: RouteLocationNormalized,
+  toast: ToastFn
+): Promise<string | undefined> {
   if (isElectron() && to.path !== '/electron/server-selector') {
     try {
       const activeConnection = await window.electronAPI?.getActiveConnection?.();
@@ -170,76 +173,53 @@ router.beforeEach(async (to, from) => {
       return '/electron/server-selector';
     }
   }
-
-  // Electron-only pages are inaccessible in the browser
   if (to.matched.some((r) => r.meta.isElectronOnly) && !isElectron()) {
     toast.error('This page is only available in the desktop app');
     return '/';
   }
+  return undefined;
+}
 
-  if (to.path === '/electron/server-selector') return undefined;
-
-  // Load RBAC roles on first navigation if not already loaded
-  if (systemStore.rbacRoles.length === 0) {
-    await systemStore.getRbacRoles();
-    await systemStore.getSettings();
-    await userStore.getCurrentUser();
-    if (userStore.currentUser) {
-      await userStore.getCurrentRbac();
-    }
-  }
-
-  const requiresAuth = to.matched.some((r) => r.meta.requiresAuth);
-  const requiresAdmin = to.matched.some((r) => r.meta.requiresAdmin);
-  const requiresShowAccess = to.matched.some((r) => r.meta.requiresShowAccess);
-
-  // If no admin user yet, send everyone to home (which shows the create-admin UI)
-  if (
-    systemStore.settings &&
-    (systemStore.settings as Record<string, unknown>).has_admin_user === false
-  ) {
-    if (to.path !== '/') {
-      toast.error('Please create an admin user before continuing');
-      return '/';
-    }
-    return undefined;
+async function checkPermissionGuards(
+  to: RouteLocationNormalized,
+  from: RouteLocationNormalized,
+  systemStore: Awaited<ReturnType<typeof import('@/stores/system').useSystemStore>>,
+  userStore: Awaited<ReturnType<typeof import('@/stores/user').useUserStore>>,
+  toast: ToastFn
+): Promise<string | undefined> {
+  const settings = systemStore.settings as Record<string, unknown> | null;
+  if (settings && settings.has_admin_user === false) {
+    if (to.path !== '/') toast.error('Please create an admin user before continuing');
+    return to.path !== '/' ? '/' : undefined;
   }
 
   const currentUser = userStore.currentUser;
   const isAuthenticated = currentUser !== null;
+  const requiresAuth = to.matched.some((r) => r.meta.requiresAuth);
+  const requiresAdmin = to.matched.some((r) => r.meta.requiresAdmin);
+  const requiresShowAccess = to.matched.some((r) => r.meta.requiresShowAccess);
 
-  // Already logged in — don't show login page
   if (to.path === '/login' && isAuthenticated) {
     toast.info('You are already logged in');
     return from.fullPath === '/login' ? '/' : from.fullPath;
   }
-
-  // Require auth
   if (requiresAuth && !isAuthenticated) {
     toast.error('Please log in to access this page');
     return '/login';
   }
 
-  // Force password change
   const requiresPasswordChange = currentUser?.requires_password_change === true;
   const isPasswordChangePage = to.path === '/force-password-change';
-
   if (isAuthenticated && requiresPasswordChange && !isPasswordChangePage) {
     toast.warning('You must change your password before continuing');
     return '/force-password-change';
   }
+  if (isPasswordChangePage && !requiresPasswordChange) return '/';
 
-  if (isPasswordChangePage && !requiresPasswordChange) {
-    return '/';
-  }
-
-  // Admin-only pages
   if (requiresAdmin && !systemStore.isAdminUser) {
     toast.error('Admin access required');
     return '/';
   }
-
-  // Show access
   if (requiresShowAccess) {
     if (!systemStore.currentShow) {
       toast.error('No show is currently selected');
@@ -250,19 +230,44 @@ router.beforeEach(async (to, from) => {
       return '/';
     }
   }
+  return undefined;
+}
 
-  // Live page requires an active show session and a healthy WebSocket
-  if (to.path === '/live') {
-    const { useShowStore } = await import('@/stores/show');
-    const { useWebSocketStore } = await import('@/stores/websocket');
-    const showStore = useShowStore();
-    const wsStore = useWebSocketStore();
-    await showStore.getShowSessionData();
-    if (!showStore.currentSession || !wsStore.websocketHealthy) {
-      toast.error('No active show session or connection issue');
-      return '/';
-    }
+async function checkLiveGuard(toast: ToastFn): Promise<string | undefined> {
+  const { useShowStore } = await import('@/stores/show');
+  const { useWebSocketStore } = await import('@/stores/websocket');
+  const showStore = useShowStore();
+  const wsStore = useWebSocketStore();
+  await showStore.getShowSessionData();
+  if (!showStore.currentSession || !wsStore.websocketHealthy) {
+    toast.error('No active show session or connection issue');
+    return '/';
   }
+  return undefined;
+}
+
+router.beforeEach(async (to, from) => {
+  const { useSystemStore } = await import('@/stores/system');
+  const { useUserStore } = await import('@/stores/user');
+  const { toast } = await import('@/js/toast');
+  const systemStore = useSystemStore();
+  const userStore = useUserStore();
+
+  const electronResult = await checkElectronGuards(to, toast);
+  if (electronResult !== undefined) return electronResult;
+  if (to.path === '/electron/server-selector') return undefined;
+
+  if (systemStore.rbacRoles.length === 0) {
+    await systemStore.getRbacRoles();
+    await systemStore.getSettings();
+    await userStore.getCurrentUser();
+    if (userStore.currentUser) await userStore.getCurrentRbac();
+  }
+
+  const permResult = await checkPermissionGuards(to, from, systemStore, userStore, toast);
+  if (permResult !== undefined) return permResult;
+
+  if (to.path === '/live') return checkLiveGuard(toast);
 
   return undefined;
 });

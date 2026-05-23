@@ -408,7 +408,7 @@ onMounted(async () => {
 }
 
 .conflict-info {
-  background-color: #2196f3;
+  background-color: #1565c0;
   color: #fff;
   font-weight: 500;
 }

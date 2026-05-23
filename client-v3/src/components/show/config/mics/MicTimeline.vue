@@ -306,19 +306,42 @@ function generateBarsForCharacter(
 
   micIds.forEach((micId, micIdx) => {
     segmentsByMic.get(micId)!.forEach((seg, segIdx) => {
-      const mic = showStore.microphoneById(seg.micId);
-      bars.push({
-        id: `char-${characterId}-mic-${micId}-seg-${segIdx}`,
-        x: getSceneX(seg.startIndex),
-        y: getRowY(rowIndex) + barPadding + micIdx * barH,
-        width: sceneWidth * (seg.endIndex - seg.startIndex + 1),
-        height: barH,
-        color: getColorForEntity(characterId, 'character'),
-        label: mic?.name ?? `Mic ${seg.micId}`,
-        tooltip: `${mic?.name ?? `Mic ${seg.micId}`} (Scenes ${seg.startIndex + 1}–${seg.endIndex + 1})`,
-      });
+      bars.push(
+        buildMicBar(
+          `char-${characterId}-mic-${micId}-seg-${segIdx}`,
+          seg.startIndex,
+          seg.endIndex,
+          getRowY(rowIndex) + barPadding + micIdx * barH,
+          barH,
+          getColorForEntity(characterId, 'character'),
+          seg.micId
+        )
+      );
     });
   });
+}
+
+function buildMicBar(
+  id: string,
+  startIndex: number,
+  endIndex: number,
+  yPos: number,
+  barH: number,
+  color: string,
+  micId: number
+): AllocationBar {
+  const mic = showStore.microphoneById(micId);
+  const micName = mic?.name ?? `Mic ${micId}`;
+  return {
+    id,
+    x: getSceneX(startIndex),
+    y: yPos,
+    width: sceneWidth * (endIndex - startIndex + 1),
+    height: barH,
+    color,
+    label: micName,
+    tooltip: `${micName} (Scenes ${startIndex + 1}–${endIndex + 1})`,
+  };
 }
 
 function generateBarsForCast(castId: number, rowIndex: number, bars: AllocationBar[]): void {
@@ -364,19 +387,21 @@ function generateBarsForCast(castId: number, rowIndex: number, bars: AllocationB
 
   micIds.forEach((micId, micIdx) => {
     segmentsByMic.get(micId)!.forEach((seg, segIdx) => {
-      const mic = showStore.microphoneById(seg.micId);
       const charNames = Array.from(seg.charIds)
         .map((id) => showStore.characterById(id)?.name ?? 'Unknown')
         .join(', ');
+      const bar = buildMicBar(
+        `cast-${castId}-mic-${micId}-seg-${segIdx}`,
+        seg.startIndex,
+        seg.endIndex,
+        getRowY(rowIndex) + barPadding + micIdx * barH,
+        barH,
+        getColorForEntity(castId, 'cast'),
+        seg.micId
+      );
       bars.push({
-        id: `cast-${castId}-mic-${micId}-seg-${segIdx}`,
-        x: getSceneX(seg.startIndex),
-        y: getRowY(rowIndex) + barPadding + micIdx * barH,
-        width: sceneWidth * (seg.endIndex - seg.startIndex + 1),
-        height: barH,
-        color: getColorForEntity(castId, 'cast'),
-        label: mic?.name ?? `Mic ${seg.micId}`,
-        tooltip: `${mic?.name ?? `Mic ${seg.micId}`} – ${charNames} (Scenes ${seg.startIndex + 1}–${seg.endIndex + 1})`,
+        ...bar,
+        tooltip: `${bar.label} – ${charNames} (Scenes ${seg.startIndex + 1}–${seg.endIndex + 1})`,
       });
     });
   });

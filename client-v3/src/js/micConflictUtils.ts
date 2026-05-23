@@ -45,6 +45,32 @@ export interface MicConflictResult {
 // Nested dict: { micId: { sceneId: characterId | null } }
 type MicAllocations = Record<string, Record<string, number | null> | null>;
 
+function linkSceneNode(
+  nodeSceneId: number,
+  graphById: Record<number, SceneGraphNode>,
+  previousSceneId: number | null,
+  scenePosition: number,
+  previousActLastSceneId: number | null
+): number | null {
+  let previousSceneInShow: number | null = null;
+  if (previousSceneId) {
+    const prevNode = graphById[previousSceneId];
+    if (prevNode) {
+      prevNode.nextSceneInAct = nodeSceneId;
+      prevNode.nextSceneInShow = nodeSceneId;
+      previousSceneInShow = previousSceneId;
+    }
+  }
+  if (scenePosition === 0 && previousActLastSceneId) {
+    const prevActLastNode = graphById[previousActLastSceneId];
+    if (prevActLastNode) {
+      prevActLastNode.nextSceneInShow = nodeSceneId;
+      previousSceneInShow = previousActLastSceneId;
+    }
+  }
+  return previousSceneInShow;
+}
+
 export function buildSceneGraph(
   scenes: Scene[],
   acts: Act[],
@@ -54,15 +80,8 @@ export function buildSceneGraph(
     return [];
   }
 
-  const sceneById: Record<number, Scene> = {};
-  scenes.forEach((scene) => {
-    sceneById[scene.id] = scene;
-  });
-
-  const actById: Record<number, Act> = {};
-  acts.forEach((act) => {
-    actById[act.id] = act;
-  });
+  const sceneById: Record<number, Scene> = Object.fromEntries(scenes.map((s) => [s.id, s]));
+  const actById: Record<number, Act> = Object.fromEntries(acts.map((a) => [a.id, a]));
 
   const graph: SceneGraphNode[] = [];
   const graphById: Record<number, SceneGraphNode> = {};
@@ -74,7 +93,6 @@ export function buildSceneGraph(
   while (currentAct != null) {
     let scenePosition = 0;
     let previousSceneId: number | null = null;
-
     let currentScene = currentAct.first_scene ? sceneById[currentAct.first_scene] : null;
 
     while (currentScene != null) {
@@ -91,22 +109,13 @@ export function buildSceneGraph(
         nextSceneInShow: null,
       };
 
-      if (previousSceneId) {
-        const prevNode = graphById[previousSceneId];
-        if (prevNode) {
-          prevNode.nextSceneInAct = currentScene.id;
-          prevNode.nextSceneInShow = currentScene.id;
-          node.previousSceneInShow = previousSceneId;
-        }
-      }
-
-      if (scenePosition === 0 && previousActLastSceneId) {
-        const prevActLastNode = graphById[previousActLastSceneId];
-        if (prevActLastNode) {
-          prevActLastNode.nextSceneInShow = currentScene.id;
-          node.previousSceneInShow = previousActLastSceneId;
-        }
-      }
+      node.previousSceneInShow = linkSceneNode(
+        node.sceneId,
+        graphById,
+        previousSceneId,
+        scenePosition,
+        previousActLastSceneId
+      );
 
       graph.push(node);
       graphById[currentScene.id] = node;
@@ -184,6 +193,78 @@ export function getConflictSeverity(
   return areScenesInSameAct(sceneId1, sceneId2, sceneGraph) ? 'WARNING' : 'INFO';
 }
 
+function buildConflictRecord(
+  micId: number,
+  sceneIdNum: number,
+  adjacentSceneId: number,
+  characterId: number,
+  adjacentCharacterId: number,
+  sceneGraph: SceneGraphNode[],
+  characters: Character[]
+): MicConflict {
+  const severity = getConflictSeverity(sceneIdNum, adjacentSceneId, sceneGraph);
+  const currentSceneNode = sceneGraph.find((n) => n.sceneId === sceneIdNum);
+  const adjacentSceneNode = sceneGraph.find((n) => n.sceneId === adjacentSceneId);
+  const char1 = characters.find((c) => c.id === characterId);
+  const char2 = characters.find((c) => c.id === adjacentCharacterId);
+
+  let message = `Quick-change from "${currentSceneNode?.sceneName || 'Unknown'}"`;
+  if (char1 && char2) message += ` (${char1.name} → ${char2.name})`;
+  message +=
+    severity === 'WARNING'
+      ? ' - Tight changeover required'
+      : ' - Interval provides changeover time';
+
+  return {
+    micId,
+    sceneId: sceneIdNum,
+    sceneName: currentSceneNode?.sceneName || 'Unknown',
+    actName: currentSceneNode?.actName || 'Unknown',
+    characterId,
+    characterName: char1?.name || 'Unknown',
+    adjacentSceneId,
+    adjacentSceneName: adjacentSceneNode?.sceneName || 'Unknown',
+    adjacentActName: adjacentSceneNode?.actName || 'Unknown',
+    adjacentCharacterId,
+    adjacentCharacterName: char2?.name || 'Unknown',
+    severity,
+    message,
+  };
+}
+
+function checkAdjacentScene(
+  conflicts: MicConflict[],
+  micId: number,
+  sceneIdNum: number,
+  adjacentSceneId: number,
+  characterId: number,
+  micAllocations: Record<string, number | null>,
+  sceneGraph: SceneGraphNode[],
+  characters: Character[],
+  castList: unknown[]
+): void {
+  const adjacentCharacterId = micAllocations[adjacentSceneId];
+  if (adjacentCharacterId == null || adjacentCharacterId === characterId) return;
+  if (isSameCastMember(characterId, adjacentCharacterId, characters, castList)) return;
+
+  const isDuplicate = conflicts.some(
+    (c) => c.micId === micId && c.sceneId === adjacentSceneId && c.adjacentSceneId === sceneIdNum
+  );
+  if (!isDuplicate) {
+    conflicts.push(
+      buildConflictRecord(
+        micId,
+        sceneIdNum,
+        adjacentSceneId,
+        characterId,
+        adjacentCharacterId,
+        sceneGraph,
+        characters
+      )
+    );
+  }
+}
+
 export function detectMicConflicts(
   allocations: MicAllocations,
   scenes: Scene[],
@@ -197,7 +278,6 @@ export function detectMicConflicts(
   }
 
   const sceneGraph = buildSceneGraph(scenes, acts, currentShow);
-
   if (sceneGraph.length === 0) {
     return { conflicts: [], conflictsByScene: {}, conflictsByMic: {} };
   }
@@ -207,6 +287,7 @@ export function detectMicConflicts(
   Object.keys(allocations).forEach((micId) => {
     const micAllocations = allocations[micId];
     if (!micAllocations || typeof micAllocations !== 'object') return;
+    const micIdNum = Number.parseInt(micId, 10);
 
     Object.keys(micAllocations).forEach((sceneId) => {
       const characterId = micAllocations[sceneId];
@@ -214,7 +295,6 @@ export function detectMicConflicts(
 
       const sceneIdNum = Number.parseInt(sceneId, 10);
       const adjacentScenes = getAdjacentScenes(sceneIdNum, sceneGraph);
-
       const adjacentSceneIds = [
         adjacentScenes.sameActPrev,
         adjacentScenes.sameActNext,
@@ -223,48 +303,17 @@ export function detectMicConflicts(
       ].filter((id): id is number => id != null);
 
       adjacentSceneIds.forEach((adjacentSceneId) => {
-        const adjacentCharacterId = micAllocations[adjacentSceneId];
-        if (adjacentCharacterId == null) return;
-        if (adjacentCharacterId === characterId) return;
-        if (isSameCastMember(characterId, adjacentCharacterId, characters, castList)) return;
-
-        const severity = getConflictSeverity(sceneIdNum, adjacentSceneId, sceneGraph);
-        const currentSceneNode = sceneGraph.find((n) => n.sceneId === sceneIdNum);
-        const adjacentSceneNode = sceneGraph.find((n) => n.sceneId === adjacentSceneId);
-        const char1 = characters.find((c) => c.id === characterId);
-        const char2 = characters.find((c) => c.id === adjacentCharacterId);
-
-        let message = `Quick-change from "${currentSceneNode?.sceneName || 'Unknown'}"`;
-        if (char1 && char2) message += ` (${char1.name} → ${char2.name})`;
-        message +=
-          severity === 'WARNING'
-            ? ' - Tight changeover required'
-            : ' - Interval provides changeover time';
-
-        const isDuplicate = conflicts.some(
-          (c) =>
-            c.micId === Number.parseInt(micId, 10) &&
-            c.sceneId === adjacentSceneId &&
-            c.adjacentSceneId === sceneIdNum
+        checkAdjacentScene(
+          conflicts,
+          micIdNum,
+          sceneIdNum,
+          adjacentSceneId,
+          characterId,
+          micAllocations,
+          sceneGraph,
+          characters,
+          castList
         );
-
-        if (!isDuplicate) {
-          conflicts.push({
-            micId: Number.parseInt(micId, 10),
-            sceneId: sceneIdNum,
-            sceneName: currentSceneNode?.sceneName || 'Unknown',
-            actName: currentSceneNode?.actName || 'Unknown',
-            characterId,
-            characterName: char1?.name || 'Unknown',
-            adjacentSceneId,
-            adjacentSceneName: adjacentSceneNode?.sceneName || 'Unknown',
-            adjacentActName: adjacentSceneNode?.actName || 'Unknown',
-            adjacentCharacterId,
-            adjacentCharacterName: char2?.name || 'Unknown',
-            severity,
-            message,
-          });
-        }
       });
     });
   });

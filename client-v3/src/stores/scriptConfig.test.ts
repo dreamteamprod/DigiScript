@@ -90,7 +90,7 @@ describe('computePageStatus', () => {
   it('returns all empty arrays when actual and tmp pages are identical', () => {
     const page = [makeLine(42, 2), makeLine(43, 1)];
 
-    const status = computePageStatus(page, JSON.parse(JSON.stringify(page)), [], []);
+    const status = computePageStatus(page, structuredClone(page), [], []);
 
     expect(status.added).toHaveLength(0);
     expect(status.updated).toHaveLength(0);

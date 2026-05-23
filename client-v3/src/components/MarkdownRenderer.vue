@@ -199,7 +199,7 @@ function transformMarkdownLinks(html: string): string {
 
 .markdown-content :deep(th) {
   background-color: #375a7f;
-  color: #00bc8c;
+  color: #ffffff;
   font-weight: 600;
 }
 

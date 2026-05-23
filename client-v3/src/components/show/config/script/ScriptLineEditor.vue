@@ -124,7 +124,7 @@ const emit = defineEmits<{
 const showStore = useShowStore();
 const systemStore = useSystemStore();
 
-const state = ref<ScriptLine>(JSON.parse(JSON.stringify(props.modelValue)));
+const state = ref<ScriptLine>(structuredClone(props.modelValue));
 
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
 
