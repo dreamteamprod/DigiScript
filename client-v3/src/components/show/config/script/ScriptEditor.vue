@@ -271,7 +271,7 @@ const saveProgressVariant = computed(() => {
 });
 
 const pagesWithOpenEdits = computed(() =>
-  [...editingLines.value].map((x) => parseInt(x.split('_')[1], 10))
+  [...editingLines.value].map((x) => Number.parseInt(x.split('_')[1], 10))
 );
 
 const scriptChanges = computed<boolean>(() => {
@@ -404,8 +404,7 @@ function blankLine(lineType: number): ScriptLine {
     scene_id: null,
     page: currentPage.value,
     line_type: lineType,
-    line_parts:
-      lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION ? [] : [],
+    line_parts: [],
     stage_direction_style_id: null,
   };
 }
@@ -442,8 +441,8 @@ async function insertLineAt(pageIndex: number, lineIndex: number, lineType: numb
   const shifted = new Set<string>();
   editingLines.value.forEach((ident) => {
     const parts = ident.split('_');
-    const ep = parseInt(parts[1], 10);
-    const ei = parseInt(parts[3], 10);
+    const ep = Number.parseInt(parts[1], 10);
+    const ei = Number.parseInt(parts[3], 10);
     if (ep === pageIndex && ei >= newLineIndex) {
       shifted.add(`page_${ep}_line_${ei + 1}`);
     } else {
@@ -491,8 +490,8 @@ function deleteLine(pageIndex: number, lineIndex: number): void {
   const shifted = new Set<string>();
   editingLines.value.forEach((ident) => {
     const parts = ident.split('_');
-    const ep = parseInt(parts[1], 10);
-    const ei = parseInt(parts[3], 10);
+    const ep = Number.parseInt(parts[1], 10);
+    const ei = Number.parseInt(parts[3], 10);
     if (ep === pageIndex && ei >= lineIndex) {
       shifted.add(`page_${ep}_line_${ei - 1}`);
     } else {
@@ -503,8 +502,8 @@ function deleteLine(pageIndex: number, lineIndex: number): void {
 
   if (latestAddedLine.value) {
     const parts = latestAddedLine.value.split('_');
-    const ep = parseInt(parts[1], 10);
-    const ei = parseInt(parts[3], 10);
+    const ep = Number.parseInt(parts[1], 10);
+    const ei = Number.parseInt(parts[3], 10);
     if (ep === pageIndex && ei >= lineIndex) {
       latestAddedLine.value = `page_${pageIndex}_line_${ei - 1}`;
     }
@@ -535,7 +534,7 @@ async function saveScript(): Promise<void> {
   savingInProgress.value = true;
   saveError.value = false;
   await scriptStore.getMaxPage();
-  const tmpPageKeys = Object.keys(scriptConfigStore.tmpScript).map((x) => parseInt(x, 10));
+  const tmpPageKeys = Object.keys(scriptConfigStore.tmpScript).map((x) => Number.parseInt(x, 10));
   const maxPage = Math.max(scriptStore.maxPage, ...tmpPageKeys, 0);
   totalSavePages.value = maxPage;
   curSavePage.value = 0;
@@ -761,7 +760,7 @@ onMounted(async () => {
   linePartCuts.value = [...scriptStore.cuts];
 
   const storedPage = localStorage.getItem('scriptEditPage');
-  const startPage = storedPage != null ? parseInt(storedPage, 10) : 1;
+  const startPage = storedPage != null ? Number.parseInt(storedPage, 10) : 1;
   await goToPageInner(startPage);
 
   loaded.value = true;

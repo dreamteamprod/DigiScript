@@ -212,7 +212,7 @@ export function detectMicConflicts(
       const characterId = micAllocations[sceneId];
       if (characterId == null) return;
 
-      const sceneIdNum = parseInt(sceneId, 10);
+      const sceneIdNum = Number.parseInt(sceneId, 10);
       const adjacentScenes = getAdjacentScenes(sceneIdNum, sceneGraph);
 
       const adjacentSceneIds = [
@@ -243,14 +243,14 @@ export function detectMicConflicts(
 
         const isDuplicate = conflicts.some(
           (c) =>
-            c.micId === parseInt(micId, 10) &&
+            c.micId === Number.parseInt(micId, 10) &&
             c.sceneId === adjacentSceneId &&
             c.adjacentSceneId === sceneIdNum
         );
 
         if (!isDuplicate) {
           conflicts.push({
-            micId: parseInt(micId, 10),
+            micId: Number.parseInt(micId, 10),
             sceneId: sceneIdNum,
             sceneName: currentSceneNode?.sceneName || 'Unknown',
             actName: currentSceneNode?.actName || 'Unknown',

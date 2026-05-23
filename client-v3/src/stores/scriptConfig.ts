@@ -26,11 +26,11 @@ export function computePageStatus(
     });
 
   const deepDiff = detailedDiff(augmented, tmpScriptPage);
-  const addedIndices = Object.keys(deepDiff.added).map((x) => parseInt(x, 10));
+  const addedIndices = Object.keys(deepDiff.added).map((x) => Number.parseInt(x, 10));
   return {
     added: addedIndices.filter((idx) => tmpScriptPage[idx]?.id == null),
     updated: [
-      ...Object.keys(deepDiff.updated).map((x) => parseInt(x, 10)),
+      ...Object.keys(deepDiff.updated).map((x) => Number.parseInt(x, 10)),
       ...addedIndices.filter((idx) => tmpScriptPage[idx]?.id != null),
     ],
     deleted: [...deletedLines],

@@ -277,7 +277,7 @@ function generateBarsForCharacter(
   Object.keys(allocations.value).forEach((micId) => {
     const micAllocs = allocations.value[micId];
     if (!Array.isArray(micAllocs)) return;
-    const micIdNum = parseInt(micId, 10);
+    const micIdNum = Number.parseInt(micId, 10);
     const segments: Seg[] = [];
     let current: Seg | null = null;
 
@@ -329,7 +329,7 @@ function generateBarsForCast(castId: number, rowIndex: number, bars: AllocationB
   Object.keys(allocations.value).forEach((micId) => {
     const micAllocs = allocations.value[micId];
     if (!Array.isArray(micAllocs)) return;
-    const micIdNum = parseInt(micId, 10);
+    const micIdNum = Number.parseInt(micId, 10);
     const segments: Seg[] = [];
     let current: Seg | null = null;
 

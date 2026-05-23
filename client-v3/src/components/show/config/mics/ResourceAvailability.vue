@@ -122,7 +122,7 @@ const peakUsage = computed(() => {
     Object.keys(allocations.value).forEach((micId) => {
       const micAllocs = allocations.value[micId];
       if (Array.isArray(micAllocs) && micAllocs.some((a) => a.scene_id === scene.id)) {
-        micsInScene.add(parseInt(micId, 10));
+        micsInScene.add(Number.parseInt(micId, 10));
       }
     });
     max = Math.max(max, micsInScene.size);

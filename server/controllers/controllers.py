@@ -1,6 +1,7 @@
 import os
 
 from tornado.escape import url_unescape
+from tornado.ioloop import IOLoop
 from tornado.web import HTTPError
 from tornado_prometheus import MetricsHandler
 
@@ -44,8 +45,10 @@ class RootController(BaseController):
             raise HTTPError(404)
 
         try:
-            with open(full_path, "r", encoding="utf-8") as file:
-                self.write(file.read())
+            content = await IOLoop.current().run_in_executor(
+                None, lambda: open(full_path, "r", encoding="utf-8").read()
+            )
+            self.write(content)
         except Exception as e:
             get_logger().error(f"Error serving index.html: {str(e)}")
             raise HTTPError(500) from e

@@ -220,7 +220,7 @@ const allocationByCharacter = computed((): Record<number, Record<number, string 
   });
 
   Object.keys(showStore.micAllocations).forEach((micId) => {
-    const mic = showStore.microphoneById(parseInt(micId, 10));
+    const mic = showStore.microphoneById(Number.parseInt(micId, 10));
     if (!mic) return;
     sortedScenes.value.forEach((scene) => {
       const charId = allAllocations.value[micId]?.[scene.id];
@@ -232,10 +232,10 @@ const allocationByCharacter = computed((): Record<number, Record<number, string 
 
   const result: Record<number, Record<number, string | null>> = {};
   Object.keys(temp).forEach((charId) => {
-    const charIdNum = parseInt(charId, 10);
+    const charIdNum = Number.parseInt(charId, 10);
     result[charIdNum] = {};
     Object.keys(temp[charIdNum]).forEach((sceneId) => {
-      const sceneIdNum = parseInt(sceneId, 10);
+      const sceneIdNum = Number.parseInt(sceneId, 10);
       const mics = temp[charIdNum][sceneIdNum];
       result[charIdNum][sceneIdNum] = mics.length > 0 ? mics.join(', ') : null;
     });
@@ -353,7 +353,7 @@ function getTooltipText(characterId: number, sceneId: number): string {
   const micNames: string[] = [];
   Object.keys(showStore.micAllocations).forEach((micId) => {
     if (allAllocations.value[micId]?.[sceneId] === characterId) {
-      const name = showStore.microphoneById(parseInt(micId, 10))?.name;
+      const name = showStore.microphoneById(Number.parseInt(micId, 10))?.name;
       if (name) micNames.push(name);
     }
   });
