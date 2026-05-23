@@ -139,7 +139,7 @@ async function dispatchAction(action: string, data: Record<string, unknown>): Pr
   if (pinia) {
     const storeMap = (pinia as unknown as { _s: Map<string, Record<string, unknown>> })._s;
     for (const store of storeMap.values()) {
-      if (typeof store[camelAction] === 'function') {
+      if (Object.hasOwn(store, camelAction) && typeof store[camelAction] === 'function') {
         await (store[camelAction] as (d: Record<string, unknown>) => Promise<void>)(data);
         return;
       }

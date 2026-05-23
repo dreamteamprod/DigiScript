@@ -33,6 +33,9 @@ labels:
 - label: "client"
   files:
     - "electron/.*"
+- label: "client-v3"
+  files:
+    - "client-v3/.*"
 - label: "server"
   files:
     - "server/.*"
