@@ -282,6 +282,9 @@ async function awaitWSConnect(): Promise<void> {
         window.location.href = '/?_switch=1';
         return;
       }
+      if (switching) {
+        await router.replace(router.currentRoute.value.path);
+      }
     }
     if (systemStore.currentShow != null) {
       await showStore.getShowSessionData();

@@ -333,6 +333,9 @@ export default defineComponent({
               return;
             }
           }
+          if (switching) {
+            await (this as any).$router.replace({ path: (this as any).$route.path });
+          }
         }
 
         if ((this as any).SETTINGS.current_show != null) {
