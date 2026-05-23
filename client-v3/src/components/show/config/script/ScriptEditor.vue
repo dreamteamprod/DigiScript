@@ -533,7 +533,12 @@ async function saveScript(): Promise<void> {
 
   savingInProgress.value = true;
   saveError.value = false;
-  await scriptStore.getMaxPage();
+  const maxPageOk = await scriptStore.getMaxPage();
+  if (!maxPageOk) {
+    toast.error('Unable to save script — could not determine page count. Please try again.');
+    savingInProgress.value = false;
+    return;
+  }
   const tmpPageKeys = Object.keys(scriptConfigStore.tmpScript).map((x) => Number.parseInt(x, 10));
   const maxPage = Math.max(scriptStore.maxPage, ...tmpPageKeys, 0);
   totalSavePages.value = maxPage;

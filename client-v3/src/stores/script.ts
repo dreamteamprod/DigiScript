@@ -70,12 +70,15 @@ export const useScriptStore = defineStore('script', {
       return response.ok;
     },
 
-    async getMaxPage(): Promise<void> {
+    async getMaxPage(): Promise<boolean> {
       const response = await fetch(makeURL('/api/v1/show/script/max_page'));
       if (response.ok) {
         const data = await response.json();
         this.maxPage = data.max_page;
+        return true;
       }
+      log.error('Unable to fetch max page');
+      return false;
     },
 
     async getStageDirectionStyles(): Promise<void> {
