@@ -279,7 +279,7 @@ async function awaitWSConnect(): Promise<void> {
       await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);
       const switching = new URLSearchParams(window.location.search).has('_switch');
       if (!switching && (userStore.userSettings as UserSettings).preferred_ui === 'old') {
-        window.location.href = '/';
+        window.location.href = '/?_switch=1';
         return;
       }
     }
