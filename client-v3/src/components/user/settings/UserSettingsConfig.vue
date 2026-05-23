@@ -101,9 +101,18 @@
               />
             </BFormGroup>
 
+            <BFormGroup label-cols="4" label="Preferred UI Version" label-for="preferred-ui-input">
+              <BFormSelect
+                id="preferred-ui-input"
+                v-model="state.preferred_ui"
+                name="preferred-ui-input"
+                :options="preferredUiOptions"
+              />
+            </BFormGroup>
+
             <BButtonGroup size="md" style="float: right">
-              <BButton type="reset" variant="danger" :disabled="!v$.$anyDirty">Reset</BButton>
-              <BButton type="submit" variant="primary" :disabled="!v$.$anyDirty || v$.$anyError">
+              <BButton type="reset" variant="danger" :disabled="!formDirty">Reset</BButton>
+              <BButton type="submit" variant="primary" :disabled="!formDirty || v$.$anyError">
                 Submit
               </BButton>
             </BButtonGroup>
@@ -119,6 +128,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
+
 import { useVuelidate } from '@vuelidate/core';
 import { required, integer, minValue } from '@vuelidate/validators';
 import log from 'loglevel';
@@ -143,6 +153,7 @@ const defaultState = (): UserSettings => ({
   console_log_level: 'WARN',
   character_mru_sort: false,
   character_combined_dropdown: false,
+  preferred_ui: null,
 });
 
 const state = ref<UserSettings>(defaultState());
@@ -162,6 +173,12 @@ const consoleLogLevelOptions = [
   { value: 'SILENT', text: 'SILENT' },
 ];
 
+const preferredUiOptions = [
+  { value: null, text: 'Use system default' },
+  { value: 'old', text: 'Classic UI' },
+  { value: 'new', text: 'New UI' },
+];
+
 const rules = computed(() => ({
   enable_script_auto_save: {},
   script_auto_save_interval: {
@@ -176,13 +193,19 @@ const rules = computed(() => ({
   console_log_level: { required },
   character_mru_sort: {},
   character_combined_dropdown: {},
+  preferred_ui: {},
 }));
 
 const v$ = useVuelidate(rules, state);
+const savedSettings = ref<UserSettings>(defaultState());
+const formDirty = computed(
+  () => JSON.stringify(state.value) !== JSON.stringify(savedSettings.value)
+);
 
 function resetForm(): void {
   loaded.value = false;
   const settings = userStore.userSettings as UserSettings;
+  savedSettings.value = { ...defaultState(), ...settings };
   state.value = { ...defaultState(), ...settings };
   v$.value.$reset();
   loaded.value = true;
@@ -192,6 +215,7 @@ watch(() => userStore.userSettings, resetForm, { deep: true });
 
 onMounted(() => {
   const settings = userStore.userSettings as UserSettings;
+  savedSettings.value = { ...defaultState(), ...settings };
   state.value = { ...defaultState(), ...settings };
   loaded.value = true;
 });

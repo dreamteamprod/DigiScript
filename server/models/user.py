@@ -89,11 +89,16 @@ class UserSettings(db.Model):
     console_log_level: Mapped[str] = mapped_column(default="WARN")
     character_mru_sort: Mapped[bool] = mapped_column(default=False)
     character_combined_dropdown: Mapped[bool] = mapped_column(default=False)
+    preferred_ui: Mapped[str | None] = mapped_column(default=None)
 
     __table_args__ = (
         CheckConstraint(
             "console_log_level IN ('TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'SILENT')",
             name="ck_user_settings_console_log_level",
+        ),
+        CheckConstraint(
+            "preferred_ui IS NULL OR preferred_ui IN ('old', 'new')",
+            name="ck_user_settings_preferred_ui",
         ),
     )
 

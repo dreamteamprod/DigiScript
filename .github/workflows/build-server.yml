@@ -34,6 +34,23 @@ jobs:
           cd client
           npm run build
 
+      - name: Setup Node.js (V3)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'client-v3/package-lock.json'
+
+      - name: Install dependencies (V3)
+        run: |
+          cd client-v3
+          npm ci
+
+      - name: Build frontend (V3)
+        run: |
+          cd client-v3
+          npm run build
+
       - name: Upload frontend build
         uses: actions/upload-artifact@v4
         with:

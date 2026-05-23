@@ -94,6 +94,7 @@
           </BNavItem>
         </BNavbarNav>
         <BNavbarNav class="ms-auto">
+          <BNavItem href="/?_switch=1"> Switch to Classic UI </BNavItem>
           <BNavItem to="/help"> Help </BNavItem>
           <BNavItem to="/about"> About </BNavItem>
           <BNavItemDropdown v-if="isElectronEnv" text="Server">
@@ -193,6 +194,7 @@ import { useConfirm } from '@/composables/useConfirm';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import CreateUser from '@/components/user/CreateUser.vue';
 import { useUserStore } from '@/stores/user';
+import type { UserSettings } from '@/types/api/user';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useWebSocketStore } from '@/stores/websocket';
@@ -275,6 +277,14 @@ async function awaitWSConnect(): Promise<void> {
     if (userStore.authToken) {
       await userStore.getCurrentUser();
       await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);
+      const switching = new URLSearchParams(window.location.search).has('_switch');
+      if (!switching && (userStore.userSettings as UserSettings).preferred_ui === 'old') {
+        window.location.href = '/?_switch=1';
+        return;
+      }
+      if (switching) {
+        await router.replace(router.currentRoute.value.path);
+      }
     }
     if (systemStore.currentShow != null) {
       await showStore.getShowSessionData();
