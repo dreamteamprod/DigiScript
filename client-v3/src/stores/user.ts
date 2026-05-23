@@ -53,12 +53,19 @@ export const useUserStore = defineStore('user', {
         const data = await response.json();
         if (data.access_token) this._setToken(data.access_token);
 
-        const { useSystemStore } = await import('@/stores/system');
-        await useSystemStore().getRbacRoles();
-        await this.getCurrentUser();
-        await this.getCurrentRbac();
-        await this.getUserSettings();
-        await this.setupTokenRefresh();
+        try {
+          const { useSystemStore } = await import('@/stores/system');
+          await useSystemStore().getRbacRoles();
+          await this.getCurrentUser();
+          await this.getCurrentRbac();
+          await this.getUserSettings();
+          await this.setupTokenRefresh();
+        } catch (e) {
+          log.error('Error loading user data after login:', e);
+          this._clearToken();
+          toast.error('Login failed — unable to load user data. Please try again.');
+          return false;
+        }
 
         // Trigger WS authentication if the connection is waiting
         wsStore.triggerAuthentication();
@@ -119,21 +126,26 @@ export const useUserStore = defineStore('user', {
 
     async refreshToken(): Promise<boolean> {
       if (!this.authToken) return false;
-      const response = await fetch(makeURL('/api/v1/auth/refresh-token'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        this._setToken(data.access_token);
-        const { useWebSocketStore } = await import('@/stores/websocket');
-        useWebSocketStore().refreshWsToken();
-        log.debug('Token refreshed successfully');
-        return true;
+      try {
+        const response = await fetch(makeURL('/api/v1/auth/refresh-token'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          this._setToken(data.access_token);
+          const { useWebSocketStore } = await import('@/stores/websocket');
+          useWebSocketStore().refreshWsToken();
+          log.debug('Token refreshed successfully');
+          return true;
+        }
+        log.error('Failed to refresh token');
+        return false;
+      } catch (e) {
+        log.error('Network error during token refresh:', e);
+        return false;
       }
-      log.error('Failed to refresh token');
-      return false;
     },
 
     async tokenRefreshFromServer(newToken: string): Promise<void> {

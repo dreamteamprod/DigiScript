@@ -66,6 +66,8 @@ async function handleMessage(msg: WsMessage): Promise<void> {
     case 'WS_AUTH_ERROR':
       wsStore.$patch({ authenticated: false, pendingAuthentication: false });
       log.error('WebSocket authentication error:', msg.DATA);
+      toast.error('WebSocket authentication failed. Please log in again.');
+      await userStore.logout();
       break;
     case 'WS_TOKEN_REFRESH_SUCCESS':
       log.info('WebSocket token refreshed successfully');
@@ -108,8 +110,7 @@ function screamingToCamel(s: string): string {
 async function dispatchAction(action: string, data: Record<string, unknown>): Promise<void> {
   // Actions that can't be auto-routed by naming convention
   if (action === 'TOKEN_REFRESH') {
-    const payload = data as { DATA: { access_token: string } };
-    await useUserStore().tokenRefreshFromServer(payload.DATA.access_token);
+    await useUserStore().tokenRefreshFromServer((data as { access_token: string }).access_token);
     return;
   }
   if (action === 'SHOW_CHANGED') {

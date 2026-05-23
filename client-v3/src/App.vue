@@ -127,7 +127,11 @@
     </BNavbar>
 
     <template v-if="!loaded">
-      <div class="text-center center-spinner">
+      <div v-if="startupError" class="text-center center-spinner">
+        <p class="text-danger">Failed to connect to the server. Please check your connection.</p>
+        <BButton variant="primary" @click="retryStartup">Retry</BButton>
+      </div>
+      <div v-else class="text-center center-spinner">
         <BSpinner style="width: 10rem; height: 10rem" variant="info" />
       </div>
     </template>
@@ -219,6 +223,7 @@ const isElectronEnv = ref(false);
 
 // Local state
 const loaded = ref(false);
+const startupError = ref(false);
 const stoppingSession = ref(false);
 const startingSession = ref(false);
 const changingPage = ref(false);
@@ -253,14 +258,19 @@ onMounted(async () => {
     }
   }
 
-  if (userStore.authToken) {
-    await userStore.refreshToken();
-    await userStore.setupTokenRefresh();
-  }
+  try {
+    if (userStore.authToken) {
+      await userStore.refreshToken();
+      await userStore.setupTokenRefresh();
+    }
 
-  await systemStore.getSettings();
-  connect();
-  await awaitWSConnect();
+    await systemStore.getSettings();
+    connect();
+    await awaitWSConnect();
+  } catch (e) {
+    log.error('Startup error:', e);
+    startupError.value = true;
+  }
 });
 
 onBeforeUnmount(() => {
@@ -304,6 +314,22 @@ async function awaitWSConnect(): Promise<void> {
   if (shouldContinue) {
     await loadShowDataAndNavigate();
     loaded.value = true;
+  }
+}
+
+async function retryStartup(): Promise<void> {
+  startupError.value = false;
+  try {
+    if (userStore.authToken) {
+      await userStore.refreshToken();
+      await userStore.setupTokenRefresh();
+    }
+    await systemStore.getSettings();
+    connect();
+    await awaitWSConnect();
+  } catch (e) {
+    log.error('Retry startup error:', e);
+    startupError.value = true;
   }
 }
 
