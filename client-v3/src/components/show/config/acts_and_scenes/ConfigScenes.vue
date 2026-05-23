@@ -296,7 +296,7 @@ const editRules = {
 const newV$ = useVuelidate(newRules, { newFormState });
 const editV$ = useVuelidate(editRules, { editFormState });
 
-const sceneTableItems = computed((): Scene[] => {
+function getActOrder(): number[] {
   const show = systemStore.currentShow;
   const actOrder: number[] = [];
   if (show?.first_act_id != null && showStore.actList.length > 0) {
@@ -309,21 +309,30 @@ const sceneTableItems = computed((): Scene[] => {
   for (const act of showStore.actList) {
     if (!actOrder.includes(act.id)) actOrder.push(act.id);
   }
+  return actOrder;
+}
 
+function getScenesForAct(actId: number, alreadyLinked: Set<number>): Scene[] {
+  const scenes: Scene[] = [];
+  const act = showStore.actById(actId);
+  if (act?.first_scene != null) {
+    let scene = showStore.sceneById(act.first_scene);
+    while (scene != null) {
+      scenes.push(scene);
+      scene = showStore.sceneById(scene.next_scene);
+    }
+  }
+  for (const scene of showStore.sceneList.filter((s) => s.act === actId)) {
+    if (!alreadyLinked.has(scene.id)) scenes.push(scene);
+  }
+  return scenes;
+}
+
+const sceneTableItems = computed((): Scene[] => {
   const ret: Scene[] = [];
-  for (const actId of actOrder) {
-    const act = showStore.actById(actId);
-    if (act?.first_scene != null) {
-      let scene = showStore.sceneById(act.first_scene);
-      while (scene != null) {
-        ret.push(scene);
-        scene = showStore.sceneById(scene.next_scene);
-      }
-    }
+  for (const actId of getActOrder()) {
     const linked = new Set(ret.map((s) => s.id));
-    for (const scene of showStore.sceneList.filter((s) => s.act === actId)) {
-      if (!linked.has(scene.id)) ret.push(scene);
-    }
+    ret.push(...getScenesForAct(actId, linked));
   }
   return ret;
 });

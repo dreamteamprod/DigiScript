@@ -3,6 +3,14 @@ import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import type { Act, Scene } from '@/types/api/show';
 
+function getHeaderName(sceneId: number): string {
+  return `head(${sceneId})`;
+}
+
+function getCellName(sceneId: number): string {
+  return `cell(${sceneId})`;
+}
+
 export function useStatsTable() {
   const systemStore = useSystemStore();
   const showStore = useShowStore();
@@ -38,14 +46,6 @@ export function useStatsTable() {
 
   function numScenesPerAct(actId: number): number {
     return sortedScenes.value.filter((scene) => scene.act === actId).length;
-  }
-
-  function getHeaderName(sceneId: number): string {
-    return `head(${sceneId})`;
-  }
-
-  function getCellName(sceneId: number): string {
-    return `cell(${sceneId})`;
   }
 
   return { sortedActs, sortedScenes, numScenesPerAct, getHeaderName, getCellName };

@@ -124,6 +124,7 @@ const emit = defineEmits<{
 const showStore = useShowStore();
 const systemStore = useSystemStore();
 
+// JSON round-trip instead of structuredClone — modelValue is a Vue reactive Proxy that structuredClone cannot handle
 const state = ref<ScriptLine>(JSON.parse(JSON.stringify(props.modelValue)));
 
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);

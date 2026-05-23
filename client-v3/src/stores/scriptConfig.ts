@@ -18,6 +18,8 @@ export function computePageStatus(
   deletedLines: number[],
   insertedLines: number[]
 ): PageStatus {
+  // JSON round-trip instead of structuredClone — these arrays come from Pinia reactive state
+  // (Proxy objects) which structuredClone cannot handle in some environments.
   const augmented: ScriptLine[] = JSON.parse(JSON.stringify(actualScriptPage));
   JSON.parse(JSON.stringify(insertedLines))
     .sort((a: number, b: number) => a - b)
@@ -83,7 +85,7 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     },
 
     addBlankLine(page: number, line: ScriptLine): void {
-      const l = JSON.parse(JSON.stringify(line));
+      const l = structuredClone(line);
       l.page = page;
       this.tmpScript[String(page)].push(l);
     },
@@ -91,13 +93,13 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     insertBlankLine(page: number, lineIndex: number, line: ScriptLine): void {
       const pageStr = String(page);
       if (this.deletedLines[pageStr]?.includes(lineIndex)) {
-        const l = JSON.parse(JSON.stringify(line));
+        const l = structuredClone(line);
         l.page = page;
         l.id = this.tmpScript[pageStr][lineIndex].id;
         this.tmpScript[pageStr].splice(lineIndex, 1, l);
         this.deletedLines[pageStr].splice(this.deletedLines[pageStr].indexOf(lineIndex), 1);
       } else {
-        const l = JSON.parse(JSON.stringify(line));
+        const l = structuredClone(line);
         l.page = page;
         this.tmpScript[pageStr].splice(lineIndex, 0, l);
         if (!this.insertedLines[pageStr]) this.insertedLines[pageStr] = [];

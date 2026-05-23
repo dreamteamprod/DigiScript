@@ -203,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required } from '@vuelidate/validators';
 import { debounce } from 'lodash';
@@ -386,6 +386,29 @@ function scrollToElement(element: Element | null): void {
   container.scrollTop = elementRect.top - containerRect.top + container.scrollTop;
 }
 
+function getPreviousLinePosition(
+  curPage: number,
+  curLine: number
+): { page: number; line: number; atStart: boolean } {
+  const line = curLine - 1;
+  if (line >= 0) return { page: curPage, line, atStart: false };
+  const prevPage = curPage - 1;
+  if (prevPage < 1) return { page: 1, line: 0, atStart: true };
+  const prevPageLines = scriptStore.getScriptPage(prevPage);
+  if (!prevPageLines || prevPageLines.length === 0)
+    return { page: prevPage, line: -1, atStart: false };
+  return { page: prevPage, line: prevPageLines.length - 1, atStart: false };
+}
+
+function isLineVisible(page: number, line: number): boolean {
+  const pageLines = scriptStore.getScriptPage(page);
+  return !!(
+    pageLines &&
+    line < pageLines.length &&
+    !isWholeLineCut(pageLines[line], scriptStore.cuts)
+  );
+}
+
 function findContextElement(
   targetPage: number,
   targetLineOnPage: number,
@@ -396,29 +419,19 @@ function findContextElement(
   let visibleLinesFound = 0;
 
   while (visibleLinesFound < contextLines && curPage >= 1) {
-    curLine--;
-    if (curLine < 0) {
-      curPage--;
-      if (curPage < 1) return document.getElementById('page_1_line_0');
-      const prevPageLines = scriptStore.getScriptPage(curPage);
-      if (!prevPageLines || prevPageLines.length === 0) continue;
-      curLine = prevPageLines.length - 1;
-    }
-    const pageLines = scriptStore.getScriptPage(curPage);
-    if (pageLines && curLine < pageLines.length) {
-      const line = pageLines[curLine];
-      if (!isWholeLineCut(line, scriptStore.cuts)) {
-        visibleLinesFound++;
-        if (visibleLinesFound >= contextLines) {
-          return document.getElementById(`page_${curPage}_line_${curLine}`);
-        }
+    const pos = getPreviousLinePosition(curPage, curLine);
+    if (pos.atStart) return document.getElementById('page_1_line_0');
+    curPage = pos.page;
+    curLine = pos.line;
+    if (curLine < 0) continue;
+    if (isLineVisible(curPage, curLine)) {
+      visibleLinesFound++;
+      if (visibleLinesFound >= contextLines) {
+        return document.getElementById(`page_${curPage}_line_${curLine}`);
       }
     }
   }
-  if (visibleLinesFound > 0) {
-    return document.getElementById(`page_${curPage}_line_${curLine}`);
-  }
-  return null;
+  return visibleLinesFound > 0 ? document.getElementById(`page_${curPage}_line_${curLine}`) : null;
 }
 
 function navigateTo(targetPage: number, targetLineOnPage: number, preventScroll = false): boolean {
@@ -464,6 +477,25 @@ function navigateTo(targetPage: number, targetLineOnPage: number, preventScroll 
   return true;
 }
 
+function moveBackwardOnePage(newPage: number): { page: number; line: number; done: boolean } {
+  const prevPage = newPage - 1;
+  if (prevPage < 1) return { page: 1, line: 0, done: true };
+  const prevPageLines = scriptStore.getScriptPage(prevPage);
+  if (!prevPageLines) return { page: prevPage, line: 0, done: true };
+  return { page: prevPage, line: Math.max(prevPageLines.length - 1, 0), done: false };
+}
+
+function moveForwardOnePage(
+  newPage: number,
+  currentPageLines: unknown[]
+): { page: number; line: number; done: boolean } {
+  const nextPage = newPage + 1;
+  if (nextPage > currentLoadedPage.value) {
+    return { page: currentLoadedPage.value, line: currentPageLines.length - 1, done: true };
+  }
+  return { page: nextPage, line: 0, done: false };
+}
+
 function navigateRelative(deltaLine: number): boolean {
   if (deltaLine === 0) return true;
   const direction = deltaLine > 0 ? 1 : -1;
@@ -473,39 +505,25 @@ function navigateRelative(deltaLine: number): boolean {
 
   while (visibleLinesMoved < Math.abs(deltaLine)) {
     newLineOnPage += direction;
+    let done = false;
     if (newLineOnPage < 0) {
-      newPage--;
-      if (newPage < 1) {
-        newPage = 1;
-        newLineOnPage = 0;
-        break;
-      }
-      const prevPageLines = scriptStore.getScriptPage(newPage);
-      if (!prevPageLines) break;
-      newLineOnPage = prevPageLines.length - 1;
-      if (newLineOnPage < 0) newLineOnPage = 0;
+      ({ page: newPage, line: newLineOnPage, done } = moveBackwardOnePage(newPage));
     } else {
       const currentPageLines = scriptStore.getScriptPage(newPage);
       if (!currentPageLines) break;
       if (newLineOnPage >= currentPageLines.length) {
-        newPage++;
-        if (newPage > currentLoadedPage.value) {
-          newPage = currentLoadedPage.value;
-          newLineOnPage = currentPageLines.length - 1;
-          break;
-        }
-        newLineOnPage = 0;
+        ({
+          page: newPage,
+          line: newLineOnPage,
+          done,
+        } = moveForwardOnePage(newPage, currentPageLines));
       }
     }
+    if (done) break;
     const pageLines = scriptStore.getScriptPage(newPage);
-    if (pageLines && newLineOnPage < pageLines.length) {
-      if (!isWholeLineCut(pageLines[newLineOnPage], scriptStore.cuts)) {
-        visibleLinesMoved++;
-      }
-      if (visibleLinesMoved >= Math.abs(deltaLine)) break;
-    } else {
-      break;
-    }
+    if (!pageLines || newLineOnPage >= pageLines.length) break;
+    if (!isWholeLineCut(pageLines[newLineOnPage], scriptStore.cuts)) visibleLinesMoved++;
+    if (visibleLinesMoved >= Math.abs(deltaLine)) break;
   }
   return navigateTo(newPage, newLineOnPage);
 }
@@ -876,7 +894,6 @@ onUnmounted(() => {
 });
 
 // Watch follow data reactively
-import { watch } from 'vue';
 watch(() => props.sessionFollowData, handleFollowDataChange, { deep: true });
 </script>
 

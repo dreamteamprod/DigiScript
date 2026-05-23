@@ -40,6 +40,28 @@ const EXPORT_STYLES: Record<string, Record<string, string>> = {
   },
 };
 
+function getColorForEntity(entityId: number, entityType: EntityType | string): string {
+  const typeOffsets: Record<string, number> = {
+    mic: 0,
+    character: 120,
+    cast: 240,
+    prop: 60,
+    scenery: 180,
+  };
+  const hue = (entityId * 137.508 + (typeOffsets[entityType] ?? 0)) % 360;
+  return `hsl(${hue}, 70%, 50%)`;
+}
+
+function applyExportStyles(svgClone: SVGSVGElement): void {
+  Object.entries(EXPORT_STYLES).forEach(([selector, attrs]) => {
+    svgClone.querySelectorAll(selector).forEach((el) => {
+      Object.entries(attrs).forEach(([attr, value]) => {
+        el.setAttribute(attr, value);
+      });
+    });
+  });
+}
+
 export function useTimeline(scenes: Ref<Scene[]>, rows: Ref<TimelineRow[]>) {
   const showStore = useShowStore();
 
@@ -95,16 +117,30 @@ export function useTimeline(scenes: Ref<Scene[]>, rows: Ref<TimelineRow[]>) {
     return rowIndex * rowHeight;
   }
 
-  function getColorForEntity(entityId: number, entityType: EntityType | string): string {
-    const typeOffsets: Record<string, number> = {
-      mic: 0,
-      character: 120,
-      cast: 240,
-      prop: 60,
-      scenery: 180,
+  function processAllocationEntry(
+    hasAllocation: boolean,
+    scene: Scene,
+    sceneIndex: number,
+    segments: TimelineSegment[],
+    currentSegment: TimelineSegment | null
+  ): TimelineSegment | null {
+    if (!hasAllocation) {
+      if (currentSegment) segments.push(currentSegment);
+      return null;
+    }
+    const sameAct = currentSegment
+      ? scene.act === scenes.value[currentSegment.startIndex].act
+      : true;
+    if (currentSegment && sameAct) {
+      return { ...currentSegment, endIndex: sceneIndex, endScene: scene.name ?? '' };
+    }
+    if (currentSegment) segments.push(currentSegment);
+    return {
+      startIndex: sceneIndex,
+      endIndex: sceneIndex,
+      startScene: scene.name ?? '',
+      endScene: scene.name ?? '',
     };
-    const hue = (entityId * 137.508 + (typeOffsets[entityType] ?? 0)) % 360;
-    return `hsl(${hue}, 70%, 50%)`;
   }
 
   function groupConsecutiveScenes(
@@ -118,42 +154,17 @@ export function useTimeline(scenes: Ref<Scene[]>, rows: Ref<TimelineRow[]>) {
 
     scenes.value.forEach((scene, sceneIndex) => {
       const hasAllocation = allocations.some((a) => a[sceneIdField] === scene.id);
-
-      if (hasAllocation) {
-        const sameAct = currentSegment
-          ? scene.act === scenes.value[currentSegment.startIndex].act
-          : true;
-
-        if (currentSegment && sameAct) {
-          currentSegment.endIndex = sceneIndex;
-          currentSegment.endScene = scene.name ?? '';
-        } else {
-          if (currentSegment) segments.push(currentSegment);
-          currentSegment = {
-            startIndex: sceneIndex,
-            endIndex: sceneIndex,
-            startScene: scene.name ?? '',
-            endScene: scene.name ?? '',
-          };
-        }
-      } else if (currentSegment) {
-        segments.push(currentSegment);
-        currentSegment = null;
-      }
+      currentSegment = processAllocationEntry(
+        hasAllocation,
+        scene,
+        sceneIndex,
+        segments,
+        currentSegment
+      );
     });
 
     if (currentSegment) segments.push(currentSegment);
     return segments;
-  }
-
-  function applyExportStyles(svgClone: SVGSVGElement): void {
-    Object.entries(EXPORT_STYLES).forEach(([selector, attrs]) => {
-      svgClone.querySelectorAll(selector).forEach((el) => {
-        Object.entries(attrs).forEach(([attr, value]) => {
-          el.setAttribute(attr, value);
-        });
-      });
-    });
   }
 
   function exportTimeline(

@@ -336,19 +336,19 @@ function getMicTooltip(micStatus: MicStatus): string {
 .stat-badge.available {
   background-color: rgba(40, 167, 69, 0.2);
   border-color: #28a745;
-  color: #28a745;
+  color: #155724;
 }
 
 .stat-badge.in-use {
   background-color: rgba(0, 123, 255, 0.2);
   border-color: #007bff;
-  color: #007bff;
+  color: #004085;
 }
 
 .stat-badge.conflict {
   background-color: rgba(220, 53, 69, 0.2);
   border-color: #dc3545;
-  color: #dc3545;
+  color: #721c24;
 }
 
 .mic-status-grid {

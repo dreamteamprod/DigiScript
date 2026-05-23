@@ -213,53 +213,41 @@ function buildStreamUrl(): string {
   return `${makeURL('/api/v1/logs/stream')}?${params}`;
 }
 
-async function startStream(): Promise<void> {
-  stopStream();
-  streamAborted = false;
-  error.value = null;
-
-  let response: Response;
+async function getStreamReader(): Promise<ReadableStreamDefaultReader<Uint8Array> | null> {
   try {
-    response = await fetch(buildStreamUrl());
+    const response = await fetch(buildStreamUrl());
+    if (!response.ok) {
+      error.value = `Log stream returned ${response.status}`;
+      return null;
+    }
+    return response.body!.getReader();
   } catch (err: any) {
     error.value = err.message || 'Failed to connect to log stream';
-    return;
+    return null;
   }
+}
 
-  if (!response.ok) {
-    error.value = `Log stream returned ${response.status}`;
-    return;
-  }
-
-  entries.value = [];
-  totalEntries.value = 0;
-
-  const reader = response.body!.getReader();
-  streamReader = reader;
+async function consumeStreamChunks(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
   const decoder = new TextDecoder();
   let buffer = '';
-
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       buffer += decoder.decode(value, { stream: true });
       const events = buffer.split('\n\n');
       buffer = events.pop()!;
-
       for (const event of events) {
-        if (event.startsWith('data: ')) {
-          try {
-            const entry = JSON.parse(event.slice(6));
-            const wasAtBottom = autoScroll.value;
-            entries.value.push(entry);
-            totalEntries.value++;
-            if (entries.value.length > limit.value) entries.value.shift();
-            if (wasAtBottom) nextTick(scrollToBottom);
-          } catch {
-            // ignore malformed SSE JSON
-          }
+        if (!event.startsWith('data: ')) continue;
+        try {
+          const entry: LogEntry = JSON.parse(event.slice(6));
+          const wasAtBottom = autoScroll.value;
+          entries.value.push(entry);
+          totalEntries.value++;
+          if (entries.value.length > limit.value) entries.value.shift();
+          if (wasAtBottom) nextTick(scrollToBottom);
+        } catch {
+          // ignore malformed SSE JSON
         }
       }
     }
@@ -271,6 +259,20 @@ async function startStream(): Promise<void> {
   } finally {
     streamReader = null;
   }
+}
+
+async function startStream(): Promise<void> {
+  stopStream();
+  streamAborted = false;
+  error.value = null;
+
+  const reader = await getStreamReader();
+  if (!reader) return;
+
+  entries.value = [];
+  totalEntries.value = 0;
+  streamReader = reader;
+  await consumeStreamChunks(reader);
 }
 
 function stopStream(): void {
