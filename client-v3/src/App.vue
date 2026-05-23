@@ -94,7 +94,7 @@
           </BNavItem>
         </BNavbarNav>
         <BNavbarNav class="ms-auto">
-          <BNavItem href="/?_switch=1"> Switch to Classic UI </BNavItem>
+          <BNavItem v-if="!isElectronEnv" href="/?_switch=1"> Switch to Classic UI </BNavItem>
           <BNavItem to="/help"> Help </BNavItem>
           <BNavItem to="/about"> About </BNavItem>
           <BNavItemDropdown v-if="isElectronEnv" text="Server">
@@ -362,7 +362,8 @@ async function switchServer(): Promise<void> {
   if (!isElectronEnv.value) return;
   const api = window.electronAPI as { clearActiveConnection?: () => Promise<void> } | undefined;
   await api?.clearActiveConnection?.();
-  window.location.href = '/ui-new/electron/server-selector';
+  await router.push('/electron/server-selector');
+  window.location.reload();
 }
 
 async function goToLivePage(): Promise<void> {
