@@ -111,9 +111,7 @@
               <em>{{ userStore.currentUser.username }}</em>
             </template>
             <BDropdownItem to="/me"> Settings </BDropdownItem>
-            <BDropdownItemButton @click.stop.prevent="userStore.logout()">
-              Sign Out
-            </BDropdownItemButton>
+            <BDropdownItemButton @click.stop.prevent="handleLogout"> Sign Out </BDropdownItemButton>
           </BNavItemDropdown>
           <BNavText id="connection-status" :class="{ healthy: websocketHealthy }">
             <template v-if="websocketHealthy"> Connected </template>
@@ -399,6 +397,10 @@ async function switchServer(): Promise<void> {
   await api?.clearActiveConnection?.();
   await router.push('/electron/server-selector');
   window.location.reload();
+}
+
+async function handleLogout(): Promise<void> {
+  await userStore.logout();
 }
 
 async function goToLivePage(): Promise<void> {
