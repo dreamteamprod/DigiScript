@@ -19,9 +19,29 @@ function buildAuthenticatedOptions(
   return { ...options, headers };
 }
 
+type QueueEntry = {
+  resolve: (r: Response) => void;
+  resource: string;
+  options: RequestInit & { headers: Record<string, string> };
+};
+
 export default function setupHttpInterceptor(): void {
   const originalFetch = window.fetch;
-  const refreshState = { isRefreshing: false };
+  const refreshState = { isRefreshing: false, queue: [] as QueueEntry[] };
+
+  function flushQueue(newToken: string | null): void {
+    const entries = refreshState.queue.splice(0);
+    entries.forEach(({ resolve, resource, options }) => {
+      if (newToken) {
+        originalFetch(resource, {
+          ...options,
+          headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
+        }).then(resolve);
+      } else {
+        resolve(new Response(JSON.stringify({ message: 'Session expired' }), { status: 401 }));
+      }
+    });
+  }
 
   async function handle401Response(
     resource: string,
@@ -30,16 +50,24 @@ export default function setupHttpInterceptor(): void {
     isRefreshRequest: boolean,
     response: Response
   ): Promise<Response> {
-    if (isRefreshRequest || refreshState.isRefreshing) {
-      log.warn('Token refresh failed with 401 or already refreshing, logging out');
+    if (isRefreshRequest) {
+      log.warn('Token refresh request received 401, logging out');
+      flushQueue(null);
       toast.warning('Your session has expired. Please log in again.');
       await userStore.logout();
       return response;
     }
 
+    if (refreshState.isRefreshing) {
+      return new Promise<Response>((resolve) => {
+        refreshState.queue.push({ resolve, resource, options: newOptions });
+      });
+    }
+
     log.info('Attempting token refresh');
     if (!userStore.authToken) {
       log.warn('401 received with no token present');
+      flushQueue(null);
       await userStore.logout();
       return response;
     }
@@ -51,18 +79,21 @@ export default function setupHttpInterceptor(): void {
 
       if (!refreshSuccess) {
         log.warn('Token refresh failed, logging out');
+        flushQueue(null);
         toast.warning('Your session has expired. Please log in again.');
         await userStore.logout();
         return response;
       }
 
       log.info('Token refresh successful, retrying original request');
+      flushQueue(userStore.authToken);
       return await originalFetch(resource, {
         ...newOptions,
         headers: { ...newOptions.headers, Authorization: `Bearer ${userStore.authToken}` },
       });
     } catch (refreshError) {
       refreshState.isRefreshing = false;
+      flushQueue(null);
       log.error('Error during token refresh:', refreshError);
       toast.error('Authentication error - please log in again');
       await userStore.logout();

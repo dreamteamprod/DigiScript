@@ -753,7 +753,14 @@ export const useShowStore = defineStore('show', {
         await this.getScriptRevisions();
         toast.success('Added new script revision!');
       } else {
-        toast.error('Unable to add new script revision');
+        let message = 'Unable to add new script revision';
+        try {
+          const data = await response.json();
+          if (data.message) message = data.message;
+        } catch {
+          /* non-JSON body */
+        }
+        toast.error(message);
       }
     },
 
@@ -767,7 +774,14 @@ export const useShowStore = defineStore('show', {
         await this.getScriptRevisions();
         toast.success('Deleted script revision!');
       } else {
-        toast.error('Unable to delete script revision');
+        let message = 'Unable to delete script revision';
+        try {
+          const data = await response.json();
+          if (data.message) message = data.message;
+        } catch {
+          /* non-JSON body */
+        }
+        toast.error(message);
       }
     },
 
@@ -781,7 +795,14 @@ export const useShowStore = defineStore('show', {
         await this.getScriptRevisions();
         toast.success('Loaded script revision!');
       } else {
-        toast.error('Unable to load script revision');
+        let message = 'Unable to load script revision';
+        try {
+          const data = await response.json();
+          if (data.message) message = data.message;
+        } catch {
+          /* non-JSON body */
+        }
+        toast.error(message);
       }
     },
 
