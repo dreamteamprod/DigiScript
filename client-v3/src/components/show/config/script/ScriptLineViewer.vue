@@ -121,26 +121,26 @@
           End
         </BButton>
       </BButtonGroup>
-      <BDropdown
-        v-else-if="canEdit && !isCutMode"
-        split
-        text="Edit"
-        end
-        boundary="window"
-        style="padding: 0"
-        variant="link"
-        @click.prevent.stop="$emit('editLine')"
-      >
-        <BDropdownItem @click.prevent.stop="$emit('insertDialogue')">Insert Dialogue</BDropdownItem>
-        <BDropdownItem @click.prevent.stop="$emit('insertStageDirection')"
-          >Insert Stage Direction</BDropdownItem
+      <BButtonGroup v-else-if="canEdit && !isCutMode">
+        <BButton variant="link" style="padding: 0" @click.prevent.stop="$emit('editLine')"
+          >Edit</BButton
         >
-        <BDropdownItem @click.prevent.stop="$emit('insertCueLine')">Insert Cue Line</BDropdownItem>
-        <BDropdownItem @click.prevent.stop="$emit('insertSpacing')">Insert Spacing</BDropdownItem>
-        <BDropdownItem variant="danger" @click.prevent.stop="$emit('deleteLine')"
-          >Delete</BDropdownItem
-        >
-      </BDropdown>
+        <BDropdown end toggle-class="dropdown-toggle-split" variant="link" style="padding: 0">
+          <BDropdownItem @click.prevent.stop="$emit('insertDialogue')"
+            >Insert Dialogue</BDropdownItem
+          >
+          <BDropdownItem @click.prevent.stop="$emit('insertStageDirection')"
+            >Insert Stage Direction</BDropdownItem
+          >
+          <BDropdownItem @click.prevent.stop="$emit('insertCueLine')"
+            >Insert Cue Line</BDropdownItem
+          >
+          <BDropdownItem @click.prevent.stop="$emit('insertSpacing')">Insert Spacing</BDropdownItem>
+          <BDropdownItem variant="danger" @click.prevent.stop="$emit('deleteLine')"
+            >Delete</BDropdownItem
+          >
+        </BDropdown>
+      </BButtonGroup>
     </BCol>
   </BRow>
 </template>

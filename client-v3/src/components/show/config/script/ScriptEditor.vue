@@ -121,14 +121,8 @@
     <BRow class="script-row pt-1">
       <BCol cols="10" class="ms-auto">
         <BButtonGroup v-show="canEdit && !scriptConfigStore.cutMode" style="float: right">
-          <BDropdown
-            split
-            text="Add Dialogue"
-            variant="primary"
-            end
-            boundary="window"
-            @click="addNewLine(LINE_TYPES.DIALOGUE)"
-          >
+          <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
+          <BDropdown variant="primary" end toggle-class="dropdown-toggle-split">
             <BDropdownItem @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
               >Add Stage Direction</BDropdownItem
             >
