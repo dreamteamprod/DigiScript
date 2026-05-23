@@ -18,11 +18,13 @@ export function computePageStatus(
   deletedLines: number[],
   insertedLines: number[]
 ): PageStatus {
-  const augmented: ScriptLine[] = structuredClone(actualScriptPage);
-  structuredClone(insertedLines)
+  // JSON round-trip instead of structuredClone — these arrays come from Pinia reactive state
+  // (Proxy objects) which structuredClone cannot handle in some environments.
+  const augmented: ScriptLine[] = JSON.parse(JSON.stringify(actualScriptPage));
+  JSON.parse(JSON.stringify(insertedLines))
     .sort((a: number, b: number) => a - b)
     .forEach((lineIndex: number) => {
-      augmented.splice(lineIndex, 0, structuredClone(tmpScriptPage[lineIndex]));
+      augmented.splice(lineIndex, 0, JSON.parse(JSON.stringify(tmpScriptPage[lineIndex])));
     });
 
   const deepDiff = detailedDiff(augmented, tmpScriptPage);
