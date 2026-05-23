@@ -760,7 +760,7 @@ onMounted(async () => {
   linePartCuts.value = [...scriptStore.cuts];
 
   const storedPage = localStorage.getItem('scriptEditPage');
-  const startPage = storedPage != null ? Number.parseInt(storedPage, 10) : 1;
+  const startPage = storedPage == null ? 1 : Number.parseInt(storedPage, 10);
   await goToPageInner(startPage);
 
   loaded.value = true;
