@@ -1,4 +1,4 @@
-import { Bonjour, Service } from 'bonjour-service';
+import { Bonjour } from 'bonjour-service';
 import VersionChecker from './VersionChecker.js';
 
 export interface DiscoveredServer {
@@ -25,7 +25,7 @@ class MDNSDiscovery {
 
       const browser = bonjour.find({ type: 'digiscript' });
 
-      browser.on('up', (service: Service) => {
+      browser.on('up', (service) => {
         const hostId = `${service.host}:${service.port}`;
 
         if (seenHosts.has(hostId)) {

@@ -1,8 +1,6 @@
-FROM node:24-bookworm AS node_build
+FROM node:24-bookworm AS build_v2
 
-# npm 11 bundled with Node 24, no separate install needed
 RUN mkdir -p /server/static
-
 COPY /client/package.json /client/package.json
 COPY /client/package-lock.json /client/package-lock.json
 COPY /client/.npmrc /client/.npmrc
@@ -12,7 +10,15 @@ COPY /client /client
 COPY /docs /docs
 RUN npm run build
 
-COPY /server /server
+FROM node:24-bookworm AS build_v3
+
+RUN mkdir -p /server/static/ui-new
+COPY /client-v3/package.json /client-v3/package.json
+COPY /client-v3/package-lock.json /client-v3/package-lock.json
+WORKDIR /client-v3
+RUN npm ci
+COPY /client-v3 /client-v3
+RUN npm run build
 
 FROM python:3.13-bookworm
 
@@ -22,7 +28,9 @@ RUN pip install -r requirements.txt
 RUN apt update
 RUN apt install -y nano
 
-COPY --from=node_build /server /server
+COPY /server /server
+COPY --from=build_v2 /server/static /server/static
+COPY --from=build_v3 /server/static/ui-new /server/static/ui-new
 WORKDIR /server
 RUN mkdir conf
 EXPOSE 8080

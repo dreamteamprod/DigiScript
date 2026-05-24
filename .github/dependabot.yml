@@ -19,6 +19,15 @@ updates:
     versioning-strategy: increase
     target-branch: dev
   - package-ecosystem: "npm"
+    directory: "/client-v3"
+    schedule:
+      interval: "daily"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    versioning-strategy: increase
+    target-branch: dev
+  - package-ecosystem: "npm"
     directory: "/electron"
     schedule:
       interval: "daily"

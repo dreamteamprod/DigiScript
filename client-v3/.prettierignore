@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+../server/static/
+
+# Test outputs
+coverage/
+junit/
+
+# Backups
+*.backup
