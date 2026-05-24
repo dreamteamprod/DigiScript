@@ -418,11 +418,11 @@ async function goToLivePage(): Promise<void> {
   border-radius: 0.25rem;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
-  background-color: #e74c3c;
+  background-color: #a93226;
 }
 
 #connection-status.healthy {
-  background-color: #00bc8c;
+  background-color: #007a5e;
 }
 </style>
 

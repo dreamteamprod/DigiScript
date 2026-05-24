@@ -833,7 +833,6 @@ onMounted(async () => {
           userStore.getCueColourOverrides(),
         ]);
       }
-      return;
     }),
     showStore.getSceneList(),
     showStore.getCharacterList(),

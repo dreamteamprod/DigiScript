@@ -1,5 +1,5 @@
-import path from 'path';
-import fs from 'fs';
+import path from 'node:path';
+import fs from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue2';
 
