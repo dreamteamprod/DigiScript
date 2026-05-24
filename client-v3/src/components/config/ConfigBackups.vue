@@ -5,7 +5,7 @@
         {{ count }} {{ count === 1 ? 'backup' : 'backups' }} &middot;
         {{ formatBytes(totalSizeBytes) }} total
       </p>
-      <BTable :items="backups" :fields="fields" sort-by="created_at" :sort-desc="true">
+      <BTable :items="backups" :fields="fields">
         <template #cell(size_bytes)="data">
           {{ formatBytes(data.item.size_bytes) }}
         </template>

@@ -91,6 +91,8 @@ async function handleMessage(msg: WsMessage): Promise<void> {
     case 'RELOAD_CLIENT':
       window.location.reload();
       break;
+    case 'NOOP':
+      break;
     default:
       log.warn(`Unknown OP received from WebSocket: ${msg.OP}`);
   }
