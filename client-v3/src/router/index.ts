@@ -1,0 +1,275 @@
+import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router';
+import { isElectron } from '@/js/platform';
+import HomeView from '@/views/HomeView.vue';
+import NotFoundView from '@/views/NotFoundView.vue';
+
+const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
+
+const router = createRouter({
+  history: isFileProtocol ? createWebHashHistory() : createWebHistory('/ui-new/'),
+  routes: [
+    {
+      path: '/electron/server-selector',
+      name: 'electron-server-selector',
+      component: () => import('@/views/electron/ServerSelector.vue'),
+      meta: { requiresAuth: false, isElectronOnly: true },
+    },
+    {
+      path: '/',
+      name: 'home',
+      component: HomeView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/about',
+      name: 'about',
+      component: () => import('@/views/AboutView.vue'),
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/user/LoginView.vue'),
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/config',
+      name: 'config',
+      component: () => import('@/views/config/ConfigView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/show-config',
+      component: () => import('@/views/show/ShowConfigView.vue'),
+      meta: { requiresAuth: true, requiresShowAccess: true },
+      children: [
+        {
+          name: 'show-config',
+          path: '',
+          component: () => import('@/views/show/config/ConfigShow.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-config-cast',
+          path: 'cast',
+          component: () => import('@/views/show/config/ConfigCast.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-config-stage',
+          path: 'stage',
+          component: () => import('@/views/show/config/ConfigStage.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-config-characters',
+          path: 'characters',
+          component: () => import('@/views/show/config/ConfigCharacters.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-config-acts-scenes',
+          path: 'acts',
+          component: () => import('@/views/show/config/ConfigActsAndScenes.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-config-cues',
+          path: 'cues',
+          component: () => import('@/views/show/config/ConfigCues.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-config-mics',
+          path: 'mics',
+          component: () => import('@/views/show/config/ConfigMics.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-config-script',
+          path: 'script',
+          component: () => import('@/views/show/config/ConfigScript.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-config-script-revisions',
+          path: 'script-revisions',
+          component: () => import('@/views/show/config/ConfigScriptRevisions.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+        {
+          name: 'show-sessions',
+          path: 'sessions',
+          component: () => import('@/views/show/config/ConfigSessions.vue'),
+          meta: { requiresAuth: true, requiresShowAccess: true },
+        },
+      ],
+    },
+    {
+      path: '/live',
+      name: 'live',
+      component: () => import('@/views/show/ShowLiveView.vue'),
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/me',
+      name: 'user-settings',
+      component: () => import('@/views/user/SettingsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/force-password-change',
+      name: 'force-password-change',
+      component: () => import('@/views/user/ForcePasswordChangeView.vue'),
+      meta: { requiresAuth: true, requiresPasswordChange: true },
+    },
+    {
+      path: '/help',
+      component: () => import('@/views/HelpView.vue'),
+      meta: { requiresAuth: false },
+      children: [
+        { path: '', redirect: '/help/getting-started' },
+        {
+          name: 'help-doc',
+          path: ':slug(.*)',
+          component: () => import('@/views/help/HelpDocView.vue'),
+          meta: { requiresAuth: false },
+        },
+      ],
+    },
+    {
+      path: '/404',
+      name: '404',
+      component: NotFoundView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      component: NotFoundView,
+    },
+  ],
+});
+
+import type { RouteLocationNormalized } from 'vue-router';
+
+type ToastFn = {
+  warning: (m: string) => void;
+  error: (m: string) => void;
+  info: (m: string) => void;
+};
+
+async function checkElectronGuards(
+  to: RouteLocationNormalized,
+  toast: ToastFn
+): Promise<string | undefined> {
+  if (isElectron() && to.path !== '/electron/server-selector') {
+    try {
+      const activeConnection = await window.electronAPI?.getActiveConnection?.();
+      if (!activeConnection) {
+        toast.warning('Please select a server to connect to');
+        return '/electron/server-selector';
+      }
+    } catch {
+      return '/electron/server-selector';
+    }
+  }
+  if (to.matched.some((r) => r.meta.isElectronOnly) && !isElectron()) {
+    toast.error('This page is only available in the desktop app');
+    return '/';
+  }
+  return undefined;
+}
+
+async function checkPermissionGuards(
+  to: RouteLocationNormalized,
+  from: RouteLocationNormalized,
+  systemStore: Awaited<ReturnType<typeof import('@/stores/system').useSystemStore>>,
+  userStore: Awaited<ReturnType<typeof import('@/stores/user').useUserStore>>,
+  toast: ToastFn
+): Promise<string | undefined> {
+  const settings = systemStore.settings as Record<string, unknown> | null;
+  if (settings?.has_admin_user === false) {
+    if (to.path !== '/') toast.error('Please create an admin user before continuing');
+    return to.path === '/' ? undefined : '/';
+  }
+
+  const currentUser = userStore.currentUser;
+  const isAuthenticated = currentUser !== null;
+  const requiresAuth = to.matched.some((r) => r.meta.requiresAuth);
+  const requiresAdmin = to.matched.some((r) => r.meta.requiresAdmin);
+  const requiresShowAccess = to.matched.some((r) => r.meta.requiresShowAccess);
+
+  if (to.path === '/login' && isAuthenticated) {
+    toast.info('You are already logged in');
+    return from.fullPath === '/login' ? '/' : from.fullPath;
+  }
+  if (requiresAuth && !isAuthenticated) {
+    toast.error('Please log in to access this page');
+    return '/login';
+  }
+
+  const requiresPasswordChange = currentUser?.requires_password_change === true;
+  const isPasswordChangePage = to.path === '/force-password-change';
+  if (isAuthenticated && requiresPasswordChange && !isPasswordChangePage) {
+    toast.warning('You must change your password before continuing');
+    return '/force-password-change';
+  }
+  if (isPasswordChangePage && !requiresPasswordChange) return '/';
+
+  if (requiresAdmin && !systemStore.isAdminUser) {
+    toast.error('Admin access required');
+    return '/';
+  }
+  if (requiresShowAccess) {
+    if (!systemStore.currentShow) {
+      toast.error('No show is currently selected');
+      return '/';
+    }
+    if (!systemStore.hasShowAccess) {
+      toast.error('You do not have permission to access show configuration');
+      return '/';
+    }
+  }
+  return undefined;
+}
+
+async function checkLiveGuard(toast: ToastFn): Promise<string | undefined> {
+  const { useShowStore } = await import('@/stores/show');
+  const { useWebSocketStore } = await import('@/stores/websocket');
+  const showStore = useShowStore();
+  const wsStore = useWebSocketStore();
+  await showStore.getShowSessionData();
+  if (!showStore.currentSession || !wsStore.websocketHealthy) {
+    toast.error('No active show session or connection issue');
+    return '/';
+  }
+  return undefined;
+}
+
+router.beforeEach(async (to, from) => {
+  const { useSystemStore } = await import('@/stores/system');
+  const { useUserStore } = await import('@/stores/user');
+  const { toast } = await import('@/js/toast');
+  const systemStore = useSystemStore();
+  const userStore = useUserStore();
+
+  const electronResult = await checkElectronGuards(to, toast);
+  if (electronResult !== undefined) return electronResult;
+  if (to.path === '/electron/server-selector') return undefined;
+
+  if (systemStore.rbacRoles.length === 0) {
+    await systemStore.getRbacRoles();
+    await systemStore.getSettings();
+    await userStore.getCurrentUser();
+    if (userStore.currentUser) await userStore.getCurrentRbac();
+  }
+
+  const permResult = await checkPermissionGuards(to, from, systemStore, userStore, toast);
+  if (permResult !== undefined) return permResult;
+
+  if (to.path === '/live') return checkLiveGuard(toast);
+
+  return undefined;
+});
+
+export default router;

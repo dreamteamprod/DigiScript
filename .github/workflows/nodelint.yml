@@ -53,3 +53,28 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm run typecheck
+  run-node-lint-client-v3:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./client-v3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run ci-lint
+  run-typecheck-client-v3:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./client-v3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run typecheck
+

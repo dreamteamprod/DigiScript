@@ -1,6 +1,7 @@
 import os
 
 from tornado.escape import url_unescape
+from tornado.ioloop import IOLoop
 from tornado.web import HTTPError
 from tornado_prometheus import MetricsHandler
 
@@ -11,6 +12,8 @@ from utils.web.route import ApiRoute, ApiVersion, Route
 
 
 IMPORTED_CONTROLLERS = {}
+
+INDEX_HTML = "index.html"
 
 
 def import_all_controllers():
@@ -23,27 +26,49 @@ def import_all_controllers():
 
 
 class RootController(BaseController):
-    def get(self, _path):
+    async def get(self, path):
+        if not path and not self.get_argument("_switch", None):
+            default_ui = await self.application.digi_settings.get("default_ui")
+            if default_ui == "new":
+                self.redirect("/ui-new/")
+                return
         if is_frozen():
             # In PyInstaller mode, use resource path
-            full_path = get_resource_path(os.path.join("static", "index.html"))
+            full_path = get_resource_path(os.path.join("static", INDEX_HTML))
         else:
             # In source mode, use relative path
             file_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static"
             )
-            full_path = os.path.join(file_path, "index.html")
+            full_path = os.path.join(file_path, INDEX_HTML)
 
         if not os.path.isfile(full_path):
             get_logger().error(f"Index file not found: {full_path}")
             raise HTTPError(404)
 
         try:
-            with open(full_path, "r", encoding="utf-8") as file:
-                self.write(file.read())
+            content = await IOLoop.current().run_in_executor(
+                None, lambda: open(full_path, "r", encoding="utf-8").read()
+            )
+            self.write(content)
         except Exception as e:
-            get_logger().error(f"Error serving index.html: {str(e)}")
+            get_logger().error(f"Error serving {INDEX_HTML}: {str(e)}")
             raise HTTPError(500) from e
+
+
+class RootControllerV3(BaseController):
+    def get(self, _path):
+        if is_frozen():
+            full_path = get_resource_path(os.path.join("static", "ui-new", INDEX_HTML))
+        else:
+            file_path = os.path.join(
+                os.path.abspath(os.path.dirname(__file__)), "..", "static", "ui-new"
+            )
+            full_path = os.path.join(file_path, INDEX_HTML)
+        if not os.path.isfile(full_path):
+            raise HTTPError(404)
+        with open(full_path, "r", encoding="utf-8") as file:
+            self.write(file.read())
 
 
 class StaticController(BaseController):
