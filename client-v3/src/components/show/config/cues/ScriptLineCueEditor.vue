@@ -13,6 +13,7 @@
     <!-- Main line row -->
     <BContainer fluid class="mx-0" style="margin: 0; padding: 0">
       <BRow
+        class="line-row"
         :class="{
           'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
         }"
@@ -36,7 +37,7 @@
               </BButton>
               <BButton
                 v-if="systemStore.isCueEditor"
-                class="cue-button"
+                class="cue-button add-cue-btn"
                 :disabled="isLineCut"
                 @click.stop="openNewForm"
               >
@@ -482,5 +483,11 @@ async function deleteCue(): Promise<void> {
 
 .cut-line-part {
   text-decoration: line-through;
+}
+
+.line-row:has(.add-cue-btn:hover) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
 }
 </style>
