@@ -13,6 +13,8 @@ from utils.web.route import ApiRoute, ApiVersion, Route
 
 IMPORTED_CONTROLLERS = {}
 
+INDEX_HTML = "index.html"
+
 
 def import_all_controllers():
     get_logger().info("Importing controllers...")
@@ -32,13 +34,13 @@ class RootController(BaseController):
                 return
         if is_frozen():
             # In PyInstaller mode, use resource path
-            full_path = get_resource_path(os.path.join("static", "index.html"))
+            full_path = get_resource_path(os.path.join("static", INDEX_HTML))
         else:
             # In source mode, use relative path
             file_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static"
             )
-            full_path = os.path.join(file_path, "index.html")
+            full_path = os.path.join(file_path, INDEX_HTML)
 
         if not os.path.isfile(full_path):
             get_logger().error(f"Index file not found: {full_path}")
@@ -50,21 +52,19 @@ class RootController(BaseController):
             )
             self.write(content)
         except Exception as e:
-            get_logger().error(f"Error serving index.html: {str(e)}")
+            get_logger().error(f"Error serving {INDEX_HTML}: {str(e)}")
             raise HTTPError(500) from e
 
 
 class RootControllerV3(BaseController):
     def get(self, _path):
         if is_frozen():
-            full_path = get_resource_path(
-                os.path.join("static", "ui-new", "index.html")
-            )
+            full_path = get_resource_path(os.path.join("static", "ui-new", INDEX_HTML))
         else:
             file_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static", "ui-new"
             )
-            full_path = os.path.join(file_path, "index.html")
+            full_path = os.path.join(file_path, INDEX_HTML)
         if not os.path.isfile(full_path):
             raise HTTPError(404)
         with open(full_path, "r", encoding="utf-8") as file:

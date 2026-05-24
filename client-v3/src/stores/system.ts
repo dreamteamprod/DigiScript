@@ -103,7 +103,7 @@ export const useSystemStore = defineStore('system', {
       const userRbac = getUserRbac();
       if (!userRbac?.cuetypes) return false;
       const readMask = getRbacMask(this.rbacRoles, 'READ');
-      return userRbac.cuetypes.filter((x) => (x[1] & readMask) !== 0).length > 0;
+      return userRbac.cuetypes.some((x) => (x[1] & readMask) !== 0);
     },
     isAllowedShowConfig(): boolean {
       return (
@@ -132,8 +132,7 @@ export const useSystemStore = defineStore('system', {
       const scriptAllowed =
         userRbac.script?.[0] && (userRbac.script[0][1] & (writeMask | readMask)) !== 0;
       const cueTypesAllowed =
-        userRbac.cuetypes &&
-        userRbac.cuetypes.filter((x) => (x[1] & (writeMask | readMask)) !== 0).length > 0;
+        userRbac.cuetypes && userRbac.cuetypes.some((x) => (x[1] & (writeMask | readMask)) !== 0);
 
       return !!(showAllowed || scriptAllowed || cueTypesAllowed);
     },

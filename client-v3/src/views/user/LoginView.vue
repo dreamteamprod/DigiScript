@@ -77,5 +77,3 @@ async function doLogin(): Promise<void> {
   }
 }
 </script>
-
-<style scoped></style>

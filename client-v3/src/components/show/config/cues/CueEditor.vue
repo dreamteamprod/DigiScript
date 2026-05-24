@@ -128,7 +128,6 @@ onBeforeMount(async () => {
           userStore.getCueColourOverrides(),
         ]);
       }
-      return;
     }),
     showStore.getActList(),
     showStore.getSceneList(),
