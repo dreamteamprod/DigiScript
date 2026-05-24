@@ -43,14 +43,14 @@
             <p
               v-if="!canEdit || !isCutMode"
               class="viewable-line"
-              :class="{ 'cut-line-part': linePartCuts.indexOf(part.id) !== -1 }"
+              :class="{ 'cut-line-part': linePartCuts.includes(part.id) }"
             >
               {{ part.line_text }}
             </p>
             <a
               v-else
               class="viewable-line-cut"
-              :class="{ 'cut-line-part': linePartCuts.indexOf(part.id) !== -1 }"
+              :class="{ 'cut-line-part': linePartCuts.includes(part.id) }"
               @click.stop="cutLinePart(index)"
             >
               {{ part.line_text }}
@@ -236,8 +236,8 @@ const needsHeadings = computed<boolean[]>(() => {
   });
 });
 
-const needsHeadingsAny = computed(() => needsHeadings.value.some((x) => x));
-const needsHeadingsAll = computed(() => needsHeadings.value.every((x) => x));
+const needsHeadingsAny = computed(() => needsHeadings.value.some(Boolean));
+const needsHeadingsAll = computed(() => needsHeadings.value.every(Boolean));
 
 const isTaggedStageDirection = computed<boolean>(() => {
   const part = props.line.line_parts?.[0];
@@ -262,7 +262,7 @@ const currentStyle = computed(() =>
 const stageDirectionStylingWithCuts = computed<Record<string, string>>(() => {
   const base = stageDirectionStyling(currentStyle.value);
   const firstPartId = props.line.line_parts[0]?.id;
-  if (firstPartId != null && props.linePartCuts.indexOf(firstPartId) !== -1) {
+  if (firstPartId != null && props.linePartCuts.includes(firstPartId)) {
     const existing = base['text-decoration-line'];
     base['text-decoration-line'] =
       existing && existing !== 'none' ? `${existing} line-through` : 'line-through';

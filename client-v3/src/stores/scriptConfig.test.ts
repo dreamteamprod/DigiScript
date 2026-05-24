@@ -11,7 +11,7 @@ function makeLine(id: number | null, numParts: number): ScriptLine {
     line_type: 1,
     stage_direction_style_id: null,
     line_parts: Array.from({ length: numParts }, (_, i) => ({
-      id: id != null ? 100 + i : null,
+      id: id == null ? null : 100 + i,
       line_id: id,
       part_index: i,
       character_id: 1,

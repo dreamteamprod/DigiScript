@@ -59,7 +59,7 @@ export function computeBlocks(
           actId: currentActId,
           sceneIds: [...currentBlockScenes],
           setSceneId: currentBlockScenes[0],
-          strikeSceneId: currentBlockScenes[currentBlockScenes.length - 1],
+          strikeSceneId: currentBlockScenes.at(-1)!,
         });
         currentBlockScenes = [];
       }
@@ -73,7 +73,7 @@ export function computeBlocks(
         actId: currentActId,
         sceneIds: [...currentBlockScenes],
         setSceneId: currentBlockScenes[0],
-        strikeSceneId: currentBlockScenes[currentBlockScenes.length - 1],
+        strikeSceneId: currentBlockScenes.at(-1)!,
       });
       currentBlockScenes = [];
     }
@@ -85,7 +85,7 @@ export function computeBlocks(
       actId: currentActId as number,
       sceneIds: [...currentBlockScenes],
       setSceneId: currentBlockScenes[0],
-      strikeSceneId: currentBlockScenes[currentBlockScenes.length - 1],
+      strikeSceneId: currentBlockScenes.at(-1)!,
     });
   }
 

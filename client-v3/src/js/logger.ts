@@ -71,7 +71,7 @@ export function initRemoteLogging(): void {
 
       const systemStore = useSystemStore();
       const settings = systemStore.settings;
-      if (!settings || !settings.client_log_enabled) return;
+      if (!settings?.client_log_enabled) return;
 
       const currentLevelName = methodName.toUpperCase();
       const currentLevel = levels[currentLevelName] ?? 2;

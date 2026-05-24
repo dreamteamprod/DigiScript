@@ -14,7 +14,7 @@ function getToken(): string | null {
 
 export const useUserStore = defineStore('user', {
   state: () => ({
-    authToken: getToken() as string | null,
+    authToken: getToken(),
     currentUser: null as User | null,
     currentRbac: null as Record<string, [number, number][]> | null,
     users: [] as User[],

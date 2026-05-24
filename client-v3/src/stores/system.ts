@@ -95,7 +95,7 @@ export const useSystemStore = defineStore('system', {
       const userRbac = getUserRbac();
       if (!userRbac?.cuetypes) return false;
       const writeMask = getRbacMask(this.rbacRoles, 'WRITE');
-      return userRbac.cuetypes.filter((x) => (x[1] & writeMask) !== 0).length > 0;
+      return userRbac.cuetypes.some((x) => (x[1] & writeMask) !== 0);
     },
     isCueReader(): boolean {
       if (this.isAdminUser) return true;

@@ -302,7 +302,7 @@ const rules = {
 const v$ = useVuelidate(rules, { newCueFormState });
 
 // Computed
-const pageIter = computed(() => [...Array(currentMaxPage.value).keys()].map((i) => i + 1));
+const pageIter = computed(() => [...new Array(currentMaxPage.value).keys()].map((i) => i + 1));
 
 const intervalTimerLength = computed(
   () => intervalHours.value * 3600 + intervalMinutes.value * 60 + intervalSeconds.value
@@ -833,7 +833,7 @@ onMounted(async () => {
           userStore.getCueColourOverrides(),
         ]);
       }
-      return Promise.resolve();
+      return;
     }),
     showStore.getSceneList(),
     showStore.getCharacterList(),

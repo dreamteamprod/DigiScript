@@ -188,9 +188,9 @@ async function checkPermissionGuards(
   toast: ToastFn
 ): Promise<string | undefined> {
   const settings = systemStore.settings as Record<string, unknown> | null;
-  if (settings && settings.has_admin_user === false) {
+  if (settings?.has_admin_user === false) {
     if (to.path !== '/') toast.error('Please create an admin user before continuing');
-    return to.path !== '/' ? '/' : undefined;
+    return to.path === '/' ? undefined : '/';
   }
 
   const currentUser = userStore.currentUser;

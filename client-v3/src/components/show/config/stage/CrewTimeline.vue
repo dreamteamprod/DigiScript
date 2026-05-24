@@ -219,7 +219,7 @@ const conflicts = computed((): Record<string, 'hard' | 'soft'> => {
     const byScene: Record<number, Set<string>> = {};
     assignments.forEach((a) => {
       if (!byScene[a.scene_id]) byScene[a.scene_id] = new Set();
-      byScene[a.scene_id].add(a.prop_id != null ? `prop-${a.prop_id}` : `scenery-${a.scenery_id}`);
+      byScene[a.scene_id].add(a.prop_id == null ? `scenery-${a.scenery_id}` : `prop-${a.prop_id}`);
     });
     detectHardConflicts(row.id, byScene).forEach(([k, v]) => {
       conflictMap[k] = v;
@@ -277,14 +277,14 @@ function buildBarsForScene(
       scene.name ?? null
     );
     const itemId =
-      representative.prop_id != null ? representative.prop_id : (representative.scenery_id ?? 0);
+      representative.prop_id == null ? (representative.scenery_id ?? 0) : representative.prop_id;
     bars.push({
       id: `crew-${rowId}-scene-${sceneId}-${stackIndex}`,
       x: getSceneX(sceneIndex),
       y: getRowY(rowIndex) + barPadding + stackIndex * barHeight,
       width: sceneWidth,
       height: barHeight,
-      color: getColorForEntity(itemId, representative.prop_id != null ? 'prop' : 'scenery'),
+      color: getColorForEntity(itemId, representative.prop_id == null ? 'scenery' : 'prop'),
       label,
       tooltip,
       cssClass,
@@ -299,7 +299,7 @@ const allocationBars = computed((): CrewBar[] => {
     const byScene: Record<number, Record<string, CrewAssignment[]>> = {};
     assignments.forEach((a) => {
       if (!byScene[a.scene_id]) byScene[a.scene_id] = {};
-      const itemKey = a.prop_id != null ? `prop-${a.prop_id}` : `scenery-${a.scenery_id}`;
+      const itemKey = a.prop_id == null ? `scenery-${a.scenery_id}` : `prop-${a.prop_id}`;
       if (!byScene[a.scene_id][itemKey]) byScene[a.scene_id][itemKey] = [];
       byScene[a.scene_id][itemKey].push(a);
     });
@@ -309,8 +309,9 @@ const allocationBars = computed((): CrewBar[] => {
       const sceneIndex = sceneIndexMap.value[sceneId];
       if (sceneIndex == null) return;
       const conflictType = conflicts.value[`${row.id}-${sceneId}`];
-      const cssClass =
-        conflictType === 'hard' ? 'conflict-hard' : conflictType === 'soft' ? 'conflict-soft' : '';
+      let cssClass = '';
+      if (conflictType === 'hard') cssClass = 'conflict-hard';
+      else if (conflictType === 'soft') cssClass = 'conflict-soft';
       buildBarsForScene(
         row.id,
         rowIndex,

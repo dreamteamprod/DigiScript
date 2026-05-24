@@ -41,12 +41,12 @@ async function handleMessage(msg: WsMessage): Promise<void> {
   switch (msg.OP) {
     case 'SET_UUID': {
       const newUUID = msg.DATA as unknown as string;
-      if (wsStore.internalUUID != null) {
-        log.debug('Reconnecting with existing UUID:', wsStore.internalUUID);
-        sendObj({ OP: 'REFRESH_CLIENT', DATA: wsStore.internalUUID });
-      } else {
+      if (wsStore.internalUUID == null) {
         log.debug('New connection, received UUID:', newUUID);
         wsStore.$patch({ internalUUID: newUUID });
+      } else {
+        log.debug('Reconnecting with existing UUID:', wsStore.internalUUID);
+        sendObj({ OP: 'REFRESH_CLIENT', DATA: wsStore.internalUUID });
       }
       wsStore.$patch({ pendingAuthentication: true });
       // Authenticate immediately if we have a token

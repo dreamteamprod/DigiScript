@@ -52,7 +52,7 @@ export const useShowStore = defineStore('show', {
       (state): ((id: number | null) => Cast | null) =>
       (id) => {
         const dict: Record<number, Cast> = Object.fromEntries(state.castList.map((c) => [c.id, c]));
-        return id != null ? (dict[id] ?? null) : null;
+        return id == null ? null : (dict[id] ?? null);
       },
 
     characterDict: (state): Record<number, Character> =>
@@ -63,7 +63,7 @@ export const useShowStore = defineStore('show', {
         const dict: Record<number, Character> = Object.fromEntries(
           state.characterList.map((c) => [c.id, c])
         );
-        return id != null ? (dict[id] ?? null) : null;
+        return id == null ? null : (dict[id] ?? null);
       },
 
     actDict: (state): Record<number, Act> =>
@@ -72,7 +72,7 @@ export const useShowStore = defineStore('show', {
       (state): ((id: number | null) => Act | null) =>
       (id) => {
         const dict: Record<number, Act> = Object.fromEntries(state.actList.map((a) => [a.id, a]));
-        return id != null ? (dict[id] ?? null) : null;
+        return id == null ? null : (dict[id] ?? null);
       },
 
     sceneDict: (state): Record<number, Scene> =>
@@ -83,7 +83,7 @@ export const useShowStore = defineStore('show', {
         const dict: Record<number, Scene> = Object.fromEntries(
           state.sceneList.map((s) => [s.id, s])
         );
-        return id != null ? (dict[id] ?? null) : null;
+        return id == null ? null : (dict[id] ?? null);
       },
 
     cueTypesDict: (state): Record<number, CueType> =>
@@ -94,7 +94,7 @@ export const useShowStore = defineStore('show', {
         const dict: Record<number, CueType> = Object.fromEntries(
           state.cueTypes.map((ct) => [ct.id, ct])
         );
-        return id != null ? (dict[id] ?? null) : null;
+        return id == null ? null : (dict[id] ?? null);
       },
 
     microphoneDict: (state): Record<number, Microphone> =>
@@ -105,7 +105,7 @@ export const useShowStore = defineStore('show', {
         const dict: Record<number, Microphone> = Object.fromEntries(
           state.microphones.map((m) => [m.id, m])
         );
-        return id != null ? (dict[id] ?? null) : null;
+        return id == null ? null : (dict[id] ?? null);
       },
 
     sessionTagsDict: (state): Record<number, SessionTag> =>
@@ -116,13 +116,13 @@ export const useShowStore = defineStore('show', {
         const dict: Record<number, SessionTag> = Object.fromEntries(
           state.sessionTags.map((t) => [t.id, t])
         );
-        return id != null ? (dict[id] ?? null) : null;
+        return id == null ? null : (dict[id] ?? null);
       },
 
     scriptRevisionById:
       (state): ((id: number | null) => ScriptRevision | null) =>
       (id) => {
-        return id != null ? (state.scriptRevisions.find((r) => r.id === id) ?? null) : null;
+        return id == null ? null : (state.scriptRevisions.find((r) => r.id === id) ?? null);
       },
 
     orderedScenes(state): Scene[] {
@@ -138,13 +138,13 @@ export const useShowStore = defineStore('show', {
       let currentAct: Act | null = actById[currentShow.first_act_id] ?? null;
       while (currentAct != null) {
         let currentScene: Scene | null =
-          currentAct.first_scene != null ? (sceneById[currentAct.first_scene] ?? null) : null;
+          currentAct.first_scene == null ? null : (sceneById[currentAct.first_scene] ?? null);
         while (currentScene != null) {
           scenes.push(currentScene);
           currentScene =
-            currentScene.next_scene != null ? (sceneById[currentScene.next_scene] ?? null) : null;
+            currentScene.next_scene == null ? null : (sceneById[currentScene.next_scene] ?? null);
         }
-        currentAct = currentAct.next_act != null ? (actById[currentAct.next_act] ?? null) : null;
+        currentAct = currentAct.next_act == null ? null : (actById[currentAct.next_act] ?? null);
       }
       return scenes;
     },

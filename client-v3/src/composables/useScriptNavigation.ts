@@ -41,7 +41,7 @@ export function useScriptNavigation() {
     }
 
     return line.line_parts.map((part) => {
-      if (prev == null || prev.line_parts.length !== line.line_parts.length) return true;
+      if (prev?.line_parts.length !== line.line_parts.length) return true;
       if (prev.act_id !== line.act_id || prev.scene_id !== line.scene_id) return true;
       const match = prev.line_parts.find((p) => p.part_index === part.part_index);
       if (!match) return true;

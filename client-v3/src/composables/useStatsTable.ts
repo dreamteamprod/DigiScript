@@ -31,7 +31,7 @@ export function useStatsTable() {
     const show = systemStore.currentShow;
     if (show?.first_act_id == null) return [];
     let currentAct = showStore.actById(show.first_act_id);
-    if (currentAct == null || currentAct.first_scene == null) return [];
+    if (currentAct?.first_scene == null) return [];
     const scenes: Scene[] = [];
     while (currentAct != null) {
       let currentScene = showStore.sceneById(currentAct.first_scene);

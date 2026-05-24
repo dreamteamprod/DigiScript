@@ -125,7 +125,7 @@ const showStore = useShowStore();
 const systemStore = useSystemStore();
 
 // JSON round-trip instead of structuredClone — modelValue is a Vue reactive Proxy that structuredClone cannot handle
-const state = ref<ScriptLine>(JSON.parse(JSON.stringify(props.modelValue)));
+const state = ref<ScriptLine>(JSON.parse(JSON.stringify(props.modelValue))); // NOSONAR
 
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
 
@@ -148,7 +148,7 @@ const validActs = computed<Act[]>(() => {
   while (cur) {
     result.push(cur);
     if (props.nextLine && props.nextLine.act_id === cur.id) break;
-    cur = cur.next_act != null ? (props.acts.find((a) => a.id === cur!.next_act) ?? null) : null;
+    cur = cur.next_act == null ? null : (props.acts.find((a) => a.id === cur!.next_act) ?? null);
   }
   return result;
 });
@@ -170,7 +170,7 @@ const validScenes = computed<Scene[]>(() => {
   while (cur) {
     result.push(cur);
     if (props.nextLine && props.nextLine.scene_id === cur.id) break;
-    cur = cur.next_scene != null ? (actScenes.find((s) => s.id === cur!.next_scene) ?? null) : null;
+    cur = cur.next_scene == null ? null : (actScenes.find((s) => s.id === cur!.next_scene) ?? null);
   }
   return result;
 });

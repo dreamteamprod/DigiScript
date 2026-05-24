@@ -128,7 +128,7 @@ onBeforeMount(async () => {
           userStore.getCueColourOverrides(),
         ]);
       }
-      return Promise.resolve();
+      return;
     }),
     showStore.getActList(),
     showStore.getSceneList(),

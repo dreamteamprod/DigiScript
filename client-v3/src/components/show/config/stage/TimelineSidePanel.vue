@@ -255,9 +255,9 @@ const conflicts = computed(() => {
 
     for (const other of otherAssignments) {
       const otherItem =
-        other.prop_id != null
-          ? stageStore.propById(other.prop_id)
-          : stageStore.sceneryById(other.scenery_id);
+        other.prop_id == null
+          ? stageStore.sceneryById(other.scenery_id)
+          : stageStore.propById(other.prop_id);
       const crew = stageStore.crewById(assignment.crew_id);
       const scene = showStore.orderedScenes.find((s) => s.id === assignment.scene_id);
       result.push({

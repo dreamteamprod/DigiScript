@@ -198,7 +198,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import type { BModal } from 'bootstrap-vue-next';
-import log from 'loglevel';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
@@ -687,12 +686,13 @@ async function loadBoundaryLines(): Promise<void> {
   if (endLines_isLast(endPageLines, endIndex)) await loadPage(endPage + 1);
 
   const startPageLines = scriptConfigStore.getTmpPage(startPage);
-  previousLineOfStart.value =
-    startIndex > 0
-      ? (startPageLines[startIndex - 1] ?? null)
-      : startPage > 1
-        ? (scriptConfigStore.getTmpPage(startPage - 1).slice(-1)[0] ?? null)
-        : null;
+  if (startIndex > 0) {
+    previousLineOfStart.value = startPageLines[startIndex - 1] ?? null;
+  } else if (startPage > 1) {
+    previousLineOfStart.value = scriptConfigStore.getTmpPage(startPage - 1).slice(-1)[0] ?? null;
+  } else {
+    previousLineOfStart.value = null;
+  }
 
   nextLineOfEnd.value =
     endIndex < endPageLines.length - 1

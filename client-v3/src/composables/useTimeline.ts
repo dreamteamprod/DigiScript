@@ -40,7 +40,7 @@ const EXPORT_STYLES: Record<string, Record<string, string>> = {
   },
 };
 
-function getColorForEntity(entityId: number, entityType: EntityType | string): string {
+function getColorForEntity(entityId: number, entityType: string): string {
   const typeOffsets: Record<string, number> = {
     mic: 0,
     character: 120,
