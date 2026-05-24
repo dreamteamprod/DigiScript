@@ -148,8 +148,8 @@ export function getAdjacentScenes(sceneId: number, sceneGraph: SceneGraphNode[])
     : null;
 
   return {
-    sameActPrev: prevNode && prevNode.actId === node.actId ? prevNode.sceneId : null,
-    sameActNext: nextNode && nextNode.actId === node.actId ? nextNode.sceneId : null,
+    sameActPrev: prevNode?.actId === node.actId ? prevNode.sceneId : null,
+    sameActNext: nextNode?.actId === node.actId ? nextNode.sceneId : null,
     crossActPrev: prevNode && prevNode.actId !== node.actId ? prevNode.sceneId : null,
     crossActNext: nextNode && nextNode.actId !== node.actId ? nextNode.sceneId : null,
   };

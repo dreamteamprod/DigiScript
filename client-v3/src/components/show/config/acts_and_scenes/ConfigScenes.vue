@@ -369,7 +369,7 @@ const editFormPrevScenes = computed(() => {
   ).filter((opt) => opt.value !== editFormState.value.scene_id);
   if (
     editFormState.value.previous_scene_id != null &&
-    !base.find((o) => o.value === editFormState.value.previous_scene_id)
+    !base.some((o) => o.value === editFormState.value.previous_scene_id)
   ) {
     const scene = showStore.sceneById(editFormState.value.previous_scene_id);
     if (scene) {
@@ -452,11 +452,11 @@ function openFirstSceneEdit(act: { id: number; first_scene: number | null }): vo
 
 function editActChanged(newActId: number | null): void {
   const originalScene =
-    editSceneOriginalId.value != null ? showStore.sceneById(editSceneOriginalId.value) : null;
-  if (newActId !== originalScene?.act) {
-    editFormState.value.previous_scene_id = null;
-  } else {
+    editSceneOriginalId.value == null ? null : showStore.sceneById(editSceneOriginalId.value);
+  if (newActId === originalScene?.act) {
     editFormState.value.previous_scene_id = originalScene?.previous_scene ?? null;
+  } else {
+    editFormState.value.previous_scene_id = null;
   }
 }
 

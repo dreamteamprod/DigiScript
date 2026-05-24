@@ -20,11 +20,11 @@ export function computePageStatus(
 ): PageStatus {
   // JSON round-trip instead of structuredClone — these arrays come from Pinia reactive state
   // (Proxy objects) which structuredClone cannot handle in some environments.
-  const augmented: ScriptLine[] = JSON.parse(JSON.stringify(actualScriptPage));
-  JSON.parse(JSON.stringify(insertedLines))
+  const augmented: ScriptLine[] = JSON.parse(JSON.stringify(actualScriptPage)); // NOSONAR
+  JSON.parse(JSON.stringify(insertedLines)) // NOSONAR
     .sort((a: number, b: number) => a - b)
     .forEach((lineIndex: number) => {
-      augmented.splice(lineIndex, 0, JSON.parse(JSON.stringify(tmpScriptPage[lineIndex])));
+      augmented.splice(lineIndex, 0, JSON.parse(JSON.stringify(tmpScriptPage[lineIndex]))); // NOSONAR
     });
 
   const deepDiff = detailedDiff(augmented, tmpScriptPage);
@@ -73,7 +73,7 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     addPage(page: number, contents: ScriptLine[]): void {
       // JSON round-trip instead of structuredClone — reactive Pinia arrays (Proxy objects)
       // cannot be structuredCloned in some environments.
-      this.tmpScript[String(page)] = JSON.parse(JSON.stringify(contents));
+      this.tmpScript[String(page)] = JSON.parse(JSON.stringify(contents)); // NOSONAR
       if (!this.deletedLines[String(page)]) this.deletedLines[String(page)] = [];
       if (!this.insertedLines[String(page)]) this.insertedLines[String(page)] = [];
     },
@@ -113,11 +113,11 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
 
     deleteLine(page: number, lineIndex: number): void {
       const pageStr = String(page);
-      if (this.tmpScript[pageStr][lineIndex].id !== null) {
-        if (!this.deletedLines[pageStr]) this.deletedLines[pageStr] = [];
-        this.deletedLines[pageStr].push(lineIndex);
-      } else {
+      if (this.tmpScript[pageStr][lineIndex].id === null) {
         this.tmpScript[pageStr].splice(lineIndex, 1);
+      } else {
+        this.deletedLines[pageStr] ??= [];
+        this.deletedLines[pageStr].push(lineIndex);
       }
       if (this.insertedLines[pageStr]?.includes(lineIndex)) {
         this.insertedLines[pageStr].splice(this.insertedLines[pageStr].indexOf(lineIndex), 1);

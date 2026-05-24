@@ -253,7 +253,7 @@ function onClassChange(classAttrValue: string | null, oldClassAttrValue: string 
     !oldClassList.includes('first-script-element')
   ) {
     const prev = props.previousLine;
-    const prevRef = prev != null ? `page_${prev.page}_line_${props.previousLineIndex}` : null;
+    const prevRef = prev == null ? null : `page_${prev.page}_line_${props.previousLineIndex}`;
     emit('first-line-change', props.line.page ?? 0, props.lineIndex, prevRef);
   }
 }

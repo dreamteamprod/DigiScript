@@ -28,11 +28,11 @@ export const useScriptStore = defineStore('script', {
     stageDirectionStyleById:
       (state) =>
       (id: number | null): StageDirectionStyle | null =>
-        id != null ? (state.stageDirectionStyles.find((s) => s.id === id) ?? null) : null,
+        id == null ? null : (state.stageDirectionStyles.find((s) => s.id === id) ?? null),
     cuesForLine:
       (state) =>
       (lineId: number | null): Cue[] =>
-        lineId != null ? (state.cues[String(lineId)] ?? []) : [],
+        lineId == null ? [] : (state.cues[String(lineId)] ?? []),
   },
 
   actions: {

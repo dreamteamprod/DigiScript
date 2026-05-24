@@ -237,7 +237,7 @@ const editFormActOptions = computed(() => {
   const base = previousActOptions.value.filter((opt) => opt.value !== editFormState.value.id);
   if (
     editFormState.value.previous_act_id != null &&
-    !base.find((o) => o.value === editFormState.value.previous_act_id)
+    !base.some((o) => o.value === editFormState.value.previous_act_id)
   ) {
     const act = showStore.actById(editFormState.value.previous_act_id);
     if (act) base.push({ value: act.id, text: act.name, disabled: false } as (typeof base)[0]);

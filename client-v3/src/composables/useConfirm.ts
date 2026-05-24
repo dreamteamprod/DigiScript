@@ -15,6 +15,18 @@ const currentOptions = ref<ConfirmOptions>({});
 let resolveCallback: ((value: boolean) => void) | null = null;
 let resolved = false;
 
+function _handleOk(): void {
+  if (resolved) return;
+  resolved = true;
+  resolveCallback?.(true);
+}
+
+function _handleHidden(): void {
+  if (resolved) return;
+  resolved = true;
+  resolveCallback?.(false);
+}
+
 export function useConfirm() {
   function confirm(msg: string, opts: ConfirmOptions = {}): Promise<boolean> {
     message.value = msg;
@@ -24,18 +36,6 @@ export function useConfirm() {
     return new Promise((resolve) => {
       resolveCallback = resolve;
     });
-  }
-
-  function _handleOk(): void {
-    if (resolved) return;
-    resolved = true;
-    resolveCallback?.(true);
-  }
-
-  function _handleHidden(): void {
-    if (resolved) return;
-    resolved = true;
-    resolveCallback?.(false);
   }
 
   return { confirm, visible, message, currentOptions, _handleOk, _handleHidden };

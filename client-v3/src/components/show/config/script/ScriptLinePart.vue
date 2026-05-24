@@ -85,9 +85,8 @@ import {
   buildCombinedCharacterOptions,
   type CombinedSelectOption,
 } from '@/js/mruSortUtils';
-import type { ScriptLinePart } from '@/types/api/script';
+import type { ScriptLinePart, StageDirectionStyle } from '@/types/api/script';
 import type { Character, CharacterGroup } from '@/types/api/show';
-import type { StageDirectionStyle } from '@/types/api/script';
 
 const props = defineProps<{
   focusInput: boolean;

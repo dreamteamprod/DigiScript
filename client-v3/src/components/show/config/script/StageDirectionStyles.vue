@@ -139,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, defineComponent, h } from 'vue';
+import { ref, onMounted, defineComponent, h } from 'vue';
 import type { BModal } from 'bootstrap-vue-next';
 import { useVuelidate } from '@vuelidate/core';
 import { required } from '@vuelidate/validators';
@@ -245,7 +245,7 @@ function formExampleCss(form: StyleForm): Record<string, string> {
 
 function styleToPayload(form: StyleForm): Record<string, unknown> {
   return {
-    ...(form.id != null ? { id: form.id } : {}),
+    ...(form.id == null ? {} : { id: form.id }),
     description: form.description,
     bold: form.bold,
     italic: form.italic,
