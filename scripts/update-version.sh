@@ -54,6 +54,12 @@ cd "$PROJECT_ROOT/client"
 npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
 print_success "client/package.json updated"
 
+# Update client-v3/package.json
+print_info "Updating client-v3/package.json..."
+cd "$PROJECT_ROOT/client-v3"
+npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
+print_success "client-v3/package.json updated"
+
 # Update electron/package.json
 print_info "Updating electron/package.json..."
 cd "$PROJECT_ROOT/electron"
@@ -79,5 +85,6 @@ echo -e "${GREEN}Version successfully updated to $VERSION${NC}"
 echo
 echo "Updated files:"
 echo "  - client/package.json"
+echo "  - client-v3/package.json"
 echo "  - electron/package.json"
 echo "  - server/pyproject.toml"
