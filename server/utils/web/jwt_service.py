@@ -99,7 +99,9 @@ class JWTService:
                 if user:
                     to_encode["token_version"] = user.token_version
 
-        to_encode.update({"exp": expire, "iat": datetime.now(tz=timezone.utc), "jti": str(uuid4())})
+        to_encode.update(
+            {"exp": expire, "iat": datetime.now(tz=timezone.utc), "jti": str(uuid4())}
+        )
         encoded_jwt = self._jwt.encode(
             to_encode, self.get_secret(), algorithm=self._jwt_algorithm
         )
