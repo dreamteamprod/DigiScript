@@ -5,6 +5,10 @@ CLAUDE.md
 .playwright-mcp/
 plans/
 
+# Playwright
+client-v3/playwright-report/
+client-v3/test-results/
+
 # Gradle and Maven with auto-import
 # When using Gradle or Maven with auto-import, you should exclude module files,
 # since they will be recreated, and may cause churn.  Uncomment if using
