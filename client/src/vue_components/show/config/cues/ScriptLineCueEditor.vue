@@ -6,7 +6,10 @@
         <h4>{{ actLabel }} - {{ sceneLabel }}</h4>
       </b-col>
     </b-row>
-    <b-row :class="{ 'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION }">
+    <b-row
+      class="line-row"
+      :class="{ 'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION }"
+    >
       <b-col cols="3" class="cue-column" style="text-align: right">
         <b-button-group v-if="line.line_type !== LINE_TYPES.SPACING">
           <b-button
@@ -24,7 +27,7 @@
           </b-button>
           <b-button
             v-if="IS_CUE_EDITOR"
-            class="cue-button"
+            class="cue-button add-cue-btn"
             :disabled="isWholeLineCut(line)"
             @click.stop="openNewForm"
           >
@@ -619,5 +622,10 @@ export default defineComponent({
 }
 .cut-line-part {
   text-decoration: line-through;
+}
+.line-row:has(.add-cue-btn:hover) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
 }
 </style>
