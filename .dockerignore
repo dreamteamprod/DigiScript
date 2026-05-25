@@ -5,11 +5,15 @@ scripts
 documentation
 dist
 hooks
+electron
 
 # Client
 client/node_modules
+client-v3/node_modules
+client-v3/e2e
 
 # Server
 server/conf
 server/public
 server/static
+server/test
