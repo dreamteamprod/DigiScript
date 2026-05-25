@@ -5,7 +5,6 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import {
   UI_BASE,
-  ADMIN_USERNAME,
   loginAsAdmin,
   waitForAppReady,
   waitForModal,
