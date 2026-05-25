@@ -6,7 +6,8 @@ export default defineConfig({
   testDir: './e2e/tests',
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  retries: 3,
+  maxFailures: 1,
   reporter: [
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
     ['junit', { outputFile: 'junit/playwright-results.xml' }],

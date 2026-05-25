@@ -5,8 +5,11 @@
  */
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { UI_BASE, ADMIN_PASSWORD, waitForAppReady } from '../helpers.js';
+import { registerRetryHooks } from '../db-snapshot.js';
 
 test.describe.configure({ mode: 'serial' });
+
+registerRetryHooks();
 
 let ctx: BrowserContext;
 let page: Page;

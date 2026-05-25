@@ -16,8 +16,11 @@ import {
   waitForModalClosed,
   confirmDialog,
 } from '../helpers.js';
+import { registerRetryHooks } from '../db-snapshot.js';
 
 test.describe.configure({ mode: 'serial' });
+
+registerRetryHooks();
 
 let leaderCtx: BrowserContext;
 let followerCtx: BrowserContext;

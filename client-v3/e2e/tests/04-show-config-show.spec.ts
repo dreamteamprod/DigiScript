@@ -10,8 +10,11 @@ import {
   confirmModal,
   waitForModalClosed,
 } from '../helpers.js';
+import { registerRetryHooks } from '../db-snapshot.js';
 
 test.describe.configure({ mode: 'serial' });
+
+registerRetryHooks();
 
 let ctx: BrowserContext;
 let page: Page;

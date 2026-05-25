@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const SERVER_PORT = 8888;
+export const SERVER_PORT = 8888;
 const HEALTH_URL = `http://localhost:${SERVER_PORT}/api/v1/health`;
 
 export const PID_FILE = path.join(os.tmpdir(), 'digiscript-e2e-server.pid');
@@ -85,7 +85,7 @@ async function killStaleServer(): Promise<void> {
   }
 }
 
-async function waitForServer(timeoutMs = 30_000): Promise<void> {
+export async function waitForServer(timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
