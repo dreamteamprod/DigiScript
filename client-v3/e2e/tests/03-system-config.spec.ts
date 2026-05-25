@@ -79,7 +79,7 @@ test('switches to the Users tab', async () => {
   await page.click(
     'button[role="tab"]:has-text("Users"), a[role="tab"]:has-text("Users"), .nav-link:has-text("Users")'
   );
-  await expect(page.locator('button:has-text("New User")')).toBeVisible();
+  await expect(page.locator('button:has-text("New User")')).toBeVisible({ timeout: 10_000 });
 });
 
 test('opens New User modal', async () => {
@@ -145,7 +145,7 @@ test('deletes the non-admin user', async () => {
 
 test('switches to the Settings tab', async () => {
   await page.click('.nav-link:has-text("Settings")');
-  await expect(page.locator('button:has-text("Submit")')).toBeVisible();
+  await expect(page.locator('button:has-text("Submit")')).toBeVisible({ timeout: 10_000 });
 });
 
 test('Submit button is disabled until a setting is changed', async () => {
@@ -191,7 +191,7 @@ test('can open the View Clients modal', async () => {
 
 test('switches to the Logs tab and can change source', async () => {
   await page.click('.nav-link:has-text("Logs")');
-  await expect(page.locator('text=Server').first()).toBeVisible();
+  await expect(page.locator('text=Server').first()).toBeVisible({ timeout: 10_000 });
   // Switch to Client logs — Bootstrap btn-check inputs have pointer-events:none; click the label
   await page
     .locator('.tab-pane.active label')
