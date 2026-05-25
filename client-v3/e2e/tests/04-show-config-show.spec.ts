@@ -14,14 +14,14 @@ import { snapshotExists, snapshotState, restoreStateAndRestartServer } from '../
 
 test.describe.configure({ mode: 'serial' });
 
-test.beforeAll(async (_fixtures, testInfo) => {
-  if (testInfo.retry > 0 && snapshotExists()) {
+test.beforeAll(async () => {
+  if (test.info().retry > 0 && snapshotExists()) {
     await restoreStateAndRestartServer();
   }
 });
 
-test.afterEach(async (_fixtures, testInfo) => {
-  if (testInfo.status === 'passed') {
+test.afterEach(async () => {
+  if (test.info().status === 'passed') {
     snapshotState();
   }
 });
