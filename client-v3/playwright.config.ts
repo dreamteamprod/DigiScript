@@ -13,7 +13,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: `http://localhost:${SERVER_PORT}`,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
