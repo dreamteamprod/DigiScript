@@ -63,10 +63,14 @@ test('creates and loads a show via Save and Load', async () => {
     .waitForSelector('#show-script-mode-input option:not([value=""])', { timeout: 5_000 })
     .catch(() => {});
   await page.selectOption('#show-script-mode-input', { index: 0 });
-  await page.click('.modal.show button:has-text("Save and Load")');
 
-  // Modal closes, toast appears
-  await waitForModalClosed(page, 10_000);
+  // The frontend's SHOW_CHANGED WS handler calls window.location.reload() after the show is
+  // loaded. On fast runners this fires before waitForModalClosed returns; on slow CI runners it
+  // can arrive seconds after the API response. Listen before clicking to catch it either way.
+  const afterLoad = page.waitForEvent('load', { timeout: 30_000 });
+  await page.click('.modal.show button:has-text("Save and Load")');
+  await afterLoad;
+
   await waitForAppReady(page);
 
   // Show Config nav link appears once a show is loaded
