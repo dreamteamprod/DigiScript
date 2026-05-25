@@ -11,21 +11,11 @@ import {
   waitForModalClosed,
   confirmDialog,
 } from '../helpers.js';
-import { snapshotExists, snapshotState, restoreStateAndRestartServer } from '../db-snapshot.js';
+import { registerRetryHooks } from '../db-snapshot.js';
 
 test.describe.configure({ mode: 'serial' });
 
-test.beforeAll(async () => {
-  if (test.info().retry > 0 && snapshotExists()) {
-    await restoreStateAndRestartServer();
-  }
-});
-
-test.afterEach(async () => {
-  if (test.info().status === 'passed') {
-    snapshotState();
-  }
-});
+registerRetryHooks();
 
 let ctx: BrowserContext;
 let page: Page;

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import { test } from '@playwright/test';
 import { PID_FILE, TMPDIR_FILE, SERVER_PORT, waitForServer } from './global-setup.js';
 
 function getPaths() {
@@ -65,4 +66,18 @@ export async function restoreStateAndRestartServer(): Promise<void> {
   server.unref();
 
   await waitForServer();
+}
+
+/** Register beforeAll/afterEach hooks for retry support. Call once at the top of each spec file. */
+export function registerRetryHooks(): void {
+  test.beforeAll(async () => {
+    if (test.info().retry > 0 && snapshotExists()) {
+      await restoreStateAndRestartServer();
+    }
+  });
+  test.afterEach(async () => {
+    if (test.info().status === 'passed') {
+      snapshotState();
+    }
+  });
 }
