@@ -105,14 +105,14 @@ test('can configure RBAC permissions for testuser', async () => {
   const grantBtn = page.locator('.modal.show button:has-text("Grant Role")').first();
   await expect(grantBtn).toBeVisible({ timeout: 5_000 });
   await grantBtn.click();
-  await expect(
-    page.locator('.modal.show button:has-text("Revoke Role")').first()
-  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.modal.show button:has-text("Revoke Role")').first()).toBeVisible({
+    timeout: 5_000,
+  });
 
   await page.locator('.modal.show button:has-text("Revoke Role")').first().click();
-  await expect(
-    page.locator('.modal.show button:has-text("Grant Role")').first()
-  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.modal.show button:has-text("Grant Role")').first()).toBeVisible({
+    timeout: 5_000,
+  });
 
   await page.locator('.modal.show .modal-header .btn-close').click();
   await waitForModalClosed(page);
@@ -171,9 +171,14 @@ test('changing a setting enables the Submit and Reset buttons', async () => {
 // ── System tab ────────────────────────────────────────────────────────────
 
 test('switches to the System tab', async () => {
-  await page.locator('.nav-link').filter({ hasText: /^System$/ }).click();
+  await page
+    .locator('.nav-link')
+    .filter({ hasText: /^System$/ })
+    .click();
   // Use strong selector — the modal "Connected Clients" h5 is also in the DOM (BVN teleport)
-  await expect(page.locator('strong:has-text("Connected Clients")')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('strong:has-text("Connected Clients")')).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test('can open the View Clients modal', async () => {
@@ -188,7 +193,10 @@ test('switches to the Logs tab and can change source', async () => {
   await page.click('.nav-link:has-text("Logs")');
   await expect(page.locator('text=Server').first()).toBeVisible();
   // Switch to Client logs — Bootstrap btn-check inputs have pointer-events:none; click the label
-  await page.locator('.tab-pane.active label').filter({ hasText: /^Client$/ }).click();
+  await page
+    .locator('.tab-pane.active label')
+    .filter({ hasText: /^Client$/ })
+    .click();
 });
 
 // ── Backups tab ──────────────────────────────────────────────────────────
@@ -198,8 +206,8 @@ test('switches to the Backups tab', async () => {
   // Wait for the loading spinner to resolve to either the backups table or the empty-state alert.
   // Scope to elements unique to ConfigBackups to avoid matching the RBAC modal's table.
   await expect(
-    page.locator('.alert:has-text("No backup files found")').or(
-      page.locator('th:has-text("Filename")')
-    )
+    page
+      .locator('.alert:has-text("No backup files found")')
+      .or(page.locator('th:has-text("Filename")'))
   ).toBeVisible({ timeout: 10_000 });
 });

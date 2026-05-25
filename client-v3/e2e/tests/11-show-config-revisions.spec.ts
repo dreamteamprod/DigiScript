@@ -108,5 +108,7 @@ test('can trigger script compilation', async () => {
     });
   }
   // Either way, at least one compiled-scripts table row must exist
-  await expect(page.locator('.tab-pane.active table tbody tr').first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.tab-pane.active table tbody tr').first()).toBeVisible({
+    timeout: 10_000,
+  });
 });

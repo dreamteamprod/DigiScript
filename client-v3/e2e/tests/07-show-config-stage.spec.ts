@@ -144,14 +144,20 @@ test('adds a prop allocation to the current scene', async () => {
   await confirmModal(page);
   await waitForModalClosed(page);
   // Scope to active tab — Props tab panel is also mounted in DOM and contains a Chair cell
-  await expect(page.locator('.tab-pane.active td:has-text("Chair")')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.tab-pane.active td:has-text("Chair")')).toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 test('deletes the prop allocation', async () => {
-  const propRow = page.locator('.tab-pane.active tr', { has: page.locator('td:has-text("Chair")') });
+  const propRow = page.locator('.tab-pane.active tr', {
+    has: page.locator('td:has-text("Chair")'),
+  });
   await propRow.locator('button:has-text("Delete")').click();
   await confirmDialog(page);
-  await expect(page.locator('.tab-pane.active td:has-text("Chair")')).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.tab-pane.active td:has-text("Chair")')).not.toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 // ── Prop cleanup ──────────────────────────────────────────────────────────

@@ -167,7 +167,9 @@ test('adds a cue to the script line', async () => {
   await waitForModalClosed(page);
   // Wait for the actual cue button (not the add-cue-btn which shares the cue-button class)
   // to confirm the WS update delivered the new cue to the store before proceeding.
-  await expect(page.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 test('edits the cue identifier', async () => {
@@ -177,7 +179,9 @@ test('edits the cue identifier', async () => {
   await page.fill('#edit-cue-ident', '002');
   await confirmModal(page);
   await waitForModalClosed(page);
-  await expect(page.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 test('deletes the cue', async () => {

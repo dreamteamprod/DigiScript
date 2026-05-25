@@ -90,7 +90,10 @@ test('switches to edit mode and back', async () => {
   await expect(editBtn).toBeVisible({ timeout: 5_000 });
   await editBtn.click();
   await expect(page.locator('.tab-pane.active button:has-text("Save")')).toBeVisible();
-  await page.locator('.tab-pane.active').locator('button:has-text("View"), button:has-text("Cancel")').click();
+  await page
+    .locator('.tab-pane.active')
+    .locator('button:has-text("View"), button:has-text("Cancel")')
+    .click();
 });
 
 test('saves a mic allocation', async () => {
@@ -107,15 +110,26 @@ test('saves a mic allocation', async () => {
   await expect(page.locator('#mic-input')).toBeVisible({ timeout: 5_000 });
   await page.selectOption('#mic-input', { label: 'Mic 1' });
 
-  await page.locator('#allocations-table tbody tr').first().locator('td').nth(1).locator('button').click();
+  await page
+    .locator('#allocations-table tbody tr')
+    .first()
+    .locator('td')
+    .nth(1)
+    .locator('button')
+    .click();
   await page.locator('.tab-pane.active button:has-text("Save")').click();
 
-  await page.locator('.tab-pane.active').locator('button:has-text("View"), button:has-text("Cancel")').click();
-  await expect(page.locator('.tab-pane.active button:has-text("Edit")')).toBeVisible({ timeout: 5_000 });
+  await page
+    .locator('.tab-pane.active')
+    .locator('button:has-text("View"), button:has-text("Cancel")')
+    .click();
+  await expect(page.locator('.tab-pane.active button:has-text("Edit")')).toBeVisible({
+    timeout: 5_000,
+  });
 
-  await expect(
-    page.locator('#allocations-table .allocation-cell').first()
-  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#allocations-table .allocation-cell').first()).toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 // ── Timeline ─────────────────────────────────────────────────────────────
