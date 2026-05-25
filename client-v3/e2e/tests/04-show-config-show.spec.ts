@@ -10,8 +10,21 @@ import {
   confirmModal,
   waitForModalClosed,
 } from '../helpers.js';
+import { snapshotExists, snapshotState, restoreStateAndRestartServer } from '../db-snapshot.js';
 
 test.describe.configure({ mode: 'serial' });
+
+test.beforeAll(async ({}, testInfo) => {
+  if (testInfo.retry > 0 && snapshotExists()) {
+    await restoreStateAndRestartServer();
+  }
+});
+
+test.afterEach(async ({}, testInfo) => {
+  if (testInfo.status === 'passed') {
+    snapshotState();
+  }
+});
 
 let ctx: BrowserContext;
 let page: Page;
