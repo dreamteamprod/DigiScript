@@ -6,35 +6,36 @@ import { PID_FILE, TMPDIR_FILE, SERVER_PORT, waitForServer } from './global-setu
 
 function getPaths() {
   const tempDir = fs.readFileSync(TMPDIR_FILE, 'utf-8').trim();
+  const db = path.join(tempDir, 'digiscript.sqlite');
+  const config = path.join(tempDir, 'digiscript.json');
   return {
-    db: path.join(tempDir, 'digiscript.sqlite'),
-    dbSnapshot: path.join(tempDir, 'digiscript.sqlite.snapshot'),
-    config: path.join(tempDir, 'digiscript.json'),
-    configSnapshot: path.join(tempDir, 'digiscript.json.snapshot'),
+    db,
+    dbSpecStart: `${db}.specstart`,
+    config,
+    configSpecStart: `${config}.specstart`,
     serverDir: path.resolve(process.cwd(), '..', 'server'),
   };
 }
 
-export function snapshotExists(): boolean {
-  const { dbSnapshot } = getPaths();
-  return fs.existsSync(dbSnapshot);
+export function specStartExists(): boolean {
+  return fs.existsSync(getPaths().dbSpecStart);
 }
 
-/** Copy the DB and config to snapshot files. Call after each passing test. */
-export function snapshotState(): void {
-  const { db, dbSnapshot, config, configSnapshot } = getPaths();
-  fs.copyFileSync(db, dbSnapshot);
-  fs.copyFileSync(config, configSnapshot);
+/** Copy the current DB and config to the spec-start snapshot files. */
+export function snapshotSpecStart(): void {
+  const { db, dbSpecStart, config, configSpecStart } = getPaths();
+  fs.copyFileSync(db, dbSpecStart);
+  fs.copyFileSync(config, configSpecStart);
 }
 
 /**
- * Restore DB and config from the last snapshot, then restart the server.
- * Call at the start of a retry to bring the backend back to last known-good state.
+ * Restore DB and config from the spec-start snapshot, then restart the server.
+ * This returns the backend to the state it was in before this spec's first test ran,
+ * so every test in the spec can re-run cleanly without hitting its own prior side effects.
  */
-export async function restoreStateAndRestartServer(): Promise<void> {
-  const { db, dbSnapshot, config, configSnapshot, serverDir } = getPaths();
+export async function restoreSpecStartAndRestartServer(): Promise<void> {
+  const { db, dbSpecStart, config, configSpecStart, serverDir } = getPaths();
 
-  // Kill existing server
   if (fs.existsSync(PID_FILE)) {
     const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10);
     try {
@@ -52,11 +53,9 @@ export async function restoreStateAndRestartServer(): Promise<void> {
     // no journal file present
   }
 
-  // Restore DB and config from snapshot
-  fs.copyFileSync(dbSnapshot, db);
-  fs.copyFileSync(configSnapshot, config);
+  fs.copyFileSync(dbSpecStart, db);
+  fs.copyFileSync(configSpecStart, config);
 
-  // Respawn server with the restored config
   const server = spawn(
     'python3',
     ['main.py', `--port=${SERVER_PORT}`, `--settings_path=${config}`, '--debug=false'],
@@ -68,16 +67,22 @@ export async function restoreStateAndRestartServer(): Promise<void> {
   await waitForServer();
 }
 
-/** Register beforeAll/afterEach hooks for retry support. Call once at the top of each spec file. */
+/**
+ * Register beforeAll hooks for retry support. Call once at the top of each spec file.
+ *
+ * On first run (retry=0): captures the DB state at spec start so retries have a clean baseline.
+ * On retry: restores from that spec-start snapshot before tests run again, ensuring every test
+ * in the spec sees the same starting conditions regardless of side effects from prior attempts.
+ */
 export function registerRetryHooks(): void {
   test.beforeAll(async () => {
-    if (test.info().retry > 0 && snapshotExists()) {
-      await restoreStateAndRestartServer();
+    if (test.info().retry > 0 && specStartExists()) {
+      await restoreSpecStartAndRestartServer();
     }
   });
-  test.afterEach(async () => {
-    if (test.info().status === 'passed') {
-      snapshotState();
+  test.beforeAll(async () => {
+    if (test.info().retry === 0) {
+      snapshotSpecStart();
     }
   });
 }
