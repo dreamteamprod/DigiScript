@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+from uuid import uuid4
 
 import tornado.locks
 from jwt import PyJWS, PyJWT, PyJWTError
@@ -34,8 +35,15 @@ class JWTService:
         self._revoked_token_lock = tornado.locks.Lock()
 
     async def revoke_token(self, token: str):
-        headers = self._jws.get_unverified_header(token)
-        expiry = headers.get("exp", -1)
+        try:
+            payload = self._jwt.decode(
+                token,
+                options={"verify_signature": False, "verify_exp": False},
+                algorithms=[self._jwt_algorithm],
+            )
+            expiry = payload.get("exp", -1)
+        except Exception:
+            expiry = -1
         async with self._revoked_token_lock:
             self._revoked_tokens[token] = expiry
 
@@ -91,7 +99,7 @@ class JWTService:
                 if user:
                     to_encode["token_version"] = user.token_version
 
-        to_encode.update({"exp": expire, "iat": datetime.now(tz=timezone.utc)})
+        to_encode.update({"exp": expire, "iat": datetime.now(tz=timezone.utc), "jti": str(uuid4())})
         encoded_jwt = self._jwt.encode(
             to_encode, self.get_secret(), algorithm=self._jwt_algorithm
         )
