@@ -1,0 +1,65 @@
+name: Playwright E2E Tests
+
+on: [pull_request]
+
+permissions:
+  checks: write
+  pull-requests: write
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    name: E2E Tests (${{ matrix.browser }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+        working-directory: ./server
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Node dependencies
+        run: npm ci
+        working-directory: ./client-v3
+
+      - name: Build Vue 3 frontend
+        run: npm run build
+        working-directory: ./client-v3
+
+      - name: Install Playwright browser
+        # matrix.browser is a static value from the matrix definition (chromium/firefox)
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+        working-directory: ./client-v3
+
+      - name: Run Playwright tests
+        # matrix.browser is a static value from the matrix definition (chromium/firefox)
+        run: npx playwright test --project=${{ matrix.browser }}
+        working-directory: ./client-v3
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: client-v3/playwright-report/
+          retention-days: 7
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          check_name: "Playwright E2E Results (${{ matrix.browser }})"
+          junit_files: "**/client-v3/junit/playwright-results.xml"

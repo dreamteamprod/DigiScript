@@ -59,10 +59,10 @@
         <BFormGroup label="Start Date" label-for="show-start-input" label-cols="4">
           <BFormInput
             id="show-start-input"
-            v-model="formState.start_date"
+            v-model="formState.start"
             name="show-start-input"
             type="date"
-            :state="fieldState('start_date')"
+            :state="fieldState('start')"
           />
           <BFormInvalidFeedback>Required, must be before or same as end date.</BFormInvalidFeedback>
         </BFormGroup>
@@ -70,10 +70,10 @@
         <BFormGroup label="End Date" label-for="show-end-input" label-cols="4">
           <BFormInput
             id="show-end-input"
-            v-model="formState.end_date"
+            v-model="formState.end"
             name="show-end-input"
             type="date"
-            :state="fieldState('end_date')"
+            :state="fieldState('end')"
           />
           <BFormInvalidFeedback
             >Required, must be after or same as start date.</BFormInvalidFeedback
@@ -144,15 +144,15 @@ const showFields = [
 
 interface ShowForm {
   name: string;
-  start_date: string;
-  end_date: string;
+  start: string;
+  end: string;
   script_mode: number | null;
 }
 
 const defaultForm = (): ShowForm => ({
   name: '',
-  start_date: '',
-  end_date: '',
+  start: '',
+  end: '',
   script_mode: scriptModes.value[0]?.value ?? null,
 });
 
@@ -161,23 +161,23 @@ const formState = ref<ShowForm>(defaultForm());
 const beforeEnd = helpers.withMessage(
   'Start date must be before end date',
   () =>
-    !formState.value.start_date ||
-    !formState.value.end_date ||
-    new Date(formState.value.start_date) <= new Date(formState.value.end_date)
+    !formState.value.start ||
+    !formState.value.end ||
+    new Date(formState.value.start) <= new Date(formState.value.end)
 );
 
 const afterStart = helpers.withMessage(
   'End date must be after start date',
   () =>
-    !formState.value.start_date ||
-    !formState.value.end_date ||
-    new Date(formState.value.end_date) >= new Date(formState.value.start_date)
+    !formState.value.start ||
+    !formState.value.end ||
+    new Date(formState.value.end) >= new Date(formState.value.start)
 );
 
 const rules = {
   name: { required, maxLength: maxLength(100) },
-  start_date: { required, beforeEnd },
-  end_date: { required, afterStart },
+  start: { required, beforeEnd },
+  end: { required, afterStart },
   script_mode: { required },
 };
 

@@ -113,8 +113,8 @@ const userFields = [
 
 const adminUsers = computed(() => users.value.filter((u) => u.is_admin));
 
-function handleUserCreated(modal: typeof newUserModal): void {
-  modal.value?.hide();
+function handleUserCreated(modal: InstanceType<typeof BModal> | undefined): void {
+  modal?.hide();
   userStore.getUsers();
 }
 
