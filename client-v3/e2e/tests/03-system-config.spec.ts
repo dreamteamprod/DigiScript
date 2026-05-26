@@ -245,7 +245,9 @@ test('can open the View Clients modal', async () => {
 
 test('switches to the Logs tab and can change source', async () => {
   await page.click('.nav-link:has-text("Logs")');
-  await expect(page.locator('text=Server').first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.tab-pane.active label').filter({ hasText: /^Server$/ })).toBeVisible({
+    timeout: 10_000,
+  });
   // Switch to Client logs — Bootstrap btn-check inputs have pointer-events:none; click the label
   await page
     .locator('.tab-pane.active label')

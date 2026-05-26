@@ -57,12 +57,14 @@
               class="scene-bar-wrapper"
             >
               <div
+                v-b-tooltip.hover.top="
+                  `${sceneData.scene.name}: ${sceneData.micCount} microphone${sceneData.micCount !== 1 ? 's' : ''}`
+                "
                 class="scene-bar"
                 :style="{
                   backgroundColor: getDensityColor(sceneData.micCount),
                   height: getBarHeight(sceneData.micCount) + 'px',
                 }"
-                :title="`${sceneData.scene.name}: ${sceneData.micCount} microphone${sceneData.micCount !== 1 ? 's' : ''}`"
               >
                 <span class="mic-count">{{ sceneData.micCount }}</span>
               </div>

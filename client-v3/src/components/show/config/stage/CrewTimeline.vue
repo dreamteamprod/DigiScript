@@ -6,7 +6,12 @@
     <div v-else class="timeline-wrapper">
       <div class="timeline-controls-bar">
         <span class="text-light small">Crew Assignments</span>
-        <BButton size="sm" variant="outline-secondary" title="Export as PNG" @click="handleExport">
+        <BButton
+          v-b-tooltip.hover.top="'Export as PNG'"
+          size="sm"
+          variant="outline-secondary"
+          @click="handleExport"
+        >
           <IMdiDownload />
         </BButton>
       </div>

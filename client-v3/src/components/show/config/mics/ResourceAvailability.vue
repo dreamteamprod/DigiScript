@@ -67,9 +67,9 @@
             <div
               v-for="micStatus in sceneData.micStatuses"
               :key="`mic-${micStatus.mic.id}`"
+              v-b-tooltip.hover.top="getMicTooltip(micStatus)"
               class="mic-status-item"
               :class="micStatus.statusClass"
-              :title="getMicTooltip(micStatus)"
             >
               <div class="mic-name">{{ micStatus.mic.name ?? `Mic ${micStatus.mic.id}` }}</div>
               <div v-if="micStatus.character" class="mic-character">
