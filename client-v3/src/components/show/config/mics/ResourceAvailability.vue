@@ -67,10 +67,9 @@
             <div
               v-for="micStatus in sceneData.micStatuses"
               :key="`mic-${micStatus.mic.id}`"
+              v-b-tooltip.hover.top="getMicTooltip(micStatus)"
               class="mic-status-item"
               :class="micStatus.statusClass"
-              @mouseenter="showTooltip(getMicTooltip(micStatus), $event)"
-              @mouseleave="hideTooltip"
             >
               <div class="mic-name">{{ micStatus.mic.name ?? `Mic ${micStatus.mic.id}` }}</div>
               <div v-if="micStatus.character" class="mic-character">
@@ -82,23 +81,11 @@
       </div>
     </div>
   </div>
-  <Teleport to="body">
-    <div
-      v-if="tooltipVisible"
-      role="tooltip"
-      class="tooltip b-tooltip bs-tooltip-top show"
-      :style="tooltipStyle"
-    >
-      <div class="tooltip-arrow" />
-      <div class="tooltip-inner">{{ tooltipText }}</div>
-    </div>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useShowStore } from '@/stores/show';
-import { useHoverTooltip } from '@/composables/useHoverTooltip';
 import type { Scene, Character } from '@/types/api/show';
 import type { Microphone } from '@/types/api/microphones';
 
@@ -120,7 +107,6 @@ interface SceneAvailability {
 withDefaults(defineProps<{ loading?: boolean }>(), { loading: false });
 
 const showStore = useShowStore();
-const { tooltipText, tooltipVisible, tooltipStyle, showTooltip, hideTooltip } = useHoverTooltip();
 
 const scenes = computed(() => showStore.micTimelineData.scenes);
 const microphones = computed(() => showStore.micTimelineData.microphones);
