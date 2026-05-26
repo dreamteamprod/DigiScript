@@ -45,9 +45,11 @@ class Script(db.Model):
     )
 
     revisions: Mapped[List[ScriptRevision]] = relationship(
-        primaryjoin="ScriptRevision.script_id == Script.id", back_populates="script"
+        primaryjoin="ScriptRevision.script_id == Script.id",
+        back_populates="script",
+        cascade="all, delete-orphan",
     )
-    show: Mapped[Show] = relationship(foreign_keys=[show_id])
+    show: Mapped[Show] = relationship(foreign_keys=[show_id], back_populates="scripts")
     stage_direction_styles: Mapped[List[StageDirectionStyle]] = relationship(
         cascade="all, delete-orphan", back_populates="script"
     )

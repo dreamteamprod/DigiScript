@@ -127,7 +127,7 @@ class ShowController(BaseAPIController):
 
             session.commit()
 
-            should_load = bool(self.get_query_argument("load", default="False"))
+            should_load = self.get_query_argument("load", default="false").lower() == "true"
             if should_load:
                 await self.application.digi_settings.set("current_show", show.id)
 
@@ -258,7 +258,14 @@ class ShowController(BaseAPIController):
         with self.make_session() as session:
             show: Show = session.get(Show, show_id)
             if show:
-                session.delete(show)
+                # Break circular FKs before cascade: shows.current_session_id → showsession,
+                # and script.current_revision → script_revisions.
+                show.current_session_id = None
+                for script in show.scripts:
+                    script.current_revision = None
+                session.flush()
+                with session.no_autoflush:
+                    session.delete(show)
                 session.commit()
 
                 self.set_status(200)

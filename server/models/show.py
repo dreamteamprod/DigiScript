@@ -12,8 +12,8 @@ from models.models import db
 
 if TYPE_CHECKING:
     from models.cue import CueType
-    from models.mics import MicrophoneAllocation
-    from models.script import ScriptLine
+    from models.mics import Microphone, MicrophoneAllocation
+    from models.script import Script, ScriptLine
     from models.session import ShowSession
     from models.stage import (
         Crew,
@@ -72,7 +72,7 @@ class Show(db.Model):
     script_mode: Mapped[ShowScriptType] = mapped_column(ShowScriptTypeCol)
 
     # Relationships
-    first_act: Mapped[Act] = relationship(foreign_keys=[first_act_id])
+    first_act: Mapped[Act] = relationship(foreign_keys=[first_act_id], post_update=True)
     current_session: Mapped[ShowSession] = relationship(
         foreign_keys=[current_session_id]
     )
@@ -106,6 +106,19 @@ class Show(db.Model):
     )
     scene_list: Mapped[List[Scene]] = relationship(cascade="all, delete-orphan")
     cue_type_list: Mapped[List[CueType]] = relationship(cascade="all, delete-orphan")
+    scripts: Mapped[List["Script"]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    microphones: Mapped[List["Microphone"]] = relationship(
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
+    show_sessions: Mapped[List["ShowSession"]] = relationship(
+        foreign_keys="[ShowSession.show_id]",
+        back_populates="show",
+        cascade="all, delete-orphan",
+    )
 
 
 class Cast(db.Model):
@@ -172,11 +185,12 @@ class Act(db.Model):
     first_scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
     previous_act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
 
-    first_scene: Mapped[Scene] = relationship(foreign_keys=[first_scene_id])
+    first_scene: Mapped[Scene] = relationship(foreign_keys=[first_scene_id], post_update=True)
     previous_act: Mapped[Act] = relationship(
         remote_side="[Act.id]",
         back_populates="next_act",
         foreign_keys=[previous_act_id],
+        post_update=True,
     )
     next_act: Mapped[Act] = relationship(
         back_populates="previous_act",
@@ -210,6 +224,7 @@ class Scene(db.Model):
         remote_side="[Scene.id]",
         back_populates="next_scene",
         foreign_keys=[previous_scene_id],
+        post_update=True,
     )
     next_scene: Mapped[Scene] = relationship(
         back_populates="previous_scene",

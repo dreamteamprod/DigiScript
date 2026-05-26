@@ -68,7 +68,7 @@ class ShowSession(db.Model):
         ForeignKey("showinterval.id", ondelete="SET NULL")
     )
 
-    show: Mapped[Show] = relationship(uselist=False, foreign_keys=[show_id])
+    show: Mapped[Show] = relationship(uselist=False, foreign_keys=[show_id], back_populates="show_sessions")
     revision: Mapped[ScriptRevision] = relationship(
         uselist=False, foreign_keys=[script_revision_id]
     )

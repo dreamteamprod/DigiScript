@@ -31,9 +31,10 @@
                 </b-button>
                 <b-button
                   variant="danger"
-                  :disabled="CURRENT_SHOW != null && CURRENT_SHOW.id === data.item.id"
+                  :disabled="isDeleting || (CURRENT_SHOW != null && CURRENT_SHOW.id === data.item.id)"
                   @click.stop.prevent="deleteShow(data.item)"
                 >
+                  <b-spinner v-if="isDeleting && deletingId === data.item.id" small />
                   Delete
                 </b-button>
               </b-button-group>
@@ -167,6 +168,8 @@ export default defineComponent({
       currentPage: 1,
       isSubmittingLoad: false,
       isSubmittingShow: false,
+      isDeleting: false,
+      deletingId: null as number | null,
       formState: {
         name: null as string | null,
         start: null as string | null,
@@ -300,6 +303,8 @@ export default defineComponent({
         return;
       }
 
+      this.isDeleting = true;
+      this.deletingId = item.id;
       try {
         const searchParams = new URLSearchParams({
           id: item.id,
@@ -317,6 +322,9 @@ export default defineComponent({
       } catch (error) {
         this.$toast.error('Unable to delete show');
         log.error('Error deleting show:', error);
+      } finally {
+        this.isDeleting = false;
+        this.deletingId = null;
       }
     },
     ...mapActions(['GET_AVAILABLE_SHOWS', 'GET_SCRIPT_MODES']),
