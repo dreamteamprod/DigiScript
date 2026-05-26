@@ -128,9 +128,10 @@
               <template v-else>
                 <div
                   v-if="allocationByCharacter[data.item.Character]?.[scene.id] != null"
-                  v-b-tooltip.hover.top="getTooltipText(data.item.Character, scene.id)"
                   class="allocation-cell"
                   :class="getConflictClassForCell(data.item.Character, scene.id)"
+                  @mouseenter="showTooltip(getTooltipText(data.item.Character, scene.id), $event)"
+                  @mouseleave="hideTooltip"
                 >
                   {{ allocationByCharacter[data.item.Character]?.[scene.id] }}
                   <IMdiAlert
@@ -148,6 +149,17 @@
     </BRow>
     <MicAutoPopulateModal ref="autoPopulateModalRef" @auto-populate-result="onAutoPopulateResult" />
   </BContainer>
+  <Teleport to="body">
+    <div
+      v-if="tooltipVisible"
+      role="tooltip"
+      class="tooltip b-tooltip bs-tooltip-top show"
+      :style="tooltipStyle"
+    >
+      <div class="tooltip-arrow" />
+      <div class="tooltip-inner">{{ tooltipText }}</div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -156,11 +168,13 @@ import { diff } from 'deep-object-diff';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
 import { useStatsTable } from '@/composables/useStatsTable';
+import { useHoverTooltip } from '@/composables/useHoverTooltip';
 import MicAutoPopulateModal from './MicAutoPopulateModal.vue';
 import type { MicConflict } from '@/js/micConflictUtils';
 
 const showStore = useShowStore();
 const systemStore = useSystemStore();
+const { tooltipText, tooltipVisible, tooltipStyle, showTooltip, hideTooltip } = useHoverTooltip();
 const { sortedActs, sortedScenes, numScenesPerAct, getHeaderName, getCellName } = useStatsTable();
 
 const selectedMic = ref<number | null>(null);
