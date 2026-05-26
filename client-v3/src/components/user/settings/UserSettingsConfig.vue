@@ -61,11 +61,17 @@
               />
             </BFormGroup>
 
-            <BFormGroup
-              label-cols="4"
-              label="Browser Console Log Level"
-              label-for="console-log-level-input"
-            >
+            <BFormGroup label-cols="4" label-for="console-log-level-input">
+              <template #label>
+                Browser Console Log Level
+                <IMdiHelpCircle
+                  v-b-tooltip.hover.top="
+                    'Controls which log messages appear in your browser\'s developer console.'
+                  "
+                  class="text-muted ms-1"
+                  style="cursor: help"
+                />
+              </template>
               <BFormSelect
                 id="console-log-level-input"
                 v-model="state.console_log_level"
