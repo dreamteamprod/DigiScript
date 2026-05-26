@@ -87,6 +87,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useShowStore } from '@/stores/show';
+import { useHoverTooltip } from '@/composables/useHoverTooltip';
 import type { Scene, Character } from '@/types/api/show';
 import type { Microphone } from '@/types/api/microphones';
 

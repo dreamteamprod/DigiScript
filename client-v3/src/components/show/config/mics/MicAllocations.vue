@@ -157,6 +157,7 @@ import { diff } from 'deep-object-diff';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
 import { useStatsTable } from '@/composables/useStatsTable';
+import { useHoverTooltip } from '@/composables/useHoverTooltip';
 import MicAutoPopulateModal from './MicAutoPopulateModal.vue';
 import type { MicConflict } from '@/js/micConflictUtils';
 
