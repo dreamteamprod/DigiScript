@@ -128,9 +128,10 @@
               <template v-else>
                 <div
                   v-if="allocationByCharacter[data.item.Character]?.[scene.id] != null"
-                  v-b-tooltip.hover.top="getTooltipText(data.item.Character, scene.id)"
                   class="allocation-cell"
                   :class="getConflictClassForCell(data.item.Character, scene.id)"
+                  @mouseenter="showTooltip(getTooltipText(data.item.Character, scene.id), $event)"
+                  @mouseleave="hideTooltip"
                 >
                   {{ allocationByCharacter[data.item.Character]?.[scene.id] }}
                   <IMdiAlert
