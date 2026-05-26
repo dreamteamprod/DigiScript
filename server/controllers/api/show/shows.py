@@ -127,7 +127,9 @@ class ShowController(BaseAPIController):
 
             session.commit()
 
-            should_load = self.get_query_argument("load", default="false").lower() == "true"
+            should_load = (
+                self.get_query_argument("load", default="false").lower() == "true"
+            )
             if should_load:
                 await self.application.digi_settings.set("current_show", show.id)
 

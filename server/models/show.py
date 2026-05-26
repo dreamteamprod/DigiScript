@@ -185,7 +185,9 @@ class Act(db.Model):
     first_scene_id: Mapped[int | None] = mapped_column(ForeignKey("scene.id"))
     previous_act_id: Mapped[int | None] = mapped_column(ForeignKey("act.id"))
 
-    first_scene: Mapped[Scene] = relationship(foreign_keys=[first_scene_id], post_update=True)
+    first_scene: Mapped[Scene] = relationship(
+        foreign_keys=[first_scene_id], post_update=True
+    )
     previous_act: Mapped[Act] = relationship(
         remote_side="[Act.id]",
         back_populates="next_act",

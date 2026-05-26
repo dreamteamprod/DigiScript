@@ -253,7 +253,9 @@ class TestShowDeletionController(DigiScriptTestCase):
             scene1_id = scene1.id
 
             scene2 = Scene(
-                show_id=show_b_id, act_id=act1_id, name="Scene 2",
+                show_id=show_b_id,
+                act_id=act1_id,
+                name="Scene 2",
                 previous_scene_id=scene1_id,
             )
             session.add(scene2)
@@ -284,7 +286,9 @@ class TestShowDeletionController(DigiScriptTestCase):
 
             # Past show session referencing the revision — exercises the ShowSession
             # cascade path that previously caused an IntegrityError.
-            past_session = ShowSession(show_id=show_b_id, script_revision_id=revision_id)
+            past_session = ShowSession(
+                show_id=show_b_id, script_revision_id=revision_id
+            )
             session.add(past_session)
             session.flush()
             past_session_id = past_session.id
@@ -303,8 +307,12 @@ class TestShowDeletionController(DigiScriptTestCase):
                 session.get(ScriptRevision, revision_id),
                 "Revision should be cascade deleted",
             )
-            self.assertIsNone(session.get(Act, act1_id), "Act 1 should be cascade deleted")
-            self.assertIsNone(session.get(Act, act2_id), "Act 2 should be cascade deleted")
+            self.assertIsNone(
+                session.get(Act, act1_id), "Act 1 should be cascade deleted"
+            )
+            self.assertIsNone(
+                session.get(Act, act2_id), "Act 2 should be cascade deleted"
+            )
             self.assertIsNone(
                 session.get(Scene, scene1_id), "Scene 1 should be cascade deleted"
             )

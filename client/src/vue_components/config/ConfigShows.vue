@@ -31,7 +31,9 @@
                 </b-button>
                 <b-button
                   variant="danger"
-                  :disabled="isDeleting || (CURRENT_SHOW != null && CURRENT_SHOW.id === data.item.id)"
+                  :disabled="
+                    isDeleting || (CURRENT_SHOW != null && CURRENT_SHOW.id === data.item.id)
+                  "
                   @click.stop.prevent="deleteShow(data.item)"
                 >
                   <b-spinner v-if="isDeleting && deletingId === data.item.id" small />
