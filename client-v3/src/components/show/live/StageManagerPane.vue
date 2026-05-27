@@ -29,7 +29,7 @@
               {{ getSceneDisplayName(scene) }}
             </span>
             <span class="scene-badges d-flex align-items-center gap-1">
-              <IMdiPin v-if="pinnedScenes[scene.id]" title="Pinned" />
+              <IMdiPin v-if="pinnedScenes[scene.id]" v-b-tooltip.hover.top="'Pinned'" />
               <BBadge v-if="scene.id === currentSceneId" variant="success" pill>Current</BBadge>
               <BBadge v-else-if="scene.id === nextSceneId" variant="primary" pill>Next</BBadge>
             </span>

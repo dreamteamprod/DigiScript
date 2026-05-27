@@ -62,7 +62,13 @@
                   backgroundColor: getDensityColor(sceneData.micCount),
                   height: getBarHeight(sceneData.micCount) + 'px',
                 }"
-                :title="`${sceneData.scene.name}: ${sceneData.micCount} microphone${sceneData.micCount !== 1 ? 's' : ''}`"
+                @mouseenter="
+                  showTooltip(
+                    `${sceneData.scene.name}: ${sceneData.micCount} microphone${sceneData.micCount !== 1 ? 's' : ''}`,
+                    $event
+                  )
+                "
+                @mouseleave="hideTooltip"
               >
                 <span class="mic-count">{{ sceneData.micCount }}</span>
               </div>
@@ -84,11 +90,13 @@
       </div>
     </div>
   </div>
+  <BTooltip v-model="tooltipVisible" :target="tooltipTarget" :title="tooltipText" manual />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useShowStore } from '@/stores/show';
+import { useHoverTooltip } from '@/composables/useHoverTooltip';
 import type { Scene } from '@/types/api/show';
 
 interface SceneDensityEntry {
@@ -105,6 +113,7 @@ interface ActDensityGroup {
 withDefaults(defineProps<{ loading?: boolean }>(), { loading: false });
 
 const showStore = useShowStore();
+const { tooltipTarget, tooltipText, tooltipVisible, showTooltip, hideTooltip } = useHoverTooltip();
 
 const maxBarHeight = 200;
 const minBarHeight = 20;

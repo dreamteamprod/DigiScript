@@ -14,17 +14,27 @@
               <BButton variant="success" @click="newShowModal?.show()">Setup New Show</BButton>
             </template>
             <template #cell(btn)="data">
-              <BButton
-                variant="primary"
-                :disabled="
-                  isSubmittingLoad || (currentShow != null && currentShow.id === data.item.id)
-                "
-                @click="loadShow(data.item)"
-              >
-                {{
-                  currentShow != null && currentShow.id === data.item.id ? 'Loaded' : 'Load Show'
-                }}
-              </BButton>
+              <BButtonGroup>
+                <BButton
+                  variant="primary"
+                  :disabled="
+                    isSubmittingLoad || (currentShow != null && currentShow.id === data.item.id)
+                  "
+                  @click="loadShow(data.item)"
+                >
+                  {{
+                    currentShow != null && currentShow.id === data.item.id ? 'Loaded' : 'Load Show'
+                  }}
+                </BButton>
+                <BButton
+                  variant="danger"
+                  :disabled="isDeleting || (currentShow != null && currentShow.id === data.item.id)"
+                  @click="deleteShow(data.item)"
+                >
+                  <BSpinner v-if="isDeleting && deletingId === data.item.id" small />
+                  Delete
+                </BButton>
+              </BButtonGroup>
             </template>
           </BTable>
           <BPagination
@@ -118,6 +128,7 @@ import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
+import { useConfirm } from '@/composables/useConfirm';
 import { toast } from '@/js/toast';
 import type { Show } from '@/types/api/show';
 
@@ -125,11 +136,14 @@ const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { availableShows, currentShow } = storeToRefs(systemStore);
 const { scriptModes } = storeToRefs(showStore);
+const { confirm } = useConfirm();
 
 const loaded = ref(false);
 const newShowModal = ref<InstanceType<typeof BModal>>();
 const isSubmittingLoad = ref(false);
 const isSubmittingShow = ref(false);
+const isDeleting = ref(false);
+const deletingId = ref<number | null>(null);
 const currentPage = ref(1);
 const rowsPerPage = 15;
 
@@ -247,6 +261,34 @@ async function loadShow(show: Show): Promise<void> {
     toast.error('Unable to load show');
   } finally {
     isSubmittingLoad.value = false;
+  }
+}
+
+async function deleteShow(show: Show): Promise<void> {
+  const confirmed = await confirm(
+    `Are you sure you want to delete ${show.name}? This will delete all data associated with this show and cannot be undone.`,
+    { title: 'Delete Show', okVariant: 'danger', okTitle: 'Delete' }
+  );
+  if (!confirmed) return;
+
+  isDeleting.value = true;
+  deletingId.value = show.id;
+  try {
+    const params = new URLSearchParams({ id: String(show.id) });
+    const response = await fetch(`${makeURL('/api/v1/show')}?${params}`, { method: 'DELETE' });
+    if (response.ok) {
+      await systemStore.getAvailableShows();
+      toast.success('Deleted show!');
+    } else {
+      log.error('Unable to delete show');
+      toast.error('Unable to delete show');
+    }
+  } catch (err) {
+    log.error('Error deleting show:', err);
+    toast.error('Unable to delete show');
+  } finally {
+    isDeleting.value = false;
+    deletingId.value = null;
   }
 }
 

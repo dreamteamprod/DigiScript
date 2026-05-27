@@ -43,14 +43,12 @@
                     <template #label>
                       <span>
                         {{ setting.display_name !== '' ? setting.display_name : key }}
-                        <span
+                        <IMdiHelpCircle
                           v-if="setting.help_text !== ''"
-                          :id="`${key}-help-icon`"
+                          v-b-tooltip.hover.top="setting.help_text"
                           class="text-muted ms-1"
                           style="cursor: help"
-                          :title="setting.help_text"
-                          >?</span
-                        >
+                        />
                       </span>
                     </template>
                     <BFormSelect

@@ -28,7 +28,12 @@
             By Cast
           </BButton>
         </BButtonGroup>
-        <BButton size="sm" variant="outline-secondary" title="Export as PNG" @click="handleExport">
+        <BButton
+          v-b-tooltip.hover.top="'Export as PNG'"
+          size="sm"
+          variant="outline-secondary"
+          @click="handleExport"
+        >
           <IMdiDownload /> Export
         </BButton>
       </div>

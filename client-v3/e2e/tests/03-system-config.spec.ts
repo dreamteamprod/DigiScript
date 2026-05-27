@@ -79,6 +79,48 @@ test('creates and loads a show via Save and Load', async () => {
   await expect(page.locator('a:has-text("Show Config")')).toBeVisible({ timeout: 10_000 });
 });
 
+// ── Show deletion ─────────────────────────────────────────────────────────
+
+test('creates a second show to use as a deletion target', async () => {
+  // Shows tab is still active after the page reload caused by loading the first show.
+  await expect(page.locator('button:has-text("Setup New Show")')).toBeVisible({ timeout: 10_000 });
+  await page.click('button:has-text("Setup New Show")');
+  await waitForModal(page, 'Setup New Show');
+
+  await page.fill('#show-name-input', 'E2E Show to Delete');
+  await page.fill('#show-start-input', '2025-02-01');
+  await page.fill('#show-end-input', '2025-04-30');
+  await page
+    .waitForSelector('#show-script-mode-input option:not([value=""])', { timeout: 5_000 })
+    .catch(() => {});
+  await page.selectOption('#show-script-mode-input', { index: 0 });
+
+  // Save only — do not load this show; the primary show must remain loaded for later specs.
+  await page.locator('.modal.show').getByRole('button', { name: 'Save', exact: true }).click();
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("E2E Show to Delete")')).toBeVisible();
+});
+
+test('delete button is disabled for the currently loaded show', async () => {
+  const loadedRow = page.locator('tr', {
+    has: page.locator('td:has-text("E2E Test Show")'),
+  });
+  await expect(loadedRow.locator('button:has-text("Delete")')).toBeDisabled();
+});
+
+test('can delete a show', async () => {
+  const targetRow = page.locator('tr', {
+    has: page.locator('td:has-text("E2E Show to Delete")'),
+  });
+  await targetRow.locator('button:has-text("Delete")').click();
+  await confirmDialog(page);
+  await expect(page.locator('td:has-text("E2E Show to Delete")')).not.toBeVisible({
+    timeout: 5_000,
+  });
+  // The primary show must still be present
+  await expect(page.locator('td:has-text("E2E Test Show")')).toBeVisible();
+});
+
 // ── Users tab ──────────────────────────────────────────────────────────────
 
 test('switches to the Users tab', async () => {
@@ -203,7 +245,9 @@ test('can open the View Clients modal', async () => {
 
 test('switches to the Logs tab and can change source', async () => {
   await page.click('.nav-link:has-text("Logs")');
-  await expect(page.locator('text=Server').first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.tab-pane.active label').filter({ hasText: /^Server$/ })).toBeVisible({
+    timeout: 10_000,
+  });
   // Switch to Client logs — Bootstrap btn-check inputs have pointer-events:none; click the label
   await page
     .locator('.tab-pane.active label')

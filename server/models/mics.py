@@ -9,7 +9,7 @@ from models.models import db
 
 
 if TYPE_CHECKING:
-    from models.show import Character, Scene
+    from models.show import Character, Scene, Show
 
 
 class Microphone(db.Model):
@@ -21,6 +21,7 @@ class Microphone(db.Model):
     name: Mapped[str | None] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(String(500))
 
+    show: Mapped[Show] = relationship(back_populates="microphones")
     allocations: Mapped[List[MicrophoneAllocation]] = relationship(
         cascade="all, delete-orphan", back_populates="microphone"
     )
