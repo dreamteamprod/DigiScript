@@ -30,7 +30,7 @@
     "bonjour-service": "^1.4.0"
   },
   "devDependencies": {
-    "electron": "^40.6.1",
+    "electron": "^40.10.2",
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-squirrel": "^7.11.2",
     "@electron-forge/maker-zip": "^7.11.2",
