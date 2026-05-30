@@ -91,9 +91,7 @@ class TestPasswordService(AsyncTestCase):
         # 73 ASCII characters = 73 bytes
         is_valid, error_msg = PasswordService.validate_password_strength("a" * 73)
         self.assertFalse(is_valid)
-        self.assertEqual(
-            "Password must be 72 characters or fewer", error_msg
-        )
+        self.assertEqual("Password must be 72 characters or fewer", error_msg)
 
     def test_validate_password_strength_multibyte_utf8_over_limit(self):
         """Test that multi-byte UTF-8 characters are counted by byte length"""
@@ -102,9 +100,7 @@ class TestPasswordService(AsyncTestCase):
         self.assertGreater(len(password.encode("utf-8")), 72)
         is_valid, error_msg = PasswordService.validate_password_strength(password)
         self.assertFalse(is_valid)
-        self.assertEqual(
-            "Password must be 72 characters or fewer", error_msg
-        )
+        self.assertEqual("Password must be 72 characters or fewer", error_msg)
 
     def test_generate_temporary_password_default_word_count(self):
         """Test that generate_temporary_password produces 3-word password by default"""
