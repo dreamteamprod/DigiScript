@@ -93,6 +93,8 @@ jobs:
           npx tsc
 
       - name: Make installers
+        env:
+          DEBUG: 'electron-forge:*,electron-packager'
         run: |
           cd electron
           npx electron-forge make --verbose
@@ -100,8 +102,14 @@ jobs:
       - name: List output files (debug)
         if: always()
         run: |
-          echo "Contents of electron/out/:"
-          ls -R electron/out/ || echo "(electron/out/ does not exist)"
+          echo "=== electron/dist/ ==="
+          ls -la electron/dist/ || echo "(does not exist)"
+          echo "=== client/dist-electron/ ==="
+          ls -la client/dist-electron/ || echo "(does not exist)"
+          echo "=== electron/node_modules/@electron/node-gyp (git dep) ==="
+          ls electron/node_modules/@electron/node-gyp/package.json 2>/dev/null && node -e "const p=require('./electron/node_modules/@electron/node-gyp/package.json');console.log('version:',p.version)" || echo "(missing)"
+          echo "=== electron/out/ ==="
+          ls -R electron/out/ || echo "(does not exist)"
         shell: bash
 
       - name: Upload installers
