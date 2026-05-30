@@ -33,7 +33,7 @@
         type="password"
       />
       <b-form-invalid-feedback id="password-feedback">
-        This is a required field and must be at least 6 characters.
+        This is a required field and must be between 6 and 72 characters.
       </b-form-invalid-feedback>
     </b-form-group>
     <b-form-group
@@ -66,6 +66,7 @@
 import { defineComponent } from 'vue';
 import { required, minLength, sameAs } from 'vuelidate/lib/validators';
 import { mapActions, mapGetters } from 'vuex';
+import { maxPasswordByteLength } from '@/js/customValidators';
 
 function isUsernameUnique(this: any, value: string): boolean {
   if (value === '') return true;
@@ -102,7 +103,7 @@ export default defineComponent({
   validations: {
     state: {
       username: { required, isUsernameUnique },
-      password: { required, minLength: minLength(6) },
+      password: { required, minLength: minLength(6), maxPasswordByteLength },
       confirmPassword: { required, sameAsPassword: sameAs('password') },
     },
   },
