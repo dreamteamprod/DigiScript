@@ -19,7 +19,7 @@
         type="password"
         :state="fieldState('password')"
       />
-      <BFormInvalidFeedback>Required, at least 6 characters.</BFormInvalidFeedback>
+      <BFormInvalidFeedback>Required, between 6 and 72 characters.</BFormInvalidFeedback>
     </BFormGroup>
 
     <BFormGroup label="Confirm Password" label-for="confirm-password-input" label-cols="4">
@@ -45,6 +45,7 @@
 import { ref, computed } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required, minLength, sameAs, helpers } from '@vuelidate/validators';
+import { maxPasswordByteLength } from '@/js/customValidators';
 import { storeToRefs } from 'pinia';
 import { useUserStore } from '@/stores/user';
 
@@ -78,7 +79,7 @@ const passwordRef = computed(() => state.value.password);
 
 const rules = {
   username: { required, isUsernameUnique },
-  password: { required, minLength: minLength(6) },
+  password: { required, minLength: minLength(6), maxPasswordByteLength },
   confirmPassword: { required, sameAs: sameAs(passwordRef) },
 };
 
