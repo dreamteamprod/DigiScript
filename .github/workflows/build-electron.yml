@@ -87,6 +87,11 @@ jobs:
           cd electron
           npm ci
 
+      - name: Compile TypeScript
+        run: |
+          cd electron
+          npx tsc
+
       - name: Make installers
         run: |
           cd electron
