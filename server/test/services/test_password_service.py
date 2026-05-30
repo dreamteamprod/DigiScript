@@ -78,6 +78,34 @@ class TestPasswordService(AsyncTestCase):
         self.assertFalse(is_valid)
         self.assertEqual("Password must be at least 6 characters long", error_msg)
 
+    def test_validate_password_strength_at_72_byte_limit(self):
+        """Test that a password exactly 72 bytes long is accepted"""
+        # 72 ASCII characters = 72 bytes (boundary case)
+        password = "a" * 72
+        is_valid, error_msg = PasswordService.validate_password_strength(password)
+        self.assertTrue(is_valid)
+        self.assertEqual("", error_msg)
+
+    def test_validate_password_strength_exceeds_72_bytes(self):
+        """Test that passwords over 72 UTF-8 bytes are rejected"""
+        # 73 ASCII characters = 73 bytes
+        is_valid, error_msg = PasswordService.validate_password_strength("a" * 73)
+        self.assertFalse(is_valid)
+        self.assertEqual(
+            "Password must be 72 characters or fewer", error_msg
+        )
+
+    def test_validate_password_strength_multibyte_utf8_over_limit(self):
+        """Test that multi-byte UTF-8 characters are counted by byte length"""
+        # Each '€' (U+20AC) encodes to 3 bytes — 25 chars = 75 bytes, over the limit
+        password = "€" * 25
+        self.assertGreater(len(password.encode("utf-8")), 72)
+        is_valid, error_msg = PasswordService.validate_password_strength(password)
+        self.assertFalse(is_valid)
+        self.assertEqual(
+            "Password must be 72 characters or fewer", error_msg
+        )
+
     def test_generate_temporary_password_default_word_count(self):
         """Test that generate_temporary_password produces 3-word password by default"""
         password = PasswordService.generate_temporary_password()

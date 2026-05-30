@@ -50,6 +50,7 @@ class PasswordService:
 
         Current requirements:
         - Minimum 6 characters
+        - Maximum 72 bytes when UTF-8 encoded (bcrypt hard limit)
 
         :param password: Password to validate
         :type password: str
@@ -60,6 +61,9 @@ class PasswordService:
         """
         if len(password) < 6:
             return False, "Password must be at least 6 characters long"
+
+        if len(password.encode("utf-8")) > 72:
+            return False, "Password must be 72 characters or fewer"
 
         return True, ""
 
