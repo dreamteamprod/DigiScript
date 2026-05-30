@@ -61,6 +61,7 @@
       "makers": [
         {
           "name": "@electron-forge/maker-squirrel",
+          "platforms": ["win32"],
           "config": {
             "name": "DigiScript",
             "authors": "DreamTeamProd",
@@ -75,6 +76,7 @@
         },
         {
           "name": "@electron-forge/maker-deb",
+          "platforms": ["linux"],
           "config": {
             "bin": "digiscript",
             "maintainer": "DreamTeamProd"
@@ -82,6 +84,7 @@
         },
         {
           "name": "@electron-forge/maker-rpm",
+          "platforms": ["linux"],
           "config": {
             "bin": "digiscript",
             "vendor": "DreamTeamProd"

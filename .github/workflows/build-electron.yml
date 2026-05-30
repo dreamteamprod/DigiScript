@@ -87,20 +87,16 @@ jobs:
           cd electron
           npm ci
 
-      - name: Package Electron app
-        run: |
-          cd electron
-          npm run package
-
       - name: Make installers
         run: |
           cd electron
-          npm run make
+          npx electron-forge make --verbose
 
       - name: List output files (debug)
+        if: always()
         run: |
-          echo "Contents of electron/out/make:"
-          ls -R electron/out/make/
+          echo "Contents of electron/out/:"
+          ls -R electron/out/ || echo "(electron/out/ does not exist)"
         shell: bash
 
       - name: Upload installers
