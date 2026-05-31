@@ -93,30 +93,16 @@ jobs:
           npx tsc
 
       - name: Make installers
-        env:
-          DEBUG: 'electron-forge:*,electron-packager'
         run: |
           cd electron
-          npx electron-forge make --verbose
-
-      - name: List output files (debug)
-        if: always()
-        run: |
-          echo "=== electron/dist/ ==="
-          ls -la electron/dist/ || echo "(does not exist)"
-          echo "=== client/dist-electron/ ==="
-          ls -la client/dist-electron/ || echo "(does not exist)"
-          echo "=== electron/node_modules/@electron/node-gyp (git dep) ==="
-          ls electron/node_modules/@electron/node-gyp/package.json 2>/dev/null && node -e "const p=require('./electron/node_modules/@electron/node-gyp/package.json');console.log('version:',p.version)" || echo "(missing)"
-          echo "=== electron/out/ ==="
-          ls -R electron/out/ || echo "(does not exist)"
-        shell: bash
+          npx electron-forge make
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
           name: electron-${{ matrix.platform }}-installers
           path: ${{ matrix.artifact_patterns }}
+          if-no-files-found: error
           retention-days: 7
 
   upload-electron-to-release:
