@@ -92,10 +92,29 @@ jobs:
           cd electron
           npx tsc
 
+      - name: Package Electron app
+        run: |
+          cd electron
+          npx electron-forge package
+
+      - name: List package output (debug)
+        if: always()
+        run: |
+          echo "Contents of electron/out/:"
+          ls -R electron/out/ || echo "(directory does not exist)"
+        shell: bash
+
       - name: Make installers
         run: |
           cd electron
-          npx electron-forge make
+          npx electron-forge make --skip-package
+
+      - name: List installer output (debug)
+        if: always()
+        run: |
+          echo "Contents of electron/out/make/:"
+          ls -R electron/out/make/ || echo "(directory does not exist)"
+        shell: bash
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
