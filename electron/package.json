@@ -1,6 +1,6 @@
 {
   "name": "digiscript-electron",
-  "version": "0.30.3",
+  "version": "0.30.4",
   "description": "DigiScript Electron Desktop Application",
   "author": "DreamTeamProd",
   "license": "GPL-3.0",
@@ -37,12 +37,12 @@
     "@electron-forge/maker-deb": "^7.11.2",
     "@electron-forge/maker-rpm": "^7.11.2",
     "@eslint/js": "^9.39.2",
-    "@typescript-eslint/eslint-plugin": "^8.60.0",
-    "@typescript-eslint/parser": "^8.60.0",
+    "@typescript-eslint/eslint-plugin": "^8.60.1",
+    "@typescript-eslint/parser": "^8.60.1",
     "@types/node": "^22.0.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-prettier": "^5.5.6",
     "globals": "^17.6.0",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3"
@@ -61,6 +61,9 @@
       "makers": [
         {
           "name": "@electron-forge/maker-squirrel",
+          "platforms": [
+            "win32"
+          ],
           "config": {
             "name": "DigiScript",
             "authors": "DreamTeamProd",
@@ -75,6 +78,9 @@
         },
         {
           "name": "@electron-forge/maker-deb",
+          "platforms": [
+            "linux"
+          ],
           "config": {
             "bin": "digiscript",
             "maintainer": "DreamTeamProd"
@@ -82,6 +88,9 @@
         },
         {
           "name": "@electron-forge/maker-rpm",
+          "platforms": [
+            "linux"
+          ],
           "config": {
             "bin": "digiscript",
             "vendor": "DreamTeamProd"

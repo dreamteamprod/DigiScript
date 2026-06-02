@@ -1,5 +1,6 @@
 import { defineComponent } from 'vue';
 import { required, minLength, sameAs } from 'vuelidate/lib/validators';
+import { maxPasswordByteLength } from '@/js/customValidators';
 
 export default defineComponent({
   methods: {
@@ -12,6 +13,7 @@ export default defineComponent({
       return {
         required,
         minLength: minLength(6),
+        maxPasswordByteLength,
       };
     },
 
