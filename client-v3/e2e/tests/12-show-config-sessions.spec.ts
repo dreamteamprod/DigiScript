@@ -1,6 +1,6 @@
 /**
- * Show Config — Sessions tab: session tags CRUD.
- * Note: actual session start/stop is tested in 13-live-show.spec.ts.
+ * Show Config — Sessions tab: session start via the tab button + session tags CRUD.
+ * Spec 13 covers session start/stop via the navbar.
  */
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import {
@@ -72,4 +72,26 @@ test('deletes a session tag', async () => {
   await expect(page.locator('td:has-text("Tech Run (Edited)")')).not.toBeVisible({
     timeout: 5_000,
   });
+});
+
+// ── Session start via the tab button ─────────────────────────────────────
+
+test('switches back to Sessions sub-tab', async () => {
+  await page.click('button[role="tab"]:has-text("Sessions")');
+  await expect(page.locator('button.btn-success:has-text("Start Session")')).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+test('starts a session via the Sessions tab Start button', async () => {
+  await page.click('button.btn-success:has-text("Start Session")');
+  // START_SHOW WS message pushes all clients to /live
+  await page.waitForURL(`${UI_BASE}/live`, { timeout: 10_000 });
+});
+
+test('stops the session via the navbar to restore state for later specs', async () => {
+  await page.locator('text=Live Config').click();
+  await page.click('button:has-text("Stop Session")');
+  await confirmDialog(page);
+  await expect(page.locator('a:has-text("Live")')).toHaveClass(/disabled/, { timeout: 10_000 });
 });

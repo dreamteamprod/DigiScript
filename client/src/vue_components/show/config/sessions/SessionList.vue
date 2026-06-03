@@ -2,22 +2,14 @@
   <b-container class="mx-0" fluid>
     <b-row style="margin-bottom: 0.5rem">
       <b-col class="text-left pl-0">
-        <b-button-group v-if="IS_SHOW_EXECUTOR">
-          <b-button
-            variant="success"
-            :disabled="CURRENT_SHOW_SESSION !== null || startingSession"
-            @click.stop="startSession"
-          >
-            Start Session
-          </b-button>
-          <b-button
-            variant="danger"
-            :disabled="CURRENT_SHOW_SESSION === null || stoppingSession"
-            @click.stop="stopSession"
-          >
-            Stop Session
-          </b-button>
-        </b-button-group>
+        <b-button
+          v-if="IS_SHOW_EXECUTOR"
+          variant="success"
+          :disabled="CURRENT_SHOW_SESSION !== null || startingSession"
+          @click.stop="startSession"
+        >
+          Start Session
+        </b-button>
       </b-col>
     </b-row>
     <b-row>
@@ -87,7 +79,6 @@ export default defineComponent({
         { key: 'tags', label: 'Tags' },
       ],
       startingSession: false,
-      stoppingSession: false,
     };
   },
   computed: {
@@ -121,19 +112,6 @@ export default defineComponent({
         (this as any).$toast.error('Unable to start new show session');
       }
       this.startingSession = false;
-    },
-    async stopSession(): Promise<void> {
-      this.stoppingSession = true;
-      const response = await fetch(`${makeURL('/api/v1/show/sessions/stop')}`, {
-        method: 'POST',
-      });
-      if (response.ok) {
-        (this as any).$toast.success('Stopped show session');
-      } else {
-        log.error('Unable to stop show session');
-        (this as any).$toast.error('Unable to stop show session');
-      }
-      this.stoppingSession = false;
     },
     runTimeCalc(start: string, end: string): string {
       const startDate = Date.parse(start);

@@ -2,22 +2,13 @@
   <BContainer class="mx-0" fluid>
     <BRow v-if="systemStore.isShowExecutor" style="margin-bottom: 0.5rem">
       <BCol class="text-start ps-0">
-        <BButtonGroup>
-          <BButton
-            variant="success"
-            :disabled="systemStore.currentShow?.current_session_id !== null || startingSession"
-            @click.stop="startSession"
-          >
-            Start Session
-          </BButton>
-          <BButton
-            variant="danger"
-            :disabled="systemStore.currentShow?.current_session_id === null || stoppingSession"
-            @click.stop="stopSession"
-          >
-            Stop Session
-          </BButton>
-        </BButtonGroup>
+        <BButton
+          variant="success"
+          :disabled="systemStore.currentShow?.current_session_id !== null || startingSession"
+          @click.stop="startSession"
+        >
+          Start Session
+        </BButton>
       </BCol>
     </BRow>
     <BRow>
@@ -65,14 +56,15 @@ import log from 'loglevel';
 import { makeURL, msToTimerString, contrastColor } from '@/js/utils';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
+import { useWebSocketStore } from '@/stores/websocket';
 import { toast } from '@/js/toast';
 import SessionTagDropdown from './SessionTagDropdown.vue';
 
 const systemStore = useSystemStore();
 const showStore = useShowStore();
+const wsStore = useWebSocketStore();
 
 const startingSession = ref(false);
-const stoppingSession = ref(false);
 
 const sessionFields = [
   { key: 'start_date_time', label: 'Start Time' },
@@ -96,9 +88,17 @@ function revisionLabel(revisionId: number | null): string {
 }
 
 async function startSession(): Promise<void> {
+  if (!wsStore.internalUUID) {
+    toast.error('Unable to start new show session');
+    return;
+  }
   startingSession.value = true;
   try {
-    const response = await fetch(makeURL('/api/v1/show/sessions/start'), { method: 'POST' });
+    const response = await fetch(makeURL('/api/v1/show/sessions/start'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: wsStore.internalUUID }),
+    });
     if (response.ok) {
       toast.success('Started new show session');
       await showStore.getShowSessionData();
@@ -108,22 +108,6 @@ async function startSession(): Promise<void> {
     }
   } finally {
     startingSession.value = false;
-  }
-}
-
-async function stopSession(): Promise<void> {
-  stoppingSession.value = true;
-  try {
-    const response = await fetch(makeURL('/api/v1/show/sessions/stop'), { method: 'POST' });
-    if (response.ok) {
-      toast.success('Stopped show session');
-      await showStore.getShowSessionData();
-    } else {
-      log.error('Unable to stop show session');
-      toast.error('Unable to stop show session');
-    }
-  } finally {
-    stoppingSession.value = false;
   }
 }
 </script>
