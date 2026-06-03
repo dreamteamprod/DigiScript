@@ -78,11 +78,13 @@ test('deletes a session tag', async () => {
 
 test('switches back to Sessions sub-tab', async () => {
   await page.click('button[role="tab"]:has-text("Sessions")');
-  await expect(page.locator('button:has-text("Start Session")')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('button.btn-success:has-text("Start Session")')).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test('starts a session via the Sessions tab Start button', async () => {
-  await page.click('button:has-text("Start Session")');
+  await page.click('button.btn-success:has-text("Start Session")');
   // START_SHOW WS message pushes all clients to /live
   await page.waitForURL(`${UI_BASE}/live`, { timeout: 10_000 });
 });
