@@ -232,15 +232,17 @@ export default defineComponent({
       }
     },
     resetEditSettings(): void {
+      const newSettings: Record<string, unknown> = {};
       Object.keys(this.visibleSettings).forEach((x) => {
-        this.editSettings[x] = this.visibleSettings[x].value;
+        newSettings[x] = this.visibleSettings[x].value;
       });
+      this.editSettings = newSettings;
     },
     resetForm(toggleLoaded: boolean): void {
       if (toggleLoaded) this.loaded = false;
       this.toggle = this.toggle === 0 ? 1 : 0;
       Object.keys((this as any).RAW_SETTINGS).forEach((x) => {
-        this.editSettings[x] = (this as any).RAW_SETTINGS[x].value;
+        this.$set(this.editSettings, x, (this as any).RAW_SETTINGS[x].value);
       });
       (this as any).$v.editSettings.$reset();
       if (toggleLoaded) this.loaded = true;
