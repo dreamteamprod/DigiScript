@@ -121,12 +121,14 @@ test('merges a character into another', async () => {
   const row = page.locator('tr', { has: page.locator('td:has-text("Horatio")') });
   await row.locator('button:has-text("Merge")').click();
   await waitForModal(page, /Merge Horatio/);
-  await page.locator('.modal.show .multiselect__input').fill('Hamlet');
+  // Open the dropdown by clicking the multiselect container, then select the option.
+  await page.locator('.modal.show .multiselect').click();
   await page.locator('.modal.show .multiselect__option', { hasText: 'Hamlet' }).click();
   await confirmModal(page);
   await waitForModalClosed(page);
-  await expect(page.locator('td:has-text("Horatio")')).not.toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('td:has-text("Hamlet")')).toBeVisible();
+  // Scope to the character table to avoid matching cells in the Line Counts tab (always in DOM).
+  await expect(page.locator('#character-table td:has-text("Horatio")')).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#character-table td:has-text("Hamlet")')).toBeVisible();
 });
 
 // ── Character Groups ──────────────────────────────────────────────────────
