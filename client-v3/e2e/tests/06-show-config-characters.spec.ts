@@ -127,7 +127,9 @@ test('merges a character into another', async () => {
   await confirmModal(page);
   await waitForModalClosed(page);
   // Scope to the character table to avoid matching cells in the Line Counts tab (always in DOM).
-  await expect(page.locator('#character-table td:has-text("Horatio")')).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#character-table td:has-text("Horatio")')).not.toBeVisible({
+    timeout: 5_000,
+  });
   await expect(page.locator('#character-table td:has-text("Hamlet")')).toBeVisible();
 });
 
