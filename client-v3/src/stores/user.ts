@@ -3,6 +3,9 @@ import log from 'loglevel';
 import { isEmpty } from 'lodash';
 import { makeURL } from '@/js/utils';
 import { toast } from '@/js/toast';
+import { useWebSocketStore } from '@/stores/websocket';
+import { useSystemStore } from '@/stores/system';
+import router from '@/router';
 import type { User, UserSettings, CueColourOverride } from '@/types/api/user';
 import type { StageDirectionStyle } from '@/types/api/script';
 
@@ -36,7 +39,6 @@ export const useUserStore = defineStore('user', {
       this.authToken = null;
     },
     async login(username: string, password: string): Promise<boolean> {
-      const { useWebSocketStore } = await import('@/stores/websocket');
       const wsStore = useWebSocketStore();
 
       const response = await fetch(makeURL('/api/v1/auth/login'), {
@@ -54,7 +56,6 @@ export const useUserStore = defineStore('user', {
         if (data.access_token) this._setToken(data.access_token);
 
         try {
-          const { useSystemStore } = await import('@/stores/system');
           await useSystemStore().getRbacRoles();
           await this.getCurrentUser();
           await this.getCurrentRbac();
@@ -94,19 +95,17 @@ export const useUserStore = defineStore('user', {
       this.stageDirectionStyleOverrides = [];
       this.cueColourOverrides = [];
 
-      const { useWebSocketStore } = await import('@/stores/websocket');
       useWebSocketStore().$patch({ authenticated: false, authSucceeded: false });
 
       if (token) {
         try {
-          const { useWebSocketStore: getWsStore } = await import('@/stores/websocket');
           const response = await fetch(makeURL('/api/v1/auth/logout'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`, // use captured value since store is already cleared
             },
-            body: JSON.stringify({ session_id: getWsStore().internalUUID }),
+            body: JSON.stringify({ session_id: useWebSocketStore().internalUUID }),
           });
           if (!response.ok) {
             log.error('Logout response was not OK, but local state was cleared');
@@ -118,7 +117,6 @@ export const useUserStore = defineStore('user', {
 
       toast.success('Successfully logged out!');
 
-      const { default: router } = await import('@/router');
       if (router.currentRoute.value.path !== '/') {
         router.push('/');
       }
@@ -135,7 +133,6 @@ export const useUserStore = defineStore('user', {
         if (response.ok) {
           const data = await response.json();
           this._setToken(data.access_token);
-          const { useWebSocketStore } = await import('@/stores/websocket');
           useWebSocketStore().refreshWsToken();
           log.debug('Token refreshed successfully');
           return true;
@@ -152,7 +149,6 @@ export const useUserStore = defineStore('user', {
       log.info('Received token refresh from server');
       if (newToken) {
         this._setToken(newToken);
-        const { useWebSocketStore } = await import('@/stores/websocket');
         useWebSocketStore().refreshWsToken();
         log.info('Auth token updated from server');
       }
