@@ -33,14 +33,21 @@
                 <BButtonGroup v-if="systemStore.isShowEditor">
                   <BButton
                     variant="warning"
-                    :disabled="submittingEditCharacter || deletingCharacter"
+                    :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
                     @click="openEditForm(data.item)"
                   >
                     Edit
                   </BButton>
                   <BButton
+                    variant="info"
+                    :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
+                    @click="openMergeForm(data.item)"
+                  >
+                    Merge
+                  </BButton>
+                  <BButton
                     variant="danger"
-                    :disabled="submittingEditCharacter || deletingCharacter"
+                    :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
                     @click="deleteCharacter(data.item)"
                   >
                     Delete
@@ -100,6 +107,33 @@
     </BModal>
 
     <BModal
+      id="merge-character"
+      ref="mergeCharacterModal"
+      :title="`Merge ${mergeSourceCharacter?.name ?? 'Character'}`"
+      size="md"
+      :ok-disabled="!mergeDestinationObject || mergingCharacter"
+      @hide="resetMergeForm"
+      @ok="onSubmitMerge"
+    >
+      <p>
+        Select a destination character. All script lines and group memberships from
+        <strong>{{ mergeSourceCharacter?.name }}</strong> will be transferred to the selected
+        character, and <strong>{{ mergeSourceCharacter?.name }}</strong> will be deleted.
+      </p>
+      <BFormGroup label="Merge into" label-for="merge-destination-input" label-cols="4">
+        <VueMultiselect
+          id="merge-destination-input"
+          v-model="mergeDestinationObject"
+          :multiple="false"
+          :options="mergeDestinationOptions"
+          track-by="id"
+          label="name"
+          placeholder="Select destination character"
+        />
+      </BFormGroup>
+    </BModal>
+
+    <BModal
       id="edit-character"
       ref="editCharacterModal"
       title="Edit Character"
@@ -138,6 +172,8 @@ import { useVuelidate } from '@vuelidate/core';
 import { required } from '@vuelidate/validators';
 import { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
+import VueMultiselect from 'vue-multiselect';
+import 'vue-multiselect/dist/vue-multiselect.css';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
@@ -157,6 +193,11 @@ const deletingCharacter = ref(false);
 
 const newCharacterModal = ref<InstanceType<typeof BModal>>();
 const editCharacterModal = ref<InstanceType<typeof BModal>>();
+const mergeCharacterModal = ref<InstanceType<typeof BModal>>();
+
+const mergingCharacter = ref(false);
+const mergeSourceCharacter = ref<Character | null>(null);
+const mergeDestinationObject = ref<Character | null>(null);
 
 const characterFields = [
   'name',
@@ -193,6 +234,12 @@ const editRules = { editFormState: { name: { required } } };
 
 const newV$ = useVuelidate(newRules, { newFormState });
 const editV$ = useVuelidate(editRules, { editFormState });
+
+const mergeDestinationOptions = computed(() =>
+  showStore.characterList.filter(
+    (c) => mergeSourceCharacter.value === null || c.id !== mergeSourceCharacter.value.id
+  )
+);
 
 const castOptions = computed(() => [
   { value: null, text: 'Please select an option', disabled: true },
@@ -271,6 +318,36 @@ async function onSubmitEdit(event: Event): Promise<void> {
     event.preventDefault();
   } finally {
     submittingEditCharacter.value = false;
+  }
+}
+
+function openMergeForm(character: Character): void {
+  mergeSourceCharacter.value = character;
+  mergeDestinationObject.value = null;
+  mergeCharacterModal.value?.show();
+}
+
+function resetMergeForm(): void {
+  mergeSourceCharacter.value = null;
+  mergeDestinationObject.value = null;
+  mergingCharacter.value = false;
+}
+
+async function onSubmitMerge(event: Event): Promise<void> {
+  if (!mergeDestinationObject.value || mergingCharacter.value) {
+    event.preventDefault();
+    return;
+  }
+  mergingCharacter.value = true;
+  try {
+    await showStore.mergeCharacter(mergeSourceCharacter.value!.id, mergeDestinationObject.value.id);
+    mergeCharacterModal.value?.hide();
+    resetMergeForm();
+  } catch (error) {
+    log.error('Error merging character:', error);
+    event.preventDefault();
+  } finally {
+    mergingCharacter.value = false;
   }
 }
 

@@ -212,6 +212,23 @@ const module: Module<ShowState, RootState> = {
         VueToast.$toast.error('Unable to delete character');
       }
     },
+    async MERGE_CHARACTER(
+      context,
+      { source_id, destination_id }: { source_id: number; destination_id: number }
+    ) {
+      const response = await fetch(makeURL('/api/v1/show/character/merge'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_id, destination_id }),
+      });
+      if (response.ok) {
+        context.dispatch('GET_CHARACTER_GROUP_LIST');
+        VueToast.$toast.success('Merged character!');
+      } else {
+        log.error('Unable to merge characters');
+        VueToast.$toast.error('Unable to merge characters');
+      }
+    },
     async UPDATE_CHARACTER(context, character: Partial<Character>) {
       const response = await fetch(`${makeURL('/api/v1/show/character')}`, {
         method: 'PATCH',
