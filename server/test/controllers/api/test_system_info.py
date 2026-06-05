@@ -21,6 +21,22 @@ class TestSystemInfoController(DigiScriptTestCase):
         )
         return escape.json_decode(resp.body)["access_token"]
 
+    def _create_and_login_user(self, admin_token, username="user", password="userpass"):
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": username, "password": password, "is_admin": False}
+            ),
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        resp = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": username, "password": password}),
+        )
+        return escape.json_decode(resp.body)["access_token"]
+
     def _fetch_system_info(self, token=None):
         headers = {}
         if token:
@@ -29,6 +45,12 @@ class TestSystemInfoController(DigiScriptTestCase):
 
     def test_unauthenticated_returns_401(self):
         resp = self._fetch_system_info()
+        self.assertEqual(401, resp.code)
+
+    def test_non_admin_returns_401(self):
+        admin_token = self._create_and_login_admin()
+        user_token = self._create_and_login_user(admin_token)
+        resp = self._fetch_system_info(token=user_token)
         self.assertEqual(401, resp.code)
 
     def test_authenticated_returns_200_with_expected_keys(self):

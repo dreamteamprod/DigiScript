@@ -2,12 +2,13 @@ import socket
 
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
-from utils.web.web_decorators import api_authenticated
+from utils.web.web_decorators import api_authenticated, require_admin
 
 
 @ApiRoute("system/info", ApiVersion.V1)
 class SystemInfoController(BaseAPIController):
     @api_authenticated
+    @require_admin
     async def get(self):
         """
         Get server network information.
