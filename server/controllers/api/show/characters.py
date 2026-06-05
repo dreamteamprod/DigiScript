@@ -276,7 +276,9 @@ class CharacterMergeController(BaseAPIController):
             await self.finish({"message": "Successfully merged character"})
 
             await self.application.ws_send_to_all("NOOP", "GET_CHARACTER_LIST", {})
-            await self.application.ws_send_to_all("NOOP", "GET_CHARACTER_GROUP_LIST", {})
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_CHARACTER_GROUP_LIST", {}
+            )
 
 
 @ApiRoute("show/character/stats", ApiVersion.V1)

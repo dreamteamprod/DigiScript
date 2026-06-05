@@ -237,8 +237,8 @@ const editV$ = useVuelidate(editRules, { editFormState });
 
 const mergeDestinationOptions = computed(() =>
   showStore.characterList.filter(
-    (c) => mergeSourceCharacter.value === null || c.id !== mergeSourceCharacter.value.id,
-  ),
+    (c) => mergeSourceCharacter.value === null || c.id !== mergeSourceCharacter.value.id
+  )
 );
 
 const castOptions = computed(() => [
@@ -340,10 +340,7 @@ async function onSubmitMerge(event: Event): Promise<void> {
   }
   mergingCharacter.value = true;
   try {
-    await showStore.mergeCharacter(
-      mergeSourceCharacter.value!.id,
-      mergeDestinationObject.value.id,
-    );
+    await showStore.mergeCharacter(mergeSourceCharacter.value!.id, mergeDestinationObject.value.id);
     mergeCharacterModal.value?.hide();
     resetMergeForm();
   } catch (error) {

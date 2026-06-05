@@ -214,7 +214,7 @@ const module: Module<ShowState, RootState> = {
     },
     async MERGE_CHARACTER(
       context,
-      { source_id, destination_id }: { source_id: number; destination_id: number },
+      { source_id, destination_id }: { source_id: number; destination_id: number }
     ) {
       const response = await fetch(makeURL('/api/v1/show/character/merge'), {
         method: 'POST',

@@ -263,7 +263,8 @@ export default defineComponent({
     },
     mergeDestinationOptions(): any[] {
       return (this as any).CHARACTER_LIST.filter(
-        (c: any) => !(this as any).mergeSourceCharacter || c.id !== (this as any).mergeSourceCharacter.id,
+        (c: any) =>
+          !(this as any).mergeSourceCharacter || c.id !== (this as any).mergeSourceCharacter.id
       );
     },
   },
