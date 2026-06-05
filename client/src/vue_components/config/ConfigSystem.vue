@@ -140,7 +140,11 @@ export default defineComponent({
       isCheckingVersion: false,
       currentTime: Date.now(),
       timeUpdateInterval: null as ReturnType<typeof setInterval> | null,
-      systemInfo: null as { hostname: string | null; ip_address: string | null; port: number | null } | null,
+      systemInfo: null as {
+        hostname: string | null;
+        ip_address: string | null;
+        port: number | null;
+      } | null,
     };
   },
   async mounted() {
