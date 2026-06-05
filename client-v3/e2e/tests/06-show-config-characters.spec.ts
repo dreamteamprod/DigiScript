@@ -8,6 +8,7 @@ import {
   waitForAppReady,
   waitForModal,
   confirmModal,
+  cancelModal,
   waitForModalClosed,
   confirmDialog,
 } from '../helpers.js';
