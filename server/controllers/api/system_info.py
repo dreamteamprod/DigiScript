@@ -5,6 +5,12 @@ from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import api_authenticated, require_admin
 
 
+# Well-known public DNS address used only to determine the local outbound interface.
+# No data is ever sent — the UDP socket is closed immediately after getsockname().
+_PROBE_HOST = "8.8.8.8"
+_PROBE_PORT = 80
+
+
 @ApiRoute("system/info", ApiVersion.V1)
 class SystemInfoController(BaseAPIController):
     @api_authenticated
@@ -39,7 +45,7 @@ def _get_primary_ip() -> str:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            s.connect(("8.8.8.8", 80))
+            s.connect((_PROBE_HOST, _PROBE_PORT))
             return s.getsockname()[0]
         finally:
             s.close()
