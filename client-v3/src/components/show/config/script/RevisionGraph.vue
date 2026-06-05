@@ -1,5 +1,5 @@
 <template>
-  <div class="revision-graph-container">
+  <div ref="containerRef" class="revision-graph-container">
     <div v-if="!hasRevisions" class="text-center py-5 text-muted">No revisions to display</div>
     <div v-else class="graph-wrapper">
       <svg ref="svgRef" :width="width" :height="height" class="revision-graph">
@@ -74,6 +74,7 @@ const props = defineProps<{
 
 defineEmits<{ 'node-click': [revision: ScriptRevision] }>();
 
+const containerRef = ref<HTMLElement | null>(null);
 const svgRef = ref<SVGSVGElement | null>(null);
 const zoomGroupRef = ref<SVGGElement | null>(null);
 const width = ref(800);
@@ -83,6 +84,7 @@ const nodeRadius = 8;
 
 // D3 state — NOT in Vue reactive state (would cause infinite loops)
 let zoomBehavior: ReturnType<typeof d3zoom> | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 const hasRevisions = computed(() => props.revisions.length > 0);
 
@@ -136,7 +138,7 @@ function linkPath(link: any): string {
 }
 
 function updateWidth(): void {
-  const container = svgRef.value?.parentElement as HTMLElement | null;
+  const container = containerRef.value;
   if (container) width.value = container.clientWidth || 800;
 }
 
@@ -201,15 +203,24 @@ function resetZoom(): void {
 
 onMounted(() => {
   updateWidth();
-  window.addEventListener('resize', updateWidth);
   nextTick(() => {
     initZoom();
     fitToContent();
   });
+  if (containerRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      updateWidth();
+      nextTick(() => {
+        if (zoomBehavior) fitToContent();
+      });
+    });
+    resizeObserver.observe(containerRef.value);
+  }
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateWidth);
+  resizeObserver?.disconnect();
+  resizeObserver = null;
   if (zoomBehavior && svgRef.value) {
     select(svgRef.value as Element).on('.zoom', null);
   }
@@ -218,7 +229,10 @@ onBeforeUnmount(() => {
 watch(
   () => props.revisions,
   () => {
-    nextTick(() => fitToContent());
+    nextTick(() => {
+      initZoom();
+      fitToContent();
+    });
   },
   { deep: true }
 );
