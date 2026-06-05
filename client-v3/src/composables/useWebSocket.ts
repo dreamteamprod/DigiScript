@@ -5,6 +5,8 @@ import { toast } from '@/js/toast';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useSystemStore } from '@/stores/system';
 import { useUserStore } from '@/stores/user';
+import { useShowStore } from '@/stores/show';
+import router from '@/router';
 import { getWebSocketURL } from '@/js/platform';
 import type { WsMessage } from '@/types/api/websocket';
 
@@ -36,8 +38,6 @@ async function handleMessage(msg: WsMessage): Promise<void> {
   const wsStore = useWebSocketStore();
   const systemStore = useSystemStore();
   const userStore = useUserStore();
-  const { default: router } = await import('@/router');
-
   switch (msg.OP) {
     case 'SET_UUID': {
       const newUUID = msg.DATA as unknown as string;
@@ -181,7 +181,6 @@ function connect(): void {
       }
       log.info('WebSocket connected');
       if (wasErrored) {
-        const { useShowStore } = await import('@/stores/show');
         const showStore = useShowStore();
         if (showStore.currentSession != null) {
           await showStore.getShowSessionData();

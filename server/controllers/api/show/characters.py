@@ -1,9 +1,10 @@
 from collections import defaultdict
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from tornado import escape
 
 from controllers.api.constants import (
+    ERROR_CANNOT_MERGE_SAME_CHARACTER,
     ERROR_CAST_MEMBER_NOT_FOUND,
     ERROR_CHARACTER_GROUP_NOT_FOUND,
     ERROR_CHARACTER_NOT_FOUND,
@@ -12,7 +13,13 @@ from controllers.api.constants import (
     ERROR_NAME_MISSING,
     ERROR_SHOW_NOT_FOUND,
 )
-from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
+from models.script import (
+    Script,
+    ScriptLine,
+    ScriptLinePart,
+    ScriptLineType,
+    ScriptRevision,
+)
 from models.show import Cast, Character, CharacterGroup, Show
 from rbac.role import Role
 from schemas.schemas import CharacterGroupSchema, CharacterSchema
@@ -184,6 +191,94 @@ class CharacterController(BaseAPIController):
             else:
                 self.set_status(404)
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
+
+
+@ApiRoute("show/character/merge", ApiVersion.V1)
+class CharacterMergeController(BaseAPIController):
+    @requires_show
+    @no_live_session
+    async def post(self):
+        """Merge a source character into a destination character.
+
+        Reassigns all ScriptLinePart rows referencing the source character to
+        the destination character across all revisions, then adds the destination
+        to every CharacterGroup that contained the source (if not already a
+        member), and finally deletes the source character (which cascades away
+        mic allocations and secondary-table group memberships automatically).
+
+        :raises HTTPError 400: If source_id or destination_id are missing, or
+            if the source and destination are the same character.
+        :raises HTTPError 404: If either character cannot be found, or if
+            either character does not belong to the current show.
+        """
+        current_show = self.get_current_show()
+        show_id = current_show["id"]
+
+        with self.make_session() as session:
+            show: Show = session.get(Show, show_id)
+            if not show:
+                self.set_status(404)
+                await self.finish({"message": ERROR_SHOW_NOT_FOUND})
+                return
+
+            self.requires_role(show, Role.WRITE)
+            data = escape.json_decode(self.request.body)
+
+            source_id = data.get("source_id", None)
+            destination_id = data.get("destination_id", None)
+
+            if not source_id or not destination_id:
+                self.set_status(400)
+                await self.finish({"message": ERROR_ID_MISSING})
+                return
+
+            if source_id == destination_id:
+                self.set_status(400)
+                await self.finish({"message": ERROR_CANNOT_MERGE_SAME_CHARACTER})
+                return
+
+            source: Character = session.get(Character, source_id)
+            if not source or source.show_id != show_id:
+                self.set_status(404)
+                await self.finish({"message": ERROR_CHARACTER_NOT_FOUND})
+                return
+
+            destination: Character = session.get(Character, destination_id)
+            if not destination or destination.show_id != show_id:
+                self.set_status(404)
+                await self.finish({"message": ERROR_CHARACTER_NOT_FOUND})
+                return
+
+            # Step 1: Bulk-update all ScriptLinePart rows across all revisions.
+            # synchronize_session=False is safe: we do not re-read these objects
+            # after the update within this transaction.
+            session.execute(
+                update(ScriptLinePart)
+                .where(ScriptLinePart.character_id == source_id)
+                .values(character_id=destination_id)
+                .execution_options(synchronize_session=False)
+            )
+
+            # Step 2: Add destination to every group the source belongs to,
+            # skipping groups where destination is already a member to avoid
+            # a composite-PK collision on the association table.
+            for group in source.character_groups:
+                if destination not in group.characters:
+                    group.characters.append(destination)
+
+            # Step 3: Delete source. SQLAlchemy cascades:
+            # - mic_allocations: via cascade="all, delete-orphan"
+            # - character_group_association rows: via secondary= M2M management
+            session.delete(source)
+            session.commit()
+
+            self.set_status(200)
+            await self.finish({"message": "Successfully merged character"})
+
+            await self.application.ws_send_to_all("NOOP", "GET_CHARACTER_LIST", {})
+            await self.application.ws_send_to_all(
+                "NOOP", "GET_CHARACTER_GROUP_LIST", {}
+            )
 
 
 @ApiRoute("show/character/stats", ApiVersion.V1)

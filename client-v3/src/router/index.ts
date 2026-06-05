@@ -1,5 +1,10 @@
 import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router';
 import { isElectron } from '@/js/platform';
+import { useSystemStore } from '@/stores/system';
+import { useUserStore } from '@/stores/user';
+import { useShowStore } from '@/stores/show';
+import { useWebSocketStore } from '@/stores/websocket';
+import { toast } from '@/js/toast';
 import HomeView from '@/views/HomeView.vue';
 import NotFoundView from '@/views/NotFoundView.vue';
 
@@ -234,8 +239,6 @@ async function checkPermissionGuards(
 }
 
 async function checkLiveGuard(toast: ToastFn): Promise<string | undefined> {
-  const { useShowStore } = await import('@/stores/show');
-  const { useWebSocketStore } = await import('@/stores/websocket');
   const showStore = useShowStore();
   const wsStore = useWebSocketStore();
   await showStore.getShowSessionData();
@@ -247,9 +250,6 @@ async function checkLiveGuard(toast: ToastFn): Promise<string | undefined> {
 }
 
 router.beforeEach(async (to, from) => {
-  const { useSystemStore } = await import('@/stores/system');
-  const { useUserStore } = await import('@/stores/user');
-  const { toast } = await import('@/js/toast');
   const systemStore = useSystemStore();
   const userStore = useUserStore();
 

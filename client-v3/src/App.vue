@@ -162,21 +162,17 @@
       :hide-footer="changingPage"
       :no-close-on-backdrop="changingPage"
       :no-close-on-esc="changingPage"
-      @ok="goToLivePage"
+      @ok.prevent="goToLivePage"
     >
       <BForm @submit.stop.prevent="">
         <BFormGroup id="page-input-group" label="Page" label-for="page-input" label-cols="auto">
           <BFormInput
             id="page-input"
-            v-model="pageInputState.pageNo"
+            v-model.number="pageInputNo"
             name="page-input"
             type="number"
-            :state="v$.pageNo.$dirty ? !v$.pageNo.$error : null"
-            aria-describedby="page-feedback"
+            :min="1"
           />
-          <BFormInvalidFeedback id="page-feedback">
-            This is a required field, and must be greater than 0.
-          </BFormInvalidFeedback>
         </BFormGroup>
       </BForm>
     </BModal>
@@ -188,8 +184,6 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import type { BModal } from 'bootstrap-vue-next';
-import { useVuelidate } from '@vuelidate/core';
-import { required, minValue } from '@vuelidate/validators';
 import log from 'loglevel';
 import { toast } from '@/js/toast';
 import { useConfirm } from '@/composables/useConfirm';
@@ -231,9 +225,7 @@ const goToPageModal = ref<InstanceType<typeof BModal>>();
 const currentShowSession = computed(() => showStore.currentSession);
 
 // Jump-to-page form
-const pageInputState = ref({ pageNo: 1 });
-const pageRules = { pageNo: { required, minValue: minValue(1) } };
-const v$ = useVuelidate(pageRules, pageInputState);
+const pageInputNo = ref(1);
 
 let loadTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -404,9 +396,8 @@ async function handleLogout(): Promise<void> {
 }
 
 async function goToLivePage(): Promise<void> {
-  const valid = await v$.value.$validate();
-  if (!valid) return;
-  sendObj({ OP: 'LIVE_SHOW_JUMP_TO_PAGE', DATA: { page: pageInputState.value.pageNo } });
+  if (!pageInputNo.value || pageInputNo.value < 1) return;
+  sendObj({ OP: 'LIVE_SHOW_JUMP_TO_PAGE', DATA: { page: pageInputNo.value } });
   goToPageModal.value?.hide();
 }
 </script>
