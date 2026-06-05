@@ -301,6 +301,22 @@ export const useShowStore = defineStore('show', {
       }
     },
 
+    async mergeCharacter(sourceId: number, destinationId: number): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/character/merge'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_id: sourceId, destination_id: destinationId }),
+      });
+      if (response.ok) {
+        // getCharacterGroupList calls getCharacterList internally
+        await this.getCharacterGroupList();
+        toast.success('Merged character!');
+      } else {
+        log.error('Unable to merge characters');
+        toast.error('Unable to merge characters');
+      }
+    },
+
     // Character Groups
     async getCharacterGroupList(): Promise<void> {
       const response = await fetch(makeURL('/api/v1/show/character/group'));

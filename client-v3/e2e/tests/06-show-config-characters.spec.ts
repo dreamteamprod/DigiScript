@@ -82,6 +82,52 @@ test('deletes a character', async () => {
   });
 });
 
+// ── Character Merge ────────────────────────────────────────────────────────
+
+test('Merge button is visible for each character row', async () => {
+  const row = page.locator('tr', { has: page.locator('td:has-text("Hamlet")') });
+  await expect(row.locator('button:has-text("Merge")')).toBeVisible();
+});
+
+test('creates a character for merge testing', async () => {
+  await page.getByRole('button', { name: 'New Character', exact: true }).click();
+  await waitForModal(page, 'New Character');
+  await page.fill('.modal.show input[type="text"]', 'Horatio');
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("Horatio")').first()).toBeVisible();
+});
+
+test('merge modal opens with correct title', async () => {
+  const row = page.locator('tr', { has: page.locator('td:has-text("Horatio")') });
+  await row.locator('button:has-text("Merge")').click();
+  await waitForModal(page, /Merge Horatio/);
+  await cancelModal(page);
+  await waitForModalClosed(page);
+});
+
+test('merge OK button is disabled with no destination selected', async () => {
+  const row = page.locator('tr', { has: page.locator('td:has-text("Horatio")') });
+  await row.locator('button:has-text("Merge")').click();
+  await waitForModal(page, /Merge Horatio/);
+  const okBtn = page.locator('.modal.show .modal-footer button.btn-primary');
+  await expect(okBtn).toBeDisabled();
+  await cancelModal(page);
+  await waitForModalClosed(page);
+});
+
+test('merges a character into another', async () => {
+  const row = page.locator('tr', { has: page.locator('td:has-text("Horatio")') });
+  await row.locator('button:has-text("Merge")').click();
+  await waitForModal(page, /Merge Horatio/);
+  await page.locator('.modal.show .multiselect__input').fill('Hamlet');
+  await page.locator('.modal.show .multiselect__option', { hasText: 'Hamlet' }).click();
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("Horatio")')).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('td:has-text("Hamlet")')).toBeVisible();
+});
+
 // ── Character Groups ──────────────────────────────────────────────────────
 
 test('switches to Character Groups sub-tab', async () => {

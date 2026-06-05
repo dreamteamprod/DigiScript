@@ -111,3 +111,4 @@ ERROR_CREW_ASSIGNMENT_EXISTS = "Crew assignment already exists"
 
 ERROR_NAME_ALREADY_TAKEN = "Name already taken"
 ERROR_TAG_NAME_EXISTS = "Tag name already exists (case-insensitive)"
+ERROR_CANNOT_MERGE_SAME_CHARACTER = "Source and destination characters must be different"

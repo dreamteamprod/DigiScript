@@ -29,14 +29,21 @@
                 <b-button-group v-if="IS_SHOW_EDITOR">
                   <b-button
                     variant="warning"
-                    :disabled="submittingEditCharacter || deletingCharacter"
+                    :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
                     @click="openEditForm(data)"
                   >
                     Edit
                   </b-button>
                   <b-button
+                    variant="info"
+                    :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
+                    @click="openMergeForm(data)"
+                  >
+                    Merge
+                  </b-button>
+                  <b-button
                     variant="danger"
-                    :disabled="submittingEditCharacter || deletingCharacter"
+                    :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
                     @click="deleteCharacter(data)"
                   >
                     Delete
@@ -62,6 +69,32 @@
         </b-tabs>
       </b-col>
     </b-row>
+    <b-modal
+      id="merge-character"
+      ref="merge-character"
+      :title="`Merge ${mergeSourceCharacter ? mergeSourceCharacter.name : 'Character'}`"
+      size="md"
+      :ok-disabled="!mergeDestinationCharacter || mergingCharacter"
+      @hidden="resetMergeForm"
+      @ok="onSubmitMerge"
+    >
+      <p>
+        Select a destination character. All script lines and group memberships from
+        <strong>{{ mergeSourceCharacter ? mergeSourceCharacter.name : '' }}</strong>
+        will be transferred to the selected character, and it will be deleted.
+      </p>
+      <b-form-group label="Merge into" label-for="merge-destination-input" label-cols="4">
+        <multi-select
+          id="merge-destination-input"
+          v-model="mergeDestinationCharacter"
+          :multiple="false"
+          :options="mergeDestinationOptions"
+          track-by="id"
+          label="name"
+          placeholder="Select destination character"
+        />
+      </b-form-group>
+    </b-modal>
     <b-modal
       id="new-character"
       ref="new-character"
@@ -200,6 +233,9 @@ export default defineComponent({
       submittingNewCharacter: false,
       submittingEditCharacter: false,
       deletingCharacter: false,
+      mergingCharacter: false,
+      mergeSourceCharacter: null as any,
+      mergeDestinationCharacter: null as any,
     };
   },
   validations: {
@@ -224,6 +260,11 @@ export default defineComponent({
           text: `${castMember.first_name} ${castMember.last_name}`,
         })),
       ];
+    },
+    mergeDestinationOptions(): any[] {
+      return (this as any).CHARACTER_LIST.filter(
+        (c: any) => !(this as any).mergeSourceCharacter || c.id !== (this as any).mergeSourceCharacter.id,
+      );
     },
   },
   async mounted(): Promise<void> {
@@ -308,12 +349,43 @@ export default defineComponent({
         }
       }
     },
+    openMergeForm(character: any): void {
+      this.mergeSourceCharacter = character.item;
+      this.mergeDestinationCharacter = null;
+      (this as any).$bvModal.show('merge-character');
+    },
+    resetMergeForm(): void {
+      this.mergeSourceCharacter = null;
+      this.mergeDestinationCharacter = null;
+      this.mergingCharacter = false;
+    },
+    async onSubmitMerge(event: Event): Promise<void> {
+      if (!this.mergeDestinationCharacter || this.mergingCharacter) {
+        event.preventDefault();
+        return;
+      }
+      this.mergingCharacter = true;
+      try {
+        await (this as any).MERGE_CHARACTER({
+          source_id: this.mergeSourceCharacter.id,
+          destination_id: this.mergeDestinationCharacter.id,
+        });
+        (this as any).$bvModal.hide('merge-character');
+        this.resetMergeForm();
+      } catch (error) {
+        log.error('Error merging character:', error);
+        event.preventDefault();
+      } finally {
+        this.mergingCharacter = false;
+      }
+    },
     ...mapActions([
       'GET_CHARACTER_LIST',
       'GET_CAST_LIST',
       'ADD_CHARACTER',
       'UPDATE_CHARACTER',
       'DELETE_CHARACTER',
+      'MERGE_CHARACTER',
     ]),
   },
 });
