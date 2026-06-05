@@ -24,6 +24,12 @@ interface VersionStatus {
   check_error: string | null;
 }
 
+interface ServerInfo {
+  hostname: string;
+  ip_address: string;
+  port: number;
+}
+
 interface RbacRole {
   key: string;
   value: number;
@@ -49,6 +55,7 @@ export const useSystemStore = defineStore('system', {
     currentShow: null as Show | null,
     connectedSessions: [] as ConnectedSession[],
     versionStatus: null as VersionStatus | null,
+    serverInfo: null as ServerInfo | null,
   }),
   getters: {
     isAdminUser(): boolean {
@@ -244,6 +251,14 @@ export const useSystemStore = defineStore('system', {
         this.versionStatus = await response.json();
       } else {
         log.error('Unable to fetch version status');
+      }
+    },
+    async getServerInfo() {
+      const response = await fetch(makeURL('/api/v1/system/info'));
+      if (response.ok) {
+        this.serverInfo = await response.json();
+      } else {
+        log.error('Unable to fetch server info');
       }
     },
     async checkForUpdates() {

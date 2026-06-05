@@ -235,6 +235,12 @@ test('switches to the System tab', async () => {
   });
 });
 
+test('System tab shows server info rows', async () => {
+  await expect(page.locator('strong:has-text("Hostname")')).toBeVisible();
+  await expect(page.locator('strong:has-text("IP Address")')).toBeVisible();
+  await expect(page.locator('strong:has-text("Port")')).toBeVisible();
+});
+
 test('can open the View Clients modal', async () => {
   await page.click('button:has-text("View Clients")');
   await waitForModal(page, 'Connected Clients');
