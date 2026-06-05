@@ -8,9 +8,11 @@ The **System Config** section, accessible from the top navigation bar, provides 
 
 The **System** tab provides an overview of the current system state:
 
-- **Current Show**: Displays the currently loaded show name, with buttons to load an existing show or set up a new one.
-- **Connected Clients**: Shows the number of WebSocket clients currently connected to the server. Click "View Clients" to see details about each connected session.
 - **Version**: Displays the current DigiScript version and checks for available updates.
+- **Connected Clients**: Shows the number of WebSocket clients currently connected to the server. Click "View Clients" to see details about each connected session.
+- **Hostname**: The fully-qualified domain name (FQDN) of the server machine.
+- **IP Address**: The primary outbound IP address the server is reachable on.
+- **Port**: The port the server is listening on.
 
 #### Version Checker
 

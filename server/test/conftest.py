@@ -2,6 +2,7 @@ import json
 import os
 
 from sqlalchemy import inspect
+from tornado import escape
 from tornado.testing import AsyncHTTPTestCase
 
 from digi_server.app_server import DigiScriptServer
@@ -43,3 +44,34 @@ class DigiScriptTestCase(AsyncHTTPTestCase):
         models.db.engine.dispose()
 
         super().tearDown()
+
+    def _create_and_login_admin(self, username="admin", password="adminpass"):
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": username, "password": password, "is_admin": True}
+            ),
+        )
+        resp = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": username, "password": password}),
+        )
+        return escape.json_decode(resp.body)["access_token"]
+
+    def _create_and_login_user(self, admin_token, username="user", password="userpass"):
+        self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": username, "password": password, "is_admin": False}
+            ),
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        resp = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": username, "password": password}),
+        )
+        return escape.json_decode(resp.body)["access_token"]

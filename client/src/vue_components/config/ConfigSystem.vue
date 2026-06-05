@@ -54,6 +54,21 @@
             </b-button>
           </b-td>
         </b-tr>
+        <b-tr>
+          <b-td><b>Hostname</b></b-td>
+          <b-td>{{ systemInfo ? systemInfo.hostname : 'Unknown' }}</b-td>
+          <b-td />
+        </b-tr>
+        <b-tr>
+          <b-td><b>IP Address</b></b-td>
+          <b-td>{{ systemInfo ? systemInfo.ip_address : 'Unknown' }}</b-td>
+          <b-td />
+        </b-tr>
+        <b-tr>
+          <b-td><b>Port</b></b-td>
+          <b-td>{{ systemInfo ? systemInfo.port : 'Unknown' }}</b-td>
+          <b-td />
+        </b-tr>
       </b-tbody>
     </b-table-simple>
     <b-modal
@@ -125,10 +140,15 @@ export default defineComponent({
       isCheckingVersion: false,
       currentTime: Date.now(),
       timeUpdateInterval: null as ReturnType<typeof setInterval> | null,
+      systemInfo: null as {
+        hostname: string | null;
+        ip_address: string | null;
+        port: number | null;
+      } | null,
     };
   },
   async mounted() {
-    await Promise.all([this.getConnectedClients(), this.getVersionStatus()]);
+    await Promise.all([this.getConnectedClients(), this.getVersionStatus(), this.getSystemInfo()]);
     this.loading = false;
     this.timeUpdateInterval = setInterval(() => {
       this.currentTime = Date.now();
@@ -200,6 +220,18 @@ export default defineComponent({
       if (this.versionStatus.check_error) return 'Unable to check';
       if (this.versionStatus.update_available) return 'Update Available';
       return 'Up to date';
+    },
+    async getSystemInfo(): Promise<void> {
+      try {
+        const response = await fetch(`${makeURL('/api/v1/system/info')}`);
+        if (response.ok) {
+          this.systemInfo = await response.json();
+        } else {
+          log.error('Unable to get system info');
+        }
+      } catch (error) {
+        log.error('Error fetching system info:', error);
+      }
     },
     formatTimeAgo(isoTimestamp: string | null): string {
       if (!isoTimestamp) return 'Never';

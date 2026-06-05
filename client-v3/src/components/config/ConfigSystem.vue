@@ -46,6 +46,21 @@
             </BButton>
           </BTd>
         </BTr>
+        <BTr>
+          <BTd><strong>Hostname</strong></BTd>
+          <BTd>{{ serverInfo?.hostname ?? 'Unknown' }}</BTd>
+          <BTd />
+        </BTr>
+        <BTr>
+          <BTd><strong>IP Address</strong></BTd>
+          <BTd>{{ serverInfo?.ip_address ?? 'Unknown' }}</BTd>
+          <BTd />
+        </BTr>
+        <BTr>
+          <BTd><strong>Port</strong></BTd>
+          <BTd>{{ serverInfo?.port ?? 'Unknown' }}</BTd>
+          <BTd />
+        </BTr>
       </BTbody>
     </BTableSimple>
 
@@ -80,7 +95,7 @@ import { useSystemStore } from '@/stores/system';
 import { toast } from '@/js/toast';
 
 const systemStore = useSystemStore();
-const { connectedSessions, versionStatus } = storeToRefs(systemStore);
+const { connectedSessions, versionStatus, serverInfo } = storeToRefs(systemStore);
 
 const loading = ref(true);
 const isCheckingVersion = ref(false);
@@ -137,7 +152,11 @@ function scheduleSessionPoll(): void {
 }
 
 onMounted(async () => {
-  await Promise.all([systemStore.getVersionStatus(), systemStore.getConnectedSessions()]);
+  await Promise.all([
+    systemStore.getVersionStatus(),
+    systemStore.getConnectedSessions(),
+    systemStore.getServerInfo(),
+  ]);
   loading.value = false;
   scheduleSessionPoll();
 });

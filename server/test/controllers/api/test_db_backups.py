@@ -34,37 +34,6 @@ class TestDbBackupsController(DigiScriptTestCase):
             f.write(b"x" * 1024)
         return backup_path
 
-    def _create_and_login_admin(self, username="admin", password="adminpass"):
-        self.fetch(
-            "/api/v1/auth/create",
-            method="POST",
-            body=escape.json_encode(
-                {"username": username, "password": password, "is_admin": True}
-            ),
-        )
-        resp = self.fetch(
-            "/api/v1/auth/login",
-            method="POST",
-            body=escape.json_encode({"username": username, "password": password}),
-        )
-        return escape.json_decode(resp.body)["access_token"]
-
-    def _create_and_login_user(self, admin_token, username="user", password="userpass"):
-        self.fetch(
-            "/api/v1/auth/create",
-            method="POST",
-            body=escape.json_encode(
-                {"username": username, "password": password, "is_admin": False}
-            ),
-            headers={"Authorization": f"Bearer {admin_token}"},
-        )
-        resp = self.fetch(
-            "/api/v1/auth/login",
-            method="POST",
-            body=escape.json_encode({"username": username, "password": password}),
-        )
-        return escape.json_decode(resp.body)["access_token"]
-
     def _fetch_backups(self, token=None):
         headers = {}
         if token:
