@@ -127,6 +127,7 @@ const showRegenerateConfirm = ref(false);
 const showRevokeConfirm = ref(false);
 
 const apiBaseUrl = computed(() => baseURL());
+apiBaseUrl = apiBaseUrl.replace(/:\s*$/, "");
 
 onMounted(async () => {
   await checkTokenStatus();
