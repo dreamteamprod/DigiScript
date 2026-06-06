@@ -10,6 +10,9 @@
             </BButtonGroup>
           </template>
           <template #head(is_admin)>User Type</template>
+          <template #cell(created_on)="data">
+            {{ data.item.created_on ?? 'N/A' }}
+          </template>
           <template #cell(last_login)="data">
             {{ data.item.last_login ?? 'Never' }}
           </template>
@@ -105,6 +108,7 @@ const selectedUser = ref<{ id: number; username: string } | null>(null);
 
 const userFields = [
   'username',
+  'created_on',
   'last_login',
   'last_seen',
   { key: 'is_admin', label: 'User Type' },

@@ -67,6 +67,7 @@ class User(db.Model):
     username: Mapped[str | None] = mapped_column(index=True)
     password: Mapped[str | None] = mapped_column()
     is_admin: Mapped[bool | None] = mapped_column()
+    created_on: Mapped[datetime.datetime | None] = mapped_column()
     last_login: Mapped[datetime.datetime | None] = mapped_column()
     last_seen: Mapped[datetime.datetime | None] = mapped_column()
     api_token: Mapped[str | None] = mapped_column(index=True)

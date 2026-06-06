@@ -10,6 +10,9 @@
             </b-button-group>
           </template>
           <template #head(is_admin)="data"> User Type </template>
+          <template #cell(created_on)="data">
+            {{ data.item.created_on ? data.item.created_on : 'N/A' }}
+          </template>
           <template #cell(last_login)="data">
             {{ data.item.last_login ? data.item.last_login : 'Never' }}
           </template>
@@ -93,7 +96,14 @@ export default defineComponent({
   components: { CreateUser, ConfigRbac, ResetPassword },
   data() {
     return {
-      userFields: ['username', 'last_login', 'last_seen', 'is_admin', { key: 'btn', label: '' }],
+      userFields: [
+        'username',
+        'created_on',
+        'last_login',
+        'last_seen',
+        'is_admin',
+        { key: 'btn', label: '' },
+      ],
       editUser: null as number | null,
       resetUser: null as { id: number; username: string } | null,
       clientTimeout: null as ReturnType<typeof setTimeout> | null,
