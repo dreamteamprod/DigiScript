@@ -52,11 +52,11 @@
       </BCol>
     </BRow>
 
-    <BModal ref="newUserModal" title="Add New User" size="md" hide-footer>
+    <BModal ref="newUserModal" title="Add New User" size="md" no-footer>
       <CreateUser :is-first-admin="false" @created_user="handleUserCreated(newUserModal)" />
     </BModal>
 
-    <BModal ref="newAdminModal" title="Add New Admin" size="md" hide-footer>
+    <BModal ref="newAdminModal" title="Add New Admin" size="md" no-footer>
       <CreateUser
         :is-first-admin="false"
         :is-admin="true"
@@ -64,11 +64,11 @@
       />
     </BModal>
 
-    <BModal ref="rbacModal" title="User RBAC Config" size="xl" hide-footer>
+    <BModal ref="rbacModal" title="User RBAC Config" size="xl" no-footer>
       <ConfigRbac v-if="selectedUserId != null" :user-id="selectedUserId" />
     </BModal>
 
-    <BModal ref="resetPasswordModal" title="Reset User Password" size="md" hide-footer>
+    <BModal ref="resetPasswordModal" title="Reset User Password" size="md" no-footer>
       <ResetPassword
         v-if="selectedUser"
         :user-id="selectedUser.id"

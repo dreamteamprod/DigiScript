@@ -3,7 +3,7 @@
     ref="modalRef"
     size="xl"
     title="Auto-Populate Microphones"
-    :hide-footer="true"
+    no-footer
     @show="resetState"
     @hidden="resetState"
   >

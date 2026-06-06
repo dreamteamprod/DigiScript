@@ -269,6 +269,9 @@ class ScriptController(BaseAPIController):
                         CompiledScript.compile_script, self.application, revision.id
                     )
                 )
+                await self.application.ws_send_to_all(
+                    "NOOP", "SCRIPT_PAGE_CHANGED", {"page": page}
+                )
             else:
                 self.set_status(404)
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
@@ -663,10 +666,14 @@ class ScriptController(BaseAPIController):
                             (revision.id, line["id"]),
                         )
                 # Spawn a callback to create a compiled version of the script
+                session.commit()
                 IOLoop.current().add_callback(
                     partial(
                         CompiledScript.compile_script, self.application, revision.id
                     )
+                )
+                await self.application.ws_send_to_all(
+                    "NOOP", "SCRIPT_PAGE_CHANGED", {"page": page}
                 )
             else:
                 self.set_status(404)

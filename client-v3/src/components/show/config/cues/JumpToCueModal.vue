@@ -2,12 +2,12 @@
   <BModal
     ref="modal"
     title="Jump to Cue"
-    :hide-header-close="searching || showResults"
+    :no-header-close="searching || showResults"
     :no-close-on-backdrop="searching || showResults"
     :no-close-on-esc="searching || showResults"
     :ok-disabled="v$.cueSearchForm.$invalid"
     :ok-title="showResults ? undefined : 'Search'"
-    :hide-footer="showResults"
+    :no-footer="showResults"
     @ok.prevent="performCueSearch"
     @hidden="resetCueSearch"
   >
