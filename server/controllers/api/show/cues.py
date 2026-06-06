@@ -21,6 +21,7 @@ from controllers.api.constants import (
 from models.cue import Cue, CueAssociation, CueType
 from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
 from models.show import Show
+from models.user import User
 from rbac.role import Role
 from schemas.schemas import CueSchema, CueTypeSchema
 from utils.web.base_controller import BaseAPIController
@@ -80,6 +81,15 @@ class CueTypesController(BaseAPIController):
                 )
                 session.add(new_cuetype)
                 session.commit()
+
+                user = session.get(User, self.current_user["id"])
+                self.application.rbac.give_role(
+                    user, new_cuetype, Role.READ | Role.WRITE | Role.EXECUTE
+                )
+                for socket in self.application.get_all_ws(user.id):
+                    await socket.write_message(
+                        {"OP": "NOOP", "DATA": {}, "ACTION": "GET_CURRENT_RBAC"}
+                    )
 
                 self.set_status(200)
                 await self.finish(

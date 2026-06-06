@@ -11,6 +11,7 @@ from models.script import (
 )
 from models.show import Act, Scene, Show, ShowScriptType
 from models.user import User
+from rbac.role import Role
 from test.conftest import DigiScriptTestCase
 
 
@@ -936,3 +937,76 @@ class TestCueTypeImportController(DigiScriptTestCase):
             self.assertIn("name", group)
             self.assertIn("cue_types", group)
             self.assertIsInstance(group["cue_types"], list)
+
+
+class TestCueTypesController(DigiScriptTestCase):
+    """Test suite for POST /api/v1/show/cues/types endpoint."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.admin_token = self._create_and_login_admin()
+        self.user_token = self._create_and_login_user(self.admin_token)
+
+        with self._app.get_db().sessionmaker() as session:
+            admin = session.scalars(
+                select(User).where(User.username == "admin")
+            ).first()
+            self.admin_id = admin.id
+            user = session.scalars(
+                select(User).where(User.username == "user")
+            ).first()
+            self.user_id = user.id
+            show = session.get(Show, self.show_id)
+            self._app.rbac.give_role(user, show, Role.WRITE)
+
+    def test_post_cue_type_grants_all_roles_to_creator(self):
+        """Creating a cue type grants READ|WRITE|EXECUTE to the creating user."""
+        response = self.fetch(
+            "/api/v1/show/cues/types",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"prefix": "LX", "description": "Lighting", "colour": "#ff0000"}
+            ),
+            headers={"Authorization": f"Bearer {self.user_token}"},
+        )
+        self.assertEqual(200, response.code)
+        cue_type_id = tornado.escape.json_decode(response.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            user = session.get(User, self.user_id)
+            cue_type = session.get(CueType, cue_type_id)
+            self.assertTrue(
+                self._app.rbac.has_role(
+                    user, cue_type, Role.READ | Role.WRITE | Role.EXECUTE
+                )
+            )
+
+    def test_post_cue_type_admin_also_gets_grant(self):
+        """Creating a cue type as an admin still writes the RBAC grant."""
+        response = self.fetch(
+            "/api/v1/show/cues/types",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"prefix": "SQ", "description": "Sound", "colour": "#00ff00"}
+            ),
+            headers={"Authorization": f"Bearer {self.admin_token}"},
+        )
+        self.assertEqual(200, response.code)
+        cue_type_id = tornado.escape.json_decode(response.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            admin = session.get(User, self.admin_id)
+            cue_type = session.get(CueType, cue_type_id)
+            self.assertTrue(
+                self._app.rbac.has_role(
+                    admin, cue_type, Role.READ | Role.WRITE | Role.EXECUTE
+                )
+            )
