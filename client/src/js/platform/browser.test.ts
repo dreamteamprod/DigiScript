@@ -39,7 +39,7 @@ describe('browser.js', () => {
       window.location.port = '';
 
       const result = baseURL();
-      expect(result).toBe('http://localhost:');
+      expect(result).toBe('http://localhost');
     });
   });
 
