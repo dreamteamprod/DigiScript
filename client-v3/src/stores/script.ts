@@ -50,10 +50,10 @@ export const useScriptStore = defineStore('script', {
 
     async scriptPageChanged(data: { page: number }): Promise<void> {
       const pageStr = String(data.page);
-      if (Object.prototype.hasOwnProperty.call(this.script, pageStr)) {
+      if (Object.hasOwn(this.script, pageStr)) {
         await this.loadScriptPage(data.page);
         const scriptConfigStore = useScriptConfigStore();
-        if (Object.prototype.hasOwnProperty.call(scriptConfigStore.tmpScript, pageStr)) {
+        if (Object.hasOwn(scriptConfigStore.tmpScript, pageStr)) {
           scriptConfigStore.addPage(data.page, this.getScriptPage(data.page));
         }
       }

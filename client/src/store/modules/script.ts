@@ -147,7 +147,7 @@ const module: Module<ScriptState, RootState> = {
     },
     async SCRIPT_PAGE_CHANGED(context, msg: { DATA: { page: number } }) {
       const page = String(msg.DATA.page);
-      if (Object.prototype.hasOwnProperty.call(context.state.script, page)) {
+      if (Object.hasOwn(context.state.script, page)) {
         await context.dispatch('LOAD_SCRIPT_PAGE', page);
         await context.dispatch('ADD_BLANK_PAGE', page);
       }
