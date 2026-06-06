@@ -290,10 +290,40 @@ class DigiScriptServer(PrometheusMixIn, Application):
         )
 
     def log_request(self, handler):
-        ignored_routes = Route.ignored_logging_routes()
-        if handler.request.path in ignored_routes:
+        from tornado.log import access_log  # noqa: PLC0415
+
+        if handler.request.path in Route.ignored_logging_routes():
             return
-        super().log_request(handler)
+
+        username = None
+        user_id = None
+        if handler.current_user:
+            username = handler.current_user.get("username")
+            user_id = handler.current_user.get("id")
+
+        if handler.get_status() < 400:
+            log_method = access_log.info
+        elif handler.get_status() < 500:
+            log_method = access_log.warning
+        else:
+            log_method = access_log.error
+
+        request_time = 1000.0 * handler.request.request_time()
+        request_summary = f"{handler.request.method} {handler.request.uri} ({handler.request.remote_ip})"
+        user_suffix = f" [{username}]" if username else ""
+
+        log_method(
+            "%d %s%s %.2fms",
+            handler.get_status(),
+            request_summary,
+            user_suffix,
+            request_time,
+            extra={
+                "username": username,
+                "user_id": user_id,
+                "remote_ip": handler.request.remote_ip,
+            },
+        )
 
     @property
     def _alembic_config(self):

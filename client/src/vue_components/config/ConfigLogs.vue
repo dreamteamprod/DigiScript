@@ -31,7 +31,7 @@
         />
       </b-form-group>
 
-      <b-form-group v-if="source === 'client'" class="mr-3 mb-2" label="User:" label-cols="auto">
+      <b-form-group class="mr-3 mb-2" label="User:" label-cols="auto">
         <b-form-input
           v-model="usernameInput"
           placeholder="Filter by username…"
@@ -229,9 +229,7 @@ export default defineComponent({
           limit: String(this.limit),
           offset: '0',
         });
-        if (this.source === 'client' && this.usernameInput) {
-          params.set('username', this.usernameInput);
-        }
+        if (this.usernameInput) params.set('username', this.usernameInput);
         const response = await fetch(`${makeURL('/api/v1/logs/view')}?${params}`);
         if (!response.ok) {
           this.error = `Server returned ${response.status}`;
@@ -256,9 +254,7 @@ export default defineComponent({
         level: this.levelFilter,
         search: this.searchInput,
       });
-      if (this.source === 'client' && this.usernameInput) {
-        params.set('username', this.usernameInput);
-      }
+      if (this.usernameInput) params.set('username', this.usernameInput);
       return `${makeURL('/api/v1/logs/stream')}?${params}`;
     },
     async startStream(): Promise<void> {
