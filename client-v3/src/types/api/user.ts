@@ -2,6 +2,7 @@ export interface User {
   id: number;
   username: string | null;
   is_admin: boolean | null;
+  created_on: string | null;
   last_login: string | null;
   last_seen: string | null;
   requires_password_change: boolean;
