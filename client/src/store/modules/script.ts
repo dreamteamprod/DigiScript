@@ -145,6 +145,13 @@ const module: Module<ScriptState, RootState> = {
       await context.dispatch('LOAD_CUES');
       await context.dispatch('GET_CUTS');
     },
+    async SCRIPT_PAGE_CHANGED(context, msg: { DATA: { page: number } }) {
+      const page = String(msg.DATA.page);
+      if (Object.prototype.hasOwnProperty.call(context.state.script, page)) {
+        await context.dispatch('LOAD_SCRIPT_PAGE', page);
+        await context.dispatch('ADD_BLANK_PAGE', page);
+      }
+    },
     async LOAD_SCRIPT_PAGE(context, page: string | number) {
       const searchParams = new URLSearchParams({ page: String(page) });
       const response = await fetch(`${makeURL('/api/v1/show/script')}?${searchParams}`, {
