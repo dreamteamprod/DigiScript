@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import { toast } from '@/js/toast';
+import { useScriptConfigStore } from '@/stores/scriptConfig';
 import type {
   ScriptLine,
   StageDirectionStyle,
@@ -44,6 +45,17 @@ export const useScriptStore = defineStore('script', {
         this.script[String(data.page)] = data.lines;
       } else {
         log.error('Unable to load script page');
+      }
+    },
+
+    async scriptPageChanged(data: { page: number }): Promise<void> {
+      const pageStr = String(data.page);
+      if (Object.hasOwn(this.script, pageStr)) {
+        await this.loadScriptPage(data.page);
+        const scriptConfigStore = useScriptConfigStore();
+        if (Object.hasOwn(scriptConfigStore.tmpScript, pageStr)) {
+          scriptConfigStore.addPage(data.page, this.getScriptPage(data.page));
+        }
       }
     },
 
