@@ -163,7 +163,7 @@
       ref="importCueTypeModal"
       title="Import Cue Type"
       size="xl"
-      hide-footer
+      no-footer
       @hide="resetImportState"
     >
       <div v-if="isLoadingImport" class="text-center">
