@@ -6,6 +6,8 @@
 
 [![Pylint](https://github.com/dreamteamprod/DigiScript/actions/workflows/pylint.yml/badge.svg?branch=main)](https://github.com/dreamteamprod/DigiScript/actions/workflows/pylint.yml)
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/dreamteamprod/DigiScript)
+
 ## Overview
 
 DigiScript is a full-stack web application designed to modernize theatrical show management. Built for stage managers, technical directors, and production teams, it provides real-time script display, intelligent cue management, and collaborative show control in a browser-based interface.
