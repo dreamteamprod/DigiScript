@@ -960,9 +960,7 @@ class TestCueTypesController(DigiScriptTestCase):
                 select(User).where(User.username == "admin")
             ).first()
             self.admin_id = admin.id
-            user = session.scalars(
-                select(User).where(User.username == "user")
-            ).first()
+            user = session.scalars(select(User).where(User.username == "user")).first()
             self.user_id = user.id
             show = session.get(Show, self.show_id)
             self._app.rbac.give_role(user, show, Role.WRITE)
