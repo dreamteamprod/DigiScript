@@ -171,6 +171,13 @@ class BaseAPIController(BaseController):
         self.set_status(405)
         self.write({"message": "405 not allowed"})
 
+    def _log_extra(self) -> dict:
+        extra: dict = {"remote_ip": self.request.remote_ip}
+        if self.current_user:
+            extra["username"] = self.current_user.get("username")
+            extra["user_id"] = self.current_user.get("id")
+        return extra
+
     def on_finish(self):
         from utils.web.route import Route  # noqa: PLC0415
 
@@ -180,6 +187,9 @@ class BaseAPIController(BaseController):
             log_method = get_logger().debug
 
         if self.request.body:
+            username = self.current_user.get("username") if self.current_user else None
+            user_suffix = f" [{username}]" if username else ""
+
             method_name = self.request.method.lower()
             handler_method = getattr(self, method_name, None)
             redacted_data_paths = getattr(handler_method, "_redacted_data_paths", None)
@@ -187,7 +197,8 @@ class BaseAPIController(BaseController):
                 body = escape.json_decode(self.request.body)
             except BaseException:
                 get_logger().debug(
-                    f"{self.request.method} {self.request.path} {self.request.body}"
+                    f"{self.request.method} {self.request.path} {self.request.body}{user_suffix}",
+                    extra=self._log_extra(),
                 )
             else:
                 if (
@@ -199,6 +210,9 @@ class BaseAPIController(BaseController):
                     body = deepcopy(body)
                     redacted_data_paths.apply(body)
 
-                log_method(f"{self.request.method} {self.request.path} {body}")
+                log_method(
+                    f"{self.request.method} {self.request.path} {body}{user_suffix}",
+                    extra=self._log_extra(),
+                )
 
         super().on_finish()

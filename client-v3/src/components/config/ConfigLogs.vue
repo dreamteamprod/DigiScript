@@ -26,7 +26,7 @@
         />
       </BFormGroup>
 
-      <BFormGroup v-if="source === 'client'" label="User:" label-cols="auto" class="mb-0">
+      <BFormGroup label="User:" label-cols="auto" class="mb-0">
         <BFormInput
           v-model="usernameInput"
           placeholder="Filter by username…"
@@ -182,8 +182,7 @@ async function fetchLogs(): Promise<void> {
       limit: String(limit.value),
       offset: '0',
     });
-    if (source.value === 'client' && usernameInput.value)
-      params.set('username', usernameInput.value);
+    if (usernameInput.value) params.set('username', usernameInput.value);
 
     const response = await fetch(`${makeURL('/api/v1/logs/view')}?${params}`);
     if (!response.ok) {
@@ -209,7 +208,7 @@ function buildStreamUrl(): string {
     level: levelFilter.value,
     search: searchInput.value,
   });
-  if (source.value === 'client' && usernameInput.value) params.set('username', usernameInput.value);
+  if (usernameInput.value) params.set('username', usernameInput.value);
   return `${makeURL('/api/v1/logs/stream')}?${params}`;
 }
 

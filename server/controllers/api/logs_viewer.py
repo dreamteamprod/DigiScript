@@ -59,8 +59,7 @@ def _filter_entries(
     :param level_name: Uppercase level name (e.g. ``"ERROR"``); empty means
         no level filter.
     :param search: Lowercase search string; empty means no search filter.
-    :param username_filter: Lowercase username substring; only applied when
-        *source* is ``"client"``; empty means no filter.
+    :param username_filter: Lowercase username substring; empty means no filter.
     :param source: ``"server"`` or ``"client"``.
     :returns: Filtered list of entry dicts.
     """
@@ -72,7 +71,7 @@ def _filter_entries(
     if search:
         entries = [e for e in entries if search in e["message"].lower()]
 
-    if username_filter and source == "client":
+    if username_filter:
         entries = [
             e
             for e in entries
@@ -97,8 +96,8 @@ class LogViewerController(BaseAPIController):
     search : str
         Case-insensitive substring match on the ``message`` field.
     username : str
-        (Client source only) case-insensitive substring match on the
-        ``username`` field.
+        Case-insensitive substring match on the ``username`` field.
+        Applies to both client and server sources.
     limit : int
         Maximum number of entries to return (capped at 1000, default 500).
     offset : int

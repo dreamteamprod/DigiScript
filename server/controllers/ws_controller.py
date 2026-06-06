@@ -29,6 +29,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         super().__init__(application, request, **kwargs)
         self.application: DigiScriptServer = application
         self.current_user_id = None
+        self.current_username: str | None = None
         self._last_ping = 0.0
         self._last_pong = 0.0
 
@@ -158,7 +159,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                                 }
                             )
 
-        get_logger().info(f"WebSocket closed from: {self.request.remote_ip}")
+        user_part = (
+            f"{self.current_username} ({self.request.remote_ip})"
+            if self.current_username
+            else self.request.remote_ip
+        )
+        get_logger().info(f"WebSocket closed from: {user_part}")
 
     async def authenticate_with_token(self, token):
         """Authenticate using JWT token"""
@@ -184,6 +190,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
             # Update the user ID for this connection
             self.current_user_id = user.id
+            self.current_username = user.username
+            get_logger().info(
+                f"WebSocket authenticated: {user.username} from {self.request.remote_ip}"
+            )
 
             # Update the session with the user ID
             self.update_session(user_id=user.id)
@@ -198,9 +208,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             return True
 
     async def on_message(self, message: Union[str, bytes]):
-        get_logger().debug(
-            f"WebSocket received data from {self.request.remote_ip}: {message}"
+        user_part = (
+            f"{self.current_username} ({self.request.remote_ip})"
+            if self.current_username
+            else self.request.remote_ip
         )
+        get_logger().debug(f"WebSocket message from {user_part}: {message}")
 
         message = json.loads(message)
         ws_op = message["OP"]
