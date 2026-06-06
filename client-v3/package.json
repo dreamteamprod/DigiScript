@@ -1,6 +1,6 @@
 {
   "name": "client-v3",
-  "version": "0.30.6",
+  "version": "0.30.7",
   "description": "DigiScript front end (Vue 3)",
   "author": "DreamTeamProd",
   "private": true,
