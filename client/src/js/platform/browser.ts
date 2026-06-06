@@ -10,7 +10,7 @@
  * @returns {string} Base URL (e.g., "http://localhost:8080")
  */
 export function baseURL(): string {
-  return `${window.location.protocol}//${window.location.hostname}:${window.location.port}`;
+  return `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : '' }`;
 }
 
 export function makeURL(path: string): string {
