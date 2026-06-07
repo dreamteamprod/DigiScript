@@ -120,6 +120,73 @@ test('saves a dialogue line to the script', async () => {
   ).toBeVisible({ timeout: 10_000 });
 });
 
+// ── Cut mode ──────────────────────────────────────────────────────────────
+
+test('enters cut mode', async () => {
+  await page.goto(`${UI_BASE}/show-config/script`);
+  await waitForAppReady(page);
+  await page.click('button:has-text("Cuts")');
+  await expect(page.locator('button:has-text("Stop Editing")')).toBeVisible({ timeout: 10_000 });
+});
+
+test('dialogue line becomes clickable in cut mode', async () => {
+  await expect(
+    page.locator('a.viewable-line-cut').filter({ hasText: 'To be or not to be' })
+  ).toBeVisible({ timeout: 5_000 });
+});
+
+test('clicking a line toggles cut styling', async () => {
+  await page.locator('a.viewable-line-cut').filter({ hasText: 'To be or not to be' }).click();
+  await expect(
+    page.locator('.cut-line-part').filter({ hasText: 'To be or not to be' })
+  ).toBeVisible({ timeout: 3_000 });
+});
+
+test('saves cuts', async () => {
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.v-toast__text').filter({ hasText: /saved/i })).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('stops cut mode without blank-page flash', async () => {
+  // In cut mode the line is an anchor (.viewable-line-cut); verify it exists before stopping
+  await expect(
+    page.locator('.viewable-line-cut').filter({ hasText: 'To be or not to be' })
+  ).toBeVisible();
+
+  await page.click('button:has-text("Stop Editing")');
+
+  // Edit button reappears
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
+  // The saved line is still visible (no reload / blank flash)
+  await expect(
+    page.locator('.viewable-line').filter({ hasText: 'To be or not to be' })
+  ).toBeVisible();
+  // No edit controls are shown after stopping
+  await expect(page.locator('.script-edit-controls')).not.toBeVisible();
+});
+
+test('cut styling persists after re-entering cut mode', async () => {
+  await page.click('button:has-text("Cuts")');
+  await expect(page.locator('button:has-text("Stop Editing")')).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.locator('.cut-line-part').filter({ hasText: 'To be or not to be' })
+  ).toBeVisible({ timeout: 5_000 });
+  // Clean up: un-cut the line so later tests start from a known state
+  await page.locator('a.viewable-line-cut').filter({ hasText: 'To be or not to be' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.v-toast__text').filter({ hasText: /saved/i })).toBeVisible({
+    timeout: 5_000,
+  });
+  await page.click('button:has-text("Stop Editing")');
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
 // ── Stage Direction Styles ────────────────────────────────────────────────
 
 test('switches to Stage Direction Styles sub-tab', async () => {
