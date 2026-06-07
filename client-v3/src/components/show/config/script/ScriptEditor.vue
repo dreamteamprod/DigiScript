@@ -257,7 +257,7 @@ const isEditor = computed(
     wsStore.internalUUID !== null &&
     wsStore.internalUUID === scriptConfigStore.editStatus.currentEditor
 );
-const canEdit = computed(() => isEditor.value && !scriptConfigStore.cutMode);
+const canEdit = computed(() => isEditor.value);
 
 const saveProgressVariant = computed(() => {
   if (savingInProgress.value) return 'primary';
@@ -336,13 +336,17 @@ async function stopEditing(): Promise<void> {
     );
     if (!ok) return;
   }
+  const wasCutMode = scriptConfigStore.cutMode;
   editingLines.value.clear();
   exitBulkEditMode();
-  scriptConfigStore.emptyScript();
   linePartCuts.value = [...scriptStore.cuts];
-  sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
   scriptConfigStore.setCutMode(false);
-  await loadPage(currentPage.value);
+  scriptConfigStore.setEditStatus({ canRequestEdit: scriptConfigStore.editStatus.canRequestEdit, currentEditor: null });
+  sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
+  if (!wasCutMode) {
+    scriptConfigStore.emptyScript();
+    await loadPage(currentPage.value);
+  }
 }
 
 async function loadPage(page: number): Promise<void> {
