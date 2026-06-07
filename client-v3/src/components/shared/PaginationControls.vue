@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex align-items-center justify-content-center gap-3 mt-2">
+  <div class="d-flex align-items-center justify-content-center gap-3 mt-2 mb-3">
     <div class="d-flex align-items-center gap-2">
       <label class="mb-0 text-nowrap" :for="selectId">Rows per page</label>
       <BFormSelect
