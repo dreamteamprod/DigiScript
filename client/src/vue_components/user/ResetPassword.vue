@@ -87,10 +87,11 @@ export default defineComponent({
       this.loading = true;
 
       try {
-        const response = await fetch(makeURL('/api/v1/auth/reset-password'), {
+        const params = new URLSearchParams({ id: String(this.userId) });
+        const response = await fetch(makeURL(`/api/v2/users/password/reset?${params}`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: this.userId }),
+          body: JSON.stringify({}),
         });
 
         if (response.ok) {

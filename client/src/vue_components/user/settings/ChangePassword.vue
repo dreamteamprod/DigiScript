@@ -113,7 +113,7 @@ export default defineComponent({
       this.loading = true;
 
       try {
-        const response = await fetch(makeURL('/api/v1/auth/change-password'), {
+        const response = await fetch(makeURL('/api/v2/users/password'), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',

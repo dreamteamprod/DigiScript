@@ -18,8 +18,8 @@ export default function setupHttpInterceptor(): void {
     // Only intercept our own API requests
     if (typeof resource === 'string' && resource.startsWith(makeURL('/api/'))) {
       const token = store.getters.AUTH_TOKEN;
-      const isLogoutRequest = resource.endsWith('/api/v1/auth/logout');
-      const isRefreshRequest = resource.endsWith('/api/v1/auth/refresh-token');
+      const isLogoutRequest = resource.includes('/api/v2/auth/logout');
+      const isRefreshRequest = resource.includes('/api/v2/auth/refresh-token');
 
       // Clone the options
       const newOptions = {
