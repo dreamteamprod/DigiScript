@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from tornado import escape
 
 from controllers.api.constants import (
@@ -11,8 +12,16 @@ from controllers.api.constants import (
     ERROR_LAST_NAME_MISSING,
     ERROR_SHOW_NOT_FOUND,
 )
-from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
-from models.show import Cast, Character, Show
+from models.script import (
+    Script,
+    ScriptCuts,
+    ScriptLine,
+    ScriptLinePart,
+    ScriptLineRevisionAssociation,
+    ScriptLineType,
+    ScriptRevision,
+)
+from models.show import Cast, CharacterGroup, Show
 from rbac.role import Role
 from schemas.schemas import CastSchema
 from utils.web.base_controller import BaseAPIController
@@ -186,16 +195,38 @@ class CastStatsController(BaseAPIController):
                     select(Script).where(Script.show_id == show.id)
                 ).first()
 
-                if script.current_revision:
-                    revision: ScriptRevision = session.get(
-                        ScriptRevision, script.current_revision
-                    )
-                else:
+                if not script.current_revision:
                     self.set_status(400)
                     await self.finish(
                         {"message": "Script does not have a current revision"}
                     )
                     return
+
+                revision: ScriptRevision = session.scalars(
+                    select(ScriptRevision)
+                    .where(ScriptRevision.id == script.current_revision)
+                    .options(
+                        selectinload(ScriptRevision.line_associations)
+                        .selectinload(ScriptLineRevisionAssociation.line)
+                        .options(
+                            selectinload(ScriptLine.line_parts).options(
+                                selectinload(ScriptLinePart.character),
+                                selectinload(
+                                    ScriptLinePart.character_group
+                                ).selectinload(CharacterGroup.characters),
+                            )
+                        )
+                    )
+                ).first()
+
+                # Load all cut line_part_ids for this revision in a single query.
+                cut_part_ids: set[int] = set(
+                    session.scalars(
+                        select(ScriptCuts.line_part_id).where(
+                            ScriptCuts.revision_id == revision.id
+                        )
+                    ).all()
+                )
 
                 line_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
                 for line_association in revision.line_associations:
@@ -203,11 +234,11 @@ class CastStatsController(BaseAPIController):
                     if line.line_type != ScriptLineType.DIALOGUE:
                         continue
                     for line_part in line.line_parts:
-                        if line_part.line_part_cuts is not None:
+                        if line_part.id in cut_part_ids:
                             continue
                         if line_part.character_id:
-                            character = session.get(Character, line_part.character_id)
-                            if character.played_by:
+                            character = line_part.character
+                            if character and character.played_by:
                                 line_counts[character.played_by][line.act_id][
                                     line.scene_id
                                 ] += 1

@@ -170,6 +170,7 @@ class ActSchema(SQLAlchemyAutoSchema):
         model = Act
         include_relationships = True
         load_instance = True
+        exclude = ("lines",)
 
 
 @schema
@@ -178,6 +179,7 @@ class SceneSchema(SQLAlchemyAutoSchema):
         model = Scene
         include_relationships = True
         load_instance = True
+        exclude = ("lines",)
 
 
 @schema

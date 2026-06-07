@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from sqlalchemy import select, update
+from sqlalchemy.orm import selectinload
 from tornado import escape
 
 from controllers.api.constants import (
@@ -15,8 +16,10 @@ from controllers.api.constants import (
 )
 from models.script import (
     Script,
+    ScriptCuts,
     ScriptLine,
     ScriptLinePart,
+    ScriptLineRevisionAssociation,
     ScriptLineType,
     ScriptRevision,
 )
@@ -39,9 +42,19 @@ class CharacterController(BaseAPIController):
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                characters = [character_schema.dump(c) for c in show.character_list]
+                characters = session.scalars(
+                    select(Character)
+                    .where(Character.show_id == show.id)
+                    .options(
+                        selectinload(Character.character_groups),
+                        selectinload(Character.mic_allocations),
+                        selectinload(Character.cast_member),
+                    )
+                ).all()
                 self.set_status(200)
-                self.finish({"characters": characters})
+                self.finish(
+                    {"characters": [character_schema.dump(c) for c in characters]}
+                )
             else:
                 self.set_status(404)
                 self.finish({"message": ERROR_SHOW_NOT_FOUND})
@@ -294,16 +307,37 @@ class CharacterStatsController(BaseAPIController):
                     select(Script).where(Script.show_id == show.id)
                 ).first()
 
-                if script.current_revision:
-                    revision: ScriptRevision = session.get(
-                        ScriptRevision, script.current_revision
-                    )
-                else:
+                if not script.current_revision:
                     self.set_status(400)
                     await self.finish(
                         {"message": "Script does not have a current revision"}
                     )
                     return
+
+                revision: ScriptRevision = session.scalars(
+                    select(ScriptRevision)
+                    .where(ScriptRevision.id == script.current_revision)
+                    .options(
+                        selectinload(ScriptRevision.line_associations)
+                        .selectinload(ScriptLineRevisionAssociation.line)
+                        .options(
+                            selectinload(ScriptLine.line_parts).options(
+                                selectinload(
+                                    ScriptLinePart.character_group
+                                ).selectinload(CharacterGroup.characters),
+                            )
+                        )
+                    )
+                ).first()
+
+                # Load all cut line_part_ids for this revision in a single query.
+                cut_part_ids: set[int] = set(
+                    session.scalars(
+                        select(ScriptCuts.line_part_id).where(
+                            ScriptCuts.revision_id == revision.id
+                        )
+                    ).all()
+                )
 
                 line_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
                 for line_association in revision.line_associations:
@@ -311,7 +345,7 @@ class CharacterStatsController(BaseAPIController):
                     if line.line_type != ScriptLineType.DIALOGUE:
                         continue
                     for line_part in line.line_parts:
-                        if line_part.line_part_cuts is not None:
+                        if line_part.id in cut_part_ids:
                             continue
                         if line_part.character_id:
                             line_counts[line_part.character_id][line.act_id][

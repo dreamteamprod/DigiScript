@@ -45,3 +45,15 @@ Character groups can also represent performers who aren't named characters in th
 ![](../../images/config_show/character_groups_with_data.png)
 
 Once configured, character groups can be used when writing script lines, allowing you to assign dialogue to groups of performers rather than individual characters.
+
+#### Character Line Counts
+
+The **Line Counts** tab in the Characters section shows a table of how many dialogue lines each character has in each scene. Acts are shown as column group headers, with individual scenes nested beneath them. This is useful for checking workload balance across the cast.
+
+#### Character Timeline
+
+The **Timeline** tab provides a visual overview of character presence across the show. Acts and scenes are displayed along the x-axis, and each character occupies a row on the y-axis. Coloured bars indicate scenes in which a character has spoken dialogue lines — a gap in the bar means the character does not speak in that scene or act.
+
+This view is read-only and updates automatically from the current script revision. Use the **Export** button to download a PNG image of the timeline.
+
+> **Note:** Only characters with at least one spoken line in the current script revision appear in the timeline. Characters with no dialogue are hidden.
