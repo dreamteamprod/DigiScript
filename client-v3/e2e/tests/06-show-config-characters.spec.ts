@@ -194,3 +194,15 @@ test('deletes the cast member', async () => {
   await confirmDialog(page);
   await expect(page.locator('td:has-text("Janet")').first()).not.toBeVisible({ timeout: 5_000 });
 });
+
+// ── Character Timeline ─────────────────────────────────────────────────────
+
+test('switches to Timeline sub-tab', async () => {
+  await page.goto(`${UI_BASE}/show-config/characters`);
+  await waitForAppReady(page);
+  await page.click('.nav-link:has-text("Timeline"), button[role="tab"]:has-text("Timeline")');
+  // No script lines yet — expect the empty-state message (lazy tab, needs extra timeout)
+  await expect(page.locator('text=No character line data to display')).toBeVisible({
+    timeout: 10_000,
+  });
+});

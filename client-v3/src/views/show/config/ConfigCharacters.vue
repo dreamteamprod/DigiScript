@@ -70,6 +70,9 @@
           <BTab title="Line Counts">
             <CharacterLineStats />
           </BTab>
+          <BTab title="Timeline">
+            <CharacterTimeline />
+          </BTab>
         </BTabs>
       </BCol>
     </BRow>
