@@ -66,6 +66,9 @@
           <b-tab title="Line Counts">
             <character-line-stats />
           </b-tab>
+          <b-tab title="Timeline">
+            <character-timeline />
+          </b-tab>
         </b-tabs>
       </b-col>
     </b-row>
@@ -200,13 +203,14 @@ import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
+import CharacterTimeline from '@/vue_components/show/config/characters/CharacterTimeline.vue';
 import log from 'loglevel';
 import CharacterGroups from '@/vue_components/show/config/characters/CharacterGroups.vue';
 import formValidationMixin from '@/mixins/formValidationMixin';
 
 export default defineComponent({
   name: 'ConfigCharacters',
-  components: { CharacterGroups, CharacterLineStats },
+  components: { CharacterGroups, CharacterLineStats, CharacterTimeline },
   mixins: [formValidationMixin],
   data() {
     return {
