@@ -341,7 +341,10 @@ async function stopEditing(): Promise<void> {
   exitBulkEditMode();
   linePartCuts.value = [...scriptStore.cuts];
   scriptConfigStore.setCutMode(false);
-  scriptConfigStore.setEditStatus({ canRequestEdit: scriptConfigStore.editStatus.canRequestEdit, currentEditor: null });
+  scriptConfigStore.setEditStatus({
+    canRequestEdit: scriptConfigStore.editStatus.canRequestEdit,
+    currentEditor: null,
+  });
   sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
   if (!wasCutMode) {
     scriptConfigStore.emptyScript();
