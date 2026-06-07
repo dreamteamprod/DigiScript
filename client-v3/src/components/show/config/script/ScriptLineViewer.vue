@@ -1,5 +1,6 @@
 <template>
   <BRow
+    class="script-line-row"
     :class="{
       'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
       'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
@@ -121,7 +122,7 @@
           End
         </BButton>
       </BButtonGroup>
-      <BButtonGroup v-else-if="canEdit && !isCutMode">
+      <BButtonGroup v-else-if="canEdit && !isCutMode" class="script-edit-controls">
         <BButton variant="link" style="padding: 0" @click.prevent.stop="$emit('editLine')"
           >Edit</BButton
         >
@@ -304,5 +305,10 @@ function cutLinePart(partIndex: number): void {
 }
 .cut-line-part {
   text-decoration: line-through;
+}
+.script-line-row:has(.script-edit-controls:hover) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
 }
 </style>
