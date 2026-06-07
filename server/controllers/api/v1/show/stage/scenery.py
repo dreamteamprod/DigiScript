@@ -5,14 +5,13 @@ from controllers.api.constants import (
     ERROR_ID_MISSING,
     ERROR_INVALID_ID,
     ERROR_NAME_MISSING,
-    ERROR_PROP_NOT_FOUND,
-    ERROR_PROP_TYPE_ID_MISSING,
-    ERROR_PROP_TYPE_NOT_FOUND,
-    ERROR_PROPS_ID_MISSING,
-    ERROR_PROPS_NOT_FOUND,
+    ERROR_SCENERY_ID_MISSING,
+    ERROR_SCENERY_NOT_FOUND,
+    ERROR_SCENERY_TYPE_ID_MISSING,
+    ERROR_SCENERY_TYPE_NOT_FOUND,
     ERROR_SHOW_NOT_FOUND,
 )
-from controllers.api.show.stage.helpers import (
+from controllers.api.v1.show.stage.helpers import (
     handle_allocation_delete,
     handle_allocation_post,
     handle_type_delete,
@@ -20,28 +19,30 @@ from controllers.api.show.stage.helpers import (
     handle_type_post,
 )
 from models.show import Show
-from models.stage import Props, PropsAllocation, PropType
+from models.stage import Scenery, SceneryAllocation, SceneryType
 from rbac.role import Role
-from schemas.schemas import PropsAllocationSchema, PropsSchema, PropTypeSchema
+from schemas.schemas import SceneryAllocationSchema, ScenerySchema, SceneryTypeSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
 
 
-@ApiRoute("show/stage/props/types", ApiVersion.V1)
-class PropsTypesController(BaseAPIController):
+@ApiRoute("show/stage/scenery/types", ApiVersion.V1)
+class SceneryTypesController(BaseAPIController):
     @requires_show
     def get(self):
         current_show = self.get_current_show()
         show_id = current_show["id"]
-        prop_type_schema = PropTypeSchema()
+        scenery_type_schema = SceneryTypeSchema()
 
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                prop_types = [prop_type_schema.dump(c) for c in show.prop_types]
+                scenery_types = [
+                    scenery_type_schema.dump(c) for c in show.scenery_types
+                ]
                 self.set_status(200)
-                self.finish({"prop_types": prop_types})
+                self.finish({"scenery_types": scenery_types})
             else:
                 self.set_status(404)
                 self.finish({"message": ERROR_SHOW_NOT_FOUND})
@@ -51,9 +52,9 @@ class PropsTypesController(BaseAPIController):
     async def post(self):
         await handle_type_post(
             self,
-            type_model=PropType,
-            ws_action="GET_PROP_TYPES",
-            success_message="Successfully added prop type",
+            type_model=SceneryType,
+            ws_action="GET_SCENERY_TYPES",
+            success_message="Successfully added scenery type",
         )
 
     @requires_show
@@ -61,10 +62,10 @@ class PropsTypesController(BaseAPIController):
     async def patch(self):
         await handle_type_patch(
             self,
-            type_model=PropType,
-            ws_action="GET_PROP_TYPES",
-            success_message="Successfully updated prop type",
-            not_found_message=ERROR_PROP_TYPE_NOT_FOUND,
+            type_model=SceneryType,
+            ws_action="GET_SCENERY_TYPES",
+            success_message="Successfully updated scenery type",
+            not_found_message=ERROR_SCENERY_TYPE_NOT_FOUND,
         )
 
     @requires_show
@@ -72,27 +73,27 @@ class PropsTypesController(BaseAPIController):
     async def delete(self):
         await handle_type_delete(
             self,
-            type_model=PropType,
-            ws_actions=["GET_PROP_TYPES", "GET_PROPS_LIST"],
-            success_message="Successfully deleted prop type",
-            not_found_message=ERROR_PROP_TYPE_NOT_FOUND,
+            type_model=SceneryType,
+            ws_actions=["GET_SCENERY_TYPES", "GET_SCENERY_LIST"],
+            success_message="Successfully deleted scenery type",
+            not_found_message=ERROR_SCENERY_TYPE_NOT_FOUND,
         )
 
 
-@ApiRoute("show/stage/props", ApiVersion.V1)
-class PropsController(BaseAPIController):
+@ApiRoute("show/stage/scenery", ApiVersion.V1)
+class SceneryController(BaseAPIController):
     @requires_show
     def get(self):
         current_show = self.get_current_show()
         show_id = current_show["id"]
-        props_schema = PropsSchema()
+        scenery_schema = ScenerySchema()
 
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
-                props = [props_schema.dump(c) for c in show.props_list]
+                scenery = [scenery_schema.dump(c) for c in show.scenery_list]
                 self.set_status(200)
-                self.finish({"props": props})
+                self.finish({"scenery": scenery})
             else:
                 self.set_status(404)
                 self.finish({"message": ERROR_SHOW_NOT_FOUND})
@@ -115,44 +116,44 @@ class PropsController(BaseAPIController):
                     await self.finish({"message": ERROR_NAME_MISSING})
                     return
 
-                prop_type_id = data.get("prop_type_id", None)
-                if not prop_type_id:
+                scenery_type_id = data.get("scenery_type_id", None)
+                if not scenery_type_id:
                     self.set_status(400)
-                    await self.finish({"message": ERROR_PROP_TYPE_ID_MISSING})
+                    await self.finish({"message": ERROR_SCENERY_TYPE_ID_MISSING})
                     return
                 try:
-                    prop_type_id = int(prop_type_id)
+                    scenery_type_id = int(scenery_type_id)
                 except ValueError:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid prop type ID"})
+                    await self.finish({"message": "Invalid scenery type ID"})
                     return
-                prop_type: PropType = session.get(PropType, prop_type_id)
-                if not prop_type:
+                scenery_type: SceneryType = session.get(SceneryType, scenery_type_id)
+                if not scenery_type:
                     self.set_status(404)
-                    await self.finish({"message": "Prop type not found"})
+                    await self.finish({"message": "Scenery type not found"})
                     return
-                if prop_type.show_id != show.id:
+                if scenery_type.show_id != show.id:
                     self.set_status(400)
-                    await self.finish({"message": "Invalid prop type for show"})
+                    await self.finish({"message": "Invalid scenery type for show"})
                     return
 
                 description = data.get("description", "")
 
-                new_props = Props(
+                new_scenery = Scenery(
                     show_id=show.id,
                     name=name,
                     description=description,
-                    prop_type_id=prop_type.id,
+                    scenery_type_id=scenery_type.id,
                 )
-                session.add(new_props)
+                session.add(new_scenery)
                 session.commit()
 
                 self.set_status(200)
                 await self.finish(
-                    {"id": new_props.id, "message": "Successfully added props"}
+                    {"id": new_scenery.id, "message": "Successfully added scenery"}
                 )
 
-                await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
+                await self.application.ws_send_to_all("NOOP", "GET_SCENERY_LIST", {})
             else:
                 self.set_status(404)
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
@@ -169,13 +170,13 @@ class PropsController(BaseAPIController):
                 self.requires_role(show, Role.WRITE)
                 data = escape.json_decode(self.request.body)
 
-                props = data.get("id", None)
-                if not props:
+                scenery = data.get("id", None)
+                if not scenery:
                     self.set_status(400)
                     await self.finish({"message": ERROR_ID_MISSING})
                     return
 
-                entry: Props = session.get(Props, props)
+                entry: Scenery = session.get(Scenery, scenery)
                 if entry:
                     name = data.get("name", None)
                     if not name:
@@ -184,27 +185,29 @@ class PropsController(BaseAPIController):
                         return
                     entry.name = name
 
-                    prop_type_id = data.get("prop_type_id", None)
-                    if not prop_type_id:
+                    scenery_type_id = data.get("scenery_type_id", None)
+                    if not scenery_type_id:
                         self.set_status(400)
-                        await self.finish({"message": ERROR_PROP_TYPE_ID_MISSING})
+                        await self.finish({"message": ERROR_SCENERY_TYPE_ID_MISSING})
                         return
                     try:
-                        prop_type_id = int(prop_type_id)
+                        scenery_type_id = int(scenery_type_id)
                     except ValueError:
                         self.set_status(400)
-                        await self.finish({"message": "Invalid prop type ID"})
+                        await self.finish({"message": "Invalid scenery type ID"})
                         return
-                    prop_type: PropType = session.get(PropType, prop_type_id)
-                    if not prop_type:
+                    scenery_type: SceneryType = session.get(
+                        SceneryType, scenery_type_id
+                    )
+                    if not scenery_type:
                         self.set_status(404)
-                        await self.finish({"message": "Prop type not found"})
+                        await self.finish({"message": "Scenery type not found"})
                         return
-                    if prop_type.show_id != show.id:
+                    if scenery_type.show_id != show.id:
                         self.set_status(400)
-                        await self.finish({"message": "Invalid prop type for show"})
+                        await self.finish({"message": "Invalid scenery type for show"})
                         return
-                    entry.prop_type_id = prop_type.id
+                    entry.scenery_type_id = scenery_type.id
 
                     description = data.get("description", "")
                     entry.description = description
@@ -212,12 +215,14 @@ class PropsController(BaseAPIController):
                     session.commit()
 
                     self.set_status(200)
-                    await self.finish({"message": "Successfully updated props"})
+                    await self.finish({"message": "Successfully updated scenery"})
 
-                    await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_SCENERY_LIST", {}
+                    )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": ERROR_PROP_NOT_FOUND})
+                    await self.finish({"message": ERROR_SCENERY_NOT_FOUND})
                     return
             else:
                 self.set_status(404)
@@ -234,54 +239,56 @@ class PropsController(BaseAPIController):
             if show:
                 self.requires_role(show, Role.WRITE)
 
-                props_id_str = self.get_argument("id", None)
-                if not props_id_str:
+                scenery_id_str = self.get_argument("id", None)
+                if not scenery_id_str:
                     self.set_status(400)
                     await self.finish({"message": ERROR_ID_MISSING})
                     return
 
                 try:
-                    props_id = int(props_id_str)
+                    scenery_id = int(scenery_id_str)
                 except ValueError:
                     self.set_status(400)
                     await self.finish({"message": ERROR_INVALID_ID})
                     return
 
-                entry = session.get(Props, props_id)
+                entry = session.get(Scenery, scenery_id)
                 if entry:
                     session.delete(entry)
                     session.commit()
 
                     self.set_status(200)
-                    await self.finish({"message": "Successfully deleted props"})
+                    await self.finish({"message": "Successfully deleted scenery"})
 
-                    await self.application.ws_send_to_all("NOOP", "GET_PROPS_LIST", {})
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_SCENERY_LIST", {}
+                    )
                 else:
                     self.set_status(404)
-                    await self.finish({"message": ERROR_PROPS_NOT_FOUND})
+                    await self.finish({"message": ERROR_SCENERY_NOT_FOUND})
             else:
                 self.set_status(404)
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
 
-@ApiRoute("show/stage/props/allocations", ApiVersion.V1)
-class PropsAllocationController(BaseAPIController):
-    """Controller for managing props allocations to scenes."""
+@ApiRoute("show/stage/scenery/allocations", ApiVersion.V1)
+class SceneryAllocationController(BaseAPIController):
+    """Controller for managing scenery allocations to scenes."""
 
     @requires_show
     def get(self):
-        """Get all props allocations for the current show."""
+        """Get all scenery allocations for the current show."""
         current_show = self.get_current_show()
         show_id = current_show["id"]
-        allocation_schema = PropsAllocationSchema()
+        allocation_schema = SceneryAllocationSchema()
 
         with self.make_session() as session:
             show = session.get(Show, show_id)
             if show:
                 allocations = session.scalars(
-                    select(PropsAllocation)
-                    .join(Props, PropsAllocation.props_id == Props.id)
-                    .where(Props.show_id == show_id)
+                    select(SceneryAllocation)
+                    .join(Scenery, SceneryAllocation.scenery_id == Scenery.id)
+                    .where(Scenery.show_id == show_id)
                 ).all()
                 allocations = [allocation_schema.dump(a) for a in allocations]
                 self.set_status(200)
@@ -293,27 +300,27 @@ class PropsAllocationController(BaseAPIController):
     @requires_show
     @no_live_session
     async def post(self):
-        """Create a new props allocation."""
+        """Create a new scenery allocation."""
         await handle_allocation_post(
             self,
-            item_model=Props,
-            item_id_key="props_id",
-            allocation_model=PropsAllocation,
-            allocation_item_fk="props_id",
-            ws_action="GET_PROPS_ALLOCATIONS",
-            error_item_id_missing=ERROR_PROPS_ID_MISSING,
-            error_item_not_found=ERROR_PROP_NOT_FOUND,
-            allocation_exists_message="Allocation already exists for this prop and scene",
+            item_model=Scenery,
+            item_id_key="scenery_id",
+            allocation_model=SceneryAllocation,
+            allocation_item_fk="scenery_id",
+            ws_action="GET_SCENERY_ALLOCATIONS",
+            error_item_id_missing=ERROR_SCENERY_ID_MISSING,
+            error_item_not_found=ERROR_SCENERY_NOT_FOUND,
+            allocation_exists_message="Allocation already exists for this scenery and scene",
         )
 
     @requires_show
     @no_live_session
     async def delete(self):
-        """Delete a props allocation by ID (query parameter)."""
+        """Delete a scenery allocation by ID (query parameter)."""
         await handle_allocation_delete(
             self,
-            item_model=Props,
-            allocation_model=PropsAllocation,
-            allocation_item_fk="props_id",
-            ws_action="GET_PROPS_ALLOCATIONS",
+            item_model=Scenery,
+            allocation_model=SceneryAllocation,
+            allocation_item_fk="scenery_id",
+            ws_action="GET_SCENERY_ALLOCATIONS",
         )

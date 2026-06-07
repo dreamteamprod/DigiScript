@@ -59,6 +59,14 @@ Click the **New User** button to add a new user. You'll need to provide:
 
 Users are created at the system level and are not tied to individual shows. Their access to specific shows and resources is controlled through RBAC configuration.
 
+#### Editing Users
+
+To change a user's properties, click the **Edit** button next to their row. This opens a modal where you can:
+
+- Toggle the user's account type between **Admin** and **Standard User**
+
+> **Note:** You cannot edit your own account via this interface. Admin status changes take effect immediately — the user's next API request will reflect the updated role.
+
 #### Configuring RBAC
 
 Once users have been created, their permissions can be configured by clicking the **RBAC** button next to each user. This opens a detailed permissions interface where you can:

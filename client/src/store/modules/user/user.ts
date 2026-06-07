@@ -62,7 +62,7 @@ const module: Module<UserState, RootState> = {
       if (context.getters.CURRENT_USER == null || !context.getters.CURRENT_USER.is_admin) {
         return;
       }
-      const response = await fetch(makeURL('/api/v1/auth/users'));
+      const response = await fetch(makeURL('/api/v2/users'));
       if (response.ok) {
         const users = await response.json();
         await context.commit('SET_USERS', users.users);
@@ -72,7 +72,7 @@ const module: Module<UserState, RootState> = {
       }
     },
     async CREATE_USER(context, user) {
-      const response = await fetch(makeURL('/api/v1/auth/create'), {
+      const response = await fetch(makeURL('/api/v2/users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
@@ -87,10 +87,9 @@ const module: Module<UserState, RootState> = {
       }
     },
     async DELETE_USER(context, userId: number) {
-      const response = await fetch(makeURL('/api/v1/auth/delete'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: userId }),
+      const params = new URLSearchParams({ id: String(userId) });
+      const response = await fetch(makeURL(`/api/v2/users?${params}`), {
+        method: 'DELETE',
       });
       if (response.ok) {
         await context.dispatch('GET_USERS');
@@ -229,7 +228,7 @@ const module: Module<UserState, RootState> = {
       await context.commit('SET_TOKEN_REFRESH_INTERVAL', refreshInterval);
     },
     async GENERATE_API_TOKEN() {
-      const response = await fetch(makeURL('/api/v1/auth/api-token/generate'), {
+      const response = await fetch(makeURL('/api/v2/users/token'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -247,10 +246,8 @@ const module: Module<UserState, RootState> = {
       return null;
     },
     async REVOKE_API_TOKEN() {
-      const response = await fetch(makeURL('/api/v1/auth/api-token/revoke'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+      const response = await fetch(makeURL('/api/v2/users/token'), {
+        method: 'DELETE',
       });
       if (response.ok) {
         VueToast.$toast.success('API token revoked successfully!');
@@ -264,7 +261,7 @@ const module: Module<UserState, RootState> = {
       return false;
     },
     async GET_API_TOKEN() {
-      const response = await fetch(makeURL('/api/v1/auth/api-token'), {
+      const response = await fetch(makeURL('/api/v2/users/token'), {
         method: 'GET',
       });
       if (response.ok) {
@@ -273,6 +270,22 @@ const module: Module<UserState, RootState> = {
       log.error('Unable to get API token');
       VueToast.$toast.error('Unable to get API token!');
       return null;
+    },
+    async EDIT_USER(context, user: { id: number; [key: string]: unknown }) {
+      const params = new URLSearchParams({ id: String(user.id) });
+      const response = await fetch(makeURL(`/api/v2/users?${params}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user),
+      });
+      if (response.ok) {
+        await context.dispatch('GET_USERS');
+        VueToast.$toast.success('User updated!');
+      } else {
+        const responseBody = await response.json();
+        log.error('Unable to update user');
+        VueToast.$toast.error(`Unable to update user: ${responseBody.message || 'Unknown error'}`);
+      }
     },
   },
   getters: {

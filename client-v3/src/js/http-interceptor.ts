@@ -111,9 +111,9 @@ export default function setupHttpInterceptor(): void {
     const userStore = useUserStore();
 
     const newOptions = buildAuthenticatedOptions(options, userStore.authToken);
-    const isLogoutRequest = resource.endsWith('/api/v1/auth/logout');
-    const isLoginRequest = resource.endsWith('/api/v1/auth/login');
-    const isRefreshRequest = resource.endsWith('/api/v1/auth/refresh-token');
+    const isLogoutRequest = resource.includes('/api/v1/auth/logout');
+    const isLoginRequest = resource.includes('/api/v1/auth/login');
+    const isRefreshRequest = resource.includes('/api/v1/auth/refresh-token');
 
     try {
       const response = await originalFetch(resource, newOptions);

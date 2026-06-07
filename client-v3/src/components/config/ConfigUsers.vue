@@ -33,6 +33,13 @@
                 RBAC
               </BButton>
               <BButton
+                variant="secondary"
+                :disabled="data.item.id === currentUser?.id"
+                @click.stop="openEditUser(data.item)"
+              >
+                Edit
+              </BButton>
+              <BButton
                 variant="info"
                 :disabled="data.item.id === currentUser?.id"
                 @click.stop="openResetPassword(data.item)"
@@ -71,6 +78,22 @@
       <ConfigRbac v-if="selectedUserId != null" :user-id="selectedUserId" />
     </BModal>
 
+    <BModal
+      ref="editUserModal"
+      title="Edit User"
+      size="sm"
+      @ok="submitEditUser"
+      @hidden="clearEditUser"
+    >
+      <BForm v-if="editFormState">
+        <BFormGroup label="User Type">
+          <BFormCheckbox v-model="editFormState.is_admin" switch>
+            {{ editFormState.is_admin ? 'Admin' : 'Standard User' }}
+          </BFormCheckbox>
+        </BFormGroup>
+      </BForm>
+    </BModal>
+
     <BModal ref="resetPasswordModal" title="Reset User Password" size="md" no-footer>
       <ResetPassword
         v-if="selectedUser"
@@ -101,10 +124,12 @@ const { users, currentUser } = storeToRefs(userStore);
 const newUserModal = ref<InstanceType<typeof BModal>>();
 const newAdminModal = ref<InstanceType<typeof BModal>>();
 const rbacModal = ref<InstanceType<typeof BModal>>();
+const editUserModal = ref<InstanceType<typeof BModal>>();
 const resetPasswordModal = ref<InstanceType<typeof BModal>>();
 
 const selectedUserId = ref<number | null>(null);
 const selectedUser = ref<{ id: number; username: string } | null>(null);
+const editFormState = ref<Record<string, unknown> | null>(null);
 
 const userFields = [
   'username',
@@ -130,6 +155,21 @@ function openRbac(userId: number): void {
 function openResetPassword(user: { id: number; username: string }): void {
   selectedUser.value = user;
   resetPasswordModal.value?.show();
+}
+
+function openEditUser(user: Record<string, unknown>): void {
+  editFormState.value = { ...user };
+  editUserModal.value?.show();
+}
+
+function clearEditUser(): void {
+  editFormState.value = null;
+}
+
+async function submitEditUser(): Promise<void> {
+  if (editFormState.value) {
+    await userStore.editUser(editFormState.value as { id: number });
+  }
 }
 
 async function deleteUser(item: { id: number; username: string }): Promise<void> {
