@@ -101,7 +101,7 @@ const module: Module<UserState, RootState> = {
       }
     },
     async USER_LOGIN(context, user: { username: string; password: string }) {
-      const response = await fetch(makeURL('/api/v2/auth/login'), {
+      const response = await fetch(makeURL('/api/v1/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,7 +152,7 @@ const module: Module<UserState, RootState> = {
       await context.commit('CLEAR_WS_AUTHENTICATION');
       if (token) {
         try {
-          const response = await fetch(makeURL('/api/v2/auth/logout'), {
+          const response = await fetch(makeURL('/api/v1/auth/logout'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -175,7 +175,7 @@ const module: Module<UserState, RootState> = {
       }
     },
     async GET_CURRENT_USER(context) {
-      const response = await fetch(makeURL('/api/v2/auth'));
+      const response = await fetch(makeURL('/api/v1/auth'));
       if (response.ok) {
         const user = await response.json();
         const userJson = isEmpty(user) ? null : user;
@@ -186,7 +186,7 @@ const module: Module<UserState, RootState> = {
     },
     async REFRESH_TOKEN(context) {
       if (!context.getters.AUTH_TOKEN) return false;
-      const response = await fetch(makeURL('/api/v2/auth/refresh-token'), {
+      const response = await fetch(makeURL('/api/v1/auth/refresh-token'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

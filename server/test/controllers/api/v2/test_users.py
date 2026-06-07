@@ -17,7 +17,7 @@ class TestUsersV2Controller(DigiScriptTestCase):
             ),
         )
         resp = self.fetch(
-            "/api/v2/auth/login",
+            "/api/v1/auth/login",
             method="POST",
             body=escape.json_encode({"username": username, "password": password}),
         )
@@ -63,7 +63,7 @@ class TestUsersV2Controller(DigiScriptTestCase):
         admin_token = self._setup_admin()
         self._create_user(admin_token, username="nonadmin")
         resp = self.fetch(
-            "/api/v2/auth/login",
+            "/api/v1/auth/login",
             method="POST",
             body=escape.json_encode({"username": "nonadmin", "password": "userpass"}),
         )
@@ -171,7 +171,7 @@ class TestUsersV2Controller(DigiScriptTestCase):
         admin_token = self._setup_admin()
         user_id = self._create_user(admin_token)
         resp = self.fetch(
-            "/api/v2/auth/login",
+            "/api/v1/auth/login",
             method="POST",
             body=escape.json_encode({"username": "user", "password": "userpass"}),
         )
@@ -253,7 +253,7 @@ class TestUsersV2Controller(DigiScriptTestCase):
         admin_token = self._setup_admin()
         user_id = self._create_user(admin_token)
         resp = self.fetch(
-            "/api/v2/auth/login",
+            "/api/v1/auth/login",
             method="POST",
             body=escape.json_encode({"username": "user", "password": "userpass"}),
         )

@@ -41,7 +41,7 @@ export const useUserStore = defineStore('user', {
     async login(username: string, password: string): Promise<boolean> {
       const wsStore = useWebSocketStore();
 
-      const response = await fetch(makeURL('/api/v2/auth/login'), {
+      const response = await fetch(makeURL('/api/v1/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -99,7 +99,7 @@ export const useUserStore = defineStore('user', {
 
       if (token) {
         try {
-          const response = await fetch(makeURL('/api/v2/auth/logout'), {
+          const response = await fetch(makeURL('/api/v1/auth/logout'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ export const useUserStore = defineStore('user', {
     async refreshToken(): Promise<boolean> {
       if (!this.authToken) return false;
       try {
-        const response = await fetch(makeURL('/api/v2/auth/refresh-token'), {
+        const response = await fetch(makeURL('/api/v1/auth/refresh-token'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
@@ -155,7 +155,7 @@ export const useUserStore = defineStore('user', {
     },
 
     async getCurrentUser(): Promise<void> {
-      const response = await fetch(makeURL('/api/v2/auth'));
+      const response = await fetch(makeURL('/api/v1/auth'));
       if (response.ok) {
         const user = await response.json();
         this.currentUser = isEmpty(user) ? null : user;
