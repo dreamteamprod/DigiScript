@@ -9,6 +9,7 @@ import {
   waitForAppReady,
   waitForModal,
   waitForModalClosed,
+  confirmModal,
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
@@ -170,6 +171,48 @@ test('can configure RBAC permissions for testuser', async () => {
     .catch(() => {});
   await page.locator('.modal.show .modal-header .btn-close').click();
   await waitForModalClosed(page);
+});
+
+test('can edit a user to promote to admin', async () => {
+  const userRow = page.locator('tr', { has: page.locator('td:has-text("testuser")') });
+
+  // Verify the badge shows "User" before edit
+  await expect(userRow.locator('.badge:has-text("User")')).toBeVisible();
+
+  await userRow.locator('button:has-text("Edit")').click();
+  await waitForModal(page, 'Edit User');
+
+  // Toggle the admin switch on
+  await page.locator('.modal.show .form-check-input').click();
+  await expect(page.locator('.modal.show')).toContainText('Admin');
+
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  // Badge should now show "Admin"
+  await expect(userRow.locator('.badge:has-text("Admin")')).toBeVisible({ timeout: 5_000 });
+});
+
+test('can edit a user to demote from admin', async () => {
+  const userRow = page.locator('tr', { has: page.locator('td:has-text("testuser")') });
+
+  await userRow.locator('button:has-text("Edit")').click();
+  await waitForModal(page, 'Edit User');
+
+  // Toggle the admin switch off
+  await page.locator('.modal.show .form-check-input').click();
+  await expect(page.locator('.modal.show')).toContainText('Standard User');
+
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  // Badge should show "User" again
+  await expect(userRow.locator('.badge:has-text("User")')).toBeVisible({ timeout: 5_000 });
+});
+
+test('edit button is disabled for the current user', async () => {
+  const adminRow = page.locator('tr', { has: page.locator('td:has-text("admin")') });
+  await expect(adminRow.locator('button:has-text("Edit")')).toBeDisabled();
 });
 
 test('resets the non-admin user password', async () => {

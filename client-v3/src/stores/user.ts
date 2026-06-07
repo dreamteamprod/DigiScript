@@ -176,7 +176,7 @@ export const useUserStore = defineStore('user', {
 
     async getUsers(): Promise<void> {
       if (!this.currentUser?.is_admin) return;
-      const response = await fetch(makeURL('/api/v1/auth/users'));
+      const response = await fetch(makeURL('/api/v2/users'));
       if (response.ok) {
         const data = await response.json();
         this.users = data.users;
@@ -187,7 +187,7 @@ export const useUserStore = defineStore('user', {
     },
 
     async createUser(user: Record<string, unknown>): Promise<void> {
-      const response = await fetch(makeURL('/api/v1/auth/create'), {
+      const response = await fetch(makeURL('/api/v2/users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
@@ -203,10 +203,9 @@ export const useUserStore = defineStore('user', {
     },
 
     async deleteUser(userId: number): Promise<void> {
-      const response = await fetch(makeURL('/api/v1/auth/delete'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: userId }),
+      const params = new URLSearchParams({ id: String(userId) });
+      const response = await fetch(makeURL(`/api/v2/users?${params}`), {
+        method: 'DELETE',
       });
       if (response.ok) {
         await this.getUsers();
@@ -264,7 +263,7 @@ export const useUserStore = defineStore('user', {
     },
 
     async generateApiToken(): Promise<Record<string, unknown> | null> {
-      const response = await fetch(makeURL('/api/v1/auth/api-token/generate'), {
+      const response = await fetch(makeURL('/api/v2/users/token'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -279,10 +278,8 @@ export const useUserStore = defineStore('user', {
     },
 
     async revokeApiToken(): Promise<boolean> {
-      const response = await fetch(makeURL('/api/v1/auth/api-token/revoke'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+      const response = await fetch(makeURL('/api/v2/users/token'), {
+        method: 'DELETE',
       });
       if (response.ok) {
         toast.success('API token revoked successfully!');
@@ -294,10 +291,27 @@ export const useUserStore = defineStore('user', {
     },
 
     async getApiToken(): Promise<Record<string, unknown> | null> {
-      const response = await fetch(makeURL('/api/v1/auth/api-token'));
+      const response = await fetch(makeURL('/api/v2/users/token'));
       if (response.ok) return response.json();
       toast.error('Unable to get API token!');
       return null;
+    },
+
+    async editUser(user: { id: number; [key: string]: unknown }): Promise<void> {
+      const params = new URLSearchParams({ id: String(user.id) });
+      const response = await fetch(makeURL(`/api/v2/users?${params}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user),
+      });
+      if (response.ok) {
+        await this.getUsers();
+        toast.success('User updated!');
+      } else {
+        const body = await response.json();
+        log.error('Unable to update user');
+        toast.error(`Unable to update user: ${body.message || 'Unknown error'}`);
+      }
     },
 
     async getStageDirectionStyleOverrides(): Promise<void> {

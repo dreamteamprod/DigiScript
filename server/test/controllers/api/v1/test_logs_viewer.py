@@ -238,18 +238,29 @@ class TestLogViewerController(DigiScriptTestCase):
         self.assertIn("alice log", messages)
         self.assertNotIn("bob log", messages)
 
-    def test_username_filter_ignored_for_server_source(self):
-        """username param should have no effect on the server source."""
-        self._inject_server_entry("server_entry_for_username_test")
+    def test_username_filter_applies_to_server_source(self):
+        """username filter should work for server source, matching the client behaviour."""
+        get_server_buffer().emit(_make_record("alice server log", username="alice"))
+        get_server_buffer().emit(_make_record("bob server log", username="bob"))
         token = self._create_and_login_admin()
 
-        resp_no_filter = escape.json_decode(
-            self._fetch_view(token=token, source="server").body
-        )
-        resp_with_filter = escape.json_decode(
+        resp = escape.json_decode(
             self._fetch_view(token=token, source="server", username="alice").body
         )
-        self.assertEqual(resp_no_filter["total"], resp_with_filter["total"])
+        messages = [e["message"] for e in resp["entries"]]
+        self.assertIn("alice server log", messages)
+        self.assertNotIn("bob server log", messages)
+
+    def test_username_filter_excludes_entries_without_username(self):
+        """Server entries that carry no username field are excluded by a username filter."""
+        self._inject_server_entry("no_user_server_entry")
+        token = self._create_and_login_admin()
+
+        resp = escape.json_decode(
+            self._fetch_view(token=token, source="server", username="alice").body
+        )
+        messages = [e["message"] for e in resp["entries"]]
+        self.assertNotIn("no_user_server_entry", messages)
 
     # ------------------------------------------------------------------
     # Pagination

@@ -59,6 +59,14 @@ Click the **New User** button to add a new user. You'll need to provide:
 
 Users are created at the system level and are not tied to individual shows. Their access to specific shows and resources is controlled through RBAC configuration.
 
+#### Editing Users
+
+To change a user's properties, click the **Edit** button next to their row. This opens a modal where you can:
+
+- Toggle the user's account type between **Admin** and **Standard User**
+
+> **Note:** You cannot edit your own account via this interface. Admin status changes take effect immediately — the user's next API request will reflect the updated role.
+
 #### Configuring RBAC
 
 Once users have been created, their permissions can be configured by clicking the **RBAC** button next to each user. This opens a detailed permissions interface where you can:
@@ -67,6 +75,26 @@ Once users have been created, their permissions can be configured by clicking th
 - Configure fine-grained permissions per specific resource (e.g., write access to lighting cues but not sound cues)
 
 RBAC configuration determines what shows a user can access and what actions they can perform within those shows.
+
+### Log Viewer
+
+The **Logs** tab (admin only) provides a real-time view of server and client log entries stored in the in-memory log buffer.
+
+#### Sources
+
+- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs, request body debug logs, WebSocket connection events, and general application messages.
+- **Client** — Logs forwarded from connected browser clients via the `/api/v1/logs/batch` endpoint.
+
+#### Username Attribution
+
+All log entries are attributed to the logged-in user where one is present:
+
+- **Server logs**: Each HTTP access log line and request-body debug line includes `[username]` in the message (e.g. `200 GET /api/v1/user/settings (127.0.0.1) [alice] 5.23ms`). WebSocket messages and close events also include the username once the connection has been authenticated.
+- **Client logs**: The server extracts the username from the JWT token on each batch submission, so all client log entries are attributed even if the client sends no user information itself.
+
+#### Filtering
+
+Use the **Username** filter field to show only entries from a specific user. This filter applies to both Server and Client sources. Combined with the **Level** and **Search** filters, you can quickly isolate activity from a particular user across the full log stream.
 
 ### Backup Management
 

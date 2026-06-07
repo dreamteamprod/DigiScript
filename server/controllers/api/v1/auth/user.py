@@ -72,6 +72,7 @@ class UserCreateController(BaseAPIController):
                         username=username,
                         password=hashed_password,
                         is_admin=is_admin,
+                        created_on=datetime.now(tz=timezone.utc),
                     )
                 )
                 session.commit()

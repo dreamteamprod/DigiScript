@@ -53,6 +53,7 @@ class Route:
 
 class ApiVersion(Enum):
     V1 = 1
+    V2 = 2
 
 
 class ApiRoute(Route):

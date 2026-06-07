@@ -10,6 +10,9 @@
             </b-button-group>
           </template>
           <template #head(is_admin)="data"> User Type </template>
+          <template #cell(created_on)="data">
+            {{ data.item.created_on ? data.item.created_on : 'N/A' }}
+          </template>
           <template #cell(last_login)="data">
             {{ data.item.last_login ? data.item.last_login : 'Never' }}
           </template>
@@ -29,6 +32,14 @@
                 @click.stop="setEditUser(data.item.id)"
               >
                 RBAC
+              </b-button>
+              <b-button
+                v-b-modal.edit-user
+                variant="secondary"
+                :disabled="data.item.id === CURRENT_USER.id"
+                @click.stop="openEditUser(data.item)"
+              >
+                Edit
               </b-button>
               <b-button
                 v-b-modal.reset-password
@@ -62,6 +73,22 @@
       <config-rbac :user-id="editUser" />
     </b-modal>
     <b-modal
+      id="edit-user"
+      ref="edit-user"
+      title="Edit User"
+      size="sm"
+      @ok="submitEditUser"
+      @hidden="clearEditUser"
+    >
+      <b-form v-if="editFormState">
+        <b-form-group label="User Type">
+          <b-form-checkbox v-model="editFormState.is_admin" switch>
+            {{ editFormState.is_admin ? 'Admin' : 'Standard User' }}
+          </b-form-checkbox>
+        </b-form-group>
+      </b-form>
+    </b-modal>
+    <b-modal
       id="reset-password"
       ref="reset-password"
       title="Reset User Password"
@@ -93,8 +120,16 @@ export default defineComponent({
   components: { CreateUser, ConfigRbac, ResetPassword },
   data() {
     return {
-      userFields: ['username', 'last_login', 'last_seen', 'is_admin', { key: 'btn', label: '' }],
+      userFields: [
+        'username',
+        'created_on',
+        'last_login',
+        'last_seen',
+        'is_admin',
+        { key: 'btn', label: '' },
+      ],
       editUser: null as number | null,
+      editFormState: null as Record<string, unknown> | null,
       resetUser: null as { id: number; username: string } | null,
       clientTimeout: null as ReturnType<typeof setTimeout> | null,
     };
@@ -138,11 +173,22 @@ export default defineComponent({
         await (this as any).DELETE_USER(data.item.id);
       }
     },
+    openEditUser(user: Record<string, unknown>): void {
+      this.editFormState = { ...user };
+    },
+    clearEditUser(): void {
+      this.editFormState = null;
+    },
+    async submitEditUser(): Promise<void> {
+      if (this.editFormState) {
+        await (this as any).EDIT_USER(this.editFormState);
+      }
+    },
     async getUsers(): Promise<void> {
       await (this as any).GET_USERS();
       this.clientTimeout = setTimeout(this.getUsers, 5000);
     },
-    ...mapActions(['GET_USERS', 'DELETE_USER']),
+    ...mapActions(['GET_USERS', 'DELETE_USER', 'EDIT_USER']),
   },
 });
 </script>
