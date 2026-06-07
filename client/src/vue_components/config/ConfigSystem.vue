@@ -81,13 +81,13 @@
         id="connected-clients-table"
         :items="connectedClients"
         :fields="clientFields"
-        :per-page="perPage"
-        :current-page="currentPageClients"
+        :per-page="rowsPerPage"
+        :current-page="currentPage"
         small
       />
       <pagination-controls
-        :per-page.sync="perPage"
-        :current-page.sync="currentPageClients"
+        :per-page.sync="rowsPerPage"
+        :current-page.sync="currentPage"
         :total-rows="connectedClients.length"
         aria-controls="connected-clients-table"
       />
@@ -102,6 +102,7 @@
 import { defineComponent } from 'vue';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
+import paginationMixin from '@/mixins/paginationMixin';
 
 interface VersionStatus {
   current_version: string | null;
@@ -114,11 +115,10 @@ interface VersionStatus {
 
 export default defineComponent({
   name: 'ConfigSystem',
+  mixins: [paginationMixin],
   data() {
     return {
-      perPage: 5,
       connectedClients: [] as unknown[],
-      currentPageClients: 1,
       clientFields: [
         { key: 'internal_id', label: 'UUID' },
         { key: 'remote_ip', label: 'IP' },
@@ -145,11 +145,6 @@ export default defineComponent({
         port: number | null;
       } | null,
     };
-  },
-  watch: {
-    perPage() {
-      this.currentPageClients = 1;
-    },
   },
   async mounted() {
     await Promise.all([this.getConnectedClients(), this.getVersionStatus(), this.getSystemInfo()]);

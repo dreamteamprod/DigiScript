@@ -121,10 +121,11 @@ import { defineComponent } from 'vue';
 import { required } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'CrewList',
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       crewFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
@@ -132,8 +133,6 @@ export default defineComponent({
         firstName: '',
         lastName: '',
       },
-      rowsPerPage: 15,
-      currentPage: 1,
       editFormState: {
         id: null as number | null,
         showID: null as number | null,
@@ -162,11 +161,6 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['CREW_LIST', 'IS_SHOW_EDITOR']),
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
-    },
   },
   async mounted(): Promise<void> {
     await (this as any).GET_CREW_LIST();

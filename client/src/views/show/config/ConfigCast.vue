@@ -148,11 +148,12 @@ import { mapGetters, mapActions } from 'vuex';
 import CastLineStats from '@/vue_components/show/config/cast/CastLineStats.vue';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigCast',
   components: { CastLineStats },
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       castFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
@@ -160,8 +161,6 @@ export default defineComponent({
         firstName: '',
         lastName: '',
       },
-      rowsPerPage: 15,
-      currentPage: 1,
       editFormState: {
         id: null as number | null,
         showID: null as number | null,
@@ -185,11 +184,6 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['CAST_LIST', 'IS_SHOW_EDITOR']),
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
-    },
   },
   async mounted(): Promise<void> {
     await (this as any).GET_CAST_LIST();

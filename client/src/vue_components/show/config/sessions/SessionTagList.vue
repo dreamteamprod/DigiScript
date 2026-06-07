@@ -213,6 +213,7 @@ import { mapActions, mapGetters } from 'vuex';
 import log from 'loglevel';
 import { required } from 'vuelidate/lib/validators';
 import { contrastColor } from 'contrast-color';
+import paginationMixin from '@/mixins/paginationMixin';
 
 function isValidHexColor(value: string): boolean {
   if (!value) return false;
@@ -239,6 +240,7 @@ function isTagNameUnique(this: any, value: string): boolean {
 
 export default defineComponent({
   name: 'SessionTagList',
+  mixins: [paginationMixin],
   data() {
     return {
       tagFields: [
@@ -246,8 +248,6 @@ export default defineComponent({
         { key: 'session_count', label: 'Sessions' },
         { key: 'btn', label: '' },
       ],
-      rowsPerPage: 15,
-      currentPage: 1,
       newTagForm: {
         tag: '',
         colour: '#3498DB',
@@ -284,11 +284,6 @@ export default defineComponent({
     ...mapGetters(['SESSION_TAGS', 'SHOW_SESSIONS_LIST', 'IS_SHOW_EDITOR']),
     existingTagNames(): Set<string> {
       return new Set(((this as any).SESSION_TAGS || []).map((t: any) => t.tag.toLowerCase()));
-    },
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
     },
   },
   methods: {

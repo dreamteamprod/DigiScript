@@ -165,15 +165,14 @@ import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigActs',
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       loading: true,
-      rowsPerPage: 15,
-      currentPage: 1,
       actFields: [
         'name',
         { key: 'interval_after', label: 'Interval After' },
@@ -265,11 +264,6 @@ export default defineComponent({
       return ret;
     },
     ...mapGetters(['ACT_LIST', 'CURRENT_SHOW', 'ACT_BY_ID', 'IS_SHOW_EDITOR']),
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
-    },
   },
   async mounted(): Promise<void> {
     await (this as any).GET_ACT_LIST();

@@ -226,18 +226,17 @@ import { defineComponent } from 'vue';
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
-
+import paginationMixin from '@/mixins/paginationMixin';
 import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
 import CueCountStats from '@/vue_components/show/config/cues/CueCountStats.vue';
 
 export default defineComponent({
   name: 'ConfigCues',
   components: { CueCountStats, CueEditor },
+  mixins: [paginationMixin],
   data() {
     return {
       cueTypeFields: ['prefix', 'description', 'colour', { key: 'btn', label: '' }],
-      rowsPerPage: 15,
-      currentPage: 1,
       newCueTypeForm: {
         prefix: '',
         description: '',
@@ -292,11 +291,6 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['CUE_TYPES', 'IS_SHOW_EDITOR']),
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
-    },
   },
   async mounted(): Promise<void> {
     await (this as any).GET_CUE_TYPES();

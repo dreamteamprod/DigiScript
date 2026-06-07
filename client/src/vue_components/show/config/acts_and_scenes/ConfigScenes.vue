@@ -215,15 +215,14 @@ import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigScenes',
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       loading: true,
-      rowsPerPage: 15,
-      currentPage: 1,
       sceneFields: [
         'name',
         'act',
@@ -399,11 +398,6 @@ export default defineComponent({
         });
       }
       return ret;
-    },
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
     },
   },
   async mounted(): Promise<void> {

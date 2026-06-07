@@ -150,9 +150,11 @@ import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import { makeURL } from '@/js/utils';
 import log from 'loglevel';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigShows',
+  mixins: [paginationMixin],
   data() {
     return {
       loaded: false,
@@ -164,8 +166,6 @@ export default defineComponent({
         'created_at',
         { key: 'btn', label: '' },
       ],
-      rowsPerPage: 15,
-      currentPage: 1,
       isSubmittingLoad: false,
       isSubmittingShow: false,
       isDeleting: false,
@@ -199,11 +199,6 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['AVAILABLE_SHOWS', 'CURRENT_SHOW', 'SCRIPT_MODES']),
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
-    },
   },
   async mounted() {
     await Promise.all([(this as any).GET_AVAILABLE_SHOWS(), (this as any).GET_SCRIPT_MODES()]);

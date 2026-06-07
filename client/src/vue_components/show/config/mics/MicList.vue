@@ -124,6 +124,7 @@ import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
+import paginationMixin from '@/mixins/paginationMixin';
 
 function isNameUnique(this: any, value: string): boolean {
   if (value === '') {
@@ -143,11 +144,10 @@ function isNameUnique(this: any, value: string): boolean {
 
 export default defineComponent({
   name: 'MicList',
+  mixins: [paginationMixin],
   data() {
     return {
       micFields: ['name', 'description', { key: 'btn', label: '' }],
-      rowsPerPage: 15,
-      currentPage: 1,
       newMicrophoneForm: {
         name: '',
         description: '',
@@ -187,11 +187,6 @@ export default defineComponent({
       );
     },
     ...mapGetters(['MICROPHONES', 'IS_SHOW_EDITOR']),
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
-    },
   },
   methods: {
     openEditMicForm(mic: any): void {

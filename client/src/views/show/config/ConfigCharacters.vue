@@ -205,15 +205,14 @@ import CharacterTimeline from '@/vue_components/show/config/characters/Character
 import log from 'loglevel';
 import CharacterGroups from '@/vue_components/show/config/characters/CharacterGroups.vue';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigCharacters',
   components: { CharacterGroups, CharacterLineStats, CharacterTimeline },
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
-      rowsPerPage: 15,
-      currentPage: 1,
       characterFields: [
         'name',
         'description',
@@ -268,11 +267,6 @@ export default defineComponent({
         (c: any) =>
           !(this as any).mergeSourceCharacter || c.id !== (this as any).mergeSourceCharacter.id
       );
-    },
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
     },
   },
   async mounted(): Promise<void> {

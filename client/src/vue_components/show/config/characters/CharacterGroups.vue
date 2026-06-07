@@ -168,16 +168,15 @@ import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'CharacterGroups',
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       loading: true,
       characterGroupFields: ['name', 'description', 'characters', { key: 'btn', label: '' }],
-      rowsPerPage: 15,
-      currentPage: 1,
       tempCharacterList: [] as any[],
       newFormState: {
         name: '',
@@ -210,11 +209,6 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'IS_SHOW_EDITOR']),
-  },
-  watch: {
-    rowsPerPage() {
-      this.currentPage = 1;
-    },
   },
   async mounted(): Promise<void> {
     await Promise.all([
