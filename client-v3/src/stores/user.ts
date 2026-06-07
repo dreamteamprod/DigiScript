@@ -220,7 +220,7 @@ export const useUserStore = defineStore('user', {
     async changePassword(newPassword: string, oldPassword?: string): Promise<boolean> {
       const body: Record<string, string> = { new_password: newPassword };
       if (oldPassword) body.old_password = oldPassword;
-      const response = await fetch(makeURL('/api/v2/users/password'), {
+      const response = await fetch(makeURL('/api/v1/auth/change-password'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
