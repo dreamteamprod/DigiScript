@@ -20,13 +20,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="CREW_LIST.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="CREW_LIST.length"
-      :per-page="rowsPerPage"
       aria-controls="crew-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-crew"
@@ -164,6 +162,11 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['CREW_LIST', 'IS_SHOW_EDITOR']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
+    },
   },
   async mounted(): Promise<void> {
     await (this as any).GET_CREW_LIST();

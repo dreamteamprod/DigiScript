@@ -49,13 +49,11 @@
                 </b-button-group>
               </template>
             </b-table>
-            <b-pagination
-              v-show="CUE_TYPES.length > rowsPerPage"
-              v-model="currentPage"
+            <pagination-controls
+              :per-page.sync="rowsPerPage"
+              :current-page.sync="currentPage"
               :total-rows="CUE_TYPES.length"
-              :per-page="rowsPerPage"
               aria-controls="cue-types-table"
-              class="justify-content-center"
             />
           </b-tab>
           <b-tab title="Cue Configuration">
@@ -294,6 +292,11 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['CUE_TYPES', 'IS_SHOW_EDITOR']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
+    },
   },
   async mounted(): Promise<void> {
     await (this as any).GET_CUE_TYPES();

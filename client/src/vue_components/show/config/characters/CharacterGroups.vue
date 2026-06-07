@@ -43,13 +43,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="CHARACTER_GROUP_LIST.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="CHARACTER_GROUP_LIST.length"
-      :per-page="rowsPerPage"
       aria-controls="character-group-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-character-group"
@@ -212,6 +210,11 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['CHARACTER_LIST', 'CHARACTER_GROUP_LIST', 'IS_SHOW_EDITOR']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
+    },
   },
   async mounted(): Promise<void> {
     await Promise.all([

@@ -4,7 +4,7 @@
       id="acts-table"
       :items="actTableItems"
       :fields="actFields"
-      :per-page="rowsPerPage"
+      :per-page="perPage"
       :current-page="currentPage"
       show-empty
     >
@@ -46,13 +46,11 @@
         </BButtonGroup>
       </template>
     </BTable>
-    <BPagination
-      v-show="actTableItems.length > rowsPerPage"
-      v-model="currentPage"
+    <PaginationControls
+      v-model:per-page="perPage"
+      v-model:current-page="currentPage"
       :total-rows="actTableItems.length"
-      :per-page="rowsPerPage"
       aria-controls="acts-table"
-      class="justify-content-center"
     />
 
     <BModal
@@ -136,6 +134,7 @@ import log from 'loglevel';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import type { Act } from '@/types/api/show';
 
 const systemStore = useSystemStore();
@@ -143,8 +142,7 @@ const showStore = useShowStore();
 const { confirm } = useConfirm();
 
 const loading = ref(true);
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const submittingNewAct = ref(false);
 const submittingEditAct = ref(false);
 const deletingAct = ref(false);

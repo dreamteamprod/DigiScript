@@ -4,7 +4,7 @@
       id="session-tags-table"
       :items="showStore.sessionTags"
       :fields="tagFields"
-      :per-page="rowsPerPage"
+      :per-page="perPage"
       :current-page="currentPage"
       show-empty
     >
@@ -39,13 +39,11 @@
         </BButtonGroup>
       </template>
     </BTable>
-    <BPagination
-      v-show="showStore.sessionTags.length > rowsPerPage"
-      v-model="currentPage"
+    <PaginationControls
+      v-model:per-page="perPage"
+      v-model:current-page="currentPage"
       :total-rows="showStore.sessionTags.length"
-      :per-page="rowsPerPage"
       aria-controls="session-tags-table"
-      class="justify-content-center"
     />
 
     <BModal
@@ -198,14 +196,14 @@ import log from 'loglevel';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import type { SessionTag } from '@/types/api/session';
 
 const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const isSubmittingNewTag = ref(false);
 const isSubmittingEditTag = ref(false);
 const isSubmittingDeleteTag = ref(false);

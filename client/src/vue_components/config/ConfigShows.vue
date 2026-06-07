@@ -42,13 +42,11 @@
               </b-button-group>
             </template>
           </b-table>
-          <b-pagination
-            v-show="AVAILABLE_SHOWS.length > rowsPerPage"
-            v-model="currentPage"
+          <pagination-controls
+            :per-page.sync="rowsPerPage"
+            :current-page.sync="currentPage"
             :total-rows="AVAILABLE_SHOWS.length"
-            :per-page="rowsPerPage"
             aria-controls="shows-table"
-            class="justify-content-center"
           />
         </b-col>
       </b-row>
@@ -201,6 +199,11 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['AVAILABLE_SHOWS', 'CURRENT_SHOW', 'SCRIPT_MODES']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
+    },
   },
   async mounted() {
     await Promise.all([(this as any).GET_AVAILABLE_SHOWS(), (this as any).GET_SCRIPT_MODES()]);

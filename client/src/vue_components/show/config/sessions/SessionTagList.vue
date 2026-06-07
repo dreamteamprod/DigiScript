@@ -44,13 +44,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="SESSION_TAGS.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="SESSION_TAGS.length"
-      :per-page="rowsPerPage"
       aria-controls="session-tags-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-tag"
@@ -286,6 +284,11 @@ export default defineComponent({
     ...mapGetters(['SESSION_TAGS', 'SHOW_SESSIONS_LIST', 'IS_SHOW_EDITOR']),
     existingTagNames(): Set<string> {
       return new Set(((this as any).SESSION_TAGS || []).map((t: any) => t.tag.toLowerCase()));
+    },
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
     },
   },
   methods: {

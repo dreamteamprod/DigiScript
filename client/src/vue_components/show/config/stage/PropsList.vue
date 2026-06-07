@@ -23,13 +23,11 @@
             </b-button-group>
           </template>
         </b-table>
-        <b-pagination
-          v-show="PROP_TYPES.length > rowsPerPage"
-          v-model="currentPropTypePage"
+        <pagination-controls
+          :per-page.sync="rowsPerPage"
+          :current-page.sync="currentPropTypePage"
           :total-rows="PROP_TYPES.length"
-          :per-page="rowsPerPage"
           aria-controls="prop-type-table"
-          class="justify-content-center"
         />
       </b-col>
       <b-col cols="7">
@@ -57,13 +55,11 @@
             </b-button-group>
           </template>
         </b-table>
-        <b-pagination
-          v-show="PROPS_LIST.length > rowsPerPage"
-          v-model="currentPropPage"
+        <pagination-controls
+          :per-page.sync="rowsPerPage"
+          :current-page.sync="currentPropPage"
           :total-rows="PROPS_LIST.length"
-          :per-page="rowsPerPage"
           aria-controls="props-table"
-          class="justify-content-center"
         />
       </b-col>
     </b-row>
@@ -357,6 +353,12 @@ export default defineComponent({
       ];
     },
     ...mapGetters(['PROPS_LIST', 'PROP_TYPES', 'IS_SHOW_EDITOR', 'PROP_TYPE_BY_ID']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPropPage = 1;
+      this.currentPropTypePage = 1;
+    },
   },
   async mounted(): Promise<void> {
     await Promise.all([(this as any).GET_PROP_TYPES(), (this as any).GET_PROPS_LIST()]);

@@ -85,12 +85,11 @@
         :current-page="currentPageClients"
         small
       />
-      <b-pagination
-        v-model="currentPageClients"
+      <pagination-controls
+        :per-page.sync="perPage"
+        :current-page.sync="currentPageClients"
         :total-rows="connectedClients.length"
-        :per-page="perPage"
         aria-controls="connected-clients-table"
-        class="justify-content-center"
       />
     </b-modal>
   </div>
@@ -146,6 +145,11 @@ export default defineComponent({
         port: number | null;
       } | null,
     };
+  },
+  watch: {
+    perPage() {
+      this.currentPageClients = 1;
+    },
   },
   async mounted() {
     await Promise.all([this.getConnectedClients(), this.getVersionStatus(), this.getSystemInfo()]);

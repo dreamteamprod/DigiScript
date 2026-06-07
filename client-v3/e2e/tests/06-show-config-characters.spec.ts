@@ -83,6 +83,29 @@ test('deletes a character', async () => {
   });
 });
 
+// ── Rows per page selector ─────────────────────────────────────────────────
+
+test('rows per page selector is visible with correct default', async () => {
+  await expect(page.locator('text=Rows per page')).toBeVisible();
+  const select = page.locator('select').filter({ has: page.locator('option[value="15"]') }).first();
+  await expect(select).toHaveValue('15');
+});
+
+test('rows per page selector has all expected options', async () => {
+  const select = page.locator('select').filter({ has: page.locator('option[value="15"]') }).first();
+  const options = await select.locator('option').allTextContents();
+  expect(options).toEqual(expect.arrayContaining(['10', '15', '25', '50', 'All']));
+});
+
+test('selecting All hides the pagination nav', async () => {
+  const select = page.locator('select').filter({ has: page.locator('option[value="15"]') }).first();
+  await select.selectOption('0');
+  const paginationNav = page.locator('[aria-controls="character-table"]').locator('nav').first();
+  await expect(paginationNav).not.toBeVisible();
+  // Reset back to default
+  await select.selectOption('15');
+});
+
 // ── Character Merge ────────────────────────────────────────────────────────
 
 test('Merge button is visible for each character row', async () => {

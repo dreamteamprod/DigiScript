@@ -29,13 +29,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="MICROPHONES.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="MICROPHONES.length"
-      :per-page="rowsPerPage"
       aria-controls="microphones-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-microphone"
@@ -189,6 +187,11 @@ export default defineComponent({
       );
     },
     ...mapGetters(['MICROPHONES', 'IS_SHOW_EDITOR']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
+    },
   },
   methods: {
     openEditMicForm(mic: any): void {

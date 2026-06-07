@@ -8,7 +8,7 @@
               id="cast-table"
               :items="showStore.castList"
               :fields="castFields"
-              :per-page="rowsPerPage"
+              :per-page="perPage"
               :current-page="currentPage"
               show-empty
             >
@@ -40,13 +40,11 @@
                 </BButtonGroup>
               </template>
             </BTable>
-            <BPagination
-              v-show="showStore.castList.length > rowsPerPage"
-              v-model="currentPage"
+            <PaginationControls
+              v-model:per-page="perPage"
+              v-model:current-page="currentPage"
               :total-rows="showStore.castList.length"
-              :per-page="rowsPerPage"
               aria-controls="cast-table"
-              class="justify-content-center"
             />
           </BTab>
           <BTab title="Line Counts">
@@ -126,6 +124,7 @@ import log from 'loglevel';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import CastLineStats from '@/components/show/config/cast/CastLineStats.vue';
 import type { Cast } from '@/types/api/show';
 
@@ -133,8 +132,7 @@ const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const submittingNewCast = ref(false);
 const submittingEditCast = ref(false);
 const deletingCast = ref(false);

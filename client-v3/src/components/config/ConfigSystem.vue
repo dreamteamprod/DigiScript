@@ -73,12 +73,11 @@
         :current-page="currentPage"
         small
       />
-      <BPagination
-        v-model="currentPage"
+      <PaginationControls
+        v-model:per-page="perPage"
+        v-model:current-page="currentPage"
         :total-rows="connectedSessions.length"
-        :per-page="perPage"
         aria-controls="connected-clients-table"
-        class="justify-content-center"
       />
     </BModal>
   </div>
@@ -92,6 +91,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { storeToRefs } from 'pinia';
 import { BModal } from 'bootstrap-vue-next';
 import { useSystemStore } from '@/stores/system';
+import { usePagination } from '@/composables/usePagination';
 import { toast } from '@/js/toast';
 
 const systemStore = useSystemStore();
@@ -99,8 +99,7 @@ const { connectedSessions, versionStatus, serverInfo } = storeToRefs(systemStore
 
 const loading = ref(true);
 const isCheckingVersion = ref(false);
-const currentPage = ref(1);
-const perPage = 5;
+const { perPage, currentPage } = usePagination();
 const clientsModal = ref<InstanceType<typeof BModal>>();
 
 const clientFields = [

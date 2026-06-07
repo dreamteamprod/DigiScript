@@ -51,13 +51,11 @@
                 </b-button-group>
               </template>
             </b-table>
-            <b-pagination
-              v-show="CHARACTER_LIST.length > rowsPerPage"
-              v-model="currentPage"
+            <pagination-controls
+              :per-page.sync="rowsPerPage"
+              :current-page.sync="currentPage"
               :total-rows="CHARACTER_LIST.length"
-              :per-page="rowsPerPage"
               aria-controls="character-table"
-              class="justify-content-center"
             />
           </b-tab>
           <b-tab title="Character Groups">
@@ -270,6 +268,11 @@ export default defineComponent({
         (c: any) =>
           !(this as any).mergeSourceCharacter || c.id !== (this as any).mergeSourceCharacter.id
       );
+    },
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
     },
   },
   async mounted(): Promise<void> {

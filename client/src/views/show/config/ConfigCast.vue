@@ -36,13 +36,11 @@
                 </b-button-group>
               </template>
             </b-table>
-            <b-pagination
-              v-show="CAST_LIST.length > rowsPerPage"
-              v-model="currentPage"
+            <pagination-controls
+              :per-page.sync="rowsPerPage"
+              :current-page.sync="currentPage"
               :total-rows="CAST_LIST.length"
-              :per-page="rowsPerPage"
               aria-controls="cast-table"
-              class="justify-content-center"
             />
           </b-tab>
           <b-tab title="Line Counts">
@@ -187,6 +185,11 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['CAST_LIST', 'IS_SHOW_EDITOR']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
+    },
   },
   async mounted(): Promise<void> {
     await (this as any).GET_CAST_LIST();

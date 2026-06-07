@@ -5,7 +5,7 @@
         <BTable
           :items="scriptStore.stageDirectionStyles"
           :fields="columns"
-          :per-page="rowsPerPage"
+          :per-page="perPage"
           :current-page="currentPage"
           show-empty
         >
@@ -53,11 +53,10 @@
             </BButtonGroup>
           </template>
         </BTable>
-        <BPagination
-          v-if="scriptStore.stageDirectionStyles.length > rowsPerPage"
-          v-model="currentPage"
+        <PaginationControls
+          v-model:per-page="perPage"
+          v-model:current-page="currentPage"
           :total-rows="scriptStore.stageDirectionStyles.length"
-          :per-page="rowsPerPage"
         />
       </BCol>
     </BRow>
@@ -147,6 +146,7 @@ import log from 'loglevel';
 import { useScriptStore } from '@/stores/script';
 import { useSystemStore } from '@/stores/system';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import { useFormValidation } from '@/composables/useFormValidation';
 import type { StageDirectionStyle } from '@/types/api/script';
 import { toast } from '@/js/toast';
@@ -156,8 +156,7 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const isSubmittingNew = ref(false);
 const isSubmittingEdit = ref(false);
 const isDeleting = ref(false);

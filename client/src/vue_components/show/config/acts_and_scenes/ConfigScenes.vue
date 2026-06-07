@@ -49,13 +49,11 @@
             </b-button-group>
           </template>
         </b-table>
-        <b-pagination
-          v-show="sceneTableItems.length > rowsPerPage"
-          v-model="currentPage"
+        <pagination-controls
+          :per-page.sync="rowsPerPage"
+          :current-page.sync="currentPage"
           :total-rows="sceneTableItems.length"
-          :per-page="rowsPerPage"
           aria-controls="scene-table"
-          class="justify-content-center"
         />
       </b-col>
       <b-col cols="4">
@@ -401,6 +399,11 @@ export default defineComponent({
         });
       }
       return ret;
+    },
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
     },
   },
   async mounted(): Promise<void> {

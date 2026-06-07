@@ -48,13 +48,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="actTableItems.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="actTableItems.length"
-      :per-page="rowsPerPage"
       aria-controls="acts-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-act"
@@ -267,6 +265,11 @@ export default defineComponent({
       return ret;
     },
     ...mapGetters(['ACT_LIST', 'CURRENT_SHOW', 'ACT_BY_ID', 'IS_SHOW_EDITOR']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentPage = 1;
+    },
   },
   async mounted(): Promise<void> {
     await (this as any).GET_ACT_LIST();

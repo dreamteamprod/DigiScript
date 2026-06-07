@@ -6,6 +6,7 @@ import Vuelidate from 'vuelidate';
 import ToastPlugin from 'vue-toast-notification';
 import Multiselect from 'vue-multiselect';
 import { Splitpanes, Pane } from 'splitpanes';
+import PaginationControls from '@/vue_components/shared/PaginationControls.vue';
 
 import store from '@/store/store';
 import App from './App.vue';
@@ -30,6 +31,7 @@ Vue.use(IconsPlugin);
 Vue.component('MultiSelect', Multiselect);
 Vue.component('SplitPanes', Splitpanes);
 Vue.component('SplitPane', Pane);
+Vue.component('PaginationControls', PaginationControls);
 
 Vue.use(Vuex);
 Vue.use(Vuelidate as any); // @types/vuelidate bundles its own Vue copy that conflicts with main package
