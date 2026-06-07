@@ -1,8 +1,14 @@
 <template>
   <div class="d-flex align-items-center justify-content-center gap-3 mt-2">
     <div class="d-flex align-items-center gap-2">
-      <label class="mb-0 text-nowrap">Rows per page</label>
-      <BFormSelect v-model="perPage" :options="PER_PAGE_OPTIONS" size="sm" style="width: auto" />
+      <label class="mb-0 text-nowrap" :for="selectId">Rows per page</label>
+      <BFormSelect
+        :id="selectId"
+        v-model="perPage"
+        :options="PER_PAGE_OPTIONS"
+        size="sm"
+        style="width: auto"
+      />
     </div>
     <BPagination
       v-show="perPage > 0"
@@ -10,14 +16,16 @@
       :total-rows="totalRows"
       :per-page="perPage"
       :aria-controls="ariaControls"
+      class="mb-0"
     />
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { PER_PAGE_OPTIONS } from '@/composables/usePagination';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     totalRows: number;
     ariaControls?: string;
@@ -27,4 +35,14 @@ withDefaults(
 
 const perPage = defineModel<number>('perPage', { required: true });
 const currentPage = defineModel<number>('currentPage', { required: true });
+
+const selectId = computed(() =>
+  props.ariaControls ? `${props.ariaControls}-per-page` : 'per-page-select'
+);
 </script>
+
+<style scoped>
+:deep(.pagination) {
+  margin-bottom: 0;
+}
+</style>

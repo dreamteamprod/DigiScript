@@ -1,8 +1,9 @@
 <template>
   <div class="d-flex align-items-center justify-content-center mt-2" style="gap: 1rem">
     <div class="d-flex align-items-center" style="gap: 0.5rem">
-      <label class="mb-0 text-nowrap">Rows per page</label>
+      <label class="mb-0 text-nowrap" :for="selectId">Rows per page</label>
       <b-form-select
+        :id="selectId"
         :value="perPage"
         :options="perPageOptions"
         size="sm"
@@ -12,6 +13,7 @@
     </div>
     <b-pagination
       v-show="perPage > 0"
+      class="mb-0"
       :value="currentPage"
       :total-rows="totalRows"
       :per-page="perPage"
@@ -57,6 +59,11 @@ export default defineComponent({
     return {
       perPageOptions: PER_PAGE_OPTIONS,
     };
+  },
+  computed: {
+    selectId(): string {
+      return this.ariaControls ? `${this.ariaControls}-per-page` : 'per-page-select';
+    },
   },
 });
 </script>
