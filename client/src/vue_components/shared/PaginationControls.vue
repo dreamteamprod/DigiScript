@@ -1,5 +1,9 @@
 <template>
-  <div class="d-flex align-items-center justify-content-center mt-2 mb-3" style="gap: 1rem">
+  <div
+    v-if="showControls"
+    class="d-flex align-items-center justify-content-center mt-2 mb-3"
+    style="gap: 1rem"
+  >
     <div class="d-flex align-items-center" style="gap: 0.5rem">
       <label class="mb-0 text-nowrap" :for="selectId">Rows per page</label>
       <b-form-select
@@ -12,7 +16,7 @@
       />
     </div>
     <b-pagination
-      v-show="perPage > 0"
+      v-show="perPage > 0 && totalRows > perPage"
       class="mb-0"
       :value="currentPage"
       :total-rows="totalRows"
@@ -33,6 +37,8 @@ export const PER_PAGE_OPTIONS = [
   { value: 50, text: '50' },
   { value: 0, text: 'All' },
 ];
+
+const MIN_PER_PAGE = Math.min(...PER_PAGE_OPTIONS.filter((o) => o.value > 0).map((o) => o.value));
 
 export default defineComponent({
   name: 'PaginationControls',
@@ -63,6 +69,9 @@ export default defineComponent({
   computed: {
     selectId(): string {
       return this.ariaControls ? `${this.ariaControls}-per-page` : 'per-page-select';
+    },
+    showControls(): boolean {
+      return this.totalRows > MIN_PER_PAGE;
     },
   },
 });

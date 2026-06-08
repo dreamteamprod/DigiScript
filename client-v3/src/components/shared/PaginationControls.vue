@@ -1,5 +1,8 @@
 <template>
-  <div class="d-flex align-items-center justify-content-center gap-3 mt-2 mb-3">
+  <div
+    v-if="totalRows > minPerPageOption"
+    class="d-flex align-items-center justify-content-center gap-3 mt-2 mb-3"
+  >
     <div class="d-flex align-items-center gap-2">
       <label class="mb-0 text-nowrap" :for="selectId">Rows per page</label>
       <BFormSelect
@@ -11,7 +14,7 @@
       />
     </div>
     <BPagination
-      v-show="perPage > 0"
+      v-show="perPage > 0 && totalRows > perPage"
       v-model="currentPage"
       :total-rows="totalRows"
       :per-page="perPage"
@@ -38,6 +41,10 @@ const currentPage = defineModel<number>('currentPage', { required: true });
 
 const selectId = computed(() =>
   props.ariaControls ? `${props.ariaControls}-per-page` : 'per-page-select'
+);
+
+const minPerPageOption = Math.min(
+  ...PER_PAGE_OPTIONS.filter((o) => o.value > 0).map((o) => o.value)
 );
 </script>
 
