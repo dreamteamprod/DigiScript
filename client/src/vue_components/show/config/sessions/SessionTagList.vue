@@ -44,13 +44,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="SESSION_TAGS.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="SESSION_TAGS.length"
-      :per-page="rowsPerPage"
       aria-controls="session-tags-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-tag"
@@ -215,6 +213,7 @@ import { mapActions, mapGetters } from 'vuex';
 import log from 'loglevel';
 import { required } from 'vuelidate/lib/validators';
 import { contrastColor } from 'contrast-color';
+import paginationMixin from '@/mixins/paginationMixin';
 
 function isValidHexColor(value: string): boolean {
   if (!value) return false;
@@ -241,6 +240,7 @@ function isTagNameUnique(this: any, value: string): boolean {
 
 export default defineComponent({
   name: 'SessionTagList',
+  mixins: [paginationMixin],
   data() {
     return {
       tagFields: [
@@ -248,8 +248,6 @@ export default defineComponent({
         { key: 'session_count', label: 'Sessions' },
         { key: 'btn', label: '' },
       ],
-      rowsPerPage: 15,
-      currentPage: 1,
       newTagForm: {
         tag: '',
         colour: '#3498DB',

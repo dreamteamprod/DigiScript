@@ -5,7 +5,7 @@
         <BTable
           :items="showStore.microphones"
           :fields="fields"
-          :per-page="rowsPerPage"
+          :per-page="perPage"
           :current-page="currentPage"
           show-empty
         >
@@ -33,11 +33,10 @@
             </BButtonGroup>
           </template>
         </BTable>
-        <BPagination
-          v-if="showStore.microphones.length > rowsPerPage"
-          v-model="currentPage"
+        <PaginationControls
+          v-model:per-page="perPage"
+          v-model:current-page="currentPage"
           :total-rows="showStore.microphones.length"
-          :per-page="rowsPerPage"
         />
       </BCol>
     </BRow>
@@ -94,6 +93,7 @@ import { required, helpers } from '@vuelidate/validators';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import { useFormValidation } from '@/composables/useFormValidation';
 import type { Microphone } from '@/types/api/microphones';
 import log from 'loglevel';
@@ -103,8 +103,7 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const isSubmitting = ref(false);
 
 const newModal = ref<InstanceType<typeof BModal>>();

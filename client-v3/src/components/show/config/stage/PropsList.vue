@@ -6,7 +6,7 @@
         <BTable
           :items="stageStore.propTypes"
           :fields="propTypeFields"
-          :per-page="rowsPerPage"
+          :per-page="propTypesPerPage"
           :current-page="currentPropTypesPage"
           show-empty
         >
@@ -38,11 +38,10 @@
             </BButtonGroup>
           </template>
         </BTable>
-        <BPagination
-          v-if="stageStore.propTypes.length > rowsPerPage"
-          v-model="currentPropTypesPage"
+        <PaginationControls
+          v-model:per-page="propTypesPerPage"
+          v-model:current-page="currentPropTypesPage"
           :total-rows="stageStore.propTypes.length"
-          :per-page="rowsPerPage"
         />
       </BCol>
       <BCol cols="7">
@@ -50,7 +49,7 @@
         <BTable
           :items="stageStore.propsList"
           :fields="propsFields"
-          :per-page="rowsPerPage"
+          :per-page="propsPerPage"
           :current-page="currentPropsPage"
           show-empty
         >
@@ -81,11 +80,10 @@
             </BButtonGroup>
           </template>
         </BTable>
-        <BPagination
-          v-if="stageStore.propsList.length > rowsPerPage"
-          v-model="currentPropsPage"
+        <PaginationControls
+          v-model:per-page="propsPerPage"
+          v-model:current-page="currentPropsPage"
           :total-rows="stageStore.propsList.length"
-          :per-page="rowsPerPage"
         />
       </BCol>
     </BRow>
@@ -212,6 +210,7 @@ import { required, helpers } from '@vuelidate/validators';
 import { useStageStore } from '@/stores/stage';
 import { useSystemStore } from '@/stores/system';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import { useFormValidation } from '@/composables/useFormValidation';
 import type { PropType, Props } from '@/types/api/stage';
 import log from 'loglevel';
@@ -221,9 +220,8 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const rowsPerPage = 15;
-const currentPropTypesPage = ref(1);
-const currentPropsPage = ref(1);
+const { perPage: propTypesPerPage, currentPage: currentPropTypesPage } = usePagination();
+const { perPage: propsPerPage, currentPage: currentPropsPage } = usePagination();
 const isSubmitting = ref(false);
 
 const newPropTypeModal = ref<InstanceType<typeof BModal>>();

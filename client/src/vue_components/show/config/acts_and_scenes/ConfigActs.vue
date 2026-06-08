@@ -48,13 +48,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="actTableItems.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="actTableItems.length"
-      :per-page="rowsPerPage"
       aria-controls="acts-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-act"
@@ -167,15 +165,14 @@ import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigActs',
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       loading: true,
-      rowsPerPage: 15,
-      currentPage: 1,
       actFields: [
         'name',
         { key: 'interval_after', label: 'Interval After' },

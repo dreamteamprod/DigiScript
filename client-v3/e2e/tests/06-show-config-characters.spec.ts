@@ -83,6 +83,62 @@ test('deletes a character', async () => {
   });
 });
 
+// ── Rows per page selector ─────────────────────────────────────────────────
+
+test('rows per page selector is hidden when row count does not exceed minimum', async () => {
+  // Only Hamlet exists (1 row) — controls hidden when totalRows ≤ 10 (smallest option)
+  await expect(page.locator('select#character-table-per-page')).not.toBeVisible();
+});
+
+test('creates enough characters for pagination controls to appear', async () => {
+  for (const name of [
+    'Alice',
+    'Bob',
+    'Carol',
+    'Dave',
+    'Eve',
+    'Frank',
+    'Grace',
+    'Henry',
+    'Iris',
+    'Jack',
+  ]) {
+    await page.getByRole('button', { name: 'New Character', exact: true }).click();
+    await waitForModal(page, 'New Character');
+    await page.fill('.modal.show input[type="text"]', name);
+    await confirmModal(page);
+    await waitForModalClosed(page);
+  }
+  // 11 characters total (Hamlet + 10) — controls should now appear
+  await expect(page.locator('select#character-table-per-page')).toBeVisible();
+});
+
+test('rows per page selector has correct default', async () => {
+  await expect(page.locator('label[for="character-table-per-page"]')).toBeVisible();
+  await expect(page.locator('select#character-table-per-page')).toHaveValue('15');
+});
+
+test('rows per page selector has all expected options', async () => {
+  const options = await page
+    .locator('select#character-table-per-page')
+    .locator('option')
+    .allTextContents();
+  expect(options).toEqual(expect.arrayContaining(['10', '15', '25', '50', 'All']));
+});
+
+test('pagination nav shows when rows exceed per-page and hides on All', async () => {
+  // 11 rows, default perPage=15: nav hidden (11 ≤ 15)
+  await expect(page.locator('button[aria-controls="character-table"]').first()).not.toBeVisible();
+  // Change to 10 rows/page: nav appears (11 > 10)
+  await page.locator('select#character-table-per-page').selectOption('10');
+  await expect(page.locator('button[aria-controls="character-table"]').first()).toBeVisible();
+  // Select All: nav disappears
+  await page.locator('select#character-table-per-page').selectOption('0');
+  await expect(page.locator('button[aria-controls="character-table"]').first()).not.toBeVisible();
+  // Reset to default
+  await page.locator('select#character-table-per-page').selectOption('15');
+});
+
 // ── Character Merge ────────────────────────────────────────────────────────
 
 test('Merge button is visible for each character row', async () => {

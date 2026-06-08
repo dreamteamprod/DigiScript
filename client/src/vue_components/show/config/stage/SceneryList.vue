@@ -23,13 +23,11 @@
             </b-button-group>
           </template>
         </b-table>
-        <b-pagination
-          v-show="SCENERY_TYPES.length > rowsPerPage"
-          v-model="currentSceneryTypesPage"
+        <pagination-controls
+          :per-page.sync="rowsPerPage"
+          :current-page.sync="currentSceneryTypesPage"
           :total-rows="SCENERY_TYPES.length"
-          :per-page="rowsPerPage"
           aria-controls="scenery-types-table"
-          class="justify-content-center"
         />
       </b-col>
       <b-col cols="7">
@@ -57,13 +55,11 @@
             </b-button-group>
           </template>
         </b-table>
-        <b-pagination
-          v-show="SCENERY_LIST.length > rowsPerPage"
-          v-model="currentSceneryPage"
+        <pagination-controls
+          :per-page.sync="rowsPerPage"
+          :current-page.sync="currentSceneryPage"
           :total-rows="SCENERY_LIST.length"
-          :per-page="rowsPerPage"
           aria-controls="scenery-table"
-          class="justify-content-center"
         />
       </b-col>
     </b-row>
@@ -365,6 +361,12 @@ export default defineComponent({
       ];
     },
     ...mapGetters(['SCENERY_LIST', 'SCENERY_TYPES', 'IS_SHOW_EDITOR', 'SCENERY_TYPE_BY_ID']),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentSceneryPage = 1;
+      this.currentSceneryTypesPage = 1;
+    },
   },
   async mounted(): Promise<void> {
     await Promise.all([(this as any).GET_SCENERY_TYPES(), (this as any).GET_SCENERY_LIST()]);

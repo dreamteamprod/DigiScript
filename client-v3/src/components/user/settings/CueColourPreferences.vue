@@ -5,7 +5,7 @@
         id="cue-colour-table"
         :items="tableData"
         :fields="columns"
-        :per-page="rowsPerPage"
+        :per-page="perPage"
         :current-page="currentPage"
         show-empty
       >
@@ -54,6 +54,12 @@
           </BButtonGroup>
         </template>
       </BTable>
+      <PaginationControls
+        v-model:per-page="perPage"
+        v-model:current-page="currentPage"
+        :total-rows="tableData.length"
+        aria-controls="cue-colour-table"
+      />
     </template>
     <BAlert v-else :model-value="true" variant="danger">No show loaded.</BAlert>
 
@@ -169,6 +175,7 @@ import log from 'loglevel';
 import { useUserStore } from '@/stores/user';
 import { useSystemStore } from '@/stores/system';
 import { useFormValidation } from '@/composables/useFormValidation';
+import { usePagination } from '@/composables/usePagination';
 import type { CueType } from '@/types/api/cues';
 
 const userStore = useUserStore();
@@ -180,8 +187,7 @@ const columns = [
   { key: 'example', label: 'Example Cue Button' },
   { key: 'btn', label: '' },
 ];
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 
 const cueTypes = ref<CueType[]>([]);
 const isSubmittingNew = ref(false);

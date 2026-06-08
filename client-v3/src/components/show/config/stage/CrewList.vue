@@ -5,7 +5,7 @@
         <BTable
           :items="stageStore.crewList"
           :fields="fields"
-          :per-page="rowsPerPage"
+          :per-page="perPage"
           :current-page="currentPage"
           show-empty
         >
@@ -29,11 +29,10 @@
             </BButtonGroup>
           </template>
         </BTable>
-        <BPagination
-          v-if="stageStore.crewList.length > rowsPerPage"
-          v-model="currentPage"
+        <PaginationControls
+          v-model:per-page="perPage"
+          v-model:current-page="currentPage"
           :total-rows="stageStore.crewList.length"
-          :per-page="rowsPerPage"
         />
       </BCol>
     </BRow>
@@ -102,6 +101,7 @@ import { required } from '@vuelidate/validators';
 import { useStageStore } from '@/stores/stage';
 import { useSystemStore } from '@/stores/system';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import { useFormValidation } from '@/composables/useFormValidation';
 import type { Crew } from '@/types/api/stage';
 import log from 'loglevel';
@@ -111,8 +111,7 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const isSubmitting = ref(false);
 
 const newModal = ref<InstanceType<typeof BModal>>();

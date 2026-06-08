@@ -29,13 +29,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="MICROPHONES.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="MICROPHONES.length"
-      :per-page="rowsPerPage"
       aria-controls="microphones-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-microphone"
@@ -126,6 +124,7 @@ import { defineComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
+import paginationMixin from '@/mixins/paginationMixin';
 
 function isNameUnique(this: any, value: string): boolean {
   if (value === '') {
@@ -145,11 +144,10 @@ function isNameUnique(this: any, value: string): boolean {
 
 export default defineComponent({
   name: 'MicList',
+  mixins: [paginationMixin],
   data() {
     return {
       micFields: ['name', 'description', { key: 'btn', label: '' }],
-      rowsPerPage: 15,
-      currentPage: 1,
       newMicrophoneForm: {
         name: '',
         description: '',
