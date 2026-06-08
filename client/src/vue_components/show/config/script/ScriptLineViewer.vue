@@ -1,5 +1,6 @@
 <template>
   <b-row
+    class="script-line-row"
     :class="{
       'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
       'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
@@ -142,6 +143,7 @@
       </b-button-group>
       <b-dropdown
         v-else-if="canEdit && !IS_CUT_MODE"
+        class="script-edit-controls"
         split
         text="Edit"
         right
@@ -385,5 +387,10 @@ export default defineComponent({
 }
 .cut-line-part {
   text-decoration: line-through;
+}
+.script-line-row:has(.script-edit-controls:hover) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
 }
 </style>

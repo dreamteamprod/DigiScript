@@ -8,7 +8,7 @@
               id="character-table"
               :items="showStore.characterList"
               :fields="characterFields"
-              :per-page="rowsPerPage"
+              :per-page="perPage"
               :current-page="currentPage"
               show-empty
             >
@@ -55,13 +55,11 @@
                 </BButtonGroup>
               </template>
             </BTable>
-            <BPagination
-              v-show="showStore.characterList.length > rowsPerPage"
-              v-model="currentPage"
+            <PaginationControls
+              v-model:per-page="perPage"
+              v-model:current-page="currentPage"
               :total-rows="showStore.characterList.length"
-              :per-page="rowsPerPage"
               aria-controls="character-table"
-              class="justify-content-center"
             />
           </BTab>
           <BTab title="Character Groups">
@@ -180,6 +178,7 @@ import 'vue-multiselect/dist/vue-multiselect.css';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import CharacterGroups from '@/components/show/config/characters/CharacterGroups.vue';
 import CharacterLineStats from '@/components/show/config/characters/CharacterLineStats.vue';
 import type { Character } from '@/types/api/show';
@@ -188,8 +187,7 @@ const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const submittingNewCharacter = ref(false);
 const submittingEditCharacter = ref(false);
 const deletingCharacter = ref(false);

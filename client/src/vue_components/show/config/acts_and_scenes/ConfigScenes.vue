@@ -49,13 +49,11 @@
             </b-button-group>
           </template>
         </b-table>
-        <b-pagination
-          v-show="sceneTableItems.length > rowsPerPage"
-          v-model="currentPage"
+        <pagination-controls
+          :per-page.sync="rowsPerPage"
+          :current-page.sync="currentPage"
           :total-rows="sceneTableItems.length"
-          :per-page="rowsPerPage"
           aria-controls="scene-table"
-          class="justify-content-center"
         />
       </b-col>
       <b-col cols="4">
@@ -217,15 +215,14 @@ import { required, integer } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigScenes',
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       loading: true,
-      rowsPerPage: 15,
-      currentPage: 1,
       sceneFields: [
         'name',
         'act',

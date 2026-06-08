@@ -81,16 +81,15 @@
         id="connected-clients-table"
         :items="connectedClients"
         :fields="clientFields"
-        :per-page="perPage"
-        :current-page="currentPageClients"
+        :per-page="rowsPerPage"
+        :current-page="currentPage"
         small
       />
-      <b-pagination
-        v-model="currentPageClients"
+      <pagination-controls
+        :per-page.sync="rowsPerPage"
+        :current-page.sync="currentPage"
         :total-rows="connectedClients.length"
-        :per-page="perPage"
         aria-controls="connected-clients-table"
-        class="justify-content-center"
       />
     </b-modal>
   </div>
@@ -103,6 +102,7 @@
 import { defineComponent } from 'vue';
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
+import paginationMixin from '@/mixins/paginationMixin';
 
 interface VersionStatus {
   current_version: string | null;
@@ -115,11 +115,10 @@ interface VersionStatus {
 
 export default defineComponent({
   name: 'ConfigSystem',
+  mixins: [paginationMixin],
   data() {
     return {
-      perPage: 5,
       connectedClients: [] as unknown[],
-      currentPageClients: 1,
       clientFields: [
         { key: 'internal_id', label: 'UUID' },
         { key: 'remote_ip', label: 'IP' },

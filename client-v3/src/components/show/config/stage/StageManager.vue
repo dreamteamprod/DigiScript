@@ -65,7 +65,7 @@
                 <BTable
                   :items="currentSceneSceneryAllocations"
                   :fields="sceneryAllocFields"
-                  :per-page="rowsPerPage"
+                  :per-page="sceneryAllocPerPage"
                   :current-page="currentSceneryAllocPage"
                   show-empty
                   empty-text="No scenery allocated to this scene"
@@ -86,11 +86,10 @@
                     </BButton>
                   </template>
                 </BTable>
-                <BPagination
-                  v-if="currentSceneSceneryAllocations.length > rowsPerPage"
-                  v-model="currentSceneryAllocPage"
+                <PaginationControls
+                  v-model:per-page="sceneryAllocPerPage"
+                  v-model:current-page="currentSceneryAllocPage"
                   :total-rows="currentSceneSceneryAllocations.length"
-                  :per-page="rowsPerPage"
                 />
               </BCol>
               <BCol cols="6">
@@ -98,7 +97,7 @@
                 <BTable
                   :items="currentScenePropsAllocations"
                   :fields="propsAllocFields"
-                  :per-page="rowsPerPage"
+                  :per-page="propsAllocPerPage"
                   :current-page="currentPropsAllocPage"
                   show-empty
                   empty-text="No props allocated to this scene"
@@ -119,11 +118,10 @@
                     </BButton>
                   </template>
                 </BTable>
-                <BPagination
-                  v-if="currentScenePropsAllocations.length > rowsPerPage"
-                  v-model="currentPropsAllocPage"
+                <PaginationControls
+                  v-model:per-page="propsAllocPerPage"
+                  v-model:current-page="currentPropsAllocPage"
                   :total-rows="currentScenePropsAllocations.length"
-                  :per-page="rowsPerPage"
                 />
               </BCol>
             </BRow>
@@ -433,6 +431,7 @@ import { required, helpers } from '@vuelidate/validators';
 import { useStageStore } from '@/stores/stage';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import { useFormValidation } from '@/composables/useFormValidation';
 import { findOrphanedAssignments } from '@/js/blockOrphanUtils';
 import type { SceneryAllocation, PropsAllocation, CrewAssignment, Crew } from '@/types/api/stage';
@@ -451,9 +450,8 @@ const setExpanded = ref(false);
 const strikeExpanded = ref(false);
 const savingAssignment = ref(false);
 const newCrewSelections = ref<Record<string, number | null>>({});
-const rowsPerPage = 10;
-const currentSceneryAllocPage = ref(1);
-const currentPropsAllocPage = ref(1);
+const { perPage: sceneryAllocPerPage, currentPage: currentSceneryAllocPage } = usePagination();
+const { perPage: propsAllocPerPage, currentPage: currentPropsAllocPage } = usePagination();
 
 const goToSceneModal = ref<InstanceType<typeof BModal>>();
 const addSceneryModal = ref<InstanceType<typeof BModal>>();

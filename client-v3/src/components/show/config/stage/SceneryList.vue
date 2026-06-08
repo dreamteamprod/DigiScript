@@ -6,7 +6,7 @@
         <BTable
           :items="stageStore.sceneryTypes"
           :fields="sceneryTypeFields"
-          :per-page="rowsPerPage"
+          :per-page="sceneryTypesPerPage"
           :current-page="currentSceneryTypesPage"
           show-empty
         >
@@ -38,11 +38,10 @@
             </BButtonGroup>
           </template>
         </BTable>
-        <BPagination
-          v-if="stageStore.sceneryTypes.length > rowsPerPage"
-          v-model="currentSceneryTypesPage"
+        <PaginationControls
+          v-model:per-page="sceneryTypesPerPage"
+          v-model:current-page="currentSceneryTypesPage"
           :total-rows="stageStore.sceneryTypes.length"
-          :per-page="rowsPerPage"
         />
       </BCol>
       <BCol cols="7">
@@ -50,7 +49,7 @@
         <BTable
           :items="stageStore.sceneryList"
           :fields="sceneryFields"
-          :per-page="rowsPerPage"
+          :per-page="sceneryPerPage"
           :current-page="currentSceneryPage"
           show-empty
         >
@@ -85,11 +84,10 @@
             </BButtonGroup>
           </template>
         </BTable>
-        <BPagination
-          v-if="stageStore.sceneryList.length > rowsPerPage"
-          v-model="currentSceneryPage"
+        <PaginationControls
+          v-model:per-page="sceneryPerPage"
+          v-model:current-page="currentSceneryPage"
           :total-rows="stageStore.sceneryList.length"
-          :per-page="rowsPerPage"
         />
       </BCol>
     </BRow>
@@ -214,6 +212,7 @@ import { required, helpers } from '@vuelidate/validators';
 import { useStageStore } from '@/stores/stage';
 import { useSystemStore } from '@/stores/system';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import { useFormValidation } from '@/composables/useFormValidation';
 import type { SceneryType, Scenery } from '@/types/api/stage';
 import log from 'loglevel';
@@ -223,9 +222,8 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const rowsPerPage = 15;
-const currentSceneryTypesPage = ref(1);
-const currentSceneryPage = ref(1);
+const { perPage: sceneryTypesPerPage, currentPage: currentSceneryTypesPage } = usePagination();
+const { perPage: sceneryPerPage, currentPage: currentSceneryPage } = usePagination();
 const isSubmitting = ref(false);
 
 const newSceneryTypeModal = ref<InstanceType<typeof BModal>>();

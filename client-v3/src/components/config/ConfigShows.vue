@@ -7,7 +7,7 @@
             id="shows-table"
             :items="availableShows"
             :fields="showFields"
-            :per-page="rowsPerPage"
+            :per-page="perPage"
             :current-page="currentPage"
           >
             <template #head(btn)>
@@ -37,13 +37,11 @@
               </BButtonGroup>
             </template>
           </BTable>
-          <BPagination
-            v-show="availableShows.length > rowsPerPage"
-            v-model="currentPage"
+          <PaginationControls
+            v-model:per-page="perPage"
+            v-model:current-page="currentPage"
             :total-rows="availableShows.length"
-            :per-page="rowsPerPage"
             aria-controls="shows-table"
-            class="justify-content-center"
           />
         </BCol>
       </BRow>
@@ -129,6 +127,7 @@ import { makeURL } from '@/js/utils';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import { toast } from '@/js/toast';
 import type { Show } from '@/types/api/show';
 
@@ -144,8 +143,7 @@ const isSubmittingLoad = ref(false);
 const isSubmittingShow = ref(false);
 const isDeleting = ref(false);
 const deletingId = ref<number | null>(null);
-const currentPage = ref(1);
-const rowsPerPage = 15;
+const { perPage, currentPage } = usePagination();
 
 const showFields = [
   { key: 'id', label: 'ID' },

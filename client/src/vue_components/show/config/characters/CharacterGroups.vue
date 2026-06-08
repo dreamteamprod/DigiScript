@@ -43,13 +43,11 @@
         </b-button-group>
       </template>
     </b-table>
-    <b-pagination
-      v-show="CHARACTER_GROUP_LIST.length > rowsPerPage"
-      v-model="currentPage"
+    <pagination-controls
+      :per-page.sync="rowsPerPage"
+      :current-page.sync="currentPage"
       :total-rows="CHARACTER_GROUP_LIST.length"
-      :per-page="rowsPerPage"
       aria-controls="character-group-table"
-      class="justify-content-center"
     />
     <b-modal
       id="new-character-group"
@@ -170,16 +168,15 @@ import { mapActions, mapGetters } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'CharacterGroups',
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       loading: true,
       characterGroupFields: ['name', 'description', 'characters', { key: 'btn', label: '' }],
-      rowsPerPage: 15,
-      currentPage: 1,
       tempCharacterList: [] as any[],
       newFormState: {
         name: '',

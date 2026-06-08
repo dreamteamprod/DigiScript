@@ -4,7 +4,7 @@
       id="character-group-table"
       :items="showStore.characterGroupList"
       :fields="characterGroupFields"
-      :per-page="rowsPerPage"
+      :per-page="perPage"
       :current-page="currentPage"
       show-empty
     >
@@ -48,13 +48,11 @@
         </BButtonGroup>
       </template>
     </BTable>
-    <BPagination
-      v-show="showStore.characterGroupList.length > rowsPerPage"
-      v-model="currentPage"
+    <PaginationControls
+      v-model:per-page="perPage"
+      v-model:current-page="currentPage"
       :total-rows="showStore.characterGroupList.length"
-      :per-page="rowsPerPage"
       aria-controls="character-group-table"
-      class="justify-content-center"
     />
 
     <BModal
@@ -140,6 +138,7 @@ import log from 'loglevel';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import type { Character, CharacterGroup } from '@/types/api/show';
 
 const systemStore = useSystemStore();
@@ -147,8 +146,7 @@ const showStore = useShowStore();
 const { confirm } = useConfirm();
 
 const loading = ref(true);
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const submittingNewGroup = ref(false);
 const submittingEditGroup = ref(false);
 const deletingGroup = ref(false);

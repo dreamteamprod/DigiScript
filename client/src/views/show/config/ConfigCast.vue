@@ -36,13 +36,11 @@
                 </b-button-group>
               </template>
             </b-table>
-            <b-pagination
-              v-show="CAST_LIST.length > rowsPerPage"
-              v-model="currentPage"
+            <pagination-controls
+              :per-page.sync="rowsPerPage"
+              :current-page.sync="currentPage"
               :total-rows="CAST_LIST.length"
-              :per-page="rowsPerPage"
               aria-controls="cast-table"
-              class="justify-content-center"
             />
           </b-tab>
           <b-tab title="Line Counts">
@@ -150,11 +148,12 @@ import { mapGetters, mapActions } from 'vuex';
 import CastLineStats from '@/vue_components/show/config/cast/CastLineStats.vue';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigCast',
   components: { CastLineStats },
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
       castFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
@@ -162,8 +161,6 @@ export default defineComponent({
         firstName: '',
         lastName: '',
       },
-      rowsPerPage: 15,
-      currentPage: 1,
       editFormState: {
         id: null as number | null,
         showID: null as number | null,

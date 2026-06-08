@@ -5,7 +5,7 @@
         id="stage-directions-table"
         :items="tableData"
         :fields="columns"
-        :per-page="rowsPerPage"
+        :per-page="perPage"
         :current-page="currentPage"
         show-empty
       >
@@ -54,6 +54,12 @@
           </BButtonGroup>
         </template>
       </BTable>
+      <PaginationControls
+        v-model:per-page="perPage"
+        v-model:current-page="currentPage"
+        :total-rows="tableData.length"
+        aria-controls="stage-directions-table"
+      />
     </template>
     <BAlert v-else :model-value="true" variant="danger">No show loaded.</BAlert>
 
@@ -243,6 +249,7 @@ import { makeURL } from '@/js/utils';
 import { useUserStore } from '@/stores/user';
 import { useSystemStore } from '@/stores/system';
 import { useFormValidation } from '@/composables/useFormValidation';
+import { usePagination } from '@/composables/usePagination';
 import type { StageDirectionStyle } from '@/types/api/script';
 
 interface StyleOption {
@@ -266,8 +273,7 @@ const columns = [
   { key: 'example', label: 'Example Stage Direction' },
   { key: 'btn', label: '' },
 ];
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 
 const stageDirectionStyles = ref<StageDirectionStyle[]>([]);
 const isSubmittingNew = ref(false);

@@ -8,7 +8,7 @@
               id="cue-types-table"
               :items="showStore.cueTypes"
               :fields="cueTypeFields"
-              :per-page="rowsPerPage"
+              :per-page="perPage"
               :current-page="currentPage"
               show-empty
             >
@@ -50,13 +50,11 @@
                 </BButtonGroup>
               </template>
             </BTable>
-            <BPagination
-              v-show="showStore.cueTypes.length > rowsPerPage"
-              v-model="currentPage"
+            <PaginationControls
+              v-model:per-page="perPage"
+              v-model:current-page="currentPage"
               :total-rows="showStore.cueTypes.length"
-              :per-page="rowsPerPage"
               aria-controls="cue-types-table"
-              class="justify-content-center"
             />
           </BTab>
           <BTab title="Cue Configuration">
@@ -221,6 +219,7 @@ import log from 'loglevel';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
 import CueCountStats from '@/components/show/config/cues/CueCountStats.vue';
 import CueEditor from '@/components/show/config/cues/CueEditor.vue';
 import type { CueType } from '@/types/api/cues';
@@ -229,8 +228,7 @@ const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
-const rowsPerPage = 15;
-const currentPage = ref(1);
+const { perPage, currentPage } = usePagination();
 const submittingNewCueType = ref(false);
 const submittingEditCueType = ref(false);
 const deletingCueType = ref(false);

@@ -90,13 +90,11 @@
                     </b-button>
                   </template>
                 </b-table>
-                <b-pagination
-                  v-show="currentSceneSceneryAllocations.length > rowsPerPage"
-                  v-model="currentSceneryAllocPage"
+                <pagination-controls
+                  :per-page.sync="rowsPerPage"
+                  :current-page.sync="currentSceneryAllocPage"
                   :total-rows="currentSceneSceneryAllocations.length"
-                  :per-page="rowsPerPage"
                   aria-controls="scenery-alloc-table"
-                  class="justify-content-center"
                 />
               </b-col>
               <b-col cols="6">
@@ -122,13 +120,11 @@
                     </b-button>
                   </template>
                 </b-table>
-                <b-pagination
-                  v-show="currentScenePropsAllocations.length > rowsPerPage"
-                  v-model="currentPropsAllocPage"
+                <pagination-controls
+                  :per-page.sync="rowsPerPage"
+                  :current-page.sync="currentPropsAllocPage"
                   :total-rows="currentScenePropsAllocations.length"
-                  :per-page="rowsPerPage"
                   aria-controls="props-alloc-table"
-                  class="justify-content-center"
                 />
               </b-col>
             </b-row>
@@ -667,6 +663,12 @@ export default defineComponent({
       'CREW_ASSIGNMENTS_BY_PROP',
       'CREW_ASSIGNMENTS_BY_SCENERY',
     ]),
+  },
+  watch: {
+    rowsPerPage() {
+      this.currentSceneryAllocPage = 1;
+      this.currentPropsAllocPage = 1;
+    },
   },
   async mounted(): Promise<void> {
     await Promise.all([

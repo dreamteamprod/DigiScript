@@ -51,13 +51,11 @@
                 </b-button-group>
               </template>
             </b-table>
-            <b-pagination
-              v-show="CHARACTER_LIST.length > rowsPerPage"
-              v-model="currentPage"
+            <pagination-controls
+              :per-page.sync="rowsPerPage"
+              :current-page.sync="currentPage"
               :total-rows="CHARACTER_LIST.length"
-              :per-page="rowsPerPage"
               aria-controls="character-table"
-              class="justify-content-center"
             />
           </b-tab>
           <b-tab title="Character Groups">
@@ -207,15 +205,14 @@ import CharacterTimeline from '@/vue_components/show/config/characters/Character
 import log from 'loglevel';
 import CharacterGroups from '@/vue_components/show/config/characters/CharacterGroups.vue';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'ConfigCharacters',
   components: { CharacterGroups, CharacterLineStats, CharacterTimeline },
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
-      rowsPerPage: 15,
-      currentPage: 1,
       characterFields: [
         'name',
         'description',

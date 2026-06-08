@@ -49,13 +49,11 @@
                 </b-button-group>
               </template>
             </b-table>
-            <b-pagination
-              v-show="CUE_TYPES.length > rowsPerPage"
-              v-model="currentPage"
+            <pagination-controls
+              :per-page.sync="rowsPerPage"
+              :current-page.sync="currentPage"
               :total-rows="CUE_TYPES.length"
-              :per-page="rowsPerPage"
               aria-controls="cue-types-table"
-              class="justify-content-center"
             />
           </b-tab>
           <b-tab title="Cue Configuration">
@@ -228,18 +226,17 @@ import { defineComponent } from 'vue';
 import { required, maxLength } from 'vuelidate/lib/validators';
 import { mapGetters, mapActions } from 'vuex';
 import log from 'loglevel';
-
+import paginationMixin from '@/mixins/paginationMixin';
 import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
 import CueCountStats from '@/vue_components/show/config/cues/CueCountStats.vue';
 
 export default defineComponent({
   name: 'ConfigCues',
   components: { CueCountStats, CueEditor },
+  mixins: [paginationMixin],
   data() {
     return {
       cueTypeFields: ['prefix', 'description', 'colour', { key: 'btn', label: '' }],
-      rowsPerPage: 15,
-      currentPage: 1,
       newCueTypeForm: {
         prefix: '',
         description: '',
