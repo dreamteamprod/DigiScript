@@ -147,6 +147,7 @@ export default defineComponent({
   mixins: [paginationMixin],
   data() {
     return {
+      tableKey: 'config_mics',
       micFields: ['name', 'description', { key: 'btn', label: '' }],
       newMicrophoneForm: {
         name: '',

@@ -146,7 +146,7 @@ const showStore = useShowStore();
 const { confirm } = useConfirm();
 
 const loading = ref(true);
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_character_groups');
 const submittingNewGroup = ref(false);
 const submittingEditGroup = ref(false);
 const deletingGroup = ref(false);

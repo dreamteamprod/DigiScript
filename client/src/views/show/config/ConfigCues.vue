@@ -236,6 +236,7 @@ export default defineComponent({
   mixins: [paginationMixin],
   data() {
     return {
+      tableKey: 'config_cues',
       cueTypeFields: ['prefix', 'description', 'colour', { key: 'btn', label: '' }],
       newCueTypeForm: {
         prefix: '',

@@ -157,6 +157,7 @@ export default defineComponent({
   mixins: [paginationMixin],
   data() {
     return {
+      tableKey: 'config_shows',
       loaded: false,
       showFields: [
         { key: 'id', label: 'ID' },

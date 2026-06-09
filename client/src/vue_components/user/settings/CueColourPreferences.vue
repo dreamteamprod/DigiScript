@@ -160,19 +160,19 @@ import { required } from 'vuelidate/lib/validators';
 import { contrastColor } from 'contrast-color';
 import log from 'loglevel';
 import formValidationMixin from '@/mixins/formValidationMixin';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'CueColourPreferences',
-  mixins: [formValidationMixin],
+  mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
+      tableKey: 'user_cue_colour_prefs',
       columns: [
         'description',
         { key: 'example', label: 'Example Cue Button' },
         { key: 'btn', label: '' },
       ],
-      rowsPerPage: 15,
-      currentPage: 1,
       newFormState: {
         cueTypeId: null as number | null,
         colour: '#FF0000',

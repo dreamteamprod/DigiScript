@@ -228,7 +228,7 @@ const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_cues');
 const submittingNewCueType = ref(false);
 const submittingEditCueType = ref(false);
 const deletingCueType = ref(false);

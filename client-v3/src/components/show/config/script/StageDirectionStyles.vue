@@ -156,7 +156,7 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'show_stage_direction_styles');
 const isSubmittingNew = ref(false);
 const isSubmittingEdit = ref(false);
 const isDeleting = ref(false);

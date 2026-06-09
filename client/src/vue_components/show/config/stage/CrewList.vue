@@ -128,6 +128,7 @@ export default defineComponent({
   mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
+      tableKey: 'config_crew',
       crewFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
       newFormState: {
         firstName: '',

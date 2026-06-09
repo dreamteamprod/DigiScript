@@ -156,6 +156,7 @@ export default defineComponent({
   mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
+      tableKey: 'config_cast',
       castFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
       newFormState: {
         firstName: '',

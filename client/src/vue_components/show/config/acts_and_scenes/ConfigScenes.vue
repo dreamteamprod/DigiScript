@@ -222,6 +222,7 @@ export default defineComponent({
   mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
+      tableKey: 'config_scenes',
       loading: true,
       sceneFields: [
         'name',

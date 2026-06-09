@@ -172,6 +172,7 @@ export default defineComponent({
   mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
+      tableKey: 'config_acts',
       loading: true,
       actFields: [
         'name',

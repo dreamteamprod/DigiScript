@@ -347,11 +347,14 @@ import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
+import paginationMixin from '@/mixins/paginationMixin';
 
 export default defineComponent({
   name: 'StageDirectionConfigs',
+  mixins: [paginationMixin],
   data() {
     return {
+      tableKey: 'show_stage_direction_styles',
       exampleText: 'Your stage direction will look like this when formatted in the script!',
       columns: [
         'description',
@@ -363,8 +366,6 @@ export default defineComponent({
         { key: 'example', label: 'Example Stage Direction' },
         { key: 'btn', label: '' },
       ],
-      rowsPerPage: 15,
-      currentPage: 1,
       newStyleFormState: {
         description: '',
         styleOptions: [
