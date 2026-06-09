@@ -91,7 +91,7 @@
           </b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
-          <b-nav-item v-if="!isElectron()" href="/ui-new/?_switch=1"> Switch to New UI </b-nav-item>
+          <b-nav-item v-if="!isElectron()" href="/?_switch=1"> Switch to New UI </b-nav-item>
           <b-nav-item to="/help"> Help </b-nav-item>
           <b-nav-item to="/about"> About </b-nav-item>
           <b-nav-item-dropdown v-if="isElectron()" text="Server">
@@ -329,7 +329,7 @@ export default defineComponent({
             const userPref = (this as any).USER_SETTINGS?.preferred_ui as string | null | undefined;
             const systemDefault = (this as any).SETTINGS?.default_ui as string | undefined;
             if (userPref === 'new' || (userPref == null && systemDefault === 'new')) {
-              window.location.href = '/ui-new/';
+              window.location.href = '/?_switch=1';
               return;
             }
           }

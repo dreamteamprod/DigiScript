@@ -1,10 +1,28 @@
 import path from 'node:path';
-import { defineConfig } from 'vite';
+import fs from 'node:fs';
+import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import Components from 'unplugin-vue-components/vite';
 import { BootstrapVueNextResolver } from 'bootstrap-vue-next';
 import Icons from 'unplugin-icons/vite';
 import IconsResolve from 'unplugin-icons/resolver';
+
+function cleanV3StaticPlugin(): Plugin {
+  return {
+    name: 'clean-v3-static',
+    buildStart() {
+      if (process.env.BUILD_TARGET === 'electron') return;
+      const outDir = path.resolve(__dirname, '../server/static');
+      if (fs.existsSync(outDir)) {
+        for (const entry of fs.readdirSync(outDir)) {
+          if (entry !== 'ui-old') {
+            fs.rmSync(path.join(outDir, entry), { recursive: true, force: true });
+          }
+        }
+      }
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
@@ -17,13 +35,14 @@ export default defineConfig({
       compiler: 'vue3',
       autoInstall: false,
     }),
+    cleanV3StaticPlugin(),
   ],
-  base: process.env.BUILD_TARGET === 'electron' ? './' : '/ui-new/',
+  base: process.env.BUILD_TARGET === 'electron' ? './' : '/',
   build: {
     outDir:
-      process.env.BUILD_TARGET === 'electron' ? './dist-electron' : '../server/static/ui-new/',
+      process.env.BUILD_TARGET === 'electron' ? './dist-electron' : '../server/static/',
     assetsDir: './assets',
-    emptyOutDir: true,
+    emptyOutDir: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
