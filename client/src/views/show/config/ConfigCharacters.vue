@@ -213,6 +213,7 @@ export default defineComponent({
   mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
+      tableKey: 'config_characters',
       characterFields: [
         'name',
         'description',

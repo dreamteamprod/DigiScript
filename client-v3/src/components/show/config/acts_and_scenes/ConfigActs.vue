@@ -142,7 +142,7 @@ const showStore = useShowStore();
 const { confirm } = useConfirm();
 
 const loading = ref(true);
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_acts');
 const submittingNewAct = ref(false);
 const submittingEditAct = ref(false);
 const deletingAct = ref(false);

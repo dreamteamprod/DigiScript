@@ -47,6 +47,19 @@ const module: Module<SettingsState, RootState> = {
         log.error('Unable to fetch user settings');
       }
     },
+    async UPDATE_TABLE_PAGE_SIZE(
+      context,
+      { tableKey, value }: { tableKey: string; value: number }
+    ) {
+      const current =
+        (context.state.userSettings as { table_page_sizes?: Record<string, number> })
+          .table_page_sizes ?? {};
+      await fetch(makeURL('/api/v1/user/settings'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_page_sizes: { ...current, [tableKey]: value } }),
+      });
+    },
     async UPDATE_SETTINGS(context, payload) {
       context.commit('UPDATE_SETTINGS', payload);
       await context.dispatch('SETTINGS_CHANGED');

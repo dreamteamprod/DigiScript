@@ -132,7 +132,7 @@ const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_cast');
 const submittingNewCast = ref(false);
 const submittingEditCast = ref(false);
 const deletingCast = ref(false);

@@ -187,7 +187,7 @@ const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_characters');
 const submittingNewCharacter = ref(false);
 const submittingEditCharacter = ref(false);
 const deletingCharacter = ref(false);

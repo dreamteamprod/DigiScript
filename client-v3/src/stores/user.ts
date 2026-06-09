@@ -246,6 +246,15 @@ export const useUserStore = defineStore('user', {
       }
     },
 
+    async updateTablePageSize(tableKey: string, value: number): Promise<void> {
+      const current = (this.userSettings as UserSettings).table_page_sizes ?? {};
+      await fetch(makeURL('/api/v1/user/settings'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_page_sizes: { ...current, [tableKey]: value } }),
+      });
+    },
+
     async setupTokenRefresh(): Promise<void> {
       if (this.tokenRefreshInterval) clearInterval(this.tokenRefreshInterval);
       const refreshInterval = setInterval(

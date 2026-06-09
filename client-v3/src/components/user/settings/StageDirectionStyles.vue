@@ -273,7 +273,7 @@ const columns = [
   { key: 'example', label: 'Example Stage Direction' },
   { key: 'btn', label: '' },
 ];
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'user_stage_direction_styles');
 
 const stageDirectionStyles = ref<StageDirectionStyle[]>([]);
 const isSubmittingNew = ref(false);

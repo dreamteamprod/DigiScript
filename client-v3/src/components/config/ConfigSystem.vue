@@ -99,7 +99,7 @@ const { connectedSessions, versionStatus, serverInfo } = storeToRefs(systemStore
 
 const loading = ref(true);
 const isCheckingVersion = ref(false);
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_system_clients');
 const clientsModal = ref<InstanceType<typeof BModal>>();
 
 const clientFields = [

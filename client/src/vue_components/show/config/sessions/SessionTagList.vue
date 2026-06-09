@@ -243,6 +243,7 @@ export default defineComponent({
   mixins: [paginationMixin],
   data() {
     return {
+      tableKey: 'config_session_tags',
       tagFields: [
         { key: 'tag', label: 'Tag' },
         { key: 'session_count', label: 'Sessions' },
