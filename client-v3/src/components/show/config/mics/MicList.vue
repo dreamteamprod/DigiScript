@@ -103,7 +103,7 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_mics');
 const isSubmitting = ref(false);
 
 const newModal = ref<InstanceType<typeof BModal>>();

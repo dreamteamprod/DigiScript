@@ -270,6 +270,7 @@ import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
+import paginationMixin from '@/mixins/paginationMixin';
 
 interface StyleOption {
   caption: string;
@@ -296,16 +297,16 @@ interface EditStyleFormState {
 
 export default defineComponent({
   name: 'StageDirectionStyles',
+  mixins: [paginationMixin],
   data() {
     return {
+      tableKey: 'user_stage_direction_styles',
       exampleText: 'Your stage direction will look like this when formatted in the script!',
       columns: [
         'description',
         { key: 'example', label: 'Example Stage Direction' },
         { key: 'btn', label: '' },
       ],
-      rowsPerPage: 15,
-      currentPage: 1,
       newStyleFormState: {
         styleId: null as number | null,
         styleOptions: [

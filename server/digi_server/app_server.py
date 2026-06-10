@@ -242,8 +242,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
         if is_frozen():
             static_files_path = get_resource_path(os.path.join("static", "assets"))
             docs_files_path = get_resource_path(os.path.join("static", "docs"))
-            ui_new_static_files_path = get_resource_path(
-                os.path.join("static", "ui-new", "assets")
+            ui_old_static_files_path = get_resource_path(
+                os.path.join("static", "ui-old", "assets")
             )
             get_logger().info(f"Using packaged static files path: {static_files_path}")
             get_logger().info(f"Using packaged docs files path: {docs_files_path}")
@@ -254,11 +254,11 @@ class DigiScriptServer(PrometheusMixIn, Application):
             docs_files_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static", "docs"
             )
-            ui_new_static_files_path = os.path.join(
+            ui_old_static_files_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)),
                 "..",
                 "static",
-                "ui-new",
+                "ui-old",
                 "assets",
             )
             get_logger().info(f"Using relative static files path: {static_files_path}")
@@ -271,15 +271,15 @@ class DigiScriptServer(PrometheusMixIn, Application):
         )
         handlers.append(
             (
-                r"/ui-new/assets/(.*)",
+                r"/ui-old/assets/(.*)",
                 StaticFileHandler,
-                {"path": ui_new_static_files_path},
+                {"path": ui_old_static_files_path},
             )
         )
         handlers.append((r"/docs/(.*)", StaticFileHandler, {"path": docs_files_path}))
         handlers.append((r"/api/.*", controllers.ApiFallback))
-        handlers.append((r"/ui-new(/?.*)", controllers.RootControllerV3))
-        handlers.append((r"/(.*)", controllers.RootController))
+        handlers.append((r"/ui-old(/?.*)", controllers.RootController))
+        handlers.append((r"/(.*)", controllers.RootControllerV3))
         super().__init__(
             handlers=handlers,
             debug=debug,

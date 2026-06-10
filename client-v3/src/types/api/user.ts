@@ -24,4 +24,5 @@ export interface UserSettings {
   character_mru_sort: boolean;
   character_combined_dropdown: boolean;
   preferred_ui: string | null;
+  table_page_sizes: Record<string, number> | null;
 }

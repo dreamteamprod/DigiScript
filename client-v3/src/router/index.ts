@@ -11,7 +11,7 @@ import NotFoundView from '@/views/NotFoundView.vue';
 const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
 
 const router = createRouter({
-  history: isFileProtocol ? createWebHashHistory() : createWebHistory('/ui-new/'),
+  history: isFileProtocol ? createWebHashHistory() : createWebHistory('/'),
   routes: [
     {
       path: '/electron/server-selector',

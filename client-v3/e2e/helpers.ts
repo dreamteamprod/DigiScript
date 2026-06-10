@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 export const SERVER_PORT = 8888;
-export const UI_BASE = `http://localhost:${SERVER_PORT}/ui-new`;
+export const UI_BASE = `http://localhost:${SERVER_PORT}`;
 export const ADMIN_USERNAME = 'admin';
 export const ADMIN_PASSWORD = 'testpassword';
 

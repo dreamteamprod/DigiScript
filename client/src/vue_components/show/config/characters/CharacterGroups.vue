@@ -175,6 +175,7 @@ export default defineComponent({
   mixins: [formValidationMixin, paginationMixin],
   data() {
     return {
+      tableKey: 'config_character_groups',
       loading: true,
       characterGroupFields: ['name', 'description', 'characters', { key: 'btn', label: '' }],
       tempCharacterList: [] as any[],

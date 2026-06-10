@@ -26,11 +26,26 @@ def import_all_controllers():
 
 
 class RootController(BaseController):
+    def get(self, _path):
+        if is_frozen():
+            full_path = get_resource_path(os.path.join("static", "ui-old", INDEX_HTML))
+        else:
+            file_path = os.path.join(
+                os.path.abspath(os.path.dirname(__file__)), "..", "static", "ui-old"
+            )
+            full_path = os.path.join(file_path, INDEX_HTML)
+        if not os.path.isfile(full_path):
+            raise HTTPError(404)
+        with open(full_path, "r", encoding="utf-8") as file:
+            self.write(file.read())
+
+
+class RootControllerV3(BaseController):
     async def get(self, path):
         if not path and not self.get_argument("_switch", None):
             default_ui = await self.application.digi_settings.get("default_ui")
-            if default_ui == "new":
-                self.redirect("/ui-new/")
+            if default_ui == "old":
+                self.redirect("/ui-old/")
                 return
         if is_frozen():
             # In PyInstaller mode, use resource path
@@ -54,21 +69,6 @@ class RootController(BaseController):
         except Exception as e:
             get_logger().error(f"Error serving {INDEX_HTML}: {str(e)}")
             raise HTTPError(500) from e
-
-
-class RootControllerV3(BaseController):
-    def get(self, _path):
-        if is_frozen():
-            full_path = get_resource_path(os.path.join("static", "ui-new", INDEX_HTML))
-        else:
-            file_path = os.path.join(
-                os.path.abspath(os.path.dirname(__file__)), "..", "static", "ui-new"
-            )
-            full_path = os.path.join(file_path, INDEX_HTML)
-        if not os.path.isfile(full_path):
-            raise HTTPError(404)
-        with open(full_path, "r", encoding="utf-8") as file:
-            self.write(file.read())
 
 
 class StaticController(BaseController):

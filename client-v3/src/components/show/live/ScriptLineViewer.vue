@@ -64,6 +64,7 @@
         </template>
       </BRow>
       <BRow
+        class="line-row"
         :class="{
           'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
           'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
@@ -144,7 +145,7 @@
             <BButton
               v-if="cueAddMode"
               variant="success"
-              class="cue-button ms-1"
+              class="cue-button add-cue-btn ms-1"
               :disabled="isLineCut"
               @click.stop="addNewCue"
             >
@@ -170,7 +171,7 @@
             <BButton
               v-if="cueAddMode"
               variant="success"
-              class="cue-button ms-1"
+              class="cue-button add-cue-btn ms-1"
               :disabled="isLineCut"
               @click.stop="addNewCue"
             >
@@ -437,6 +438,12 @@ onUnmounted(() => {
 
 .cue-button {
   padding: 0.2rem;
+}
+
+.line-row:has(.add-cue-btn:hover) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
 }
 
 .stage-direction {

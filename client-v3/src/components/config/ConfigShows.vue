@@ -143,7 +143,7 @@ const isSubmittingLoad = ref(false);
 const isSubmittingShow = ref(false);
 const isDeleting = ref(false);
 const deletingId = ref<number | null>(null);
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_shows');
 
 const showFields = [
   { key: 'id', label: 'ID' },

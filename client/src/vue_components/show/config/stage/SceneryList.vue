@@ -363,10 +363,18 @@ export default defineComponent({
     ...mapGetters(['SCENERY_LIST', 'SCENERY_TYPES', 'IS_SHOW_EDITOR', 'SCENERY_TYPE_BY_ID']),
   },
   watch: {
-    rowsPerPage() {
+    rowsPerPage(newValue: number) {
       this.currentSceneryPage = 1;
       this.currentSceneryTypesPage = 1;
+      (this as any).$store.dispatch('UPDATE_TABLE_PAGE_SIZE', {
+        tableKey: 'config_scenery',
+        value: newValue,
+      });
     },
+  },
+  created() {
+    const stored = (this as any).$store.getters.USER_SETTINGS?.table_page_sizes?.['config_scenery'];
+    if (stored != null) this.rowsPerPage = stored;
   },
   async mounted(): Promise<void> {
     await Promise.all([(this as any).GET_SCENERY_TYPES(), (this as any).GET_SCENERY_LIST()]);

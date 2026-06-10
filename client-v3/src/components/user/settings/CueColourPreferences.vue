@@ -187,7 +187,7 @@ const columns = [
   { key: 'example', label: 'Example Cue Button' },
   { key: 'btn', label: '' },
 ];
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'user_cue_colour_prefs');
 
 const cueTypes = ref<CueType[]>([]);
 const isSubmittingNew = ref(false);

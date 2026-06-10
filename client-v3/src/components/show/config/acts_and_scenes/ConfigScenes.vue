@@ -206,7 +206,7 @@ const showStore = useShowStore();
 const { confirm } = useConfirm();
 
 const loading = ref(true);
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_scenes');
 const submittingNewScene = ref(false);
 const submittingEditScene = ref(false);
 const submittingFirstScene = ref(false);

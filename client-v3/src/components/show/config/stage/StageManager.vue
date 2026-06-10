@@ -450,8 +450,14 @@ const setExpanded = ref(false);
 const strikeExpanded = ref(false);
 const savingAssignment = ref(false);
 const newCrewSelections = ref<Record<string, number | null>>({});
-const { perPage: sceneryAllocPerPage, currentPage: currentSceneryAllocPage } = usePagination();
-const { perPage: propsAllocPerPage, currentPage: currentPropsAllocPage } = usePagination();
+const { perPage: sceneryAllocPerPage, currentPage: currentSceneryAllocPage } = usePagination(
+  15,
+  'config_stage_scenery_alloc'
+);
+const { perPage: propsAllocPerPage, currentPage: currentPropsAllocPage } = usePagination(
+  15,
+  'config_stage_props_alloc'
+);
 
 const goToSceneModal = ref<InstanceType<typeof BModal>>();
 const addSceneryModal = ref<InstanceType<typeof BModal>>();

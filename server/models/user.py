@@ -6,7 +6,15 @@ import json
 from functools import partial
 from typing import TYPE_CHECKING, List, Union
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, TypeDecorator, select
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    Text,
+    TypeDecorator,
+    select,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -91,6 +99,7 @@ class UserSettings(db.Model):
     character_mru_sort: Mapped[bool] = mapped_column(default=False)
     character_combined_dropdown: Mapped[bool] = mapped_column(default=False)
     preferred_ui: Mapped[str | None] = mapped_column(default=None)
+    table_page_sizes: Mapped[dict | None] = mapped_column(JSON, default=None)
 
     __table_args__ = (
         CheckConstraint(

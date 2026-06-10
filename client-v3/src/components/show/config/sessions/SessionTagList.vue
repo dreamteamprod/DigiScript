@@ -203,7 +203,7 @@ const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
-const { perPage, currentPage } = usePagination();
+const { perPage, currentPage } = usePagination(15, 'config_session_tags');
 const isSubmittingNewTag = ref(false);
 const isSubmittingEditTag = ref(false);
 const isSubmittingDeleteTag = ref(false);

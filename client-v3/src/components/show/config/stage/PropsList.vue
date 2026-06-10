@@ -220,8 +220,11 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const { perPage: propTypesPerPage, currentPage: currentPropTypesPage } = usePagination();
-const { perPage: propsPerPage, currentPage: currentPropsPage } = usePagination();
+const { perPage: propTypesPerPage, currentPage: currentPropTypesPage } = usePagination(
+  15,
+  'config_prop_types'
+);
+const { perPage: propsPerPage, currentPage: currentPropsPage } = usePagination(15, 'config_props');
 const isSubmitting = ref(false);
 
 const newPropTypeModal = ref<InstanceType<typeof BModal>>();

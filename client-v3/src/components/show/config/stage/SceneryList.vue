@@ -222,8 +222,14 @@ const systemStore = useSystemStore();
 const { confirm } = useConfirm();
 const { validationState } = useFormValidation();
 
-const { perPage: sceneryTypesPerPage, currentPage: currentSceneryTypesPage } = usePagination();
-const { perPage: sceneryPerPage, currentPage: currentSceneryPage } = usePagination();
+const { perPage: sceneryTypesPerPage, currentPage: currentSceneryTypesPage } = usePagination(
+  15,
+  'config_scenery_types'
+);
+const { perPage: sceneryPerPage, currentPage: currentSceneryPage } = usePagination(
+  15,
+  'config_scenery'
+);
 const isSubmitting = ref(false);
 
 const newSceneryTypeModal = ref<InstanceType<typeof BModal>>();

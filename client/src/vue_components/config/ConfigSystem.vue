@@ -118,6 +118,7 @@ export default defineComponent({
   mixins: [paginationMixin],
   data() {
     return {
+      tableKey: 'config_system_clients',
       connectedClients: [] as unknown[],
       clientFields: [
         { key: 'internal_id', label: 'UUID' },
