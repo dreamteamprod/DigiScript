@@ -1,40 +1,21 @@
 import path from 'node:path';
-import fs from 'node:fs';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue2';
-
-function cleanV2StaticPlugin(): Plugin {
-  return {
-    name: 'clean-v2-static',
-    buildStart() {
-      if (process.env.BUILD_TARGET === 'electron') return;
-      const outDir = path.resolve(__dirname, '../server/static');
-      if (fs.existsSync(outDir)) {
-        for (const entry of fs.readdirSync(outDir)) {
-          if (entry !== 'ui-new') {
-            fs.rmSync(path.join(outDir, entry), { recursive: true, force: true });
-          }
-        }
-      }
-    },
-  };
-}
 
 export default defineConfig({
   plugins: [
     vue(),
-    cleanV2StaticPlugin(),
   ],
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
   // Use relative paths ONLY for Electron builds (file:// protocol)
   // Use absolute paths for web server (prevents issues with nested routes)
-  base: process.env.BUILD_TARGET === 'electron' ? './' : '/',
+  base: process.env.BUILD_TARGET === 'electron' ? './' : '/ui-old/',
   build: {
-    outDir: process.env.BUILD_TARGET === 'electron' ? './dist-electron' : '../server/static/',
+    outDir: process.env.BUILD_TARGET === 'electron' ? './dist-electron' : '../server/static/ui-old/',
     assetsDir: './assets',
-    emptyOutDir: false,
+    emptyOutDir: true,
     minify: 'esbuild',
     cssMinify: 'esbuild',
     rollupOptions: {

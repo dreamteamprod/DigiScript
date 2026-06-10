@@ -209,7 +209,7 @@ class Settings:
         self.define(
             "default_ui",
             str,
-            "old",
+            "new",
             True,
             display_name="Default UI Version",
             help_text="Which UI version users are directed to by default. User preferences override this.",

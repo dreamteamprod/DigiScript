@@ -94,7 +94,9 @@
           </BNavItem>
         </BNavbarNav>
         <BNavbarNav class="ms-auto">
-          <BNavItem v-if="!isElectronEnv" href="/?_switch=1"> Switch to Classic UI </BNavItem>
+          <BNavItem v-if="!isElectronEnv" href="/ui-old/?_switch=1">
+            Switch to Classic UI
+          </BNavItem>
           <BNavItem to="/help"> Help </BNavItem>
           <BNavItem to="/about"> About </BNavItem>
           <BNavItemDropdown v-if="isElectronEnv" text="Server">
@@ -273,7 +275,7 @@ async function loadInitialUserData(): Promise<boolean> {
   await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);
   const switching = new URLSearchParams(window.location.search).has('_switch');
   if (!switching && (userStore.userSettings as UserSettings).preferred_ui === 'old') {
-    window.location.href = '/?_switch=1';
+    window.location.href = '/ui-old/?_switch=1';
     return false;
   }
   if (switching) {

@@ -6,7 +6,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prebuild": "scripts/copy-docs.sh && node --strip-types scripts/generate-doc-manifest.ts",
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
     "lint": "npm run format && npm run lint:eslint",
