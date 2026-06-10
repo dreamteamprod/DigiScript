@@ -70,7 +70,7 @@
         <b-col v-if="cueAddMode" cols="1" class="cue-add-column" />
       </b-row>
     </template>
-    <b-row>
+    <b-row class="line-row">
       <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
         <template v-for="(part, index) in line.line_parts">
           <b-col
@@ -106,7 +106,7 @@
           cols="1"
           class="cue-add-column d-flex align-items-center justify-content-center"
         >
-          <b-button variant="success" size="sm" @click.stop="addNewCue">
+          <b-button variant="success" size="sm" class="add-cue-btn" @click.stop="addNewCue">
             <b-icon-plus-square-fill />
           </b-button>
         </b-col>
@@ -141,7 +141,7 @@
           cols="1"
           class="cue-add-column d-flex align-items-center justify-content-center"
         >
-          <b-button variant="success" size="sm" @click.stop="addNewCue">
+          <b-button variant="success" size="sm" class="add-cue-btn" @click.stop="addNewCue">
             <b-icon-plus-square-fill />
           </b-button>
         </b-col>
@@ -158,7 +158,7 @@
           cols="1"
           class="cue-add-column d-flex align-items-center justify-content-center"
         >
-          <b-button variant="success" size="sm" @click.stop="addNewCue">
+          <b-button variant="success" size="sm" class="add-cue-btn" @click.stop="addNewCue">
             <b-icon-plus-square-fill />
           </b-button>
         </b-col>
@@ -326,5 +326,11 @@ export default defineComponent({
 
 .cue-add-column {
   border-left: 0.1rem solid #3498db;
+}
+
+.line-row:has(.add-cue-btn:hover) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
 }
 </style>

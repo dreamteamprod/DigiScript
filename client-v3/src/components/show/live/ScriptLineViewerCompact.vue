@@ -56,7 +56,7 @@
         </BCol>
         <BCol v-if="cueAddMode" cols="1" class="cue-add-column" />
       </BRow>
-      <BRow>
+      <BRow class="line-row">
         <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
           <template v-for="(part, index) in line.line_parts" :key="`part_${lineIndex}_${index}`">
             <BCol
@@ -88,7 +88,9 @@
             cols="1"
             class="cue-add-column d-flex align-items-center justify-content-center"
           >
-            <BButton variant="success" size="sm" @click.stop="addNewCue"><IMdiPlusBox /></BButton>
+            <BButton variant="success" size="sm" class="add-cue-btn" @click.stop="addNewCue"
+              ><IMdiPlusBox
+            /></BButton>
           </BCol>
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
@@ -113,7 +115,9 @@
             cols="1"
             class="cue-add-column d-flex align-items-center justify-content-center"
           >
-            <BButton variant="success" size="sm" @click.stop="addNewCue"><IMdiPlusBox /></BButton>
+            <BButton variant="success" size="sm" class="add-cue-btn" @click.stop="addNewCue"
+              ><IMdiPlusBox
+            /></BButton>
           </BCol>
         </template>
         <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
@@ -124,7 +128,9 @@
             cols="1"
             class="cue-add-column d-flex align-items-center justify-content-center"
           >
-            <BButton variant="success" size="sm" @click.stop="addNewCue"><IMdiPlusBox /></BButton>
+            <BButton variant="success" size="sm" class="add-cue-btn" @click.stop="addNewCue"
+              ><IMdiPlusBox
+            /></BButton>
           </BCol>
         </template>
       </BRow>
@@ -336,5 +342,11 @@ onUnmounted(() => {
 
 .cue-add-column {
   border-left: 0.1rem solid #3498db;
+}
+
+.line-row:has(.add-cue-btn:hover) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
 }
 </style>
