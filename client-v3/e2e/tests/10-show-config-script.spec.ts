@@ -254,6 +254,55 @@ test('edits the cue identifier', async () => {
   });
 });
 
+test('can add a cue using Enter key in Add New Cue modal', async () => {
+  await page.locator('.add-cue-btn').first().click();
+  await waitForModal(page, 'Add New Cue');
+  await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
+  await page.fill('#new-cue-ident', '003');
+  // Enter key submits the form (fix: BForm @submit bound to onSubmitNew)
+  await page.locator('#new-cue-ident').press('Enter');
+  await waitForModalClosed(page);
+  await expect(page.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(2, { timeout: 5_000 });
+});
+
+test('can edit a cue identifier using Enter key in Edit Cue modal', async () => {
+  // Click the second cue button (003)
+  await page.locator('.cue-button:not(.add-cue-btn)').last().click();
+  await waitForModal(page, 'Edit Cue');
+  await page.fill('#edit-cue-ident', '004');
+  // Enter key submits the form (fix: BForm @submit bound to onSubmitEdit)
+  await page.locator('#edit-cue-ident').press('Enter');
+  await waitForModalClosed(page);
+  await expect(page.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(2, { timeout: 5_000 });
+});
+
+test('Jump to Cue navigates and auto-closes the modal', async () => {
+  await page.click('button:has-text("Go to Cue")');
+  await waitForModal(page, 'Jump to Cue');
+  await page.locator('.modal.show select').selectOption({ index: 1 }); // LX type
+  await page.locator('.modal.show input').fill('004');
+  await confirmModal(page); // Click Search
+  // Single exact match → navigateToMatch() now calls modal.hide() (fix)
+  await waitForModalClosed(page);
+  await expect(page.locator('.v-toast__text').filter({ hasText: /Jumped to/ })).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('deletes the Enter-key-added cue', async () => {
+  // Removes the LX 004 cue created in the Enter key test, leaving only LX 002
+  await page.locator('.cue-button:not(.add-cue-btn)').last().click();
+  await waitForModal(page, 'Edit Cue');
+  await page.locator('.modal.show button:has-text("Delete")').click();
+  await waitForModal(page, 'Delete Cue');
+  await page
+    .locator('.modal.show')
+    .filter({ has: page.locator('.modal-title:has-text("Delete Cue")') })
+    .locator('.modal-footer button.btn-danger')
+    .click();
+  await expect(page.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(1, { timeout: 5_000 });
+});
+
 test('deletes the cue', async () => {
   await page.locator('.cue-button:not(.add-cue-btn)').first().click();
   await waitForModal(page, 'Edit Cue');

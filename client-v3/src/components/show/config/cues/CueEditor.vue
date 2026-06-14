@@ -57,22 +57,11 @@
       :no-footer="changingPage"
       :no-close-on-backdrop="changingPage"
       :no-close-on-esc="changingPage"
-      :ok-disabled="pageV$.pageInputFormState.$invalid"
       @ok.prevent="goToPage"
     >
-      <BForm @submit.stop.prevent="goToPage">
+      <BForm @submit.stop.prevent="">
         <BFormGroup label="Page" label-for="page-input" label-cols="auto">
-          <BFormInput
-            id="page-input"
-            v-model="v$.pageInputFormState.pageNo.$model"
-            name="page-input"
-            type="number"
-            :state="validatePageState('pageNo')"
-            aria-describedby="page-feedback"
-          />
-          <BFormInvalidFeedback id="page-feedback">
-            This is a required field, and must be greater than 0.
-          </BFormInvalidFeedback>
+          <BFormInput id="page-input" v-model.number="pageInputNo" type="number" :min="1" />
         </BFormGroup>
       </BForm>
     </BModal>
@@ -83,10 +72,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onBeforeMount } from 'vue';
-import { useVuelidate } from '@vuelidate/core';
-import { required, minValue } from '@vuelidate/validators';
 import type { BModal } from 'bootstrap-vue-next';
-import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { useScriptStore } from '@/stores/script';
 import { useShowStore } from '@/stores/show';
 import { useUserStore } from '@/stores/user';
@@ -104,16 +90,7 @@ const changingPage = ref(false);
 const goToPageModal = ref<InstanceType<typeof BModal> | null>(null);
 const jumpToCueModal = ref<InstanceType<typeof JumpToCueModal> | null>(null);
 
-const pageInputFormState = ref({ pageNo: 1 });
-
-const rules = {
-  pageInputFormState: {
-    pageNo: { required, notNull, notNullAndGreaterThanZero, minValue: minValue(1) },
-  },
-};
-const v$ = useVuelidate(rules, { pageInputFormState });
-// Alias for template ok-disabled binding
-const pageV$ = v$;
+const pageInputNo = ref(1);
 
 watch(currentEditPage, (val) => {
   localStorage.setItem('cueEditPage', String(val));
@@ -149,11 +126,6 @@ onBeforeMount(async () => {
   await goToPageInner(currentEditPage.value);
 });
 
-function validatePageState(name: 'pageNo'): boolean | null {
-  const field = v$.value.pageInputFormState[name];
-  return field.$dirty ? !field.$error : null;
-}
-
 async function goToPageInner(pageNo: number): Promise<void> {
   if (pageNo > 1) {
     await scriptStore.loadScriptPage(pageNo - 1);
@@ -164,10 +136,9 @@ async function goToPageInner(pageNo: number): Promise<void> {
 }
 
 async function goToPage(): Promise<void> {
-  const valid = await v$.value.$validate();
-  if (!valid) return;
+  if (!pageInputNo.value || pageInputNo.value < 1) return;
   changingPage.value = true;
-  await goToPageInner(pageInputFormState.value.pageNo);
+  await goToPageInner(pageInputNo.value);
   changingPage.value = false;
   goToPageModal.value?.hide();
 }
