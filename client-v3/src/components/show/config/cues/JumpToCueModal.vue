@@ -169,7 +169,6 @@ async function performCueSearch(): Promise<void> {
     cueSearchResults.value = result;
     if (result.exact_matches.length === 1) {
       navigateToMatch(result.exact_matches[0]);
-      modal.value?.hide();
     } else {
       showResults.value = true;
     }
@@ -185,6 +184,7 @@ function navigateToMatch(match: CueMatch): void {
   toast.success(
     `Jumped to ${match.cue_type.prefix} ${match.cue.ident} on page ${match.location.page}`
   );
+  modal.value?.hide();
 }
 
 function resetCueSearch(): void {
