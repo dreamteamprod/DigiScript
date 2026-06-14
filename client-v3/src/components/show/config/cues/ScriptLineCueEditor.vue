@@ -123,7 +123,7 @@
       @hidden="resetNewForm"
       @ok="onSubmitNew"
     >
-      <BForm @submit.stop.prevent="">
+      <BForm @submit.stop.prevent="onSubmitNew">
         <BFormGroup label="Cue Type" label-for="new-cue-type">
           <BFormSelect
             id="new-cue-type"
@@ -188,7 +188,7 @@
           Save
         </BButton>
       </template>
-      <BForm @submit.stop.prevent="">
+      <BForm @submit.stop.prevent="onSubmitEdit">
         <BFormGroup label="Cue Type" label-for="edit-cue-type">
           <BFormSelect
             id="edit-cue-type"

@@ -5,3 +5,4 @@ junit/
 coverage/
 *.backup
 components.d.ts
+public/docs
