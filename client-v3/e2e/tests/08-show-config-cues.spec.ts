@@ -109,6 +109,16 @@ test('can open the Go to Page dialog in cue editor', async () => {
   await waitForModalClosed(page);
 });
 
+test('Go to Page submits and navigates to the requested page', async () => {
+  await page.click('button:has-text("Go to Page")');
+  await waitForModal(page, 'Go to Page');
+  await page.fill('.modal.show input[type="number"]', '1');
+  await confirmModal(page);
+  // If the fix is working, clicking OK closes the modal; previously Vuelidate prevented this
+  await waitForModalClosed(page);
+  await expect(page.locator('p.mb-0:has-text("Current Page: 1")')).toBeVisible();
+});
+
 // ── Cue Counts ────────────────────────────────────────────────────────────
 
 test('switches to Cue Counts sub-tab', async () => {
