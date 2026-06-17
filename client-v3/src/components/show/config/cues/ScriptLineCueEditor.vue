@@ -401,13 +401,12 @@ async function onSubmitNew(event: Event): Promise<void> {
     return;
   }
   submittingNewCue.value = true;
+  newCueModal.value?.hide();
   await scriptStore.addNewCue({
     cueType: newFormState.value.cueType!,
     ident: newFormState.value.ident!,
     lineId: newFormState.value.lineId!,
   });
-  newCueModal.value?.hide();
-  resetNewForm();
 }
 
 // Edit cue modal
