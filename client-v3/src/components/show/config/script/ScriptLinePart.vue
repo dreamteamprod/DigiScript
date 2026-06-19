@@ -47,17 +47,15 @@
           />
         </BFormGroup>
       </BCol>
-      <BCol v-if="showRemoveButton" cols="auto">
-        <BFormGroup label-size="sm" label=" ">
-          <BButton
-            v-b-tooltip.hover.top="'Remove line part'"
-            variant="outline-danger"
-            size="sm"
-            @click="$emit('remove-line-part')"
-          >
-            <IMdiMinusBox />
-          </BButton>
-        </BFormGroup>
+      <BCol v-if="showRemoveButton" cols="auto" class="align-self-end mb-3">
+        <BButton
+          v-b-tooltip.hover.top="'Remove line part'"
+          variant="outline-danger"
+          size="sm"
+          @click="$emit('remove-line-part')"
+        >
+          <IMdiMinusBox />
+        </BButton>
       </BCol>
     </BRow>
     <BRow>

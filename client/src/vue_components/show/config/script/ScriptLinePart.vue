@@ -69,17 +69,15 @@
           />
         </b-form-group>
       </b-col>
-      <b-col v-if="showRemoveButton" cols="auto">
-        <b-form-group label-size="sm" label=" ">
-          <b-button
-            v-b-popover.hover.top="'Remove line part'"
-            variant="outline-danger"
-            size="sm"
-            @click="removeLinePart"
-          >
-            <b-icon-dash-square-fill variant="danger" />
-          </b-button>
-        </b-form-group>
+      <b-col v-if="showRemoveButton" cols="auto" class="align-self-end mb-3">
+        <b-button
+          v-b-popover.hover.top="'Remove line part'"
+          variant="outline-danger"
+          size="sm"
+          @click="removeLinePart"
+        >
+          <b-icon-dash-square-fill variant="danger" />
+        </b-button>
       </b-col>
     </b-form-row>
     <b-form-row>
