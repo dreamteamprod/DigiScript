@@ -424,6 +424,17 @@ async function goToLivePage(): Promise<void> {
   text-align: center;
 }
 
+@media (max-width: 991.98px) {
+  .navbar-nav .nav-item {
+    display: flex;
+    justify-content: center;
+  }
+
+  .navbar-nav .nav-link {
+    text-align: center;
+  }
+}
+
 div.center-spinner {
   position: fixed;
   top: 50%;
