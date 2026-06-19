@@ -47,6 +47,18 @@
           />
         </BFormGroup>
       </BCol>
+      <BCol v-if="showRemoveButton" cols="auto">
+        <BFormGroup label-size="sm" label=" ">
+          <BButton
+            v-b-tooltip.hover.top="'Remove line part'"
+            variant="outline-danger"
+            size="sm"
+            @click="$emit('remove-line-part')"
+          >
+            <IMdiMinusBox />
+          </BButton>
+        </BFormGroup>
+      </BCol>
     </BRow>
     <BRow>
       <BCol style="display: inline-flex">
@@ -94,6 +106,7 @@ const props = defineProps<{
   characterGroups: CharacterGroup[];
   showAddButton: boolean;
   enableAddButton: boolean;
+  showRemoveButton: boolean;
   lineType: number;
   lineParts: ScriptLinePart[];
   stageDirectionStyles?: StageDirectionStyle[];
@@ -104,6 +117,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [part: ScriptLinePart];
   'add-line-part': [];
+  'remove-line-part': [];
   'try-finish-line': [];
   'stage-direction-style-change': [id: number | null];
 }>();
