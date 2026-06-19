@@ -97,11 +97,31 @@ test('saves a dialogue line to the script', async () => {
   await lineEditor.locator('select').nth(0).selectOption({ label: 'Act 1' });
   await lineEditor.locator('select').nth(1).selectOption({ label: 'Scene 1' });
 
-  await page.locator('select').filter({ hasText: 'Hamlet' }).selectOption({ label: 'Hamlet' });
+  await lineEditor
+    .locator('select')
+    .filter({ hasText: 'Hamlet' })
+    .selectOption({ label: 'Hamlet' });
   await page.locator('input[type="text"]:visible').last().fill('To be or not to be');
 
   await page.locator('button:has-text("Done")').first().click();
-  // ScriptEditor auto-adds a blank dialogue line after Done — delete it before asserting
+  // ScriptEditor auto-adds a blank dialogue editor after Done — fill it in as a second line so
+  // the bulk edit tests below can use a two-line range without needing the split dropdown.
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+
+  const lineEditor2 = page
+    .locator('div.row')
+    .filter({ has: page.locator('button:has-text("Done")') })
+    .first();
+  await lineEditor2.locator('select').nth(0).selectOption({ label: 'Act 1' });
+  await lineEditor2.locator('select').nth(1).selectOption({ label: 'Scene 1' });
+  await lineEditor2
+    .locator('select')
+    .filter({ hasText: 'Hamlet' })
+    .selectOption({ label: 'Hamlet' });
+  await page.locator('input[type="text"]:visible').last().fill('That is the question');
+
+  await page.locator('button:has-text("Done")').first().click();
+  // Delete the third auto-added blank editor
   await page.locator('button.btn-danger:has-text("Delete")').first().click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
 
@@ -118,6 +138,59 @@ test('saves a dialogue line to the script', async () => {
   await expect(
     page.locator('.viewable-line').filter({ hasText: 'To be or not to be' })
   ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.locator('.viewable-line').filter({ hasText: 'That is the question' })
+  ).toBeVisible({ timeout: 10_000 });
+});
+
+// ── Bulk edit ─────────────────────────────────────────────────────────────
+
+test('bulk edit mode is accessible and shows Start/End buttons', async () => {
+  // Still in edit mode from the save test, which saved two viewable dialogue lines.
+  await page.click('button:has-text("Bulk Edit")');
+  // Two ScriptLineViewer rows → two Start/End button pairs
+  await expect(page.getByRole('button', { name: 'Start', exact: true }).first()).toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(page.getByRole('button', { name: 'End', exact: true }).first()).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('bulk edit opens the Bulk Edit modal when start and end span two different lines', async () => {
+  // Start on the first line, End on the last line (different indices → valid range)
+  await page.getByRole('button', { name: 'Start', exact: true }).first().click();
+  await page.getByRole('button', { name: 'End', exact: true }).last().click();
+  await waitForModal(page, 'Bulk Edit');
+});
+
+test('bulk edit can assign a character to part 1', async () => {
+  await page.locator('.modal.show #bulk-part-input').selectOption({ label: 'Part 1' });
+  // Select Alice — a different character from Hamlet (who is already assigned) so the apply
+  // produces a real change that scriptChanges can detect via deep equality.
+  await page.locator('.modal.show #bulk-char-input').selectOption({ label: 'Alice' });
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  // After apply, bulk edit mode exits automatically
+  await expect(page.getByRole('button', { name: 'Bulk Edit', exact: true })).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('bulk edit stops when Exit Bulk Edit is clicked', async () => {
+  await page.click('button:has-text("Bulk Edit")');
+  await expect(page.getByRole('button', { name: 'Start', exact: true }).first()).toBeVisible({
+    timeout: 5_000,
+  });
+  await page.click('button:has-text("Exit Bulk Edit")');
+  await expect(page.getByRole('button', { name: 'Start', exact: true })).not.toBeVisible({
+    timeout: 3_000,
+  });
+  await page.click('button:has-text("Stop Editing")');
+  await confirmDialog(page);
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 // ── Cut mode ──────────────────────────────────────────────────────────────
@@ -232,7 +305,7 @@ test('adds a cue to the script line', async () => {
   // Scope to the visible modal's select to avoid matching the hidden "Add Cue Type" modal
   // dialog which BVN assigns id="new-cue-type" via its auto-ID scheme.
   await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
-  await page.fill('#new-cue-ident', '001');
+  await page.locator('.modal.show #new-cue-ident').fill('001');
   await confirmModal(page);
   await waitForModalClosed(page);
   // Wait for the actual cue button (not the add-cue-btn which shares the cue-button class)
@@ -246,7 +319,7 @@ test('edits the cue identifier', async () => {
   // Use :not(.add-cue-btn) to target the real cue button, not the add button
   await page.locator('.cue-button:not(.add-cue-btn)').first().click();
   await waitForModal(page, 'Edit Cue');
-  await page.fill('#edit-cue-ident', '002');
+  await page.locator('.modal.show #edit-cue-ident').fill('002');
   await confirmModal(page);
   await waitForModalClosed(page);
   await expect(page.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({
@@ -258,9 +331,11 @@ test('can add a cue using Enter key in Add New Cue modal', async () => {
   await page.locator('.add-cue-btn').first().click();
   await waitForModal(page, 'Add New Cue');
   await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
-  await page.fill('#new-cue-ident', '003');
+  await page.locator('.modal.show #new-cue-ident').fill('003');
   // Enter key submits the form (fix: BForm @submit bound to onSubmitNew)
-  await page.locator('#new-cue-ident').press('Enter');
+  // Scope to .modal.show to avoid strict-mode violation from other Add New Cue modal instances
+  // in the DOM (one per viewable script line — BVN v-show keeps them all present).
+  await page.locator('.modal.show #new-cue-ident').press('Enter');
   await waitForModalClosed(page);
   await expect(page.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(2, { timeout: 5_000 });
 });
@@ -269,9 +344,9 @@ test('can edit a cue identifier using Enter key in Edit Cue modal', async () => 
   // Click the second cue button (003)
   await page.locator('.cue-button:not(.add-cue-btn)').last().click();
   await waitForModal(page, 'Edit Cue');
-  await page.fill('#edit-cue-ident', '004');
+  await page.locator('.modal.show #edit-cue-ident').fill('004');
   // Enter key submits the form (fix: BForm @submit bound to onSubmitEdit)
-  await page.locator('#edit-cue-ident').press('Enter');
+  await page.locator('.modal.show #edit-cue-ident').press('Enter');
   await waitForModalClosed(page);
   await expect(page.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(2, { timeout: 5_000 });
 });

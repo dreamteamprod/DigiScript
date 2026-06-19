@@ -161,12 +161,14 @@
       />
     </BModal>
 
-    <BulkActSceneModal
+    <BulkEditModal
       ref="bulkModal"
       :previous-line-of-start="previousLineOfStart"
       :next-line-of-end="nextLineOfEnd"
       :acts="showStore.actList"
       :scenes="showStore.sceneList"
+      :characters="showStore.characterList"
+      :character-groups="showStore.characterGroupList"
       @apply="onBulkApply"
     />
 
@@ -211,7 +213,7 @@ import { useConfirm } from '@/composables/useConfirm';
 import { toast } from '@/js/toast';
 import ScriptLineEditor from './ScriptLineEditor.vue';
 import ScriptLineViewer from './ScriptLineViewer.vue';
-import BulkActSceneModal from './BulkActSceneModal.vue';
+import BulkEditModal from './BulkEditModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 
 const MRU_LOOK_BACK = 4;
@@ -247,7 +249,7 @@ const pageInputNo = ref(1);
 
 const saveModal = ref<InstanceType<typeof BModal>>();
 const goToPageModal = ref<InstanceType<typeof BModal>>();
-const bulkModal = ref<InstanceType<typeof BulkActSceneModal>>();
+const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
 
 const currentPageLines = computed(() => scriptConfigStore.getTmpPage(currentPage.value));
 const deletedLines = computed(() => scriptConfigStore.getDeletedLines(currentPage.value));
@@ -712,10 +714,21 @@ function endLines_isLast(lines: ScriptLine[], index: number): boolean {
   return index === lines.length - 1;
 }
 
-async function onBulkApply({ actId, sceneId }: { actId: number; sceneId: number }): Promise<void> {
+async function onBulkApply(payload: {
+  actId: number | null;
+  sceneId: number | null;
+  partIndex: number | null;
+  characterId: number | null;
+  characterGroupId: number | null;
+}): Promise<void> {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
   const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
   const { page: endPage, lineIndex: endIndex } = bulkEditEnd.value;
+
+  const applyActScene = payload.actId != null && payload.sceneId != null;
+  const applyCharacter =
+    payload.partIndex != null && (payload.characterId != null || payload.characterGroupId != null);
+  const targetPartIdx = (payload.partIndex ?? 1) - 1;
 
   for (let p = startPage; p <= endPage; p++) {
     await loadPage(p);
@@ -725,7 +738,28 @@ async function onBulkApply({ actId, sceneId }: { actId: number; sceneId: number 
     const deletedOnPage = scriptConfigStore.getDeletedLines(p);
     for (let i = fromIdx; i <= toIdx; i++) {
       if (deletedOnPage.includes(i)) continue;
-      scriptConfigStore.setLine(p, i, { ...pageLines[i], act_id: actId, scene_id: sceneId });
+      const updatedLine = { ...pageLines[i] };
+      if (applyActScene) {
+        updatedLine.act_id = payload.actId!;
+        updatedLine.scene_id = payload.sceneId!;
+      }
+      if (applyCharacter) {
+        const sortedParts = [...updatedLine.line_parts].sort(
+          (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
+        );
+        if (sortedParts.length > targetPartIdx) {
+          updatedLine.line_parts = sortedParts.map((part, idx) =>
+            idx === targetPartIdx
+              ? {
+                  ...part,
+                  character_id: payload.characterId,
+                  character_group_id: payload.characterGroupId,
+                }
+              : part
+          );
+        }
+      }
+      scriptConfigStore.setLine(p, i, updatedLine);
     }
   }
 
