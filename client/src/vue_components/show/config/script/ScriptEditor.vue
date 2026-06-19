@@ -167,11 +167,13 @@
         />
       </div>
     </b-modal>
-    <bulk-act-scene-modal
+    <bulk-edit-modal
       :previous-line-of-start="previousLineOfStart"
       :next-line-of-end="nextLineOfEnd"
       :acts="ACT_LIST"
       :scenes="SCENE_LIST"
+      :characters="CHARACTER_LIST"
+      :character-groups="CHARACTER_GROUP_LIST"
       @apply="onBulkApply"
     />
     <b-modal
@@ -221,7 +223,7 @@ import { diff } from 'deep-object-diff';
 import log from 'loglevel';
 import { sample } from 'lodash';
 
-import BulkActSceneModal from '@/vue_components/show/config/script/BulkActSceneModal.vue';
+import BulkEditModal from '@/vue_components/show/config/script/BulkEditModal.vue';
 import ScriptLineEditor from '@/vue_components/show/config/script/ScriptLineEditor.vue';
 import ScriptLineViewer from '@/vue_components/show/config/script/ScriptLineViewer.vue';
 import { makeURL, randInt } from '@/js/utils';
@@ -232,7 +234,7 @@ const MRU_LOOK_BACK = 4;
 
 export default defineComponent({
   name: 'ScriptConfig',
-  components: { BulkActSceneModal, ScriptLineViewer, ScriptLineEditor },
+  components: { BulkEditModal, ScriptLineViewer, ScriptLineEditor },
   data() {
     return {
       currentEditPage: 1,
@@ -351,7 +353,7 @@ export default defineComponent({
     async bulkEditEnd(val: { page: number; lineIndex: number } | null): Promise<void> {
       if (val != null) {
         await this.loadBoundaryLines();
-        (this as any).$bvModal.show('bulk-act-scene-modal');
+        (this as any).$bvModal.show('bulk-edit-modal');
       }
     },
     USER_SETTINGS(): void {
@@ -1045,9 +1047,21 @@ export default defineComponent({
         this.nextLineOfEnd = nextPage ? nextPage[0] : null;
       }
     },
-    async onBulkApply({ actId, sceneId }: { actId: number; sceneId: number }): Promise<void> {
+    async onBulkApply(payload: {
+      actId: number | null;
+      sceneId: number | null;
+      partIndex: number | null;
+      characterId: number | null;
+      characterGroupId: number | null;
+    }): Promise<void> {
       const { page: startPage, lineIndex: startIndex } = this.bulkEditStart!;
       const { page: endPage, lineIndex: endIndex } = this.bulkEditEnd!;
+
+      const applyActScene = payload.actId != null && payload.sceneId != null;
+      const applyCharacter =
+        payload.partIndex != null &&
+        (payload.characterId != null || payload.characterGroupId != null);
+      const targetPartIdx = (payload.partIndex ?? 1) - 1;
 
       for (let p = startPage; p <= endPage; p++) {
         await (this as any).LOAD_SCRIPT_PAGE(p);
@@ -1060,15 +1074,33 @@ export default defineComponent({
         const toIndex = p === endPage ? endIndex : pageLines.length - 1;
         for (let i = fromIndex; i <= toIndex; i++) {
           if ((this as any).DELETED_LINES(p).includes(i)) continue;
-          (this as any).SET_LINE({
-            pageNo: p,
-            lineIndex: i,
-            lineObj: { ...pageLines[i], act_id: actId, scene_id: sceneId },
-          });
+          const line = pageLines[i];
+          const updatedLine: any = { ...line };
+          if (applyActScene) {
+            updatedLine.act_id = payload.actId;
+            updatedLine.scene_id = payload.sceneId;
+          }
+          if (applyCharacter) {
+            const sortedParts = [...(line.line_parts ?? [])].sort(
+              (a: any, b: any) => (a.part_index ?? 0) - (b.part_index ?? 0)
+            );
+            if (sortedParts.length > targetPartIdx) {
+              updatedLine.line_parts = sortedParts.map((part: any, idx: number) =>
+                idx === targetPartIdx
+                  ? {
+                      ...part,
+                      character_id: payload.characterId,
+                      character_group_id: payload.characterGroupId,
+                    }
+                  : part
+              );
+            }
+          }
+          (this as any).SET_LINE({ pageNo: p, lineIndex: i, lineObj: updatedLine });
         }
       }
 
-      (this as any).$bvModal.hide('bulk-act-scene-modal');
+      (this as any).$bvModal.hide('bulk-edit-modal');
       this.exitBulkEditMode();
     },
     ...mapMutations([
