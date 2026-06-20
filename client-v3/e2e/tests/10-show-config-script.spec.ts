@@ -393,3 +393,79 @@ test('deletes the cue', async () => {
   // After deletion only the add-cue-btn remains; no actual cue buttons should exist
   await expect(page.locator('.cue-button:not(.add-cue-btn)')).not.toBeVisible({ timeout: 5_000 });
 });
+
+// ── Line part removal ──────────────────────────────────────────────────────
+
+test('remove button is absent on a single-part dialogue line', async () => {
+  await page.goto(`${UI_BASE}/show-config/script`);
+  await waitForAppReady(page);
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.locator('button:has-text("Stop Editing")')).toBeVisible({ timeout: 10_000 });
+
+  await page.click('button:has-text("Add Dialogue")');
+  const lineEditor = page
+    .locator('div.row')
+    .filter({ has: page.locator('button:has-text("Done")') })
+    .first();
+  await expect(lineEditor.locator('button:has-text("Done")')).toBeVisible({ timeout: 5_000 });
+
+  // With only 1 part no remove button should be present
+  await expect(lineEditor.locator('button.btn-outline-danger')).not.toBeVisible();
+});
+
+test('remove button appears when a second part is added', async () => {
+  const lineEditor = page
+    .locator('div.row')
+    .filter({ has: page.locator('button:has-text("Done")') })
+    .first();
+
+  // btn-secondary is the add-line-part (+) button — only btn-secondary in the editor row
+  await lineEditor.locator('button.btn-secondary').click();
+
+  // One remove button per part
+  await expect(lineEditor.locator('button.btn-outline-danger')).toHaveCount(2, { timeout: 3_000 });
+});
+
+test('clicking remove reduces to single part and hides the remove button', async () => {
+  const lineEditor = page
+    .locator('div.row')
+    .filter({ has: page.locator('button:has-text("Done")') })
+    .first();
+
+  await lineEditor.locator('button.btn-outline-danger').first().click();
+
+  // Back to 1 part — remove button gone
+  await expect(lineEditor.locator('button.btn-outline-danger')).not.toBeVisible({ timeout: 3_000 });
+});
+
+test('dialogue line with removed part saves correctly', async () => {
+  const lineEditor = page
+    .locator('div.row')
+    .filter({ has: page.locator('button:has-text("Done")') })
+    .first();
+
+  await lineEditor.locator('select').nth(0).selectOption({ label: 'Act 1' });
+  await lineEditor.locator('select').nth(1).selectOption({ label: 'Scene 1' });
+  await lineEditor
+    .locator('select')
+    .filter({ hasText: 'Hamlet' })
+    .selectOption({ label: 'Hamlet' });
+  await lineEditor.locator('input[type="text"]').last().fill('Surviving part text');
+
+  await lineEditor.locator('button:has-text("Done")').click();
+  // Delete the auto-added blank editor that appears after Done
+  await page.locator('button.btn-danger:has-text("Delete")').first().click();
+  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
+
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await waitForModal(page, 'Saving Script');
+  await expect(page.locator('.modal.show').getByText('Finished saving script.')).toBeVisible({
+    timeout: 15_000,
+  });
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  await expect(
+    page.locator('.viewable-line').filter({ hasText: 'Surviving part text' })
+  ).toBeVisible({ timeout: 10_000 });
+});
