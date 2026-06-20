@@ -83,7 +83,7 @@
 
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <BCol :style="{ textAlign: textAlign }">
-            <i class="viewable-line" :style="sdStyling">
+            <i class="viewable-line" :style="sdStylingWithCuts">
               <template v-if="sdStyle?.text_format === 'upper'">
                 {{ line.line_parts[0]?.line_text?.toUpperCase() }}
               </template>
@@ -302,7 +302,16 @@ const sdStyle = computed(() =>
     userStore.stageDirectionStyleOverrides
   )
 );
-const sdStyling = computed(() => stageDirectionStyling(sdStyle.value));
+const sdStylingWithCuts = computed<Record<string, string>>(() => {
+  const base = stageDirectionStyling(sdStyle.value);
+  const firstPartId = props.line.line_parts[0]?.id;
+  if (firstPartId != null && props.cuts.includes(firstPartId)) {
+    const existing = base['text-decoration-line'];
+    base['text-decoration-line'] =
+      existing && existing !== 'none' ? `${existing} line-through` : 'line-through';
+  }
+  return base;
+});
 const textAlign = computed(() =>
   scriptTextAlign(userStore.userSettings as Record<string, unknown>)
 );
