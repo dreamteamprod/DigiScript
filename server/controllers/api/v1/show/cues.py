@@ -760,7 +760,9 @@ class CueGroupController(BaseAPIController):
                 return
             if revision is None:
                 self.set_status(400)
-                await self.finish({"message": "Script does not have a current revision"})
+                await self.finish(
+                    {"message": "Script does not have a current revision"}
+                )
                 return
 
             data = escape.json_decode(self.request.body)
@@ -824,7 +826,9 @@ class CueGroupController(BaseAPIController):
 
             session.commit()
             self.set_status(200)
-            await self.finish({"id": group.id, "message": "Successfully added cue group"})
+            await self.finish(
+                {"id": group.id, "message": "Successfully added cue group"}
+            )
             await self.application.ws_send_to_all("NOOP", "LOAD_CUES", {})
 
     @requires_show
@@ -842,7 +846,9 @@ class CueGroupController(BaseAPIController):
                 return
             if revision is None:
                 self.set_status(400)
-                await self.finish({"message": "Script does not have a current revision"})
+                await self.finish(
+                    {"message": "Script does not have a current revision"}
+                )
                 return
 
             data = escape.json_decode(self.request.body)
@@ -949,9 +955,16 @@ class CueGroupController(BaseAPIController):
                     )
 
             # Delete removed members
+            removed_cue_ids = []
             for cue_id_key, assoc in existing_by_cue_id.items():
                 if cue_id_key not in requested_cue_ids:
+                    removed_cue_ids.append(cue_id_key)
                     session.delete(assoc)
+
+            if removed_cue_ids:
+                session.flush()
+                for cue_id in removed_cue_ids:
+                    CueAssociation.cleanup_orphaned_cue(session, cue_id, flush=False)
 
             session.commit()
             self.set_status(200)
@@ -973,7 +986,9 @@ class CueGroupController(BaseAPIController):
                 return
             if revision is None:
                 self.set_status(400)
-                await self.finish({"message": "Script does not have a current revision"})
+                await self.finish(
+                    {"message": "Script does not have a current revision"}
+                )
                 return
 
             group_id_str = self.get_argument("groupId", None)

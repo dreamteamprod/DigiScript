@@ -1280,9 +1280,7 @@ class TestCueGroups(DigiScriptTestCase):
 
         with self._app.get_db().sessionmaker() as session:
             assocs = session.scalars(
-                select(CueAssociation).where(
-                    CueAssociation.group_id == group_id
-                )
+                select(CueAssociation).where(CueAssociation.group_id == group_id)
             ).all()
             cue_ids = [a.cue_id for a in assocs]
 
@@ -1358,6 +1356,205 @@ class TestCueGroups(DigiScriptTestCase):
         self.assertEqual(1, len(group_cues))
         self.assertEqual(1, len(solo_cues))
         self.assertEqual("solo", solo_cues[0]["ident"])
+
+    def test_patch_forks_group_when_shared_across_revisions(self):
+        """PATCH creates a new CueGroup for the current revision when another revision
+        references the same group, leaving the other revision's associations untouched."""
+        # Create group in revision 1
+        create_resp = self._create_group(
+            cues=[
+                {"ident": "1", "sortOrder": 0},
+                {"ident": "2", "sortOrder": 1},
+            ]
+        )
+        original_group_id = tornado.escape.json_decode(create_resp.body)["id"]
+
+        # Create revision 2 as a copy of revision 1
+        rev_resp = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"description": "Rev 2", "sourceRevision": self.revision_id}
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, rev_resp.code)
+        rev2_id = tornado.escape.json_decode(rev_resp.body)["id"]
+
+        # Switch current revision to revision 2
+        with self._app.get_db().sessionmaker() as session:
+            script = session.scalars(
+                select(Script).where(Script.show_id == self.show_id)
+            ).first()
+            script.current_revision = rev2_id
+            session.commit()
+
+        # PATCH the group while in revision 2 (same cues, just triggers fork check)
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.group_id == original_group_id,
+                    CueAssociation.revision_id == rev2_id,
+                )
+            ).all()
+            existing_cues = [
+                {"id": a.cue_id, "ident": a.cue.ident, "sortOrder": a.sort_order}
+                for a in assocs
+            ]
+
+        patch_body = {
+            "groupId": original_group_id,
+            "lineId": self.line_id,
+            "labelOverride": "Forked Label",
+            "cues": existing_cues,
+        }
+        patch_resp = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, patch_resp.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            # Revision 2's associations should now reference a NEW group
+            rev2_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == rev2_id,
+                    CueAssociation.line_id == self.line_id,
+                )
+            ).all()
+            rev2_group_ids = {a.group_id for a in rev2_assocs}
+            self.assertEqual(
+                1, len(rev2_group_ids), "Rev 2 should have exactly one group"
+            )
+            forked_group_id = next(iter(rev2_group_ids))
+            self.assertNotEqual(
+                original_group_id,
+                forked_group_id,
+                "Rev 2 should reference a new (forked) CueGroup",
+            )
+
+            # Verify the forked group has the updated label
+            forked_group = session.get(CueGroup, forked_group_id)
+            self.assertEqual("Forked Label", forked_group.label_override)
+
+            # Revision 1's associations must still reference the original group
+            rev1_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision_id,
+                    CueAssociation.group_id == original_group_id,
+                )
+            ).all()
+            self.assertEqual(
+                2, len(rev1_assocs), "Rev 1 associations should be unchanged"
+            )
+
+    def test_delete_preserves_group_when_other_revision_references_it(self):
+        """DELETE removes associations only for the current revision; the CueGroup
+        row is retained as long as another revision still references it."""
+        # Create group in revision 1
+        create_resp = self._create_group()
+        group_id = tornado.escape.json_decode(create_resp.body)["id"]
+
+        # Create revision 2 (copy forward — group_id carries over)
+        rev_resp = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"description": "Rev 2", "sourceRevision": self.revision_id}
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, rev_resp.code)
+        rev2_id = tornado.escape.json_decode(rev_resp.body)["id"]
+
+        # Switch current revision to revision 2
+        with self._app.get_db().sessionmaker() as session:
+            script = session.scalars(
+                select(Script).where(Script.show_id == self.show_id)
+            ).first()
+            script.current_revision = rev2_id
+            session.commit()
+
+        # DELETE the group from revision 2
+        delete_resp = self.fetch(
+            f"/api/v1/show/cues/groups?groupId={group_id}&lineId={self.line_id}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, delete_resp.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            # CueGroup must still exist — revision 1 still references it
+            group = session.get(CueGroup, group_id)
+            self.assertIsNotNone(
+                group, "CueGroup must survive when another revision references it"
+            )
+
+            # Revision 2 must have no associations for this group
+            rev2_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == rev2_id,
+                    CueAssociation.group_id == group_id,
+                )
+            ).all()
+            self.assertEqual(
+                0,
+                len(rev2_assocs),
+                "Rev 2 should have no group associations after delete",
+            )
+
+            # Revision 1's associations must be intact
+            rev1_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision_id,
+                    CueAssociation.group_id == group_id,
+                )
+            ).all()
+            self.assertGreater(
+                len(rev1_assocs), 0, "Rev 1 associations must remain untouched"
+            )
+
+    def test_patch_removes_orphaned_cue(self):
+        """When PATCH removes a cue from a group, the orphaned Cue row is deleted."""
+        create_resp = self._create_group(
+            cues=[
+                {"ident": "1", "sortOrder": 0},
+                {"ident": "2", "sortOrder": 1},
+            ]
+        )
+        group_id = tornado.escape.json_decode(create_resp.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.group_id == group_id,
+                    CueAssociation.revision_id == self.revision_id,
+                )
+            ).all()
+            keep_assoc = next(a for a in assocs if a.cue.ident == "1")
+            drop_cue_id = next(a.cue_id for a in assocs if a.cue.ident == "2")
+
+        # PATCH keeping only cue "1"
+        patch_body = {
+            "groupId": group_id,
+            "lineId": self.line_id,
+            "cues": [{"id": keep_assoc.cue_id, "ident": "1", "sortOrder": 0}],
+        }
+        response = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            dropped_cue = session.get(Cue, drop_cue_id)
+            self.assertIsNone(
+                dropped_cue, "Orphaned Cue must be deleted after removal from group"
+            )
 
     def test_patch_and_delete_require_no_live_session(self):
         """PATCH and DELETE on /cues/groups are blocked when a live session exists."""
