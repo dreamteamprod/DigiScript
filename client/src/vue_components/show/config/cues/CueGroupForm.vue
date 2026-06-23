@@ -258,8 +258,6 @@ export default defineComponent({
 
 <style scoped>
 .cue-list-scroll {
-  max-height: 35vh;
-  overflow-y: auto;
   border: 1px solid #dee2e6;
   border-radius: 0.25rem;
   padding: 0.25rem 0.5rem;

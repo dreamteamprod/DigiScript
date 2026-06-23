@@ -1,5 +1,5 @@
 <template>
-  <b-modal :id="modalId" title="Edit Cue Group" size="lg" @hidden="onHidden">
+  <b-modal :id="modalId" title="Edit Cue Group" size="lg" scrollable @hidden="onHidden">
     <CueGroupForm
       ref="groupForm"
       :cue-type-options="cueTypeOptions"

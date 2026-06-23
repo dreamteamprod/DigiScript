@@ -129,7 +129,7 @@
     </BContainer>
 
     <!-- Add Cue Modal (tabs: Individual Cue / Cue Group) -->
-    <BModal ref="newCueModal" title="Add Cue" @hidden="resetNewForm">
+    <BModal ref="newCueModal" title="Add Cue" scrollable @hidden="resetNewForm">
       <BTabs v-model="activeTab" class="mt-1">
         <BTab title="Individual Cue">
           <BForm class="mt-3" @submit.stop.prevent="onSubmitNew">

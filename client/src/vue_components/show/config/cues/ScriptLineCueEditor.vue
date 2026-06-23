@@ -123,6 +123,7 @@
       :id="`line_${lineIndex}_-new-cue`"
       title="Add Cue"
       size="md"
+      scrollable
       hide-footer
       @hidden="resetNewForm"
     >
