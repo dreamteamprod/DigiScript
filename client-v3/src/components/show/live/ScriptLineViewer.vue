@@ -149,6 +149,7 @@
                   backgroundColor: cueGroupBackgroundColour(grp.group),
                   color: contrastColor(cueGroupBackgroundColour(grp.group)),
                 }"
+                @click.stop="editGroup(grp.group, grp.cues)"
               >
                 {{ cueGroupLabel(grp.group, grp.cues) }}
               </BButton>
@@ -186,6 +187,7 @@
                   backgroundColor: cueGroupBackgroundColour(grp.group),
                   color: contrastColor(cueGroupBackgroundColour(grp.group)),
                 }"
+                @click.stop="editGroup(grp.group, grp.cues)"
               >
                 {{ cueGroupLabel(grp.group, grp.cues) }}
               </BButton>
@@ -274,7 +276,7 @@ import { isWholeLineCut } from '@/js/scriptUtils';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine, ScriptCut, StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
-import type { Cue, CueType } from '@/types/api/cues';
+import type { Cue, CueGroup, CueType } from '@/types/api/cues';
 
 const props = defineProps<{
   line: ScriptLine;
@@ -300,6 +302,7 @@ const emit = defineEmits<{
   'first-line-change': [page: number, lineIndex: number, previousLineRef: string | null];
   'start-interval': [actId: number];
   'add-cue': [lineId: number];
+  'edit-group': [group: CueGroup, cues: Cue[], lineId: number];
 }>();
 
 const userStore = useUserStore();
@@ -383,6 +386,10 @@ const isFirstRowContent = computed(() => !needsIntervalBanner.value && !needsAct
 
 function addNewCue(): void {
   emit('add-cue', props.line.id);
+}
+
+function editGroup(group: CueGroup, cues: Cue[]): void {
+  emit('edit-group', group, cues, props.line.id);
 }
 
 function startInterval(): void {
