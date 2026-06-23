@@ -49,14 +49,38 @@ Cues can be attached to most line types in your script:
 
 To add a new cue:
 1. Click the green **+** button next to the script line where the cue should occur
-2. A popup will appear where you select the cue type and provide a cue identifier (e.g., "1" for LX 1)
-3. Click **Add** to create the cue
+2. A chooser dialog appears — select **Individual Cue** to add a single cue, or **Cue Group** to bundle multiple cues together (see below)
+3. For an individual cue, select the cue type and provide a cue identifier (e.g., "1" for LX 1), then click **Add**
 
 After adding cues, they will appear as colored buttons next to their associated script lines:
 
 ![](../images/config_show/cue_configuration_with_cues.png)
 
 Clicking on a cue button allows you to **Edit** or **Delete** that cue. The cue's color matches the color you defined for its cue type, making it easy to identify different types of cues at a glance.
+
+##### Cue Groups
+
+When a song or sequence has many cues on the same script line (e.g., 100 LX cues for a timecoded intro), adding them all as individual buttons becomes unworkable. **Cue Groups** solve this by bundling multiple cues into a single collapsed button displaying an abbreviated label such as `LX 1 - LX 100` or `LX - Music Intro`.
+
+To create a cue group:
+1. Click the **+** button on a script line, then select **Cue Group**
+2. In the **Add Cue Group** dialog:
+   - Select the **Cue Type** (all cues in a group share one type)
+   - Optionally enter a **Label Override** (e.g., "Music Intro") — if left blank, the label is automatically derived from the first and last cue identifiers
+   - Add cues using the range input (e.g., type `1 > 100` and click **Add Range** to add 100 cues at once) or click **Add Single Cue** to add individual rows
+   - Use the ↑ ↓ buttons to reorder cues within the group — the order determines the first/last identifiers shown in the label
+3. Click **Save Group** to create the group
+
+The group appears in the cue column as a button with a **dashed border**, making it visually distinct from individual cues:
+
+![](../images/config_show/cue_group_button.png)
+
+Clicking a group button opens the **Edit Cue Group** dialog, where you can:
+- Change the cue type or label override
+- Add, reorder, or remove individual cues within the group
+- Use **Delete Group** to remove the group and all its cues
+
+A script line can freely mix individual cues and groups simultaneously. The label preview in the dialog updates live as you make changes.
 
 ### Cues and Script Revisions
 

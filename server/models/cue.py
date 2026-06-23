@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
-from sqlalchemy import ForeignKey, String, func, select
+from sqlalchemy import ForeignKey, Integer, String, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -33,6 +33,19 @@ class CueType(db.Model, DeleteMixin):
         pass
 
 
+class CueGroup(db.Model):
+    __tablename__ = "cue_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    cue_type_id: Mapped[int] = mapped_column(ForeignKey("cuetypes.id"), nullable=False)
+    label_override: Mapped[str | None] = mapped_column(String(100))
+
+    cue_type: Mapped[CueType] = relationship(foreign_keys=[cue_type_id])
+    cue_associations: Mapped[List[CueAssociation]] = relationship(
+        back_populates="group", foreign_keys="CueAssociation.group_id"
+    )
+
+
 class Cue(db.Model):
     __tablename__ = "cue"
 
@@ -60,6 +73,10 @@ class CueAssociation(db.Model, DeleteMixin):
     cue_id: Mapped[int] = mapped_column(
         ForeignKey("cue.id"), primary_key=True, index=True
     )
+    group_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("cue_groups.id"), nullable=True, index=True
+    )
+    sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     revision: Mapped[ScriptRevision] = relationship(
         foreign_keys=[revision_id], back_populates="cue_associations"
@@ -69,6 +86,9 @@ class CueAssociation(db.Model, DeleteMixin):
     )
     cue: Mapped[Cue] = relationship(
         foreign_keys=[cue_id], back_populates="revision_associations"
+    )
+    group: Mapped[Optional[CueGroup]] = relationship(
+        foreign_keys=[group_id], back_populates="cue_associations"
     )
 
     @staticmethod
@@ -107,12 +127,32 @@ class CueAssociation(db.Model, DeleteMixin):
     def pre_delete(self, session):
         pass
 
+    @staticmethod
+    def cleanup_orphaned_group(session, group_id):
+        """Delete a CueGroup if no CueAssociation rows still reference it."""
+        if group_id is None:
+            return
+        remaining = (
+            session.scalar(
+                select(func.count())
+                .select_from(CueAssociation)
+                .where(CueAssociation.group_id == group_id)
+            )
+            or 0
+        )
+        if not remaining:
+            group = session.get(CueGroup, group_id)
+            if group:
+                session.delete(group)
+
     def post_delete(self, session):
         # Delete orphaned cues after association is removed
         # Using post_delete avoids autoflush timing issues during cascade deletion
         # Using no_autoflush prevents lazy loading from triggering premature flush
         with session.no_autoflush:
+            group_id = self.group_id
             if self.cue:
                 # Use the static helper for consistent orphan cleanup logic
                 # Don't flush during post_delete to avoid FK constraint errors mid-cascade
                 CueAssociation.cleanup_orphaned_cue(session, self.cue.id, flush=False)
+            CueAssociation.cleanup_orphaned_group(session, group_id)

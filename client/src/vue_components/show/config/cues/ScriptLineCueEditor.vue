@@ -13,7 +13,7 @@
       <b-col cols="3" class="cue-column" style="text-align: right">
         <b-button-group v-if="line.line_type !== LINE_TYPES.SPACING">
           <b-button
-            v-for="cue in cues"
+            v-for="cue in individualCues"
             :key="cue.id"
             :disabled="!IS_CUE_EDITOR"
             class="cue-button"
@@ -26,10 +26,23 @@
             {{ cueLabel(cue) }}
           </b-button>
           <b-button
+            v-for="grp in lineGroups"
+            :key="`group_${grp.group.id}`"
+            :disabled="!IS_CUE_EDITOR"
+            class="cue-button cue-group-btn"
+            :style="{
+              backgroundColor: cueGroupBackgroundColour(grp.group),
+              color: contrastColor({ bgColor: cueGroupBackgroundColour(grp.group) }),
+            }"
+            @click.stop="openEditGroup(grp.group, grp.cues)"
+          >
+            {{ cueGroupLabel(grp.group, grp.cues) }}
+          </b-button>
+          <b-button
             v-if="IS_CUE_EDITOR"
             class="cue-button add-cue-btn"
             :disabled="isWholeLineCut(line)"
-            @click.stop="openNewForm"
+            @click.stop="openAddChooser"
           >
             <b-icon-plus-square-fill variant="success" />
           </b-button>
@@ -96,6 +109,23 @@
         </b-col>
       </template>
     </b-row>
+    <!-- Add Cue Chooser Modal -->
+    <b-modal :id="`line_${lineIndex}_-add-chooser`" title="Add Cue" hide-footer size="sm">
+      <div class="d-grid gap-2">
+        <b-button variant="outline-primary" @click="chooseIndividual">Individual Cue</b-button>
+        <b-button variant="outline-success" @click="chooseGroup">Cue Group</b-button>
+      </div>
+    </b-modal>
+
+    <!-- Cue Group Modal (create + edit) -->
+    <CueGroupEditModal
+      ref="groupModal"
+      :line-id="line.id"
+      :line-index="lineIndex"
+      :cue-type-options="cueTypeOptions"
+      :cue-types="cueTypes"
+    />
+
     <b-modal
       :id="`line_${lineIndex}_-new-cue`"
       title="Add New Cue"
@@ -275,9 +305,11 @@ import log from 'loglevel';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
+import CueGroupEditModal from './CueGroupEditModal.vue';
 
 export default defineComponent({
   name: 'ScriptLineCueEditor',
+  components: { CueGroupEditModal },
   mixins: [scriptDisplayMixin],
   props: {
     line: {
@@ -383,7 +415,14 @@ export default defineComponent({
       'IS_ADMIN_USER',
       'SCRIPT_CUES',
       'CUE_COLOUR_OVERRIDES',
+      'GROUPED_CUES_FOR_LINE',
     ]),
+    individualCues(): any[] {
+      return (this.cues as any[]).filter((c: any) => c.group_id == null);
+    },
+    lineGroups(): { group: any; cues: any[] }[] {
+      return (this as any).GROUPED_CUES_FOR_LINE((this.line as any).id).groups;
+    },
     cueTypeOptions(): unknown[] {
       if ((this as any).IS_ADMIN_USER) {
         return [
@@ -474,6 +513,20 @@ export default defineComponent({
   },
   methods: {
     contrastColor,
+    openAddChooser(): void {
+      (this as any).$bvModal.show(`line_${this.lineIndex}_-add-chooser`);
+    },
+    chooseIndividual(): void {
+      (this as any).$bvModal.hide(`line_${this.lineIndex}_-add-chooser`);
+      this.openNewForm();
+    },
+    chooseGroup(): void {
+      (this as any).$bvModal.hide(`line_${this.lineIndex}_-add-chooser`);
+      (this.$refs.groupModal as any).openCreate();
+    },
+    openEditGroup(group: any, cues: any[]): void {
+      (this.$refs.groupModal as any).openEdit(group, cues);
+    },
     openNewForm(): void {
       this.resetNewForm();
       this.newFormState.lineId = (this.line as any).id;
@@ -591,15 +644,30 @@ export default defineComponent({
     cueBackgroundColour(cue: any): string {
       const cueType = (this.cueTypes as any[]).find((ct) => ct.id === cue.cue_type_id);
       if (!cueType) return '#000000';
-
       const override = ((this as any).CUE_COLOUR_OVERRIDES as any[]).find(
         (o) => o.settings.id === cueType.id
       );
-      if (override) {
-        return override.settings.colour;
-      }
-
+      if (override) return override.settings.colour;
       return cueType.colour;
+    },
+    cueGroupLabel(group: any, cues: any[]): string {
+      const cueType = (this.cueTypes as any[]).find((ct) => ct.id === group.cue_type_id);
+      const prefix = cueType?.prefix ?? '';
+      if (group.label_override) return `${prefix} - ${group.label_override}`;
+      if (cues.length === 0) return prefix;
+      const first = cues[0].ident ?? '';
+      const last = cues[cues.length - 1].ident ?? '';
+      if (first === last) return `${prefix} ${first}`;
+      return `${prefix} ${first} - ${prefix} ${last}`;
+    },
+    cueGroupBackgroundColour(group: any): string {
+      const cueType = (this.cueTypes as any[]).find((ct) => ct.id === group.cue_type_id);
+      if (!cueType) return '#000000';
+      const override = ((this as any).CUE_COLOUR_OVERRIDES as any[]).find(
+        (o) => o.settings.id === cueType.id
+      );
+      if (override) return override.settings.colour;
+      return cueType.colour ?? '#000000';
     },
     isWholeLineCut(line: any): boolean {
       return isWholeLineCutUtil(line, this.linePartCuts as any[]);
@@ -615,6 +683,10 @@ export default defineComponent({
 }
 .cue-button {
   padding: 0.2rem;
+}
+
+.cue-group-btn {
+  border-style: dashed !important;
 }
 .stage-direction {
   margin-top: 1rem;

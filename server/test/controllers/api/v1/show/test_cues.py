@@ -1,7 +1,7 @@
 import tornado.escape
 from sqlalchemy import select
 
-from models.cue import Cue, CueAssociation, CueType
+from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
     Script,
     ScriptLine,
@@ -9,6 +9,7 @@ from models.script import (
     ScriptLineType,
     ScriptRevision,
 )
+from models.session import ShowSession
 from models.show import Act, Scene, Show, ShowScriptType
 from models.user import User
 from rbac.role import Role
@@ -1008,3 +1009,398 @@ class TestCueTypesController(DigiScriptTestCase):
                     admin, cue_type, Role.READ | Role.WRITE | Role.EXECUTE
                 )
             )
+
+
+class TestCueGroups(DigiScriptTestCase):
+    """Tests for POST/PATCH/DELETE /api/v1/show/cues/groups."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Initial"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
+            script.current_revision = revision.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+
+            line = ScriptLine(
+                act_id=act.id,
+                scene_id=scene.id,
+                page=1,
+                line_type=ScriptLineType.DIALOGUE,
+            )
+            session.add(line)
+            session.flush()
+            self.line_id = line.id
+
+            spacing_line = ScriptLine(
+                act_id=act.id,
+                scene_id=scene.id,
+                page=1,
+                line_type=ScriptLineType.SPACING,
+            )
+            session.add(spacing_line)
+            session.flush()
+            self.spacing_line_id = spacing_line.id
+
+            assoc = ScriptLineRevisionAssociation(
+                revision_id=revision.id, line_id=line.id
+            )
+            session.add(assoc)
+            assoc2 = ScriptLineRevisionAssociation(
+                revision_id=revision.id, line_id=spacing_line.id
+            )
+            session.add(assoc2)
+
+            cue_type = CueType(
+                show_id=show.id, prefix="LX", description="Lighting", colour="#ff0000"
+            )
+            session.add(cue_type)
+            session.flush()
+            self.cue_type_id = cue_type.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def _create_group(self, cues=None, label_override=None):
+        """Helper: POST a cue group and return the response."""
+        if cues is None:
+            cues = [{"ident": str(i), "sortOrder": i - 1} for i in range(1, 4)]
+        body = {
+            "cueTypeId": self.cue_type_id,
+            "lineId": self.line_id,
+            "cues": cues,
+        }
+        if label_override is not None:
+            body["labelOverride"] = label_override
+        return self.fetch(
+            "/api/v1/show/cues/groups",
+            method="POST",
+            body=tornado.escape.json_encode(body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+    def test_post_creates_group_and_cues(self):
+        """POST /cues/groups creates CueGroup, Cue rows, and CueAssociation rows."""
+        response = self._create_group()
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+        self.assertIn("id", body)
+        group_id = body["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            group = session.get(CueGroup, group_id)
+            self.assertIsNotNone(group)
+            self.assertEqual(self.cue_type_id, group.cue_type_id)
+            self.assertIsNone(group.label_override)
+
+            assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.group_id == group_id,
+                    CueAssociation.revision_id == self.revision_id,
+                )
+            ).all()
+            self.assertEqual(3, len(assocs))
+            sort_orders = sorted(a.sort_order for a in assocs)
+            self.assertEqual([0, 1, 2], sort_orders)
+
+    def test_post_with_label_override(self):
+        """POST stores label_override on the CueGroup."""
+        response = self._create_group(label_override="Music Intro")
+        self.assertEqual(200, response.code)
+        group_id = tornado.escape.json_decode(response.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            group = session.get(CueGroup, group_id)
+            self.assertEqual("Music Intro", group.label_override)
+
+    def test_get_cues_includes_group_id_and_sort_order(self):
+        """GET /cues response includes group_id, sort_order, and cue_groups."""
+        response = self._create_group()
+        group_id = tornado.escape.json_decode(response.body)["id"]
+
+        get_response = self.fetch("/api/v1/show/cues")
+        self.assertEqual(200, get_response.code)
+        data = tornado.escape.json_decode(get_response.body)
+
+        self.assertIn("cue_groups", data)
+        group_ids_returned = [g["id"] for g in data["cue_groups"]]
+        self.assertIn(group_id, group_ids_returned)
+
+        line_cues = data["cues"].get(str(self.line_id), [])
+        for cue in line_cues:
+            self.assertIn("group_id", cue)
+            self.assertIn("sort_order", cue)
+            self.assertEqual(group_id, cue["group_id"])
+
+    def test_post_rejects_spacing_line(self):
+        """POST /cues/groups rejects SPACING lines."""
+        body = {
+            "cueTypeId": self.cue_type_id,
+            "lineId": self.spacing_line_id,
+            "cues": [{"ident": "1", "sortOrder": 0}],
+        }
+        response = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="POST",
+            body=tornado.escape.json_encode(body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(400, response.code)
+
+    def test_post_rejects_empty_cue_list(self):
+        """POST with no cues returns 400."""
+        body = {
+            "cueTypeId": self.cue_type_id,
+            "lineId": self.line_id,
+            "cues": [],
+        }
+        response = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="POST",
+            body=tornado.escape.json_encode(body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(400, response.code)
+
+    def test_patch_updates_label_override(self):
+        """PATCH /cues/groups updates label_override."""
+        create_resp = self._create_group()
+        group_id = tornado.escape.json_decode(create_resp.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.group_id == group_id,
+                    CueAssociation.revision_id == self.revision_id,
+                )
+            ).all()
+            existing_cues = [
+                {"id": a.cue_id, "ident": a.cue.ident, "sortOrder": a.sort_order}
+                for a in assocs
+            ]
+
+        patch_body = {
+            "groupId": group_id,
+            "lineId": self.line_id,
+            "labelOverride": "New Label",
+            "cues": existing_cues,
+        }
+        response = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            group = session.get(CueGroup, group_id)
+            self.assertEqual("New Label", group.label_override)
+
+    def test_patch_adds_and_removes_cues(self):
+        """PATCH reconciles cue membership — adds new, removes absent."""
+        create_resp = self._create_group(
+            cues=[
+                {"ident": "1", "sortOrder": 0},
+                {"ident": "2", "sortOrder": 1},
+            ]
+        )
+        group_id = tornado.escape.json_decode(create_resp.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.group_id == group_id,
+                    CueAssociation.revision_id == self.revision_id,
+                )
+            ).all()
+            # Keep cue "1", drop cue "2", add cue "3"
+            keep_assoc = next(a for a in assocs if a.cue.ident == "1")
+
+        patch_body = {
+            "groupId": group_id,
+            "lineId": self.line_id,
+            "cues": [
+                {"id": keep_assoc.cue_id, "ident": "1", "sortOrder": 0},
+                {"ident": "3", "sortOrder": 1},
+            ],
+        }
+        response = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.group_id == group_id,
+                    CueAssociation.revision_id == self.revision_id,
+                )
+            ).all()
+            self.assertEqual(2, len(assocs))
+            idents = {a.cue.ident for a in assocs}
+            self.assertEqual({"1", "3"}, idents)
+
+    def test_delete_removes_group_and_cleans_up(self):
+        """DELETE /cues/groups removes associations and orphaned CueGroup/Cue rows."""
+        create_resp = self._create_group()
+        group_id = tornado.escape.json_decode(create_resp.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.group_id == group_id
+                )
+            ).all()
+            cue_ids = [a.cue_id for a in assocs]
+
+        response = self.fetch(
+            f"/api/v1/show/cues/groups?groupId={group_id}&lineId={self.line_id}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            group = session.get(CueGroup, group_id)
+            self.assertIsNone(group)
+            for cue_id in cue_ids:
+                cue = session.get(Cue, cue_id)
+                self.assertIsNone(cue)
+
+    def test_revision_copy_forward_preserves_group(self):
+        """Creating a new revision copies group_id and sort_order."""
+        create_resp = self._create_group(
+            cues=[
+                {"ident": "1", "sortOrder": 0},
+                {"ident": "2", "sortOrder": 1},
+            ]
+        )
+        group_id = tornado.escape.json_decode(create_resp.body)["id"]
+
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"description": "Rev 2", "sourceRevision": self.revision_id}
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+        new_rev_id = tornado.escape.json_decode(response.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            new_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == new_rev_id,
+                    CueAssociation.group_id == group_id,
+                )
+            ).all()
+            self.assertEqual(2, len(new_assocs))
+            sort_orders = sorted(a.sort_order for a in new_assocs)
+            self.assertEqual([0, 1], sort_orders)
+
+    def test_mixed_individual_and_group_on_same_line(self):
+        """A line can have both individual cues and cue group members."""
+        self._create_group(cues=[{"ident": "1", "sortOrder": 0}])
+
+        individual_body = {
+            "cueType": self.cue_type_id,
+            "ident": "solo",
+            "lineId": self.line_id,
+        }
+        response = self.fetch(
+            "/api/v1/show/cues",
+            method="POST",
+            body=tornado.escape.json_encode(individual_body),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        get_resp = self.fetch("/api/v1/show/cues")
+        data = tornado.escape.json_decode(get_resp.body)
+        line_cues = data["cues"].get(str(self.line_id), [])
+        self.assertEqual(2, len(line_cues))
+        group_cues = [c for c in line_cues if c["group_id"] is not None]
+        solo_cues = [c for c in line_cues if c["group_id"] is None]
+        self.assertEqual(1, len(group_cues))
+        self.assertEqual(1, len(solo_cues))
+        self.assertEqual("solo", solo_cues[0]["ident"])
+
+    def test_patch_and_delete_require_no_live_session(self):
+        """PATCH and DELETE on /cues/groups are blocked when a live session exists."""
+        create_resp = self._create_group()
+        group_id = tornado.escape.json_decode(create_resp.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            show_session = ShowSession(
+                show_id=self.show_id,
+                script_revision_id=self.revision_id,
+            )
+            session.add(show_session)
+            session.flush()
+            session_id = show_session.id
+            show = session.get(Show, self.show_id)
+            show.current_session_id = session_id
+            session.commit()
+
+        try:
+            patch_body = {
+                "groupId": group_id,
+                "lineId": self.line_id,
+                "cues": [{"ident": "1", "sortOrder": 0}],
+            }
+            patch_resp = self.fetch(
+                "/api/v1/show/cues/groups",
+                method="PATCH",
+                body=tornado.escape.json_encode(patch_body),
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            self.assertEqual(409, patch_resp.code)
+
+            delete_resp = self.fetch(
+                f"/api/v1/show/cues/groups?groupId={group_id}&lineId={self.line_id}",
+                method="DELETE",
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            self.assertEqual(409, delete_resp.code)
+        finally:
+            with self._app.get_db().sessionmaker() as session:
+                show = session.get(Show, self.show_id)
+                show.current_session_id = None
+                ss = session.get(ShowSession, session_id)
+                if ss:
+                    session.delete(ss)
+                session.commit()

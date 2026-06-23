@@ -23,7 +23,7 @@
           <template v-if="line.line_type !== LINE_TYPES.SPACING">
             <BButtonGroup>
               <BButton
-                v-for="cue in cues"
+                v-for="cue in individualCues"
                 :key="cue.id"
                 class="cue-button"
                 :disabled="!systemStore.isCueEditor"
@@ -36,10 +36,23 @@
                 {{ cueLabel(cue) }}
               </BButton>
               <BButton
+                v-for="grp in lineGroups"
+                :key="`group_${grp.group.id}`"
+                class="cue-button cue-group-btn"
+                :disabled="!systemStore.isCueEditor"
+                :style="{
+                  backgroundColor: cueGroupBackgroundColour(grp.group),
+                  color: contrastColor(cueGroupBackgroundColour(grp.group)),
+                }"
+                @click.stop="openEditGroup(grp.group, grp.cues)"
+              >
+                {{ cueGroupLabel(grp.group, grp.cues) }}
+              </BButton>
+              <BButton
                 v-if="systemStore.isCueEditor"
                 class="cue-button add-cue-btn"
                 :disabled="isLineCut"
-                @click.stop="openNewForm"
+                @click.stop="openAddChooser"
               >
                 <IMdiPlusBox style="color: #06bc8c" />
               </BButton>
@@ -161,6 +174,17 @@
       </BForm>
     </BModal>
 
+    <!-- Add Cue Chooser Modal -->
+    <BModal ref="addChooserModal" title="Add Cue" hide-footer size="sm">
+      <div class="d-grid gap-2">
+        <BButton variant="outline-primary" @click="chooseIndividual">Individual Cue</BButton>
+        <BButton variant="outline-success" @click="chooseGroup">Cue Group</BButton>
+      </div>
+    </BModal>
+
+    <!-- Cue Group Modal (create + edit) -->
+    <CueGroupEditModal ref="groupModal" :cue-type-options="cueTypeOptions" />
+
     <!-- Edit Cue Modal -->
     <BModal
       ref="editCueModal"
@@ -230,8 +254,9 @@ import { useConfirm } from '@/composables/useConfirm';
 import { isWholeLineCut } from '@/js/scriptUtils';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine } from '@/types/api/script';
-import type { Cue, CueType } from '@/types/api/cues';
+import type { Cue, CueGroup, CueType } from '@/types/api/cues';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
+import CueGroupEditModal from './CueGroupEditModal.vue';
 
 const props = defineProps<{
   line: ScriptLine;
@@ -253,12 +278,15 @@ const userStore = useUserStore();
 const { confirm } = useConfirm();
 
 const { getStageDirectionStyle, stageDirectionStyling, scriptTextAlign } = useScriptDisplay();
-const { cueLabel, cueBackgroundColour, contrastColor } = useCueDisplay();
+const { cueLabel, cueBackgroundColour, cueGroupLabel, cueGroupBackgroundColour, contrastColor } =
+  useCueDisplay();
 const { needsHeadings, needsActSceneLabel } = useScriptNavigation();
 
 // Modal refs
 const newCueModal = ref<InstanceType<typeof BModal> | null>(null);
 const editCueModal = ref<InstanceType<typeof BModal> | null>(null);
+const addChooserModal = ref<InstanceType<typeof BModal> | null>(null);
+const groupModal = ref<InstanceType<typeof CueGroupEditModal> | null>(null);
 const lineContainer = ref<HTMLElement | null>(null);
 
 // Form state
@@ -332,6 +360,9 @@ const sceneLabel = computed(
 
 const isLineCut = computed(() => isWholeLineCut(props.line, props.cuts));
 
+const individualCues = computed(() => props.cues.filter((c) => c.group_id == null));
+const lineGroups = computed(() => scriptStore.groupedCuesForLine(props.line.id).groups);
+
 // RBAC-filtered cue type options: admins see all, others only see types they can write
 const cueTypeOptions = computed(() => {
   const base = [{ value: null, text: 'N/A' }];
@@ -388,6 +419,27 @@ function newFieldState(field: 'cueType' | 'ident'): boolean | null {
 function editFieldState(field: 'cueType' | 'ident'): boolean | null {
   const f = v$.value.editFormState[field];
   return f.$dirty ? !f.$error : null;
+}
+
+// Add chooser modal
+function openAddChooser(): void {
+  addChooserModal.value?.show();
+}
+
+function chooseIndividual(): void {
+  addChooserModal.value?.hide();
+  newFormState.value = { cueType: null, ident: null, lineId: props.line.id ?? null };
+  v$.value.newFormState.$reset();
+  newCueModal.value?.show();
+}
+
+function chooseGroup(): void {
+  addChooserModal.value?.hide();
+  groupModal.value?.openCreate(props.line.id!);
+}
+
+function openEditGroup(group: CueGroup, cues: Cue[]): void {
+  groupModal.value?.openEdit(group, cues, props.line.id!);
 }
 
 // New cue modal
@@ -482,6 +534,10 @@ async function deleteCue(): Promise<void> {
 
 .cue-button {
   padding: 0.2rem;
+}
+
+.cue-group-btn {
+  border-style: dashed !important;
 }
 
 .stage-direction {
