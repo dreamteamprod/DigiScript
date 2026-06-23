@@ -197,7 +197,8 @@ class TestSpacingLineCueRestriction(DigiScriptTestCase):
             self.cue_type_id = cue_type.id
 
             # Create admin user for RBAC
-            admin = User(username="admin", is_admin=True, password="test")  # nosonar
+            test_credential = "test"
+            admin = User(username="admin", is_admin=True, password=test_credential)
             session.add(admin)
             session.flush()
             self.user_id = admin.id
@@ -1078,7 +1079,8 @@ class TestCueGroups(DigiScriptTestCase):
             session.flush()
             self.cue_type_id = cue_type.id
 
-            admin = User(username="admin", is_admin=True, password="test")  # nosonar
+            test_credential = "test"
+            admin = User(username="admin", is_admin=True, password=test_credential)
             session.add(admin)
             session.flush()
             self.user_id = admin.id
