@@ -43,7 +43,6 @@
               @first-line-change="handleFirstLineChange"
               @start-interval="configureInterval"
               @add-cue="openNewCueModal"
-              @edit-group="openEditGroupModal"
             />
           </template>
         </template>
@@ -76,7 +75,6 @@
               @first-line-change="handleFirstLineChange"
               @start-interval="configureInterval"
               @add-cue="openNewCueModal"
-              @edit-group="openEditGroupModal"
             />
           </template>
         </template>
@@ -198,15 +196,6 @@
         </b-tab>
       </b-tabs>
     </b-modal>
-
-    <!-- Cue Group Edit Modal -->
-    <CueGroupEditModal
-      ref="groupModal"
-      :line-id="newCueFormState.lineId || 0"
-      :line-index="0"
-      :cue-type-options="cueTypeOptions"
-      :cue-types="CUE_TYPES"
-    />
   </b-row>
 </template>
 
@@ -221,7 +210,6 @@ import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
 import ScriptLineViewerCompact from '@/vue_components/show/live/ScriptLineViewerCompact.vue';
-import CueGroupEditModal from '@/vue_components/show/config/cues/CueGroupEditModal.vue';
 import CueGroupForm from '@/vue_components/show/config/cues/CueGroupForm.vue';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
@@ -231,7 +219,6 @@ export default defineComponent({
   components: {
     ScriptLineViewer,
     ScriptLineViewerCompact,
-    CueGroupEditModal,
     CueGroupForm,
   },
   props: {
@@ -1120,10 +1107,6 @@ export default defineComponent({
         this.submittingNewCueGroup = false;
       }
     },
-    openEditGroupModal(group: any, cues: any[], lineId: number): void {
-      (this.$refs.groupModal as any)?.openEdit(group, cues, lineId);
-    },
-
     // Scroll helper - scrolls element into view within the script container only
     scrollToElement(element: Element | null): void {
       const container = document.getElementById('script-container');

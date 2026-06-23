@@ -157,7 +157,6 @@
                 backgroundColor: cueGroupBackgroundColour(grp.group),
                 color: contrastColor({ bgColor: cueGroupBackgroundColour(grp.group) }),
               }"
-              @click.stop="editGroup(grp.group, grp.cues)"
             >
               {{ cueGroupLabel(grp.group, grp.cues) }}
             </b-button>
@@ -194,7 +193,6 @@
                 backgroundColor: cueGroupBackgroundColour(grp.group),
                 color: contrastColor({ bgColor: cueGroupBackgroundColour(grp.group) }),
               }"
-              @click.stop="editGroup(grp.group, grp.cues)"
             >
               {{ cueGroupLabel(grp.group, grp.cues) }}
             </b-button>
@@ -381,9 +379,6 @@ export default defineComponent({
   methods: {
     addNewCue(): void {
       this.$emit('add-cue', (this.line as any).id);
-    },
-    editGroup(group: any, cues: any[]): void {
-      this.$emit('edit-group', group, cues, (this.line as any).id);
     },
   },
 });

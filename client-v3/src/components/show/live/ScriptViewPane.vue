@@ -44,7 +44,6 @@
               @first-line-change="handleFirstLineChange"
               @start-interval="configureInterval"
               @add-cue="openNewCueModal"
-              @edit-group="openEditGroupModal"
             />
           </template>
         </template>
@@ -78,7 +77,6 @@
               @first-line-change="handleFirstLineChange"
               @start-interval="configureInterval"
               @add-cue="openNewCueModal"
-              @edit-group="openEditGroupModal"
             />
           </template>
         </template>
@@ -233,9 +231,6 @@
         </template>
       </template>
     </BModal>
-
-    <!-- Cue Group Edit Modal -->
-    <CueGroupEditModal ref="groupModal" :cue-type-options="cueTypeOptions" />
   </BRow>
 </template>
 
@@ -257,10 +252,8 @@ import { useWebSocket } from '@/composables/useWebSocket';
 import { toast } from '@/js/toast';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import ScriptLineViewerCompact from './ScriptLineViewerCompact.vue';
-import CueGroupEditModal from '@/components/show/config/cues/CueGroupEditModal.vue';
 import CueGroupForm from '@/components/show/config/cues/CueGroupForm.vue';
 import type { ScriptLine } from '@/types/api/script';
-import type { Cue, CueGroup } from '@/types/api/cues';
 
 const props = defineProps<{
   isScriptFollowing: boolean;
@@ -288,7 +281,6 @@ const intervalModal = ref<InstanceType<(typeof import('bootstrap-vue-next'))['BM
   null
 );
 const newCueModal = ref<InstanceType<(typeof import('bootstrap-vue-next'))['BModal']> | null>(null);
-const groupModal = ref<InstanceType<typeof CueGroupEditModal> | null>(null);
 const newGroupForm = ref<InstanceType<typeof CueGroupForm> | null>(null);
 
 // Page loading state
@@ -834,10 +826,6 @@ function resetNewCueForm(): void {
     v$.value.$reset();
     newGroupForm.value?.reset();
   });
-}
-
-function openEditGroupModal(group: CueGroup, cues: Cue[], lineId: number): void {
-  groupModal.value?.openEdit(group, cues, lineId);
 }
 
 function validateFieldState(field: 'cueType' | 'ident'): boolean | null {

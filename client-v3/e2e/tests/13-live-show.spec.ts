@@ -167,14 +167,12 @@ test('can add a cue group from the live view', async () => {
   await expect(leaderPage.locator('.cue-group-btn').first()).toContainText('LX 200 - LX 202');
 });
 
-test('can open Edit Cue Group modal from the live view', async () => {
+test('cue group buttons in live view are non-interactive display-only buttons', async () => {
+  // Group buttons in live view should NOT open an edit modal — editing is blocked server-side
+  // during live sessions. Verify clicking doesn't open any modal.
   await leaderPage.locator('.cue-group-btn').first().click();
-  await waitForModal(leaderPage, 'Edit Cue Group');
-  await expect(leaderPage.locator('.modal.show input[placeholder="Identifier"]')).toHaveCount(3, {
-    timeout: 5_000,
-  });
-  await leaderPage.locator('.modal.show button:has-text("Cancel")').click();
-  await waitForModalClosed(leaderPage);
+  await leaderPage.waitForTimeout(500);
+  await expect(leaderPage.locator('.modal.show')).not.toBeVisible();
 });
 
 test('pressing C again disables cue add mode', async () => {
