@@ -302,8 +302,7 @@ test('navigates to cue editor with saved script content', async () => {
 test('adds a cue to the script line', async () => {
   await page.locator('.add-cue-btn').first().click();
   await waitForModal(page, 'Add Cue');
-  await page.locator('.modal.show button:has-text("Individual Cue")').click();
-  await waitForModal(page, 'Add New Cue');
+  // Individual Cue tab is active by default — no extra click needed
   // Scope to the visible modal's select to avoid matching the hidden "Add Cue Type" modal
   // dialog which BVN assigns id="new-cue-type" via its auto-ID scheme.
   await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
@@ -332,8 +331,7 @@ test('edits the cue identifier', async () => {
 test('can add a cue using Enter key in Add New Cue modal', async () => {
   await page.locator('.add-cue-btn').first().click();
   await waitForModal(page, 'Add Cue');
-  await page.locator('.modal.show button:has-text("Individual Cue")').click();
-  await waitForModal(page, 'Add New Cue');
+  // Individual Cue tab is active by default — no extra click needed
   await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
   await page.locator('.modal.show #new-cue-ident').fill('003');
   // Enter key submits the form (fix: BForm @submit bound to onSubmitNew)
@@ -400,22 +398,25 @@ test('deletes the cue', async () => {
 
 // ── Cue Groups ────────────────────────────────────────────────────────────
 
-test('opens Add Cue chooser with Individual Cue and Cue Group options', async () => {
+test('opens Add Cue modal with Individual Cue and Cue Group tabs', async () => {
   // After individual cue tests all cues have been deleted. Still on the cue config page.
   await page.locator('.add-cue-btn').first().click();
   await waitForModal(page, 'Add Cue');
-  await expect(page.locator('.modal.show button:has-text("Individual Cue")')).toBeVisible();
-  await expect(page.locator('.modal.show button:has-text("Cue Group")')).toBeVisible();
-  // Dismiss chooser
+  await expect(page.locator('.modal.show .nav-link:has-text("Individual Cue")')).toBeVisible();
+  await expect(page.locator('.modal.show .nav-link:has-text("Cue Group")')).toBeVisible();
+  // Dismiss modal
   await page.keyboard.press('Escape');
   await waitForModalClosed(page);
 });
 
-test('selects Cue Group from chooser to open Add Cue Group modal', async () => {
+test('switches to Cue Group tab to show group form', async () => {
   await page.locator('.add-cue-btn').first().click();
   await waitForModal(page, 'Add Cue');
-  await page.locator('.modal.show button:has-text("Cue Group")').click();
-  await waitForModal(page, 'Add Cue Group');
+  await page.locator('.modal.show .nav-link:has-text("Cue Group")').click();
+  // Wait for tab content to be visible (BTabs lazy may delay mount)
+  await expect(page.locator('.modal.show input[placeholder="1 > 100"]')).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test('selects cue type and adds range 1 > 5', async () => {

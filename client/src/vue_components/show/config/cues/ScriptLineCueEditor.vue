@@ -42,7 +42,7 @@
             v-if="IS_CUE_EDITOR"
             class="cue-button add-cue-btn"
             :disabled="isWholeLineCut(line)"
-            @click.stop="openAddChooser"
+            @click.stop="openNewForm"
           >
             <b-icon-plus-square-fill variant="success" />
           </b-button>
@@ -109,15 +109,7 @@
         </b-col>
       </template>
     </b-row>
-    <!-- Add Cue Chooser Modal -->
-    <b-modal :id="`line_${lineIndex}_-add-chooser`" title="Add Cue" hide-footer size="sm">
-      <div class="d-grid gap-2">
-        <b-button variant="outline-primary" @click="chooseIndividual">Individual Cue</b-button>
-        <b-button variant="outline-success" @click="chooseGroup">Cue Group</b-button>
-      </div>
-    </b-modal>
-
-    <!-- Cue Group Modal (create + edit) -->
+    <!-- Cue Group Modal (edit only) -->
     <CueGroupEditModal
       ref="groupModal"
       :line-id="line.id"
@@ -126,111 +118,152 @@
       :cue-types="cueTypes"
     />
 
+    <!-- Add Cue Modal (tabs: Individual Cue / Cue Group) -->
     <b-modal
       :id="`line_${lineIndex}_-new-cue`"
-      title="Add New Cue"
+      title="Add Cue"
       size="md"
-      :ok-disabled="$v.newFormState.$invalid || submittingNewCue"
+      hide-footer
       @hidden="resetNewForm"
-      @ok="onSubmitNew"
     >
-      <b-form ref="new-cue-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="new-type-input-group" label="Cue Type" label-for="new-type-input">
-          <b-form-select
-            id="new-type-input"
-            v-model="$v.newFormState.cueType.$model"
-            :options="cueTypeOptions"
-            :state="validateNewState('cueType')"
-            aria-describedby="new-cue-type-feedback"
-          />
-          <b-form-invalid-feedback id="new-cue-type-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group id="new-ident-input-group" label="Identifier" label-for="new-ident-input">
-          <b-form-input
-            id="new-ident-input"
-            v-model="$v.newFormState.ident.$model"
-            name="new-ident-input"
-            :state="validateNewState('ident')"
-            aria-describedby="new-ident-feedback"
-          />
-          <b-form-invalid-feedback id="new-ident-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group>
-          <b-form-text v-if="isDuplicateNewCue" class="text-warning">
-            ⚠️ A cue with this identifier already exists for this cue type
-          </b-form-text>
-        </b-form-group>
-        <template
-          v-if="
-            line.line_type === LINE_TYPES.DIALOGUE || line.line_type === LINE_TYPES.STAGE_DIRECTION
-          "
-        >
-          <hr />
-          <b-form-group id="line-render-group" label="Script Line" label-for="line-render">
-            <b-form-text id="line-render">
-              <b-row>
-                <template v-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
-                  <b-col
-                    :key="`line_${lineIndex}_stage_direction`"
-                    :style="{ textAlign: scriptTextAlign }"
-                  >
-                    <i
-                      class="viewable-line"
-                      :class="{
-                        'cut-line-part': linePartCuts.indexOf(line.line_parts[0].id) !== -1,
-                      }"
-                      :style="stageDirectionStyling"
-                    >
-                      <template
-                        v-if="
-                          stageDirectionStyle != null && stageDirectionStyle.text_format === 'upper'
-                        "
+      <b-tabs v-model="activeTab" class="mt-1">
+        <b-tab title="Individual Cue">
+          <b-form class="mt-3" @submit.stop.prevent="onSubmitNew">
+            <b-form-group id="new-type-input-group" label="Cue Type" label-for="new-type-input">
+              <b-form-select
+                id="new-type-input"
+                v-model="$v.newFormState.cueType.$model"
+                :options="cueTypeOptions"
+                :state="validateNewState('cueType')"
+                aria-describedby="new-cue-type-feedback"
+              />
+              <b-form-invalid-feedback id="new-cue-type-feedback">
+                This is a required field.
+              </b-form-invalid-feedback>
+            </b-form-group>
+            <b-form-group id="new-ident-input-group" label="Identifier" label-for="new-ident-input">
+              <b-form-input
+                id="new-ident-input"
+                v-model="$v.newFormState.ident.$model"
+                name="new-ident-input"
+                :state="validateNewState('ident')"
+                aria-describedby="new-ident-feedback"
+              />
+              <b-form-invalid-feedback id="new-ident-feedback">
+                This is a required field.
+              </b-form-invalid-feedback>
+            </b-form-group>
+            <b-form-group>
+              <b-form-text v-if="isDuplicateNewCue" class="text-warning">
+                ⚠️ A cue with this identifier already exists for this cue type
+              </b-form-text>
+            </b-form-group>
+            <template
+              v-if="
+                line.line_type === LINE_TYPES.DIALOGUE ||
+                line.line_type === LINE_TYPES.STAGE_DIRECTION
+              "
+            >
+              <hr />
+              <b-form-group id="line-render-group" label="Script Line" label-for="line-render">
+                <b-form-text id="line-render">
+                  <b-row>
+                    <template v-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
+                      <b-col
+                        :key="`line_${lineIndex}_stage_direction`"
+                        :style="{ textAlign: scriptTextAlign }"
                       >
-                        {{ line.line_parts[0].line_text | uppercase }}
-                      </template>
-                      <template
-                        v-else-if="
-                          stageDirectionStyle != null && stageDirectionStyle.text_format === 'lower'
-                        "
+                        <i
+                          class="viewable-line"
+                          :class="{
+                            'cut-line-part': linePartCuts.indexOf(line.line_parts[0].id) !== -1,
+                          }"
+                          :style="stageDirectionStyling"
+                        >
+                          <template
+                            v-if="
+                              stageDirectionStyle != null &&
+                              stageDirectionStyle.text_format === 'upper'
+                            "
+                          >
+                            {{ line.line_parts[0].line_text | uppercase }}
+                          </template>
+                          <template
+                            v-else-if="
+                              stageDirectionStyle != null &&
+                              stageDirectionStyle.text_format === 'lower'
+                            "
+                          >
+                            {{ line.line_parts[0].line_text | lowercase }}
+                          </template>
+                          <template v-else>
+                            {{ line.line_parts[0].line_text }}
+                          </template>
+                        </i>
+                      </b-col>
+                    </template>
+                    <template v-else>
+                      <b-col
+                        v-for="(part, index) in line.line_parts"
+                        :key="`line_${lineIndex}_part_${index}`"
+                        :style="headingStyle"
                       >
-                        {{ line.line_parts[0].line_text | lowercase }}
-                      </template>
-                      <template v-else>
-                        {{ line.line_parts[0].line_text }}
-                      </template>
-                    </i>
-                  </b-col>
-                </template>
-                <template v-else>
-                  <b-col
-                    v-for="(part, index) in line.line_parts"
-                    :key="`line_${lineIndex}_part_${index}`"
-                    :style="headingStyle"
-                  >
-                    <b v-if="part.character_id != null">
-                      {{ characters.find((char) => char.id === part.character_id).name }}
-                    </b>
-                    <b v-else>
-                      {{ characterGroups.find((char) => char.id === part.character_group_id).name }}
-                    </b>
-
-                    <p
-                      class="viewable-line"
-                      :class="{ 'cut-line-part': linePartCuts.indexOf(part.id) !== -1 }"
-                    >
-                      {{ part.line_text }}
-                    </p>
-                  </b-col>
-                </template>
-              </b-row>
-            </b-form-text>
-          </b-form-group>
-        </template>
-      </b-form>
+                        <b v-if="part.character_id != null">
+                          {{ characters.find((char) => char.id === part.character_id).name }}
+                        </b>
+                        <b v-else>
+                          {{
+                            characterGroups.find((char) => char.id === part.character_group_id).name
+                          }}
+                        </b>
+                        <p
+                          class="viewable-line"
+                          :class="{ 'cut-line-part': linePartCuts.indexOf(part.id) !== -1 }"
+                        >
+                          {{ part.line_text }}
+                        </p>
+                      </b-col>
+                    </template>
+                  </b-row>
+                </b-form-text>
+              </b-form-group>
+            </template>
+          </b-form>
+          <div class="d-flex justify-content-end mt-3" style="gap: 0.5rem">
+            <b-button variant="secondary" @click="$bvModal.hide(`line_${lineIndex}_-new-cue`)">
+              Cancel
+            </b-button>
+            <b-button
+              variant="primary"
+              :disabled="$v.newFormState.$invalid || submittingNewCue"
+              @click="onSubmitNew"
+            >
+              {{ submittingNewCue ? 'Adding…' : 'Add Cue' }}
+            </b-button>
+          </div>
+        </b-tab>
+        <b-tab title="Cue Group">
+          <CueGroupForm
+            ref="newGroupForm"
+            :cue-type-options="cueTypeOptions"
+            :cue-types="cueTypes"
+            class="mt-3"
+            @validity-change="isGroupFormValid = $event"
+          />
+          <div class="d-flex justify-content-end mt-3" style="gap: 0.5rem">
+            <b-button variant="secondary" @click="$bvModal.hide(`line_${lineIndex}_-new-cue`)">
+              Cancel
+            </b-button>
+            <b-button
+              variant="primary"
+              :disabled="!isGroupFormValid || submittingGroup"
+              @click="onSubmitGroup"
+            >
+              {{ submittingGroup ? 'Saving…' : 'Save Group' }}
+            </b-button>
+          </div>
+        </b-tab>
+      </b-tabs>
     </b-modal>
     <b-modal
       :id="`line_${lineIndex}_-edit-cue`"
@@ -306,10 +339,11 @@ import { LINE_TYPES } from '@/constants/lineTypes';
 import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
 import scriptDisplayMixin from '@/mixins/scriptDisplayMixin';
 import CueGroupEditModal from './CueGroupEditModal.vue';
+import CueGroupForm from './CueGroupForm.vue';
 
 export default defineComponent({
   name: 'ScriptLineCueEditor',
-  components: { CueGroupEditModal },
+  components: { CueGroupEditModal, CueGroupForm },
   mixins: [scriptDisplayMixin],
   props: {
     line: {
@@ -375,7 +409,10 @@ export default defineComponent({
         ident: null as string | null,
         lineId: null as number | null,
       },
+      activeTab: 0,
       submittingNewCue: false,
+      submittingGroup: false,
+      isGroupFormValid: false,
       submittingEditCue: false,
       deletingCue: false,
     };
@@ -513,23 +550,17 @@ export default defineComponent({
   },
   methods: {
     contrastColor,
-    openAddChooser(): void {
-      (this as any).$bvModal.show(`line_${this.lineIndex}_-add-chooser`);
-    },
-    chooseIndividual(): void {
-      (this as any).$bvModal.hide(`line_${this.lineIndex}_-add-chooser`);
-      this.openNewForm();
-    },
-    chooseGroup(): void {
-      (this as any).$bvModal.hide(`line_${this.lineIndex}_-add-chooser`);
-      (this.$refs.groupModal as any).openCreate();
-    },
     openEditGroup(group: any, cues: any[]): void {
       (this.$refs.groupModal as any).openEdit(group, cues);
     },
     openNewForm(): void {
-      this.resetNewForm();
-      this.newFormState.lineId = (this.line as any).id;
+      this.activeTab = 0;
+      this.isGroupFormValid = false;
+      this.newFormState = { cueType: null, ident: null, lineId: (this.line as any).id };
+      this.$nextTick(() => {
+        (this as any).$v.$reset();
+        (this.$refs.newGroupForm as any)?.reset();
+      });
       (this as any).$bvModal.show(`line_${this.lineIndex}_-new-cue`);
     },
     resetNewForm(): void {
@@ -538,11 +569,33 @@ export default defineComponent({
         ident: null,
         lineId: null,
       };
+      this.activeTab = 0;
       this.submittingNewCue = false;
+      this.submittingGroup = false;
+      this.isGroupFormValid = false;
 
       this.$nextTick(() => {
         (this as any).$v.$reset();
+        (this.$refs.newGroupForm as any)?.reset();
       });
+    },
+    async onSubmitGroup(): Promise<void> {
+      if (!this.isGroupFormValid || this.submittingGroup) return;
+      const form = this.$refs.newGroupForm as any;
+      if (!form) return;
+      this.submittingGroup = true;
+      try {
+        const data = form.getFormData();
+        await (this as any).ADD_CUE_GROUP({
+          cueTypeId: data.cueTypeId,
+          labelOverride: data.labelOverride || undefined,
+          lineId: (this.line as any).id,
+          cues: data.cues.map((c: any, i: number) => ({ ident: c.ident, sortOrder: i })),
+        });
+        (this as any).$bvModal.hide(`line_${this.lineIndex}_-new-cue`);
+      } finally {
+        this.submittingGroup = false;
+      }
     },
     validateNewState(name: string): boolean | null {
       const { $dirty, $error } = (this as any).$v.newFormState[name];
@@ -672,7 +725,7 @@ export default defineComponent({
     isWholeLineCut(line: any): boolean {
       return isWholeLineCutUtil(line, this.linePartCuts as any[]);
     },
-    ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE']),
+    ...mapActions(['ADD_NEW_CUE', 'EDIT_CUE', 'DELETE_CUE', 'ADD_CUE_GROUP']),
   },
 });
 </script>
