@@ -583,7 +583,10 @@ export default defineComponent({
     async onSubmitGroup(): Promise<void> {
       if (!this.isGroupFormValid || this.submittingGroup) return;
       const form = this.$refs.newGroupForm as any;
-      if (!form) return;
+      if (!form) {
+        log.error('CueGroupForm ref not available when submitting group');
+        return;
+      }
       this.submittingGroup = true;
       try {
         const data = form.getFormData();

@@ -471,14 +471,18 @@ function resetNewForm(): void {
 async function onSubmitGroup(): Promise<void> {
   if (!groupFormValid.value || submittingGroup.value || !newGroupForm.value) return;
   submittingGroup.value = true;
-  const data = newGroupForm.value.getFormData();
-  await scriptStore.addCueGroup({
-    cueTypeId: data.cueTypeId!,
-    labelOverride: data.labelOverride || undefined,
-    lineId: props.line.id!,
-    cues: data.cues.map((c, i) => ({ ident: c.ident, sortOrder: i })),
-  });
-  newCueModal.value?.hide();
+  try {
+    const data = newGroupForm.value.getFormData();
+    await scriptStore.addCueGroup({
+      cueTypeId: data.cueTypeId!,
+      labelOverride: data.labelOverride || undefined,
+      lineId: props.line.id!,
+      cues: data.cues.map((c, i) => ({ ident: c.ident, sortOrder: i })),
+    });
+    newCueModal.value?.hide();
+  } finally {
+    submittingGroup.value = false;
+  }
 }
 
 async function onSubmitNew(event: Event): Promise<void> {

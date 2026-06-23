@@ -60,15 +60,19 @@ function onHidden(): void {
 async function onSave(): Promise<void> {
   if (!formValid.value || saving.value || groupId.value == null || !groupForm.value) return;
   saving.value = true;
-  const data = groupForm.value.getFormData();
-  const cuesPayload = data.cues.map((c, i) => ({ id: c.id, ident: c.ident, sortOrder: i }));
-  await scriptStore.editCueGroup({
-    groupId: groupId.value,
-    labelOverride: data.labelOverride || undefined,
-    lineId: lineId.value,
-    cues: cuesPayload,
-  });
-  modal.value?.hide();
+  try {
+    const data = groupForm.value.getFormData();
+    const cuesPayload = data.cues.map((c, i) => ({ id: c.id, ident: c.ident, sortOrder: i }));
+    await scriptStore.editCueGroup({
+      groupId: groupId.value,
+      labelOverride: data.labelOverride || undefined,
+      lineId: lineId.value,
+      cues: cuesPayload,
+    });
+    modal.value?.hide();
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function onDelete(): Promise<void> {
@@ -80,8 +84,12 @@ async function onDelete(): Promise<void> {
   });
   if (!confirmed) return;
   deleting.value = true;
-  await scriptStore.deleteCueGroup({ groupId: groupId.value, lineId: lineId.value });
-  modal.value?.hide();
+  try {
+    await scriptStore.deleteCueGroup({ groupId: groupId.value, lineId: lineId.value });
+    modal.value?.hide();
+  } finally {
+    deleting.value = false;
+  }
 }
 
 function openEdit(group: CueGroup, cues: Cue[], targetLineId: number): void {

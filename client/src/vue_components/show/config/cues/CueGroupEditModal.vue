@@ -81,19 +81,23 @@ export default defineComponent({
     async onSave(): Promise<void> {
       if (!this.isFormValid || this.saving || this.groupId == null) return;
       this.saving = true;
-      const data = (this.$refs.groupForm as any).getFormData();
-      const cuesPayload = data.cues.map((c: any, i: number) => ({
-        id: c.id,
-        ident: c.ident,
-        sortOrder: i,
-      }));
-      await (this as any).EDIT_CUE_GROUP({
-        groupId: this.groupId,
-        labelOverride: data.labelOverride || undefined,
-        lineId: this.lineId,
-        cues: cuesPayload,
-      });
-      (this as any).$bvModal.hide(this.modalId);
+      try {
+        const data = (this.$refs.groupForm as any).getFormData();
+        const cuesPayload = data.cues.map((c: any, i: number) => ({
+          id: c.id,
+          ident: c.ident,
+          sortOrder: i,
+        }));
+        await (this as any).EDIT_CUE_GROUP({
+          groupId: this.groupId,
+          labelOverride: data.labelOverride || undefined,
+          lineId: this.lineId,
+          cues: cuesPayload,
+        });
+        (this as any).$bvModal.hide(this.modalId);
+      } finally {
+        this.saving = false;
+      }
     },
     async onDelete(): Promise<void> {
       if (this.deleting || this.groupId == null) return;
@@ -103,8 +107,12 @@ export default defineComponent({
       );
       if (!confirmed) return;
       this.deleting = true;
-      await (this as any).DELETE_CUE_GROUP({ groupId: this.groupId, lineId: this.lineId });
-      (this as any).$bvModal.hide(this.modalId);
+      try {
+        await (this as any).DELETE_CUE_GROUP({ groupId: this.groupId, lineId: this.lineId });
+        (this as any).$bvModal.hide(this.modalId);
+      } finally {
+        this.deleting = false;
+      }
     },
     openEdit(group: CueGroup, cues: Cue[]): void {
       this.groupId = group.id;
