@@ -12,6 +12,7 @@ import {
   UI_BASE,
   waitForAppReady,
   loginAsAdmin,
+  waitForModal,
   confirmModal,
   waitForModalClosed,
   confirmDialog,
