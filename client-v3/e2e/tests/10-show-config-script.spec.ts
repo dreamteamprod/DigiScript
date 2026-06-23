@@ -427,7 +427,7 @@ test('selects cue type and adds range 1 > 5', async () => {
   await page.locator('.modal.show button:has-text("Add Range")').click();
   // 5 cue ident inputs should appear (scoped to active tab pane to avoid hidden #new-cue-ident)
   await expect(
-    page.locator('.modal.show .tab-pane.active input[placeholder="Identifier"]'),
+    page.locator('.modal.show .tab-pane.active input[placeholder="Identifier"]')
   ).toHaveCount(5, {
     timeout: 3_000,
   });
