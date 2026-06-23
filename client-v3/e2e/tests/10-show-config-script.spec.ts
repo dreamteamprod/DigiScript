@@ -404,8 +404,8 @@ test('opens Add Cue modal with Individual Cue and Cue Group tabs', async () => {
   await waitForModal(page, 'Add Cue');
   await expect(page.locator('.modal.show .nav-link:has-text("Individual Cue")')).toBeVisible();
   await expect(page.locator('.modal.show .nav-link:has-text("Cue Group")')).toBeVisible();
-  // Dismiss modal
-  await page.keyboard.press('Escape');
+  // Dismiss via the × close button (Escape is unreliable in BVN with BTabs in Firefox)
+  await page.locator('.modal.show .btn-close').click();
   await waitForModalClosed(page);
 });
 
