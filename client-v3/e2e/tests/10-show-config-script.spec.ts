@@ -420,12 +420,15 @@ test('switches to Cue Group tab to show group form', async () => {
 });
 
 test('selects cue type and adds range 1 > 5', async () => {
-  // Select the LX cue type (first real option after N/A placeholder)
-  await page.locator('.modal.show select').selectOption({ index: 1 });
+  // Scope to .tab-pane.active to avoid matching hidden Individual Cue tab's select.
+  // CueGroupForm filters out the N/A option, so LX is at index 0 (not 1).
+  await page.locator('.modal.show .tab-pane.active select').selectOption({ index: 0 });
   await page.locator('.modal.show input[placeholder="1 > 100"]').fill('1 > 5');
   await page.locator('.modal.show button:has-text("Add Range")').click();
-  // 5 cue ident inputs should appear
-  await expect(page.locator('.modal.show input[placeholder="Identifier"]')).toHaveCount(5, {
+  // 5 cue ident inputs should appear (scoped to active tab pane to avoid hidden #new-cue-ident)
+  await expect(
+    page.locator('.modal.show .tab-pane.active input[placeholder="Identifier"]'),
+  ).toHaveCount(5, {
     timeout: 3_000,
   });
 });
