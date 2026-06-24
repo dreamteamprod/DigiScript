@@ -25,6 +25,9 @@ class CueType(db.Model, DeleteMixin):
     cues: Mapped[List[Cue]] = relationship(
         back_populates="cue_type", cascade="all, delete-orphan"
     )
+    cue_groups: Mapped[List["CueGroup"]] = relationship(
+        back_populates="cue_type", cascade="all, delete-orphan"
+    )
 
     def pre_delete(self, session):
         UserOverridesRegistry.cleanup_overrides(session, self.__tablename__)
@@ -40,7 +43,7 @@ class CueGroup(db.Model):
     cue_type_id: Mapped[int] = mapped_column(ForeignKey("cuetypes.id"), nullable=False)
     label_override: Mapped[str | None] = mapped_column(String(100))
 
-    cue_type: Mapped[CueType] = relationship(foreign_keys=[cue_type_id])
+    cue_type: Mapped[CueType] = relationship(foreign_keys=[cue_type_id], back_populates="cue_groups")
     cue_associations: Mapped[List[CueAssociation]] = relationship(
         back_populates="group", foreign_keys="CueAssociation.group_id"
     )

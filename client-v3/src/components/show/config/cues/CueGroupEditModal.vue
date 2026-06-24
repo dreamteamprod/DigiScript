@@ -3,6 +3,7 @@
     <CueGroupForm
       ref="groupForm"
       :cue-type-options="cueTypeOptions"
+      :readonly="groupId != null"
       class="mt-1"
       @update:valid="formValid = $event"
     />

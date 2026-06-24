@@ -1,7 +1,7 @@
 <template>
   <div>
     <b-form-group label="Cue Type">
-      <b-form-select v-model="localCueTypeId" :options="groupCueTypeOptions" />
+      <b-form-select v-model="localCueTypeId" :options="groupCueTypeOptions" :disabled="readonly" />
     </b-form-group>
 
     <b-form-group
@@ -88,7 +88,7 @@
         </b-input-group-append>
       </b-input-group>
       <b-form-invalid-feedback :state="rangeState">
-        Use format: start &gt; end (e.g. 1 &gt; 100), max 10000 cues.
+        Use format: start &gt; end (e.g. 1 &gt; 100), max 10000 cues per range.
       </b-form-invalid-feedback>
     </b-form-group>
 
@@ -100,6 +100,7 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue';
+import { mapGetters } from 'vuex';
 import { contrastColor } from 'contrast-color';
 import type { CueType } from '@/types/api/cues';
 
@@ -113,6 +114,10 @@ export default defineComponent({
     cueTypes: {
       required: true,
       type: Array,
+    },
+    readonly: {
+      type: Boolean,
+      default: false,
     },
   },
   data() {
@@ -143,8 +148,13 @@ export default defineComponent({
     previewColour(): string {
       if (this.localCueTypeId == null) return '#000000';
       const cueType = (this.cueTypes as CueType[]).find((ct) => ct.id === this.localCueTypeId);
-      return cueType?.colour ?? '#000000';
+      if (!cueType) return '#000000';
+      const override = (this.CUE_COLOUR_OVERRIDES as any[]).find(
+        (o: any) => o.settings?.id === cueType.id
+      );
+      return override?.settings?.colour ?? cueType.colour ?? '#000000';
     },
+    ...mapGetters(['CUE_COLOUR_OVERRIDES']),
     rangeState(): boolean | null {
       if (!this.rangeInput.trim()) return null;
       return this.parseRange(this.rangeInput) !== null;

@@ -71,12 +71,10 @@ To create a cue group:
    - Use the ↑ ↓ buttons to reorder cues within the group — the order determines the first/last identifiers shown in the label
 3. Click **Save Group** to create the group
 
-The group appears in the cue column as a button with a **dashed border**, making it visually distinct from individual cues:
-
-![](../images/config_show/cue_group_button.png)
+The group appears in the cue column as a button with a **dashed border**, making it visually distinct from individual cues.
 
 Clicking a group button opens the **Edit Cue Group** dialog, where you can:
-- Change the cue type or label override
+- Change the label override
 - Add, reorder, or remove individual cues within the group
 - Use **Delete Group** to remove the group and all its cues
 

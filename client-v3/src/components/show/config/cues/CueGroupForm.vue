@@ -1,7 +1,11 @@
 <template>
   <div>
     <BFormGroup label="Cue Type">
-      <BFormSelect v-model="localCueTypeId" :options="groupCueTypeOptions" />
+      <BFormSelect
+        v-model="localCueTypeId"
+        :options="groupCueTypeOptions"
+        :disabled="props.readonly"
+      />
     </BFormGroup>
 
     <BFormGroup
@@ -85,7 +89,7 @@
         </BButton>
       </BInputGroup>
       <BFormInvalidFeedback :state="rangeState">
-        Use format: start &gt; end (e.g. 1 &gt; 100), max 10000 cues.
+        Use format: start &gt; end (e.g. 1 &gt; 100), max 10000 cues per range.
       </BFormInvalidFeedback>
     </BFormGroup>
 
@@ -102,6 +106,7 @@ import type { Cue, CueGroup } from '@/types/api/cues';
 
 const props = defineProps<{
   cueTypeOptions: { value: number | null; text: string }[];
+  readonly?: boolean;
 }>();
 
 const emit = defineEmits<{ 'update:valid': [val: boolean] }>();

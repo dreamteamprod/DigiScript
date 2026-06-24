@@ -4,6 +4,7 @@
       ref="groupForm"
       :cue-type-options="cueTypeOptions"
       :cue-types="cueTypes"
+      :readonly="groupId != null"
       class="mt-1"
       @validity-change="isFormValid = $event"
     />

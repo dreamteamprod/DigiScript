@@ -1011,6 +1011,36 @@ class TestCueTypesController(DigiScriptTestCase):
                 )
             )
 
+    def test_delete_cue_type_cascades_to_cue_groups(self):
+        """Deleting a cue type via the API also removes any CueGroup referencing it."""
+        response = self.fetch(
+            "/api/v1/show/cues/types",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"prefix": "LX", "description": "Lighting", "colour": "#ff0000"}
+            ),
+            headers={"Authorization": f"Bearer {self.admin_token}"},
+        )
+        self.assertEqual(200, response.code)
+        cue_type_id = tornado.escape.json_decode(response.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            group = CueGroup(cue_type_id=cue_type_id, label_override="Test Group")
+            session.add(group)
+            session.commit()
+            group_id = group.id
+
+        response = self.fetch(
+            f"/api/v1/show/cues/types?id={cue_type_id}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {self.admin_token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNone(session.get(CueType, cue_type_id))
+            self.assertIsNone(session.get(CueGroup, group_id))
+
 
 class TestCueGroups(DigiScriptTestCase):
     """Tests for POST/PATCH/DELETE /api/v1/show/cues/groups."""
