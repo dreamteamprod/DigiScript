@@ -43,7 +43,9 @@ class CueGroup(db.Model):
     cue_type_id: Mapped[int] = mapped_column(ForeignKey("cuetypes.id"), nullable=False)
     label_override: Mapped[str | None] = mapped_column(String(100))
 
-    cue_type: Mapped[CueType] = relationship(foreign_keys=[cue_type_id], back_populates="cue_groups")
+    cue_type: Mapped[CueType] = relationship(
+        foreign_keys=[cue_type_id], back_populates="cue_groups"
+    )
     cue_associations: Mapped[List[CueAssociation]] = relationship(
         back_populates="group", foreign_keys="CueAssociation.group_id"
     )
