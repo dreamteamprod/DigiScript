@@ -53,6 +53,7 @@
             CURRENT_SHOW.script_mode === 1
           "
           :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
+          :show-remove-button="state.line_parts.length > 1 && lineType === LINE_TYPES.DIALOGUE"
           :line-type="lineType"
           :line-parts="state.line_parts"
           :stage-direction-styles="
@@ -61,6 +62,7 @@
           :stage-direction-style-id="state.stage_direction_style_id"
           @input="stateChange"
           @addLinePart="addLinePart"
+          @removeLinePart="removeLinePart(index)"
           @tryFinishLine="tryFinishLine"
           @stage-direction-style-change="onStageDirectionStyleChange"
         />
@@ -373,6 +375,13 @@ export default defineComponent({
     stateChange(): void {
       (this as any).$v.state.$touch();
       this.$emit('input', (this as any).state);
+    },
+    removeLinePart(index: number): void {
+      const state = (this as any).state;
+      state.line_parts = state.line_parts
+        .filter((_: any, i: number) => i !== index)
+        .map((part: any, i: number) => ({ ...part, part_index: i }));
+      this.stateChange();
     },
     addLinePart(): void {
       const state = (this as any).state;

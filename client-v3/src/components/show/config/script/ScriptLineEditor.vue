@@ -50,6 +50,7 @@
             scriptMode === 1
           "
           :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
+          :show-remove-button="state.line_parts.length > 1 && lineType === LINE_TYPES.DIALOGUE"
           :line-type="lineType"
           :line-parts="state.line_parts"
           :stage-direction-styles="
@@ -58,6 +59,7 @@
           :stage-direction-style-id="state.stage_direction_style_id"
           @update:model-value="onPartUpdate(index, $event)"
           @add-line-part="addLinePart"
+          @remove-line-part="removeLinePart(index)"
           @try-finish-line="tryFinishLine"
           @stage-direction-style-change="onStageDirectionStyleChange"
         />
@@ -207,6 +209,13 @@ function onStateChange(): void {
 
 function onPartUpdate(index: number, part: ScriptLinePartType): void {
   state.value.line_parts[index] = part;
+  onStateChange();
+}
+
+function removeLinePart(index: number): void {
+  state.value.line_parts = state.value.line_parts
+    .filter((_, i) => i !== index)
+    .map((part, i) => ({ ...part, part_index: i }));
   onStateChange();
 }
 

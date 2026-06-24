@@ -1,7 +1,7 @@
 import tornado.escape
 from sqlalchemy import select
 
-from models.cue import Cue, CueAssociation, CueType
+from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
     Script,
     ScriptCuts,
@@ -882,6 +882,135 @@ class TestScriptUpdateWithAssociations(DigiScriptTestCase):
             # 7. Exactly 1 line should exist (the new one)
             all_lines = session.scalars(select(ScriptLine)).all()
             self.assertEqual(1, len(all_lines), "Should have exactly 1 line")
+
+    def test_update_line_with_cue_group_preserves_group_id_and_sort_order(self):
+        """Script PATCH migration must copy group_id and sort_order onto new CueAssociation.
+
+        When a line with grouped cues is edited, the new ScriptLine must receive
+        CueAssociation rows that retain group_id and sort_order — otherwise the
+        cue group is silently broken after any line edit.
+        """
+        # Create a dialogue line via the API
+        initial_lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Original text",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(initial_lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="GET",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        page_data = tornado.escape.json_decode(response.body)
+        line_id = page_data["lines"][0]["id"]
+        line_part_id = page_data["lines"][0]["line_parts"][0]["id"]
+
+        # Add a cue group to the line directly in the DB
+        with self._app.get_db().sessionmaker() as session:
+            cue_type = CueType(
+                show_id=self.show_id,
+                prefix="LX",
+                description="Lighting",
+                colour="#ff0000",
+            )
+            session.add(cue_type)
+            session.flush()
+
+            group = CueGroup(cue_type_id=cue_type.id, label_override=None)
+            session.add(group)
+            session.flush()
+            group_id = group.id
+
+            for i, (ident, sort_order) in enumerate([("1", 0), ("5", 1)]):
+                cue = Cue(cue_type_id=cue_type.id, ident=ident)
+                session.add(cue)
+                session.flush()
+                assoc = CueAssociation(
+                    revision_id=self.revision_id,
+                    line_id=line_id,
+                    cue_id=cue.id,
+                    group_id=group_id,
+                    sort_order=sort_order,
+                )
+                session.add(assoc)
+            session.commit()
+
+        # PATCH the line (change text, triggering new ScriptLine + migration)
+        updated_lines = [
+            {
+                "id": line_id,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": line_part_id,
+                        "line_id": line_id,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": "Updated text",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+        ]
+        patch_data = {
+            "page": updated_lines,
+            "status": {"added": [], "updated": [0], "deleted": [], "inserted": []},
+        }
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_data),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code, "PATCH should succeed")
+
+        # Verify migrated associations still carry group_id and sort_order
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision_id
+                )
+            ).all()
+            self.assertEqual(2, len(assocs), "Both group members should be migrated")
+            for assoc in assocs:
+                self.assertEqual(
+                    group_id, assoc.group_id, "group_id must survive migration"
+                )
+                self.assertIsNotNone(
+                    assoc.sort_order, "sort_order must survive migration"
+                )
+                self.assertNotEqual(
+                    line_id, assoc.line_id, "Association must point to new line"
+                )
+            sort_orders = sorted(a.sort_order for a in assocs)
+            self.assertEqual([0, 1], sort_orders, "sort_order values must be preserved")
 
     def test_post_compact_mode_rejects_multiple_line_parts(self):
         """Test that POST rejects multiple line_parts in COMPACT mode."""

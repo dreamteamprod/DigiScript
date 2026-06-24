@@ -139,7 +139,7 @@
         <b-col cols="3" :class="['cue-column-right', { 'first-row': isFirstRowContent }]">
           <b-button-group>
             <b-button
-              v-for="cue in cues"
+              v-for="cue in individualCues"
               :key="cue.id"
               class="cue-button"
               :style="{
@@ -148,6 +148,17 @@
               }"
             >
               {{ cueLabel(cue) }}
+            </b-button>
+            <b-button
+              v-for="grp in lineGroups"
+              :key="`group_${grp.group.id}`"
+              class="cue-button cue-group-btn"
+              :style="{
+                backgroundColor: cueGroupBackgroundColour(grp.group),
+                color: contrastColor({ bgColor: cueGroupBackgroundColour(grp.group) }),
+              }"
+            >
+              {{ cueGroupLabel(grp.group, grp.cues) }}
             </b-button>
             <b-button
               v-if="cueAddMode"
@@ -164,7 +175,7 @@
         <b-col cols="3" :class="['cue-column', { 'first-row': isFirstRowContent }]">
           <b-button-group>
             <b-button
-              v-for="cue in cues"
+              v-for="cue in individualCues"
               :key="cue.id"
               class="cue-button"
               :style="{
@@ -173,6 +184,17 @@
               }"
             >
               {{ cueLabel(cue) }}
+            </b-button>
+            <b-button
+              v-for="grp in lineGroups"
+              :key="`group_${grp.group.id}`"
+              class="cue-button cue-group-btn"
+              :style="{
+                backgroundColor: cueGroupBackgroundColour(grp.group),
+                color: contrastColor({ bgColor: cueGroupBackgroundColour(grp.group) }),
+              }"
+            >
+              {{ cueGroupLabel(grp.group, grp.cues) }}
             </b-button>
             <b-button
               v-if="cueAddMode"
@@ -346,7 +368,13 @@ export default defineComponent({
     isFirstRowContent(): boolean {
       return !(this as any).needsIntervalBanner && !(this as any).needsActSceneLabel;
     },
-    ...mapGetters(['USER_SETTINGS']),
+    individualCues(): any[] {
+      return (this.cues as any[]).filter((c: any) => c.group_id == null);
+    },
+    lineGroups(): { group: any; cues: any[] }[] {
+      return (this as any).GROUPED_CUES_FOR_LINE((this.line as any).id).groups;
+    },
+    ...mapGetters(['USER_SETTINGS', 'GROUPED_CUES_FOR_LINE']),
   },
   methods: {
     addNewCue(): void {
@@ -392,6 +420,10 @@ export default defineComponent({
 
 .cue-button {
   padding: 0.2rem;
+}
+
+.cue-group-btn {
+  border-style: dashed !important;
 }
 
 .line-row:has(.add-cue-btn:hover) {
