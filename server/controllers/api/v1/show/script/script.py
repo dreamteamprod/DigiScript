@@ -547,6 +547,8 @@ class ScriptController(BaseAPIController):
                                 revision_id=revision.id,
                                 line_id=line_object.id,
                                 cue_id=old_cue_assoc.cue_id,
+                                group_id=old_cue_assoc.group_id,
+                                sort_order=old_cue_assoc.sort_order,
                             )
                             session.add(new_cue_assoc)
                             session.delete(old_cue_assoc)

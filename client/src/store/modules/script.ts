@@ -11,13 +11,14 @@ import type {
   ScriptCut,
   CompiledScript,
 } from '@/types/api/script';
-import type { Cue } from '@/types/api/cues';
+import type { Cue, CueGroup } from '@/types/api/cues';
 
 interface ScriptState {
   currentRevision: number | null;
   revisions: ScriptRevision[];
   script: Record<string, ScriptLine[]>;
   cues: Record<string, Cue[]>;
+  cueGroups: CueGroup[];
   cuts: ScriptCut[];
   stageDirectionStyles: StageDirectionStyle[];
   compiledScripts: CompiledScript[];
@@ -33,6 +34,7 @@ const module: Module<ScriptState, RootState> = {
     revisions: [],
     script: {},
     cues: {},
+    cueGroups: [],
     cuts: [],
     stageDirectionStyles: [],
     compiledScripts: [],
@@ -52,6 +54,9 @@ const module: Module<ScriptState, RootState> = {
     },
     SET_CUES(state: ScriptState, cues: Record<string, Cue[]>) {
       state.cues = cues;
+    },
+    SET_CUE_GROUPS(state: ScriptState, cueGroups: CueGroup[]) {
+      state.cueGroups = cueGroups;
     },
     SET_CUTS(state: ScriptState, cuts: ScriptCut[]) {
       state.cuts = cuts;
@@ -173,6 +178,7 @@ const module: Module<ScriptState, RootState> = {
       if (response.ok) {
         const respJson = await response.json();
         context.commit('SET_CUES', respJson.cues);
+        context.commit('SET_CUE_GROUPS', respJson.cue_groups ?? []);
       } else {
         log.error('Unable to load cues');
       }
@@ -220,6 +226,67 @@ const module: Module<ScriptState, RootState> = {
       } else {
         log.error('Unable to delete cue');
         VueToast.$toast.error('Unable to delete cue');
+      }
+    },
+    async ADD_CUE_GROUP(
+      context,
+      payload: {
+        cueTypeId: number;
+        labelOverride?: string;
+        lineId: number;
+        cues: { ident: string; sortOrder: number }[];
+      }
+    ) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/groups')}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        VueToast.$toast.success('Added cue group!');
+      } else {
+        log.error('Unable to add cue group');
+        VueToast.$toast.error('Unable to add cue group');
+      }
+    },
+    async EDIT_CUE_GROUP(
+      context,
+      payload: {
+        groupId: number;
+        labelOverride?: string;
+        lineId: number;
+        cues: { id?: number; ident: string; sortOrder: number }[];
+      }
+    ) {
+      const response = await fetch(`${makeURL('/api/v1/show/cues/groups')}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        VueToast.$toast.success('Edited cue group!');
+      } else {
+        log.error('Unable to edit cue group');
+        VueToast.$toast.error('Unable to edit cue group');
+      }
+    },
+    async DELETE_CUE_GROUP(context, payload: { groupId: number; lineId: number }) {
+      const params = new URLSearchParams({
+        groupId: String(payload.groupId),
+        lineId: String(payload.lineId),
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/cues/groups')}?${params}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        context.dispatch('LOAD_CUES');
+        VueToast.$toast.success('Deleted cue group!');
+      } else {
+        log.error('Unable to delete cue group');
+        VueToast.$toast.error('Unable to delete cue group');
       }
     },
     async SEARCH_CUES(
@@ -362,6 +429,34 @@ const module: Module<ScriptState, RootState> = {
     SCRIPT_CUES(state: ScriptState) {
       return state.cues;
     },
+    SCRIPT_CUE_GROUPS(state: ScriptState) {
+      return state.cueGroups;
+    },
+    GROUPED_CUES_FOR_LINE:
+      (state: ScriptState) =>
+      (
+        lineId: number | null
+      ): { individual: Cue[]; groups: { group: CueGroup; cues: Cue[] }[] } => {
+        if (lineId == null) return { individual: [], groups: [] };
+        const allCues = state.cues[String(lineId)] ?? [];
+        const individual = allCues.filter((c) => c.group_id == null);
+        const groupMap = new Map<number, Cue[]>();
+        for (const cue of allCues) {
+          if (cue.group_id != null) {
+            if (!groupMap.has(cue.group_id)) groupMap.set(cue.group_id, []);
+            groupMap.get(cue.group_id)!.push(cue);
+          }
+        }
+        const groups: { group: CueGroup; cues: Cue[] }[] = [];
+        for (const [groupId, cues] of groupMap) {
+          const group = state.cueGroups.find((g) => g.id === groupId);
+          if (group) {
+            const sorted = [...cues].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+            groups.push({ group, cues: sorted });
+          }
+        }
+        return { individual, groups };
+      },
     SCRIPT_CUTS(state: ScriptState) {
       return state.cuts;
     },

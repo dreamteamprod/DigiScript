@@ -28,6 +28,9 @@ ERROR_STAGE_DIRECTION_STYLE_NOT_FOUND = "404 stage direction style not found"
 # Cues
 ERROR_CUE_NOT_FOUND = "404 cue not found"
 ERROR_CUE_TYPE_NOT_FOUND = "404 cue type not found"
+ERROR_CUE_GROUP_NOT_FOUND = "404 cue group not found"
+ERROR_CUE_GROUP_ID_MISSING = "Cue Group ID missing"
+ERROR_CUE_GROUP_EMPTY = "Cue group must contain at least one cue"
 
 # Microphones
 ERROR_MICROPHONE_NOT_FOUND = "404 microphone not found"

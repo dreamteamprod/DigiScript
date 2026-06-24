@@ -301,7 +301,8 @@ test('navigates to cue editor with saved script content', async () => {
 
 test('adds a cue to the script line', async () => {
   await page.locator('.add-cue-btn').first().click();
-  await waitForModal(page, 'Add New Cue');
+  await waitForModal(page, 'Add Cue');
+  // Individual Cue tab is active by default — no extra click needed
   // Scope to the visible modal's select to avoid matching the hidden "Add Cue Type" modal
   // dialog which BVN assigns id="new-cue-type" via its auto-ID scheme.
   await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
@@ -329,7 +330,8 @@ test('edits the cue identifier', async () => {
 
 test('can add a cue using Enter key in Add New Cue modal', async () => {
   await page.locator('.add-cue-btn').first().click();
-  await waitForModal(page, 'Add New Cue');
+  await waitForModal(page, 'Add Cue');
+  // Individual Cue tab is active by default — no extra click needed
   await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
   await page.locator('.modal.show #new-cue-ident').fill('003');
   // Enter key submits the form (fix: BForm @submit bound to onSubmitNew)
@@ -392,6 +394,80 @@ test('deletes the cue', async () => {
     .click();
   // After deletion only the add-cue-btn remains; no actual cue buttons should exist
   await expect(page.locator('.cue-button:not(.add-cue-btn)')).not.toBeVisible({ timeout: 5_000 });
+});
+
+// ── Cue Groups ────────────────────────────────────────────────────────────
+
+test('opens Add Cue modal with Individual Cue and Cue Group tabs', async () => {
+  // After individual cue tests all cues have been deleted. Still on the cue config page.
+  await page.locator('.add-cue-btn').first().click();
+  await waitForModal(page, 'Add Cue');
+  await expect(page.locator('.modal.show .nav-link:has-text("Individual Cue")')).toBeVisible();
+  await expect(page.locator('.modal.show .nav-link:has-text("Cue Group")')).toBeVisible();
+  // Dismiss via the × close button (Escape is unreliable in BVN with BTabs in Firefox)
+  await page.locator('.modal.show .btn-close').click();
+  await waitForModalClosed(page);
+});
+
+test('switches to Cue Group tab to show group form', async () => {
+  await page.locator('.add-cue-btn').first().click();
+  await waitForModal(page, 'Add Cue');
+  await page.locator('.modal.show .nav-link:has-text("Cue Group")').click();
+  // Wait for tab content to be visible (BTabs lazy may delay mount)
+  await expect(page.locator('.modal.show input[placeholder="1 > 100"]')).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+test('selects cue type and adds range 1 > 5', async () => {
+  // Scope to .tab-pane.active to avoid matching hidden Individual Cue tab's select.
+  // CueGroupForm filters out the N/A option, so LX is at index 0 (not 1).
+  await page.locator('.modal.show .tab-pane.active select').selectOption({ index: 0 });
+  await page.locator('.modal.show input[placeholder="1 > 100"]').fill('1 > 5');
+  await page.locator('.modal.show button:has-text("Add Range")').click();
+  // 5 cue ident inputs should appear (scoped to active tab pane to avoid hidden #new-cue-ident)
+  await expect(
+    page.locator('.modal.show .tab-pane.active input[placeholder="Identifier"]')
+  ).toHaveCount(5, {
+    timeout: 3_000,
+  });
+});
+
+test('saves the cue group and shows a dashed group button with range label', async () => {
+  await page.locator('.modal.show button:has-text("Save Group")').click();
+  await waitForModalClosed(page);
+  await expect(page.locator('.cue-group-btn').first()).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.cue-group-btn').first()).toContainText('LX 1 - LX 5');
+});
+
+test('clicks group button to open Edit Cue Group modal with 5 cues listed', async () => {
+  await page.locator('.cue-group-btn').first().click();
+  await waitForModal(page, 'Edit Cue Group');
+  await expect(page.locator('.modal.show input[placeholder="Identifier"]')).toHaveCount(5, {
+    timeout: 5_000,
+  });
+});
+
+test('adds label override and group button label updates on save', async () => {
+  await page.locator('.modal.show input[placeholder="e.g. Music Intro"]').fill('Music Intro');
+  await page.locator('.modal.show button:has-text("Save Group")').click();
+  await waitForModalClosed(page);
+  await expect(page.locator('.cue-group-btn').first()).toContainText('LX - Music Intro');
+});
+
+test('deletes the cue group and column returns to empty', async () => {
+  await page.locator('.cue-group-btn').first().click();
+  await waitForModal(page, 'Edit Cue Group');
+  await page.locator('.modal.show button:has-text("Delete Group")').click();
+  // useConfirm opens a stacked BVN modal — scope to its title to avoid intercepting the
+  // Edit Cue Group modal footer behind it.
+  await waitForModal(page, 'Delete Cue Group');
+  await page
+    .locator('.modal.show')
+    .filter({ has: page.locator('.modal-title:has-text("Delete Cue Group")') })
+    .locator('.modal-footer button.btn-danger')
+    .click();
+  await expect(page.locator('.cue-group-btn')).not.toBeVisible({ timeout: 5_000 });
 });
 
 // ── Line part removal ──────────────────────────────────────────────────────
