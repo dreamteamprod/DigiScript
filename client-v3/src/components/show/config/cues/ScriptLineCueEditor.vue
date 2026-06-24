@@ -23,7 +23,7 @@
           <template v-if="line.line_type !== LINE_TYPES.SPACING">
             <BButtonGroup>
               <BButton
-                v-for="cue in cues"
+                v-for="cue in individualCues"
                 :key="cue.id"
                 class="cue-button"
                 :disabled="!systemStore.isCueEditor"
@@ -34,6 +34,19 @@
                 @click.stop="openEditForm(cue)"
               >
                 {{ cueLabel(cue) }}
+              </BButton>
+              <BButton
+                v-for="grp in lineGroups"
+                :key="`group_${grp.group.id}`"
+                class="cue-button cue-group-btn"
+                :disabled="!systemStore.isCueEditor"
+                :style="{
+                  backgroundColor: cueGroupBackgroundColour(grp.group),
+                  color: contrastColor(cueGroupBackgroundColour(grp.group)),
+                }"
+                @click.stop="openEditGroup(grp.group, grp.cues)"
+              >
+                {{ cueGroupLabel(grp.group, grp.cues) }}
               </BButton>
               <BButton
                 v-if="systemStore.isCueEditor"
@@ -115,51 +128,82 @@
       </BRow>
     </BContainer>
 
-    <!-- Add New Cue Modal -->
-    <BModal
-      ref="newCueModal"
-      title="Add New Cue"
-      :ok-disabled="v$.newFormState.$invalid || submittingNewCue"
-      @hidden="resetNewForm"
-      @ok="onSubmitNew"
-    >
-      <BForm @submit.stop.prevent="onSubmitNew">
-        <BFormGroup label="Cue Type" label-for="new-cue-type">
-          <BFormSelect
-            id="new-cue-type"
-            v-model="v$.newFormState.cueType.$model"
-            :options="cueTypeOptions"
-            :state="newFieldState('cueType')"
+    <!-- Add Cue Modal (tabs: Individual Cue / Cue Group) -->
+    <BModal ref="newCueModal" title="Add Cue" scrollable @hidden="resetNewForm">
+      <BTabs v-model:index="activeTab" class="mt-1">
+        <BTab title="Individual Cue">
+          <BForm class="mt-3" @submit.stop.prevent="onSubmitNew">
+            <BFormGroup label="Cue Type" label-for="new-cue-type">
+              <BFormSelect
+                id="new-cue-type"
+                v-model="v$.newFormState.cueType.$model"
+                :options="cueTypeOptions"
+                :state="newFieldState('cueType')"
+              />
+              <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+            </BFormGroup>
+            <BFormGroup label="Identifier" label-for="new-cue-ident">
+              <BFormInput
+                id="new-cue-ident"
+                v-model="v$.newFormState.ident.$model"
+                :state="newFieldState('ident')"
+              />
+              <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+              <BFormText v-if="isDuplicateNewCue" class="text-warning">
+                A cue with this identifier already exists for this cue type.
+              </BFormText>
+            </BFormGroup>
+            <!-- Line preview -->
+            <template
+              v-if="
+                line.line_type === LINE_TYPES.DIALOGUE ||
+                line.line_type === LINE_TYPES.STAGE_DIRECTION
+              "
+            >
+              <hr />
+              <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
+                <p v-for="part in line.line_parts" :key="part.id" class="viewable-line">
+                  {{ part.line_text }}
+                </p>
+              </template>
+              <i v-else class="viewable-line">{{ line.line_parts[0]?.line_text }}</i>
+            </template>
+          </BForm>
+        </BTab>
+        <BTab title="Cue Group">
+          <CueGroupForm
+            ref="newGroupForm"
+            :cue-type-options="cueTypeOptions"
+            class="mt-3"
+            @update:valid="groupFormValid = $event"
           />
-          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
-        </BFormGroup>
-        <BFormGroup label="Identifier" label-for="new-cue-ident">
-          <BFormInput
-            id="new-cue-ident"
-            v-model="v$.newFormState.ident.$model"
-            :state="newFieldState('ident')"
-          />
-          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
-          <BFormText v-if="isDuplicateNewCue" class="text-warning">
-            A cue with this identifier already exists for this cue type.
-          </BFormText>
-        </BFormGroup>
-        <!-- Line preview -->
-        <template
-          v-if="
-            line.line_type === LINE_TYPES.DIALOGUE || line.line_type === LINE_TYPES.STAGE_DIRECTION
-          "
-        >
-          <hr />
-          <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
-            <p v-for="part in line.line_parts" :key="part.id" class="viewable-line">
-              {{ part.line_text }}
-            </p>
-          </template>
-          <i v-else class="viewable-line">{{ line.line_parts[0]?.line_text }}</i>
+        </BTab>
+      </BTabs>
+      <template #footer>
+        <BButton variant="secondary" @click="newCueModal?.hide()">Cancel</BButton>
+        <template v-if="activeTab === 0">
+          <BButton
+            variant="primary"
+            :disabled="v$.newFormState.$invalid || submittingNewCue"
+            @click="onSubmitNew"
+          >
+            {{ submittingNewCue ? 'Adding…' : 'Add Cue' }}
+          </BButton>
         </template>
-      </BForm>
+        <template v-else>
+          <BButton
+            variant="primary"
+            :disabled="!groupFormValid || submittingGroup"
+            @click="onSubmitGroup"
+          >
+            {{ submittingGroup ? 'Saving…' : 'Save Group' }}
+          </BButton>
+        </template>
+      </template>
     </BModal>
+
+    <!-- Cue Group Modal (create + edit) -->
+    <CueGroupEditModal ref="groupModal" :cue-type-options="cueTypeOptions" />
 
     <!-- Edit Cue Modal -->
     <BModal
@@ -230,8 +274,10 @@ import { useConfirm } from '@/composables/useConfirm';
 import { isWholeLineCut } from '@/js/scriptUtils';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine } from '@/types/api/script';
-import type { Cue, CueType } from '@/types/api/cues';
+import type { Cue, CueGroup, CueType } from '@/types/api/cues';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
+import CueGroupEditModal from './CueGroupEditModal.vue';
+import CueGroupForm from './CueGroupForm.vue';
 
 const props = defineProps<{
   line: ScriptLine;
@@ -253,12 +299,15 @@ const userStore = useUserStore();
 const { confirm } = useConfirm();
 
 const { getStageDirectionStyle, stageDirectionStyling, scriptTextAlign } = useScriptDisplay();
-const { cueLabel, cueBackgroundColour, contrastColor } = useCueDisplay();
+const { cueLabel, cueBackgroundColour, cueGroupLabel, cueGroupBackgroundColour, contrastColor } =
+  useCueDisplay();
 const { needsHeadings, needsActSceneLabel } = useScriptNavigation();
 
 // Modal refs
 const newCueModal = ref<InstanceType<typeof BModal> | null>(null);
 const editCueModal = ref<InstanceType<typeof BModal> | null>(null);
+const groupModal = ref<InstanceType<typeof CueGroupEditModal> | null>(null);
+const newGroupForm = ref<InstanceType<typeof CueGroupForm> | null>(null);
 const lineContainer = ref<HTMLElement | null>(null);
 
 // Form state
@@ -273,7 +322,10 @@ const editFormState = ref({
   ident: null as string | null,
   lineId: null as number | null,
 });
+const activeTab = ref(0);
+const groupFormValid = ref(false);
 const submittingNewCue = ref(false);
+const submittingGroup = ref(false);
 const submittingEditCue = ref(false);
 const deletingCue = ref(false);
 
@@ -331,6 +383,9 @@ const sceneLabel = computed(
 );
 
 const isLineCut = computed(() => isWholeLineCut(props.line, props.cuts));
+
+const individualCues = computed(() => props.cues.filter((c) => c.group_id == null));
+const lineGroups = computed(() => scriptStore.groupedCuesForLine(props.line.id).groups);
 
 // RBAC-filtered cue type options: admins see all, others only see types they can write
 const cueTypeOptions = computed(() => {
@@ -390,17 +445,44 @@ function editFieldState(field: 'cueType' | 'ident'): boolean | null {
   return f.$dirty ? !f.$error : null;
 }
 
-// New cue modal
+function openEditGroup(group: CueGroup, cues: Cue[]): void {
+  groupModal.value?.openEdit(group, cues, props.line.id!);
+}
+
+// Add cue modal (tabs)
 function openNewForm(): void {
+  activeTab.value = 0;
   newFormState.value = { cueType: null, ident: null, lineId: props.line.id ?? null };
   v$.value.newFormState.$reset();
+  newGroupForm.value?.reset();
   newCueModal.value?.show();
 }
 
 function resetNewForm(): void {
   newFormState.value = { cueType: null, ident: null, lineId: null };
+  activeTab.value = 0;
+  groupFormValid.value = false;
   submittingNewCue.value = false;
+  submittingGroup.value = false;
   v$.value.newFormState.$reset();
+  newGroupForm.value?.reset();
+}
+
+async function onSubmitGroup(): Promise<void> {
+  if (!groupFormValid.value || submittingGroup.value || !newGroupForm.value) return;
+  submittingGroup.value = true;
+  try {
+    const data = newGroupForm.value.getFormData();
+    await scriptStore.addCueGroup({
+      cueTypeId: data.cueTypeId!,
+      labelOverride: data.labelOverride || undefined,
+      lineId: props.line.id!,
+      cues: data.cues.map((c, i) => ({ ident: c.ident, sortOrder: i })),
+    });
+    newCueModal.value?.hide();
+  } finally {
+    submittingGroup.value = false;
+  }
 }
 
 async function onSubmitNew(event: Event): Promise<void> {
@@ -482,6 +564,10 @@ async function deleteCue(): Promise<void> {
 
 .cue-button {
   padding: 0.2rem;
+}
+
+.cue-group-btn {
+  border-style: dashed !important;
 }
 
 .stage-direction {

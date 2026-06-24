@@ -124,43 +124,77 @@
         </b-row>
       </b-container>
     </b-modal>
+    <!-- Add Cue Modal (tabs: Individual Cue / Cue Group) -->
     <b-modal
-      :id="`new-cue-modal`"
-      title="Add New Cue"
-      size="md"
-      :ok-disabled="$v.newCueFormState.$invalid || submittingNewCue"
+      id="new-cue-modal"
+      title="Add Cue"
+      size="lg"
+      scrollable
+      hide-footer
       @hidden="resetNewCueForm"
-      @ok="onSubmitNewCue"
     >
-      <b-form ref="new-cue-form" @submit.stop.prevent="onSubmitNewCue">
-        <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
-          <b-form-select
-            id="type-input"
-            v-model="$v.newCueFormState.cueType.$model"
-            :options="cueTypeOptions"
-            :state="validateNewCueState('cueType')"
-            aria-describedby="cue-type-feedback"
+      <b-tabs v-model="activeTab" class="mt-1">
+        <b-tab title="Individual Cue">
+          <b-form class="mt-3" @submit.stop.prevent="onSubmitNewCue">
+            <b-form-group id="type-input-group" label="Cue Type" label-for="type-input">
+              <b-form-select
+                id="type-input"
+                v-model="$v.newCueFormState.cueType.$model"
+                :options="cueTypeOptions"
+                :state="validateNewCueState('cueType')"
+                aria-describedby="cue-type-feedback"
+              />
+              <b-form-invalid-feedback id="cue-type-feedback">
+                This is a required field.
+              </b-form-invalid-feedback>
+            </b-form-group>
+            <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
+              <b-form-input
+                id="ident-input"
+                v-model="$v.newCueFormState.ident.$model"
+                name="ident-input"
+                :state="validateNewCueState('ident')"
+                aria-describedby="ident-feedback"
+              />
+              <b-form-invalid-feedback id="ident-feedback">
+                This is a required field.
+              </b-form-invalid-feedback>
+              <b-form-text v-if="isDuplicateCue" class="text-warning">
+                A cue with this identifier already exists for this cue type
+              </b-form-text>
+            </b-form-group>
+          </b-form>
+          <div class="d-flex justify-content-end mt-3" style="gap: 0.5rem">
+            <b-button variant="secondary" @click="$bvModal.hide('new-cue-modal')">Cancel</b-button>
+            <b-button
+              variant="primary"
+              :disabled="$v.newCueFormState.$invalid || submittingNewCue"
+              @click="onSubmitNewCue"
+            >
+              {{ submittingNewCue ? 'Adding…' : 'Add Cue' }}
+            </b-button>
+          </div>
+        </b-tab>
+        <b-tab title="Cue Group">
+          <CueGroupForm
+            ref="newGroupForm"
+            :cue-type-options="cueTypeOptions"
+            :cue-types="CUE_TYPES"
+            class="mt-3"
+            @validity-change="newGroupFormValid = $event"
           />
-          <b-form-invalid-feedback id="cue-type-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group id="ident-input-group" label="Identifier" label-for="ident-input">
-          <b-form-input
-            id="ident-input"
-            v-model="$v.newCueFormState.ident.$model"
-            name="ident-input"
-            :state="validateNewCueState('ident')"
-            aria-describedby="ident-feedback"
-          />
-          <b-form-invalid-feedback id="ident-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-          <b-form-text v-if="isDuplicateCue" class="text-warning">
-            A cue with this identifier already exists for this cue type
-          </b-form-text>
-        </b-form-group>
-      </b-form>
+          <div class="d-flex justify-content-end mt-3" style="gap: 0.5rem">
+            <b-button variant="secondary" @click="$bvModal.hide('new-cue-modal')">Cancel</b-button>
+            <b-button
+              variant="primary"
+              :disabled="!newGroupFormValid || submittingNewCueGroup"
+              @click="onSubmitNewCueGroup"
+            >
+              {{ submittingNewCueGroup ? 'Saving…' : 'Save Group' }}
+            </b-button>
+          </div>
+        </b-tab>
+      </b-tabs>
     </b-modal>
   </b-row>
 </template>
@@ -176,6 +210,7 @@ import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import ScriptLineViewer from '@/vue_components/show/live/ScriptLineViewer.vue';
 import ScriptLineViewerCompact from '@/vue_components/show/live/ScriptLineViewerCompact.vue';
+import CueGroupForm from '@/vue_components/show/config/cues/CueGroupForm.vue';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { isWholeLineCut as isWholeLineCutUtil } from '@/js/scriptUtils';
 
@@ -184,6 +219,7 @@ export default defineComponent({
   components: {
     ScriptLineViewer,
     ScriptLineViewerCompact,
+    CueGroupForm,
   },
   props: {
     isScriptFollowing: {
@@ -251,6 +287,9 @@ export default defineComponent({
         lineId: null as number | null,
       },
       submittingNewCue: false,
+      activeTab: 0,
+      newGroupFormValid: false,
+      submittingNewCueGroup: false,
 
       // Interval modal state
       intervalActId: null as number | null,
@@ -1008,46 +1047,66 @@ export default defineComponent({
 
     // Cue modal methods
     openNewCueModal(lineId: number): void {
-      this.resetNewCueForm();
-      this.newCueFormState.lineId = lineId;
+      this.activeTab = 0;
+      this.newGroupFormValid = false;
+      this.newCueFormState = { cueType: null, ident: null, lineId: lineId };
+      this.$nextTick(() => {
+        (this as any).$v.$reset();
+        (this.$refs.newGroupForm as any)?.reset();
+      });
       (this as any).$bvModal.show('new-cue-modal');
     },
     resetNewCueForm(): void {
-      this.newCueFormState = {
-        cueType: null,
-        ident: null,
-        lineId: null,
-      };
+      this.newCueFormState = { cueType: null, ident: null, lineId: null };
+      this.activeTab = 0;
+      this.newGroupFormValid = false;
       this.submittingNewCue = false;
-
+      this.submittingNewCueGroup = false;
       this.$nextTick(() => {
         (this as any).$v.$reset();
+        (this.$refs.newGroupForm as any)?.reset();
       });
     },
     validateNewCueState(name: string): boolean | null {
       const { $dirty, $error } = (this as any).$v.newCueFormState[name];
       return $dirty ? !$error : null;
     },
-    async onSubmitNewCue(event: Event): Promise<void> {
+    async onSubmitNewCue(): Promise<void> {
       (this as any).$v.newCueFormState.$touch();
-      if ((this as any).$v.newCueFormState.$anyError || this.submittingNewCue) {
-        event.preventDefault();
-        return;
-      }
-
+      if ((this as any).$v.newCueFormState.$anyError || this.submittingNewCue) return;
       this.submittingNewCue = true;
       try {
         await (this as any).ADD_NEW_CUE(this.newCueFormState);
         (this as any).$bvModal.hide('new-cue-modal');
-        this.resetNewCueForm();
       } catch (error) {
         log.error('Error submitting new cue:', error);
-        event.preventDefault();
       } finally {
         this.submittingNewCue = false;
       }
     },
-
+    async onSubmitNewCueGroup(): Promise<void> {
+      if (!this.newGroupFormValid || this.submittingNewCueGroup) return;
+      const form = this.$refs.newGroupForm as any;
+      if (!form) {
+        log.error('CueGroupForm ref not available when submitting group');
+        return;
+      }
+      this.submittingNewCueGroup = true;
+      try {
+        const data = form.getFormData();
+        await (this as any).ADD_CUE_GROUP({
+          cueTypeId: data.cueTypeId,
+          labelOverride: data.labelOverride || undefined,
+          lineId: this.newCueFormState.lineId,
+          cues: data.cues.map((c: any, i: number) => ({ ident: c.ident, sortOrder: i })),
+        });
+        (this as any).$bvModal.hide('new-cue-modal');
+      } catch (error) {
+        log.error('Error submitting new cue group:', error);
+      } finally {
+        this.submittingNewCueGroup = false;
+      }
+    },
     // Scroll helper - scrolls element into view within the script container only
     scrollToElement(element: Element | null): void {
       const container = document.getElementById('script-container');
@@ -1085,6 +1144,7 @@ export default defineComponent({
     ...mapActions([
       'LOAD_SCRIPT_PAGE',
       'ADD_NEW_CUE',
+      'ADD_CUE_GROUP',
       'GET_CURRENT_USER',
       'GET_STAGE_DIRECTION_STYLE_OVERRIDES',
       'GET_CUE_COLOUR_OVERRIDES',

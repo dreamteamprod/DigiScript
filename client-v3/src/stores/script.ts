@@ -9,7 +9,7 @@ import type {
   CompiledScript,
   ScriptCut,
 } from '@/types/api/script';
-import type { Cue } from '@/types/api/cues';
+import type { Cue, CueGroup } from '@/types/api/cues';
 
 export const useScriptStore = defineStore('script', {
   state: () => ({
@@ -19,6 +19,7 @@ export const useScriptStore = defineStore('script', {
     cuts: [] as ScriptCut[],
     maxPage: 1,
     cues: {} as Record<string, Cue[]>,
+    cueGroups: [] as CueGroup[],
   }),
 
   getters: {
@@ -34,6 +35,35 @@ export const useScriptStore = defineStore('script', {
       (state) =>
       (lineId: number | null): Cue[] =>
         lineId == null ? [] : (state.cues[String(lineId)] ?? []),
+    cueGroupById:
+      (state) =>
+      (id: number | null): CueGroup | null =>
+        id == null ? null : (state.cueGroups.find((g) => g.id === id) ?? null),
+    groupedCuesForLine:
+      (state) =>
+      (
+        lineId: number | null
+      ): { individual: Cue[]; groups: { group: CueGroup; cues: Cue[] }[] } => {
+        if (lineId == null) return { individual: [], groups: [] };
+        const allCues = state.cues[String(lineId)] ?? [];
+        const individual = allCues.filter((c) => c.group_id == null);
+        const groupMap = new Map<number, Cue[]>();
+        for (const cue of allCues) {
+          if (cue.group_id != null) {
+            if (!groupMap.has(cue.group_id)) groupMap.set(cue.group_id, []);
+            groupMap.get(cue.group_id)!.push(cue);
+          }
+        }
+        const groups: { group: CueGroup; cues: Cue[] }[] = [];
+        for (const [groupId, cues] of groupMap) {
+          const group = state.cueGroups.find((g) => g.id === groupId);
+          if (group) {
+            const sorted = [...cues].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+            groups.push({ group, cues: sorted });
+          }
+        }
+        return { individual, groups };
+      },
   },
 
   actions: {
@@ -221,6 +251,7 @@ export const useScriptStore = defineStore('script', {
       if (response.ok) {
         const data = await response.json();
         this.cues = data.cues as Record<string, Cue[]>;
+        this.cueGroups = (data.cue_groups ?? []) as CueGroup[];
       } else {
         log.error('Unable to load cues');
       }
@@ -273,6 +304,60 @@ export const useScriptStore = defineStore('script', {
         toast.success('Deleted cue!');
       } else {
         toast.error('Unable to delete cue');
+      }
+    },
+
+    async addCueGroup(payload: {
+      cueTypeId: number;
+      labelOverride?: string;
+      lineId: number;
+      cues: { ident: string; sortOrder: number }[];
+    }): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/cues/groups'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        await this.loadCues();
+        toast.success('Added cue group!');
+      } else {
+        toast.error('Unable to add cue group');
+      }
+    },
+
+    async editCueGroup(payload: {
+      groupId: number;
+      labelOverride?: string;
+      lineId: number;
+      cues: { id?: number; ident: string; sortOrder: number }[];
+    }): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/cues/groups'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        await this.loadCues();
+        toast.success('Edited cue group!');
+      } else {
+        toast.error('Unable to edit cue group');
+      }
+    },
+
+    async deleteCueGroup(payload: { groupId: number; lineId: number }): Promise<void> {
+      const params = new URLSearchParams({
+        groupId: String(payload.groupId),
+        lineId: String(payload.lineId),
+      });
+      const response = await fetch(`${makeURL('/api/v1/show/cues/groups')}?${params}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        await this.loadCues();
+        toast.success('Deleted cue group!');
+      } else {
+        toast.error('Unable to delete cue group');
       }
     },
 

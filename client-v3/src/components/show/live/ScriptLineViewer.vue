@@ -131,7 +131,7 @@
           <BCol cols="3" :class="['cue-column-right', { 'first-row': isFirstRowContent }]">
             <BButtonGroup>
               <BButton
-                v-for="cue in cues"
+                v-for="cue in individualCues"
                 :key="cue.id"
                 class="cue-button"
                 :style="{
@@ -140,6 +140,17 @@
                 }"
               >
                 {{ cueLabel(cue) }}
+              </BButton>
+              <BButton
+                v-for="grp in lineGroups"
+                :key="`group_${grp.group.id}`"
+                class="cue-button cue-group-btn"
+                :style="{
+                  backgroundColor: cueGroupBackgroundColour(grp.group),
+                  color: contrastColor(cueGroupBackgroundColour(grp.group)),
+                }"
+              >
+                {{ cueGroupLabel(grp.group, grp.cues) }}
               </BButton>
             </BButtonGroup>
             <BButton
@@ -157,7 +168,7 @@
           <BCol cols="3" :class="['cue-column', { 'first-row': isFirstRowContent }]">
             <BButtonGroup>
               <BButton
-                v-for="cue in cues"
+                v-for="cue in individualCues"
                 :key="cue.id"
                 class="cue-button"
                 :style="{
@@ -166,6 +177,17 @@
                 }"
               >
                 {{ cueLabel(cue) }}
+              </BButton>
+              <BButton
+                v-for="grp in lineGroups"
+                :key="`group_${grp.group.id}`"
+                class="cue-button cue-group-btn"
+                :style="{
+                  backgroundColor: cueGroupBackgroundColour(grp.group),
+                  color: contrastColor(cueGroupBackgroundColour(grp.group)),
+                }"
+              >
+                {{ cueGroupLabel(grp.group, grp.cues) }}
               </BButton>
             </BButtonGroup>
             <BButton
@@ -252,7 +274,7 @@ import { isWholeLineCut } from '@/js/scriptUtils';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine, ScriptCut, StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
-import type { Cue, CueType } from '@/types/api/cues';
+import type { CueType } from '@/types/api/cues';
 
 const props = defineProps<{
   line: ScriptLine;
@@ -289,7 +311,11 @@ const {
   stageDirectionStyling: computeStyling,
   scriptTextAlign: computeTextAlign,
 } = useScriptDisplay();
-const { cueLabel, cueBackgroundColour, contrastColor } = useCueDisplay();
+const { cueLabel, cueBackgroundColour, cueGroupLabel, cueGroupBackgroundColour, contrastColor } =
+  useCueDisplay();
+
+const individualCues = computed(() => props.cues.filter((c) => c.group_id == null));
+const lineGroups = computed(() => scriptStore.groupedCuesForLine(props.line.id).groups);
 
 const lineContainer = ref<HTMLElement | null>(null);
 let observer: MutationObserver | null = null;
@@ -438,6 +464,10 @@ onUnmounted(() => {
 
 .cue-button {
   padding: 0.2rem;
+}
+
+.cue-group-btn {
+  border-style: dashed !important;
 }
 
 .line-row:has(.add-cue-btn:hover) {

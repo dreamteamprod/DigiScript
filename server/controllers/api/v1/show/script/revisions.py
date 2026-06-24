@@ -147,6 +147,8 @@ class ScriptRevisionsController(BaseAPIController):
                             revision_id=new_rev.id,
                             line_id=cue_association.line_id,
                             cue_id=cue_association.cue_id,
+                            group_id=cue_association.group_id,
+                            sort_order=cue_association.sort_order,
                         )
                     )
                 for cut_association in parent_rev.line_part_cuts:

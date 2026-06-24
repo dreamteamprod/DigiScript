@@ -1,7 +1,7 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 
-from models.cue import Cue, CueType
+from models.cue import Cue, CueGroup, CueType
 from models.mics import Microphone, MicrophoneAllocation
 from models.script import (
     CompiledScript,
@@ -187,6 +187,14 @@ class CueTypeSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = CueType
         load_instance = True
+
+
+@schema
+class CueGroupSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = CueGroup
+        load_instance = True
+        include_fk = True
 
 
 @schema

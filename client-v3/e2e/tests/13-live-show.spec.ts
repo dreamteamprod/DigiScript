@@ -12,6 +12,7 @@ import {
   UI_BASE,
   waitForAppReady,
   loginAsAdmin,
+  waitForModal,
   confirmModal,
   waitForModalClosed,
   confirmDialog,
@@ -120,6 +121,63 @@ test('follower receives leader page navigation via WebSocket scroll sync', async
     'true',
     { timeout: 10_000 }
   );
+});
+
+// ── Cue add mode in live view ─────────────────────────────────────────────
+
+test('pressing C enables cue add mode showing + buttons on the live page', async () => {
+  await expect(leaderPage.locator('.script-item').first()).toBeVisible({ timeout: 10_000 });
+  await leaderPage.keyboard.press('C');
+  await expect(leaderPage.locator('.add-cue-btn').first()).toBeVisible({ timeout: 5_000 });
+});
+
+test('can add an individual cue from the live view', async () => {
+  await leaderPage.locator('.add-cue-btn').first().click();
+  await waitForModal(leaderPage, 'Add Cue');
+  await expect(
+    leaderPage.locator('.modal.show .nav-link:has-text("Individual Cue")')
+  ).toBeVisible();
+  await leaderPage.locator('.modal.show #cue-type-input').selectOption({ index: 1 });
+  await leaderPage.locator('.modal.show #ident-input').fill('101');
+  await leaderPage.locator('.modal.show button:has-text("Add Cue")').click();
+  await waitForModalClosed(leaderPage);
+  await expect(leaderPage.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('can add a cue group from the live view', async () => {
+  await leaderPage.locator('.add-cue-btn').first().click();
+  await waitForModal(leaderPage, 'Add Cue');
+  await leaderPage.locator('.modal.show .nav-link:has-text("Cue Group")').click();
+  // Wait for CueGroupForm content (tab may be lazy in some BVN versions)
+  await expect(leaderPage.locator('.modal.show input[placeholder="1 > 100"]')).toBeVisible({
+    timeout: 10_000,
+  });
+  // CueGroupForm filters out N/A, so LX is at index 0
+  await leaderPage.locator('.modal.show .tab-pane.active select').selectOption({ index: 0 });
+  await leaderPage.locator('.modal.show input[placeholder="1 > 100"]').fill('200 > 202');
+  await leaderPage.locator('.modal.show button:has-text("Add Range")').click();
+  await expect(
+    leaderPage.locator('.modal.show .tab-pane.active input[placeholder="Identifier"]')
+  ).toHaveCount(3, { timeout: 3_000 });
+  await leaderPage.locator('.modal.show button:has-text("Save Group")').click();
+  await waitForModalClosed(leaderPage);
+  await expect(leaderPage.locator('.cue-group-btn').first()).toBeVisible({ timeout: 5_000 });
+  await expect(leaderPage.locator('.cue-group-btn').first()).toContainText('LX 200 - LX 202');
+});
+
+test('cue group buttons in live view are non-interactive display-only buttons', async () => {
+  // Group buttons in live view should NOT open an edit modal — editing is blocked server-side
+  // during live sessions. Verify clicking doesn't open any modal.
+  await leaderPage.locator('.cue-group-btn').first().click();
+  await leaderPage.waitForTimeout(500);
+  await expect(leaderPage.locator('.modal.show')).not.toBeVisible();
+});
+
+test('pressing C again disables cue add mode', async () => {
+  await leaderPage.keyboard.press('C');
+  await expect(leaderPage.locator('.add-cue-btn').first()).not.toBeVisible({ timeout: 5_000 });
 });
 
 // ── Enable/disable Stage Manager mode ─────────────────────────────────────
