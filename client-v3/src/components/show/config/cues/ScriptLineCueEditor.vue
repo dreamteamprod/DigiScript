@@ -22,32 +22,35 @@
         <BCol cols="3" class="cue-column">
           <template v-if="line.line_type !== LINE_TYPES.SPACING">
             <BButtonGroup>
-              <BButton
-                v-for="cue in individualCues"
-                :key="cue.id"
-                class="cue-button"
-                :disabled="!systemStore.isCueEditor"
-                :style="{
-                  backgroundColor: cueBackgroundColour(cue),
-                  color: contrastColor(cueBackgroundColour(cue)),
-                }"
-                @click.stop="openEditForm(cue)"
+              <template
+                v-for="slot in mergedCueSlots"
+                :key="slot.type === 'individual' ? slot.cue.id : `group_${slot.group.id}`"
               >
-                {{ cueLabel(cue) }}
-              </BButton>
-              <BButton
-                v-for="grp in lineGroups"
-                :key="`group_${grp.group.id}`"
-                class="cue-button cue-group-btn"
-                :disabled="!systemStore.isCueEditor"
-                :style="{
-                  backgroundColor: cueGroupBackgroundColour(grp.group),
-                  color: contrastColor(cueGroupBackgroundColour(grp.group)),
-                }"
-                @click.stop="openEditGroup(grp.group, grp.cues)"
-              >
-                {{ cueGroupLabel(grp.group, grp.cues) }}
-              </BButton>
+                <BButton
+                  v-if="slot.type === 'individual'"
+                  class="cue-button"
+                  :disabled="!systemStore.isCueEditor"
+                  :style="{
+                    backgroundColor: cueBackgroundColour(slot.cue),
+                    color: contrastColor(cueBackgroundColour(slot.cue)),
+                  }"
+                  @click.stop="openEditForm(slot.cue)"
+                >
+                  {{ cueLabel(slot.cue) }}
+                </BButton>
+                <BButton
+                  v-else
+                  class="cue-button cue-group-btn"
+                  :disabled="!systemStore.isCueEditor"
+                  :style="{
+                    backgroundColor: cueGroupBackgroundColour(slot.group),
+                    color: contrastColor(cueGroupBackgroundColour(slot.group)),
+                  }"
+                  @click.stop="openEditGroup(slot.group, slot.cues)"
+                >
+                  {{ cueGroupLabel(slot.group, slot.cues) }}
+                </BButton>
+              </template>
               <BButton
                 v-if="systemStore.isCueEditor"
                 class="cue-button add-cue-btn"
@@ -384,8 +387,7 @@ const sceneLabel = computed(
 
 const isLineCut = computed(() => isWholeLineCut(props.line, props.cuts));
 
-const individualCues = computed(() => props.cues.filter((c) => c.group_id == null));
-const lineGroups = computed(() => scriptStore.groupedCuesForLine(props.line.id).groups);
+const mergedCueSlots = computed(() => scriptStore.groupedCuesForLine(props.line.id).merged);
 
 // RBAC-filtered cue type options: admins see all, others only see types they can write
 const cueTypeOptions = computed(() => {

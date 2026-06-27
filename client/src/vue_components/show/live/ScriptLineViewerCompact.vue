@@ -40,57 +40,54 @@
       </b-col>
       <b-col v-if="cueAddMode" cols="1" class="cue-add-column" />
     </b-row>
-    <template v-for="(cue, cueIndex) in individualCues">
-      <b-row :key="`cue_${cue.id}`">
-        <b-col
-          cols="2"
-          :class="[
-            'cue-column',
-            'line-part',
-            'text-right',
-            'font-weight-bold',
-            'cue',
-            { 'first-row': isFirstRowCues && cueIndex === 0 },
-          ]"
-          :style="{ color: cueBackgroundColour(cue) }"
-        >
-          <span>{{ cuePrefix(cue) }}</span>
-        </b-col>
-        <b-col
-          :cols="cueAddMode ? 9 : 10"
-          class="line-part text-left font-weight-bold cue"
-          :style="{ color: cueBackgroundColour(cue) }"
-        >
-          <span>{{ cue.ident }}</span>
-        </b-col>
-        <b-col v-if="cueAddMode" cols="1" class="cue-add-column" />
-      </b-row>
-    </template>
-    <template v-for="(grp, groupIndex) in lineGroups">
-      <b-row :key="`group_${grp.group.id}`">
-        <b-col
-          cols="2"
-          :class="[
-            'cue-column',
-            'line-part',
-            'text-right',
-            'font-weight-bold',
-            'cue',
-            {
-              'first-row': isFirstRowCues && individualCues.length === 0 && groupIndex === 0,
-            },
-          ]"
-          :style="{ color: cueGroupBackgroundColour(grp.group) }"
-        >
-          <span>{{ cueGroupPrefix(grp.group) }}</span>
-        </b-col>
-        <b-col
-          :cols="cueAddMode ? 9 : 10"
-          class="line-part text-left font-weight-bold cue"
-          :style="{ color: cueGroupBackgroundColour(grp.group) }"
-        >
-          <span>{{ cueGroupIdentLabel(grp.group, grp.cues) }}</span>
-        </b-col>
+    <template v-for="(slot, slotIndex) in mergedCueSlots">
+      <b-row :key="slot.type === 'individual' ? `cue_${slot.cue.id}` : `group_${slot.group.id}`">
+        <template v-if="slot.type === 'individual'">
+          <b-col
+            cols="2"
+            :class="[
+              'cue-column',
+              'line-part',
+              'text-right',
+              'font-weight-bold',
+              'cue',
+              { 'first-row': isFirstRowCues && slotIndex === 0 },
+            ]"
+            :style="{ color: cueBackgroundColour(slot.cue) }"
+          >
+            <span>{{ cuePrefix(slot.cue) }}</span>
+          </b-col>
+          <b-col
+            :cols="cueAddMode ? 9 : 10"
+            class="line-part text-left font-weight-bold cue"
+            :style="{ color: cueBackgroundColour(slot.cue) }"
+          >
+            <span>{{ slot.cue.ident }}</span>
+          </b-col>
+        </template>
+        <template v-else>
+          <b-col
+            cols="2"
+            :class="[
+              'cue-column',
+              'line-part',
+              'text-right',
+              'font-weight-bold',
+              'cue',
+              { 'first-row': isFirstRowCues && slotIndex === 0 },
+            ]"
+            :style="{ color: cueGroupBackgroundColour(slot.group) }"
+          >
+            <span>{{ cueGroupPrefix(slot.group) }}</span>
+          </b-col>
+          <b-col
+            :cols="cueAddMode ? 9 : 10"
+            class="line-part text-left font-weight-bold cue"
+            :style="{ color: cueGroupBackgroundColour(slot.group) }"
+          >
+            <span>{{ cueGroupIdentLabel(slot.group, slot.cues) }}</span>
+          </b-col>
+        </template>
         <b-col v-if="cueAddMode" cols="1" class="cue-add-column" />
       </b-row>
     </template>
@@ -280,14 +277,11 @@ export default defineComponent({
     isFirstRowActScene(): boolean {
       return (this as any).needsActSceneLabel;
     },
-    individualCues(): any[] {
-      return (this.cues as any[]).filter((c: any) => c.group_id == null);
-    },
-    lineGroups(): { group: any; cues: any[] }[] {
-      return (this as any).GROUPED_CUES_FOR_LINE((this.line as any).id).groups;
+    mergedCueSlots(): any[] {
+      return (this as any).GROUPED_CUES_FOR_LINE((this.line as any).id).merged;
     },
     hasAnyCues(): boolean {
-      return (this as any).individualCues.length > 0 || (this as any).lineGroups.length > 0;
+      return (this as any).mergedCueSlots.length > 0;
     },
     isFirstRowCues(): boolean {
       return !(this as any).needsActSceneLabel && (this as any).hasAnyCues;

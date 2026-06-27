@@ -43,8 +43,15 @@ export const useScriptStore = defineStore('script', {
       (state) =>
       (
         lineId: number | null
-      ): { individual: Cue[]; groups: { group: CueGroup; cues: Cue[] }[] } => {
-        if (lineId == null) return { individual: [], groups: [] };
+      ): {
+        individual: Cue[];
+        groups: { group: CueGroup; cues: Cue[] }[];
+        merged: (
+          | { type: 'individual'; cue: Cue; line_position: number | null }
+          | { type: 'group'; group: CueGroup; cues: Cue[]; line_position: number | null }
+        )[];
+      } => {
+        if (lineId == null) return { individual: [], groups: [], merged: [] };
         const allCues = state.cues[String(lineId)] ?? [];
         const individual = allCues.filter((c) => c.group_id == null);
         const groupMap = new Map<number, Cue[]>();
@@ -62,7 +69,29 @@ export const useScriptStore = defineStore('script', {
             groups.push({ group, cues: sorted });
           }
         }
-        return { individual, groups };
+        const merged: (
+          | { type: 'individual'; cue: Cue; line_position: number | null }
+          | { type: 'group'; group: CueGroup; cues: Cue[]; line_position: number | null }
+        )[] = [
+          ...individual.map((c) => ({
+            type: 'individual' as const,
+            cue: c,
+            line_position: c.line_position,
+          })),
+          ...groups.map((g) => ({
+            type: 'group' as const,
+            group: g.group,
+            cues: g.cues,
+            line_position: g.cues[0]?.line_position ?? null,
+          })),
+        ];
+        merged.sort((a, b) => {
+          if (a.line_position == null && b.line_position == null) return 0;
+          if (a.line_position == null) return 1;
+          if (b.line_position == null) return -1;
+          return a.line_position - b.line_position;
+        });
+        return { individual, groups, merged };
       },
   },
 

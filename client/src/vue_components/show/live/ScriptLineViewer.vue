@@ -138,28 +138,30 @@
         </template>
         <b-col cols="3" :class="['cue-column-right', { 'first-row': isFirstRowContent }]">
           <b-button-group>
-            <b-button
-              v-for="cue in individualCues"
-              :key="cue.id"
-              class="cue-button"
-              :style="{
-                backgroundColor: cueBackgroundColour(cue),
-                color: contrastColor({ bgColor: cueBackgroundColour(cue) }),
-              }"
-            >
-              {{ cueLabel(cue) }}
-            </b-button>
-            <b-button
-              v-for="grp in lineGroups"
-              :key="`group_${grp.group.id}`"
-              class="cue-button cue-group-btn"
-              :style="{
-                backgroundColor: cueGroupBackgroundColour(grp.group),
-                color: contrastColor({ bgColor: cueGroupBackgroundColour(grp.group) }),
-              }"
-            >
-              {{ cueGroupLabel(grp.group, grp.cues) }}
-            </b-button>
+            <template v-for="slot in mergedCueSlots">
+              <b-button
+                v-if="slot.type === 'individual'"
+                :key="slot.cue.id"
+                class="cue-button"
+                :style="{
+                  backgroundColor: cueBackgroundColour(slot.cue),
+                  color: contrastColor({ bgColor: cueBackgroundColour(slot.cue) }),
+                }"
+              >
+                {{ cueLabel(slot.cue) }}
+              </b-button>
+              <b-button
+                v-else
+                :key="`group_${slot.group.id}`"
+                class="cue-button cue-group-btn"
+                :style="{
+                  backgroundColor: cueGroupBackgroundColour(slot.group),
+                  color: contrastColor({ bgColor: cueGroupBackgroundColour(slot.group) }),
+                }"
+              >
+                {{ cueGroupLabel(slot.group, slot.cues) }}
+              </b-button>
+            </template>
             <b-button
               v-if="cueAddMode"
               class="cue-button add-cue-btn"
@@ -174,28 +176,30 @@
       <template v-else>
         <b-col cols="3" :class="['cue-column', { 'first-row': isFirstRowContent }]">
           <b-button-group>
-            <b-button
-              v-for="cue in individualCues"
-              :key="cue.id"
-              class="cue-button"
-              :style="{
-                backgroundColor: cueBackgroundColour(cue),
-                color: contrastColor({ bgColor: cueBackgroundColour(cue) }),
-              }"
-            >
-              {{ cueLabel(cue) }}
-            </b-button>
-            <b-button
-              v-for="grp in lineGroups"
-              :key="`group_${grp.group.id}`"
-              class="cue-button cue-group-btn"
-              :style="{
-                backgroundColor: cueGroupBackgroundColour(grp.group),
-                color: contrastColor({ bgColor: cueGroupBackgroundColour(grp.group) }),
-              }"
-            >
-              {{ cueGroupLabel(grp.group, grp.cues) }}
-            </b-button>
+            <template v-for="slot in mergedCueSlots">
+              <b-button
+                v-if="slot.type === 'individual'"
+                :key="slot.cue.id"
+                class="cue-button"
+                :style="{
+                  backgroundColor: cueBackgroundColour(slot.cue),
+                  color: contrastColor({ bgColor: cueBackgroundColour(slot.cue) }),
+                }"
+              >
+                {{ cueLabel(slot.cue) }}
+              </b-button>
+              <b-button
+                v-else
+                :key="`group_${slot.group.id}`"
+                class="cue-button cue-group-btn"
+                :style="{
+                  backgroundColor: cueGroupBackgroundColour(slot.group),
+                  color: contrastColor({ bgColor: cueGroupBackgroundColour(slot.group) }),
+                }"
+              >
+                {{ cueGroupLabel(slot.group, slot.cues) }}
+              </b-button>
+            </template>
             <b-button
               v-if="cueAddMode"
               class="cue-button add-cue-btn"
@@ -368,11 +372,8 @@ export default defineComponent({
     isFirstRowContent(): boolean {
       return !(this as any).needsIntervalBanner && !(this as any).needsActSceneLabel;
     },
-    individualCues(): any[] {
-      return (this.cues as any[]).filter((c: any) => c.group_id == null);
-    },
-    lineGroups(): { group: any; cues: any[] }[] {
-      return (this as any).GROUPED_CUES_FOR_LINE((this.line as any).id).groups;
+    mergedCueSlots(): any[] {
+      return (this as any).GROUPED_CUES_FOR_LINE((this.line as any).id).merged;
     },
     ...mapGetters(['USER_SETTINGS', 'GROUPED_CUES_FOR_LINE']),
   },

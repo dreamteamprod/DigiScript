@@ -12,32 +12,34 @@
     >
       <b-col cols="3" class="cue-column" style="text-align: right">
         <b-button-group v-if="line.line_type !== LINE_TYPES.SPACING">
-          <b-button
-            v-for="cue in individualCues"
-            :key="cue.id"
-            :disabled="!IS_CUE_EDITOR"
-            class="cue-button"
-            :style="{
-              backgroundColor: cueBackgroundColour(cue),
-              color: contrastColor({ bgColor: cueBackgroundColour(cue) }),
-            }"
-            @click.stop="openEditForm(cue)"
-          >
-            {{ cueLabel(cue) }}
-          </b-button>
-          <b-button
-            v-for="grp in lineGroups"
-            :key="`group_${grp.group.id}`"
-            :disabled="!IS_CUE_EDITOR"
-            class="cue-button cue-group-btn"
-            :style="{
-              backgroundColor: cueGroupBackgroundColour(grp.group),
-              color: contrastColor({ bgColor: cueGroupBackgroundColour(grp.group) }),
-            }"
-            @click.stop="openEditGroup(grp.group, grp.cues)"
-          >
-            {{ cueGroupLabel(grp.group, grp.cues) }}
-          </b-button>
+          <template v-for="slot in mergedCueSlots">
+            <b-button
+              v-if="slot.type === 'individual'"
+              :key="slot.cue.id"
+              :disabled="!IS_CUE_EDITOR"
+              class="cue-button"
+              :style="{
+                backgroundColor: cueBackgroundColour(slot.cue),
+                color: contrastColor({ bgColor: cueBackgroundColour(slot.cue) }),
+              }"
+              @click.stop="openEditForm(slot.cue)"
+            >
+              {{ cueLabel(slot.cue) }}
+            </b-button>
+            <b-button
+              v-else
+              :key="`group_${slot.group.id}`"
+              :disabled="!IS_CUE_EDITOR"
+              class="cue-button cue-group-btn"
+              :style="{
+                backgroundColor: cueGroupBackgroundColour(slot.group),
+                color: contrastColor({ bgColor: cueGroupBackgroundColour(slot.group) }),
+              }"
+              @click.stop="openEditGroup(slot.group, slot.cues)"
+            >
+              {{ cueGroupLabel(slot.group, slot.cues) }}
+            </b-button>
+          </template>
           <b-button
             v-if="IS_CUE_EDITOR"
             class="cue-button add-cue-btn"
@@ -455,11 +457,8 @@ export default defineComponent({
       'CUE_COLOUR_OVERRIDES',
       'GROUPED_CUES_FOR_LINE',
     ]),
-    individualCues(): any[] {
-      return (this.cues as any[]).filter((c: any) => c.group_id == null);
-    },
-    lineGroups(): { group: any; cues: any[] }[] {
-      return (this as any).GROUPED_CUES_FOR_LINE((this.line as any).id).groups;
+    mergedCueSlots(): any[] {
+      return (this as any).GROUPED_CUES_FOR_LINE((this.line as any).id).merged;
     },
     cueTypeOptions(): unknown[] {
       if ((this as any).IS_ADMIN_USER) {
