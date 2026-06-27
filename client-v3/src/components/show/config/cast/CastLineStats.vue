@@ -84,8 +84,7 @@ async function getStats(): Promise<void> {
 
 function getLineCountForCast(castId: number, actId: number | null, sceneId: number): number {
   const lineCounts = (castStats.value as Record<string, unknown>).line_counts as
-    | Record<string, Record<string, Record<string, number>>>
-    | undefined;
+    Record<string, Record<string, Record<string, number>>> | undefined;
   if (!lineCounts) return 0;
   return lineCounts[castId]?.[actId ?? '']?.[sceneId] ?? 0;
 }

@@ -89,8 +89,7 @@ function getLineCountForCharacter(
   sceneId: number
 ): number {
   const lineCounts = (characterStats.value as Record<string, unknown>).line_counts as
-    | Record<string, Record<string, Record<string, number>>>
-    | undefined;
+    Record<string, Record<string, Record<string, number>>> | undefined;
   if (!lineCounts) return 0;
   return lineCounts[characterId]?.[actId ?? '']?.[sceneId] ?? 0;
 }

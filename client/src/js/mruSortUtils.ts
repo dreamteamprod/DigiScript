@@ -4,8 +4,7 @@ type ScriptLine = { line_parts?: LinePart[] };
 type TmpScript = Record<string, ScriptLine[]>;
 export type SelectOption = { value: number | null; text: string };
 export type CombinedSelectOption =
-  | { value: null; text: string }
-  | { label: string; options: { value: string; text: string }[] };
+  { value: null; text: string } | { label: string; options: { value: string; text: string }[] };
 
 function countOccurrences(
   tmpScript: TmpScript,

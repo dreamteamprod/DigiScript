@@ -440,8 +440,7 @@ async function discoverServers(): Promise<void> {
 async function checkServerStatus(connection: ElectronConnection): Promise<ServerStatus> {
   try {
     const result = (await window.electronAPI?.checkVersion?.(connection.url)) as
-      | ElectronVersionCheckResult
-      | undefined;
+      ElectronVersionCheckResult | undefined;
     if (!result || result.error || !result.serverVersion) {
       return {
         available: false,

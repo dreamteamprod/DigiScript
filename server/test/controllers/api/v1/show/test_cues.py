@@ -1633,3 +1633,191 @@ class TestCueGroups(DigiScriptTestCase):
                 if ss:
                     session.delete(ss)
                 session.commit()
+
+
+class TestCueLinePositionOrdering(DigiScriptTestCase):
+    """Tests that individual cues and cue groups are ordered by line_position."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Initial"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
+            script.current_revision = revision.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+
+            line = ScriptLine(
+                act_id=act.id,
+                scene_id=scene.id,
+                page=1,
+                line_type=ScriptLineType.DIALOGUE,
+            )
+            session.add(line)
+            session.flush()
+            self.line_id = line.id
+
+            assoc = ScriptLineRevisionAssociation(
+                revision_id=revision.id, line_id=line.id
+            )
+            session.add(assoc)
+
+            cue_type = CueType(
+                show_id=show.id, prefix="LX", description="Lighting", colour="#ff0000"
+            )
+            session.add(cue_type)
+            session.flush()
+            self.cue_type_id = cue_type.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def _post_individual_cue(self, ident="Q1"):
+        """Create an individual cue on the test line."""
+        return self.fetch(
+            "/api/v1/show/cues",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"cueType": self.cue_type_id, "ident": ident, "lineId": self.line_id}
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+    def _post_group(self, idents=None):
+        """Create a cue group on the test line."""
+        if idents is None:
+            idents = ["G1"]
+        cues = [{"ident": ident, "sortOrder": i} for i, ident in enumerate(idents)]
+        return self.fetch(
+            "/api/v1/show/cues/groups",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {
+                    "cueTypeId": self.cue_type_id,
+                    "lineId": self.line_id,
+                    "cues": cues,
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+    def _get_cues_for_line(self):
+        """Return the cue list for self.line_id from GET /api/v1/show/cues."""
+        response = self.fetch("/api/v1/show/cues")
+        self.assertEqual(200, response.code)
+        body = tornado.escape.json_decode(response.body)
+        return body["cues"].get(str(self.line_id), [])
+
+    def test_individual_then_group_order(self):
+        """Creating I then G → GET returns [I, G] by line_position."""
+        self.assertEqual(200, self._post_individual_cue("I1").code)
+        self.assertEqual(200, self._post_group(["G1"]).code)
+
+        cues = self._get_cues_for_line()
+        self.assertEqual(2, len(cues))
+        # Individual cue was created first so has a lower line_position
+        self.assertIsNone(cues[0]["group_id"])
+        self.assertIsNotNone(cues[1]["group_id"])
+        self.assertLess(cues[0]["line_position"], cues[1]["line_position"])
+
+    def test_group_then_individual_order(self):
+        """Creating G then I → GET returns [G, I] by line_position."""
+        self.assertEqual(200, self._post_group(["G1"]).code)
+        self.assertEqual(200, self._post_individual_cue("I1").code)
+
+        cues = self._get_cues_for_line()
+        self.assertEqual(2, len(cues))
+        # Group was created first so has a lower line_position
+        self.assertIsNotNone(cues[0]["group_id"])
+        self.assertIsNone(cues[1]["group_id"])
+        self.assertLess(cues[0]["line_position"], cues[1]["line_position"])
+
+    def test_group_individual_group_order(self):
+        """Creating G, I, G → GET returns [G, I, G] by line_position."""
+        self.assertEqual(200, self._post_group(["G1"]).code)
+        self.assertEqual(200, self._post_individual_cue("I1").code)
+        self.assertEqual(200, self._post_group(["G2"]).code)
+
+        cues = self._get_cues_for_line()
+        self.assertEqual(3, len(cues))
+
+        # Sort by line_position to verify ordering
+        sorted_cues = sorted(cues, key=lambda c: c["line_position"])
+        self.assertIsNotNone(sorted_cues[0]["group_id"])
+        self.assertIsNone(sorted_cues[1]["group_id"])
+        self.assertIsNotNone(sorted_cues[2]["group_id"])
+        # Two groups must have distinct line_positions
+        self.assertNotEqual(sorted_cues[0]["group_id"], sorted_cues[2]["group_id"])
+
+    def test_all_cues_in_group_share_line_position(self):
+        """All member cues in a single group share the same line_position."""
+        self.assertEqual(200, self._post_group(["G1", "G2", "G3"]).code)
+
+        cues = self._get_cues_for_line()
+        self.assertEqual(3, len(cues))
+        positions = {c["line_position"] for c in cues}
+        self.assertEqual(
+            1, len(positions), "All group members must share one line_position"
+        )
+
+    def test_line_position_stable_after_patch(self):
+        """Editing a cue via PATCH does not change its line_position."""
+        # Create: group first, then individual
+        grp_resp = self._post_group(["G1"])
+        self.assertEqual(200, grp_resp.code)
+        self.assertEqual(200, self._post_individual_cue("I1").code)
+
+        cues_before = self._get_cues_for_line()
+        individual_before = next(c for c in cues_before if c["group_id"] is None)
+        pos_before = individual_before["line_position"]
+
+        # Edit the individual cue (cueType is required by PATCH handler)
+        patch_resp = self.fetch(
+            "/api/v1/show/cues",
+            method="PATCH",
+            body=tornado.escape.json_encode(
+                {
+                    "cueId": individual_before["id"],
+                    "cueType": self.cue_type_id,
+                    "lineId": self.line_id,
+                    "ident": "I1-edited",
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, patch_resp.code)
+
+        cues_after = self._get_cues_for_line()
+        individual_after = next(c for c in cues_after if c["group_id"] is None)
+        self.assertEqual(pos_before, individual_after["line_position"])
+        # Group must still come before the individual cue
+        group_after = next(c for c in cues_after if c["group_id"] is not None)
+        self.assertLess(group_after["line_position"], individual_after["line_position"])
