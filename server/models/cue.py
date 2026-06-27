@@ -82,6 +82,7 @@ class CueAssociation(db.Model, DeleteMixin):
         Integer, ForeignKey("cue_groups.id"), nullable=True, index=True
     )
     sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    line_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     revision: Mapped[ScriptRevision] = relationship(
         foreign_keys=[revision_id], back_populates="cue_associations"

@@ -32,52 +32,56 @@
         </BCol>
         <BCol v-if="cueAddMode" cols="1" class="cue-add-column" />
       </BRow>
-      <BRow v-for="(cue, cueIndex) in individualCues" :key="`cue_${cue.id}`">
-        <BCol
-          cols="2"
-          :class="[
-            'cue-column',
-            'line-part',
-            'text-end',
-            'fw-bold',
-            'cue',
-            { 'first-row': isFirstRowCues && cueIndex === 0 },
-          ]"
-          :style="{ color: cueBackgroundColour(cue) }"
-        >
-          <span>{{ cuePrefix(cue) }}</span>
-        </BCol>
-        <BCol
-          :cols="cueAddMode ? 9 : 10"
-          class="line-part text-start fw-bold cue"
-          :style="{ color: cueBackgroundColour(cue) }"
-        >
-          <span>{{ cue.ident }}</span>
-        </BCol>
-        <BCol v-if="cueAddMode" cols="1" class="cue-add-column" />
-      </BRow>
-      <BRow v-for="(grp, groupIndex) in lineGroups" :key="`group_${grp.group.id}`">
-        <BCol
-          cols="2"
-          :class="[
-            'cue-column',
-            'line-part',
-            'text-end',
-            'fw-bold',
-            'cue',
-            { 'first-row': isFirstRowCues && individualCues.length === 0 && groupIndex === 0 },
-          ]"
-          :style="{ color: cueGroupBackgroundColour(grp.group) }"
-        >
-          <span>{{ cueGroupPrefix(grp.group) }}</span>
-        </BCol>
-        <BCol
-          :cols="cueAddMode ? 9 : 10"
-          class="line-part text-start fw-bold cue"
-          :style="{ color: cueGroupBackgroundColour(grp.group) }"
-        >
-          <span>{{ cueGroupIdentLabel(grp.group, grp.cues) }}</span>
-        </BCol>
+      <BRow
+        v-for="(slot, slotIndex) in mergedCueSlots"
+        :key="slot.type === 'individual' ? `cue_${slot.cue.id}` : `group_${slot.group.id}`"
+      >
+        <template v-if="slot.type === 'individual'">
+          <BCol
+            cols="2"
+            :class="[
+              'cue-column',
+              'line-part',
+              'text-end',
+              'fw-bold',
+              'cue',
+              { 'first-row': isFirstRowCues && slotIndex === 0 },
+            ]"
+            :style="{ color: cueBackgroundColour(slot.cue) }"
+          >
+            <span>{{ cuePrefix(slot.cue) }}</span>
+          </BCol>
+          <BCol
+            :cols="cueAddMode ? 9 : 10"
+            class="line-part text-start fw-bold cue"
+            :style="{ color: cueBackgroundColour(slot.cue) }"
+          >
+            <span>{{ slot.cue.ident }}</span>
+          </BCol>
+        </template>
+        <template v-else>
+          <BCol
+            cols="2"
+            :class="[
+              'cue-column',
+              'line-part',
+              'text-end',
+              'fw-bold',
+              'cue',
+              { 'first-row': isFirstRowCues && slotIndex === 0 },
+            ]"
+            :style="{ color: cueGroupBackgroundColour(slot.group) }"
+          >
+            <span>{{ cueGroupPrefix(slot.group) }}</span>
+          </BCol>
+          <BCol
+            :cols="cueAddMode ? 9 : 10"
+            class="line-part text-start fw-bold cue"
+            :style="{ color: cueGroupBackgroundColour(slot.group) }"
+          >
+            <span>{{ cueGroupIdentLabel(slot.group, slot.cues) }}</span>
+          </BCol>
+        </template>
         <BCol v-if="cueAddMode" cols="1" class="cue-add-column" />
       </BRow>
       <BRow class="line-row">
@@ -212,8 +216,7 @@ const {
   cueGroupIdentLabel,
 } = useCueDisplay();
 
-const individualCues = computed(() => props.cues.filter((c) => c.group_id == null));
-const lineGroups = computed(() => scriptStore.groupedCuesForLine(props.line.id).groups);
+const mergedCueSlots = computed(() => scriptStore.groupedCuesForLine(props.line.id).merged);
 
 const lineContainer = ref<HTMLElement | null>(null);
 let observer: MutationObserver | null = null;
@@ -260,7 +263,7 @@ const isTaggedStageDirection = computed(() => {
 });
 
 const isLineCut = computed(() => isWholeLineCut(props.line, props.cuts));
-const hasAnyCues = computed(() => individualCues.value.length > 0 || lineGroups.value.length > 0);
+const hasAnyCues = computed(() => mergedCueSlots.value.length > 0);
 const isFirstRowActScene = computed(() => needsActSceneLabel.value);
 const isFirstRowCues = computed(() => !needsActSceneLabel.value && hasAnyCues.value);
 const isFirstRowContent = computed(() => !needsActSceneLabel.value && !hasAnyCues.value);

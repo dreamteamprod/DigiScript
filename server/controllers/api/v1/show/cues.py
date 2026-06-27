@@ -268,6 +268,7 @@ class CueController(BaseAPIController):
                     cue_data = cue_schema.dump(association.cue)
                     cue_data["group_id"] = association.group_id
                     cue_data["sort_order"] = association.sort_order
+                    cue_data["line_position"] = association.line_position
                     cues[association.line_id].append(cue_data)
                     if association.group_id and association.group_id not in groups_seen:
                         groups_seen[association.group_id] = association.group
@@ -346,9 +347,22 @@ class CueController(BaseAPIController):
                 session.add(cue)
                 session.flush()
 
+                existing_assocs = session.scalars(
+                    select(CueAssociation).where(
+                        CueAssociation.revision_id == revision.id,
+                        CueAssociation.line_id == line_id,
+                    )
+                ).all()
+                next_pos = (
+                    max((a.line_position or 0 for a in existing_assocs), default=0) + 1
+                )
+
                 session.add(
                     CueAssociation(
-                        revision_id=revision.id, line_id=line_id, cue_id=cue.id
+                        revision_id=revision.id,
+                        line_id=line_id,
+                        cue_id=cue.id,
+                        line_position=next_pos,
                     )
                 )
                 session.commit()
@@ -808,6 +822,16 @@ class CueGroupController(BaseAPIController):
             session.add(group)
             session.flush()
 
+            existing_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == revision.id,
+                    CueAssociation.line_id == line_id,
+                )
+            ).all()
+            group_line_pos = (
+                max((a.line_position or 0 for a in existing_assocs), default=0) + 1
+            )
+
             for cue_entry in cues_data:
                 ident: str = cue_entry.get("ident", "")
                 sort_order: int = cue_entry.get("sortOrder", 0)
@@ -821,6 +845,7 @@ class CueGroupController(BaseAPIController):
                         cue_id=cue.id,
                         group_id=group.id,
                         sort_order=sort_order,
+                        line_position=group_line_pos,
                     )
                 )
 

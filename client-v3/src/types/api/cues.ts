@@ -18,4 +18,5 @@ export interface Cue {
   ident: string | null;
   group_id: number | null;
   sort_order: number | null;
+  line_position: number | null;
 }
