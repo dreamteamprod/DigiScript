@@ -151,13 +151,11 @@ const scenes = computed(() => showStore.orderedScenes);
 const rows = computed((): TimelineRow[] =>
   stageStore.crewList
     .filter((c) => (stageStore.crewAssignmentsByCrew[c.id] ?? []).length > 0)
-    .map(
-      (c): TimelineRow => ({
-        id: c.id,
-        name: [c.first_name, c.last_name].filter(Boolean).join(' '),
-        type: 'crew',
-      })
-    )
+    .map((c): TimelineRow => ({
+      id: c.id,
+      name: [c.first_name, c.last_name].filter(Boolean).join(' '),
+      type: 'crew',
+    }))
 );
 
 const {

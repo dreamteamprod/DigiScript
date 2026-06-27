@@ -106,8 +106,7 @@ export function initRemoteLogging(): void {
   setInterval(() => {
     const userStore = useUserStore();
     const consoleLevel = (userStore.userSettings as Record<string, unknown>)?.console_log_level as
-      | string
-      | undefined;
+      string | undefined;
     if (consoleLevel) log.setLevel(consoleLevel.toLowerCase() as log.LogLevelDesc, false);
   }, 5000);
 

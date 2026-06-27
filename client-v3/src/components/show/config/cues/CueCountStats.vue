@@ -83,8 +83,7 @@ async function getStats(): Promise<void> {
 
 function getCountForCueType(cueTypeId: number, actId: number | null, sceneId: number): number {
   const cueCounts = (cueStats.value as Record<string, unknown>).cue_counts as
-    | Record<string, Record<string, Record<string, number>>>
-    | undefined;
+    Record<string, Record<string, Record<string, number>>> | undefined;
   if (!cueCounts) return 0;
   return cueCounts[cueTypeId]?.[actId ?? '']?.[sceneId] ?? 0;
 }
