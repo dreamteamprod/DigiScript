@@ -278,7 +278,9 @@ test('Security category can be expanded to reveal JWT Token Lifetime', async () 
 test('JWT Token Lifetime dropdown shows human-readable labels', async () => {
   const select = page.locator('#jwt_token_lifetime_hours-input');
   // The option text should be human-readable, not a raw number
-  await expect(select.locator('option').filter({ hasText: '1 day' })).toBeAttached({ timeout: 5_000 });
+  await expect(select.locator('option').filter({ hasText: '1 day' })).toBeAttached({
+    timeout: 5_000,
+  });
   await expect(select.locator('option').filter({ hasText: '1 week' })).toBeAttached();
   await expect(select.locator('option').filter({ hasText: '1 month' })).toBeAttached();
 });
@@ -289,13 +291,15 @@ test('can change JWT Token Lifetime and submit successfully', async () => {
   await select.selectOption({ label: '6 hours' });
   await expect(page.locator('button:has-text("Submit")')).toBeEnabled({ timeout: 3_000 });
   await page.locator('button:has-text("Submit")').click();
-  await expect(page.locator('.v-toast')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('.v-toast')).toContainText('Saved settings');
+  // Use .v-toast__item to avoid strict-mode violation (.v-toast has two container elements)
+  await expect(page.locator('.v-toast__item:has-text("Saved settings")')).toBeVisible({
+    timeout: 5_000,
+  });
   // Restore default (1 day = 24 hours)
   await select.selectOption({ label: '1 day' });
   await page.locator('button:has-text("Submit")').click();
   await page
-    .locator('.v-toast')
+    .locator('.v-toast__item')
     .waitFor({ state: 'detached', timeout: 10_000 })
     .catch(() => {});
 });

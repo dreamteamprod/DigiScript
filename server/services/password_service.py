@@ -84,6 +84,8 @@ class PasswordService:
         :rtype: str
         """
         wordlist = xp.generate_wordlist(wordfile=xp.locate_wordfile())
+        # Exclude words containing hyphens to keep the dash-delimiter unambiguous
+        wordlist = [w for w in wordlist if "-" not in w]
         password = xp.generate_xkcdpassword(
             wordlist, numwords=word_count, delimiter="-"
         )
