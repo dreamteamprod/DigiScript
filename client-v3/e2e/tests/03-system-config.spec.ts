@@ -295,8 +295,13 @@ test('can change JWT Token Lifetime and submit successfully', async () => {
   await expect(page.locator('.v-toast__item:has-text("Saved settings")')).toBeVisible({
     timeout: 5_000,
   });
+  // Wait for Submit to re-disable — the WS SETTINGS_CHANGED broadcast resets editSettings to
+  // match the server, making hasChanges false. Selecting before this settles causes a race where
+  // the WS update overwrites our selection and Submit stays disabled.
+  await expect(page.locator('button:has-text("Submit")')).toBeDisabled({ timeout: 10_000 });
   // Restore default (1 day = 24 hours)
   await select.selectOption({ label: '1 day' });
+  await expect(page.locator('button:has-text("Submit")')).toBeEnabled({ timeout: 3_000 });
   await page.locator('button:has-text("Submit")').click();
   await page
     .locator('.v-toast__item')
