@@ -65,6 +65,11 @@ class BaseController(DatabaseMixin, RequestHandler):
 
                 payload = self.application.jwt_service.decode_access_token(token)
                 if payload and "user_id" in payload:
+                    if not self.application.jwt_service.validate_token_age(payload):
+                        raise HTTPError(
+                            401,
+                            log_message="JWT token age exceeded configured lifetime",
+                        )
                     # Validate token version to check if token is still valid
                     if not self.application.jwt_service.is_token_version_valid(payload):
                         raise HTTPError(401, log_message="JWT token version invalid")

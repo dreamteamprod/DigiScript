@@ -209,8 +209,9 @@ export default defineComponent({
       if (setting._nullable) {
         options.push({ value: null, text: 'N/A' });
       }
-      setting.choice_options.forEach((option: unknown) => {
-        options.push({ value: option, text: String(option) });
+      setting.choice_options.forEach((option: unknown, idx: number) => {
+        const label = (setting.choice_labels as string[] | null)?.[idx] ?? String(option);
+        options.push({ value: option, text: label });
       });
       return options;
     },

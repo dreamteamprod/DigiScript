@@ -180,6 +180,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             )
             return False
 
+        if not self.application.jwt_service.validate_token_age(payload):
+            await self.write_message(
+                {"OP": "WS_AUTH_ERROR", "DATA": "Token expired (lifetime exceeded)"}
+            )
+            return False
+
         with self.make_session() as session:
             user = session.get(User, int(payload["user_id"]))
             if not user:
