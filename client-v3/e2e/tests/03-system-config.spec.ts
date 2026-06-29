@@ -265,6 +265,50 @@ test('changing a setting enables the Submit and Reset buttons', async () => {
   }
 });
 
+test('Security category is visible in the settings page', async () => {
+  await expect(page.locator('.card-header:has-text("Security")')).toBeVisible({ timeout: 5_000 });
+});
+
+test('Security category can be expanded to reveal JWT Token Lifetime', async () => {
+  // Security card is collapsed by default — click the header to expand
+  await page.locator('.card-header:has-text("Security")').click();
+  await expect(page.locator('#jwt_token_lifetime_hours-input')).toBeVisible({ timeout: 5_000 });
+});
+
+test('JWT Token Lifetime dropdown shows human-readable labels', async () => {
+  const select = page.locator('#jwt_token_lifetime_hours-input');
+  // The option text should be human-readable, not a raw number
+  await expect(select.locator('option').filter({ hasText: '1 day' })).toBeAttached({
+    timeout: 5_000,
+  });
+  await expect(select.locator('option').filter({ hasText: '1 week' })).toBeAttached();
+  await expect(select.locator('option').filter({ hasText: '1 month' })).toBeAttached();
+});
+
+test('can change JWT Token Lifetime and submit successfully', async () => {
+  const select = page.locator('#jwt_token_lifetime_hours-input');
+  // Change to 6 hours
+  await select.selectOption({ label: '6 hours' });
+  await expect(page.locator('button:has-text("Submit")')).toBeEnabled({ timeout: 3_000 });
+  await page.locator('button:has-text("Submit")').click();
+  // Use .v-toast__item to avoid strict-mode violation (.v-toast has two container elements)
+  await expect(page.locator('.v-toast__item:has-text("Saved settings")')).toBeVisible({
+    timeout: 5_000,
+  });
+  // Wait for Submit to re-disable — the WS SETTINGS_CHANGED broadcast resets editSettings to
+  // match the server, making hasChanges false. Selecting before this settles causes a race where
+  // the WS update overwrites our selection and Submit stays disabled.
+  await expect(page.locator('button:has-text("Submit")')).toBeDisabled({ timeout: 10_000 });
+  // Restore default (1 day = 24 hours)
+  await select.selectOption({ label: '1 day' });
+  await expect(page.locator('button:has-text("Submit")')).toBeEnabled({ timeout: 3_000 });
+  await page.locator('button:has-text("Submit")').click();
+  await page
+    .locator('.v-toast__item')
+    .waitFor({ state: 'detached', timeout: 10_000 })
+    .catch(() => {});
+});
+
 // ── System tab ────────────────────────────────────────────────────────────
 
 test('switches to the System tab', async () => {

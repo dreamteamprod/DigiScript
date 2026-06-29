@@ -89,6 +89,11 @@ class JWTService:
 
         if expires_delta:
             expire = datetime.now(tz=timezone.utc) + expires_delta
+        elif self.application:
+            lifetime_hours = self.application.digi_settings.settings[
+                "jwt_token_lifetime_hours"
+            ].get_value()
+            expire = datetime.now(tz=timezone.utc) + timedelta(hours=lifetime_hours)
         else:
             expire = datetime.now(tz=timezone.utc) + self._default_expiry
 
@@ -145,6 +150,39 @@ class JWTService:
                 return False
 
             return user.token_version == token_version
+
+    def validate_token_age(
+        self, payload: Dict[str, Any], max_lifetime_hours: Optional[int] = None
+    ) -> bool:
+        """
+        Check that a token was issued within the configured maximum lifetime.
+
+        When ``max_lifetime_hours`` is not provided, reads the configured value from
+        application settings. If no application is set (standalone or test use),
+        the check is skipped and ``True`` is returned.
+
+        :param payload: Decoded JWT payload containing an ``iat`` (issued-at) claim.
+        :type payload: Dict[str, Any]
+        :param max_lifetime_hours: Override for the maximum allowed token age in hours.
+            If ``None``, reads from the ``jwt_token_lifetime_hours`` application setting.
+        :type max_lifetime_hours: Optional[int]
+        :return: ``True`` if the token is within the allowed age, ``False`` otherwise.
+        :rtype: bool
+        """
+        iat = payload.get("iat")
+        if iat is None:
+            return False
+
+        if max_lifetime_hours is None:
+            if not self.application:
+                return True
+            max_lifetime_hours = self.application.digi_settings.settings[
+                "jwt_token_lifetime_hours"
+            ].get_value()
+
+        issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
+        age = datetime.now(tz=timezone.utc) - issued_at
+        return age <= timedelta(hours=max_lifetime_hours)
 
     @staticmethod
     def get_token_from_authorization_header(auth_header: str) -> Optional[str]:
