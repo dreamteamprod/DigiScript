@@ -80,7 +80,7 @@
     "typescript-eslint": "^8.62.0",
     "unplugin-icons": "^23.0.1",
     "unplugin-vue-components": "^32.1.0",
-    "vite": "^8.1.0",
+    "vite": "^8.1.2",
     "vitest": "^4.1.9",
     "vue-eslint-parser": "^10.4.1",
     "@playwright/test": "^1.61.1"
