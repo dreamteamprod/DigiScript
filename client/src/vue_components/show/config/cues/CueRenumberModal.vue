@@ -13,11 +13,42 @@
     <!-- Step 1: Configure -->
     <template v-if="step === 1">
       <b-form-group label="MagicQ Cue Stack CSV (before renumber)" class="mb-3">
-        <b-form-file accept=".csv" @change="onCsvUpload" />
-        <small v-if="csvParsed" class="text-success d-block mt-1"
-          >{{ csvRowCount }} cues loaded from CSV</small
+        <input ref="csvFileInput" type="file" accept=".csv" class="d-none" @change="onCsvUpload" />
+        <div
+          class="csv-dropzone"
+          :class="{ 'csv-dropzone--over': isDragOver, 'csv-dropzone--loaded': csvParsed }"
+          role="button"
+          tabindex="0"
+          @click="$refs.csvFileInput.click()"
+          @keydown.enter.space.prevent="$refs.csvFileInput.click()"
+          @dragover.prevent="isDragOver = true"
+          @dragleave.prevent="isDragOver = false"
+          @drop.prevent="onDrop"
         >
-        <small v-if="csvError" class="text-danger d-block mt-1">{{ csvError }}</small>
+          <template v-if="!csvParsed && !csvError">
+            <span class="csv-dropzone__icon text-muted">&#8679;</span>
+            <div class="csv-dropzone__label">
+              <span class="font-weight-semibold">Click to browse</span> or drag &amp; drop your
+              MagicQ cue stack CSV here
+            </div>
+          </template>
+          <template v-else-if="csvParsed">
+            <span class="csv-dropzone__icon text-success">&#10003;</span>
+            <div>
+              <div class="font-weight-semibold text-success">{{ csvFileName }}</div>
+              <small class="text-muted">{{ csvRowCount }} cues loaded — click to replace</small>
+            </div>
+          </template>
+          <template v-else>
+            <span class="csv-dropzone__icon text-danger">&#9888;</span>
+            <div>
+              <div class="font-weight-semibold text-danger">
+                {{ csvFileName || 'Upload failed' }}
+              </div>
+              <small class="text-danger">{{ csvError }}</small>
+            </div>
+          </template>
+        </div>
       </b-form-group>
       <b-form-group label="Cue Types to Renumber">
         <b-form-checkbox
@@ -158,7 +189,9 @@ export default defineComponent({
       selectedTypeIds: [] as number[],
       csvMapping: new Map<number, number>(),
       csvRowCount: 0,
+      csvFileName: '',
       csvError: '',
+      isDragOver: false,
       allMatched: [] as RenumberAllMatched[],
       changes: [] as RenumberChange[],
       unmatched: [] as RenumberUnmatched[],
@@ -223,13 +256,11 @@ export default defineComponent({
     cueTypeColour(cueTypeId: number | null): string {
       return (this as any).CUE_TYPES.find((ct: any) => ct.id === cueTypeId)?.colour ?? '#000';
     },
-    onCsvUpload(event: Event): void {
+    processFile(file: File): void {
       this.csvMapping = new Map();
       this.csvRowCount = 0;
       this.csvError = '';
-
-      const file = (event.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      this.csvFileName = file.name;
 
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -237,7 +268,7 @@ export default defineComponent({
         const mapping = parseMagicQCsv(text);
         if (mapping.size === 0) {
           this.csvError =
-            'Could not find a "Cue id" column in the uploaded file. Please check the file is a valid MagicQ cue stack export.';
+            'Could not find a "Cue id" column in this file. Please check it is a valid MagicQ cue stack export.';
         } else {
           this.csvMapping = mapping;
           this.csvRowCount = mapping.size;
@@ -247,6 +278,16 @@ export default defineComponent({
         this.csvError = 'Failed to read the file. Please try again.';
       };
       reader.readAsText(file);
+    },
+    onCsvUpload(event: Event): void {
+      const input = event.target as HTMLInputElement | null;
+      const file = input?.files?.[0];
+      if (file) this.processFile(file);
+    },
+    onDrop(event: DragEvent): void {
+      this.isDragOver = false;
+      const file = event.dataTransfer?.files?.[0];
+      if (file) this.processFile(file);
     },
     onNext(): void {
       this.changes = [];
@@ -281,7 +322,11 @@ export default defineComponent({
       this.selectedTypeIds = [];
       this.csvMapping = new Map();
       this.csvRowCount = 0;
+      this.csvFileName = '';
       this.csvError = '';
+      this.isDragOver = false;
+      const input = this.$refs.csvFileInput as HTMLInputElement | null;
+      if (input) input.value = '';
       this.changes = [];
       this.unmatched = [];
       this.allMatched = [];
@@ -290,3 +335,47 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+.csv-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1rem;
+  border: 2px dashed #6c757d;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+  user-select: none;
+}
+
+.csv-dropzone:hover,
+.csv-dropzone:focus {
+  border-color: #007bff;
+  background-color: rgba(0, 123, 255, 0.05);
+  outline: none;
+}
+
+.csv-dropzone--over {
+  border-color: #007bff;
+  background-color: rgba(0, 123, 255, 0.1);
+}
+
+.csv-dropzone--loaded {
+  border-style: solid;
+  border-color: #28a745;
+}
+
+.csv-dropzone__icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.csv-dropzone__label {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+</style>

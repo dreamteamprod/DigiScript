@@ -12,11 +12,40 @@
     <!-- Step 1: Configure -->
     <template v-if="step === 1">
       <BFormGroup label="MagicQ Cue Stack CSV (before renumber)" class="mb-3">
-        <BFormFile accept=".csv" @change="onCsvUpload" />
-        <small v-if="csvParsed" class="text-success d-block mt-1"
-          >{{ csvRowCount }} cues loaded from CSV</small
+        <input ref="csvFileInput" type="file" accept=".csv" class="d-none" @change="onCsvUpload" />
+        <div
+          class="csv-dropzone"
+          :class="{ 'csv-dropzone--over': isDragOver, 'csv-dropzone--loaded': csvParsed }"
+          role="button"
+          tabindex="0"
+          @click="csvFileInput!.click()"
+          @keydown.enter.space.prevent="csvFileInput!.click()"
+          @dragover.prevent="isDragOver = true"
+          @dragleave.prevent="isDragOver = false"
+          @drop.prevent="onDrop"
         >
-        <small v-if="csvError" class="text-danger d-block mt-1">{{ csvError }}</small>
+          <template v-if="!csvParsed && !csvError">
+            <i-mdi-file-upload class="csv-dropzone__icon text-muted" />
+            <div class="csv-dropzone__label">
+              <span class="fw-semibold">Click to browse</span> or drag &amp; drop your MagicQ cue
+              stack CSV here
+            </div>
+          </template>
+          <template v-else-if="csvParsed">
+            <i-mdi-check-circle class="csv-dropzone__icon text-success" />
+            <div>
+              <div class="fw-semibold text-success">{{ csvFileName }}</div>
+              <small class="text-muted">{{ csvRowCount }} cues loaded — click to replace</small>
+            </div>
+          </template>
+          <template v-else>
+            <i-mdi-alert-circle class="csv-dropzone__icon text-danger" />
+            <div>
+              <div class="fw-semibold text-danger">{{ csvFileName || 'Upload failed' }}</div>
+              <small class="text-danger">{{ csvError }}</small>
+            </div>
+          </template>
+        </div>
       </BFormGroup>
       <BFormGroup label="Cue Types to Renumber">
         <BFormCheckbox
@@ -153,11 +182,14 @@ const showStore = useShowStore();
 const { flattenCuesForType } = useCueRenumber();
 
 const modal = ref<InstanceType<typeof BModal> | null>(null);
+const csvFileInput = ref<HTMLInputElement | null>(null);
 const step = ref<1 | 2>(1);
 const selectedTypeIds = ref<number[]>([]);
 const csvMapping = ref<Map<number, number>>(new Map());
 const csvRowCount = ref(0);
+const csvFileName = ref('');
 const csvError = ref('');
+const isDragOver = ref(false);
 const allMatched = ref<RenumberAllMatched[]>([]);
 const changes = ref<RenumberChange[]>([]);
 const unmatched = ref<RenumberUnmatched[]>([]);
@@ -186,13 +218,11 @@ function cueTypeColour(cueTypeId: number | null): string {
   return showStore.cueTypes.find((ct) => ct.id === cueTypeId)?.colour ?? '#000';
 }
 
-function onCsvUpload(event: Event): void {
+function processFile(file: File): void {
   csvMapping.value = new Map();
   csvRowCount.value = 0;
   csvError.value = '';
-
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
+  csvFileName.value = file.name;
 
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -200,7 +230,7 @@ function onCsvUpload(event: Event): void {
     const mapping = parseMagicQCsv(text);
     if (mapping.size === 0) {
       csvError.value =
-        'Could not find a "Cue id" column in the uploaded file. Please check the file is a valid MagicQ cue stack export.';
+        'Could not find a "Cue id" column in this file. Please check it is a valid MagicQ cue stack export.';
     } else {
       csvMapping.value = mapping;
       csvRowCount.value = mapping.size;
@@ -210,6 +240,18 @@ function onCsvUpload(event: Event): void {
     csvError.value = 'Failed to read the file. Please try again.';
   };
   reader.readAsText(file);
+}
+
+function onCsvUpload(event: Event): void {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  if (file) processFile(file);
+}
+
+function onDrop(event: DragEvent): void {
+  isDragOver.value = false;
+  const file = event.dataTransfer?.files?.[0];
+  if (file) processFile(file);
 }
 
 const hasActiveIdents = computed(
@@ -283,7 +325,10 @@ function onHidden(): void {
   selectedTypeIds.value = [];
   csvMapping.value = new Map();
   csvRowCount.value = 0;
+  csvFileName.value = '';
   csvError.value = '';
+  isDragOver.value = false;
+  if (csvFileInput.value) csvFileInput.value.value = '';
   changes.value = [];
   unmatched.value = [];
   allMatched.value = [];
@@ -292,3 +337,46 @@ function onHidden(): void {
 
 defineExpose({ show: () => modal.value?.show() });
 </script>
+
+<style scoped>
+.csv-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1rem;
+  border: 2px dashed var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+  user-select: none;
+}
+
+.csv-dropzone:hover,
+.csv-dropzone:focus-visible {
+  border-color: var(--bs-primary);
+  background-color: rgba(var(--bs-primary-rgb), 0.05);
+  outline: none;
+}
+
+.csv-dropzone--over {
+  border-color: var(--bs-primary);
+  background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.csv-dropzone--loaded {
+  border-style: solid;
+  border-color: var(--bs-success);
+}
+
+.csv-dropzone__icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.csv-dropzone__label {
+  color: var(--bs-secondary-color);
+  font-size: 0.9rem;
+}
+</style>
