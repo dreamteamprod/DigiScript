@@ -32,14 +32,49 @@ export interface RenumberResult {
   unmatched: RenumberUnmatched[];
 }
 
-export function computeRenumber(cues: CueWithLineId[]): RenumberResult {
+/**
+ * Parses a MagicQ cue stack CSV export and returns a mapping from each
+ * cue's pre-renum numeric ID (as a float) to its post-renum sequential integer.
+ * The "Cue id" column is located by scanning the header row.
+ * Returns an empty Map if the column cannot be found or the text is empty.
+ */
+export function parseMagicQCsv(csvText: string): Map<number, number> {
+  const lines = csvText.split('\n');
+  if (lines.length === 0) return new Map();
+
+  const headerCols = lines[0].split(',').map((c) => c.trim().toLowerCase());
+  const cueIdIdx = headerCols.indexOf('cue id');
+  if (cueIdIdx === -1) return new Map();
+
+  const ids: number[] = [];
+  for (const line of lines.slice(1)) {
+    const cols = line.split(',');
+    if (cols.length <= cueIdIdx) continue;
+    const val = parseFloat(cols[cueIdIdx].trim());
+    if (!isNaN(val)) ids.push(val);
+  }
+
+  ids.sort((a, b) => a - b);
+  const map = new Map<number, number>();
+  ids.forEach((id, i) => map.set(id, i + 1));
+  return map;
+}
+
+/**
+ * Computes renumber suggestions for a set of cues given a CSV-derived mapping.
+ * csvMapping maps each pre-renum cue ID (float) to its post-renum sequential integer.
+ * Cues whose numeric prefix is not present in the mapping go to unmatched with no suggestion.
+ */
+export function computeRenumber(
+  cues: CueWithLineId[],
+  csvMapping: Map<number, number>
+): RenumberResult {
   const uniqueCues = [...new Map(cues.map((c) => [c.id, c])).values()];
 
   interface ParsedCue {
     cue: CueWithLineId;
     numericValue: number;
     suffix: string;
-    isFullyNumeric: boolean;
   }
 
   const withPrefix: ParsedCue[] = [];
@@ -49,13 +84,7 @@ export function computeRenumber(cues: CueWithLineId[]): RenumberResult {
     const ident = cue.ident?.trim() ?? '';
     const match = NUMERIC_PREFIX_REGEX.exec(ident);
     if (match) {
-      const suffix = match[2];
-      withPrefix.push({
-        cue,
-        numericValue: parseFloat(match[1]),
-        suffix,
-        isFullyNumeric: suffix.trim() === '',
-      });
+      withPrefix.push({ cue, numericValue: parseFloat(match[1]), suffix: match[2] });
     } else {
       fullyUnmatched.push({ cue, originalIdent: ident, newIdent: '', include: false });
     }
@@ -67,9 +96,14 @@ export function computeRenumber(cues: CueWithLineId[]): RenumberResult {
   const changes: RenumberChange[] = [];
   const prefixUnmatched: RenumberUnmatched[] = [];
 
-  withPrefix.forEach(({ cue, suffix, isFullyNumeric }, index) => {
-    const newIdent = String(index + 1) + suffix;
-    if (isFullyNumeric) {
+  for (const { cue, numericValue, suffix } of withPrefix) {
+    const newInteger = csvMapping.get(numericValue);
+    if (newInteger === undefined) {
+      fullyUnmatched.push({ cue, originalIdent: cue.ident ?? '', newIdent: '', include: false });
+      continue;
+    }
+    const newIdent = String(newInteger) + suffix;
+    if (suffix.trim() === '') {
       allMatched.push({ cue, computedIdent: newIdent });
       if ((cue.ident?.trim() ?? '') !== newIdent) {
         changes.push({ cue, oldIdent: cue.ident ?? '', newIdent });
@@ -77,7 +111,7 @@ export function computeRenumber(cues: CueWithLineId[]): RenumberResult {
     } else {
       prefixUnmatched.push({ cue, originalIdent: cue.ident ?? '', newIdent, include: false });
     }
-  });
+  }
 
   return { allMatched, changes, unmatched: [...prefixUnmatched, ...fullyUnmatched] };
 }

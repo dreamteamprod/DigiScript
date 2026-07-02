@@ -12,12 +12,12 @@
   >
     <!-- Step 1: Configure -->
     <template v-if="step === 1">
-      <b-form-group label="Renumber Method" label-for="renumber-method" class="mb-3">
-        <b-form-select
-          id="renumber-method"
-          v-model="method"
-          :options="[{ value: 'magicq', text: 'MagicQ (Sequential)' }]"
-        />
+      <b-form-group label="MagicQ Cue Stack CSV (before renumber)" class="mb-3">
+        <b-form-file accept=".csv" @change="onCsvUpload" />
+        <small v-if="csvParsed" class="text-success d-block mt-1"
+          >{{ csvRowCount }} cues loaded from CSV</small
+        >
+        <small v-if="csvError" class="text-danger d-block mt-1">{{ csvError }}</small>
       </b-form-group>
       <b-form-group label="Cue Types to Renumber">
         <b-form-checkbox
@@ -69,8 +69,8 @@
       <template v-if="unmatched.length > 0">
         <h6>Unmatched Cues</h6>
         <p class="text-muted small">
-          These cue identifiers did not match the numeric pattern and are skipped by default. Check
-          the box to assign them a new identifier.
+          These cues are skipped by default — either their identifier was not found in the uploaded
+          CSV, or it has no numeric prefix. Check the box to assign them a new identifier.
         </p>
         <b-table :items="unmatched" :fields="unmatchedFields" bordered small>
           <template #cell(include)="{ item }">
@@ -126,7 +126,7 @@
       <b-button
         v-if="step === 1"
         variant="primary"
-        :disabled="selectedTypeIds.length === 0"
+        :disabled="!csvParsed || selectedTypeIds.length === 0"
         @click="onNext"
       >
         Next
@@ -147,7 +147,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
-import { computeRenumber, flattenCuesForType } from '@/js/cueRenumberUtils';
+import { computeRenumber, flattenCuesForType, parseMagicQCsv } from '@/js/cueRenumberUtils';
 import type { RenumberChange, RenumberUnmatched, RenumberAllMatched } from '@/js/cueRenumberUtils';
 
 export default defineComponent({
@@ -155,8 +155,10 @@ export default defineComponent({
   data() {
     return {
       step: 1 as 1 | 2,
-      method: 'magicq' as const,
       selectedTypeIds: [] as number[],
+      csvMapping: new Map<number, number>(),
+      csvRowCount: 0,
+      csvError: '',
       allMatched: [] as RenumberAllMatched[],
       changes: [] as RenumberChange[],
       unmatched: [] as RenumberUnmatched[],
@@ -176,6 +178,9 @@ export default defineComponent({
   },
   computed: {
     ...mapGetters(['SCRIPT_CUES', 'CUE_TYPES']),
+    csvParsed(): boolean {
+      return this.csvRowCount > 0;
+    },
     hasActiveIdents(): boolean {
       return this.changes.length > 0 || this.unmatched.some((u) => u.include);
     },
@@ -218,6 +223,31 @@ export default defineComponent({
     cueTypeColour(cueTypeId: number | null): string {
       return (this as any).CUE_TYPES.find((ct: any) => ct.id === cueTypeId)?.colour ?? '#000';
     },
+    onCsvUpload(event: Event): void {
+      this.csvMapping = new Map();
+      this.csvRowCount = 0;
+      this.csvError = '';
+
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        const mapping = parseMagicQCsv(text);
+        if (mapping.size === 0) {
+          this.csvError =
+            'Could not find a "Cue id" column in the uploaded file. Please check the file is a valid MagicQ cue stack export.';
+        } else {
+          this.csvMapping = mapping;
+          this.csvRowCount = mapping.size;
+        }
+      };
+      reader.onerror = () => {
+        this.csvError = 'Failed to read the file. Please try again.';
+      };
+      reader.readAsText(file);
+    },
     onNext(): void {
       this.changes = [];
       this.unmatched = [];
@@ -225,7 +255,7 @@ export default defineComponent({
       const allCues = this.selectedTypeIds.flatMap((typeId: number) =>
         flattenCuesForType((this as any).SCRIPT_CUES, typeId)
       );
-      const result = computeRenumber(allCues);
+      const result = computeRenumber(allCues, this.csvMapping);
       this.allMatched = result.allMatched;
       this.changes = result.changes;
       this.unmatched = result.unmatched;
@@ -249,7 +279,9 @@ export default defineComponent({
     onHidden(): void {
       this.step = 1;
       this.selectedTypeIds = [];
-      this.method = 'magicq';
+      this.csvMapping = new Map();
+      this.csvRowCount = 0;
+      this.csvError = '';
       this.changes = [];
       this.unmatched = [];
       this.allMatched = [];

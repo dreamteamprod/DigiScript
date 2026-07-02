@@ -11,12 +11,12 @@
   >
     <!-- Step 1: Configure -->
     <template v-if="step === 1">
-      <BFormGroup label="Renumber Method" label-for="renumber-method" class="mb-3">
-        <BFormSelect
-          id="renumber-method"
-          v-model="method"
-          :options="[{ value: 'magicq', text: 'MagicQ (Sequential)' }]"
-        />
+      <BFormGroup label="MagicQ Cue Stack CSV (before renumber)" class="mb-3">
+        <BFormFile accept=".csv" @change="onCsvUpload" />
+        <small v-if="csvParsed" class="text-success d-block mt-1"
+          >{{ csvRowCount }} cues loaded from CSV</small
+        >
+        <small v-if="csvError" class="text-danger d-block mt-1">{{ csvError }}</small>
       </BFormGroup>
       <BFormGroup label="Cue Types to Renumber">
         <BFormCheckbox
@@ -68,8 +68,8 @@
       <template v-if="unmatched.length > 0">
         <h6>Unmatched Cues</h6>
         <p class="text-muted small">
-          These cue identifiers did not match the numeric pattern and are skipped by default. Check
-          the box to assign them a new identifier.
+          These cues are skipped by default — either their identifier was not found in the uploaded
+          CSV, or it has no numeric prefix. Check the box to assign them a new identifier.
         </p>
         <BTable :items="unmatched" :fields="unmatchedFields" bordered small>
           <template #cell(include)="{ item }">
@@ -118,7 +118,7 @@
       <BButton
         v-if="step === 1"
         variant="primary"
-        :disabled="selectedTypeIds.length === 0"
+        :disabled="!csvParsed || selectedTypeIds.length === 0"
         @click="onNext"
       >
         Next
@@ -141,7 +141,7 @@ import { computed, ref } from 'vue';
 import type { BModal } from 'bootstrap-vue-next';
 import { useScriptStore } from '@/stores/script';
 import { useShowStore } from '@/stores/show';
-import { computeRenumber, useCueRenumber } from '@/composables/useCueRenumber';
+import { computeRenumber, parseMagicQCsv, useCueRenumber } from '@/composables/useCueRenumber';
 import type {
   RenumberChange,
   RenumberUnmatched,
@@ -154,12 +154,16 @@ const { flattenCuesForType } = useCueRenumber();
 
 const modal = ref<InstanceType<typeof BModal> | null>(null);
 const step = ref<1 | 2>(1);
-const method = ref<'magicq'>('magicq');
 const selectedTypeIds = ref<number[]>([]);
+const csvMapping = ref<Map<number, number>>(new Map());
+const csvRowCount = ref(0);
+const csvError = ref('');
 const allMatched = ref<RenumberAllMatched[]>([]);
 const changes = ref<RenumberChange[]>([]);
 const unmatched = ref<RenumberUnmatched[]>([]);
 const submitting = ref(false);
+
+const csvParsed = computed(() => csvRowCount.value > 0);
 
 const changeFields = [
   { key: 'cueLabel', label: 'Cue' },
@@ -180,6 +184,32 @@ function cueTypePrefix(cueTypeId: number | null): string {
 
 function cueTypeColour(cueTypeId: number | null): string {
   return showStore.cueTypes.find((ct) => ct.id === cueTypeId)?.colour ?? '#000';
+}
+
+function onCsvUpload(event: Event): void {
+  csvMapping.value = new Map();
+  csvRowCount.value = 0;
+  csvError.value = '';
+
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target?.result as string;
+    const mapping = parseMagicQCsv(text);
+    if (mapping.size === 0) {
+      csvError.value =
+        'Could not find a "Cue id" column in the uploaded file. Please check the file is a valid MagicQ cue stack export.';
+    } else {
+      csvMapping.value = mapping;
+      csvRowCount.value = mapping.size;
+    }
+  };
+  reader.onerror = () => {
+    csvError.value = 'Failed to read the file. Please try again.';
+  };
+  reader.readAsText(file);
 }
 
 const hasActiveIdents = computed(
@@ -225,7 +255,7 @@ function onNext(): void {
   const allCues = selectedTypeIds.value.flatMap((typeId) =>
     flattenCuesForType(scriptStore.cues, typeId)
   );
-  const result = computeRenumber(allCues);
+  const result = computeRenumber(allCues, csvMapping.value);
   allMatched.value = result.allMatched;
   changes.value = result.changes;
   unmatched.value = result.unmatched;
@@ -251,7 +281,9 @@ async function onConfirm(): Promise<void> {
 function onHidden(): void {
   step.value = 1;
   selectedTypeIds.value = [];
-  method.value = 'magicq';
+  csvMapping.value = new Map();
+  csvRowCount.value = 0;
+  csvError.value = '';
   changes.value = [];
   unmatched.value = [];
   allMatched.value = [];
