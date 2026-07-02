@@ -156,7 +156,7 @@ const modal = ref<InstanceType<typeof BModal> | null>(null);
 const step = ref<1 | 2>(1);
 const method = ref<'magicq'>('magicq');
 const selectedTypeIds = ref<number[]>([]);
-const allMatchedByType = ref<Map<number, RenumberAllMatched[]>>(new Map());
+const allMatched = ref<RenumberAllMatched[]>([]);
 const changes = ref<RenumberChange[]>([]);
 const unmatched = ref<RenumberUnmatched[]>([]);
 const submitting = ref(false);
@@ -192,7 +192,7 @@ const totalOperations = computed(
 
 const step2Valid = computed(() => {
   for (const typeId of selectedTypeIds.value) {
-    const allForType = allMatchedByType.value.get(typeId) ?? [];
+    const allForType = allMatched.value.filter((m) => m.cue.cue_type_id === typeId);
 
     const changeOverrides = new Map(
       changes.value
@@ -221,14 +221,14 @@ const step2Valid = computed(() => {
 function onNext(): void {
   changes.value = [];
   unmatched.value = [];
-  allMatchedByType.value = new Map();
-  for (const typeId of selectedTypeIds.value) {
-    const cues = flattenCuesForType(scriptStore.cues, typeId);
-    const result = computeRenumber(cues);
-    allMatchedByType.value.set(typeId, result.allMatched);
-    changes.value.push(...result.changes);
-    unmatched.value.push(...result.unmatched);
-  }
+  allMatched.value = [];
+  const allCues = selectedTypeIds.value.flatMap((typeId) =>
+    flattenCuesForType(scriptStore.cues, typeId)
+  );
+  const result = computeRenumber(allCues);
+  allMatched.value = result.allMatched;
+  changes.value = result.changes;
+  unmatched.value = result.unmatched;
   step.value = 2;
 }
 
@@ -254,7 +254,7 @@ function onHidden(): void {
   method.value = 'magicq';
   changes.value = [];
   unmatched.value = [];
-  allMatchedByType.value = new Map();
+  allMatched.value = [];
   submitting.value = false;
 }
 

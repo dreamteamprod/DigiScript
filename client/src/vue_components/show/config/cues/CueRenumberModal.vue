@@ -157,7 +157,7 @@ export default defineComponent({
       step: 1 as 1 | 2,
       method: 'magicq' as const,
       selectedTypeIds: [] as number[],
-      allMatchedByType: new Map<number, RenumberAllMatched[]>(),
+      allMatched: [] as RenumberAllMatched[],
       changes: [] as RenumberChange[],
       unmatched: [] as RenumberUnmatched[],
       submitting: false,
@@ -184,7 +184,7 @@ export default defineComponent({
     },
     step2Valid(): boolean {
       for (const typeId of this.selectedTypeIds) {
-        const allForType = this.allMatchedByType.get(typeId) ?? [];
+        const allForType = this.allMatched.filter((m) => m.cue.cue_type_id === typeId);
 
         const changeOverrides = new Map<number, string>(
           this.changes
@@ -221,14 +221,14 @@ export default defineComponent({
     onNext(): void {
       this.changes = [];
       this.unmatched = [];
-      this.allMatchedByType = new Map();
-      for (const typeId of this.selectedTypeIds) {
-        const cues = flattenCuesForType((this as any).SCRIPT_CUES, typeId);
-        const result = computeRenumber(cues);
-        this.allMatchedByType.set(typeId, result.allMatched);
-        this.changes.push(...result.changes);
-        this.unmatched.push(...result.unmatched);
-      }
+      this.allMatched = [];
+      const allCues = this.selectedTypeIds.flatMap((typeId: number) =>
+        flattenCuesForType((this as any).SCRIPT_CUES, typeId)
+      );
+      const result = computeRenumber(allCues);
+      this.allMatched = result.allMatched;
+      this.changes = result.changes;
+      this.unmatched = result.unmatched;
       this.step = 2;
     },
     async onConfirm(): Promise<void> {
@@ -252,7 +252,7 @@ export default defineComponent({
       this.method = 'magicq';
       this.changes = [];
       this.unmatched = [];
-      this.allMatchedByType = new Map();
+      this.allMatched = [];
       this.submitting = false;
     },
   },

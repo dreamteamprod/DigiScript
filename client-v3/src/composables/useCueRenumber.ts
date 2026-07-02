@@ -1,6 +1,8 @@
 import type { Cue } from '@/types/api/cues';
 
 export const NUMERIC_IDENT_REGEX = /^\d+(\.\d{1,2})?$/;
+// Extracts a leading numeric prefix (up to 2 decimal places) plus any trailing suffix.
+export const NUMERIC_PREFIX_REGEX = /^(\d+(?:\.\d{1,2})?)(.*)$/;
 
 export interface CueWithLineId extends Cue {
   line_id: number;
@@ -32,31 +34,52 @@ export interface RenumberResult {
 
 export function computeRenumber(cues: CueWithLineId[]): RenumberResult {
   const uniqueCues = [...new Map(cues.map((c) => [c.id, c])).values()];
-  const matched: CueWithLineId[] = [];
-  const unmatched: RenumberUnmatched[] = [];
+
+  interface ParsedCue {
+    cue: CueWithLineId;
+    numericValue: number;
+    suffix: string;
+    isFullyNumeric: boolean;
+  }
+
+  const withPrefix: ParsedCue[] = [];
+  const fullyUnmatched: RenumberUnmatched[] = [];
 
   for (const cue of uniqueCues) {
     const ident = cue.ident?.trim() ?? '';
-    if (NUMERIC_IDENT_REGEX.test(ident)) {
-      matched.push(cue);
+    const match = NUMERIC_PREFIX_REGEX.exec(ident);
+    if (match) {
+      const suffix = match[2];
+      withPrefix.push({
+        cue,
+        numericValue: parseFloat(match[1]),
+        suffix,
+        isFullyNumeric: suffix.trim() === '',
+      });
     } else {
-      unmatched.push({ cue, originalIdent: ident, newIdent: '', include: false });
+      fullyUnmatched.push({ cue, originalIdent: ident, newIdent: '', include: false });
     }
   }
 
-  matched.sort((a, b) => parseFloat(a.ident!) - parseFloat(b.ident!));
+  withPrefix.sort((a, b) => a.numericValue - b.numericValue);
 
   const allMatched: RenumberAllMatched[] = [];
   const changes: RenumberChange[] = [];
-  matched.forEach((cue, index) => {
-    const computedIdent = String(index + 1);
-    allMatched.push({ cue, computedIdent });
-    if (cue.ident !== computedIdent) {
-      changes.push({ cue, oldIdent: cue.ident ?? '', newIdent: computedIdent });
+  const prefixUnmatched: RenumberUnmatched[] = [];
+
+  withPrefix.forEach(({ cue, suffix, isFullyNumeric }, index) => {
+    const newIdent = String(index + 1) + suffix;
+    if (isFullyNumeric) {
+      allMatched.push({ cue, computedIdent: newIdent });
+      if ((cue.ident?.trim() ?? '') !== newIdent) {
+        changes.push({ cue, oldIdent: cue.ident ?? '', newIdent });
+      }
+    } else {
+      prefixUnmatched.push({ cue, originalIdent: cue.ident ?? '', newIdent, include: false });
     }
   });
 
-  return { allMatched, changes, unmatched };
+  return { allMatched, changes, unmatched: [...prefixUnmatched, ...fullyUnmatched] };
 }
 
 export function useCueRenumber() {
