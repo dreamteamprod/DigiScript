@@ -173,7 +173,10 @@ function inputType(fieldType: string): string {
 function getChoiceOptions(setting: any): Array<{ value: unknown; text: string }> {
   const options: Array<{ value: unknown; text: string }> = [];
   if (setting._nullable) options.push({ value: null, text: 'N/A' });
-  setting.choice_options.forEach((opt: unknown) => options.push({ value: opt, text: String(opt) }));
+  setting.choice_options.forEach((opt: unknown, idx: number) => {
+    const label = (setting.choice_labels as string[] | null)?.[idx] ?? String(opt);
+    options.push({ value: opt, text: label });
+  });
   return options;
 }
 

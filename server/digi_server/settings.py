@@ -49,6 +49,7 @@ class SettingsObject:
         help_text: str = "",
         hide_from_ui: bool = False,
         choice_options: Optional[list] = None,
+        choice_labels: Optional[list] = None,
     ):
         if val_type not in self.ALLOWED_TYPES:
             raise RuntimeError(
@@ -80,6 +81,19 @@ class SettingsObject:
                     f"Default value for {key} must be one of the choice options."
                 )
 
+            if choice_labels is not None:
+                if len(choice_labels) != len(choice_options):
+                    raise RuntimeError(
+                        f"choice_labels for {key} must have the same length as choice_options "
+                        f"({len(choice_labels)} vs {len(choice_options)})."
+                    )
+                if any(not isinstance(label, str) for label in choice_labels):
+                    raise RuntimeError(f"All choice_labels for {key} must be strings.")
+        elif choice_labels is not None:
+            raise RuntimeError(
+                f"choice_labels for {key} requires choice_options to be set."
+            )
+
         self.key = key
         self.val_type = val_type
         self.value = None
@@ -92,6 +106,7 @@ class SettingsObject:
         self.help_text = help_text
         self.hide_from_ui = hide_from_ui
         self.choice_options = choice_options
+        self.choice_labels = choice_labels
 
     def set_to_default(self):
         self.value = self.default
@@ -141,6 +156,7 @@ class SettingsObject:
             "help_text": self.help_text,
             "hide_from_ui": self.hide_from_ui,
             "choice_options": self.choice_options,
+            "choice_labels": self.choice_labels,
             "_nullable": self._nullable,
         }
 
@@ -376,6 +392,30 @@ class Settings:
             "Larger values use more memory. Changes take effect after restart.",
             category="Client Logging",
         )
+        self.define(
+            "jwt_token_lifetime_hours",
+            int,
+            24,
+            True,
+            display_name="JWT Token Lifetime",
+            help_text=(
+                "How long JWT authentication tokens remain valid after being issued. "
+                "Reducing this value takes effect immediately: any token older than the new "
+                "limit is rejected on the next request. Increasing the value applies to "
+                "newly-issued tokens; active users will receive a refreshed token within "
+                "30 minutes."
+            ),
+            choice_options=[1, 6, 12, 24, 168, 720],
+            choice_labels=[
+                "1 hour",
+                "6 hours",
+                "12 hours",
+                "1 day",
+                "1 week",
+                "1 month (30 days)",
+            ],
+            category="Security",
+        )
 
     def define(
         self,
@@ -389,6 +429,7 @@ class Settings:
         help_text: str = "",
         hide_from_ui: bool = False,
         choice_options: Optional[list] = None,
+        choice_labels: Optional[list] = None,
         category: str = "General",
     ):
         if key in self.settings:
@@ -405,6 +446,7 @@ class Settings:
             help_text,
             hide_from_ui,
             choice_options,
+            choice_labels,
         )
         if category not in self.categories:
             self.categories[category] = [key]

@@ -8,6 +8,9 @@ import {
   ADMIN_PASSWORD,
   loginAsAdmin,
   waitForAppReady,
+  waitForModal,
+  confirmModal,
+  waitForModalClosed,
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
@@ -36,9 +39,7 @@ test.afterAll(async () => {
 // ── About ─────────────────────────────────────────────────────────────────
 
 test('Settings page renders the About tab', async () => {
-  await expect(
-    page.locator('.nav-link:has-text("About"), button[role="tab"]:has-text("About")')
-  ).toBeVisible();
+  await expect(page.locator('button[role="tab"]:has-text("About")')).toBeVisible();
 });
 
 // ── Settings ──────────────────────────────────────────────────────────────
@@ -64,10 +65,67 @@ test('changing a toggle enables the Submit button', async () => {
 
 // ── Stage Direction Styles ────────────────────────────────────────────────
 
+test('creates a stage direction style for override testing', async () => {
+  // spec-10 cleaned up after itself, so we need a fresh style here
+  await page.goto(`${UI_BASE}/show-config/script`);
+  await waitForAppReady(page);
+  await page.click('.nav-link:has-text("Stage Direction Styles")');
+  await expect(page.locator('button:has-text("New Style")')).toBeVisible({ timeout: 5_000 });
+  await page.click('button:has-text("New Style")');
+  await waitForModal(page, 'Add New Style');
+  await page.fill('.modal.show input[type="text"]', 'Action');
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("Action")')).toBeVisible();
+  await page.goto(`${UI_BASE}/me`);
+  await waitForAppReady(page);
+});
+
 test('switches to Stage Direction Styles tab', async () => {
   await page.click('.nav-link:has-text("Stage Direction")');
   // Use the component-specific table ID to avoid matching hidden tab-panel elements
   await expect(page.locator('#stage-directions-table')).toBeVisible({ timeout: 5_000 });
+});
+
+test('"New Override" button is enabled when stage direction styles exist', async () => {
+  // Scope to thead to avoid matching the "New Override" button in the Cue Colour Preferences tab
+  // (BVN BTabs without lazy mounts all tab panels, so inactive tab content stays in the DOM)
+  await expect(
+    page.locator('#stage-directions-table thead button:has-text("New Override")')
+  ).toBeEnabled();
+});
+
+test('clicking "New Override" opens the style selection modal', async () => {
+  await page.click('#stage-directions-table thead button:has-text("New Override")');
+  await waitForModal(page, 'Add New Override');
+  // OK is disabled until a style is selected
+  await expect(page.locator('.modal.show .modal-footer button.btn-primary')).toBeDisabled();
+});
+
+test('selecting a style and clicking OK opens the configuration modal', async () => {
+  await page.locator('.modal.show select').selectOption({ index: 1 });
+  await confirmModal(page);
+  // The config modal is identified by an input unique to it (both modals share the same title)
+  await expect(page.locator('#new-text-colour-input')).toBeVisible({ timeout: 5_000 });
+});
+
+test('submitting the configuration creates the override', async () => {
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  await expect(page.locator('#stage-directions-table td:has-text("Action")')).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('deletes the stage direction override', async () => {
+  const row = page.locator('#stage-directions-table tr', {
+    has: page.locator('td:has-text("Action")'),
+  });
+  await row.locator('button:has-text("Delete")').click();
+  await confirmDialog(page);
+  await expect(page.locator('#stage-directions-table td:has-text("Action")')).not.toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 // ── Change Password ───────────────────────────────────────────────────────

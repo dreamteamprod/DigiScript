@@ -96,6 +96,29 @@ All log entries are attributed to the logged-in user where one is present:
 
 Use the **Username** filter field to show only entries from a specific user. This filter applies to both Server and Client sources. Combined with the **Level** and **Search** filters, you can quickly isolate activity from a particular user across the full log stream.
 
+### Security Settings
+
+The **Security** category in the Settings tab contains authentication-related configuration.
+
+#### JWT Token Lifetime
+
+Controls how long JWT access tokens remain valid after they are issued. The available options are:
+
+| Option | Duration |
+|--------|----------|
+| 1 hour | 1 hour |
+| 6 hours | 6 hours |
+| 12 hours | 12 hours |
+| 1 day *(default)* | 24 hours |
+| 1 week | 7 days |
+| 1 month (30 days) | 30 days |
+
+**Reducing the lifetime** takes effect immediately — any token whose issue time is older than the new limit will be rejected on the next request, even if the token's expiry date has not passed yet. Affected users are redirected to the login page.
+
+**Increasing the lifetime** applies to newly-issued tokens. Active users automatically receive a refreshed token within 30 minutes, at which point the longer lifetime takes effect for their session.
+
+> **Note:** This setting applies to JWT browser session tokens only. API tokens (long-lived keys used for machine-to-machine access) are not subject to this lifetime limit.
+
 ### Backup Management
 
 The **Backups** tab allows admin users to view and manage database backup files. DigiScript automatically creates a timestamped copy of the database file before running any database migration, ensuring you can recover data if a migration causes issues.

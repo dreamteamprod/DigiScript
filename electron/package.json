@@ -1,6 +1,6 @@
 {
   "name": "digiscript-electron",
-  "version": "0.34.0",
+  "version": "0.34.1",
   "description": "DigiScript Electron Desktop Application",
   "author": "DreamTeamProd",
   "license": "GPL-3.0",
@@ -37,14 +37,14 @@
     "@electron-forge/maker-deb": "^7.11.2",
     "@electron-forge/maker-rpm": "^7.11.2",
     "@eslint/js": "^9.39.2",
-    "@typescript-eslint/eslint-plugin": "^8.62.0",
-    "@typescript-eslint/parser": "^8.62.0",
+    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/parser": "^8.62.1",
     "@types/node": "^22.0.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
     "globals": "^17.7.0",
-    "prettier": "^3.9.0",
+    "prettier": "^3.9.4",
     "typescript": "^6.0.3"
   },
   "config": {
