@@ -80,6 +80,55 @@ Clicking a group button opens the **Edit Cue Group** dialog, where you can:
 
 A script line can freely mix individual cues and groups simultaneously. The label preview in the dialog updates live as you make changes.
 
+### Renumbering Cues
+
+The **Renumber Cues** feature lets you perform the same sequential renumber operation that MagicQ lighting consoles call "renum". When MagicQ collapses point cues (e.g. 3.1, 3.2) into sequential integers, DigiScript's cue identifiers become stale. This feature resynchronises them.
+
+#### When to use it
+
+Use Renumber Cues after performing a renum/reorder on your MagicQ console so that DigiScript's cue labels match the updated cue numbers in MagicQ.
+
+#### How it works
+
+The MagicQ algorithm sorts cues numerically and assigns sequential integers starting at 1:
+
+| Before | After |
+|--------|-------|
+| 1, 2, 2.1, 2.2, 3, 4, 4.1, 4.2, 5 | 1, 2, 3, 4, 5, 6, 7, 8, 9 |
+
+Each selected cue type is renumbered independently.
+
+#### Accessing the feature
+
+1. Navigate to **Cues → Cue Configuration**
+2. Click the **Renumber Cues** button in the toolbar
+
+#### Step 1 — Configure
+
+- **Renumber Method**: Select the algorithm to use. Currently only **MagicQ (Sequential)** is available.
+- **Cue Types to Renumber**: Check one or more cue types. Only checked types will have their cues renumbered.
+
+Click **Next** to preview the changes.
+
+#### Step 2 — Preview
+
+The preview shows two sections:
+
+**Changed Cues** — cues whose identifier will change. The table shows the current identifier and the proposed new identifier. You can edit the proposed new identifier if needed.
+
+**Unmatched Cues** — cues whose identifier does not match the numeric pattern (e.g. free-form text like "INTRO" or "1a"). These are skipped by default. Tick the **Include** checkbox next to any unmatched cue you want to reassign, then enter the new identifier manually.
+
+DigiScript validates that all final identifiers within each cue type are unique and non-empty. The **Confirm Renumber** button remains disabled until validation passes.
+
+Click **Confirm Renumber** to apply the changes, or **Back** to return to the configuration step.
+
+#### What is not changed
+
+- `label_override` on cue groups is preserved
+- Group membership and sort order within groups are unchanged
+- Script positions (which line a cue is on) are unchanged
+- Cues in other script revisions are not affected
+
 ### Cues and Script Revisions
 
 Cues are tied to script revisions - when you add or modify cues, the changes only affect the currently loaded revision. This allows you to maintain different cue configurations for different versions of your script.

@@ -5,6 +5,9 @@
         <b-button-group>
           <b-button v-b-modal.go-to-page-cue-editor variant="success"> Go to Page </b-button>
           <b-button v-b-modal.jump-to-cue variant="success"> Go to Cue </b-button>
+          <b-button variant="outline-warning" @click="$bvModal.show('cue-renumber-modal')">
+            Renumber Cues
+          </b-button>
         </b-button-group>
       </b-col>
       <b-col cols="2" style="text-align: right">
@@ -74,6 +77,7 @@
       </div>
     </b-modal>
     <jump-to-cue-modal @navigate="handleJumpToCue" />
+    <cue-renumber-modal />
     <b-modal
       id="go-to-page-cue-editor"
       ref="go-to-page-cue-editor"
@@ -112,12 +116,13 @@ import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 import ScriptLineCueEditor from '@/vue_components/show/config/cues/ScriptLineCueEditor.vue';
 import JumpToCueModal from '@/vue_components/show/config/cues/JumpToCueModal.vue';
+import CueRenumberModal from '@/vue_components/show/config/cues/CueRenumberModal.vue';
 import { minValue, required } from 'vuelidate/lib/validators';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 
 export default defineComponent({
   name: 'CueEditor',
-  components: { ScriptLineCueEditor, JumpToCueModal },
+  components: { ScriptLineCueEditor, JumpToCueModal, CueRenumberModal },
   data() {
     return {
       currentEditPage: 1,

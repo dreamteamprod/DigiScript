@@ -228,6 +228,23 @@ const module: Module<ScriptState, RootState> = {
         VueToast.$toast.error('Unable to delete cue');
       }
     },
+    async RENUMBER_CUES(context, operations: { cue_id: number; new_ident: string }[]) {
+      const response = await fetch(makeURL('/api/v1/show/cues/renumber'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operations }),
+      });
+      if (response.ok) {
+        await context.dispatch('LOAD_CUES');
+        VueToast.$toast.success('Cues renumbered successfully!');
+      } else {
+        const data = await response.json().catch(() => ({}));
+        const msg = data?.message ?? 'Unable to renumber cues';
+        log.error(msg);
+        VueToast.$toast.error(msg);
+        throw new Error(msg);
+      }
+    },
     async ADD_CUE_GROUP(
       context,
       payload: {
