@@ -372,7 +372,7 @@ onMounted(async () => {
       const response = await fetch(makeURL('/api/v1/show/script/stage_direction_styles'));
       if (response.ok) {
         stageDirectionStyles.value =
-          ((await response.json()).stage_direction_styles as StageDirectionStyle[]) ?? [];
+          ((await response.json()).styles as StageDirectionStyle[]) ?? [];
       }
     } catch (e) {
       log.error('Failed to load stage direction styles:', e);
