@@ -28,21 +28,21 @@
           <template v-if="!csvParsed && !csvError">
             <span class="csv-dropzone__icon text-muted">&#8679;</span>
             <div class="csv-dropzone__label">
-              <span class="font-weight-semibold">Click to browse</span> or drag &amp; drop your
+              <span class="font-weight-bold">Click to browse</span> or drag &amp; drop your
               MagicQ cue stack CSV here
             </div>
           </template>
           <template v-else-if="csvParsed">
             <span class="csv-dropzone__icon text-success">&#10003;</span>
             <div>
-              <div class="font-weight-semibold text-success">{{ csvFileName }}</div>
+              <div class="font-weight-bold text-success">{{ csvFileName }}</div>
               <small class="text-muted">{{ csvRowCount }} cues loaded — click to replace</small>
             </div>
           </template>
           <template v-else>
             <span class="csv-dropzone__icon text-danger">&#9888;</span>
             <div>
-              <div class="font-weight-semibold text-danger">
+              <div class="font-weight-bold text-danger">
                 {{ csvFileName || 'Upload failed' }}
               </div>
               <small class="text-danger">{{ csvError }}</small>
@@ -138,10 +138,11 @@
     </template>
 
     <!-- Custom footer (always rendered) -->
-    <div class="d-flex justify-content-end gap-2 mt-3">
+    <div class="d-flex justify-content-end mt-3">
       <b-button
         variant="secondary"
         :disabled="submitting"
+        class="mr-2"
         @click="$bvModal.hide('cue-renumber-modal')"
       >
         Cancel
@@ -150,6 +151,7 @@
         v-if="step === 2"
         variant="outline-secondary"
         :disabled="submitting"
+        class="mr-2"
         @click="step = 1"
       >
         Back

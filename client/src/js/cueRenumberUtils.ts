@@ -2,7 +2,7 @@ import type { Cue } from '@/types/api/cues';
 
 export const NUMERIC_IDENT_REGEX = /^\d+(\.\d{1,2})?$/;
 // Extracts a leading numeric prefix (up to 2 decimal places) plus any trailing suffix.
-export const NUMERIC_PREFIX_REGEX = /^(\d+(?:\.\d{1,2})?)(.*)$/;
+export const NUMERIC_PREFIX_REGEX = /^(\d+(?:\.\d{1,2})?)(?![\d.])(.*)$/;
 
 export interface CueWithLineId extends Cue {
   line_id: number;

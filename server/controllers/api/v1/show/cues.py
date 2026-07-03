@@ -1132,9 +1132,9 @@ class CueRenumberController(BaseAPIController):
             for op in operations:
                 new_ident = op.get("new_ident", "")
                 if (
-                    not new_ident
-                    or not isinstance(new_ident, str)
-                    or len(new_ident) > 50
+                    not isinstance(new_ident, str)
+                    or not new_ident.strip()
+                    or len(new_ident.strip()) > 50
                 ):
                     self.set_status(400)
                     await self.finish({"message": ERROR_RENUMBER_INVALID_IDENT})
