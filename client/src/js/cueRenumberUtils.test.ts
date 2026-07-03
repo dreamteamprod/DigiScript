@@ -56,12 +56,9 @@ describe('NUMERIC_PREFIX_REGEX', () => {
     expect(match![2]).toBe(suffix);
   });
 
-  it.each(['', 'LX-INTRO', 'Q1 GO', '.5', 'INTRO', '1.111'])(
-    'does not match "%s"',
-    (ident) => {
-      expect(NUMERIC_PREFIX_REGEX.exec(ident)).toBeNull();
-    }
-  );
+  it.each(['', 'LX-INTRO', 'Q1 GO', '.5', 'INTRO', '1.111'])('does not match "%s"', (ident) => {
+    expect(NUMERIC_PREFIX_REGEX.exec(ident)).toBeNull();
+  });
 });
 
 describe('parseMagicQCsv', () => {

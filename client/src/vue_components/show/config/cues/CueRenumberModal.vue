@@ -28,8 +28,8 @@
           <template v-if="!csvParsed && !csvError">
             <span class="csv-dropzone__icon text-muted">&#8679;</span>
             <div class="csv-dropzone__label">
-              <span class="font-weight-bold">Click to browse</span> or drag &amp; drop your
-              MagicQ cue stack CSV here
+              <span class="font-weight-bold">Click to browse</span> or drag &amp; drop your MagicQ
+              cue stack CSV here
             </div>
           </template>
           <template v-else-if="csvParsed">
