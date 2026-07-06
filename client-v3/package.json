@@ -65,7 +65,7 @@
     "@typescript-eslint/eslint-plugin": "^8.62.1",
     "@typescript-eslint/parser": "^8.62.1",
     "@vitejs/plugin-vue": "^6.0.7",
-    "@vitest/ui": "^4.1.9",
+    "@vitest/ui": "^4.1.10",
     "@vue/test-utils": "^2.4.11",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
