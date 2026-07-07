@@ -155,6 +155,7 @@ import { useScriptDisplay } from '@/composables/useScriptDisplay';
 import { toast } from '@/js/toast';
 import type { ScriptLine, StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
+import type { UserSettings } from '@/types/api/user';
 
 const props = defineProps<{
   line: ScriptLine;
@@ -261,7 +262,10 @@ const currentStyle = computed(() =>
 );
 
 const stageDirectionStylingWithCuts = computed<Record<string, string>>(() => {
-  const base = stageDirectionStyling(currentStyle.value);
+  const base = stageDirectionStyling(currentStyle.value, {
+    background_colour: (userStore.userSettings as UserSettings).default_sd_background_colour,
+    text_colour: (userStore.userSettings as UserSettings).default_sd_text_colour,
+  });
   const firstPartId = props.line.line_parts[0]?.id;
   if (firstPartId != null && props.linePartCuts.includes(firstPartId)) {
     const existing = base['text-decoration-line'];

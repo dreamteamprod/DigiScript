@@ -87,6 +87,42 @@ test('switches to Stage Direction Styles tab', async () => {
   await expect(page.locator('#stage-directions-table')).toBeVisible({ timeout: 5_000 });
 });
 
+// ── Default Stage Direction Style ─────────────────────────────────────────
+
+test('"Default Stage Direction Style" section is visible', async () => {
+  await expect(page.locator('.card:has-text("Default Stage Direction Style")')).toBeVisible();
+});
+
+test('"Customise" button opens the default style modal', async () => {
+  await page
+    .locator('.card:has-text("Default Stage Direction Style") button:has-text("Customise")')
+    .click();
+  await waitForModal(page, 'Customise Default Stage Direction Style');
+  await expect(page.locator('#default-bg-colour-input')).toBeVisible();
+});
+
+test('setting a custom background colour saves and shows Reset button', async () => {
+  await page.locator('#default-bg-colour-input').fill('#FF0000');
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  await expect(
+    page.locator(
+      '.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")'
+    )
+  ).toBeVisible({ timeout: 5_000 });
+});
+
+test('"Reset to Default" removes the custom style', async () => {
+  await page
+    .locator('.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")')
+    .click();
+  await expect(
+    page.locator(
+      '.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")'
+    )
+  ).not.toBeVisible({ timeout: 5_000 });
+});
+
 test('"New Override" button is enabled when stage direction styles exist', async () => {
   // Scope to thead to avoid matching the "New Override" button in the Cue Colour Preferences tab
   // (BVN BTabs without lazy mounts all tab panels, so inactive tab content stays in the DOM)
