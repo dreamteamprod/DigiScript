@@ -57,7 +57,7 @@
     "@types/lodash": "~4.17.24",
     "@types/node": "~20.14.0",
     "@types/vuelidate": "^0.7.22",
-    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/eslint-plugin": "^8.63.0",
     "@typescript-eslint/parser": "^8.62.1",
     "@vitejs/plugin-vue2": "2.3.4",
     "@vitest/ui": "^4.1.9",
