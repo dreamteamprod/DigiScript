@@ -263,10 +263,12 @@ const props = defineProps<{
   intervalActive: boolean;
   scriptMode: number;
   stageManagerMode: boolean;
+  showCurrentCueFooter: boolean;
 }>();
 
 const emit = defineEmits<{
   'page-change': [page: number];
+  'current-line-change': [lineOnPage: number];
   'script-loaded': [];
 }>();
 
@@ -479,6 +481,7 @@ function navigateTo(targetPage: number, targetLineOnPage: number, preventScroll 
   currentPage.value = targetPage;
   currentLineOnPage.value = targetLineOnPage;
   emit('page-change', targetPage);
+  emit('current-line-change', targetLineOnPage);
 
   const targetElementId = `page_${targetPage}_line_${targetLineOnPage}`;
   const targetElement = document.getElementById(targetElementId);
@@ -660,7 +663,9 @@ function handleFollowDataChange(): void {
       scrollToElement(contextElement ?? currentLineElement);
 
       currentPage.value = page;
+      currentLineOnPage.value = line;
       emit('page-change', page);
+      emit('current-line-change', line);
       computeScriptBoundaries();
     }
   }
@@ -713,10 +718,24 @@ function computeScriptBoundaries(): void {
 function computeContentSize(): void {
   const scriptContainer = document.getElementById('script-container');
   if (!scriptContainer) return;
+  const footer = document.getElementById('current-cue-footer');
+  const footerHeight = footer ? footer.getBoundingClientRect().height : 0;
   const startPos = scriptContainer.getBoundingClientRect().top;
-  const boxHeight = document.documentElement.clientHeight - startPos;
+  const boxHeight = document.documentElement.clientHeight - startPos - footerHeight;
   scriptContainer.style.height = `${boxHeight - 10}px`;
   computeScriptBoundaries();
+}
+
+let footerResizeObserver: ResizeObserver | null = null;
+
+function observeFooterResize(): void {
+  footerResizeObserver?.disconnect();
+  footerResizeObserver = null;
+  const footer = document.getElementById('current-cue-footer');
+  if (footer) {
+    footerResizeObserver = new ResizeObserver(() => debounceContentSize());
+    footerResizeObserver.observe(footer);
+  }
 }
 
 // --- Script loading ---
@@ -909,6 +928,7 @@ onMounted(async () => {
   ]);
 
   computeContentSize();
+  observeFooterResize();
 
   const loadedCompiledScript = await loadCompiledScript();
 
@@ -945,7 +965,17 @@ onMounted(async () => {
   emit('script-loaded');
 });
 
+watch(
+  () => props.showCurrentCueFooter,
+  async () => {
+    await nextTick();
+    computeContentSize();
+    observeFooterResize();
+  }
+);
+
 onUnmounted(() => {
+  footerResizeObserver?.disconnect();
   window.removeEventListener('keydown', handleKeyPress);
   const scriptContainer = document.getElementById('script-container');
   if (scriptContainer) {

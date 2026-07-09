@@ -63,6 +63,28 @@ test('changing a toggle enables the Submit button', async () => {
   }
 });
 
+test('current cue footer setting defaults on and persists after being toggled off', async () => {
+  const checkbox = page.locator('#show-current-cue-footer-input');
+  await expect(checkbox).toBeChecked();
+
+  await checkbox.click();
+  await expect(checkbox).not.toBeChecked();
+  await page.click('button:has-text("Submit")');
+  await expect(page.locator('button:has-text("Submit")')).toBeDisabled({ timeout: 5_000 });
+
+  await page.reload();
+  await waitForAppReady(page);
+  await page.click('.nav-link:has-text("Settings"), button[role="tab"]:has-text("Settings")');
+  await expect(page.locator('#show-current-cue-footer-input')).not.toBeChecked({
+    timeout: 5_000,
+  });
+
+  // Restore default state so it doesn't affect any later tests
+  await page.locator('#show-current-cue-footer-input').click();
+  await page.click('button:has-text("Submit")');
+  await expect(page.locator('#show-current-cue-footer-input')).toBeChecked({ timeout: 5_000 });
+});
+
 // ── Stage Direction Styles ────────────────────────────────────────────────
 
 test('creates a stage direction style for override testing', async () => {

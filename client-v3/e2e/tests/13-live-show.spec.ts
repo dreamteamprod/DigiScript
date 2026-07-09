@@ -79,6 +79,12 @@ test('leader is NOT in following mode', async () => {
   await expect(container).not.toHaveAttribute('data-following', 'true');
 });
 
+test('current cue footer is visible by default', async () => {
+  // toBeVisible() alone would pass even if the footer were pushed below the fold by
+  // the script pane's computed height — toBeInViewport() catches that layout regression.
+  await expect(leaderPage.locator('.current-cue-footer')).toBeInViewport();
+});
+
 // ── Follower connects ─────────────────────────────────────────────────────
 
 test('follower navigates to /live after leader', async () => {
@@ -146,6 +152,13 @@ test('can add an individual cue from the live view', async () => {
   });
 });
 
+test('current cue footer shows the last cue seen for its type', async () => {
+  await expect(leaderPage.locator('.current-cue-footer .cue-button')).toHaveCount(1, {
+    timeout: 5_000,
+  });
+  await expect(leaderPage.locator('.current-cue-footer .cue-button').first()).toContainText('101');
+});
+
 test('can add a cue group from the live view', async () => {
   await leaderPage.locator('.add-cue-btn').first().click();
   await waitForModal(leaderPage, 'Add Cue');
@@ -165,6 +178,14 @@ test('can add a cue group from the live view', async () => {
   await waitForModalClosed(leaderPage);
   await expect(leaderPage.locator('.cue-group-btn').first()).toBeVisible({ timeout: 5_000 });
   await expect(leaderPage.locator('.cue-group-btn').first()).toContainText('LX 200 - LX 202');
+});
+
+test('current cue footer still shows exactly one badge for the cue type after grouped cues are added', async () => {
+  // Grouped cues are tracked individually — the footer collapses to the single most
+  // recently passed cue of that type, whichever one that ends up being.
+  await expect(leaderPage.locator('.current-cue-footer .cue-button')).toHaveCount(1, {
+    timeout: 5_000,
+  });
 });
 
 test('cue group buttons in live view are non-interactive display-only buttons', async () => {
