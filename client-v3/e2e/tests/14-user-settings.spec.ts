@@ -113,12 +113,12 @@ test('setting a custom background colour saves and updates the card preview', as
   await page.locator('#default-bg-colour-input').fill('#FF0000');
   await confirmModal(page);
   await waitForModalClosed(page);
-  // Reset button appears (verifies PATCH /api/v1/user/settings was persisted)
+  // Reset button becomes enabled (verifies PATCH /api/v1/user/settings was persisted)
   await expect(
     page.locator(
       '.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")'
     )
-  ).toBeVisible({ timeout: 5_000 });
+  ).toBeEnabled({ timeout: 5_000 });
   // Card preview reflects saved colour (verifies WS GET_USER_SETTINGS sync updated the store)
   const preview = page
     .locator('.card:has-text("Default Stage Direction Style")')
@@ -131,12 +131,12 @@ test('custom colour persists after page reload', async () => {
   await waitForAppReady(page);
   await page.click('.nav-link:has-text("Stage Direction")');
   await expect(page.locator('#stage-directions-table')).toBeVisible({ timeout: 5_000 });
-  // Reset button should still be present (colour was persisted to DB via GET /api/v1/user/settings)
+  // Reset button enabled (colour was persisted to DB via GET /api/v1/user/settings)
   await expect(
     page.locator(
       '.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")'
     )
-  ).toBeVisible({ timeout: 5_000 });
+  ).toBeEnabled({ timeout: 5_000 });
   const preview = page
     .locator('.card:has-text("Default Stage Direction Style")')
     .locator('.example-stage-direction');
@@ -161,16 +161,16 @@ test('text colour override can be enabled and saved', async () => {
   await expect(preview).toHaveCSS('color', 'rgb(255, 255, 255)', { timeout: 5_000 });
 });
 
-test('"Reset to Default" removes both colour overrides', async () => {
+test('"Reset to Default" disables the Reset button and reverts the preview', async () => {
   await page
     .locator('.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")')
     .click();
-  // Reset button disappears once both overrides are cleared
+  // Reset button becomes disabled once both overrides are cleared
   await expect(
     page.locator(
       '.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")'
     )
-  ).not.toBeVisible({ timeout: 5_000 });
+  ).toBeDisabled({ timeout: 5_000 });
   // Preview reverts to darkslateblue
   const preview = page
     .locator('.card:has-text("Default Stage Direction Style")')

@@ -14,9 +14,8 @@
         </i>
         <b-button variant="outline-primary" @click="openDefaultModal">Customise</b-button>
         <b-button
-          v-if="hasDefaultOverride"
           variant="outline-secondary"
-          :disabled="isSubmittingDefault"
+          :disabled="!hasDefaultOverride || isSubmittingDefault"
           @click="resetDefaultStyle"
         >
           Reset to Default
@@ -397,7 +396,7 @@ export default defineComponent({
       isSubmittingDefault: false,
       isDeleting: false,
       defaultFormState: {
-        backgroundColour: '#2f4f4f',
+        backgroundColour: '#483d8b',
         enableTextColour: false,
         textColour: '#FFFFFF',
       },
@@ -697,7 +696,7 @@ export default defineComponent({
     },
     openDefaultModal(): void {
       const s = (this as any).USER_SETTINGS ?? {};
-      this.defaultFormState.backgroundColour = s.default_sd_background_colour ?? '#2f4f4f';
+      this.defaultFormState.backgroundColour = s.default_sd_background_colour ?? '#483d8b';
       this.defaultFormState.enableTextColour = s.default_sd_text_colour != null;
       this.defaultFormState.textColour = s.default_sd_text_colour ?? '#FFFFFF';
       (this as any).$bvModal.show('default-sd-style-modal');

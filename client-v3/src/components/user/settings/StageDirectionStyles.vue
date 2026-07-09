@@ -14,9 +14,8 @@
         </i>
         <BButton variant="outline-primary" @click="defaultModal?.show()">Customise</BButton>
         <BButton
-          v-if="hasDefaultOverride"
           variant="outline-secondary"
-          :disabled="isSubmittingDefault"
+          :disabled="!hasDefaultOverride || isSubmittingDefault"
           @click="resetDefaultStyle"
         >
           Reset to Default
@@ -349,7 +348,7 @@ const editModal = ref<InstanceType<typeof BModal>>();
 const deleteModal = ref<InstanceType<typeof BModal>>();
 
 const defaultFormState = ref({
-  backgroundColour: '#2f4f4f',
+  backgroundColour: '#483d8b',
   enableTextColour: false,
   textColour: '#FFFFFF',
 });
@@ -466,7 +465,7 @@ const editFormExampleCss = computed((): Record<string, string> => {
 
 function openDefaultModal(): void {
   const s = settings.value;
-  defaultFormState.value.backgroundColour = s.default_sd_background_colour ?? '#2f4f4f';
+  defaultFormState.value.backgroundColour = s.default_sd_background_colour ?? '#483d8b';
   defaultFormState.value.enableTextColour = s.default_sd_text_colour != null;
   defaultFormState.value.textColour = s.default_sd_text_colour ?? '#FFFFFF';
 }
