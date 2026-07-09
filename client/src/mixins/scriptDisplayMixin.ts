@@ -66,7 +66,15 @@ export default defineComponent({
     stageDirectionStyling(): Record<string, string> {
       const line: ScriptLine = (this as any).line;
       if (line.stage_direction_style_id == null || (this as any).stageDirectionStyle == null) {
-        return { 'background-color': 'darkslateblue', 'font-style': 'italic' };
+        const userSettings = (this as any).USER_SETTINGS ?? {};
+        const result: Record<string, string> = {
+          'background-color': userSettings.default_sd_background_colour ?? 'darkslateblue',
+          'font-style': 'italic',
+        };
+        if (userSettings.default_sd_text_colour) {
+          result['color'] = userSettings.default_sd_text_colour;
+        }
+        return result;
       }
       const style: StageDirectionStyle = (this as any).stageDirectionStyle;
       const result: Record<string, string> = {

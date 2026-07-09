@@ -1,5 +1,63 @@
 <template>
   <div>
+    <!-- Default stage direction style section -->
+    <BCard class="mb-3">
+      <template #header>
+        <strong>Default Stage Direction Style</strong>
+      </template>
+      <p class="text-muted small mb-2">
+        Applied to stage direction lines that have no specific style assigned.
+      </p>
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <i class="example-stage-direction" :style="defaultExampleCss">
+          {{ exampleText }}
+        </i>
+        <BButton variant="outline-primary" @click="defaultModal?.show()">Customise</BButton>
+        <BButton
+          variant="outline-secondary"
+          :disabled="!hasDefaultOverride || isSubmittingDefault"
+          @click="resetDefaultStyle"
+        >
+          Reset to Default
+        </BButton>
+      </div>
+    </BCard>
+
+    <!-- Default style edit modal -->
+    <BModal
+      ref="defaultModal"
+      title="Customise Default Stage Direction Style"
+      size="lg"
+      :ok-disabled="isSubmittingDefault"
+      @show="openDefaultModal"
+      @ok.prevent="onSubmitDefaultStyle"
+    >
+      <div class="mb-3">
+        <h4>Preview</h4>
+        <i class="example-stage-direction" :style="defaultFormExampleCss">
+          {{ exampleText }}
+        </i>
+      </div>
+      <BFormGroup label="Background Colour" label-for="default-bg-colour-input">
+        <BFormInput
+          id="default-bg-colour-input"
+          v-model="defaultFormState.backgroundColour"
+          type="color"
+        />
+      </BFormGroup>
+      <BFormGroup label="Text Colour" label-for="default-text-colour-input">
+        <BFormCheckbox v-model="defaultFormState.enableTextColour" switch class="mb-1">
+          Override text colour
+        </BFormCheckbox>
+        <BFormInput
+          v-if="defaultFormState.enableTextColour"
+          id="default-text-colour-input"
+          v-model="defaultFormState.textColour"
+          type="color"
+        />
+      </BFormGroup>
+    </BModal>
+
     <template v-if="systemStore.currentShow != null">
       <BTable
         id="stage-directions-table"
@@ -251,6 +309,7 @@ import { useSystemStore } from '@/stores/system';
 import { useFormValidation } from '@/composables/useFormValidation';
 import { usePagination } from '@/composables/usePagination';
 import type { StageDirectionStyle } from '@/types/api/script';
+import type { UserSettings } from '@/types/api/user';
 
 interface StyleOption {
   caption: string;
@@ -278,13 +337,51 @@ const { perPage, currentPage } = usePagination(15, 'user_stage_direction_styles'
 const stageDirectionStyles = ref<StageDirectionStyle[]>([]);
 const isSubmittingNew = ref(false);
 const isSubmittingEdit = ref(false);
+const isSubmittingDefault = ref(false);
 const isDeleting = ref(false);
 const pendingDeleteId = ref<number | null>(null);
 
+const defaultModal = ref<InstanceType<typeof BModal>>();
 const selectModal = ref<InstanceType<typeof BModal>>();
 const newModal = ref<InstanceType<typeof BModal>>();
 const editModal = ref<InstanceType<typeof BModal>>();
 const deleteModal = ref<InstanceType<typeof BModal>>();
+
+const defaultFormState = ref({
+  backgroundColour: '#483d8b',
+  enableTextColour: false,
+  textColour: '#FFFFFF',
+});
+
+const settings = computed(() => userStore.userSettings as UserSettings);
+
+const hasDefaultOverride = computed(
+  () =>
+    settings.value.default_sd_background_colour != null ||
+    settings.value.default_sd_text_colour != null
+);
+
+const defaultExampleCss = computed((): Record<string, string> => {
+  const result: Record<string, string> = {
+    'background-color': settings.value.default_sd_background_colour ?? 'darkslateblue',
+    'font-style': 'italic',
+  };
+  if (settings.value.default_sd_text_colour) {
+    result['color'] = settings.value.default_sd_text_colour;
+  }
+  return result;
+});
+
+const defaultFormExampleCss = computed((): Record<string, string> => {
+  const result: Record<string, string> = {
+    'background-color': defaultFormState.value.backgroundColour,
+    'font-style': 'italic',
+  };
+  if (defaultFormState.value.enableTextColour) {
+    result['color'] = defaultFormState.value.textColour;
+  }
+  return result;
+});
 
 const newStyleFormState = ref({
   styleId: null as number | null,
@@ -365,6 +462,41 @@ const editFormExampleCss = computed((): Record<string, string> => {
   if (f.enableBackgroundColour) style['background-color'] = f.backgroundColour;
   return style;
 });
+
+function openDefaultModal(): void {
+  const s = settings.value;
+  defaultFormState.value.backgroundColour = s.default_sd_background_colour ?? '#483d8b';
+  defaultFormState.value.enableTextColour = s.default_sd_text_colour != null;
+  defaultFormState.value.textColour = s.default_sd_text_colour ?? '#FFFFFF';
+}
+
+async function onSubmitDefaultStyle(): Promise<void> {
+  if (isSubmittingDefault.value) return;
+  isSubmittingDefault.value = true;
+  try {
+    await userStore.updateDefaultStageDirectionStyle(
+      defaultFormState.value.backgroundColour,
+      defaultFormState.value.enableTextColour ? defaultFormState.value.textColour : null
+    );
+    defaultModal.value?.hide();
+  } catch (e) {
+    log.error('Error updating default stage direction style:', e);
+  } finally {
+    isSubmittingDefault.value = false;
+  }
+}
+
+async function resetDefaultStyle(): Promise<void> {
+  if (isSubmittingDefault.value) return;
+  isSubmittingDefault.value = true;
+  try {
+    await userStore.updateDefaultStageDirectionStyle(null, null);
+  } catch (e) {
+    log.error('Error resetting default stage direction style:', e);
+  } finally {
+    isSubmittingDefault.value = false;
+  }
+}
 
 onMounted(async () => {
   if (systemStore.currentShow) {

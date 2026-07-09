@@ -87,6 +87,97 @@ test('switches to Stage Direction Styles tab', async () => {
   await expect(page.locator('#stage-directions-table')).toBeVisible({ timeout: 5_000 });
 });
 
+// ── Default Stage Direction Style ─────────────────────────────────────────
+
+test('"Default Stage Direction Style" section is visible', async () => {
+  await expect(page.locator('.card:has-text("Default Stage Direction Style")')).toBeVisible();
+});
+
+test('default preview uses darkslateblue before any override', async () => {
+  // The card's example element should reflect the built-in fallback colour
+  const preview = page
+    .locator('.card:has-text("Default Stage Direction Style")')
+    .locator('.example-stage-direction');
+  await expect(preview).toHaveCSS('background-color', 'rgb(72, 61, 139)'); // darkslateblue
+});
+
+test('"Customise" button opens the default style modal', async () => {
+  await page
+    .locator('.card:has-text("Default Stage Direction Style") button:has-text("Customise")')
+    .click();
+  await waitForModal(page, 'Customise Default Stage Direction Style');
+  await expect(page.locator('#default-bg-colour-input')).toBeVisible();
+});
+
+test('setting a custom background colour saves and updates the card preview', async () => {
+  await page.locator('#default-bg-colour-input').fill('#FF0000');
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  // Reset button becomes enabled (verifies PATCH /api/v1/user/settings was persisted)
+  await expect(
+    page.locator(
+      '.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")'
+    )
+  ).toBeEnabled({ timeout: 5_000 });
+  // Card preview reflects saved colour (verifies WS GET_USER_SETTINGS sync updated the store)
+  const preview = page
+    .locator('.card:has-text("Default Stage Direction Style")')
+    .locator('.example-stage-direction');
+  await expect(preview).toHaveCSS('background-color', 'rgb(255, 0, 0)');
+});
+
+test('custom colour persists after page reload', async () => {
+  await page.reload();
+  await waitForAppReady(page);
+  await page.click('.nav-link:has-text("Stage Direction")');
+  await expect(page.locator('#stage-directions-table')).toBeVisible({ timeout: 5_000 });
+  // Reset button enabled (colour was persisted to DB via GET /api/v1/user/settings)
+  await expect(
+    page.locator(
+      '.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")'
+    )
+  ).toBeEnabled({ timeout: 5_000 });
+  const preview = page
+    .locator('.card:has-text("Default Stage Direction Style")')
+    .locator('.example-stage-direction');
+  await expect(preview).toHaveCSS('background-color', 'rgb(255, 0, 0)');
+});
+
+test('text colour override can be enabled and saved', async () => {
+  await page
+    .locator('.card:has-text("Default Stage Direction Style") button:has-text("Customise")')
+    .click();
+  await waitForModal(page, 'Customise Default Stage Direction Style');
+  // Enable text colour override
+  await page.locator('.modal.show').getByText('Override text colour').click();
+  await expect(page.locator('#default-text-colour-input')).toBeVisible();
+  await page.locator('#default-text-colour-input').fill('#FFFFFF');
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  // Preview text colour should update (white text on red background)
+  const preview = page
+    .locator('.card:has-text("Default Stage Direction Style")')
+    .locator('.example-stage-direction');
+  await expect(preview).toHaveCSS('color', 'rgb(255, 255, 255)', { timeout: 5_000 });
+});
+
+test('"Reset to Default" disables the Reset button and reverts the preview', async () => {
+  await page
+    .locator('.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")')
+    .click();
+  // Reset button becomes disabled once both overrides are cleared
+  await expect(
+    page.locator(
+      '.card:has-text("Default Stage Direction Style") button:has-text("Reset to Default")'
+    )
+  ).toBeDisabled({ timeout: 5_000 });
+  // Preview reverts to darkslateblue
+  const preview = page
+    .locator('.card:has-text("Default Stage Direction Style")')
+    .locator('.example-stage-direction');
+  await expect(preview).toHaveCSS('background-color', 'rgb(72, 61, 139)', { timeout: 5_000 });
+});
+
 test('"New Override" button is enabled when stage direction styles exist', async () => {
   // Scope to thead to avoid matching the "New Override" button in the Cue Colour Preferences tab
   // (BVN BTabs without lazy mounts all tab panels, so inactive tab content stays in the DOM)

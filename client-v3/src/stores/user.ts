@@ -246,6 +246,20 @@ export const useUserStore = defineStore('user', {
       }
     },
 
+    async updateDefaultStageDirectionStyle(
+      backgroundColour: string | null,
+      textColour: string | null
+    ): Promise<void> {
+      await fetch(makeURL('/api/v1/user/settings'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          default_sd_background_colour: backgroundColour,
+          default_sd_text_colour: textColour,
+        }),
+      });
+    },
+
     async updateTablePageSize(tableKey: string, value: number): Promise<void> {
       const current = (this.userSettings as UserSettings).table_page_sizes ?? {};
       await fetch(makeURL('/api/v1/user/settings'), {

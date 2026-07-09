@@ -309,28 +309,11 @@ export default defineComponent({
     },
     stageDirectionStylingWithCuts(): Record<string, string> {
       const line = this.line as any;
-      const stageDirectionStyle = (this as any).stageDirectionStyle;
-      if (line.stage_direction_style_id == null || stageDirectionStyle == null) {
-        const style: Record<string, string> = {
-          'background-color': 'darkslateblue',
-          'font-style': 'italic',
-        };
-        if ((this.linePartCuts as any[]).indexOf(line.line_parts[0].id) !== -1) {
-          style['text-decoration'] = 'line-through';
-        }
-        return style;
-      }
-      const style: Record<string, string> = {
-        'font-weight': stageDirectionStyle.bold ? 'bold' : 'normal',
-        'font-style': stageDirectionStyle.italic ? 'italic' : 'normal',
-        'text-decoration-line': stageDirectionStyle.underline ? 'underline' : 'none',
-        color: stageDirectionStyle.text_colour,
-      };
-      if (stageDirectionStyle.enable_background_colour) {
-        style['background-color'] = stageDirectionStyle.background_colour;
-      }
+      const style = { ...(this as any).stageDirectionStyling };
       if ((this.linePartCuts as any[]).indexOf(line.line_parts[0].id) !== -1) {
-        style['text-decoration-line'] = `${style['text-decoration-line']} line-through`;
+        const existing = style['text-decoration-line'];
+        style['text-decoration-line'] =
+          existing && existing !== 'none' ? `${existing} line-through` : 'line-through';
       }
       return style;
     },

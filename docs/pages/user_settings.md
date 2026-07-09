@@ -36,11 +36,29 @@ When combined with the **Sort Characters by Most Recently Used** setting, each s
 
 ### Stage Direction Styles
 
-DigiScript allows you to customize how stage directions appear in the script with personal color and style preferences:
+DigiScript allows you to customize how stage directions appear in the script with personal colour and style preferences:
 
 ![](../images/user_settings/stage_direction_styles_tab.png)
 
-You can override the system-wide stage direction styling with your own color and font style choices. This is particularly useful if you need different visual contrast or have specific accessibility needs.
+#### Default Stage Direction Style
+
+Stage direction lines with no specific style assigned use a default appearance (dark blue background with italic text). You can override this default to use any background and text colour that works best for you — this is especially useful for accessibility or colour blindness needs.
+
+To customize the default style:
+
+1. Click the **Customise** button in the **Default Stage Direction Style** section
+2. Use the **Background Colour** picker to choose your preferred background colour
+3. Optionally enable **Override text colour** and pick a custom text colour
+4. A live preview updates as you make changes
+5. Click **OK** to save
+
+To revert to the original dark blue default, click **Reset to Default**.
+
+#### Per-Style Overrides
+
+You can also override the colour and font style choices for specific named stage direction styles. This is useful when you need different visual contrast for particular style categories without affecting others.
+
+Click **New Override** to select a named style and configure your personal override for it. Use **Edit** or **Delete** on existing rows to manage your overrides.
 
 ### Cue Colour Preferences
 
