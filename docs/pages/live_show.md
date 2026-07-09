@@ -51,6 +51,12 @@ All other connected clients (whether logged in or not) will automatically follow
 #### Manual Mode
 If the leader's client becomes disconnected, all other clients become "orphaned" and switch to manual mode, where they can control their own script position independently. When a client logged in as the leader user reconnects, it automatically resumes leadership, and all orphaned clients return to follower mode.
 
+### Current Cue Footer
+
+A "Current Cues" footer bar at the bottom of the script area shows the last cue that has been passed for every cue type, updating automatically as the script scrolls. This gives a quick "where are we" reference without needing to keep the script's cue column in view. Cues are displayed using the same colours and labels as they appear in the script itself.
+
+The footer is shown by default, but it can be turned off independently by each user from the **Settings** tab of the User Settings page (**Show current cue footer in Live view**). The preference is saved to your account and persists across sessions and devices.
+
 ### Act Intervals
 
 If your show has intervals configured between acts, an interval screen will automatically appear between the acts during the live show. The interval will only display if there is script content in both acts surrounding the interval.

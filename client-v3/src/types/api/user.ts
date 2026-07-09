@@ -27,4 +27,5 @@ export interface UserSettings {
   table_page_sizes: Record<string, number> | null;
   default_sd_text_colour: string | null;
   default_sd_background_colour: string | null;
+  show_current_cue_footer: boolean;
 }

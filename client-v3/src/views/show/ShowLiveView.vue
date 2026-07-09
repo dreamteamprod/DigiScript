@@ -59,7 +59,9 @@
             :interval-active="showStore.currentInterval != null"
             :script-mode="systemStore.currentShow?.script_mode ?? 1"
             :stage-manager-mode="showStore.stageManagerMode"
+            :show-current-cue-footer="userStore.userSettings?.show_current_cue_footer ?? false"
             @page-change="currentPage = $event"
+            @current-line-change="currentLineOnPage = $event"
           />
         </Pane>
         <Pane v-if="showStore.stageManagerMode" :size="20">
@@ -67,6 +69,11 @@
         </Pane>
       </Splitpanes>
     </BOverlay>
+    <CurrentCueFooter
+      v-if="userStore.userSettings?.show_current_cue_footer"
+      :current-page="currentPage"
+      :current-line-on-page="currentLineOnPage"
+    />
   </BContainer>
 </template>
 
@@ -78,20 +85,24 @@ import 'splitpanes/dist/splitpanes.css';
 import { formatTimerParts, msToTimerParts, msToTimerString } from '@/js/utils';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
+import { useUserStore } from '@/stores/user';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { toast } from '@/js/toast';
 import ScriptViewPane from '@/components/show/live/ScriptViewPane.vue';
 import StageManagerPane from '@/components/show/live/StageManagerPane.vue';
+import CurrentCueFooter from '@/components/show/live/CurrentCueFooter.vue';
 
 const showStore = useShowStore();
 const systemStore = useSystemStore();
+const userStore = useUserStore();
 const wsStore = useWebSocketStore();
 const { sendObj } = useWebSocket();
 
 // Session header state
 const loadedSessionData = ref(false);
 const currentPage = ref(1);
+const currentLineOnPage = ref(0);
 
 // Elapsed time
 const elapsedTime = ref(0);
