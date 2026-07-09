@@ -10,6 +10,22 @@ function checkIsUntaggedStageDirection(line: ScriptLine): boolean {
   );
 }
 
+export function getPreviousLineAcrossPages(
+  current: ScriptLine,
+  getPage: (page: number) => ScriptLine[]
+): ScriptLine | null {
+  const page = getPage(current.page ?? 0);
+  const idx = page.indexOf(current);
+  if (idx > 0) return page[idx - 1];
+  let loopPageNo = (current.page ?? 0) - 1;
+  while (loopPageNo >= 1) {
+    const loopPage = getPage(loopPageNo);
+    if (loopPage.length > 0) return loopPage[loopPage.length - 1];
+    loopPageNo -= 1;
+  }
+  return null;
+}
+
 function needsActSceneLabel(
   line: ScriptLine,
   previousLine: ScriptLine | null,
@@ -18,9 +34,7 @@ function needsActSceneLabel(
 ): boolean {
   let prev: ScriptLine | null = previousLine;
   while (prev != null && isWholeLineCut(prev, cuts)) {
-    const prevPage = getPage(prev.page ?? 0);
-    const idx = prevPage.indexOf(prev);
-    prev = idx > 0 ? prevPage[idx - 1] : null;
+    prev = getPreviousLineAcrossPages(prev, getPage);
   }
   if (prev == null) return true;
   return !(prev.act_id === line.act_id && prev.scene_id === line.scene_id);
@@ -35,9 +49,7 @@ export function useScriptNavigation() {
   ): boolean[] {
     let prev: ScriptLine | null = previousLine;
     while (prev != null && (checkIsUntaggedStageDirection(prev) || isWholeLineCut(prev, cuts))) {
-      const prevPage = getPage(prev.page ?? 0);
-      const idx = prevPage.indexOf(prev);
-      prev = idx > 0 ? prevPage[idx - 1] : null;
+      prev = getPreviousLineAcrossPages(prev, getPage);
     }
 
     return line.line_parts.map((part) => {
