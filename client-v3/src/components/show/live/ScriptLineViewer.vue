@@ -271,7 +271,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useScriptNavigation } from '@/composables/useScriptNavigation';
+import { useScriptNavigation, getPreviousLineAcrossPages } from '@/composables/useScriptNavigation';
 import { useScriptDisplay } from '@/composables/useScriptDisplay';
 import { useCueDisplay } from '@/composables/useCueDisplay';
 import { useUserStore } from '@/stores/user';
@@ -281,6 +281,7 @@ import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine, ScriptCut, StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
 import type { CueType } from '@/types/api/cues';
+import type { UserSettings } from '@/types/api/user';
 
 const props = defineProps<{
   line: ScriptLine;
@@ -340,9 +341,7 @@ const needsActSceneLabel = computed(() =>
 const needsIntervalBanner = computed(() => {
   let prev: ScriptLine | null = props.previousLine;
   while (prev != null && isWholeLineCut(prev, props.cuts)) {
-    const prevPage = scriptStore.getScriptPage(prev.page ?? 0);
-    const idx = prevPage.indexOf(prev);
-    prev = idx > 0 ? prevPage[idx - 1] : null;
+    prev = getPreviousLineAcrossPages(prev, scriptStore.getScriptPage);
   }
   if (prev == null) return false;
   return prev.act_id !== props.line.act_id;
@@ -359,7 +358,12 @@ const sceneLabel = computed(
 const stageDirectionStyle = computed(() =>
   getStageDirectionStyle(props.line, props.stageDirectionStyles, props.stageDirectionStyleOverrides)
 );
-const stageDirectionStylingObj = computed(() => computeStyling(stageDirectionStyle.value));
+const stageDirectionStylingObj = computed(() =>
+  computeStyling(stageDirectionStyle.value, {
+    background_colour: (userStore.userSettings as UserSettings).default_sd_background_colour,
+    text_colour: (userStore.userSettings as UserSettings).default_sd_text_colour,
+  })
+);
 
 const scriptTextAlign = computed(() => computeTextAlign(userStore.userSettings));
 const headingStyle = computed(() => ({ textAlign: scriptTextAlign.value }));

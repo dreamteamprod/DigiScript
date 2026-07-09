@@ -93,6 +93,46 @@ export const useScriptStore = defineStore('script', {
         });
         return { individual, groups, merged };
       },
+    lineOrderIndex(state): Map<number, { page: number; index: number }> {
+      const index = new Map<number, { page: number; index: number }>();
+      for (const [pageStr, lines] of Object.entries(state.script)) {
+        const page = Number(pageStr);
+        lines.forEach((line, lineIndex) => {
+          if (line.id != null) index.set(line.id, { page, index: lineIndex });
+        });
+      }
+      return index;
+    },
+    orderedCueEntries(state): { cue: Cue; page: number; index: number }[] {
+      const order = this.lineOrderIndex;
+      const entries: { cue: Cue; page: number; index: number }[] = [];
+      for (const [lineIdStr, cuesForLine] of Object.entries(state.cues)) {
+        const position = order.get(Number(lineIdStr));
+        if (!position) continue;
+        for (const cue of cuesForLine) {
+          entries.push({ cue, page: position.page, index: position.index });
+        }
+      }
+      entries.sort((a, b) => {
+        if (a.page !== b.page) return a.page - b.page;
+        if (a.index !== b.index) return a.index - b.index;
+        return (a.cue.line_position ?? 0) - (b.cue.line_position ?? 0);
+      });
+      return entries;
+    },
+    lastCuePerTypeAt(): (page: number, lineIndex: number) => Record<number, Cue> {
+      const entries = this.orderedCueEntries;
+      return (page: number, lineIndex: number): Record<number, Cue> => {
+        const result: Record<number, Cue> = {};
+        for (const entry of entries) {
+          if (entry.page > page || (entry.page === page && entry.index > lineIndex)) break;
+          if (entry.cue.cue_type_id != null) {
+            result[entry.cue.cue_type_id] = entry.cue;
+          }
+        }
+        return result;
+      };
+    },
   },
 
   actions: {

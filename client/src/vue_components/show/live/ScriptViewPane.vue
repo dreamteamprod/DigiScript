@@ -250,6 +250,10 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    showCurrentCueFooter: {
+      type: Boolean,
+      required: true,
+    },
   },
   data() {
     return {
@@ -398,7 +402,9 @@ export default defineComponent({
             this.scrollToElement(currentLineElement);
           }
           this.currentPage = page;
+          this.currentLineOnPage = line;
           this.$emit('page-change', page);
+          this.$emit('current-line-change', line);
           this.computeScriptBoundaries();
         }
       }
@@ -408,6 +414,12 @@ export default defineComponent({
         if (this.initialLoad) {
           this.resumeNavigation();
         }
+      });
+    },
+    showCurrentCueFooter(): void {
+      this.$nextTick(() => {
+        this.computeContentSize();
+        this.observeFooterResize();
       });
     },
   },
@@ -437,6 +449,7 @@ export default defineComponent({
     ]);
 
     this.computeContentSize();
+    this.observeFooterResize();
 
     const loadedCompiledScript = await this.loadCompiledScript();
 
@@ -495,6 +508,7 @@ export default defineComponent({
     this.$emit('script-loaded');
   },
   destroyed(): void {
+    (this as any).footerResizeObserver?.disconnect();
     this.removeNavigation();
     window.removeEventListener('resize', this.debounceContentSize);
   },
@@ -529,6 +543,7 @@ export default defineComponent({
       this.currentPage = targetPage;
       this.currentLineOnPage = targetLineOnPage;
       this.$emit('page-change', targetPage);
+      this.$emit('current-line-change', targetLineOnPage);
 
       const targetElementId = `page_${targetPage}_line_${targetLineOnPage}`;
       const targetElement = document.getElementById(targetElementId);
@@ -902,10 +917,21 @@ export default defineComponent({
     },
     computeContentSize() {
       const scriptContainer = $('#script-container');
+      const footer = $('#current-cue-footer');
+      const footerHeight = footer.length > 0 ? (footer.outerHeight() ?? 0) : 0;
       const startPos = scriptContainer.offset().top;
-      const boxHeight = document.documentElement.clientHeight - startPos;
+      const boxHeight = document.documentElement.clientHeight - startPos - footerHeight;
       scriptContainer.height(boxHeight - 10);
       this.computeScriptBoundaries();
+    },
+    observeFooterResize() {
+      (this as any).footerResizeObserver?.disconnect();
+      (this as any).footerResizeObserver = null;
+      const footer = document.getElementById('current-cue-footer');
+      if (footer) {
+        (this as any).footerResizeObserver = new ResizeObserver(() => this.debounceContentSize());
+        (this as any).footerResizeObserver.observe(footer);
+      }
     },
 
     // Line/cue helpers

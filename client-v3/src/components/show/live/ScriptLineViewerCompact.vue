@@ -168,7 +168,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useScriptNavigation } from '@/composables/useScriptNavigation';
+import { useScriptNavigation, getPreviousLineAcrossPages } from '@/composables/useScriptNavigation';
 import { useScriptDisplay } from '@/composables/useScriptDisplay';
 import { useCueDisplay } from '@/composables/useCueDisplay';
 import { useScriptStore } from '@/stores/script';
@@ -232,9 +232,7 @@ const needsActSceneLabel = computed(() =>
 const needsIntervalBanner = computed(() => {
   let prev: ScriptLine | null = props.previousLine;
   while (prev != null && isWholeLineCut(prev, props.cuts)) {
-    const prevPage = scriptStore.getScriptPage(prev.page ?? 0);
-    const idx = prevPage.indexOf(prev);
-    prev = idx > 0 ? prevPage[idx - 1] : null;
+    prev = getPreviousLineAcrossPages(prev, scriptStore.getScriptPage);
   }
   if (prev == null || prev.act_id === props.line.act_id) return false;
   const prevAct = props.acts.find((a) => a.id === prev!.act_id);

@@ -107,6 +107,19 @@
               />
             </BFormGroup>
 
+            <BFormGroup
+              label-cols="4"
+              label="Show current cue footer in Live view"
+              label-for="show-current-cue-footer-input"
+            >
+              <BFormCheckbox
+                id="show-current-cue-footer-input"
+                v-model="state.show_current_cue_footer"
+                name="show-current-cue-footer-input"
+                switch
+              />
+            </BFormGroup>
+
             <BFormGroup label-cols="4" label="Preferred UI Version" label-for="preferred-ui-input">
               <BFormSelect
                 id="preferred-ui-input"
@@ -160,6 +173,7 @@ const defaultState = (): UserSettings => ({
   character_mru_sort: false,
   character_combined_dropdown: false,
   preferred_ui: null,
+  show_current_cue_footer: true,
 });
 
 const state = ref<UserSettings>(defaultState());
@@ -200,6 +214,7 @@ const rules = computed(() => ({
   character_mru_sort: {},
   character_combined_dropdown: {},
   preferred_ui: {},
+  show_current_cue_footer: {},
 }));
 
 const v$ = useVuelidate(rules, state);
