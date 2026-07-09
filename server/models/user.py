@@ -100,6 +100,8 @@ class UserSettings(db.Model):
     character_combined_dropdown: Mapped[bool] = mapped_column(default=False)
     preferred_ui: Mapped[str | None] = mapped_column(default=None)
     table_page_sizes: Mapped[dict | None] = mapped_column(JSON, default=None)
+    default_sd_text_colour: Mapped[str | None] = mapped_column(default=None)
+    default_sd_background_colour: Mapped[str | None] = mapped_column(default=None)
 
     __table_args__ = (
         CheckConstraint(

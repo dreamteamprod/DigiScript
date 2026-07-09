@@ -1,268 +1,327 @@
 <template>
-  <b-table
-    v-if="CURRENT_SHOW != null"
-    id="stage-directions-table"
-    :items="tableData"
-    :fields="columns"
-    :per-page="rowsPerPage"
-    :current-page="currentPage"
-    show-empty
-  >
-    <template #head(btn)="data">
-      <b-button
-        v-b-modal.new-override-select
-        variant="outline-success"
-        :disabled="overrideChoices.length <= 1"
-      >
-        New Override
-      </b-button>
-      <b-modal
-        id="new-override-select"
-        ref="new-override-select"
-        title="Add New Override"
-        :ok-disabled="newStyleFormState.styleId == null || isSubmittingNew"
-        @show="resetOverrideSelect"
-        @ok="openNewOverrideModal"
-      >
-        <b-form>
-          <b-form-select v-model="newStyleFormState.styleId" :options="overrideChoices" />
-        </b-form>
-      </b-modal>
-      <b-modal
-        id="new-override-modal"
-        ref="new-override-modal"
-        title="Add New Override"
-        size="lg"
-        :ok-disabled="isSubmittingNew"
-        @hidden="resetNewFormState"
-        @ok="onSubmitNewOverride"
-      >
-        <div>
-          <h4>Example Stage Direction</h4>
-          <i class="example-stage-direction" :style="newFormExampleCss">
-            <template v-if="newStyleFormState.textFormat === 'upper'">
-              {{ exampleText | uppercase }}
-            </template>
-            <template v-else-if="newStyleFormState.textFormat === 'lower'">
-              {{ exampleText | lowercase }}
-            </template>
-            <template v-else>
-              {{ exampleText }}
-            </template>
-          </i>
-        </div>
-        <div>
-          <h4>Configuration Options</h4>
-          <b-form ref="new-config-form" @ok="onSubmitNewOverride">
-            <b-form-group
-              id="new-styling-group"
-              label="Default Styles"
-              label-for="new-styling-input"
-            >
-              <b-button-group id="new-styling-input">
-                <b-button
-                  v-for="(btn, idx) in $v.newStyleFormState.styleOptions.$model"
-                  :key="idx"
-                  :pressed.sync="btn.state"
-                  variant="primary"
-                >
-                  {{ btn.caption }}
-                </b-button>
-              </b-button-group>
-            </b-form-group>
-            <b-form-group
-              id="new-text-formatting-group"
-              label="Default Text Format"
-              label-for="new-text-format-input"
-            >
-              <b-form-select
-                id="new-text-format-input"
-                v-model="$v.newStyleFormState.textFormat.$model"
-              >
-                <b-form-select-option value="default"> Default </b-form-select-option>
-                <b-form-select-option value="upper"> Uppercase </b-form-select-option>
-                <b-form-select-option value="lower"> Lowercase </b-form-select-option>
-              </b-form-select>
-            </b-form-group>
-            <b-form-group
-              id="new-text-colour-input-group"
-              label="Text Colour"
-              label-for="new-text-colour-input"
-            >
-              <b-form-input
-                id="new-text-colour-input"
-                v-model="$v.newStyleFormState.textColour.$model"
-                name="new-text-colour-input"
-                type="color"
-                :state="validateNewStyleState('textColour')"
-                aria-describedby="new-colour-feedback"
-              />
-              <b-form-invalid-feedback id="new-colour-feedback">
-                This is a required field.
-              </b-form-invalid-feedback>
-            </b-form-group>
-            <b-form-group
-              id="new-background-colour-enable-group"
-              label="Background Colour"
-              label-for="new-background-colour-enable"
-            >
-              <b-form-checkbox
-                id="new-background-colour-enable"
-                v-model="$v.newStyleFormState.enableBackgroundColour.$model"
-                :switch="true"
-              />
-            </b-form-group>
-            <b-form-group
-              v-if="newStyleFormState.enableBackgroundColour"
-              id="new-background-colour-input-group"
-            >
-              <b-form-input
-                id="new-background-colour-picker"
-                v-model="$v.newStyleFormState.backgroundColour.$model"
-                name="new-background-colour-picker"
-                type="color"
-                :state="validateNewStyleState('textColour')"
-              />
-            </b-form-group>
-          </b-form>
-        </div>
-      </b-modal>
-      <b-modal
-        id="edit-override-modal"
-        ref="edit-override-modal"
-        title="Edit Override"
-        size="lg"
-        :ok-disabled="isSubmittingEdit"
-        @hidden="resetEditFormState"
-        @ok="onSubmitEditOverride"
-      >
-        <div>
-          <h4>Example Stage Direction</h4>
-          <i class="example-stage-direction" :style="editFormExampleCss">
-            <template v-if="editStyleFormState.textFormat === 'upper'">
-              {{ exampleText | uppercase }}
-            </template>
-            <template v-else-if="editStyleFormState.textFormat === 'lower'">
-              {{ exampleText | lowercase }}
-            </template>
-            <template v-else>
-              {{ exampleText }}
-            </template>
-          </i>
-        </div>
-        <div>
-          <h4>Configuration Options</h4>
-          <b-form ref="edit-config-form" @ok="onSubmitEditOverride">
-            <b-form-group
-              id="edit-styling-group"
-              label="Default Styles"
-              label-for="edit-styling-input"
-            >
-              <b-button-group id="edit-styling-input">
-                <b-button
-                  v-for="(btn, idx) in $v.editStyleFormState.styleOptions.$model"
-                  :key="idx"
-                  :pressed.sync="btn.state"
-                  variant="primary"
-                >
-                  {{ btn.caption }}
-                </b-button>
-              </b-button-group>
-            </b-form-group>
-            <b-form-group
-              id="edit-text-formatting-group"
-              label="Default Text Format"
-              label-for="edit-text-format-input"
-            >
-              <b-form-select
-                id="edit-text-format-input"
-                v-model="$v.editStyleFormState.textFormat.$model"
-              >
-                <b-form-select-option value="default"> Default </b-form-select-option>
-                <b-form-select-option value="upper"> Uppercase </b-form-select-option>
-                <b-form-select-option value="lower"> Lowercase </b-form-select-option>
-              </b-form-select>
-            </b-form-group>
-            <b-form-group
-              id="edit-text-colour-input-group"
-              label="Text Colour"
-              label-for="edit-text-colour-input"
-            >
-              <b-form-input
-                id="edit-text-colour-input"
-                v-model="$v.editStyleFormState.textColour.$model"
-                name="edit-text-colour-input"
-                type="color"
-                :state="validateEditStyleState('textColour')"
-                aria-describedby="edit-colour-feedback"
-              />
-              <b-form-invalid-feedback id="edit-colour-feedback">
-                This is a required field.
-              </b-form-invalid-feedback>
-            </b-form-group>
-            <b-form-group
-              id="edit-background-colour-enable-group"
-              label="Background Colour"
-              label-for="edit-background-colour-enable"
-            >
-              <b-form-checkbox
-                id="edit-background-colour-enable"
-                v-model="$v.editStyleFormState.enableBackgroundColour.$model"
-                :switch="true"
-              />
-            </b-form-group>
-            <b-form-group
-              v-if="editStyleFormState.enableBackgroundColour"
-              id="edit-background-colour-input-group"
-            >
-              <b-form-input
-                id="edit-background-colour-picker"
-                v-model="$v.editStyleFormState.backgroundColour.$model"
-                name="edit-background-colour-picker"
-                type="color"
-                :state="validateEditStyleState('textColour')"
-              />
-            </b-form-group>
-          </b-form>
-        </div>
-      </b-modal>
-    </template>
-    <template #cell(description)="data">
-      {{ STAGE_DIRECTION_STYLES.find((elem) => elem.id === data.item.settings.id).description }}
-    </template>
-    <template #cell(example)="data">
-      <i class="example-stage-direction" :style="exampleCss(data.item.settings)">
-        <template v-if="data.item.settings.text_format === 'upper'">
-          {{ exampleText | uppercase }}
-        </template>
-        <template v-else-if="data.item.settings.text_format === 'lower'">
-          {{ exampleText | lowercase }}
-        </template>
-        <template v-else>
+  <div>
+    <!-- Default stage direction style section -->
+    <b-card class="mb-3">
+      <template #header>
+        <strong>Default Stage Direction Style</strong>
+      </template>
+      <p class="text-muted small mb-2">
+        Applied to stage direction lines that have no specific style assigned.
+      </p>
+      <div class="d-flex align-items-center flex-wrap" style="gap: 0.75rem">
+        <i class="example-stage-direction" :style="defaultExampleCss">
           {{ exampleText }}
-        </template>
-      </i>
-    </template>
-    <template #cell(btn)="data">
-      <b-button-group>
+        </i>
+        <b-button variant="outline-primary" @click="openDefaultModal">Customise</b-button>
         <b-button
-          variant="warning"
-          :disabled="isSubmittingEdit || isDeleting"
-          @click="openEditStyleForm(data)"
+          variant="outline-secondary"
+          :disabled="!hasDefaultOverride || isSubmittingDefault"
+          @click="resetDefaultStyle"
         >
-          Edit
+          Reset to Default
         </b-button>
+      </div>
+    </b-card>
+
+    <b-modal
+      id="default-sd-style-modal"
+      ref="default-sd-style-modal"
+      title="Customise Default Stage Direction Style"
+      size="lg"
+      :ok-disabled="isSubmittingDefault"
+      @ok="onSubmitDefaultStyle"
+    >
+      <div class="mb-3">
+        <h4>Preview</h4>
+        <i class="example-stage-direction" :style="defaultFormExampleCss">
+          {{ exampleText }}
+        </i>
+      </div>
+      <b-form-group label="Background Colour" label-for="default-bg-colour-input">
+        <b-form-input
+          id="default-bg-colour-input"
+          v-model="defaultFormState.backgroundColour"
+          type="color"
+        />
+      </b-form-group>
+      <b-form-group label="Text Colour">
+        <b-form-checkbox v-model="defaultFormState.enableTextColour" :switch="true" class="mb-1">
+          Override text colour
+        </b-form-checkbox>
+        <b-form-input
+          v-if="defaultFormState.enableTextColour"
+          id="default-text-colour-input"
+          v-model="defaultFormState.textColour"
+          type="color"
+        />
+      </b-form-group>
+    </b-modal>
+
+    <b-table
+      v-if="CURRENT_SHOW != null"
+      id="stage-directions-table"
+      :items="tableData"
+      :fields="columns"
+      :per-page="rowsPerPage"
+      :current-page="currentPage"
+      show-empty
+    >
+      <template #head(btn)="data">
         <b-button
-          variant="danger"
-          :disabled="isSubmittingEdit || isDeleting"
-          @click="deleteStyleOverride(data)"
+          v-b-modal.new-override-select
+          variant="outline-success"
+          :disabled="overrideChoices.length <= 1"
         >
-          Delete
+          New Override
         </b-button>
-      </b-button-group>
-    </template>
-  </b-table>
-  <b-alert v-else variant="danger"> No show loaded. </b-alert>
+        <b-modal
+          id="new-override-select"
+          ref="new-override-select"
+          title="Add New Override"
+          :ok-disabled="newStyleFormState.styleId == null || isSubmittingNew"
+          @show="resetOverrideSelect"
+          @ok="openNewOverrideModal"
+        >
+          <b-form>
+            <b-form-select v-model="newStyleFormState.styleId" :options="overrideChoices" />
+          </b-form>
+        </b-modal>
+        <b-modal
+          id="new-override-modal"
+          ref="new-override-modal"
+          title="Add New Override"
+          size="lg"
+          :ok-disabled="isSubmittingNew"
+          @hidden="resetNewFormState"
+          @ok="onSubmitNewOverride"
+        >
+          <div>
+            <h4>Example Stage Direction</h4>
+            <i class="example-stage-direction" :style="newFormExampleCss">
+              <template v-if="newStyleFormState.textFormat === 'upper'">
+                {{ exampleText | uppercase }}
+              </template>
+              <template v-else-if="newStyleFormState.textFormat === 'lower'">
+                {{ exampleText | lowercase }}
+              </template>
+              <template v-else>
+                {{ exampleText }}
+              </template>
+            </i>
+          </div>
+          <div>
+            <h4>Configuration Options</h4>
+            <b-form ref="new-config-form" @ok="onSubmitNewOverride">
+              <b-form-group
+                id="new-styling-group"
+                label="Default Styles"
+                label-for="new-styling-input"
+              >
+                <b-button-group id="new-styling-input">
+                  <b-button
+                    v-for="(btn, idx) in $v.newStyleFormState.styleOptions.$model"
+                    :key="idx"
+                    :pressed.sync="btn.state"
+                    variant="primary"
+                  >
+                    {{ btn.caption }}
+                  </b-button>
+                </b-button-group>
+              </b-form-group>
+              <b-form-group
+                id="new-text-formatting-group"
+                label="Default Text Format"
+                label-for="new-text-format-input"
+              >
+                <b-form-select
+                  id="new-text-format-input"
+                  v-model="$v.newStyleFormState.textFormat.$model"
+                >
+                  <b-form-select-option value="default"> Default </b-form-select-option>
+                  <b-form-select-option value="upper"> Uppercase </b-form-select-option>
+                  <b-form-select-option value="lower"> Lowercase </b-form-select-option>
+                </b-form-select>
+              </b-form-group>
+              <b-form-group
+                id="new-text-colour-input-group"
+                label="Text Colour"
+                label-for="new-text-colour-input"
+              >
+                <b-form-input
+                  id="new-text-colour-input"
+                  v-model="$v.newStyleFormState.textColour.$model"
+                  name="new-text-colour-input"
+                  type="color"
+                  :state="validateNewStyleState('textColour')"
+                  aria-describedby="new-colour-feedback"
+                />
+                <b-form-invalid-feedback id="new-colour-feedback">
+                  This is a required field.
+                </b-form-invalid-feedback>
+              </b-form-group>
+              <b-form-group
+                id="new-background-colour-enable-group"
+                label="Background Colour"
+                label-for="new-background-colour-enable"
+              >
+                <b-form-checkbox
+                  id="new-background-colour-enable"
+                  v-model="$v.newStyleFormState.enableBackgroundColour.$model"
+                  :switch="true"
+                />
+              </b-form-group>
+              <b-form-group
+                v-if="newStyleFormState.enableBackgroundColour"
+                id="new-background-colour-input-group"
+              >
+                <b-form-input
+                  id="new-background-colour-picker"
+                  v-model="$v.newStyleFormState.backgroundColour.$model"
+                  name="new-background-colour-picker"
+                  type="color"
+                  :state="validateNewStyleState('textColour')"
+                />
+              </b-form-group>
+            </b-form>
+          </div>
+        </b-modal>
+        <b-modal
+          id="edit-override-modal"
+          ref="edit-override-modal"
+          title="Edit Override"
+          size="lg"
+          :ok-disabled="isSubmittingEdit"
+          @hidden="resetEditFormState"
+          @ok="onSubmitEditOverride"
+        >
+          <div>
+            <h4>Example Stage Direction</h4>
+            <i class="example-stage-direction" :style="editFormExampleCss">
+              <template v-if="editStyleFormState.textFormat === 'upper'">
+                {{ exampleText | uppercase }}
+              </template>
+              <template v-else-if="editStyleFormState.textFormat === 'lower'">
+                {{ exampleText | lowercase }}
+              </template>
+              <template v-else>
+                {{ exampleText }}
+              </template>
+            </i>
+          </div>
+          <div>
+            <h4>Configuration Options</h4>
+            <b-form ref="edit-config-form" @ok="onSubmitEditOverride">
+              <b-form-group
+                id="edit-styling-group"
+                label="Default Styles"
+                label-for="edit-styling-input"
+              >
+                <b-button-group id="edit-styling-input">
+                  <b-button
+                    v-for="(btn, idx) in $v.editStyleFormState.styleOptions.$model"
+                    :key="idx"
+                    :pressed.sync="btn.state"
+                    variant="primary"
+                  >
+                    {{ btn.caption }}
+                  </b-button>
+                </b-button-group>
+              </b-form-group>
+              <b-form-group
+                id="edit-text-formatting-group"
+                label="Default Text Format"
+                label-for="edit-text-format-input"
+              >
+                <b-form-select
+                  id="edit-text-format-input"
+                  v-model="$v.editStyleFormState.textFormat.$model"
+                >
+                  <b-form-select-option value="default"> Default </b-form-select-option>
+                  <b-form-select-option value="upper"> Uppercase </b-form-select-option>
+                  <b-form-select-option value="lower"> Lowercase </b-form-select-option>
+                </b-form-select>
+              </b-form-group>
+              <b-form-group
+                id="edit-text-colour-input-group"
+                label="Text Colour"
+                label-for="edit-text-colour-input"
+              >
+                <b-form-input
+                  id="edit-text-colour-input"
+                  v-model="$v.editStyleFormState.textColour.$model"
+                  name="edit-text-colour-input"
+                  type="color"
+                  :state="validateEditStyleState('textColour')"
+                  aria-describedby="edit-colour-feedback"
+                />
+                <b-form-invalid-feedback id="edit-colour-feedback">
+                  This is a required field.
+                </b-form-invalid-feedback>
+              </b-form-group>
+              <b-form-group
+                id="edit-background-colour-enable-group"
+                label="Background Colour"
+                label-for="edit-background-colour-enable"
+              >
+                <b-form-checkbox
+                  id="edit-background-colour-enable"
+                  v-model="$v.editStyleFormState.enableBackgroundColour.$model"
+                  :switch="true"
+                />
+              </b-form-group>
+              <b-form-group
+                v-if="editStyleFormState.enableBackgroundColour"
+                id="edit-background-colour-input-group"
+              >
+                <b-form-input
+                  id="edit-background-colour-picker"
+                  v-model="$v.editStyleFormState.backgroundColour.$model"
+                  name="edit-background-colour-picker"
+                  type="color"
+                  :state="validateEditStyleState('textColour')"
+                />
+              </b-form-group>
+            </b-form>
+          </div>
+        </b-modal>
+      </template>
+      <template #cell(description)="data">
+        {{ STAGE_DIRECTION_STYLES.find((elem) => elem.id === data.item.settings.id).description }}
+      </template>
+      <template #cell(example)="data">
+        <i class="example-stage-direction" :style="exampleCss(data.item.settings)">
+          <template v-if="data.item.settings.text_format === 'upper'">
+            {{ exampleText | uppercase }}
+          </template>
+          <template v-else-if="data.item.settings.text_format === 'lower'">
+            {{ exampleText | lowercase }}
+          </template>
+          <template v-else>
+            {{ exampleText }}
+          </template>
+        </i>
+      </template>
+      <template #cell(btn)="data">
+        <b-button-group>
+          <b-button
+            variant="warning"
+            :disabled="isSubmittingEdit || isDeleting"
+            @click="openEditStyleForm(data)"
+          >
+            Edit
+          </b-button>
+          <b-button
+            variant="danger"
+            :disabled="isSubmittingEdit || isDeleting"
+            @click="deleteStyleOverride(data)"
+          >
+            Delete
+          </b-button>
+        </b-button-group>
+      </template>
+    </b-table>
+    <b-alert v-else variant="danger"> No show loaded. </b-alert>
+  </div>
 </template>
 
 <script lang="ts">
@@ -270,6 +329,7 @@ import { defineComponent } from 'vue';
 import { mapGetters, mapActions } from 'vuex';
 import { required } from 'vuelidate/lib/validators';
 import log from 'loglevel';
+import { makeURL } from '@/js/utils';
 import paginationMixin from '@/mixins/paginationMixin';
 
 interface StyleOption {
@@ -333,7 +393,13 @@ export default defineComponent({
       } as EditStyleFormState,
       isSubmittingNew: false,
       isSubmittingEdit: false,
+      isSubmittingDefault: false,
       isDeleting: false,
+      defaultFormState: {
+        backgroundColour: '#483d8b',
+        enableTextColour: false,
+        textColour: '#FFFFFF',
+      },
     };
   },
   computed: {
@@ -423,7 +489,35 @@ export default defineComponent({
         background_colour: this.editStyleFormState.backgroundColour,
       };
     },
-    ...mapGetters(['CURRENT_SHOW', 'STAGE_DIRECTION_STYLES', 'STAGE_DIRECTION_STYLE_OVERRIDES']),
+    hasDefaultOverride(): boolean {
+      const s = (this as any).USER_SETTINGS ?? {};
+      return s.default_sd_background_colour != null || s.default_sd_text_colour != null;
+    },
+    defaultExampleCss(): Record<string, string> {
+      const s = (this as any).USER_SETTINGS ?? {};
+      const result: Record<string, string> = {
+        'background-color': s.default_sd_background_colour ?? 'darkslateblue',
+        'font-style': 'italic',
+      };
+      if (s.default_sd_text_colour) result['color'] = s.default_sd_text_colour;
+      return result;
+    },
+    defaultFormExampleCss(): Record<string, string> {
+      const result: Record<string, string> = {
+        'background-color': this.defaultFormState.backgroundColour,
+        'font-style': 'italic',
+      };
+      if (this.defaultFormState.enableTextColour) {
+        result['color'] = this.defaultFormState.textColour;
+      }
+      return result;
+    },
+    ...mapGetters([
+      'CURRENT_SHOW',
+      'STAGE_DIRECTION_STYLES',
+      'STAGE_DIRECTION_STYLE_OVERRIDES',
+      'USER_SETTINGS',
+    ]),
   },
   async beforeMount(): Promise<void> {
     await (this as any).GET_SHOW_DETAILS();
@@ -598,6 +692,57 @@ export default defineComponent({
         this.editStyleFormState.enableBackgroundColour = settings.enable_background_colour;
         this.editStyleFormState.backgroundColour = settings.background_colour;
         (this as any).$bvModal.show('edit-override-modal');
+      }
+    },
+    openDefaultModal(): void {
+      const s = (this as any).USER_SETTINGS ?? {};
+      this.defaultFormState.backgroundColour = s.default_sd_background_colour ?? '#483d8b';
+      this.defaultFormState.enableTextColour = s.default_sd_text_colour != null;
+      this.defaultFormState.textColour = s.default_sd_text_colour ?? '#FFFFFF';
+      (this as any).$bvModal.show('default-sd-style-modal');
+    },
+    async onSubmitDefaultStyle(event: Event): Promise<void> {
+      if (this.isSubmittingDefault) {
+        event.preventDefault();
+        return;
+      }
+      this.isSubmittingDefault = true;
+      try {
+        await fetch(makeURL('/api/v1/user/settings'), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            default_sd_background_colour: this.defaultFormState.backgroundColour,
+            default_sd_text_colour: this.defaultFormState.enableTextColour
+              ? this.defaultFormState.textColour
+              : null,
+          }),
+        });
+      } catch (error) {
+        log.error('Error updating default stage direction style:', error);
+        (this as any).$toast.error('Failed to update default stage direction style');
+        event.preventDefault();
+      } finally {
+        this.isSubmittingDefault = false;
+      }
+    },
+    async resetDefaultStyle(): Promise<void> {
+      if (this.isSubmittingDefault) return;
+      this.isSubmittingDefault = true;
+      try {
+        await fetch(makeURL('/api/v1/user/settings'), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            default_sd_background_colour: null,
+            default_sd_text_colour: null,
+          }),
+        });
+      } catch (error) {
+        log.error('Error resetting default stage direction style:', error);
+        (this as any).$toast.error('Failed to reset default stage direction style');
+      } finally {
+        this.isSubmittingDefault = false;
       }
     },
     ...mapActions([

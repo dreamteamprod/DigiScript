@@ -15,8 +15,18 @@ function getStageDirectionStyle(
   return override ? override.settings : style;
 }
 
-function stageDirectionStyling(style: StageDirectionStyle | null): Record<string, string> {
-  if (!style) return { 'background-color': 'darkslateblue', 'font-style': 'italic' };
+function stageDirectionStyling(
+  style: StageDirectionStyle | null,
+  defaultColors?: { background_colour?: string | null; text_colour?: string | null }
+): Record<string, string> {
+  if (!style) {
+    const result: Record<string, string> = {
+      'background-color': defaultColors?.background_colour ?? 'darkslateblue',
+      'font-style': 'italic',
+    };
+    if (defaultColors?.text_colour) result['color'] = defaultColors.text_colour;
+    return result;
+  }
   const result: Record<string, string> = {
     'font-weight': style.bold ? 'bold' : 'normal',
     'font-style': style.italic ? 'italic' : 'normal',

@@ -281,6 +281,7 @@ import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine, ScriptCut, StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
 import type { CueType } from '@/types/api/cues';
+import type { UserSettings } from '@/types/api/user';
 
 const props = defineProps<{
   line: ScriptLine;
@@ -359,7 +360,12 @@ const sceneLabel = computed(
 const stageDirectionStyle = computed(() =>
   getStageDirectionStyle(props.line, props.stageDirectionStyles, props.stageDirectionStyleOverrides)
 );
-const stageDirectionStylingObj = computed(() => computeStyling(stageDirectionStyle.value));
+const stageDirectionStylingObj = computed(() =>
+  computeStyling(stageDirectionStyle.value, {
+    background_colour: (userStore.userSettings as UserSettings).default_sd_background_colour,
+    text_colour: (userStore.userSettings as UserSettings).default_sd_text_colour,
+  })
+);
 
 const scriptTextAlign = computed(() => computeTextAlign(userStore.userSettings));
 const headingStyle = computed(() => ({ textAlign: scriptTextAlign.value }));
