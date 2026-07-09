@@ -319,6 +319,22 @@ export const useScriptStore = defineStore('script', {
       }
     },
 
+    async renumberCues(operations: { cue_id: number; new_ident: string }[]): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/cues/renumber'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operations }),
+      });
+      if (response.ok) {
+        await this.loadCues();
+        toast.success('Cues renumbered successfully!');
+      } else {
+        const data = await response.json().catch(() => ({}));
+        toast.error(data?.message ?? 'Unable to renumber cues');
+        throw new Error(data?.message ?? 'Failed to renumber cues');
+      }
+    },
+
     async deleteCue(cue: { cueId: number; lineId: number }): Promise<void> {
       const params = new URLSearchParams({
         cueId: String(cue.cueId),
