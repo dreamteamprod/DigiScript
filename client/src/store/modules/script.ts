@@ -486,6 +486,53 @@ const module: Module<ScriptState, RootState> = {
         });
         return { individual, groups, merged };
       },
+    LINE_ORDER_INDEX(state: ScriptState): Map<number, { page: number; index: number }> {
+      const index = new Map<number, { page: number; index: number }>();
+      for (const [pageStr, lines] of Object.entries(state.script)) {
+        const page = Number(pageStr);
+        lines.forEach((line, lineIndex) => {
+          if (line.id != null) index.set(line.id, { page, index: lineIndex });
+        });
+      }
+      return index;
+    },
+    ORDERED_CUE_ENTRIES(
+      state: ScriptState,
+      getters: any
+    ): { cue: Cue; page: number; index: number }[] {
+      const order = getters.LINE_ORDER_INDEX as Map<number, { page: number; index: number }>;
+      const entries: { cue: Cue; page: number; index: number }[] = [];
+      for (const [lineIdStr, cuesForLine] of Object.entries(state.cues)) {
+        const position = order.get(Number(lineIdStr));
+        if (!position) continue;
+        for (const cue of cuesForLine) {
+          entries.push({ cue, page: position.page, index: position.index });
+        }
+      }
+      entries.sort((a, b) => {
+        if (a.page !== b.page) return a.page - b.page;
+        if (a.index !== b.index) return a.index - b.index;
+        return (a.cue.line_position ?? 0) - (b.cue.line_position ?? 0);
+      });
+      return entries;
+    },
+    LAST_CUE_PER_TYPE_AT:
+      (_state: ScriptState, getters: any) =>
+      (page: number, lineIndex: number): Record<number, Cue> => {
+        const entries = getters.ORDERED_CUE_ENTRIES as {
+          cue: Cue;
+          page: number;
+          index: number;
+        }[];
+        const result: Record<number, Cue> = {};
+        for (const entry of entries) {
+          if (entry.page > page || (entry.page === page && entry.index > lineIndex)) break;
+          if (entry.cue.cue_type_id != null) {
+            result[entry.cue.cue_type_id] = entry.cue;
+          }
+        }
+        return result;
+      },
     SCRIPT_CUTS(state: ScriptState) {
       return state.cuts;
     },

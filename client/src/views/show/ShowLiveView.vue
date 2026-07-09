@@ -66,7 +66,9 @@
             :interval-active="CURRENT_SHOW_INTERVAL != null"
             :script-mode="CURRENT_SHOW?.script_mode || 1"
             :stage-manager-mode="stageManagerMode"
+            :show-current-cue-footer="!!USER_SETTINGS.show_current_cue_footer"
             @page-change="currentPage = $event"
+            @current-line-change="currentLineOnPage = $event"
           />
         </split-pane>
         <split-pane v-if="stageManagerMode" :size="20">
@@ -74,6 +76,12 @@
         </split-pane>
       </split-panes>
     </b-overlay>
+    <current-cue-footer
+      v-if="USER_SETTINGS.show_current_cue_footer"
+      :current-page="currentPage"
+      :current-line-on-page="currentLineOnPage"
+      :cue-types="CUE_TYPES"
+    />
   </b-container>
 </template>
 
@@ -84,12 +92,14 @@ import { mapGetters, mapActions } from 'vuex';
 import { formatTimerParts, msToTimerParts, msToTimerString } from '@/js/utils';
 import ScriptViewPane from '@/vue_components/show/live/ScriptViewPane.vue';
 import StageManagerPane from '@/vue_components/show/live/StageManagerPane.vue';
+import CurrentCueFooter from '@/vue_components/show/live/CurrentCueFooter.vue';
 
 export default defineComponent({
   name: 'ShowLiveView',
   components: {
     ScriptViewPane,
     StageManagerPane,
+    CurrentCueFooter,
   },
   data() {
     return {
@@ -98,6 +108,7 @@ export default defineComponent({
       startTime: null as Date | null,
       loadedSessionData: false,
       currentPage: 1,
+      currentLineOnPage: 0,
       intervalTimer: null as ReturnType<typeof setInterval> | null,
       intervalStartDate: null as Date | null,
       isIntervalLong: false,
@@ -158,6 +169,8 @@ export default defineComponent({
       'INTERNAL_UUID',
       'SESSION_FOLLOW_DATA',
       'CURRENT_SHOW_INTERVAL',
+      'USER_SETTINGS',
+      'CUE_TYPES',
     ]),
     ...mapGetters({
       stageManagerMode: 'STAGE_MANAGER_MODE',

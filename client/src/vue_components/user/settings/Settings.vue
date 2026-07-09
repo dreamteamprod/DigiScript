@@ -104,6 +104,18 @@
               </b-form-group>
               <b-form-group
                 :label-cols="true"
+                label="Show current cue footer in Live view"
+                label-for="show-current-cue-footer-input"
+              >
+                <b-form-checkbox
+                  id="show-current-cue-footer-input"
+                  v-model="$v.editSettings.show_current_cue_footer.$model"
+                  name="show-current-cue-footer-input"
+                  :switch="true"
+                />
+              </b-form-group>
+              <b-form-group
+                :label-cols="true"
                 label="Preferred UI Version"
                 label-for="preferred-ui-input"
               >
@@ -155,6 +167,7 @@ export default defineComponent({
         character_mru_sort: false,
         character_combined_dropdown: false,
         preferred_ui: null as string | null,
+        show_current_cue_footer: true,
       },
       textAlignmentOptions: [
         { value: TEXT_ALIGNMENT.LEFT, text: 'Left' },
@@ -207,6 +220,7 @@ export default defineComponent({
       character_mru_sort: {},
       character_combined_dropdown: {},
       preferred_ui: { isValidUi: (val: unknown) => val === null || val === 'old' || val === 'new' },
+      show_current_cue_footer: {},
     },
   },
   mounted(): void {
