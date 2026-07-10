@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "electron-store": "^11.0.2",
-    "bonjour-service": "^1.4.2"
+    "bonjour-service": "^1.4.3"
   },
   "devDependencies": {
     "electron": "^40.6.1",
