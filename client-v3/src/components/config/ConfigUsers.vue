@@ -87,7 +87,7 @@
     >
       <BForm v-if="editFormState">
         <BFormGroup label="User Type">
-          <BFormCheckbox v-model="editFormState.is_admin" switch>
+          <BFormCheckbox v-model="editFormState.is_admin" :unchecked-value="false" switch>
             {{ editFormState.is_admin ? 'Admin' : 'Standard User' }}
           </BFormCheckbox>
         </BFormGroup>

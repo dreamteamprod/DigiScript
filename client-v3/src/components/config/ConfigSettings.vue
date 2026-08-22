@@ -75,6 +75,7 @@
                       v-model="editSettings[String(key)]"
                       :name="`${key}-input`"
                       :disabled="!setting.can_edit"
+                      :unchecked-value="false"
                       switch
                     />
                   </BFormGroup>
