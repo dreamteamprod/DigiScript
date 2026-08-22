@@ -248,7 +248,9 @@
         </BFormGroup>
 
         <BFormGroup>
-          <BFormCheckbox v-model="manualForm.sslEnabled">Use SSL (HTTPS)</BFormCheckbox>
+          <BFormCheckbox v-model="manualForm.sslEnabled" :unchecked-value="false"
+            >Use SSL (HTTPS)</BFormCheckbox
+          >
         </BFormGroup>
 
         <BButton

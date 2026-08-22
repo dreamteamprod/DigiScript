@@ -48,7 +48,7 @@
       </BFormGroup>
 
       <BFormGroup label="Live:" label-cols="auto" class="mb-0">
-        <BFormCheckbox v-model="liveRefresh" switch />
+        <BFormCheckbox v-model="liveRefresh" :unchecked-value="false" switch />
       </BFormGroup>
 
       <BButton :disabled="loading || liveRefresh" size="sm" variant="secondary" @click="fetchLogs">

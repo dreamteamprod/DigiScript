@@ -46,7 +46,12 @@
         />
       </BFormGroup>
       <BFormGroup label="Text Colour" label-for="default-text-colour-input">
-        <BFormCheckbox v-model="defaultFormState.enableTextColour" switch class="mb-1">
+        <BFormCheckbox
+          v-model="defaultFormState.enableTextColour"
+          :unchecked-value="false"
+          switch
+          class="mb-1"
+        >
           Override text colour
         </BFormCheckbox>
         <BFormInput
@@ -195,6 +200,7 @@
           <BFormCheckbox
             id="new-background-colour-enable"
             v-model="newStyleFormState.enableBackgroundColour"
+            :unchecked-value="false"
             switch
           />
         </BFormGroup>
@@ -270,6 +276,7 @@
           <BFormCheckbox
             id="edit-background-colour-enable"
             v-model="editStyleFormState.enableBackgroundColour"
+            :unchecked-value="false"
             switch
           />
         </BFormGroup>

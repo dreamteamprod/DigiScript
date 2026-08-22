@@ -13,6 +13,7 @@
                 id="enable-autosave-input"
                 v-model="state.enable_script_auto_save"
                 name="enable-autosave-input"
+                :unchecked-value="false"
                 switch
               />
             </BFormGroup>
@@ -43,6 +44,7 @@
                 id="cue-position-input"
                 v-model="state.cue_position_right"
                 name="cue-position-input"
+                :unchecked-value="false"
                 switch
               />
             </BFormGroup>
@@ -90,6 +92,7 @@
                 id="character-mru-sort-input"
                 v-model="state.character_mru_sort"
                 name="character-mru-sort-input"
+                :unchecked-value="false"
                 switch
               />
             </BFormGroup>
@@ -103,6 +106,7 @@
                 id="character-combined-dropdown-input"
                 v-model="state.character_combined_dropdown"
                 name="character-combined-dropdown-input"
+                :unchecked-value="false"
                 switch
               />
             </BFormGroup>
@@ -116,6 +120,7 @@
                 id="show-current-cue-footer-input"
                 v-model="state.show_current_cue_footer"
                 name="show-current-cue-footer-input"
+                :unchecked-value="false"
                 switch
               />
             </BFormGroup>
