@@ -73,7 +73,11 @@
           <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
         </BFormGroup>
         <BFormGroup label="Interval After" label-for="new-interval-input" label-cols="4">
-          <BFormCheckbox id="new-interval-input" v-model="newFormState.interval_after" />
+          <BFormCheckbox
+            id="new-interval-input"
+            v-model="newFormState.interval_after"
+            :unchecked-value="false"
+          />
         </BFormGroup>
         <BFormGroup label="Previous Act" label-for="new-previous-act-input" label-cols="4">
           <BFormSelect
@@ -104,7 +108,11 @@
           <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
         </BFormGroup>
         <BFormGroup label="Interval After" label-for="edit-interval-input" label-cols="4">
-          <BFormCheckbox id="edit-interval-input" v-model="editFormState.interval_after" />
+          <BFormCheckbox
+            id="edit-interval-input"
+            v-model="editFormState.interval_after"
+            :unchecked-value="false"
+          />
         </BFormGroup>
         <BFormGroup label="Previous Act" label-for="edit-previous-act-input" label-cols="4">
           <BFormSelect
