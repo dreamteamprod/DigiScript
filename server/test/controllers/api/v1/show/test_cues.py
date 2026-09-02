@@ -1821,3 +1821,285 @@ class TestCueLinePositionOrdering(DigiScriptTestCase):
         # Group must still come before the individual cue
         group_after = next(c for c in cues_after if c["group_id"] is not None)
         self.assertLess(group_after["line_position"], individual_after["line_position"])
+
+
+class TestCueRenumber(DigiScriptTestCase):
+    """Test suite for POST /api/v1/show/cues/renumber endpoint."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Initial"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
+            script.current_revision = revision.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+
+            line = ScriptLine(
+                act_id=act.id,
+                scene_id=scene.id,
+                page=1,
+                line_type=ScriptLineType.DIALOGUE,
+            )
+            session.add(line)
+            session.flush()
+            self.line_id = line.id
+
+            assoc = ScriptLineRevisionAssociation(
+                revision_id=revision.id, line_id=line.id
+            )
+            session.add(assoc)
+
+            cue_type = CueType(
+                show_id=show.id,
+                prefix="LX",
+                description="Lighting",
+                colour="#ff0000",
+            )
+            session.add(cue_type)
+            session.flush()
+            self.cue_type_id = cue_type.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.admin_token = self._create_and_login_admin()
+
+    def _add_cue(self, ident: str) -> int:
+        """Create a cue via API and return its ID."""
+        resp = self.fetch(
+            "/api/v1/show/cues",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"cueType": self.cue_type_id, "ident": ident, "lineId": self.line_id}
+            ),
+            headers={"Authorization": f"Bearer {self.admin_token}"},
+        )
+        self.assertEqual(200, resp.code, f"Failed to create cue '{ident}'")
+        # Fetch all cues and find the one just created
+        cues_resp = self.fetch(
+            "/api/v1/show/cues",
+            headers={"Authorization": f"Bearer {self.admin_token}"},
+        )
+        cues_data = tornado.escape.json_decode(cues_resp.body)
+        line_cues = cues_data["cues"].get(str(self.line_id), [])
+        return next(c["id"] for c in line_cues if c["ident"] == ident)
+
+    def _renumber(self, operations: list, token: str | None = None) -> object:
+        """Call the renumber endpoint and return the response."""
+        return self.fetch(
+            "/api/v1/show/cues/renumber",
+            method="POST",
+            body=tornado.escape.json_encode({"operations": operations}),
+            headers={"Authorization": f"Bearer {token or self.admin_token}"},
+        )
+
+    def test_renumber_success_simple(self):
+        """Cues sorted by float value get sequential integer idents."""
+        id_21 = self._add_cue("2.1")
+        id_1 = self._add_cue("1")
+        id_3 = self._add_cue("3")
+
+        resp = self._renumber(
+            [
+                {"cue_id": id_21, "new_ident": "2"},
+                {"cue_id": id_1, "new_ident": "1"},
+                {"cue_id": id_3, "new_ident": "3"},
+            ]
+        )
+        self.assertEqual(200, resp.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual("1", session.get(Cue, id_1).ident)
+            self.assertEqual("2", session.get(Cue, id_21).ident)
+            self.assertEqual("3", session.get(Cue, id_3).ident)
+
+    def test_renumber_in_place_when_no_other_revision(self):
+        """Cue only in the current revision is updated in place (no fork)."""
+        cue_id = self._add_cue("2.1")
+
+        resp = self._renumber([{"cue_id": cue_id, "new_ident": "1"}])
+        self.assertEqual(200, resp.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            cue = session.get(Cue, cue_id)
+            self.assertEqual("1", cue.ident)
+            # Same object ID — no fork created
+            self.assertEqual(cue_id, cue.id)
+
+    def test_renumber_applies_fork_correctly(self):
+        """Cue shared with another revision is forked; other revision is untouched."""
+        cue_id = self._add_cue("3")
+
+        with self._app.get_db().sessionmaker() as session:
+            script = session.scalars(
+                select(Script).where(Script.show_id == self.show_id)
+            ).first()
+            # Create a second revision that also references the same cue
+            rev2 = ScriptRevision(script_id=script.id, revision=2, description="Second")
+            session.add(rev2)
+            session.flush()
+            session.add(
+                CueAssociation(revision_id=rev2.id, line_id=self.line_id, cue_id=cue_id)
+            )
+            session.commit()
+            rev2_id = rev2.id
+
+        resp = self._renumber([{"cue_id": cue_id, "new_ident": "1"}])
+        self.assertEqual(200, resp.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            original_cue = session.get(Cue, cue_id)
+            # Original cue should be unchanged (belongs to rev2)
+            self.assertEqual("3", original_cue.ident)
+
+            # Current revision should now reference a new cue with the new ident
+            assoc = session.get(
+                CueAssociation,
+                {
+                    "revision_id": self.revision_id,
+                    "line_id": self.line_id,
+                    "cue_id": cue_id,
+                },
+            )
+            self.assertIsNone(assoc, "Old association should have been replaced")
+
+            rev_assocs = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision_id
+                )
+            ).all()
+            self.assertEqual(1, len(rev_assocs))
+            new_cue = session.get(Cue, rev_assocs[0].cue_id)
+            self.assertIsNotNone(new_cue)
+            self.assertEqual("1", new_cue.ident)
+            self.assertNotEqual(cue_id, new_cue.id)
+
+            # Second revision still references the original cue unchanged
+            rev2_assocs = session.scalars(
+                select(CueAssociation).where(CueAssociation.revision_id == rev2_id)
+            ).all()
+            self.assertEqual(1, len(rev2_assocs))
+            self.assertEqual(cue_id, rev2_assocs[0].cue_id)
+
+    def test_renumber_empty_operations_returns_400(self):
+        """Empty operations list returns 400."""
+        resp = self._renumber([])
+        self.assertEqual(400, resp.code)
+        body = tornado.escape.json_decode(resp.body)
+        self.assertIn("Operations list cannot be empty", body["message"])
+
+    def test_renumber_missing_operations_key_returns_400(self):
+        """Request body without 'operations' key returns 400."""
+        resp = self.fetch(
+            "/api/v1/show/cues/renumber",
+            method="POST",
+            body=tornado.escape.json_encode({}),
+            headers={"Authorization": f"Bearer {self.admin_token}"},
+        )
+        self.assertEqual(400, resp.code)
+        body = tornado.escape.json_decode(resp.body)
+        self.assertIn("Operations list is required", body["message"])
+
+    def test_renumber_ident_too_long_returns_400(self):
+        """Ident longer than 50 characters returns 400."""
+        cue_id = self._add_cue("1")
+        resp = self._renumber([{"cue_id": cue_id, "new_ident": "x" * 51}])
+        self.assertEqual(400, resp.code)
+        body = tornado.escape.json_decode(resp.body)
+        self.assertIn("idents must be non-empty", body["message"])
+
+    def test_renumber_empty_ident_returns_400(self):
+        """Empty string ident returns 400."""
+        cue_id = self._add_cue("1")
+        resp = self._renumber([{"cue_id": cue_id, "new_ident": ""}])
+        self.assertEqual(400, resp.code)
+
+    def test_renumber_cue_not_in_revision_returns_400(self):
+        """Cue that belongs to a different revision returns 400."""
+        with self._app.get_db().sessionmaker() as session:
+            script = session.scalars(
+                select(Script).where(Script.show_id == self.show_id)
+            ).first()
+            rev2 = ScriptRevision(script_id=script.id, revision=2, description="Other")
+            session.add(rev2)
+            session.flush()
+            orphan_cue = Cue(cue_type_id=self.cue_type_id, ident="99")
+            session.add(orphan_cue)
+            session.flush()
+            # Associate with rev2 ONLY — not the current revision
+            session.add(
+                CueAssociation(
+                    revision_id=rev2.id, line_id=self.line_id, cue_id=orphan_cue.id
+                )
+            )
+            session.commit()
+            orphan_id = orphan_cue.id
+
+        resp = self._renumber([{"cue_id": orphan_id, "new_ident": "1"}])
+        self.assertEqual(400, resp.code)
+        body = tornado.escape.json_decode(resp.body)
+        self.assertIn("not associated with the current revision", body["message"])
+
+    def test_renumber_requires_show(self):
+        """Returns 400 when no show is loaded in settings."""
+        self._app.digi_settings.settings["current_show"].set_value(None)
+        try:
+            resp = self._renumber([{"cue_id": 1, "new_ident": "1"}])
+            self.assertEqual(400, resp.code)
+            self.assertIn(b"No show loaded", resp.body)
+        finally:
+            self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+
+    def test_renumber_no_live_session(self):
+        """Returns 409 when a live show session is active."""
+        with self._app.get_db().sessionmaker() as session:
+            show_session = ShowSession(
+                show_id=self.show_id,
+                script_revision_id=self.revision_id,
+            )
+            session.add(show_session)
+            session.flush()
+            session_id = show_session.id
+            show = session.get(Show, self.show_id)
+            show.current_session_id = session_id
+            session.commit()
+
+        try:
+            resp = self._renumber([{"cue_id": 1, "new_ident": "1"}])
+            self.assertEqual(409, resp.code)
+        finally:
+            with self._app.get_db().sessionmaker() as session:
+                show = session.get(Show, self.show_id)
+                show.current_session_id = None
+                ss = session.get(ShowSession, session_id)
+                if ss:
+                    session.delete(ss)
+                session.commit()
+
+    def test_renumber_forbidden_without_role(self):
+        """Non-admin user without WRITE role on the cue type gets 403."""
+        cue_id = self._add_cue("2.1")
+        user_token = self._create_and_login_user(self.admin_token)
+
+        resp = self._renumber([{"cue_id": cue_id, "new_ident": "1"}], token=user_token)
+        self.assertEqual(403, resp.code)

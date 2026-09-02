@@ -82,6 +82,14 @@ ERROR_CUE_ID_MISSING = "Cue ID missing"
 ERROR_IDENTIFIER_MISSING = "Identifier missing"
 ERROR_LINE_ID_MISSING = "Line ID missing"
 
+# Cue renumber
+ERROR_RENUMBER_OPERATIONS_MISSING = "Operations list is required"
+ERROR_RENUMBER_OPERATIONS_EMPTY = "Operations list cannot be empty"
+ERROR_RENUMBER_INVALID_IDENT = (
+    "All idents must be non-empty strings of 50 characters or less"
+)
+ERROR_RENUMBER_CUE_NOT_IN_REVISION = "Cue is not associated with the current revision"
+
 # Stage direction styles
 ERROR_TEXT_FORMAT_INVALID = "Text format missing or invalid"
 ERROR_TEXT_COLOUR_MISSING = "Text colour missing"
