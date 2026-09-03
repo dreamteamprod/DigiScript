@@ -1,5 +1,5 @@
 tornado==6.5.8
-sqlalchemy>=2.0.51,<2.1.0
+sqlalchemy>=2.0.52,<2.1.0
 python-dateutil==2.9.0.post0
 marshmallow-sqlalchemy>=1.5.0
 tornado-prometheus==0.1.2
@@ -10,5 +10,5 @@ marshmallow>=4.3.1,<5
 pyjwt[crypto]==2.13.0
 setuptools==82.0.1
 xkcdpass==1.30.0
-zeroconf==0.150.0
+zeroconf==0.151.3
 python-jsonpath==2.2.1

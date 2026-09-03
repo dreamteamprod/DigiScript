@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/DigiScript-2.iml" filepath="$PROJECT_DIR$/.idea/DigiScript-2.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/digiscript-server.iml" filepath="$PROJECT_DIR$/.idea/digiscript-server.iml" />
     </modules>
   </component>
 </project>
