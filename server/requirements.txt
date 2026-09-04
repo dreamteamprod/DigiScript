@@ -11,4 +11,5 @@ pyjwt[crypto]==2.13.0
 setuptools==82.0.1
 xkcdpass==1.30.0
 zeroconf==0.151.3
+pycrdt==0.14.4
 python-jsonpath==2.2.1

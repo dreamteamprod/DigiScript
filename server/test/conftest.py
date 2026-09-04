@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from sqlalchemy import inspect
@@ -6,7 +7,15 @@ from tornado import escape
 from tornado.testing import AsyncHTTPTestCase
 
 from digi_server.app_server import DigiScriptServer
+from digi_server.logger import add_logging_level
 from models import models
+
+
+# main.py registers the TRACE level for the real app process; tests bootstrap
+# DigiScriptServer directly and never import main.py, so register it here too —
+# otherwise any get_logger().trace(...) call raises AttributeError under test.
+if not hasattr(logging, "TRACE"):
+    add_logging_level("TRACE", logging.DEBUG - 5)
 
 
 class DigiScriptTestCase(AsyncHTTPTestCase):

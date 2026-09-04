@@ -24,6 +24,7 @@ class Session(db.Model):
     last_ping: Mapped[float | None] = mapped_column()
     last_pong: Mapped[float | None] = mapped_column()
     is_editor: Mapped[bool | None] = mapped_column(default=False, index=True)
+    is_cutting: Mapped[bool | None] = mapped_column(default=False, index=True)
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), index=True
     )
