@@ -60,6 +60,12 @@ class ScriptStatusController(BaseAPIController):
                 "editors": editors,
                 "cutters": cutters,
                 "hasDraft": has_draft,
+                # Backward-compatible fields for the current client-v3 single-editor
+                # UI (stores/scriptConfig.ts), which doesn't yet understand the
+                # collab `editors`/`cutters` model. Remove once client-v3 is
+                # migrated onto the new shape (see plans/COLLABORATIVE_EDITING_V3_PLAN.md).
+                "canRequestEdit": len(editors) == 0,
+                "currentEditor": editors[0]["internal_id"] if editors else None,
             }
 
             self.set_status(200)

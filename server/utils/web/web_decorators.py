@@ -6,7 +6,7 @@ from sqlalchemy import select
 from tornado.web import HTTPError
 
 from controllers.api.constants import ERROR_SCRIPT_DRAFT_ACTIVE
-from models.script import Script, ScriptRevision
+from models.script import Script
 from models.script_draft import ScriptDraft
 from models.show import Show
 from utils.web.base_controller import BaseController
@@ -52,8 +52,13 @@ def no_live_session(
 def no_active_script_draft(
     method: Callable[..., Optional[Awaitable[None]]],
 ) -> Callable[..., Optional[Awaitable[None]]]:
+    # A plain sync wrapper, matching the sibling decorators in this module —
+    # it works transparently whether the wrapped method is sync or async,
+    # since Tornado awaits a coroutine return value itself. An `async def`
+    # wrapper that `await`s the result breaks any sync handler it wraps
+    # (awaiting a sync method's None return raises TypeError).
     @functools.wraps(method)
-    async def wrapper(self: BaseController, *args, **kwargs):
+    def wrapper(self: BaseController, *args, **kwargs):
         with self.make_session() as session:
             show = session.get(Show, self.get_current_show()["id"])
             if show:
@@ -61,34 +66,22 @@ def no_active_script_draft(
                     select(Script).where(Script.show_id == show.id)
                 ).first()
 
-                if not script or not script.current_revision:
-                    return await method(self, *args, **kwargs)
+                if script and script.current_revision:
+                    current_revision_id = script.current_revision
 
-                revision: ScriptRevision = session.get(
-                    ScriptRevision, script.current_revision
-                )
-
-                current_revision_id = revision.id
-
-                active_draft = session.scalar(
-                    select(ScriptDraft).where(
-                        ScriptDraft.revision_id == current_revision_id
+                    active_draft = session.scalar(
+                        select(ScriptDraft).where(
+                            ScriptDraft.revision_id == current_revision_id
+                        )
                     )
-                )
-                if active_draft:
-                    self.set_status(409)
-                    await self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
-                    return
-
-                room_manager = getattr(self.application, "room_manager", None)
-                if room_manager:
-                    room = room_manager.get_active_room()
-                    if room and not room.is_empty:
+                    room_manager = getattr(self.application, "room_manager", None)
+                    room = room_manager.get_active_room() if room_manager else None
+                    if active_draft or (room and not room.is_empty):
                         self.set_status(409)
-                        await self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
-                        return
+                        self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
+                        return None
 
-        return await method(self, *args, **kwargs)
+        return method(self, *args, **kwargs)
 
     return wrapper
 

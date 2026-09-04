@@ -109,12 +109,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     try:
                         with app.get_db().sessionmaker() as session:
                             await room.broadcast_members(session)
-                        if was_editor and not room.has_editors:
-                            if room._dirty:
-                                await rm._checkpoint_room(room)
-                                await app.ws_send_to_all(
-                                    "NOOP", "GET_SCRIPT_REVISIONS", {}
-                                )
+                        if was_editor and not room.has_editors and room._dirty:
+                            await rm._checkpoint_room(room)
+                            await app.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
                     except Exception:
                         get_logger().exception("Error in on_close _broadcast callback")
                     finally:
@@ -481,6 +478,64 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             show = session.get(Show, current_show_id)
             return bool(show and show.current_session_id)
 
+    async def _get_current_show(self, session) -> Optional[Show]:
+        """Look up the currently-loaded Show, if any.
+
+        :param session: Active SQLAlchemy session.
+        :returns: The current Show, or None if no show is loaded.
+        """
+        current_show_id = await self.application.digi_settings.get("current_show")
+        return session.get(Show, current_show_id) if current_show_id else None
+
+    def _user_has_script_write_access(self, session, show: Optional[Show]) -> bool:
+        """Return True if the connected user is an admin or has WRITE on *show*.
+
+        :param session: Active SQLAlchemy session.
+        :param show: The current Show, or None.
+        :returns: True if the user may request script edit/cuts access.
+        """
+        user = session.get(User, self.current_user_id) if self.current_user_id else None
+        if not user:
+            return False
+        return user.is_admin or bool(
+            show and self.application.rbac.has_role(user, show, Role.WRITE)
+        )
+
+    async def _reject_script_room_op(self, action: str, key: str, reason: str) -> None:
+        """Send a script-room-op failure message.
+
+        :param action: The ACTION value to send (e.g. ``REQUEST_EDIT_FAILURE``).
+        :param key: The DATA key to carry the reason (``"reason"`` or ``"error"``).
+        :param reason: The human-readable failure reason.
+        """
+        await self.write_message(
+            {"OP": "NOOP", "ACTION": action, "DATA": {key: reason}}
+        )
+
+    async def _require_editor_write_access(self, session, entry) -> bool:
+        """Verify the session is an active editor with WRITE permission.
+
+        Used by ``SAVE_SCRIPT_DRAFT`` / ``DISCARD_SCRIPT_DRAFT``, which both require
+        the requester to already hold editor status on top of RBAC WRITE. Sends a
+        ``COLLAB_ERROR`` and returns False on failure.
+
+        :param session: Active SQLAlchemy session.
+        :param entry: The requester's Session row, or None.
+        :returns: True if the requester may proceed.
+        """
+        if entry is None or not entry.is_editor:
+            await self._reject_script_room_op(
+                "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
+            )
+            return False
+        show = await self._get_current_show(session)
+        if not self._user_has_script_write_access(session, show):
+            await self._reject_script_room_op(
+                "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
+            )
+            return False
+        return True
+
     async def _handle_script_room_op(self, ws_op: str, message: dict):
         """Handle script room and collaborative editing WebSocket operations.
 
@@ -503,39 +558,21 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         "(race with on_close?)"
                     )
                     return
-                current_show_id = await self.application.digi_settings.get(
-                    "current_show"
-                )
-                show = session.get(Show, current_show_id) if current_show_id else None
+                show = await self._get_current_show(session)
 
                 if show and show.current_session_id:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
-                        }
+                    await self._reject_script_room_op(
+                        "REQUEST_EDIT_FAILURE",
+                        "reason",
+                        ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
                     )
                     return
 
-                user = (
-                    session.get(User, self.current_user_id)
-                    if self.current_user_id
-                    else None
-                )
-                if not user or (
-                    not user.is_admin
-                    and (
-                        not show
-                        or not self.application.rbac.has_role(user, show, Role.WRITE)
-                    )
-                ):
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_INSUFFICIENT_PERMISSIONS},
-                        }
+                if not self._user_has_script_write_access(session, show):
+                    await self._reject_script_room_op(
+                        "REQUEST_EDIT_FAILURE",
+                        "reason",
+                        ERROR_INSUFFICIENT_PERMISSIONS,
                     )
                     return
 
@@ -573,39 +610,21 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         "(race with on_close?)"
                     )
                     return
-                current_show_id = await self.application.digi_settings.get(
-                    "current_show"
-                )
-                show = session.get(Show, current_show_id) if current_show_id else None
+                show = await self._get_current_show(session)
 
                 if show and show.current_session_id:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
-                        }
+                    await self._reject_script_room_op(
+                        "REQUEST_EDIT_FAILURE",
+                        "reason",
+                        ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
                     )
                     return
 
-                user = (
-                    session.get(User, self.current_user_id)
-                    if self.current_user_id
-                    else None
-                )
-                if not user or (
-                    not user.is_admin
-                    and (
-                        not show
-                        or not self.application.rbac.has_role(user, show, Role.WRITE)
-                    )
-                ):
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_INSUFFICIENT_PERMISSIONS},
-                        }
+                if not self._user_has_script_write_access(session, show):
+                    await self._reject_script_room_op(
+                        "REQUEST_EDIT_FAILURE",
+                        "reason",
+                        ERROR_INSUFFICIENT_PERMISSIONS,
                     )
                     return
 
@@ -901,38 +920,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 return
             with self.make_session() as session:
                 entry = session.get(Session, self.__getattribute__("internal_id"))
-                if entry is None or not entry.is_editor:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "COLLAB_ERROR",
-                            "DATA": {"error": ERROR_INSUFFICIENT_PERMISSIONS},
-                        }
-                    )
-                    return
-                current_show_id = await self.application.digi_settings.get(
-                    "current_show"
-                )
-                show = session.get(Show, current_show_id) if current_show_id else None
-                user = (
-                    session.get(User, self.current_user_id)
-                    if self.current_user_id
-                    else None
-                )
-                if not user or (
-                    not user.is_admin
-                    and (
-                        not show
-                        or not self.application.rbac.has_role(user, show, Role.WRITE)
-                    )
-                ):
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "COLLAB_ERROR",
-                            "DATA": {"error": ERROR_INSUFFICIENT_PERMISSIONS},
-                        }
-                    )
+                if not await self._require_editor_write_access(session, entry):
                     return
             await room_manager.save_room(self)
             await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
@@ -941,38 +929,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             # live session starts while a draft is open, so it must stay reachable.
             with self.make_session() as session:
                 entry = session.get(Session, self.__getattribute__("internal_id"))
-                if entry is None or not entry.is_editor:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "COLLAB_ERROR",
-                            "DATA": {"error": ERROR_INSUFFICIENT_PERMISSIONS},
-                        }
-                    )
-                    return
-                current_show_id = await self.application.digi_settings.get(
-                    "current_show"
-                )
-                show = session.get(Show, current_show_id) if current_show_id else None
-                user = (
-                    session.get(User, self.current_user_id)
-                    if self.current_user_id
-                    else None
-                )
-                if not user or (
-                    not user.is_admin
-                    and (
-                        not show
-                        or not self.application.rbac.has_role(user, show, Role.WRITE)
-                    )
-                ):
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "COLLAB_ERROR",
-                            "DATA": {"error": ERROR_INSUFFICIENT_PERMISSIONS},
-                        }
-                    )
+                if not await self._require_editor_write_access(session, entry):
                     return
             await room_manager.discard_room(self)
             await self.application.ws_send_to_all(

@@ -44,6 +44,9 @@ class TestScriptStatusController(DigiScriptTestCase):
         self.assertEqual([], body["editors"])
         self.assertEqual([], body["cutters"])
         self.assertFalse(body["hasDraft"])
+        # Backward-compat fields for the current (pre-collab) client-v3 UI
+        self.assertTrue(body["canRequestEdit"])
+        self.assertIsNone(body["currentEditor"])
 
     def test_get_script_config_with_editor(self):
         """GET with an editor session returns editor in list."""
@@ -68,6 +71,9 @@ class TestScriptStatusController(DigiScriptTestCase):
         self.assertEqual("editor123", body["editors"][0]["internal_id"])
         self.assertEqual("alice", body["editors"][0]["username"])
         self.assertEqual([], body["cutters"])
+        # Backward-compat fields: an existing editor disables the old UI's Edit button
+        self.assertFalse(body["canRequestEdit"])
+        self.assertEqual("editor123", body["currentEditor"])
 
     def test_get_script_config_with_cutter(self):
         """GET with a cutter session returns cutter in list."""
