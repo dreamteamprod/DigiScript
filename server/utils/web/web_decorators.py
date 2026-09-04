@@ -2,8 +2,13 @@ import functools
 from typing import Awaitable, Callable, List, Optional
 
 from jsonpath import JSONPatch
+from sqlalchemy import select
 from tornado.web import HTTPError
 
+from controllers.api.constants import ERROR_SCRIPT_DRAFT_ACTIVE
+from models.script import Script, ScriptRevision
+from models.script_draft import ScriptDraft
+from models.show import Show
 from utils.web.base_controller import BaseController
 
 
@@ -40,6 +45,50 @@ def no_live_session(
         if current_show and current_show["current_session_id"]:
             raise HTTPError(409, log_message="Current session in progress")
         return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def no_active_script_draft(
+    method: Callable[..., Optional[Awaitable[None]]],
+) -> Callable[..., Optional[Awaitable[None]]]:
+    @functools.wraps(method)
+    async def wrapper(self: BaseController, *args, **kwargs):
+        with self.make_session() as session:
+            show = session.get(Show, self.get_current_show()["id"])
+            if show:
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
+
+                if not script or not script.current_revision:
+                    return await method(self, *args, **kwargs)
+
+                revision: ScriptRevision = session.get(
+                    ScriptRevision, script.current_revision
+                )
+
+                current_revision_id = revision.id
+
+                active_draft = session.scalar(
+                    select(ScriptDraft).where(
+                        ScriptDraft.revision_id == current_revision_id
+                    )
+                )
+                if active_draft:
+                    self.set_status(409)
+                    await self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
+                    return
+
+                room_manager = getattr(self.application, "room_manager", None)
+                if room_manager:
+                    room = room_manager.get_active_room()
+                    if room and not room.is_empty:
+                        self.set_status(409)
+                        await self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
+                        return
+
+        return await method(self, *args, **kwargs)
 
     return wrapper
 
