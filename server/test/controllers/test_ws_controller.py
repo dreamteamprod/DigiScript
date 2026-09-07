@@ -13,16 +13,47 @@ from sqlalchemy import select
 from tornado.testing import gen_test
 from tornado.websocket import websocket_connect
 
-from models.script import Script, ScriptRevision
+from models.script import Script
 from models.script_draft import ScriptDraft
 from models.session import Session, ShowSession
-from models.show import Show, ShowScriptType
+from models.show import Show
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from test.helpers.script_fixtures import create_show_script_revision
 from utils.script_room_manager import ScriptRoom
 
 
-class TestWSControllerIntegration(DigiScriptTestCase):
+class _WSTestHelpers:
+    """Shared WS test helpers.
+
+    NOT a DigiScriptTestCase subclass on purpose — mixed into test classes
+    alongside DigiScriptTestCase so pytest/unittest never discovers this
+    class itself as a test case, and so subclasses share these methods
+    without inheriting each other's test_* methods (which plain TestCase
+    inheritance would silently re-run under the subclass too).
+    """
+
+    async def _connect_and_auth(self, user_id=None):
+        """Connect WS and authenticate.
+
+        :param user_id: User ID to authenticate as. If None, no auth is done.
+        :returns: Tuple of (ws, internal_uuid).
+        """
+        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
+        ws = await websocket_connect(ws_url)
+        msg = await ws.read_message()
+        uuid = json.loads(msg)["DATA"]
+        await ws.read_message()  # GET_SETTINGS
+        if user_id:
+            token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
+            await ws.write_message(
+                json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
+            )
+            await ws.read_message()  # WS_AUTH_SUCCESS
+        return ws, uuid
+
+
+class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
     """Test WebSocket controller query patterns via WebSocket connections."""
 
     def setUp(self):
@@ -44,45 +75,13 @@ class TestWSControllerIntegration(DigiScriptTestCase):
             self.user_id = self.admin_id
 
             # Show + Script + Revision (needed for RBAC and draft checks)
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
+            show, _script, revision = create_show_script_revision(session)
             self.show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Test Rev"
-            )
-            session.add(revision)
-            session.flush()
-            script.current_revision = revision.id
             self.revision_id = revision.id
 
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
-
-    async def _connect_and_auth(self, user_id=None):
-        """Connect WS and authenticate.
-
-        :param user_id: User ID to authenticate as. If None, no auth is done.
-        :returns: Tuple of (ws, internal_uuid).
-        """
-        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
-        ws = await websocket_connect(ws_url)
-        msg = await ws.read_message()
-        uuid = json.loads(msg)["DATA"]
-        await ws.read_message()  # GET_SETTINGS
-        if user_id:
-            token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
-            await ws.write_message(
-                json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
-            )
-            await ws.read_message()  # WS_AUTH_SUCCESS
-        return ws, uuid
 
     # ------------------------------------------------------------------
     # REQUEST_SCRIPT_EDIT tests
@@ -1106,7 +1105,7 @@ class TestWSControllerIntegration(DigiScriptTestCase):
         ws.close()
 
 
-class TestLiveSessionGuards(DigiScriptTestCase):
+class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
     """Tests that live show sessions block collaborative editing operations."""
 
     def setUp(self):
@@ -1117,21 +1116,8 @@ class TestLiveSessionGuards(DigiScriptTestCase):
             session.flush()
             self.admin_id = admin.id
 
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
+            show, _script, revision = create_show_script_revision(session)
             self.show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Test Rev"
-            )
-            session.add(revision)
-            session.flush()
-            script.current_revision = revision.id
             self.revision_id = revision.id
 
             session.commit()
@@ -1154,25 +1140,6 @@ class TestLiveSessionGuards(DigiScriptTestCase):
             show.current_session_id = show_session.id
             session.commit()
             return show_session.id
-
-    async def _connect_and_auth(self, user_id=None):
-        """Connect WS and authenticate.
-
-        :param user_id: User ID to authenticate as. If None, no auth is done.
-        :returns: Tuple of (ws, internal_uuid).
-        """
-        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
-        ws = await websocket_connect(ws_url)
-        msg = await ws.read_message()
-        uuid = json.loads(msg)["DATA"]
-        await ws.read_message()  # GET_SETTINGS
-        if user_id:
-            token = self._app.jwt_service.create_access_token(data={"user_id": user_id})
-            await ws.write_message(
-                json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
-            )
-            await ws.read_message()  # WS_AUTH_SUCCESS
-        return ws, uuid
 
     @gen_test
     async def test_request_script_edit_blocked_by_live_session(self):

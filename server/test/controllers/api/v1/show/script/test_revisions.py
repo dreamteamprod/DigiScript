@@ -14,6 +14,7 @@ from models.script_draft import ScriptDraft
 from models.show import Act, Character, Scene, Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from test.helpers.script_fixtures import create_show_script_revision
 
 
 class TestScriptRevisionsController(DigiScriptTestCase):
@@ -1322,23 +1323,12 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
             session.flush()
             self.user_id = user.id
 
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-            self.script_id = script.id
-
-            revision1 = ScriptRevision(
-                script_id=script.id, revision=1, description="Initial"
+            show, script, revision1 = create_show_script_revision(
+                session, description="Initial"
             )
-            session.add(revision1)
-            session.flush()
+            self.show_id = show.id
+            self.script_id = script.id
             self.revision1_id = revision1.id
-            script.current_revision = revision1.id
 
             revision2 = ScriptRevision(
                 script_id=script.id,

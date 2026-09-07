@@ -12,11 +12,10 @@ from unittest.mock import MagicMock
 
 import tornado.escape
 
-from models.script import Script, ScriptRevision
 from models.script_draft import ScriptDraft
-from models.show import Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from test.helpers.script_fixtures import create_show_script_revision
 
 
 class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
@@ -34,24 +33,12 @@ class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
             session.flush()
             self.user_id = user.id
 
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-            self.script_id = script.id
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Initial"
+            show, script, revision = create_show_script_revision(
+                session, description="Initial"
             )
-            session.add(revision)
-            session.flush()
+            self.show_id = show.id
+            self.script_id = script.id
             self.revision_id = revision.id
-
-            script.current_revision = revision.id
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)

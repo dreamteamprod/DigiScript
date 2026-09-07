@@ -1,11 +1,10 @@
 import tornado.escape
 
-from models.script import Script, ScriptRevision
 from models.script_draft import ScriptDraft
 from models.session import Session
-from models.show import Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from test.helpers.script_fixtures import create_show_script_revision
 
 
 class TestScriptStatusController(DigiScriptTestCase):
@@ -15,23 +14,9 @@ class TestScriptStatusController(DigiScriptTestCase):
         super().setUp()
         # Create show + script + revision (needed for @requires_show)
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
+            show, _script, revision = create_show_script_revision(session)
             self.show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Test Rev"
-            )
-            session.add(revision)
-            session.flush()
-            script.current_revision = revision.id
             self.revision_id = revision.id
-
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
