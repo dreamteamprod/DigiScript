@@ -1,5 +1,5 @@
 import tornado.escape
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from models.cue import CueType
 from models.mics import Microphone
@@ -7,6 +7,7 @@ from models.script import Script, ScriptRevision
 from models.session import ShowSession
 from models.show import Act, Character, CharacterGroup, Scene, Show, ShowScriptType
 from models.user import User
+from rbac.role import Role
 from test.conftest import DigiScriptTestCase
 
 
@@ -340,6 +341,83 @@ class TestShowDeletionController(DigiScriptTestCase):
             )
             self.assertIsNotNone(
                 session.get(Show, self.show_a_id), "Loaded show must not be deleted"
+            )
+
+    def test_delete_show_cleans_up_rbac_mapping_rows(self):
+        """Deleting a show removes RBAC grants on the show itself and on any
+        cascade-deleted cue types/scripts.
+
+        This is handled entirely by the ``DigiDBSession`` delete-hook mechanism
+        (``check_object_deletion`` firing for both the show and every object
+        cascade-deleted with it) -- ``ShowsController.delete()`` has no explicit
+        RBAC cleanup call, deliberately, to verify the hook covers it.
+
+        :raises AssertionError: if any ``rbac_user_*`` row survives the deletion.
+        """
+        with self._app.get_db().sessionmaker() as session:
+            show_b = Show(name="RBAC Show", script_mode=ShowScriptType.FULL)
+            session.add(show_b)
+            session.flush()
+            show_b_id = show_b.id
+
+            script = Script(show_id=show_b_id)
+            session.add(script)
+            session.flush()
+            script_id = script.id
+
+            cue_type = CueType(show_id=show_b_id, prefix="LX", description="Lighting")
+            session.add(cue_type)
+            session.flush()
+            cue_type_id = cue_type.id
+
+            normal_user = User(
+                username="rbac_probe_user", is_admin=False, password="test"
+            )
+            session.add(normal_user)
+            session.flush()
+            normal_user_id = normal_user.id
+            session.commit()
+
+        with self._app.get_db().sessionmaker() as session:
+            show_b = session.get(Show, show_b_id)
+            script = session.get(Script, script_id)
+            cue_type = session.get(CueType, cue_type_id)
+            normal_user = session.get(User, normal_user_id)
+            self._app.rbac.give_role(normal_user, show_b, Role.READ)
+            self._app.rbac.give_role(normal_user, cue_type, Role.READ)
+            self._app.rbac.give_role(normal_user, script, Role.READ)
+
+        response = self._delete(show_b_id)
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual(
+                0,
+                session.execute(
+                    text("SELECT COUNT(*) FROM rbac_user_shows WHERE shows_id = :v"),
+                    {"v": show_b_id},
+                ).scalar(),
+                "rbac_user_shows row should be removed when the show is deleted",
+            )
+            self.assertEqual(
+                0,
+                session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM rbac_user_cuetypes WHERE cuetypes_id = :v"
+                    ),
+                    {"v": cue_type_id},
+                ).scalar(),
+                "rbac_user_cuetypes row should be removed when its show cascade-deletes"
+                " the cue type",
+            )
+            self.assertEqual(
+                0,
+                session.execute(
+                    text("SELECT COUNT(*) FROM rbac_user_script WHERE script_id = :v"),
+                    {"v": script_id},
+                ).scalar(),
+                "rbac_user_script row should be removed when its show cascade-deletes"
+                " the script",
             )
 
     def test_delete_currently_loaded_show(self):
