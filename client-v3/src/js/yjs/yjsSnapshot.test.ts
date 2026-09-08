@@ -75,8 +75,7 @@ describe('parseDbId', () => {
     expect(parseDbId('3fa85f64-5717-4562-b3fc-2c963f66afa6')).toBeNull();
   });
 
-  it('does not misread a UUID with a leading digit as a numeric prefix', () => {
-    expect(parseDbId('3fa85f64-5717-4562-b3fc-2c963f66afa6')).toBeNull();
+  it('does not misread a leading digit as a numeric prefix of a non-numeric string', () => {
     expect(parseDbId('9abc')).toBeNull();
   });
 });

@@ -57,11 +57,12 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     insertedLines: {} as Record<string, number[]>,
     editStatus: { canRequestEdit: false, currentEditor: null } as EditStatus,
     cutMode: false,
-    // Collab model (see plans/COLLABORATIVE_EDITING_V3_PLAN.md) — kept alongside the
-    // old single-editor editStatus above rather than in the new scriptDraft store,
-    // since GET_SCRIPT_CONFIG_STATUS can only be handled by one store's action
-    // (useWebSocket dispatches by camelCase name, first match wins). scriptDraft.ts
-    // exposes these same values via getters that read from here.
+    // Collab model fields, kept alongside the old single-editor editStatus above
+    // rather than in the newer scriptDraft store, since GET_SCRIPT_CONFIG_STATUS can
+    // only be handled by one store's action (useWebSocket dispatches by camelCase
+    // name, first match wins, across every instantiated store). scriptDraft.ts
+    // exposes these same values via getters that read from here instead of
+    // duplicating the fetch.
     editors: [] as ScriptConfigParticipant[],
     cutters: [] as ScriptConfigParticipant[],
     hasDraft: false,

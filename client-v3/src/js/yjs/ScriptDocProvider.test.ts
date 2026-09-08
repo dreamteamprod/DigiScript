@@ -33,7 +33,7 @@ describe('ScriptDocProvider', () => {
     const send = vi.fn();
     const provider = new ScriptDocProvider(doc, send);
 
-    provider.applyUpdate({ payload: bytesToBase64(remoteUpdate) });
+    expect(provider.applyUpdate({ payload: bytesToBase64(remoteUpdate) })).toBe(true);
 
     expect(send).not.toHaveBeenCalled();
     expect(doc.getMap('meta').get('revision_id')).toBe(42);
@@ -52,7 +52,7 @@ describe('ScriptDocProvider', () => {
     const send = vi.fn();
     const provider = new ScriptDocProvider(doc, send);
 
-    provider.applySync({ step: 0, payload: bytesToBase64(fullState) });
+    expect(provider.applySync({ step: 0, payload: bytesToBase64(fullState) })).toBe(true);
 
     expect(send).not.toHaveBeenCalled();
     expect(doc.getMap('meta').get('revision_id')).toBe(7);
@@ -71,7 +71,7 @@ describe('ScriptDocProvider', () => {
     const send = vi.fn();
     const provider = new ScriptDocProvider(doc, send);
 
-    provider.applySync({ step: 2, payload: bytesToBase64(diff) });
+    expect(provider.applySync({ step: 2, payload: bytesToBase64(diff) })).toBe(true);
 
     expect(send).not.toHaveBeenCalled();
     expect(doc.getMap('meta').get('revision_id')).toBe(99);
@@ -138,7 +138,7 @@ describe('ScriptDocProvider', () => {
     const send = vi.fn();
     const provider = new ScriptDocProvider(doc, send);
 
-    expect(() => provider.applySync({ step: 1, payload: '' })).not.toThrow();
+    expect(provider.applySync({ step: 1, payload: '' })).toBe(false);
     expect(send).not.toHaveBeenCalled();
 
     provider.destroy();
@@ -159,12 +159,16 @@ describe('ScriptDocProvider', () => {
     provider.destroy();
   });
 
-  it('swallows a corrupt payload instead of throwing', () => {
+  it('swallows a corrupt payload instead of throwing, and reports failure', () => {
     const doc = new Y.Doc();
     const send = vi.fn();
     const provider = new ScriptDocProvider(doc, send);
 
-    expect(() => provider.applyUpdate({ payload: 'not-valid-base64-yjs-data!!' })).not.toThrow();
+    let result: boolean | undefined;
+    expect(() => {
+      result = provider.applyUpdate({ payload: 'not-valid-base64-yjs-data!!' });
+    }).not.toThrow();
+    expect(result).toBe(false);
 
     provider.destroy();
   });

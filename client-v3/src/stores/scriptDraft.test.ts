@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import * as Y from 'yjs';
 import { useScriptDraftStore } from './scriptDraft';
 import { useScriptConfigStore } from './scriptConfig';
+import { useWebSocketStore } from './websocket';
 import { bytesToBase64 } from '@/js/yjs/base64';
 
 const sendObj = vi.fn();
@@ -14,10 +15,20 @@ vi.mock('@/js/toast', () => ({
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
 
+function makeRemoteUpdate(mutate: (doc: Y.Doc) => void): string {
+  const doc = new Y.Doc();
+  doc.transact(() => mutate(doc), 'local-edit');
+  return bytesToBase64(Y.encodeStateAsUpdate(doc));
+}
+
 describe('scriptDraft store', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     sendObj.mockClear();
+    // Every action that sends a WS message bails out early when the socket isn't
+    // open (see the dedicated tests for that behavior below) — default to connected
+    // so the rest of the suite exercises the normal path.
+    useWebSocketStore().isConnected = true;
   });
 
   // The Y.Doc/provider live in a module-level holder (see scriptDraft.ts), shared
@@ -35,20 +46,50 @@ describe('scriptDraft store', () => {
 
     expect(store.isDraftActive).toBe(true);
     expect(store.isDraftSynced).toBe(false);
-    expect(store.draftYdoc).not.toBeNull();
+    expect(store.getDraftYdoc()).not.toBeNull();
     expect(sendObj).toHaveBeenCalledWith({ OP: 'JOIN_SCRIPT_ROOM', DATA: {} });
+  });
+
+  it('does not join when the WS is not connected', () => {
+    useWebSocketStore().isConnected = false;
+    const store = useScriptDraftStore();
+
+    store.joinScriptRoom();
+
+    expect(store.isDraftActive).toBe(false);
+    expect(store.getDraftYdoc()).toBeNull();
+    expect(sendObj).not.toHaveBeenCalled();
   });
 
   it('ignores a second joinScriptRoom call while already active', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();
-    const doc = store.draftYdoc;
+    const doc = store.getDraftYdoc();
     sendObj.mockClear();
 
     store.joinScriptRoom();
 
     expect(sendObj).not.toHaveBeenCalled();
-    expect(store.draftYdoc).toBe(doc);
+    expect(store.getDraftYdoc()).toBe(doc);
+  });
+
+  it('tears down and rejoins if a doc exists but this instance is not marked active (stale-resource recovery)', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    const firstDoc = store.getDraftYdoc();
+    // Simulate a second store instance (a fresh Pinia — e.g. HMR) whose own
+    // isDraftActive starts false even though the module-level doc is still live.
+    setActivePinia(createPinia());
+    useWebSocketStore().isConnected = true;
+    const freshInstanceStore = useScriptDraftStore();
+    sendObj.mockClear();
+
+    expect(freshInstanceStore.isDraftActive).toBe(false);
+    freshInstanceStore.joinScriptRoom();
+
+    expect(freshInstanceStore.getDraftYdoc()).not.toBeNull();
+    expect(freshInstanceStore.getDraftYdoc()).not.toBe(firstDoc);
+    expect(sendObj).toHaveBeenCalledWith({ OP: 'JOIN_SCRIPT_ROOM', DATA: {} });
   });
 
   it('leaveScriptRoom sends LEAVE_SCRIPT_ROOM, destroys the doc, and resets state', () => {
@@ -60,36 +101,50 @@ describe('scriptDraft store', () => {
 
     expect(sendObj).toHaveBeenCalledWith({ OP: 'LEAVE_SCRIPT_ROOM', DATA: {} });
     expect(store.isDraftActive).toBe(false);
-    expect(store.draftYdoc).toBeNull();
+    expect(store.getDraftYdoc()).toBeNull();
+    expect(store.draftLastSavedAt).toBeNull();
   });
 
   it('yjsSync step=0 applies the full state and marks the draft synced', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();
 
-    const remoteDoc = new Y.Doc();
-    remoteDoc.transact(() => {
-      remoteDoc.getMap('meta').set('revision_id', 5);
-    }, 'local-edit');
-    const fullState = Y.encodeStateAsUpdate(remoteDoc);
+    const payload = makeRemoteUpdate((doc) => doc.getMap('meta').set('revision_id', 5));
     sendObj.mockClear();
 
-    store.yjsSync({ step: 0, payload: bytesToBase64(fullState) });
+    store.yjsSync({ step: 0, payload });
 
     expect(store.isDraftSynced).toBe(true);
     expect(store.isDraftDirty).toBe(false);
-    expect(store.draftYdoc?.getMap('meta').get('revision_id')).toBe(5);
+    expect(store.getDraftYdoc()?.getMap('meta').get('revision_id')).toBe(5);
     // Applying a server-originated sync must never be echoed back as a YJS_UPDATE.
     expect(sendObj).not.toHaveBeenCalled();
+  });
+
+  it('yjsSync step=0 with a corrupt payload does not mark the draft synced', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+
+    store.yjsSync({ step: 0, payload: 'not-valid-base64!!' });
+
+    expect(store.isDraftSynced).toBe(false);
+    expect(store.lastCollabError).not.toBeNull();
+  });
+
+  it('yjsSync/yjsUpdate are no-ops (and do not throw) with no active provider', () => {
+    const store = useScriptDraftStore();
+
+    expect(() => store.yjsSync({ step: 0, payload: 'x' })).not.toThrow();
+    expect(() => store.yjsUpdate({ payload: 'x' })).not.toThrow();
+    expect(store.isDraftSynced).toBe(false);
   });
 
   it('applying a remote update rebuilds the page snapshot without echoing it back', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();
 
-    const remoteDoc = new Y.Doc();
-    remoteDoc.transact(() => {
-      const pages = remoteDoc.getMap('pages');
+    const payload = makeRemoteUpdate((doc) => {
+      const pages = doc.getMap('pages');
       const pageArr = new Y.Array<Y.Map<unknown>>();
       pages.set('1', pageArr);
       const lineMap = new Y.Map<unknown>();
@@ -100,14 +155,29 @@ describe('scriptDraft store', () => {
       lineMap.set('stage_direction_style_id', 0);
       lineMap.set('parts', new Y.Array());
       pageArr.push([lineMap]);
-    }, 'local-edit');
+    });
     sendObj.mockClear();
 
-    store.yjsUpdate({ payload: bytesToBase64(Y.encodeStateAsUpdate(remoteDoc)) });
+    store.yjsUpdate({ payload });
 
     expect(store.getPageSnapshot('1')).toHaveLength(1);
     expect(store.getPageSnapshot('1')[0]._id).toBe('10');
     expect(sendObj).not.toHaveBeenCalled();
+  });
+
+  it('a remote update that only touches deleted_line_ids still refreshes deletedLineIds (pins the doc-wide listener, not a pages-scoped one)', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+
+    const payload = makeRemoteUpdate((doc) => {
+      doc.getArray<string>('deleted_line_ids').push(['77']);
+    });
+    sendObj.mockClear();
+
+    store.yjsUpdate({ payload });
+
+    expect(store.deletedLineIds).toEqual([77]);
+    expect(store.getPageSnapshot('1')).toEqual([]);
   });
 
   it('a genuine local edit after joining is sent as YJS_UPDATE', () => {
@@ -115,8 +185,8 @@ describe('scriptDraft store', () => {
     store.joinScriptRoom();
     sendObj.mockClear();
 
-    store.draftYdoc?.transact(() => {
-      store.draftYdoc?.getMap('meta').set('touched', true);
+    store.getDraftYdoc()?.transact(() => {
+      store.getDraftYdoc()?.getMap('meta').set('touched', true);
     }, 'local-edit');
 
     expect(sendObj).toHaveBeenCalledWith(expect.objectContaining({ OP: 'YJS_UPDATE' }));
@@ -135,22 +205,40 @@ describe('scriptDraft store', () => {
     // Mirror the real ID-patch shape: it rewrites a line's `_id` inside `pages`,
     // which is exactly the container refreshSnapshot's observer watches — a change
     // anywhere else (e.g. `meta`) wouldn't exercise this at all.
-    const remoteDoc = new Y.Doc();
-    remoteDoc.transact(() => {
-      const pages = remoteDoc.getMap('pages');
+    const payload = makeRemoteUpdate((doc) => {
+      const pages = doc.getMap('pages');
       const pageArr = new Y.Array<Y.Map<unknown>>();
       pages.set('1', pageArr);
       const lineMap = new Y.Map<unknown>();
       lineMap.set('_id', '501');
       lineMap.set('parts', new Y.Array());
       pageArr.push([lineMap]);
-    }, 'local-edit');
-    store.yjsUpdate({ payload: bytesToBase64(Y.encodeStateAsUpdate(remoteDoc)) });
+    });
+    store.yjsUpdate({ payload });
     expect(store.isDraftDirty).toBe(true);
 
     store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' });
 
     expect(store.isDraftDirty).toBe(false);
+  });
+
+  it('keeps isDraftDirty true if a genuine local edit lands after saveDraft() but before scriptSaved arrives', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.saveDraft();
+
+    // A real user edit, not a server-applied one — origin is 'local-edit', not
+    // SERVER_ORIGIN, so it must count against the pending save.
+    store.getDraftYdoc()?.transact(() => {
+      store.getDraftYdoc()?.getMap('meta').set('typed_more', true);
+    }, 'local-edit');
+    expect(store.isDraftDirty).toBe(true);
+
+    store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' });
+
+    // This save's response doesn't cover the edit made after it was requested —
+    // clearing isDraftDirty here would silently hide unsaved work.
+    expect(store.isDraftDirty).toBe(true);
   });
 
   it('roomMembers stores the member list', () => {
@@ -170,7 +258,7 @@ describe('scriptDraft store', () => {
     store.roomClosed();
 
     expect(store.isDraftActive).toBe(false);
-    expect(store.draftYdoc).toBeNull();
+    expect(store.getDraftYdoc()).toBeNull();
   });
 
   it('scriptSaved clears saving/dirty flags and records the timestamp', () => {
@@ -197,19 +285,46 @@ describe('scriptDraft store', () => {
     expect(store.lastCollabError).toBe('disk full');
   });
 
-  it('saveProgress records page/total progress', () => {
+  it('saveProgress records page/total/percent progress', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();
 
-    store.saveProgress({ page: 2, total: 5 });
+    store.saveProgress({ page: 2, total: 5, percent: 40 });
 
-    expect(store.pageSaveProgress).toEqual({ page: 2, total: 5 });
+    expect(store.pageSaveProgress).toEqual({ page: 2, total: 5, percent: 40 });
   });
 
-  it('collabError records the error message', () => {
+  it('collabError after a successful sync records the error but does not tear the room down', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+    expect(store.isDraftSynced).toBe(true);
+
+    store.collabError({ error: 'insufficient permissions' });
+
+    expect(store.lastCollabError).toBe('insufficient permissions');
+    expect(store.isDraftActive).toBe(true);
+    expect(store.getDraftYdoc()).not.toBeNull();
+  });
+
+  it('collabError while mid-join (active but never synced) tears the room down', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    expect(store.isDraftActive).toBe(true);
+    expect(store.isDraftSynced).toBe(false);
+
+    store.collabError({ error: 'No active revision' });
+
+    expect(store.lastCollabError).toBe('No active revision');
+    expect(store.isDraftActive).toBe(false);
+    expect(store.getDraftYdoc()).toBeNull();
+  });
+
+  it('collabError with no active join just records the error', () => {
     const store = useScriptDraftStore();
     store.collabError({ error: 'insufficient permissions' });
     expect(store.lastCollabError).toBe('insufficient permissions');
+    expect(store.isDraftActive).toBe(false);
   });
 
   it('saveDraft/discardDraft are no-ops when no draft is active', () => {
@@ -217,6 +332,19 @@ describe('scriptDraft store', () => {
     store.saveDraft();
     store.discardDraft();
     expect(sendObj).not.toHaveBeenCalled();
+  });
+
+  it('saveDraft/discardDraft do not send when the WS is not connected', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    sendObj.mockClear();
+    useWebSocketStore().isConnected = false;
+
+    store.saveDraft();
+    store.discardDraft();
+
+    expect(sendObj).not.toHaveBeenCalled();
+    expect(store.isDraftSaving).toBe(false);
   });
 
   it('editors/cutters getters read from the scriptConfig store', () => {

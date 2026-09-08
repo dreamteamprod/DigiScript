@@ -29,9 +29,9 @@ type SendFn = (data: object) => void;
  * directions over a caller-supplied `send` function (normally `useWebSocket().sendObj`).
  *
  * Holds no Vue reactivity of its own — callers must keep the `doc` (and this provider)
- * out of any `reactive()`/Pinia state, per the Vue-reactivity-vs-Yjs-internals hazard
- * documented in the plan (Vue's Proxy walks nested Yjs objects the same way Vue 2's
- * `defineProperty` did).
+ * out of any `reactive()`/Pinia state. Vue 3's Proxy walks nested objects the same way
+ * Vue 2's `defineProperty` did, and Yjs's internal bookkeeping (`_item`, `_map`,
+ * `doc`, ...) breaks under that walk.
  */
 export class ScriptDocProvider {
   readonly doc: Y.Doc;
@@ -72,26 +72,33 @@ export class ScriptDocProvider {
     });
   }
 
-  /** Apply an incoming YJS_SYNC message (step 0 = full initial state, step 2 = diff). */
-  applySync(message: YjsSyncMessage): void {
+  /**
+   * Apply an incoming YJS_SYNC message (step 0 = full initial state, step 2 = diff).
+   * Returns false if the payload was malformed and nothing was applied — callers must
+   * check this rather than assume success, since a caller that marks itself "synced"
+   * unconditionally would report a healthy state over an empty/stale doc.
+   */
+  applySync(message: YjsSyncMessage): boolean {
     if (message.step === 1) {
       log.warn('ScriptDocProvider: server sent YJS_SYNC step=1 (client-only direction), ignoring');
-      return;
+      return false;
     }
-    this.applyRemote(message.payload, 'YJS_SYNC');
+    return this.applyRemote(message.payload, 'YJS_SYNC');
   }
 
   /** Apply an incoming YJS_UPDATE message (another editor's change, or our own save's ID-patch). */
-  applyUpdate(message: YjsPayloadMessage): void {
-    this.applyRemote(message.payload, 'YJS_UPDATE');
+  applyUpdate(message: YjsPayloadMessage): boolean {
+    return this.applyRemote(message.payload, 'YJS_UPDATE');
   }
 
-  private applyRemote(payload: string, context: string): void {
+  private applyRemote(payload: string, context: string): boolean {
     try {
       const update = base64ToBytes(payload);
       Y.applyUpdate(this.doc, update, SERVER_ORIGIN);
+      return true;
     } catch (e) {
       log.error(`ScriptDocProvider: failed to apply ${context}`, e);
+      return false;
     }
   }
 

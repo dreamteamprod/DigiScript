@@ -12,10 +12,6 @@ export interface CollabErrorMessage {
   error: string;
 }
 
-export interface RequestEditFailureMessage {
-  reason: string;
-}
-
 export interface ScriptSavedMessage {
   last_saved_at: string;
 }
@@ -23,4 +19,5 @@ export interface ScriptSavedMessage {
 export interface SaveProgressMessage {
   page: number;
   total: number;
+  percent: number;
 }
