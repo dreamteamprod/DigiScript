@@ -158,11 +158,14 @@ def extract_lines_from_ydoc(
 # ---------------------------------------------------------------------------
 
 
-def _has_line_changed(ydoc_line: dict, db_id: int, session: DigiDBSession) -> bool:
+def _has_line_changed(
+    ydoc_line: dict, db_id: int, page_number: int, session: DigiDBSession
+) -> bool:
     """Compare a Y.Doc line dict against the current DB row.
 
     :param ydoc_line: Extracted line dict from the Y.Doc.
     :param db_id: The integer ``ScriptLine.id`` to compare against.
+    :param page_number: The page the line currently sits on in the Y.Doc.
     :param session: Active SQLAlchemy session.
     :returns: True if any field or part differs from the DB record.
     :raises ValueError: If *db_id* is not found in the database.
@@ -173,6 +176,8 @@ def _has_line_changed(ydoc_line: dict, db_id: int, session: DigiDBSession) -> bo
     if not existing_line:
         raise ValueError(f"Script line {db_id} not found in database.")
 
+    if existing_line.page != page_number:
+        return True
     if existing_line.act_id != ydoc_line["act_id"]:
         return True
     if existing_line.scene_id != ydoc_line["scene_id"]:
@@ -350,7 +355,7 @@ def _save_script_page(
                 )
                 continue
 
-            if _has_line_changed(line_data, db_id, session):
+            if _has_line_changed(line_data, db_id, page_number, session):
                 log.debug(
                     f"  [{idx}] CHANGED existing line db_id={db_id} "
                     f"(assoc line_id={curr_assoc.line_id})"
@@ -405,6 +410,8 @@ def _save_script_page(
                             revision_id=revision.id,
                             line_id=line_object.id,
                             cue_id=old_ca.cue_id,
+                            group_id=old_ca.group_id,
+                            sort_order=old_ca.sort_order,
                         )
                     )
                     session.delete(old_ca)

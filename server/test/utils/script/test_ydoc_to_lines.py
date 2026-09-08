@@ -10,7 +10,7 @@ import pycrdt
 import pytest
 from sqlalchemy import select
 
-from models.cue import Cue, CueAssociation, CueType
+from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
     Script,
     ScriptCuts,
@@ -351,7 +351,7 @@ class TestHasLineChanged(_ScriptTestSetup):
     def test_identical_content_returns_false(self):
         with self._app.get_db().sessionmaker() as session:
             assert (
-                _has_line_changed(self._make_ydoc_line(), self.line_id, session)
+                _has_line_changed(self._make_ydoc_line(), self.line_id, 1, session)
                 is False
             )
 
@@ -368,13 +368,13 @@ class TestHasLineChanged(_ScriptTestSetup):
             ]
         )
         with self._app.get_db().sessionmaker() as session:
-            assert _has_line_changed(line, self.line_id, session) is True
+            assert _has_line_changed(line, self.line_id, 1, session) is True
 
     def test_act_changed_returns_true(self):
         with self._app.get_db().sessionmaker() as session:
             assert (
                 _has_line_changed(
-                    self._make_ydoc_line(act_id=999), self.line_id, session
+                    self._make_ydoc_line(act_id=999), self.line_id, 1, session
                 )
                 is True
             )
@@ -383,7 +383,7 @@ class TestHasLineChanged(_ScriptTestSetup):
         with self._app.get_db().sessionmaker() as session:
             assert (
                 _has_line_changed(
-                    self._make_ydoc_line(scene_id=999), self.line_id, session
+                    self._make_ydoc_line(scene_id=999), self.line_id, 1, session
                 )
                 is True
             )
@@ -396,6 +396,7 @@ class TestHasLineChanged(_ScriptTestSetup):
                         line_type=ScriptLineType.STAGE_DIRECTION.value
                     ),
                     self.line_id,
+                    1,
                     session,
                 )
                 is True
@@ -407,8 +408,16 @@ class TestHasLineChanged(_ScriptTestSetup):
                 _has_line_changed(
                     self._make_ydoc_line(stage_direction_style_id=99),
                     self.line_id,
+                    1,
                     session,
                 )
+                is True
+            )
+
+    def test_page_changed_returns_true(self):
+        with self._app.get_db().sessionmaker() as session:
+            assert (
+                _has_line_changed(self._make_ydoc_line(), self.line_id, 2, session)
                 is True
             )
 
@@ -432,7 +441,7 @@ class TestHasLineChanged(_ScriptTestSetup):
             ]
         )
         with self._app.get_db().sessionmaker() as session:
-            assert _has_line_changed(line, self.line_id, session) is True
+            assert _has_line_changed(line, self.line_id, 1, session) is True
 
     def test_character_changed_returns_true(self):
         line = self._make_ydoc_line(
@@ -447,12 +456,12 @@ class TestHasLineChanged(_ScriptTestSetup):
             ]
         )
         with self._app.get_db().sessionmaker() as session:
-            assert _has_line_changed(line, self.line_id, session) is True
+            assert _has_line_changed(line, self.line_id, 1, session) is True
 
     def test_missing_db_row_raises_value_error(self):
         with self._app.get_db().sessionmaker() as session:
             with pytest.raises(ValueError):
-                _has_line_changed(self._make_ydoc_line(), 99999, session)
+                _has_line_changed(self._make_ydoc_line(), 99999, 1, session)
 
 
 # ---------------------------------------------------------------------------
@@ -851,8 +860,16 @@ class TestSaveScriptPage(_ScriptTestSetup):
             cue = Cue(cue_type_id=cue_type.id, ident="Q1")
             session.add(cue)
             session.flush()
+            cue_group = CueGroup(cue_type_id=cue_type.id)
+            session.add(cue_group)
+            session.flush()
+            cue_group_id = cue_group.id
             ca = CueAssociation(
-                revision_id=self.revision_id, line_id=old_line_id, cue_id=cue.id
+                revision_id=self.revision_id,
+                line_id=old_line_id,
+                cue_id=cue.id,
+                group_id=cue_group.id,
+                sort_order=3,
             )
             session.add(ca)
             session.flush()
@@ -872,6 +889,8 @@ class TestSaveScriptPage(_ScriptTestSetup):
             ).first()
         self.assertIsNotNone(new_ca)
         self.assertEqual(new_ca.line_id, new_line_id)
+        self.assertEqual(new_ca.group_id, cue_group_id)
+        self.assertEqual(new_ca.sort_order, 3)
 
     def test_script_cuts_migrated(self):
         """``ScriptCuts`` on old ``line_part_id`` migrated to new part after change."""

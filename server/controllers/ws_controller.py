@@ -757,7 +757,20 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     if ws_session and ws_session.is_editor:
                         role = "editor"
 
-            room = await room_manager.get_or_create_room(revision_id)
+            try:
+                room = await room_manager.get_or_create_room(revision_id)
+            except Exception:
+                get_logger().exception(
+                    f"Failed to build/load Y.Doc for revision {revision_id}"
+                )
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": "Failed to open script for editing"},
+                    }
+                )
+                return
             room.add_client(self, role)
 
             # Send initial sync: full document state
@@ -828,6 +841,11 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
             elif step == 2:
                 # Client sends its diff; server applies it
+                if room.clients.get(self) != "editor":
+                    await self._reject_script_room_op(
+                        "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
+                    )
+                    return
                 if await self._is_live_session_active():
                     await self.write_message(
                         {
@@ -860,6 +878,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         elif ws_op == "YJS_UPDATE":
             room = room_manager.get_room_for_client(self)
             if not room:
+                return
+
+            if room.clients.get(self) != "editor":
+                await self._reject_script_room_op(
+                    "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
+                )
                 return
 
             payload = data.get("payload", "")
@@ -961,4 +985,5 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 f"{self.__getattribute__('internal_id')} at IP address "
                 f"{self.request.remote_ip}, closing."
             )
+            self.on_close()
             return None

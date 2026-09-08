@@ -336,6 +336,12 @@ class ScriptRoom:
             session.commit()
             log.info(f"save_draft: revision={self.revision_id} commit successful")
 
+            # Capture state before mutating so we can compute the delta to broadcast.
+            # Must come before the deleted_line_ids wipe below — otherwise the wipe
+            # is already "in the past" relative to state_before and never makes it
+            # into the broadcast diff, leaving other clients with stale entries.
+            state_before = self.doc.get_state()
+
             # Wipe deleted_line_ids from the Y.Doc now that the commit succeeded.
             # Entries left here cause stale integer IDs to be re-processed on future
             # saves, which can delete freshly-created lines if SQLite reuses an ID.
@@ -344,9 +350,7 @@ class ScriptRoom:
             if n > 0:
                 del deleted_arr[0:n]
 
-            # Capture state before patching so we can compute the delta to broadcast.
             # Always update meta.last_saved_at so late-joining clients see the timestamp.
-            state_before = self.doc.get_state()
             meta = self.doc.get("meta", type=pycrdt.Map)
             meta["last_saved_at"] = datetime.datetime.now(
                 tz=datetime.timezone.utc
@@ -607,8 +611,35 @@ class RoomManager:
                     "Failed to notify client of successful save", exc_info=True
                 )
 
-        # Remove draft file and DB record (no longer needed after DB save)
-        await self._delete_draft(room.revision_id)
+        # Remove draft file and DB record (no longer needed after DB save). The
+        # ScriptLine changes above already committed, so a failure here does not
+        # undo the save — but it leaves the ScriptDraft row in place, which keeps
+        # the revision reporting as locked (see `_revision_is_locked`). Surface
+        # that to the requester rather than letting it propagate silently.
+        try:
+            await self._delete_draft(room.revision_id)
+        except Exception:
+            get_logger().exception(
+                f"Failed to delete draft after successful save for "
+                f"revision {room.revision_id}"
+            )
+            try:
+                await ws.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {
+                            "error": (
+                                "Save succeeded but draft cleanup failed; the "
+                                "revision may still show as locked"
+                            )
+                        },
+                    }
+                )
+            except Exception:
+                get_logger().warning(
+                    "Failed to notify client of draft cleanup failure", exc_info=True
+                )
 
         # Schedule script compilation (fire-and-forget)
         IOLoop.current().add_callback(
@@ -630,20 +661,41 @@ class RoomManager:
         room = self.get_room_for_client(ws)
         if room is not None:
             revision_id = room.revision_id
-            await self._delete_draft(revision_id)
-            await self.close_active_room()
         else:
             with self._application.get_db().sessionmaker() as session:
                 draft = session.scalar(select(ScriptDraft))
-            if draft is not None:
-                get_logger().info(
-                    f"Discarding draft for revision {draft.revision_id} (no active room)"
-                )
-                await self._delete_draft(draft.revision_id)
-            else:
+            revision_id = draft.revision_id if draft is not None else None
+            if revision_id is None:
                 get_logger().warning(
                     "discard_room called with no room and no active draft"
                 )
+                return
+            get_logger().info(
+                f"Discarding draft for revision {revision_id} (no active room)"
+            )
+
+        try:
+            await self._delete_draft(revision_id)
+        except Exception:
+            get_logger().exception(
+                f"Failed to discard draft for revision {revision_id}"
+            )
+            try:
+                await ws.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {"error": "Failed to discard draft"},
+                    }
+                )
+            except Exception:
+                get_logger().warning(
+                    "Failed to notify client of discard failure", exc_info=True
+                )
+            return
+
+        if room is not None:
+            await self.close_active_room()
 
     async def discard_active_room(self):
         """Discard the active draft without a WebSocket context (HTTP DELETE endpoint).
