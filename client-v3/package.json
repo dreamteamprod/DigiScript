@@ -83,7 +83,7 @@
     "vite": "^8.2.2",
     "vitest": "^4.1.11",
     "vue-eslint-parser": "^10.4.1",
-    "@playwright/test": "^1.62.1"
+    "@playwright/test": "^1.63.0"
   },
   "overrides": {
     "glob": "^13.0.6"
