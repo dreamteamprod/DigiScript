@@ -58,7 +58,7 @@
     "@types/node": "^26.4.1",
     "@types/vuelidate": "^0.7.22",
     "@typescript-eslint/eslint-plugin": "^8.69.0",
-    "@typescript-eslint/parser": "^8.69.0",
+    "@typescript-eslint/parser": "^8.70.0",
     "@vitejs/plugin-vue2": "2.3.4",
     "@vitest/ui": "^4.1.11",
     "@vue/test-utils": "^2.5.0",
