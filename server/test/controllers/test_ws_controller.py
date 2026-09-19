@@ -550,6 +550,7 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         members = members_data["DATA"]["members"]
         self.assertEqual(1, len(members))
         self.assertEqual("viewer", members[0]["role"])
+        self.assertTrue(members[0]["client_id"])
 
         ws.close()
 

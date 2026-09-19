@@ -223,7 +223,16 @@ class ScriptRoom:
                 user = session.get(User, user_id)
                 if user:
                     username = user.username or f"User {user_id}"
-            members.append({"user_id": user_id, "username": username, "role": role})
+            members.append(
+                {
+                    "user_id": user_id,
+                    "username": username,
+                    "role": role,
+                    # Per-connection key: user_id alone can't tell apart one user
+                    # connected from two tabs.
+                    "client_id": getattr(ws, "internal_id", None),
+                }
+            )
 
         message = {
             "OP": "NOOP",
