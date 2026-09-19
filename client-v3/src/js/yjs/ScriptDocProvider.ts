@@ -8,12 +8,14 @@ import { bytesToBase64, base64ToBytes } from './base64';
  * ID-patch broadcast). The local-update listener below skips this origin so those
  * applies are never re-sent to the server — without this guard a save's ID-patch
  * broadcast (which the server sends to *all* clients, including the one that saved)
- * would loop back out as a fresh YJS_UPDATE.
+ * would loop back out as a fresh YJS_UPDATE. A Symbol, not a string, so no other code
+ * using a string origin (e.g. `'local-edit'`) can ever collide with it.
  */
-export const SERVER_ORIGIN = 'server';
+export const SERVER_ORIGIN = Symbol('server');
 
-export interface YjsSyncMessage {
-  step: number;
+/** A YJS_SYNC message as the server sends it: full state (0) or a diff reply (2). */
+export interface ServerSyncMessage {
+  step: 0 | 2;
   payload: string;
 }
 
@@ -21,7 +23,17 @@ export interface YjsPayloadMessage {
   payload: string;
 }
 
-type SendFn = (data: object) => void;
+/** Every message this provider sends; the server dispatches on `OP`. */
+export type ClientMessage =
+  | { OP: 'JOIN_SCRIPT_ROOM'; DATA: Record<string, never> }
+  | { OP: 'LEAVE_SCRIPT_ROOM'; DATA: Record<string, never> }
+  | { OP: 'YJS_UPDATE'; DATA: { payload: string } }
+  | { OP: 'YJS_AWARENESS'; DATA: { payload: string } }
+  // Client→server step 1 is our state vector; step 2 would be a diff we push.
+  | { OP: 'YJS_SYNC'; DATA: { step: 1 | 2; payload: string } };
+
+/** Returns whether the message was actually handed to an open socket. */
+export type SendFn = (message: ClientMessage) => boolean;
 
 /**
  * Thin wrapper around a Y.Doc that speaks DigiScript's collab WS protocol: base64
@@ -38,35 +50,57 @@ export class ScriptDocProvider {
 
   private readonly send: SendFn;
 
+  private readonly onSendFailed: (() => void) | undefined;
+
+  private destroyed = false;
+
   private readonly onDocUpdate = (update: Uint8Array, origin: unknown): void => {
     if (origin === SERVER_ORIGIN) {
       return;
     }
-    this.send({ OP: 'YJS_UPDATE', DATA: { payload: bytesToBase64(update) } });
+    // A dropped local edit must not be silent: the doc keeps the change but the
+    // server never sees it, and a later save on another client won't include it.
+    if (!this.send({ OP: 'YJS_UPDATE', DATA: { payload: bytesToBase64(update) } })) {
+      this.onSendFailed?.();
+    }
   };
 
-  constructor(doc: Y.Doc, send: SendFn) {
+  constructor(doc: Y.Doc, send: SendFn, onSendFailed?: () => void) {
     this.doc = doc;
     this.send = send;
+    this.onSendFailed = onSendFailed;
     this.doc.on('update', this.onDocUpdate);
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.doc.off('update', this.onDocUpdate);
   }
 
-  join(): void {
-    this.send({ OP: 'JOIN_SCRIPT_ROOM', DATA: {} });
+  /** True once destroyed — every method then warns and does nothing rather than touching a dead doc. */
+  private isUsable(method: string): boolean {
+    if (this.destroyed) {
+      log.warn(`ScriptDocProvider: ${method} called after destroy(), ignoring`);
+      return false;
+    }
+    return true;
   }
 
-  leave(): void {
-    this.send({ OP: 'LEAVE_SCRIPT_ROOM', DATA: {} });
+  join(): boolean {
+    if (!this.isUsable('join')) return false;
+    return this.send({ OP: 'JOIN_SCRIPT_ROOM', DATA: {} });
   }
 
-  /** Ask the server for a diff since our current state (used on reconnect). */
-  requestSync(): void {
+  leave(): boolean {
+    if (!this.isUsable('leave')) return false;
+    return this.send({ OP: 'LEAVE_SCRIPT_ROOM', DATA: {} });
+  }
+
+  /** Ask the server for a diff since our current state. */
+  requestSync(): boolean {
+    if (!this.isUsable('requestSync')) return false;
     const stateVector = Y.encodeStateVector(this.doc);
-    this.send({
+    return this.send({
       OP: 'YJS_SYNC',
       DATA: { step: 1, payload: bytesToBase64(stateVector) },
     });
@@ -74,12 +108,15 @@ export class ScriptDocProvider {
 
   /**
    * Apply an incoming YJS_SYNC message (step 0 = full initial state, step 2 = diff).
-   * Returns false if the payload was malformed and nothing was applied — callers must
-   * check this rather than assume success, since a caller that marks itself "synced"
-   * unconditionally would report a healthy state over an empty/stale doc.
+   * Returns false if nothing was applied (malformed payload, or a step the server should
+   * never send) — callers must check this rather than assume success, since a caller
+   * that marks itself "synced" unconditionally would report a healthy state over an
+   * empty/stale doc.
    */
-  applySync(message: YjsSyncMessage): boolean {
-    if (message.step === 1) {
+  applySync(message: ServerSyncMessage): boolean {
+    if (!this.isUsable('applySync')) return false;
+    // The wire is untyped JSON, so guard the direction asymmetry at runtime too.
+    if ((message.step as number) === 1) {
       log.warn('ScriptDocProvider: server sent YJS_SYNC step=1 (client-only direction), ignoring');
       return false;
     }
@@ -88,6 +125,7 @@ export class ScriptDocProvider {
 
   /** Apply an incoming YJS_UPDATE message (another editor's change, or our own save's ID-patch). */
   applyUpdate(message: YjsPayloadMessage): boolean {
+    if (!this.isUsable('applyUpdate')) return false;
     return this.applyRemote(message.payload, 'YJS_UPDATE');
   }
 
@@ -102,7 +140,8 @@ export class ScriptDocProvider {
     }
   }
 
-  sendAwareness(update: Uint8Array): void {
-    this.send({ OP: 'YJS_AWARENESS', DATA: { payload: bytesToBase64(update) } });
+  sendAwareness(update: Uint8Array): boolean {
+    if (!this.isUsable('sendAwareness')) return false;
+    return this.send({ OP: 'YJS_AWARENESS', DATA: { payload: bytesToBase64(update) } });
   }
 }

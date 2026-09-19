@@ -2,6 +2,8 @@ export interface RoomMember {
   user_id: number | null;
   username: string;
   role: 'editor' | 'viewer';
+  /** Per-connection key — `user_id` alone can't tell one user's two tabs apart. */
+  client_id: string | null;
 }
 
 export interface RoomMembersMessage {

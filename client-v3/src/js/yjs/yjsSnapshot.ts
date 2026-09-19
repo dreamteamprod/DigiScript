@@ -1,30 +1,31 @@
 import * as Y from 'yjs';
+import log from 'loglevel';
 
 /**
  * One-way Y.Doc → plain-object snapshot builder. Never write back through these
- * types — editing (Phase 3) writes directly to the live Y.Map/Y.Text via
+ * types (hence `Readonly`) — editing writes directly to the live Y.Map/Y.Text via
  * `doc.transact()`, using the same `_id` to find the right node. These are for
  * rendering and for anything that just needs to read current draft content.
  */
 
-export interface SnapshotLinePart {
+export type SnapshotLinePart = Readonly<{
   _id: string;
   id: number | null;
   part_index: number;
   character_id: number | null;
   character_group_id: number | null;
   line_text: string;
-}
+}>;
 
-export interface SnapshotLine {
+export type SnapshotLine = Readonly<{
   _id: string;
   id: number | null;
   act_id: number | null;
   scene_id: number | null;
   line_type: number;
   stage_direction_style_id: number | null;
-  parts: SnapshotLinePart[];
-}
+  parts: readonly SnapshotLinePart[];
+}>;
 
 /** The Y.Doc field-level sentinel for "no value" is 0, not null (see build_ydoc). */
 export function zeroToNull(value: number): number | null {
@@ -47,35 +48,67 @@ export function parseDbId(rawId: unknown): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 }
 
+/** Read a numeric field, falling back (loudly) on a missing or non-numeric value. */
+function readNumber(map: Y.Map<unknown>, key: string, fallback: number): number {
+  const value = map.get(key);
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (value !== undefined) {
+    log.warn(`yjsSnapshot: expected a number for "${key}", got ${typeof value}; using ${fallback}`);
+  }
+  return fallback;
+}
+
+/**
+ * A line/part with no `_id` is corrupt, not new — new ones carry a UUID `_id`. Left
+ * alone, `String(undefined)` would yield "undefined", which `parseDbId` reads as
+ * null and so passes for a legitimate not-yet-saved line, a path straight into the
+ * server's save. Skip and log instead.
+ */
+function hasId(map: Y.Map<unknown>, kind: string): boolean {
+  const id = map.get('_id');
+  if (id == null || id === '') {
+    log.warn(`yjsSnapshot: skipping ${kind} with no _id`);
+    return false;
+  }
+  return true;
+}
+
 function ydocPartToPlain(partMap: Y.Map<unknown>): SnapshotLinePart {
   const rawId = String(partMap.get('_id'));
   const text = partMap.get('line_text');
   return {
     _id: rawId,
     id: parseDbId(rawId),
-    part_index: (partMap.get('part_index') as number) ?? 0,
-    character_id: zeroToNull((partMap.get('character_id') as number) ?? 0),
-    character_group_id: zeroToNull((partMap.get('character_group_id') as number) ?? 0),
+    part_index: readNumber(partMap, 'part_index', 0),
+    character_id: zeroToNull(readNumber(partMap, 'character_id', 0)),
+    character_group_id: zeroToNull(readNumber(partMap, 'character_group_id', 0)),
     line_text: text instanceof Y.Text ? text.toString() : '',
   };
 }
 
 export function ydocLineToPlain(lineMap: Y.Map<unknown>): SnapshotLine {
   const rawId = String(lineMap.get('_id'));
-  const partsArr = lineMap.get('parts') as Y.Array<Y.Map<unknown>> | undefined;
+  const partsArr = lineMap.get('parts');
+  const parts =
+    partsArr instanceof Y.Array
+      ? (partsArr.toArray() as Y.Map<unknown>[]).filter((p) => hasId(p, 'part'))
+      : [];
   return {
     _id: rawId,
     id: parseDbId(rawId),
-    act_id: zeroToNull((lineMap.get('act_id') as number) ?? 0),
-    scene_id: zeroToNull((lineMap.get('scene_id') as number) ?? 0),
-    line_type: (lineMap.get('line_type') as number) ?? 0,
-    stage_direction_style_id: zeroToNull((lineMap.get('stage_direction_style_id') as number) ?? 0),
-    parts: partsArr ? partsArr.toArray().map(ydocPartToPlain) : [],
+    act_id: zeroToNull(readNumber(lineMap, 'act_id', 0)),
+    scene_id: zeroToNull(readNumber(lineMap, 'scene_id', 0)),
+    line_type: readNumber(lineMap, 'line_type', 0),
+    stage_direction_style_id: zeroToNull(readNumber(lineMap, 'stage_direction_style_id', 0)),
+    parts: parts.map(ydocPartToPlain),
   };
 }
 
 export function ydocPageToPlain(pageArray: Y.Array<Y.Map<unknown>>): SnapshotLine[] {
-  return pageArray.toArray().map(ydocLineToPlain);
+  return pageArray
+    .toArray()
+    .filter((line) => hasId(line, 'line'))
+    .map(ydocLineToPlain);
 }
 
 /** Snapshot every page currently in the doc, keyed by the same string page keys Y.Doc uses. */

@@ -151,6 +151,24 @@ describe('ydocPageToPlain / ydocPagesToPlain', () => {
     expect(ydocPageToPlain(page1)).toHaveLength(2);
   });
 
+  it('skips a line or part with no _id instead of treating it as a new unsaved one', () => {
+    const doc = new Y.Doc();
+    const page = new Y.Array<Y.Map<unknown>>();
+    doc.getMap('pages').set('1', page);
+
+    const good = makeLineMap({ _id: '1', parts: [{ _id: '10', text: 'kept' }] });
+    const noId = new Y.Map<unknown>();
+    const goodWithBadPart = makeLineMap({ _id: '2', parts: [{ _id: '20' }] });
+    page.push([good, noId, goodWithBadPart]);
+    const partsArr = goodWithBadPart.get('parts') as Y.Array<Y.Map<unknown>>;
+    partsArr.push([new Y.Map<unknown>()]);
+
+    const snapshot = ydocPageToPlain(page);
+
+    expect(snapshot.map((l) => l._id)).toEqual(['1', '2']);
+    expect(snapshot[1].parts.map((p) => p._id)).toEqual(['20']);
+  });
+
   it('returns an empty object for a doc with no pages yet', () => {
     const doc = new Y.Doc();
     expect(ydocPagesToPlain(doc)).toEqual({});

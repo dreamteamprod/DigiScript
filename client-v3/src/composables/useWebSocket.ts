@@ -21,12 +21,14 @@ function getReconnectDelay(): number {
   return Math.min(INITIAL_RECONNECT_DELAY_MS * 2 ** errorCount, MAX_RECONNECT_DELAY_MS);
 }
 
-function sendObj(data: object): void {
+/** Returns false (after logging) if the socket isn't open, so callers can react to a dropped frame. */
+function sendObj(data: object): boolean {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
-  } else {
-    log.warn('Attempted to send WS message but socket is not open');
+    return true;
   }
+  log.warn('Attempted to send WS message but socket is not open');
+  return false;
 }
 
 const settingsChangedToast = debounce(() => toast.info('Settings synced from server'), 1000, {

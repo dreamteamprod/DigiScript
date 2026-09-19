@@ -69,6 +69,11 @@ export default defineConfig({
             if (id.includes('marked') || id.includes('dompurify') || id.includes('fuse.js')) {
               return 'docs-vendor';
             }
+            // Only the script editor uses these, so keep them out of the eagerly loaded
+            // catch-all `vendor` chunk.
+            if (id.includes('/yjs/') || id.includes('/lib0/')) {
+              return 'yjs-vendor';
+            }
             return 'vendor';
           }
         },

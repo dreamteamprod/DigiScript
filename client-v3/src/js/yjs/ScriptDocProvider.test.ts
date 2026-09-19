@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as Y from 'yjs';
-import { ScriptDocProvider } from './ScriptDocProvider';
+import { ScriptDocProvider, type ServerSyncMessage } from './ScriptDocProvider';
 import { bytesToBase64 } from './base64';
 
 describe('ScriptDocProvider', () => {
@@ -138,7 +138,9 @@ describe('ScriptDocProvider', () => {
     const send = vi.fn();
     const provider = new ScriptDocProvider(doc, send);
 
-    expect(provider.applySync({ step: 1, payload: '' })).toBe(false);
+    expect(provider.applySync({ step: 1, payload: '' } as unknown as ServerSyncMessage)).toBe(
+      false
+    );
     expect(send).not.toHaveBeenCalled();
 
     provider.destroy();
@@ -169,6 +171,106 @@ describe('ScriptDocProvider', () => {
       result = provider.applyUpdate({ payload: 'not-valid-base64-yjs-data!!' });
     }).not.toThrow();
     expect(result).toBe(false);
+
+    provider.destroy();
+  });
+
+  it('reports a failed send of a local edit through onSendFailed', () => {
+    const doc = new Y.Doc();
+    const send = vi.fn(() => false);
+    const onSendFailed = vi.fn();
+    const provider = new ScriptDocProvider(doc, send, onSendFailed);
+
+    doc.transact(() => {
+      doc.getMap('meta').set('k', 1);
+    }, 'local-edit');
+
+    expect(onSendFailed).toHaveBeenCalledTimes(1);
+
+    provider.destroy();
+  });
+
+  it('does not report a failure when the send succeeds', () => {
+    const doc = new Y.Doc();
+    const onSendFailed = vi.fn();
+    const provider = new ScriptDocProvider(
+      doc,
+      vi.fn(() => true),
+      onSendFailed
+    );
+
+    doc.transact(() => {
+      doc.getMap('meta').set('k', 1);
+    }, 'local-edit');
+
+    expect(onSendFailed).not.toHaveBeenCalled();
+
+    provider.destroy();
+  });
+
+  it('a string origin of "server" is a normal local edit — only the private sentinel is exempt from sending', () => {
+    const doc = new Y.Doc();
+    const send = vi.fn(() => true);
+    const provider = new ScriptDocProvider(doc, send);
+
+    doc.transact(() => {
+      doc.getMap('meta').set('k', 1);
+    }, 'server');
+
+    expect(send).toHaveBeenCalledTimes(1);
+
+    provider.destroy();
+  });
+
+  it('every method refuses to act after destroy() and reports that it did nothing', () => {
+    const doc = new Y.Doc();
+    const send = vi.fn(() => true);
+    const provider = new ScriptDocProvider(doc, send);
+    provider.destroy();
+    const update = bytesToBase64(Y.encodeStateAsUpdate(new Y.Doc()));
+
+    expect(provider.join()).toBe(false);
+    expect(provider.leave()).toBe(false);
+    expect(provider.requestSync()).toBe(false);
+    expect(provider.sendAwareness(new Uint8Array([1]))).toBe(false);
+    expect(provider.applyUpdate({ payload: update })).toBe(false);
+    expect(provider.applySync({ step: 0, payload: update })).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('rejects valid base64 that is not a valid Yjs update', () => {
+    const doc = new Y.Doc();
+    const provider = new ScriptDocProvider(
+      doc,
+      vi.fn(() => true)
+    );
+
+    expect(
+      provider.applyUpdate({ payload: bytesToBase64(new Uint8Array([255, 255, 255, 255, 9])) })
+    ).toBe(false);
+
+    provider.destroy();
+  });
+
+  it('rejects a truncated Yjs update without changing the doc', () => {
+    const remote = new Y.Doc();
+    remote.transact(() => {
+      remote.getMap('meta').set('revision_id', 5);
+      remote.getMap('meta').set('other', 'a fairly long string value to truncate');
+    }, 'local-edit');
+    const full = Y.encodeStateAsUpdate(remote);
+    const doc = new Y.Doc();
+    const provider = new ScriptDocProvider(
+      doc,
+      vi.fn(() => true)
+    );
+
+    const applied = provider.applyUpdate({
+      payload: bytesToBase64(full.slice(0, full.length - 8)),
+    });
+
+    expect(applied).toBe(false);
+    expect(doc.getMap('meta').get('revision_id')).toBeUndefined();
 
     provider.destroy();
   });

@@ -6,7 +6,7 @@ import { useScriptDraft } from './useScriptDraft';
 import { useScriptDraftStore } from '@/stores/scriptDraft';
 import { useWebSocketStore } from '@/stores/websocket';
 
-const sendObj = vi.fn();
+const sendObj = vi.fn((_data: object) => true);
 vi.mock('@/composables/useWebSocket', () => ({
   useWebSocket: () => ({ sendObj, connect: vi.fn() }),
 }));
@@ -32,6 +32,7 @@ describe('useScriptDraft', () => {
     setActivePinia(createPinia());
     sendObj.mockClear();
     useWebSocketStore().isConnected = true;
+    useWebSocketStore().authenticated = true;
     wrappers = [];
   });
 
@@ -100,6 +101,32 @@ describe('useScriptDraft', () => {
     c.unmount();
     expect(sendObj).toHaveBeenCalledWith({ OP: 'LEAVE_SCRIPT_ROOM', DATA: {} });
     expect(store.isDraftActive).toBe(false);
+  });
+
+  it('a mount while disconnected does not block a later mount from joining once connected', () => {
+    useWebSocketStore().isConnected = false;
+    mountOne();
+    const store = useScriptDraftStore();
+    expect(store.isDraftActive).toBe(false);
+
+    useWebSocketStore().isConnected = true;
+    mountOne();
+
+    expect(store.isDraftActive).toBe(true);
+    expect(sendObj).toHaveBeenCalledWith({ OP: 'JOIN_SCRIPT_ROOM', DATA: {} });
+  });
+
+  it('a mount after the room was closed out-of-band joins again', () => {
+    mountOne();
+    const store = useScriptDraftStore();
+    store.roomClosed();
+    expect(store.isDraftActive).toBe(false);
+    sendObj.mockClear();
+
+    mountOne();
+
+    expect(store.isDraftActive).toBe(true);
+    expect(sendObj).toHaveBeenCalledWith({ OP: 'JOIN_SCRIPT_ROOM', DATA: {} });
   });
 
   it('exposes getDraftYdoc reading the live doc from the store', () => {

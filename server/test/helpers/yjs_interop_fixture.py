@@ -41,6 +41,15 @@ REVISION_ID = 7
 
 
 def _line(line_id, prev_id, next_id, page, text):
+    """Build one ``fetch_script_line_data``-shaped dict with a single dialogue part.
+
+    :param line_id: The line's DB id (the part id is derived as ``line_id * 10``).
+    :param prev_id: Linked-list predecessor's line id, or None for the head.
+    :param next_id: Linked-list successor's line id, or None for the tail.
+    :param page: The page number the line sits on.
+    :param text: The line part's text.
+    :returns: A dict accepted by ``build_ydoc``.
+    """
     return {
         "line_id": line_id,
         "previous_line_id": prev_id,
@@ -66,7 +75,12 @@ def _line(line_id, prev_id, next_id, page, text):
 
 
 def build_fixture_doc():
-    """Two pages, three lines — exercises 0-sentinel nulls, unicode and multiple pages."""
+    """Build the doc both interop fixtures are derived from.
+
+    Two pages, three lines — exercises 0-sentinel nulls, unicode and multiple pages.
+
+    :returns: A ``pycrdt.Doc`` built by the production ``build_ydoc``.
+    """
     return build_ydoc(
         [
             _line(1, None, 2, 1, "Hello world"),
