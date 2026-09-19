@@ -45,6 +45,11 @@ interface EditStatus {
   currentEditor: string | null;
 }
 
+export interface ScriptConfigParticipant {
+  internal_id: string;
+  username: string | null;
+}
+
 export const useScriptConfigStore = defineStore('scriptConfig', {
   state: () => ({
     tmpScript: {} as Record<string, ScriptLine[]>,
@@ -52,6 +57,15 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     insertedLines: {} as Record<string, number[]>,
     editStatus: { canRequestEdit: false, currentEditor: null } as EditStatus,
     cutMode: false,
+    // Collab model fields, kept alongside the old single-editor editStatus above
+    // rather than in the newer scriptDraft store, since GET_SCRIPT_CONFIG_STATUS can
+    // only be handled by one store's action (useWebSocket dispatches by camelCase
+    // name, first match wins, across every instantiated store). scriptDraft.ts
+    // exposes these same values via getters that read from here instead of
+    // duplicating the fetch.
+    editors: [] as ScriptConfigParticipant[],
+    cutters: [] as ScriptConfigParticipant[],
+    hasDraft: false,
   }),
 
   getters: {
@@ -151,6 +165,9 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
           canRequestEdit: data.canRequestEdit,
           currentEditor: data.currentEditor,
         };
+        this.editors = data.editors ?? [];
+        this.cutters = data.cutters ?? [];
+        this.hasDraft = data.hasDraft ?? false;
       } else {
         log.error('Unable to get script config status');
       }
