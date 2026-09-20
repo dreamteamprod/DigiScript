@@ -25,7 +25,7 @@ jobs:
           pip install -r test_requirements.txt
       - name: Run tests
         run: |
-          python -m pytest -n auto --junitxml=junit/test-results.xml
+          python -m pytest --junitxml=junit/test-results.xml
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
