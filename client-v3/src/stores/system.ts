@@ -82,6 +82,10 @@ export const useSystemStore = defineStore('system', {
       if (!userRbac?.shows) return false;
       return (userRbac.shows[0][1] & getRbacMask(this.rbacRoles, 'EXECUTE')) !== 0;
     },
+    /** True when the server is in collaborative script editing mode (see `CollabScriptEditor`). */
+    isCollabScriptEditing(): boolean {
+      return this.settings.collaborative_script_editing === true;
+    },
     isScriptEditor(): boolean {
       if (this.isAdminUser) return true;
       if (this.rbacRoles.length === 0) return false;

@@ -173,8 +173,10 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       }
     },
 
-    async requestEditFailure(): Promise<void> {
-      toast.error('Unable to edit script');
+    async requestEditFailure(data?: { reason?: string }): Promise<void> {
+      // The server says *why* (wrong editing mode, another editor, a live show, missing
+      // permission); show that rather than a bare "unable".
+      toast.error(data?.reason ? `Unable to edit script: ${data.reason}` : 'Unable to edit script');
       await this.getScriptConfigStatus();
       this.cutMode = false;
     },

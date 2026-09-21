@@ -5,9 +5,9 @@ Tests run against a real backend instance with a clean SQLite database, covering
 
 ## Prerequisites
 
-* Node 24.x with dependencies installed (`npm ci` in `client-v3/`)
-* Python 3.13.x with dependencies installed (`pip install -r requirements.txt` in `server/`)
-* A production build of the frontend (`npm run build` in `client-v3/`)
+- Node 24.x with dependencies installed (`npm ci` in `client-v3/`)
+- Python 3.13.x with dependencies installed (`pip install -r requirements.txt` in `server/`)
+- A production build of the frontend (`npm run build` in `client-v3/`)
 
 The global setup script starts and stops the backend automatically — no manual server management required.
 
@@ -38,22 +38,22 @@ and cleans up the database file. All tests share this single server instance and
 Tests are numbered to enforce a specific run order. Each spec depends on the database state
 left by earlier specs.
 
-| File | Area |
-|------|------|
-| `01-first-run.spec.ts` | Initial server setup wizard |
-| `02-auth.spec.ts` | Login, logout, session handling |
-| `03-system-config.spec.ts` | System Config: show creation, users, settings, system info, logs, backups |
-| `04-show-config-show.spec.ts` | Show Config: show details |
-| `05-show-config-acts-scenes.spec.ts` | Show Config: acts and scenes CRUD |
-| `06-show-config-characters.spec.ts` | Show Config: characters CRUD |
-| `07-show-config-stage.spec.ts` | Show Config: props, scenery, crew, stage manager allocations |
-| `08-show-config-cues.spec.ts` | Show Config: cue types CRUD |
-| `09-show-config-mics.spec.ts` | Show Config: microphones, allocations, timeline |
-| `10-show-config-script.spec.ts` | Show Config: script editing, saving, stage direction styles, cue add/edit/delete |
-| `11-show-config-revisions.spec.ts` | Show Config: script revisions |
-| `12-show-config-sessions.spec.ts` | Show Config: live show sessions |
-| `13-live-show.spec.ts` | Live show display and cue triggering |
-| `14-user-settings.spec.ts` | User settings and profile |
+| File                                 | Area                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------- |
+| `01-first-run.spec.ts`               | Initial server setup wizard                                                      |
+| `02-auth.spec.ts`                    | Login, logout, session handling                                                  |
+| `03-system-config.spec.ts`           | System Config: show creation, users, settings, system info, logs, backups        |
+| `04-show-config-show.spec.ts`        | Show Config: show details                                                        |
+| `05-show-config-acts-scenes.spec.ts` | Show Config: acts and scenes CRUD                                                |
+| `06-show-config-characters.spec.ts`  | Show Config: characters CRUD                                                     |
+| `07-show-config-stage.spec.ts`       | Show Config: props, scenery, crew, stage manager allocations                     |
+| `08-show-config-cues.spec.ts`        | Show Config: cue types CRUD                                                      |
+| `09-show-config-mics.spec.ts`        | Show Config: microphones, allocations, timeline                                  |
+| `10-show-config-script.spec.ts`      | Show Config: script editing, saving, stage direction styles, cue add/edit/delete |
+| `11-show-config-revisions.spec.ts`   | Show Config: script revisions                                                    |
+| `12-show-config-sessions.spec.ts`    | Show Config: live show sessions                                                  |
+| `13-live-show.spec.ts`               | Live show display and cue triggering                                             |
+| `14-user-settings.spec.ts`           | User settings and profile                                                        |
 
 > **Important**: specs must always be run as a full suite. Running individual spec files in
 > isolation will fail because each spec relies on database state created by earlier specs.
