@@ -8,7 +8,7 @@ import base64
 
 import pycrdt
 
-from utils.script.line_to_ydoc import build_ydoc
+from utils.script.line_to_ydoc import build_ydoc, ensure_trailing_page
 
 
 def _make_line_data(
@@ -50,14 +50,16 @@ def _make_line_data(
 
 
 class TestBuildYdocEmpty:
-    def test_empty_script_returns_doc_with_empty_pages(self):
+    def test_empty_script_has_a_single_empty_page_one(self):
         doc = build_ydoc([], revision_id=42)
 
         meta = doc.get("meta", type=pycrdt.Map)
         pages = doc.get("pages", type=pycrdt.Map)
 
         assert meta["revision_id"] == 42
-        assert len(pages) == 0
+        # Clients never create pages, so even an empty script needs page 1 to exist.
+        assert list(pages.keys()) == ["1"]
+        assert len(pages["1"]) == 0
 
     def test_empty_script_has_deleted_line_ids_array(self):
         doc = build_ydoc([], revision_id=1)
@@ -294,8 +296,10 @@ class TestBuildYdocBrokenChain:
         doc = build_ydoc(data, revision_id=1)
         pages = doc.get("pages", type=pycrdt.Map)
         assert "1" in pages
-        # Page 2 is absent because its bridge line is unreachable from the head
-        assert "2" not in pages
+        # Page 2's lines are absent because its bridge line is unreachable from the
+        # head — the only page 2 is the empty trailing page every doc ends with.
+        assert len(pages["2"]) == 0
+        assert "3" not in pages
 
     def test_complete_chain_reaches_all_lines(self):
         """When all pointers are intact, all lines across all pages are included."""
@@ -420,3 +424,91 @@ class TestCrdtConvergence:
         p2 = doc2.get("pages", type=pycrdt.Map)["1"][0]
         assert p1["act_id"] == p2["act_id"] == 10
         assert p1["scene_id"] == p2["scene_id"] == 20
+
+
+class TestEnsureTrailingPage:
+    """The doc always ends in one empty page; only the server creates page arrays."""
+
+    def test_built_doc_ends_in_one_empty_page(self):
+        data = [
+            _make_line_data(line_id=1, next_line_id=2, previous_line_id=None, page=1),
+            _make_line_data(line_id=2, next_line_id=None, previous_line_id=1, page=2),
+        ]
+        pages = build_ydoc(data, revision_id=1).get("pages", type=pycrdt.Map)
+
+        assert sorted(pages.keys()) == ["1", "2", "3"]
+        assert len(pages["2"]) == 1
+        assert len(pages["3"]) == 0
+
+    def test_no_op_when_the_last_page_is_already_empty(self):
+        doc = build_ydoc([], revision_id=1)
+
+        assert ensure_trailing_page(doc) is None
+        assert list(doc.get("pages", type=pycrdt.Map).keys()) == ["1"]
+
+    def test_adds_the_next_page_once_the_last_page_has_lines(self):
+        doc = build_ydoc([], revision_id=1)
+        pages = doc.get("pages", type=pycrdt.Map)
+        line = pycrdt.Map()
+        pages["1"].append(line)
+
+        update = ensure_trailing_page(doc)
+
+        assert update is not None
+        assert sorted(pages.keys()) == ["1", "2"]
+        assert len(pages["2"]) == 0
+
+    def test_follow_up_update_is_applicable_by_another_replica(self):
+        doc = build_ydoc([], revision_id=1)
+        replica = pycrdt.Doc()
+        replica.get("pages", type=pycrdt.Map)
+        replica.apply_update(doc.get_update())
+        doc.get("pages", type=pycrdt.Map)["1"].append(pycrdt.Map())
+
+        replica.apply_update(doc.get_update(replica.get_state()))
+        update = ensure_trailing_page(doc)
+        replica.apply_update(update)
+
+        assert sorted(replica.get("pages", type=pycrdt.Map).keys()) == ["1", "2"]
+
+    def test_only_the_highest_numeric_page_decides(self):
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = pycrdt.Array()
+        pages["1"].append(pycrdt.Map())
+        pages["2"] = pycrdt.Array()  # empty, and highest → nothing to add
+        pages["notes"] = pycrdt.Array()  # non-numeric keys are ignored
+
+        assert ensure_trailing_page(doc) is None
+
+    def test_concurrent_edits_to_the_trailing_page_both_survive(self):
+        """The bug the trailing page exists to prevent: two editors, one new page.
+
+        Because the server already created page 2, both inserts go into the same
+        existing array and merge, instead of one editor's page array replacing the
+        other's and silently discarding its lines.
+        """
+        data = [_make_line_data(line_id=1, next_line_id=None, previous_line_id=None)]
+        server = build_ydoc(data, revision_id=1)
+
+        def replica():
+            doc = pycrdt.Doc()
+            doc.get("meta", type=pycrdt.Map)
+            doc.get("pages", type=pycrdt.Map)
+            doc.get("deleted_line_ids", type=pycrdt.Array)
+            doc.apply_update(server.get_update())
+            return doc
+
+        a, b = replica(), replica()
+        for doc, text in ((a, "from A"), (b, "from B")):
+            page = doc.get("pages", type=pycrdt.Map)["2"]
+            line = pycrdt.Map()
+            page.append(line)
+            line["text"] = text
+
+        a.apply_update(b.get_update())
+        b.apply_update(a.get_update())
+
+        for doc in (a, b):
+            texts = sorted(m["text"] for m in doc.get("pages", type=pycrdt.Map)["2"])
+            assert texts == ["from A", "from B"]

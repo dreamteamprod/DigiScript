@@ -30,7 +30,11 @@ from models.script import CompiledScript, ScriptRevision
 from models.script_draft import ScriptDraft
 from models.user import User
 from utils.database import DigiDBSession
-from utils.script.line_to_ydoc import build_ydoc, fetch_script_line_data
+from utils.script.line_to_ydoc import (
+    build_ydoc,
+    ensure_trailing_page,
+    fetch_script_line_data,
+)
 from utils.script.ydoc_to_lines import _save_script_page, extract_lines_from_ydoc
 from utils.script.yjs_debug import attach_trace_observers
 
@@ -405,14 +409,19 @@ class ScriptRoom:
             )
             return self.doc.get_update(state_before)
 
-    async def apply_update(self, update: bytes) -> None:
+    async def apply_update(self, update: bytes) -> bytes | None:
         """Apply a binary update to the Y.Doc.
 
         Acquires ``save_lock`` before mutating the Y.Doc so that concurrent
         ``apply_update`` calls are serialised with ``save_draft``, preventing
         interleaved writes during a save.
 
+        If the update filled the last page, the server adds a fresh empty trailing
+        page (see ``ensure_trailing_page``) inside the same lock; that update is
+        returned so the caller can broadcast it to *every* client, sender included.
+
         :param update: The binary update from a client.
+        :returns: A server-made follow-up update to broadcast to all clients, or None.
         :raises Exception: Propagates any Y.Doc update error to the caller.
         """
         async with self.save_lock:
@@ -423,6 +432,15 @@ class ScriptRoom:
                     f"Failed to apply Y.Doc update for revision {self.revision_id}"
                 )
                 raise
+            try:
+                return ensure_trailing_page(self.doc)
+            except Exception:
+                # The client's update is already applied and must still be relayed;
+                # a missing trailing page is repaired by the next update.
+                get_logger().exception(
+                    f"Failed to maintain trailing page for revision {self.revision_id}"
+                )
+                return None
 
     def get_sync_state(self) -> bytes:
         return self.doc.get_update()
@@ -525,6 +543,8 @@ class RoomManager:
                 await self.close_active_room()
 
             doc = await self._load_or_build_doc(revision_id)
+            # A draft checkpointed before the trailing-page rule existed may lack one.
+            ensure_trailing_page(doc)
             room = ScriptRoom(revision_id, doc)
             room.start_observing()
             self._room = room
@@ -619,6 +639,27 @@ class RoomManager:
                 get_logger().warning(
                     "Failed to notify client of successful save", exc_info=True
                 )
+
+        # The classic REST save tells every client which pages changed so any that
+        # cache script pages (cue editor, live view) reload them; a collaborative save
+        # must do the same or those clients keep serving stale pages. Every page is
+        # named, empty ones included, since a page emptied by deletions changed too.
+        # Clients only reload pages they have cached, so over-notifying is cheap.
+        try:
+            saved_pages = sorted(
+                int(key)
+                for key in room.doc.get("pages", type=pycrdt.Map).keys()
+                if str(key).isdigit()
+            )
+            for page in saved_pages:
+                await self._application.ws_send_to_all(
+                    "NOOP", "SCRIPT_PAGE_CHANGED", {"page": page}
+                )
+        except Exception:
+            get_logger().exception(
+                f"Failed to broadcast page changes after saving revision "
+                f"{room.revision_id}"
+            )
 
         # Remove draft file and DB record (no longer needed after DB save). The
         # ScriptLine changes above already committed, so a failure here does not

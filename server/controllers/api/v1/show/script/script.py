@@ -26,6 +26,7 @@ from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import (
     no_active_script_draft,
+    no_collaborative_editing,
     no_live_session,
     requires_show,
 )
@@ -111,6 +112,7 @@ class ScriptController(BaseAPIController):
         return validate_line(show, line_json)
 
     @requires_show
+    @no_collaborative_editing
     @no_active_script_draft
     @no_live_session
     async def post(self):
@@ -285,6 +287,7 @@ class ScriptController(BaseAPIController):
         return create_new_line(session, revision, line, previous_line, with_association)
 
     @requires_show
+    @no_collaborative_editing
     @no_active_script_draft
     @no_live_session
     async def patch(self):

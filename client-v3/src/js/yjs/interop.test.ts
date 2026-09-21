@@ -21,7 +21,9 @@ describe('pycrdt → Yjs interop', () => {
     expect(doc.getMap('meta').get('revision_id')).toBe(stateFixture.revision_id);
 
     const pages = ydocPagesToPlain(doc);
-    expect(Object.keys(pages).sort()).toEqual(['1', '2']);
+    // Page 3 is the empty trailing page the server always adds (clients never create pages).
+    expect(Object.keys(pages).sort()).toEqual(['1', '2', '3']);
+    expect(pages['3']).toEqual([]);
     expect(pages['1'].map((l) => l.parts[0].line_text)).toEqual(['Hello world', 'Héllo ☃ wörld']);
     expect(pages['2'][0].parts[0].line_text).toBe('Second page');
     expect(pages['1'][0]).toMatchObject({

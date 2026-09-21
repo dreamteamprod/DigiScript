@@ -76,8 +76,8 @@ def fetch_script_line_data(session: Session, revision_id: int) -> list[dict]:
     ]
 
 
-def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
-    """Phase B: Build a Y.Doc from plain script line data.
+def _build_ydoc_content(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
+    """Build a Y.Doc holding the script's lines (no trailing page — see build_ydoc).
 
     CPU-bound — safe to run in a background thread via run_in_executor.
     No SQLAlchemy Session or ORM objects are used.
@@ -198,4 +198,48 @@ def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
             )
         current = data_by_line_id.get(next_id) if next_id is not None else None
 
+    return doc
+
+
+def ensure_trailing_page(doc: pycrdt.Doc) -> bytes | None:
+    """Make sure the doc's last page is an empty one, so clients never create pages.
+
+    ``pages`` is a Y.Map keyed by page number. If two editors each create the same
+    new page key, Yjs keeps only one of the two arrays and silently discards the
+    other editor's lines. If the array already exists, concurrent inserts into it
+    merge cleanly. So the server is the only writer that ever creates a page array:
+    it keeps exactly one empty page at the end, and clients only insert into pages
+    that already exist.
+
+    Only the highest numeric page key is inspected, keeping this cheap enough to
+    run after every applied update. Non-numeric keys are ignored.
+
+    :param doc: The Y.Doc to check and, if needed, extend.
+    :returns: The update that adds the page (to broadcast to clients), or None if the
+        doc already ended in an empty page.
+    """
+    pages = doc.get("pages", type=pycrdt.Map)
+    numeric = [int(key) for key in pages.keys() if str(key).isdigit()]
+    last = max(numeric) if numeric else 0
+    if numeric and len(pages[str(last)]) == 0:
+        return None
+
+    state_before = doc.get_state()
+    pages[str(last + 1)] = pycrdt.Array()
+    return doc.get_update(state_before)
+
+
+def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
+    """Phase B: Build a Y.Doc from plain script line data.
+
+    CPU-bound — safe to run in a background thread via run_in_executor.
+    No SQLAlchemy Session or ORM objects are used. The doc always ends in an empty
+    trailing page (page 1 for an empty script), see ``ensure_trailing_page``.
+
+    :param script_data: List of dicts from fetch_script_line_data.
+    :param revision_id: The revision ID for metadata.
+    :returns: A pycrdt.Doc representing the full script.
+    """
+    doc = _build_ydoc_content(script_data, revision_id)
+    ensure_trailing_page(doc)
     return doc

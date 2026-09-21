@@ -233,6 +233,21 @@ class Settings:
             category="General",
         )
         self.define(
+            "collaborative_script_editing",
+            bool,
+            False,
+            True,
+            display_name="Collaborative Script Editing",
+            help_text=(
+                "Use the collaborative script editor, where several people can edit the "
+                "script at once. When off, the classic editor is used and only one "
+                "person can edit at a time. Only the new UI supports collaborative "
+                "editing. Cannot be changed while anyone is editing the script or an "
+                "unsaved draft exists."
+            ),
+            category="General",
+        )
+        self.define(
             "log_level",
             str,
             "DEBUG",

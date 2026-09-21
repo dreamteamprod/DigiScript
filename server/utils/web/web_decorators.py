@@ -5,7 +5,10 @@ from jsonpath import JSONPatch
 from sqlalchemy import select
 from tornado.web import HTTPError
 
-from controllers.api.constants import ERROR_SCRIPT_DRAFT_ACTIVE
+from controllers.api.constants import (
+    ERROR_COLLAB_EDITING_ENABLED,
+    ERROR_SCRIPT_DRAFT_ACTIVE,
+)
 from models.script import Script
 from models.script_draft import ScriptDraft
 from models.show import Show
@@ -44,6 +47,31 @@ def no_live_session(
         current_show = self.get_current_show()
         if current_show and current_show["current_session_id"]:
             raise HTTPError(409, log_message="Current session in progress")
+        return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def no_collaborative_editing(
+    method: Callable[..., Optional[Awaitable[None]]],
+) -> Callable[..., Optional[Awaitable[None]]]:
+    """Refuse a classic (REST) script edit while collaborative editing is switched on.
+
+    In collaborative mode the shared draft is the only way to change the script, so a
+    REST write — e.g. from an old-UI client that ignored the mode — must not slip
+    through and diverge from it. Reads the setting synchronously (a plain dict lookup)
+    so this stays a plain sync wrapper, like its siblings.
+    """
+
+    @functools.wraps(method)
+    def wrapper(self: BaseController, *args, **kwargs):
+        setting = self.application.digi_settings.settings[
+            "collaborative_script_editing"
+        ]
+        if setting.get_value():
+            self.set_status(409)
+            self.finish({"message": ERROR_COLLAB_EDITING_ENABLED})
+            return None
         return method(self, *args, **kwargs)
 
     return wrapper
