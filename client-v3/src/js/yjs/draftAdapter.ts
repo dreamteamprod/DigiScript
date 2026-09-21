@@ -3,20 +3,28 @@ import type { SnapshotLine, SnapshotLinePart } from './yjsSnapshot';
 
 /**
  * A draft line in the shape the existing script components already consume
- * (`ScriptLine`), plus the draft's own `_id`s. `id`/`line_parts[].id` stay the DB ids
- * (null for a not-yet-saved line), so viewers, cue code and the MRU character helpers
- * work unchanged; `_id` is what edits use to find the line again, because it is the
- * only identifier every line has (a UUID until the first save).
+ * (`ScriptLine`), plus the draft's own identifiers. `id`/`line_parts[].id` stay the DB
+ * ids (null for a not-yet-saved line), so viewers, cue code and the MRU character
+ * helpers work unchanged.
+ *
+ * `_uid` is what edits use to find a line or part again: every one has it and it
+ * survives a save. `_id` is the DB identity, which a save rewrites in place, so it must
+ * not be used to address an edit (or as a Vue `:key`).
  */
-export type DraftScriptLinePart = ScriptLinePart & { readonly _id: string };
+export type DraftScriptLinePart = ScriptLinePart & {
+  readonly _id: string;
+  readonly _uid: string;
+};
 export type DraftScriptLine = Omit<ScriptLine, 'line_parts'> & {
   readonly _id: string;
+  readonly _uid: string;
   line_parts: DraftScriptLinePart[];
 };
 
 function partToScriptLinePart(part: SnapshotLinePart, lineId: number | null): DraftScriptLinePart {
   return {
     _id: part._id,
+    _uid: part._uid,
     id: part.id,
     line_id: lineId,
     part_index: part.part_index,
@@ -33,6 +41,7 @@ function partToScriptLinePart(part: SnapshotLinePart, lineId: number | null): Dr
 export function snapshotToScriptLine(page: number | string, line: SnapshotLine): DraftScriptLine {
   return {
     _id: line._id,
+    _uid: line._uid,
     id: line.id,
     act_id: line.act_id,
     scene_id: line.scene_id,

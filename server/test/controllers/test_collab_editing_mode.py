@@ -71,6 +71,18 @@ class TestModeSettingDefinition(DigiScriptTestCase):
         self.assertEqual(bool, setting.val_type)
         self.assertTrue(setting.can_edit)
 
+    def test_is_hidden_from_the_settings_page_until_the_editor_exists(self):
+        """Switching it on now would leave no client able to edit the script."""
+        self.assertTrue(self._app.digi_settings.settings[MODE].hide_from_ui)
+
+    def test_get_sync_reads_the_current_value_and_rejects_unknown_keys(self):
+        settings = self._app.digi_settings
+        self.assertIs(False, settings.get_sync(MODE))
+        settings.settings[MODE].set_value(True)
+        self.assertIs(True, settings.get_sync(MODE))
+        with self.assertRaises(KeyError):
+            settings.get_sync("no_such_setting")
+
 
 class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
     def setUp(self):
@@ -166,6 +178,20 @@ class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
         with self._app.get_db().sessionmaker() as session:
             self.assertEqual(
                 0, len(session.scalars(select(Session).where(Session.is_editor)).all())
+            )
+        ws.close()
+
+    @gen_test
+    async def test_collaborative_mode_needs_a_real_boolean_flag(self):
+        """`collab: 1` or `"true"` is truthy but is not the editor announcing itself."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        for flag in (1, "true", None):
+            response = await self._request_edit(ws, collab=flag)
+            self.assertEqual("REQUEST_EDIT_FAILURE", response["ACTION"], flag)
+            self.assertEqual(
+                ERROR_COLLAB_EDITING_ENABLED, response["DATA"]["reason"], flag
             )
         ws.close()
 
@@ -269,9 +295,10 @@ class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
     # ---- page notifications after a save ----
 
     @gen_test
-    async def test_saving_tells_every_client_which_pages_changed(self):
-        """Classic saves send SCRIPT_PAGE_CHANGED; a collaborative save must too,
-        or clients caching script pages (cue editor, live view) keep stale ones."""
+    async def test_saving_names_only_the_pages_it_changed(self):
+        """Nothing was written, so no page is announced: naming every page of a long
+        script would make every client reload every cached page after each save.
+        (`changed_pages` itself is covered against a real DB in test_ydoc_to_lines.)"""
         self._set_mode(True)
         ws, _ = await self._connect_and_auth(self.admin_id)
         await self._join_and_sync(ws)
@@ -285,7 +312,7 @@ class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
             if message["ACTION"] == "GET_SCRIPT_REVISIONS":
                 break
 
-        self.assertEqual([1], changed)
+        self.assertEqual([], changed)
         ws.close()
 
 
@@ -298,14 +325,16 @@ class TestModeEnforcementREST(_ModeFixture, DigiScriptTestCase):
         return self.fetch(
             "/api/v1/show/script?page=1",
             method=method,
-            body=tornado.escape.json_encode({"page": [], "status": {}}),
+            body=tornado.escape.json_encode(
+                [] if method == "POST" else {"page": [], "status": {}}
+            ),
             headers={"Authorization": f"Bearer {self.token}"},
         )
 
     def test_classic_mode_does_not_block_rest_script_writes(self):
         for method in ("POST", "PATCH"):
             response = self._write(method)
-            self.assertNotEqual(409, response.code, method)
+            self.assertEqual(200, response.code, method)
 
     def test_collaborative_mode_refuses_rest_script_writes(self):
         self._set_mode(True)
@@ -381,10 +410,17 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
     def test_refused_while_a_room_has_clients(self):
         class _Room:
             is_empty = False
+            _dirty = False
 
         self._app.room_manager._room = _Room()
 
         self._assert_refused(self._patch(**{MODE: True}))
+
+    def test_a_non_boolean_value_is_a_400_not_a_500(self):
+        for value in ("true", 1, None):
+            response = self._patch(**{MODE: value})
+            self.assertEqual(400, response.code, value)
+        self.assertIs(False, self._app.digi_settings.settings[MODE].get_value())
 
     def test_setting_the_same_value_is_always_allowed(self):
         self._add_session(is_editor=True)

@@ -9,7 +9,10 @@ import log from 'loglevel';
  */
 
 export type SnapshotLinePart = Readonly<{
+  /** The database identity (or a UUID until saved). A save rewrites it; do not address edits by it. */
   _id: string;
+  /** Stable for the life of the part; what edits address it by (see `draftWriter`). */
+  _uid: string;
   id: number | null;
   part_index: number;
   character_id: number | null;
@@ -19,6 +22,7 @@ export type SnapshotLinePart = Readonly<{
 
 export type SnapshotLine = Readonly<{
   _id: string;
+  _uid: string;
   id: number | null;
   act_id: number | null;
   scene_id: number | null;
@@ -73,13 +77,22 @@ function hasId(map: Y.Map<unknown>, kind: string): boolean {
   return true;
 }
 
-function ydocPartToPlain(partMap: Y.Map<unknown>): SnapshotLinePart {
+/** Drafts from before `_uid` existed only have `_id`, which is then the best identity there is. */
+function uidOf(map: Y.Map<unknown>, rawId: string): string {
+  const uid = map.get('_uid');
+  return uid == null || uid === '' ? rawId : String(uid);
+}
+
+function ydocPartToPlain(partMap: Y.Map<unknown>, position: number): SnapshotLinePart {
   const rawId = String(partMap.get('_id'));
   const text = partMap.get('line_text');
   return {
     _id: rawId,
+    _uid: uidOf(partMap, rawId),
     id: parseDbId(rawId),
-    part_index: readNumber(partMap, 'part_index', 0),
+    // Position, not the stored value: two editors appending a part at once both write
+    // the same index, and array order is what Yjs converges on (the server does the same).
+    part_index: position,
     character_id: zeroToNull(readNumber(partMap, 'character_id', 0)),
     character_group_id: zeroToNull(readNumber(partMap, 'character_group_id', 0)),
     line_text: text instanceof Y.Text ? text.toString() : '',
@@ -95,12 +108,13 @@ export function ydocLineToPlain(lineMap: Y.Map<unknown>): SnapshotLine {
       : [];
   return {
     _id: rawId,
+    _uid: uidOf(lineMap, rawId),
     id: parseDbId(rawId),
     act_id: zeroToNull(readNumber(lineMap, 'act_id', 0)),
     scene_id: zeroToNull(readNumber(lineMap, 'scene_id', 0)),
     line_type: readNumber(lineMap, 'line_type', 0),
     stage_direction_style_id: zeroToNull(readNumber(lineMap, 'stage_direction_style_id', 0)),
-    parts: parts.map(ydocPartToPlain),
+    parts: parts.map((part, position) => ydocPartToPlain(part, position)),
   };
 }
 

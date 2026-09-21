@@ -100,10 +100,13 @@ def test_the_server_reads_every_edit_the_writer_made():
     assert moved["line_parts"][1]["character_id"] is None
     assert moved["line_parts"][1]["character_group_id"] == 4
 
-    # Page 3: the trailing page the server created now holds a (part-less) spacing line.
+    # Page 3: the trailing page the server created now holds a new line — created
+    # with its first (empty) part, never part-less.
     assert [line["_id"] for line in pages[3]] == ["n-6"]
     assert pages[3][0]["line_type"] == 4
-    assert pages[3][0]["line_parts"] == []
+    assert [(p["_id"], p["line_text"]) for p in pages[3][0]["line_parts"]] == [
+        ("n-7", "")
+    ]
 
     # The deleted saved line is reported for the server to delete; new lines never are.
     assert deleted == [2]

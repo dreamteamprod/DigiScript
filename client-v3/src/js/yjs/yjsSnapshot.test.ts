@@ -100,6 +100,7 @@ describe('ydocLineToPlain', () => {
 
     expect(snapshot).toEqual({
       _id: '42',
+      _uid: '42', // no `_uid` stored (a pre-_uid draft): falls back to `_id`
       id: 42,
       act_id: 1,
       scene_id: 2,
@@ -108,6 +109,7 @@ describe('ydocLineToPlain', () => {
       parts: [
         {
           _id: '99',
+          _uid: '99',
           id: 99,
           part_index: 0,
           character_id: 5,
@@ -116,6 +118,39 @@ describe('ydocLineToPlain', () => {
         },
       ],
     });
+  });
+
+  it('keeps the stored _uid distinct from a _id the server has since rewritten', () => {
+    const doc = new Y.Doc();
+    const holder = doc.getArray<Y.Map<unknown>>('holder');
+    const lineMap = makeLineMap({
+      _id: '501',
+      parts: [{ _id: '601', text: 'x' }],
+    });
+    holder.push([lineMap]);
+    lineMap.set('_uid', 'the-uuid-it-was-made-with');
+    (lineMap.get('parts') as Y.Array<Y.Map<unknown>>).get(0).set('_uid', 'part-uuid');
+
+    const snapshot = ydocLineToPlain(lineMap);
+
+    expect(snapshot).toMatchObject({ _id: '501', _uid: 'the-uuid-it-was-made-with', id: 501 });
+    expect(snapshot.parts[0]).toMatchObject({ _id: '601', _uid: 'part-uuid', id: 601 });
+  });
+
+  it('derives part_index from position, ignoring duplicate or stale stored values', () => {
+    const doc = new Y.Doc();
+    const holder = doc.getArray<Y.Map<unknown>>('holder');
+    const lineMap = makeLineMap({
+      _id: '1',
+      parts: [
+        { _id: 'a', part_index: 1 },
+        { _id: 'b', part_index: 1 },
+        { _id: 'c', part_index: 7 },
+      ],
+    });
+    holder.push([lineMap]);
+
+    expect(ydocLineToPlain(lineMap).parts.map((p) => p.part_index)).toEqual([0, 1, 2]);
   });
 
   it('gives a new (UUID _id) line a null numeric id', () => {

@@ -35,9 +35,13 @@ function buildEditedDoc(): { doc: Y.Doc; before: Uint8Array } {
   const newId = makeIds();
 
   // 1. a new dialogue line at the end of page 1, with a part, character and text
-  const dialogue = addLine(doc, 1, { lineType: 1, actId: 1, sceneId: 2 }, { newId });
-  const dialoguePart = addPart(doc, 1, dialogue, { characterId: 3 }, { newId });
-  setPartText(doc, 1, dialogue, dialoguePart, 'Brand new');
+  const dialogue = addLine(
+    doc,
+    1,
+    { lineType: 1, actId: 1, sceneId: 2, part: { characterId: 3 } },
+    { newId }
+  );
+  setPartText(doc, 1, dialogue.lineUid, dialogue.partUid, 'Brand new');
 
   // 2. edit an existing line's text (minimal diff)
   setPartText(doc, 1, '1', '10', 'Hello brave world');
@@ -52,13 +56,12 @@ function buildEditedDoc(): { doc: Y.Doc; before: Uint8Array } {
     { lineType: 2, actId: 1, sceneId: 2, stageDirectionStyleId: 7, index: 0 },
     { newId }
   );
-  const directionPart = addPart(doc, 1, direction, {}, { newId });
-  setPartText(doc, 1, direction, directionPart, 'Enter stage left');
+  setPartText(doc, 1, direction.lineUid, direction.partUid, 'Enter stage left');
 
   // 5. move an existing line to another act/scene and give it a second part
   setLineActScene(doc, 2, '3', 9, 8);
   const chorus = addPart(doc, 2, '3', { characterGroupId: 4 }, { newId });
-  setPartText(doc, 2, '3', chorus, 'Chorus');
+  setPartText(doc, 2, '3', chorus!, 'Chorus');
 
   // 6. start a line on the server-created trailing page (page 3)
   addLine(doc, 3, { lineType: 4 }, { newId });
@@ -86,7 +89,7 @@ describe('draft writer → server interop fixture', () => {
     const { doc } = buildEditedDoc();
     const pages = doc.getMap('pages');
     const ids = (page: string) =>
-      (pages.get(page) as Y.Array<Y.Map<unknown>>).toArray().map((l) => l.get('_id'));
+      (pages.get(page) as Y.Array<Y.Map<unknown>>).toArray().map((l) => l.get('_uid'));
 
     expect(ids('1')).toEqual(['n-3', '1', 'n-1']);
     expect(ids('2')).toEqual(['3']);

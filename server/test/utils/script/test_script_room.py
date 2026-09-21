@@ -462,6 +462,36 @@ class TestScriptRoomSaveDraft(_ScriptTestSetup):
         self.assertEqual(2, len(lines))
 
     @gen_test
+    async def test_save_draft_leaves_the_doc_clean_and_names_the_pages_it_changed(self):
+        """The id patch dirties the doc, so the reset must come after it — inside the
+        save lock — or an edit landing in between could lose its dirty flag."""
+        doc = _build_empty_doc()
+        _add_line_to_doc(doc, "2", str(uuid.uuid4()))
+        room = ScriptRoom(self.revision_id, doc)
+        room.start_observing()
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        self.assertFalse(room._dirty)
+        self.assertEqual([2], room.last_saved_pages)
+
+    @gen_test
+    async def test_save_draft_keeps_the_stable_uid_while_rewriting_the_id(self):
+        doc = _build_empty_doc()
+        uid = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid)
+        line = doc.get("pages", type=pycrdt.Map)["1"][0]
+        line["_uid"] = uid
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        self.assertNotEqual(uid, str(line["_id"]))
+        self.assertEqual(uid, str(line["_uid"]))
+
+    @gen_test
     async def test_save_draft_patches_ydoc_ids(self):
         """After save, Y.Doc _id values are replaced with real DB integer strings."""
         doc = _build_empty_doc()
@@ -922,3 +952,41 @@ class TestRoomManagerLoadOrBuildDocRecovery(_ScriptTestSetup):
         finally:
             if os.path.exists(corrupt_path):
                 os.remove(corrupt_path)
+
+    @gen_test
+    async def test_malformed_pages_map_takes_the_same_recovery_path(self):
+        """A draft that decodes but holds a non-array page is as corrupt as garbage."""
+        bad = pycrdt.Doc()
+        bad.get("pages", type=pycrdt.Map)["1"] = "not an array"
+
+        draft_dir = self._app.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+        os.makedirs(draft_dir, exist_ok=True)
+        draft_path = os.path.join(draft_dir, f"draft_{self.revision_id}.yjs")
+        with open(draft_path, "wb") as f:
+            f.write(bad.get_update())
+
+        try:
+            with self._app.get_db().sessionmaker() as session:
+                session.add(
+                    ScriptDraft(revision_id=self.revision_id, data_path=draft_path)
+                )
+                session.commit()
+
+            doc = await RoomManager(self._app)._load_or_build_doc(self.revision_id)
+
+            pages = doc.get("pages", type=pycrdt.Map)
+            assert isinstance(pages["1"], pycrdt.Array)
+            with self._app.get_db().sessionmaker() as session:
+                assert (
+                    session.scalar(
+                        select(ScriptDraft).where(
+                            ScriptDraft.revision_id == self.revision_id
+                        )
+                    )
+                    is None
+                )
+        finally:
+            if os.path.exists(draft_path):
+                os.remove(draft_path)

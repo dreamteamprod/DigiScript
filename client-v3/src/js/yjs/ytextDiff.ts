@@ -93,8 +93,8 @@ export function captureSelection(ytext: Y.Text, start: number, end: number): Rel
 }
 
 /**
- * Where a captured selection is now, or null if the text is no longer part of a doc
- * (or the position can't be resolved).
+ * Where a captured selection is now, or null if the text is no longer part of a doc,
+ * the position can't be resolved, or it was captured on a different text.
  */
 export function resolveSelection(
   ytext: Y.Text,
@@ -105,5 +105,8 @@ export function resolveSelection(
   const start = Y.createAbsolutePositionFromRelativePosition(selection.start, doc);
   const end = Y.createAbsolutePositionFromRelativePosition(selection.end, doc);
   if (!start || !end) return null;
+  // A position resolves against the whole doc, so one captured on another text (say a
+  // different part's) would otherwise return an unrelated index without complaint.
+  if (start.type !== ytext || end.type !== ytext) return null;
   return { start: start.index, end: end.index };
 }

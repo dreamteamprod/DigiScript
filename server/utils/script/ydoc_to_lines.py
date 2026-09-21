@@ -22,6 +22,7 @@ from models.script import (
     ScriptLineRevisionAssociation,
 )
 from utils.script.line_helpers import create_new_line, validate_line
+from utils.script.line_to_ydoc import numeric_page_keys
 
 
 if TYPE_CHECKING:
@@ -96,7 +97,7 @@ def extract_lines_from_ydoc(
 
     # Extract pages sorted by page number
     lines_by_page: list[dict] = []
-    page_keys = sorted(pages_map.keys(), key=int)
+    page_keys = sorted(numeric_page_keys(pages_map), key=int)
 
     get_logger().debug(
         f"extract_lines_from_ydoc: {len(page_keys)} page(s): {page_keys}"
@@ -121,7 +122,10 @@ def extract_lines_from_ydoc(
                 line_parts.append(
                     {
                         "_id": part_map["_id"],
-                        "part_index": part_map["part_index"],
+                        # Position, not the stored value: two editors appending a
+                        # part concurrently both write the same index, and array
+                        # order is the one thing Yjs converges on.
+                        "part_index": j,
                         "character_id": _zero_to_none(part_map["character_id"]),
                         "character_group_id": _zero_to_none(
                             part_map["character_group_id"]
@@ -251,6 +255,7 @@ def _save_script_page(
     session: DigiDBSession,
     show: Show,
     previous_line: ScriptLineRevisionAssociation | None,
+    changed_pages: set[int] | None = None,
 ) -> tuple[ScriptLineRevisionAssociation | None, dict[str, str], dict[str, str]]:
     """Persist one page of Y.Doc data to the database.
 
@@ -277,12 +282,17 @@ def _save_script_page(
     :param show: Show model (used by the line validator).
     :param previous_line: Last association from the preceding page (or None
         for page 1).
+    :param changed_pages: Optional set that every page whose DB content this call
+        altered (a line created, replaced or deleted) is added to, so the caller can
+        notify clients about only those pages.
     :returns: ``(last_assoc, new_line_id_map, new_part_id_map)`` where the
         mappings are ``{uuid_str: str(db_id)}`` for newly inserted objects.
     :raises ValueError: If line validation fails.
     """
     new_line_id_map: dict[str, str] = {}
     new_part_id_map: dict[str, str] = {}
+    if changed_pages is None:
+        changed_pages = set()
 
     log = get_logger()
     log.debug(
@@ -317,6 +327,7 @@ def _save_script_page(
             assoc, line_obj = create_new_line(
                 session, revision, line_dict, previous_line
             )
+            changed_pages.add(page_number)
             log.debug(
                 f"  [{idx}] Created new ScriptLine id={line_obj.id} "
                 f"(ydoc_id {ydoc_id_str!r} → db id {line_obj.id})"
@@ -372,6 +383,9 @@ def _save_script_page(
 
                 curr_line = curr_assoc.line
                 old_line_id = curr_line.id
+                changed_pages.add(page_number)
+                # A line moved between pages leaves its old page too.
+                changed_pages.add(curr_line.page)
                 _, line_object = create_new_line(
                     session, revision, line_dict, previous_line, with_association=False
                 )
@@ -499,6 +513,7 @@ def _save_script_page(
             )
             continue
         log.debug(f"  [del] Deleting line id={deleted_id} from page {page_number}")
+        changed_pages.add(page_number)
 
         # Update next/previous neighbour pointers (mirrors script.py:491–540)
         if assoc.next_line and assoc.previous_line:

@@ -500,7 +500,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         :returns: The ``collaborative_script_editing`` setting.
         """
         return bool(
-            await self.application.digi_settings.get("collaborative_script_editing")
+            self.application.digi_settings.get_sync("collaborative_script_editing")
         )
 
     async def _get_current_show(self, session) -> Optional[Show]:
@@ -616,7 +616,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 # old-UI client is refused up front in collaborative mode, instead of
                 # letting it edit and then fail (and lose its work) at save time.
                 collab_enabled = await self._is_collab_editing_enabled()
-                if bool(data.get("collab")) != collab_enabled:
+                # An explicit boolean is required so a client that omits the flag
+                # (a stale UI, or cut mode) is never mistaken for a collab request.
+                if data.get("collab", False) is not collab_enabled:
                     await self._reject_script_room_op(
                         "REQUEST_EDIT_FAILURE",
                         "reason",

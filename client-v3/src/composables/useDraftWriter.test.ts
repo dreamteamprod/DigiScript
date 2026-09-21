@@ -44,13 +44,15 @@ describe('useDraftWriter', () => {
     seedTrailingPage(doc);
     const writer = useDraftWriter();
 
-    const lineId = writer.addLine(1, { lineType: 1, actId: 1, sceneId: 2 });
-    const partId = writer.addPart(1, lineId, { characterId: 5 });
-    writer.setPartText(1, lineId, partId, 'Hello');
+    const { lineUid, partUid: seedUid } = writer.addLine(1, { lineType: 1, actId: 1, sceneId: 2 });
+    const partUid = writer.addPart(1, lineUid, { characterId: 5 })!;
+    writer.setPartText(1, lineUid, partUid, 'Hello');
 
     const line = ydocPagesToPlain(doc)['1'][0];
-    expect(line._id).toBe(lineId);
-    expect(line.parts[0]).toMatchObject({ _id: partId, character_id: 5, line_text: 'Hello' });
+    expect(line._uid).toBe(lineUid);
+    // The line came with a part of its own; the appended one follows it.
+    expect(line.parts[0]._uid).toBe(seedUid);
+    expect(line.parts[1]).toMatchObject({ _uid: partUid, character_id: 5, line_text: 'Hello' });
   });
 
   it('follows a draft that was left and re-joined, rather than holding the old doc', () => {
@@ -74,10 +76,9 @@ describe('useDraftWriter', () => {
     store.joinScriptRoom();
     seedTrailingPage(store.getDraftYdoc()!);
     const writer = useDraftWriter();
-    const lineId = writer.addLine(1, { lineType: 1 });
-    const partId = writer.addPart(1, lineId);
-    writer.setPartText(1, lineId, partId, 'abc');
+    const { lineUid, partUid } = writer.addLine(1, { lineType: 1 });
+    writer.setPartText(1, lineUid, partUid, 'abc');
 
-    expect(writer.getPartText(1, lineId, partId).toString()).toBe('abc');
+    expect(writer.getPartText(1, lineUid, partUid)!.toString()).toBe('abc');
   });
 });

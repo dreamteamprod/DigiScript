@@ -34,6 +34,7 @@ from utils.script.line_to_ydoc import (
     build_ydoc,
     ensure_trailing_page,
     fetch_script_line_data,
+    numeric_page_keys,
 )
 from utils.script.ydoc_to_lines import _save_script_page, extract_lines_from_ydoc
 from utils.script.yjs_debug import attach_trace_observers
@@ -107,6 +108,8 @@ class ScriptRoom:
         self.last_activity = time.monotonic()
         self._last_checkpoint = time.monotonic()
         self._dirty = False
+        # Pages whose DB content the latest save_draft altered (for SCRIPT_PAGE_CHANGED).
+        self.last_saved_pages: list[int] = []
         self._doc_subscription = None
         self._trace_pages_sub = None
         self._trace_deleted_sub = None
@@ -316,6 +319,7 @@ class ScriptRoom:
 
             new_line_id_map: dict[str, str] = {}
             new_part_id_map: dict[str, str] = {}
+            changed_pages: set[int] = set()
 
             total_pages = len(lines_by_page)
             if total_pages:
@@ -335,6 +339,7 @@ class ScriptRoom:
                     session,
                     show,
                     previous_line,
+                    changed_pages,
                 )
                 new_line_id_map.update(line_map)
                 new_part_id_map.update(part_map)
@@ -348,6 +353,7 @@ class ScriptRoom:
             )
             session.commit()
             log.info(f"save_draft: revision={self.revision_id} commit successful")
+            self.last_saved_pages = sorted(changed_pages)
 
             # Capture state before mutating so we can compute the delta to broadcast.
             # Must come before the deleted_line_ids wipe below — otherwise the wipe
@@ -371,13 +377,15 @@ class ScriptRoom:
 
             if not new_line_id_map and not new_part_id_map:
                 log.info(f"save_draft: revision={self.revision_id} no new IDs to patch")
-                return self.doc.get_update(state_before)
+                update = self.doc.get_update(state_before)
+                self.mark_checkpointed()
+                return update
 
             # Patch the Y.Doc: replace UUID _id values with real DB ids.
             pages_map = self.doc.get("pages", type=pycrdt.Map)
             patched_lines = 0
             patched_parts = 0
-            for page_key in sorted(pages_map.keys(), key=int):
+            for page_key in sorted(numeric_page_keys(pages_map), key=int):
                 page_arr = pages_map[page_key]
                 for i in range(len(page_arr)):
                     line_map_obj = page_arr[i]
@@ -407,7 +415,13 @@ class ScriptRoom:
                 f"save_draft: revision={self.revision_id} Y.Doc patched "
                 f"({patched_lines} line IDs, {patched_parts} part IDs)"
             )
-            return self.doc.get_update(state_before)
+            update = self.doc.get_update(state_before)
+            # Clear the dirty flag here, still inside ``save_lock`` and with no await
+            # since the doc was last touched: an edit cannot land between the save and
+            # this reset, so it can never have its flag cleared without being saved.
+            # (The id patch above marks the doc dirty itself, hence resetting after it.)
+            self.mark_checkpointed()
+            return update
 
     async def apply_update(self, update: bytes) -> bytes | None:
         """Apply a binary update to the Y.Doc.
@@ -543,8 +557,6 @@ class RoomManager:
                 await self.close_active_room()
 
             doc = await self._load_or_build_doc(revision_id)
-            # A draft checkpointed before the trailing-page rule existed may lack one.
-            ensure_trailing_page(doc)
             room = ScriptRoom(revision_id, doc)
             room.start_observing()
             self._room = room
@@ -621,9 +633,6 @@ class RoomManager:
                         "Failed to broadcast ID-patch update to client", exc_info=True
                     )
 
-        # Reset dirty so hasDraft → False
-        room.mark_checkpointed()
-
         # Notify all clients of successful save
         now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
         for client_ws in list(room.clients.keys()):
@@ -640,26 +649,21 @@ class RoomManager:
                     "Failed to notify client of successful save", exc_info=True
                 )
 
-        # The classic REST save tells every client which pages changed so any that
+        # The classic REST save tells every client which page it touched so any that
         # cache script pages (cue editor, live view) reload them; a collaborative save
-        # must do the same or those clients keep serving stale pages. Every page is
-        # named, empty ones included, since a page emptied by deletions changed too.
-        # Clients only reload pages they have cached, so over-notifying is cheap.
-        try:
-            saved_pages = sorted(
-                int(key)
-                for key in room.doc.get("pages", type=pycrdt.Map).keys()
-                if str(key).isdigit()
-            )
-            for page in saved_pages:
+        # must do the same. Only the pages the save actually changed are named: each
+        # notification makes every client reload its cached copy of that page over
+        # HTTP, so naming every page of a long script would flood the event loop.
+        for page in room.last_saved_pages:
+            try:
                 await self._application.ws_send_to_all(
                     "NOOP", "SCRIPT_PAGE_CHANGED", {"page": page}
                 )
-        except Exception:
-            get_logger().exception(
-                f"Failed to broadcast page changes after saving revision "
-                f"{room.revision_id}"
-            )
+            except Exception:
+                get_logger().exception(
+                    f"Failed to broadcast change of page {page} after saving "
+                    f"revision {room.revision_id}"
+                )
 
         # Remove draft file and DB record (no longer needed after DB save). The
         # ScriptLine changes above already committed, so a failure here does not
@@ -848,6 +852,10 @@ class RoomManager:
                     doc.get("pages", type=pycrdt.Map)
                     doc.get("deleted_line_ids", type=pycrdt.Array)
                     doc.apply_update(data)
+                    # A draft checkpointed before the trailing-page rule existed may
+                    # lack one. Done here so a malformed pages map takes the same
+                    # corrupt-draft recovery as any other undecodable draft.
+                    ensure_trailing_page(doc)
                     get_logger().info(
                         f"Loaded draft for revision {revision_id} "
                         f"from {draft.data_path}"

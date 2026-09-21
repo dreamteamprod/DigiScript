@@ -7,8 +7,13 @@ and produces a pycrdt Y.Doc. No database needed — uses synthetic data.
 import base64
 
 import pycrdt
+import pytest
 
-from utils.script.line_to_ydoc import build_ydoc, ensure_trailing_page
+from utils.script.line_to_ydoc import (
+    build_ydoc,
+    ensure_trailing_page,
+    numeric_page_keys,
+)
 
 
 def _make_line_data(
@@ -481,6 +486,63 @@ class TestEnsureTrailingPage:
 
         assert ensure_trailing_page(doc) is None
 
+    def test_a_non_array_last_page_is_rejected_not_indexed(self):
+        """A corrupt draft can hold anything under a page key."""
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = "not an array"
+
+        with pytest.raises(ValueError, match="not a Y.Array"):
+            ensure_trailing_page(doc)
+
+    def test_reloading_a_draft_without_a_trailing_page_is_stable(self):
+        """A server restart before the repair is checkpointed repairs it again.
+
+        Each load makes the page under a fresh client id; since nobody else is in
+        the room, the resulting state must be identical in shape either way.
+        """
+        original = build_ydoc([], revision_id=1)
+        original.get("pages", type=pycrdt.Map)["1"].append(pycrdt.Map())
+        stored = original.get_update()  # what a checkpoint holds: page 1 is full
+
+        shapes = []
+        for _ in range(2):
+            doc = pycrdt.Doc()
+            doc.get("pages", type=pycrdt.Map)
+            doc.apply_update(stored)
+            ensure_trailing_page(doc)
+            assert ensure_trailing_page(doc) is None  # idempotent within a load
+            pages = doc.get("pages", type=pycrdt.Map)
+            shapes.append({key: len(pages[key]) for key in sorted(pages.keys())})
+
+        assert shapes == [{"1": 1, "2": 0}, {"1": 1, "2": 0}]
+
+    def test_built_lines_and_parts_get_a_stable_uid(self):
+        data = [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)]
+        line = build_ydoc(data, revision_id=1).get("pages", type=pycrdt.Map)["1"][0]
+
+        assert line["_uid"] == line["_id"] == "7"
+        part = line["parts"][0]
+        assert part["_uid"] == part["_id"]
+
+
+class TestNumericPageKeys:
+    def test_keeps_only_ascii_page_numbers(self):
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        for key in ("1", "10", "notes", "²", "-1", "1.5", ""):
+            pages[key] = pycrdt.Array()
+
+        assert sorted(numeric_page_keys(pages)) == ["1", "10"]
+
+    def test_a_stray_key_does_not_confuse_the_trailing_page_check(self):
+        doc = build_ydoc([], revision_id=1)
+        doc.get("pages", type=pycrdt.Map)["notes"] = pycrdt.Array()
+
+        assert ensure_trailing_page(doc) is None
+
+
+class TestEnsureTrailingPageConcurrency:
     def test_concurrent_edits_to_the_trailing_page_both_survive(self):
         """The bug the trailing page exists to prevent: two editors, one new page.
 

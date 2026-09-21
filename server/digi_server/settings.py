@@ -247,6 +247,10 @@ class Settings:
                 "editing. Cannot be changed while anyone is editing the script or an "
                 "unsaved draft exists."
             ),
+            # Hidden until the collaborative editor is wired into the UI: switching it
+            # on now would leave no client able to edit the script. Remove this in the
+            # step that ships the editor.
+            hide_from_ui=True,
             category="General",
         )
         self.define(
@@ -550,6 +554,18 @@ class Settings:
             if key not in self.settings:
                 raise KeyError(f"{key} is not a valid setting")
             return self.settings.get(key).get_value()
+
+    def get_sync(self, key):
+        """Read a setting without awaiting, for callers that cannot be coroutines.
+
+        ``get`` only takes the lock to serialise with ``set``; the value itself is a
+        plain attribute, so a synchronous read is safe on the event loop.
+
+        :raises KeyError: If *key* is not a defined setting.
+        """
+        if key not in self.settings:
+            raise KeyError(f"{key} is not a valid setting")
+        return self.settings[key].get_value()
 
     async def set(self, key, item):
         changed = False

@@ -5,10 +5,19 @@ import { applyTextDiff } from './ytextDiff';
 /**
  * Every edit the script editor makes to the shared draft.
  *
- * Lines and parts are addressed by their `_id` (a UUID until the first save, then the
- * DB id), never by position: another editor's insert or delete shifts every index but
- * not an `_id`. Callers pass the page a line is on, so a write is a lookup in one page
- * rather than a scan of the whole script on every keystroke.
+ * Lines and parts are addressed by their `_uid`, never by position: another editor's
+ * insert or delete shifts every index but not a `_uid`. `_uid` is assigned when a line
+ * or part is created and never rewritten. That is why it, not `_id`, is the address:
+ * `_id` is the *database* identity, which a save rewrites in place (UUID → DB id for
+ * new rows, old → new DB id for changed ones), so anything holding an `_id` would
+ * lose its target the moment a save lands. Callers pass the page a line is on, so a
+ * write is a lookup in one page rather than a scan of the whole script.
+ *
+ * Contract for a target that has vanished: with several editors that is a normal
+ * condition (another editor deleted the line you were typing in), so the writers do not
+ * throw for it. They return `false` (or `null` for functions that return an id), and
+ * the caller decides what to tell the user. `DraftWriteError` is reserved for
+ * conditions that are bugs or a broken draft: no open draft, or a page that does not exist.
  *
  * Each function is exactly one Yjs transaction (so one update on the wire), tagged
  * with `LOCAL_EDIT_ORIGIN`. Nothing here holds a Yjs object between calls — they take
@@ -33,13 +42,14 @@ export type LineField = 'act_id' | 'scene_id' | 'stage_direction_style_id';
 export type PartField = 'character_id' | 'character_group_id';
 
 export interface WriteOptions {
-  /** Generates the `_id` for a new line or part. Injectable so tests are deterministic. */
+  /** Generates the `_uid` (and initial `_id`) for a new line or part. Injectable so tests are deterministic. */
   newId?: () => string;
 }
 
 const defaultNewId = (): string => crypto.randomUUID();
 
 type LineMap = Y.Map<unknown>;
+type PartMap = Y.Map<unknown>;
 type PageArray = Y.Array<LineMap>;
 
 /**
@@ -56,50 +66,80 @@ function getPage(doc: Y.Doc, page: number): PageArray {
   return array as PageArray;
 }
 
-function findLine(doc: Y.Doc, page: number, lineId: string): { line: LineMap; index: number } {
+/**
+ * The address of a line or part. Drafts written before `_uid` existed only have `_id`,
+ * which is then the best identity there is.
+ */
+function uidOf(map: Y.Map<unknown>): string {
+  return String(map.get('_uid') ?? map.get('_id'));
+}
+
+function findLine(
+  doc: Y.Doc,
+  page: number,
+  lineUid: string
+): { line: LineMap; index: number } | null {
   const array = getPage(doc, page);
   for (let index = 0; index < array.length; index += 1) {
     const line = array.get(index);
-    if (String(line.get('_id')) === lineId) return { line, index };
+    if (uidOf(line) === lineUid) return { line, index };
   }
-  throw new DraftWriteError(`Line ${lineId} not found on page ${page}`);
+  return null;
 }
 
-function getParts(line: LineMap): Y.Array<Y.Map<unknown>> {
+function getParts(line: LineMap): Y.Array<PartMap> {
   const parts = line.get('parts');
   if (!(parts instanceof Y.Array)) {
     throw new DraftWriteError('Line has no parts array');
   }
-  return parts as Y.Array<Y.Map<unknown>>;
+  return parts as Y.Array<PartMap>;
 }
 
 function findPart(
   doc: Y.Doc,
   page: number,
-  lineId: string,
-  partId: string
-): { part: Y.Map<unknown>; index: number; parts: Y.Array<Y.Map<unknown>> } {
-  const parts = getParts(findLine(doc, page, lineId).line);
+  lineUid: string,
+  partUid: string
+): { part: PartMap; index: number; parts: Y.Array<PartMap> } | null {
+  const found = findLine(doc, page, lineUid);
+  if (!found) return null;
+  const parts = getParts(found.line);
   for (let index = 0; index < parts.length; index += 1) {
     const part = parts.get(index);
-    if (String(part.get('_id')) === partId) return { part, index, parts };
+    if (uidOf(part) === partUid) return { part, index, parts };
   }
-  throw new DraftWriteError(`Part ${partId} not found on line ${lineId}`);
+  return null;
 }
 
+/**
+ * `part_index` is written for the benefit of readers of the raw doc, but it is advisory:
+ * two editors appending a part at once both write the same value, so the server (and
+ * `yjsSnapshot`) derive a part's index from its position in the array instead.
+ */
 function makePartMap(
-  partId: string,
+  uid: string,
   partIndex: number,
   characterId: number | null,
   characterGroupId: number | null
-): Y.Map<unknown> {
+): PartMap {
   const part = new Y.Map<unknown>();
-  part.set('_id', partId);
+  part.set('_id', uid);
+  part.set('_uid', uid);
   part.set('part_index', partIndex);
   part.set('character_id', nullToZero(characterId));
   part.set('character_group_id', nullToZero(characterGroupId));
   part.set('line_text', new Y.Text(''));
   return part;
+}
+
+/**
+ * A part has a character or a character group, never both. Enforced here rather than
+ * trusted to callers: the server would otherwise save a part claiming both.
+ */
+function assertNotBoth(characterId: number | null, characterGroupId: number | null): void {
+  if (characterId != null && characterGroupId != null) {
+    throw new DraftWriteError('A part cannot have both a character and a character group');
+  }
 }
 
 export interface NewLine {
@@ -109,70 +149,103 @@ export interface NewLine {
   stageDirectionStyleId?: number | null;
   /** Insert position within the page; defaults to the end. */
   index?: number;
+  /** Seeded into the line's first part. */
+  part?: NewPart;
 }
 
-/** Add an empty line to an existing page and return its new `_id`. */
+export interface NewLineIds {
+  lineUid: string;
+  partUid: string;
+}
+
+/**
+ * Add a line to an existing page and return the `_uid`s of the line and of its first
+ * part. The line is created *with* one empty part in the same transaction: a separate
+ * `addPart` call would let a peer, or a save, observe a line with no parts.
+ */
 export function addLine(
   doc: Y.Doc,
   page: number,
   line: NewLine,
   { newId = defaultNewId }: WriteOptions = {}
-): string {
-  const id = newId();
+): NewLineIds {
+  const lineUid = newId();
+  const partUid = newId();
+  const seed = line.part ?? {};
+  assertNotBoth(seed.characterId ?? null, seed.characterGroupId ?? null);
   doc.transact(() => {
     const array = getPage(doc, page);
     const map: LineMap = new Y.Map<unknown>();
-    map.set('_id', id);
+    map.set('_id', lineUid);
+    map.set('_uid', lineUid);
     map.set('act_id', nullToZero(line.actId));
     map.set('scene_id', nullToZero(line.sceneId));
     map.set('line_type', line.lineType);
     map.set('stage_direction_style_id', nullToZero(line.stageDirectionStyleId));
-    map.set('parts', new Y.Array<Y.Map<unknown>>());
+    const parts = new Y.Array<PartMap>();
+    map.set('parts', parts);
     array.insert(Math.min(Math.max(line.index ?? array.length, 0), array.length), [map]);
+    // Integrated into the doc first, then filled (a Y type must be attached to be written).
+    parts.push([makePartMap(partUid, 0, seed.characterId ?? null, seed.characterGroupId ?? null)]);
   }, LOCAL_EDIT_ORIGIN);
-  return id;
+  return { lineUid, partUid };
 }
 
 /**
  * Remove a line. A line that already exists in the DB is also recorded in
  * `deleted_line_ids` so the server deletes it on save; a line that was never saved
- * (UUID `_id`) simply disappears.
+ * (UUID `_id`) simply disappears. Returns false if the line was already gone.
  */
-export function deleteLine(doc: Y.Doc, page: number, lineId: string): void {
+export function deleteLine(doc: Y.Doc, page: number, lineUid: string): boolean {
+  let deleted = false;
   doc.transact(() => {
-    const { index } = findLine(doc, page, lineId);
-    getPage(doc, page).delete(index, 1);
-    if (parseDbId(lineId) !== null) {
-      doc.getArray<string>('deleted_line_ids').push([lineId]);
+    const found = findLine(doc, page, lineUid);
+    if (!found) return;
+    // The *current* `_id`: a save may have turned the UUID it was created with into a DB id.
+    const dbId = String(found.line.get('_id'));
+    getPage(doc, page).delete(found.index, 1);
+    if (parseDbId(dbId) !== null) {
+      doc.getArray<string>('deleted_line_ids').push([dbId]);
     }
+    deleted = true;
   }, LOCAL_EDIT_ORIGIN);
+  return deleted;
 }
 
 export function setLineField(
   doc: Y.Doc,
   page: number,
-  lineId: string,
+  lineUid: string,
   field: LineField,
   value: number | null
-): void {
+): boolean {
+  let applied = false;
   doc.transact(() => {
-    findLine(doc, page, lineId).line.set(field, nullToZero(value));
+    const found = findLine(doc, page, lineUid);
+    if (!found) return;
+    found.line.set(field, nullToZero(value));
+    applied = true;
   }, LOCAL_EDIT_ORIGIN);
+  return applied;
 }
 
 /** Set act and scene together as one update (they are always changed as a pair). */
 export function setLineActScene(
   doc: Y.Doc,
   page: number,
-  lineId: string,
+  lineUid: string,
   actId: number | null,
   sceneId: number | null
-): void {
+): boolean {
+  let applied = false;
   doc.transact(() => {
-    const { line } = findLine(doc, page, lineId);
-    line.set('act_id', nullToZero(actId));
-    line.set('scene_id', nullToZero(sceneId));
+    const found = findLine(doc, page, lineUid);
+    if (!found) return;
+    found.line.set('act_id', nullToZero(actId));
+    found.line.set('scene_id', nullToZero(sceneId));
+    applied = true;
   }, LOCAL_EDIT_ORIGIN);
+  return applied;
 }
 
 export interface NewPart {
@@ -180,80 +253,125 @@ export interface NewPart {
   characterGroupId?: number | null;
 }
 
-/** Append an empty part to a line and return its new `_id`. */
+/** Append an empty part to a line and return its `_uid`, or null if the line is gone. */
 export function addPart(
   doc: Y.Doc,
   page: number,
-  lineId: string,
+  lineUid: string,
   part: NewPart = {},
   { newId = defaultNewId }: WriteOptions = {}
-): string {
-  const id = newId();
+): string | null {
+  const characterId = part.characterId ?? null;
+  const characterGroupId = part.characterGroupId ?? null;
+  assertNotBoth(characterId, characterGroupId);
+  const uid = newId();
+  let added = false;
   doc.transact(() => {
-    const parts = getParts(findLine(doc, page, lineId).line);
-    parts.push([
-      makePartMap(id, parts.length, part.characterId ?? null, part.characterGroupId ?? null),
-    ]);
+    const found = findLine(doc, page, lineUid);
+    if (!found) return;
+    const parts = getParts(found.line);
+    parts.push([makePartMap(uid, parts.length, characterId, characterGroupId)]);
+    added = true;
   }, LOCAL_EDIT_ORIGIN);
-  return id;
+  return added ? uid : null;
 }
 
-/** Remove a part and renumber the rest 0..n-1, as the classic editor does. */
-export function removePart(doc: Y.Doc, page: number, lineId: string, partId: string): void {
+/**
+ * Remove a part. The rest are not renumbered: a part's index is its position, which a
+ * removal already shifts, and renumbering from one editor's view is exactly what
+ * concurrent edits would get wrong. Returns false if the part was already gone.
+ */
+export function removePart(doc: Y.Doc, page: number, lineUid: string, partUid: string): boolean {
+  let removed = false;
   doc.transact(() => {
-    const { index, parts } = findPart(doc, page, lineId, partId);
-    parts.delete(index, 1);
-    for (let i = index; i < parts.length; i += 1) {
-      parts.get(i).set('part_index', i);
-    }
+    const found = findPart(doc, page, lineUid, partUid);
+    if (!found) return;
+    found.parts.delete(found.index, 1);
+    removed = true;
   }, LOCAL_EDIT_ORIGIN);
+  return removed;
 }
 
+/**
+ * Set one of a part's two character fields. Setting a value clears the other field, so
+ * the "one or the other" rule holds whichever is set; use `setPartCharacter` to set both
+ * explicitly.
+ */
 export function setPartField(
   doc: Y.Doc,
   page: number,
-  lineId: string,
-  partId: string,
+  lineUid: string,
+  partUid: string,
   field: PartField,
   value: number | null
-): void {
+): boolean {
+  let applied = false;
   doc.transact(() => {
-    findPart(doc, page, lineId, partId).part.set(field, nullToZero(value));
+    const found = findPart(doc, page, lineUid, partUid);
+    if (!found) return;
+    found.part.set(field, nullToZero(value));
+    if (value != null) {
+      found.part.set(
+        field === 'character_id' ? 'character_group_id' : 'character_id',
+        nullToZero(null)
+      );
+    }
+    applied = true;
   }, LOCAL_EDIT_ORIGIN);
+  return applied;
 }
 
-/** Set character and group together — a part has one or the other, never both. */
+/** Set character and group together — a part has one or the other, never both (throws if both). */
 export function setPartCharacter(
   doc: Y.Doc,
   page: number,
-  lineId: string,
-  partId: string,
+  lineUid: string,
+  partUid: string,
   characterId: number | null,
   characterGroupId: number | null
-): void {
+): boolean {
+  assertNotBoth(characterId, characterGroupId);
+  let applied = false;
   doc.transact(() => {
-    const { part } = findPart(doc, page, lineId, partId);
-    part.set('character_id', nullToZero(characterId));
-    part.set('character_group_id', nullToZero(characterGroupId));
+    const found = findPart(doc, page, lineUid, partUid);
+    if (!found) return;
+    found.part.set('character_id', nullToZero(characterId));
+    found.part.set('character_group_id', nullToZero(characterGroupId));
+    applied = true;
   }, LOCAL_EDIT_ORIGIN);
+  return applied;
 }
 
-/** The live `Y.Text` of a part, for binding an input (see `applyTextDiff`). Do not store it. */
-export function getPartText(doc: Y.Doc, page: number, lineId: string, partId: string): Y.Text {
-  const text = findPart(doc, page, lineId, partId).part.get('line_text');
+/**
+ * The live `Y.Text` of a part, for binding an input (see `applyTextDiff`). Do not store
+ * it. Null if the part is gone.
+ */
+export function getPartText(
+  doc: Y.Doc,
+  page: number,
+  lineUid: string,
+  partUid: string
+): Y.Text | null {
+  const found = findPart(doc, page, lineUid, partUid);
+  if (!found) return null;
+  const text = found.part.get('line_text');
   if (!(text instanceof Y.Text)) {
-    throw new DraftWriteError(`Part ${partId} has no text`);
+    throw new DraftWriteError(`Part ${partUid} has no text`);
   }
   return text;
 }
 
-/** Make a part's text equal `text` using the minimal edit. Returns whether anything changed. */
+/**
+ * Make a part's text equal `text` using the minimal edit. Returns whether anything
+ * changed — false both when the text already matched and when the part is gone.
+ */
 export function setPartText(
   doc: Y.Doc,
   page: number,
-  lineId: string,
-  partId: string,
+  lineUid: string,
+  partUid: string,
   text: string
 ): boolean {
-  return applyTextDiff(getPartText(doc, page, lineId, partId), text, LOCAL_EDIT_ORIGIN);
+  const ytext = getPartText(doc, page, lineUid, partUid);
+  return ytext ? applyTextDiff(ytext, text, LOCAL_EDIT_ORIGIN) : false;
 }

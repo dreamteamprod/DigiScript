@@ -33,24 +33,22 @@ class SettingsController(BaseAPIController):
         """
         if COLLAB_SETTING not in data:
             return False
-        if bool(data[COLLAB_SETTING]) == bool(await settings.get(COLLAB_SETTING)):
+        if data[COLLAB_SETTING] == settings.get_sync(COLLAB_SETTING):
             return False
+
+        room_manager = self.application.room_manager
+        # Every await comes first: the checks below then run with no yield between
+        # them and the caller's `settings.set`, so nobody can start editing in the gap.
+        unsaved = await room_manager.has_unsaved_changes()
+        room = room_manager.get_active_room()
+        if unsaved or (room is not None and not room.is_empty):
+            return True
 
         with self.make_session() as session:
             busy = session.scalars(
                 select(Session).where(Session.is_editor | Session.is_cutting)
             ).first()
-        if busy is not None:
-            return True
-
-        room_manager = getattr(self.application, "room_manager", None)
-        if room_manager is None:
-            return False
-        room = room_manager.get_active_room()
-        return bool(
-            (room is not None and not room.is_empty)
-            or await room_manager.has_unsaved_changes()
-        )
+        return busy is not None
 
     @allow_when_password_required
     async def get(self):
@@ -66,6 +64,11 @@ class SettingsController(BaseAPIController):
 
         data = escape.json_decode(self.request.body)
         get_logger().debug(f"New settings data patched: {data}")
+
+        if COLLAB_SETTING in data and not isinstance(data[COLLAB_SETTING], bool):
+            self.set_status(400)
+            self.write({"message": f"{COLLAB_SETTING} must be a boolean"})
+            return
 
         if await self._collab_mode_change_blocked(settings, data):
             self.set_status(409)

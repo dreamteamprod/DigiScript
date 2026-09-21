@@ -146,6 +146,9 @@ def _build_ydoc_content(script_data: list[dict], revision_id: int) -> pycrdt.Doc
         current_page_array.append(line_map)
 
         line_map["_id"] = str(line_data["id"])
+        # Never rewritten: `_id` becomes the DB id when a save patches it, but
+        # clients address lines by `_uid` so they survive that patch.
+        line_map["_uid"] = str(line_data["id"])
         line_map["act_id"] = (
             line_data["act_id"] if line_data["act_id"] is not None else 0
         )
@@ -170,6 +173,7 @@ def _build_ydoc_content(script_data: list[dict], revision_id: int) -> pycrdt.Doc
             parts_array.append(part_map)
 
             part_map["_id"] = str(part_data["id"])
+            part_map["_uid"] = str(part_data["id"])
             part_map["part_index"] = (
                 part_data["part_index"] if part_data["part_index"] is not None else 0
             )
@@ -201,6 +205,21 @@ def _build_ydoc_content(script_data: list[dict], revision_id: int) -> pycrdt.Doc
     return doc
 
 
+def numeric_page_keys(pages: pycrdt.Map) -> list[str]:
+    """The page keys of a ``pages`` map that are plain page numbers.
+
+    The one definition of "a page key" shared by the trailing-page check, save and
+    the extractor, so a stray non-numeric key is ignored everywhere rather than
+    tolerated in one place and raising in another. ``isdecimal()`` alone would accept
+    non-ASCII digits that ``int()`` rejects, hence the ``isascii()``.
+    """
+    return [
+        key
+        for key in pages.keys()
+        if isinstance(key, str) and key.isascii() and key.isdecimal()
+    ]
+
+
 def ensure_trailing_page(doc: pycrdt.Doc) -> bytes | None:
     """Make sure the doc's last page is an empty one, so clients never create pages.
 
@@ -219,10 +238,14 @@ def ensure_trailing_page(doc: pycrdt.Doc) -> bytes | None:
         doc already ended in an empty page.
     """
     pages = doc.get("pages", type=pycrdt.Map)
-    numeric = [int(key) for key in pages.keys() if str(key).isdigit()]
-    last = max(numeric) if numeric else 0
-    if numeric and len(pages[str(last)]) == 0:
-        return None
+    keys = numeric_page_keys(pages)
+    last = max((int(key) for key in keys), default=0)
+    if keys:
+        last_page = pages[str(last)]
+        if not isinstance(last_page, pycrdt.Array):
+            raise ValueError(f"Page {last} is not a Y.Array; the draft is malformed")
+        if len(last_page) == 0:
+            return None
 
     state_before = doc.get_state()
     pages[str(last + 1)] = pycrdt.Array()

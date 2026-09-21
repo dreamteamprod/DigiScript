@@ -54,6 +54,17 @@ describe('computeTextDiff', () => {
     expect(apply(oldText, diff)).toBe(newText);
   });
 
+  it('never splits a pair when only the low surrogates match (suffix rule)', () => {
+    // 😀 = D83D DE00 and 🨀 = D83E DE00 share the *low* half, so the common suffix
+    // would start in the middle of the pair unless it is backed off.
+    const oldText = 'a😀';
+    const newText = 'a🨀';
+    const diff = computeTextDiff(oldText, newText)!;
+
+    expect(diff).toEqual({ index: 1, deleteCount: 2, insert: '🨀' });
+    expect(apply(oldText, diff)).toBe(newText);
+  });
+
   it('keeps the pair together on the suffix side too', () => {
     const oldText = '😀!';
     const newText = '😁!';
@@ -68,7 +79,7 @@ describe('computeTextDiff', () => {
       seed = (seed * 1103515245 + 12345) & 0x7fffffff;
       return seed / 0x7fffffff;
     };
-    const alphabet = ['a', 'b', ' ', '😀', '😁', 'é'];
+    const alphabet = ['a', 'b', ' ', '😀', '😁', '🨀', 'é'];
     const randomString = () =>
       Array.from(
         { length: Math.floor(rand() * 8) },
@@ -88,6 +99,14 @@ describe('computeTextDiff', () => {
       const startsInsideAPair =
         diff.index > 0 && before >= 0xd800 && before <= 0xdbff && oldText.length > diff.index;
       expect(startsInsideAPair).toBe(false);
+      // ...nor ends inside one (the suffix rule).
+      const end = diff.index + diff.deleteCount;
+      const endsInsideAPair =
+        end > 0 &&
+        end < oldText.length &&
+        oldText.charCodeAt(end - 1) >= 0xd800 &&
+        oldText.charCodeAt(end - 1) <= 0xdbff;
+      expect(endsInsideAPair).toBe(false);
     }
   });
 });
@@ -228,5 +247,17 @@ describe('captureSelection / resolveSelection', () => {
     const selection = captureSelection(textA, 0, 0);
 
     expect(resolveSelection(new Y.Text('detached'), selection)).toBeNull();
+  });
+
+  it('returns null for a selection captured on a different text in the same doc', () => {
+    const doc = new Y.Doc();
+    const first = doc.getText('first');
+    const second = doc.getText('second');
+    first.insert(0, 'hello world');
+    second.insert(0, 'hello world');
+    const selection = captureSelection(first, 6, 11);
+
+    expect(resolveSelection(second, selection)).toBeNull();
+    expect(resolveSelection(first, selection)).toEqual({ start: 6, end: 11 });
   });
 });

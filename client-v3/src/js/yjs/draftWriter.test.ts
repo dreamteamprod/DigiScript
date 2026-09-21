@@ -32,6 +32,7 @@ function makeServerDoc(): Y.Doc {
     const line = new Y.Map<unknown>();
     array.push([line]);
     line.set('_id', id);
+    line.set('_uid', id);
     line.set('act_id', 1);
     line.set('scene_id', 2);
     line.set('line_type', 1);
@@ -41,6 +42,7 @@ function makeServerDoc(): Y.Doc {
     const part = new Y.Map<unknown>();
     parts.push([part]);
     part.set('_id', `${id}0`);
+    part.set('_uid', `${id}0`);
     part.set('part_index', 0);
     part.set('character_id', 3);
     part.set('character_group_id', 0);
@@ -65,7 +67,7 @@ function sync(a: Y.Doc, b: Y.Doc): void {
 }
 
 function ids(doc: Y.Doc, page: number): string[] {
-  return ydocPagesToPlain(doc)[String(page)].map((l) => l._id);
+  return ydocPagesToPlain(doc)[String(page)].map((l) => l._uid);
 }
 
 function counter(prefix = 'new'): () => string {
@@ -84,20 +86,21 @@ function recordUpdates(doc: Y.Doc): unknown[] {
 }
 
 describe('addLine', () => {
-  it('appends an empty line with the exact structure the server builds and reads', () => {
+  it('appends a line, with its first part, in the exact structure the server builds and reads', () => {
     const doc = makeServerDoc();
 
-    const id = addLine(
+    const ids = addLine(
       doc,
       3,
       { lineType: 1, actId: 1, sceneId: 2, stageDirectionStyleId: 9 },
       { newId: counter() }
     );
 
-    expect(id).toBe('new-1');
+    expect(ids).toEqual({ lineUid: 'new-1', partUid: 'new-2' });
     const line = (doc.getMap('pages').get('3') as Y.Array<Y.Map<unknown>>).get(0);
     expect([...line.keys()].sort()).toEqual([
       '_id',
+      '_uid',
       'act_id',
       'line_type',
       'parts',
@@ -105,11 +108,51 @@ describe('addLine', () => {
       'stage_direction_style_id',
     ]);
     expect(line.get('_id')).toBe('new-1');
+    expect(line.get('_uid')).toBe('new-1');
     expect(line.get('act_id')).toBe(1);
     expect(line.get('scene_id')).toBe(2);
     expect(line.get('line_type')).toBe(1);
     expect(line.get('stage_direction_style_id')).toBe(9);
-    expect(line.get('parts')).toBeInstanceOf(Y.Array);
+    const parts = line.get('parts') as Y.Array<Y.Map<unknown>>;
+    expect(parts).toBeInstanceOf(Y.Array);
+    expect(parts.length).toBe(1);
+    const part = parts.get(0);
+    expect([...part.keys()].sort()).toEqual([
+      '_id',
+      '_uid',
+      'character_group_id',
+      'character_id',
+      'line_text',
+      'part_index',
+    ]);
+    expect(part.get('_uid')).toBe('new-2');
+    expect(part.get('line_text')).toBeInstanceOf(Y.Text);
+  });
+
+  it('is never observable without its first part (one transaction, one update)', () => {
+    const doc = makeServerDoc();
+    const origins = recordUpdates(doc);
+    const partCounts: number[] = [];
+    doc.on('afterTransaction', () => {
+      const array = doc.getMap('pages').get('1') as Y.Array<Y.Map<unknown>>;
+      array.forEach((line) => partCounts.push((line.get('parts') as Y.Array<unknown>).length));
+    });
+
+    addLine(doc, 1, { lineType: 1 }, { newId: counter() });
+
+    expect(origins).toEqual([LOCAL_EDIT_ORIGIN]);
+    expect(partCounts.length).toBeGreaterThan(0);
+    expect(partCounts.every((n) => n === 1)).toBe(true);
+  });
+
+  it('seeds the first part with a character when given one', () => {
+    const doc = makeServerDoc();
+    addLine(doc, 3, { lineType: 1, part: { characterId: 4 } }, { newId: counter() });
+
+    expect(ydocPagesToPlain(doc)['3'][0].parts[0]).toMatchObject({
+      character_id: 4,
+      character_group_id: null,
+    });
   });
 
   it('stores "no value" as the 0 sentinel, not null', () => {
@@ -132,15 +175,6 @@ describe('addLine', () => {
     expect(ids(doc, 1)).toEqual(['start-1', '1', 'mid-1', '2', 'end-1']);
   });
 
-  it('is exactly one update, tagged as a local edit', () => {
-    const doc = makeServerDoc();
-    const origins = recordUpdates(doc);
-
-    addLine(doc, 1, { lineType: 1 }, { newId: counter() });
-
-    expect(origins).toEqual([LOCAL_EDIT_ORIGIN]);
-  });
-
   it('refuses to create a page — only the server creates pages', () => {
     const doc = makeServerDoc();
     const before = Y.encodeStateVector(doc);
@@ -151,10 +185,23 @@ describe('addLine', () => {
     expect(doc.getMap('pages').has('4')).toBe(false);
   });
 
-  it('generates a UUID id by default', () => {
+  it('rejects a part with both a character and a group, writing nothing', () => {
     const doc = makeServerDoc();
-    const id = addLine(doc, 1, { lineType: 1 });
-    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/);
+    const before = Y.encodeStateVector(doc);
+
+    expect(() =>
+      addLine(doc, 3, { lineType: 1, part: { characterId: 1, characterGroupId: 2 } })
+    ).toThrow(/both/);
+
+    expect(Y.encodeStateVector(doc)).toEqual(before);
+  });
+
+  it('generates UUIDs by default', () => {
+    const doc = makeServerDoc();
+    const { lineUid, partUid } = addLine(doc, 1, { lineType: 1 });
+    expect(lineUid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/);
+    expect(partUid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/);
+    expect(partUid).not.toBe(lineUid);
   });
 });
 
@@ -170,9 +217,9 @@ describe('deleteLine', () => {
 
   it('removes a never-saved line without recording anything', () => {
     const doc = makeServerDoc();
-    const id = addLine(doc, 1, { lineType: 1 }, { newId: counter() });
+    const { lineUid } = addLine(doc, 1, { lineType: 1 }, { newId: counter() });
 
-    deleteLine(doc, 1, id);
+    expect(deleteLine(doc, 1, lineUid)).toBe(true);
 
     expect(ids(doc, 1)).toEqual(['1', '2']);
     expect(ydocDeletedLineIds(doc)).toEqual([]);
@@ -197,15 +244,18 @@ describe('deleteLine', () => {
     expect(ids(doc, 1)).toEqual(['new-1', '1']);
   });
 
-  it('throws, and writes nothing, for an unknown line or page', () => {
+  it('returns false, and writes nothing, for a line another editor already deleted', () => {
     const doc = makeServerDoc();
     const before = Y.encodeStateVector(doc);
 
-    expect(() => deleteLine(doc, 1, 'nope')).toThrow(DraftWriteError);
-    expect(() => deleteLine(doc, 9, '1')).toThrow(DraftWriteError);
+    expect(deleteLine(doc, 1, 'nope')).toBe(false);
 
     expect(Y.encodeStateVector(doc)).toEqual(before);
     expect(doc.getArray('deleted_line_ids').length).toBe(0);
+  });
+
+  it('throws for a page that does not exist', () => {
+    expect(() => deleteLine(makeServerDoc(), 9, '1')).toThrow(DraftWriteError);
   });
 });
 
@@ -237,11 +287,11 @@ describe('parts', () => {
   it('appends a part with the next part_index, character, and empty text', () => {
     const doc = makeServerDoc();
 
-    const partId = addPart(doc, 1, '1', { characterId: 4 }, { newId: counter('p') });
+    const partUid = addPart(doc, 1, '1', { characterId: 4 }, { newId: counter('p') });
 
     const parts = ydocPagesToPlain(doc)['1'][0].parts;
-    expect(partId).toBe('p-1');
-    expect(parts.map((p) => p._id)).toEqual(['10', 'p-1']);
+    expect(partUid).toBe('p-1');
+    expect(parts.map((p) => p._uid)).toEqual(['10', 'p-1']);
     expect(parts[1]).toMatchObject({
       part_index: 1,
       character_id: 4,
@@ -252,23 +302,59 @@ describe('parts', () => {
 
   it("stores a new part's text as a Y.Text", () => {
     const doc = makeServerDoc();
-    const partId = addPart(doc, 1, '1');
+    const partUid = addPart(doc, 1, '1')!;
 
-    expect(getPartText(doc, 1, '1', partId)).toBeInstanceOf(Y.Text);
+    expect(getPartText(doc, 1, '1', partUid)).toBeInstanceOf(Y.Text);
   });
 
-  it('removes a part and renumbers the ones after it 0..n-1', () => {
+  it('removes a part; the rest read back as 0..n-1 by position without being rewritten', () => {
     const doc = makeServerDoc();
     const p1 = addPart(doc, 1, '1', {}, { newId: counter('p') });
     addPart(doc, 1, '1', {}, { newId: counter('q') });
+    const line = (doc.getMap('pages').get('1') as Y.Array<Y.Map<unknown>>).get(0);
+    const stored = () =>
+      (line.get('parts') as Y.Array<Y.Map<unknown>>).toArray().map((p) => p.get('part_index'));
+    expect(stored()).toEqual([0, 1, 2]);
+    const origins = recordUpdates(doc);
 
-    removePart(doc, 1, '1', '10');
+    expect(removePart(doc, 1, '1', '10')).toBe(true);
 
     const parts = ydocPagesToPlain(doc)['1'][0].parts;
-    expect(parts.map((p) => [p._id, p.part_index])).toEqual([
+    expect(parts.map((p) => [p._uid, p.part_index])).toEqual([
       [p1, 0],
       ['q-1', 1],
     ]);
+    // Only the deletion was written: no per-part renumbering to race another editor.
+    expect(origins).toEqual([LOCAL_EDIT_ORIGIN]);
+    expect(stored()).toEqual([1, 2]);
+  });
+
+  it('two editors appending a part at once get distinct positions, not duplicate indexes', () => {
+    const server = makeServerDoc();
+    const a = replica(server);
+    const b = replica(server);
+
+    addPart(a, 1, '1', {}, { newId: counter('a') });
+    addPart(b, 1, '1', {}, { newId: counter('b') });
+    sync(a, b);
+
+    const stored = (doc: Y.Doc) =>
+      (
+        (doc.getMap('pages').get('1') as Y.Array<Y.Map<unknown>>).get(0).get('parts') as Y.Array<
+          Y.Map<unknown>
+        >
+      )
+        .toArray()
+        .map((p) => p.get('part_index'));
+    // Both wrote part_index 1 into their own part...
+    expect(stored(a)).toEqual([0, 1, 1]);
+    // ...but what readers see is derived from position, so it is unique on both replicas.
+    for (const doc of [a, b]) {
+      expect(ydocPagesToPlain(doc)['1'][0].parts.map((p) => p.part_index)).toEqual([0, 1, 2]);
+    }
+    expect(ydocPagesToPlain(a)['1'][0].parts.map((p) => p._uid)).toEqual(
+      ydocPagesToPlain(b)['1'][0].parts.map((p) => p._uid)
+    );
   });
 
   it('sets character and group together, and either alone; null becomes 0', () => {
@@ -281,17 +367,46 @@ describe('parts', () => {
     });
 
     setPartField(doc, 1, '1', '10', 'character_id', 2);
-    setPartField(doc, 1, '1', '10', 'character_group_id', null);
     expect(ydocPagesToPlain(doc)['1'][0].parts[0]).toMatchObject({
       character_id: 2,
+      character_group_id: null, // setting one clears the other
+    });
+    setPartField(doc, 1, '1', '10', 'character_id', null);
+    expect(ydocPagesToPlain(doc)['1'][0].parts[0]).toMatchObject({
+      character_id: null,
       character_group_id: null,
     });
   });
 
-  it('throws for an unknown part', () => {
+  it('never leaves a part with both a character and a group', () => {
+    const doc = makeServerDoc(); // the seeded part has character 3
+
+    setPartField(doc, 1, '1', '10', 'character_group_id', 8);
+    expect(ydocPagesToPlain(doc)['1'][0].parts[0]).toMatchObject({
+      character_id: null,
+      character_group_id: 8,
+    });
+
+    const before = Y.encodeStateVector(doc);
+    expect(() => setPartCharacter(doc, 1, '1', '10', 1, 2)).toThrow(/both/);
+    expect(() => addPart(doc, 1, '1', { characterId: 1, characterGroupId: 2 })).toThrow(/both/);
+    expect(Y.encodeStateVector(doc)).toEqual(before);
+  });
+
+  it('reports a vanished target with false/null instead of throwing', () => {
     const doc = makeServerDoc();
-    expect(() => removePart(doc, 1, '1', 'nope')).toThrow(DraftWriteError);
-    expect(() => setPartField(doc, 1, '1', 'nope', 'character_id', 1)).toThrow(DraftWriteError);
+    const before = Y.encodeStateVector(doc);
+
+    expect(removePart(doc, 1, '1', 'nope')).toBe(false);
+    expect(setPartField(doc, 1, '1', 'nope', 'character_id', 1)).toBe(false);
+    expect(setPartCharacter(doc, 1, 'nope', '10', 1, null)).toBe(false);
+    expect(setLineField(doc, 1, 'nope', 'act_id', 1)).toBe(false);
+    expect(setLineActScene(doc, 1, 'nope', 1, 2)).toBe(false);
+    expect(addPart(doc, 1, 'nope')).toBeNull();
+    expect(getPartText(doc, 1, '1', 'nope')).toBeNull();
+    expect(setPartText(doc, 1, '1', 'nope', 'x')).toBe(false);
+
+    expect(Y.encodeStateVector(doc)).toEqual(before);
   });
 });
 
@@ -342,7 +457,7 @@ describe('two editors', () => {
     setPartText(b, 1, '2', '20', 'Edited by B');
     sync(a, b);
 
-    expect(ydocPagesToPlain(a)['1'].find((l) => l._id === '2')!.parts[0].line_text).toBe(
+    expect(ydocPagesToPlain(a)['1'].find((l) => l._uid === '2')!.parts[0].line_text).toBe(
       'Edited by B'
     );
   });
@@ -377,15 +492,20 @@ describe('two editors', () => {
 describe('snapshotPagesToScriptLines (read adapter)', () => {
   it('presents the draft in the ScriptLine shape existing components consume', () => {
     const doc = makeServerDoc();
-    const newId = addLine(doc, 1, { lineType: 2, actId: 1, sceneId: 2 }, { newId: counter() });
-    addPart(doc, 1, newId, { characterId: 5 }, { newId: counter('p') });
-    setPartText(doc, 1, newId, 'p-1', 'Enter left');
+    const { lineUid, partUid } = addLine(
+      doc,
+      1,
+      { lineType: 2, actId: 1, sceneId: 2, part: { characterId: 5 } },
+      { newId: counter() }
+    );
+    setPartText(doc, 1, lineUid, partUid, 'Enter left');
 
     const pages = snapshotPagesToScriptLines(ydocPagesToPlain(doc));
 
     const saved = pages['1'][0];
     expect(saved).toMatchObject({
       _id: '1',
+      _uid: '1',
       id: 1,
       act_id: 1,
       scene_id: 2,
@@ -406,6 +526,7 @@ describe('snapshotPagesToScriptLines (read adapter)', () => {
     const unsaved = pages['1'][2];
     expect(unsaved.id).toBeNull(); // not in the DB yet
     expect(unsaved._id).toBe('new-1');
+    expect(unsaved._uid).toBe('new-1');
     expect(unsaved.line_type).toBe(2);
     expect(unsaved.line_parts[0]).toMatchObject({
       id: null,
@@ -420,5 +541,57 @@ describe('snapshotPagesToScriptLines (read adapter)', () => {
     expect(Object.keys(pages).sort()).toEqual(['1', '2', '3']);
     expect(pages['2'][0].page).toBe(2);
     expect(pages['3']).toEqual([]);
+  });
+});
+
+/**
+ * A save rewrites `_id` in place (UUID → DB id) and broadcasts that. The writer must keep
+ * finding the same line and part by `_uid` afterwards, or the second keystroke after a
+ * save would fail.
+ */
+describe('after a save has rewritten the ids', () => {
+  function simulateSavePatch(doc: Y.Doc, lineUid: string, dbLineId: string, dbPartId: string) {
+    const line = (doc.getMap('pages').get('1') as Y.Array<Y.Map<unknown>>)
+      .toArray()
+      .find((l) => l.get('_uid') === lineUid)!;
+    doc.transact(() => {
+      line.set('_id', dbLineId);
+      (line.get('parts') as Y.Array<Y.Map<unknown>>).get(0).set('_id', dbPartId);
+    }, 'remote');
+  }
+
+  it('keeps writing to the line and part it was already holding', () => {
+    const doc = makeServerDoc();
+    const { lineUid, partUid } = addLine(doc, 1, { lineType: 1 }, { newId: counter() });
+    setPartText(doc, 1, lineUid, partUid, 'before');
+
+    simulateSavePatch(doc, lineUid, '501', '601');
+
+    expect(setPartText(doc, 1, lineUid, partUid, 'before and after')).toBe(true);
+    expect(setPartField(doc, 1, lineUid, partUid, 'character_id', 3)).toBe(true);
+    expect(setLineField(doc, 1, lineUid, 'act_id', 2)).toBe(true);
+    const line = ydocPagesToPlain(doc)['1'].find((l) => l._uid === lineUid)!;
+    expect(line._id).toBe('501');
+    expect(line.parts[0]).toMatchObject({ _id: '601', line_text: 'before and after' });
+  });
+
+  it('deleting the line then records its current DB id, not the UUID it was made with', () => {
+    const doc = makeServerDoc();
+    const { lineUid } = addLine(doc, 1, { lineType: 1 }, { newId: counter() });
+    simulateSavePatch(doc, lineUid, '501', '601');
+
+    expect(deleteLine(doc, 1, lineUid)).toBe(true);
+
+    expect(ydocDeletedLineIds(doc)).toEqual([501]);
+  });
+
+  it('still addresses lines from a draft that predates _uid by their _id', () => {
+    const doc = makeServerDoc();
+    for (const line of (doc.getMap('pages').get('1') as Y.Array<Y.Map<unknown>>).toArray()) {
+      line.delete('_uid');
+    }
+
+    expect(deleteLine(doc, 1, '2')).toBe(true);
+    expect(ids(doc, 1)).toEqual(['1']);
   });
 });

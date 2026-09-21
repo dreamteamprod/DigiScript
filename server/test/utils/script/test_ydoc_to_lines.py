@@ -743,6 +743,104 @@ class TestSaveScriptPage(_ScriptTestSetup):
 
     # ------ Deletion tests ------
 
+    # ------ changed_pages reporting (drives SCRIPT_PAGE_CHANGED) ------
+
+    def test_changed_pages_names_a_page_that_gained_a_line(self):
+        changed: set[int] = set()
+        with self._app.get_db().sessionmaker() as session:
+            revision = session.get(ScriptRevision, self.revision_id)
+            _save_script_page(
+                revision,
+                3,
+                [self._make_stage_direction_dict(str(uuid.uuid4()))],
+                [],
+                session,
+                revision.script.show,
+                None,
+                changed,
+            )
+        self.assertEqual({3}, changed)
+
+    def test_changed_pages_names_a_page_that_lost_a_line(self):
+        changed: set[int] = set()
+        with self._app.get_db().sessionmaker() as session:
+            revision = session.get(ScriptRevision, self.revision_id)
+            a1 = self._seed_line(session, text="L1")
+            a2 = self._seed_line(session, previous_assoc=a1, text="L2")
+            _save_script_page(
+                revision,
+                1,
+                [self._assoc_to_line_dict(a1)],
+                [a2.line_id],
+                session,
+                revision.script.show,
+                None,
+                changed,
+            )
+        self.assertEqual({1}, changed)
+
+    def test_changed_pages_ignores_a_page_with_nothing_to_write(self):
+        changed: set[int] = set()
+        with self._app.get_db().sessionmaker() as session:
+            revision = session.get(ScriptRevision, self.revision_id)
+            a1 = self._seed_line(session, text="L1")
+            _save_script_page(
+                revision,
+                1,
+                [self._assoc_to_line_dict(a1)],
+                [],
+                session,
+                revision.script.show,
+                None,
+                changed,
+            )
+        self.assertEqual(set(), changed)
+
+    def test_changed_pages_names_both_pages_when_a_line_moves(self):
+        changed: set[int] = set()
+        with self._app.get_db().sessionmaker() as session:
+            revision = session.get(ScriptRevision, self.revision_id)
+            a1 = self._seed_line(session, text="L1", page=1)
+            moved = self._assoc_to_line_dict(a1)
+            _save_script_page(
+                revision,
+                2,
+                [moved],
+                [],
+                session,
+                revision.script.show,
+                None,
+                changed,
+            )
+        self.assertEqual({1, 2}, changed)
+
+    def test_part_index_comes_from_array_position_not_the_stored_value(self):
+        """Two editors appending a part concurrently both write the same index."""
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        doc.get("deleted_line_ids", type=pycrdt.Array)
+        pages["1"] = pycrdt.Array()
+        line = pycrdt.Map()
+        pages["1"].append(line)
+        line["_id"] = "line-a"
+        for name in ("act_id", "scene_id", "line_type", "stage_direction_style_id"):
+            line[name] = 0
+        line["parts"] = pycrdt.Array()
+        for part_id in ("p-a", "p-b", "p-c"):
+            part = pycrdt.Map()
+            line["parts"].append(part)
+            part["_id"] = part_id
+            part["part_index"] = 1  # every part claims the same index
+            part["character_id"] = 0
+            part["character_group_id"] = 0
+            part["line_text"] = pycrdt.Text(part_id)
+
+        lines_by_page, _ = extract_lines_from_ydoc(doc)
+
+        parts = lines_by_page[0]["lines"][0]["line_parts"]
+        self.assertEqual([0, 1, 2], [p["part_index"] for p in parts])
+        self.assertEqual(["p-a", "p-b", "p-c"], [p["_id"] for p in parts])
+
     def test_delete_middle_line(self):
         """Lines 1,2,3; delete 2 → DB has 1+3, linked list 1→3."""
         with self._app.get_db().sessionmaker() as session:

@@ -59,16 +59,13 @@ def no_collaborative_editing(
 
     In collaborative mode the shared draft is the only way to change the script, so a
     REST write — e.g. from an old-UI client that ignored the mode — must not slip
-    through and diverge from it. Reads the setting synchronously (a plain dict lookup)
-    so this stays a plain sync wrapper, like its siblings.
+    through and diverge from it. Reads the setting with ``Settings.get_sync`` so this
+    stays a plain sync wrapper, like its siblings.
     """
 
     @functools.wraps(method)
     def wrapper(self: BaseController, *args, **kwargs):
-        setting = self.application.digi_settings.settings[
-            "collaborative_script_editing"
-        ]
-        if setting.get_value():
+        if self.application.digi_settings.get_sync("collaborative_script_editing"):
             self.set_status(409)
             self.finish({"message": ERROR_COLLAB_EDITING_ENABLED})
             return None
