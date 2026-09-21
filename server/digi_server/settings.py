@@ -169,7 +169,9 @@ class Settings:
 
         if not os.path.exists(self._base_path):
             get_logger().info(f"Creating base path {self._base_path}")
-            os.makedirs(self._base_path)
+            # exist_ok: another process (e.g. a parallel test worker on a fresh
+            # checkout) can create it between the check above and this call.
+            os.makedirs(self._base_path, exist_ok=True)
 
         if settings_path:
             self.settings_path = settings_path
@@ -181,7 +183,7 @@ class Settings:
             get_logger().info(
                 f"Creating settings path {os.path.dirname(self.settings_path)}"
             )
-            os.makedirs(os.path.dirname(self.settings_path))
+            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
 
         self.categories: Dict[str : List[str]] = {"General": []}
         self.settings: Dict[str, SettingsObject] = {}
