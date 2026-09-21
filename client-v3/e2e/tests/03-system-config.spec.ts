@@ -163,12 +163,12 @@ test('can configure RBAC permissions for testuser', async () => {
     timeout: 5_000,
   });
 
-  // Wait for the "Revoked role from user" toast to clear before clicking the modal close button.
-  // In Firefox the toast persists long enough to intercept pointer events to .btn-close.
-  await page
-    .locator('.v-toast')
-    .waitFor({ state: 'detached', timeout: 10_000 })
-    .catch(() => {});
+  // Wait for the "Revoked role from user" toast to clear before clicking the modal close button,
+  // otherwise it sits over .btn-close and intercepts pointer events. Wait on .v-toast__item (removed
+  // on dismiss), not .v-toast: the latter are two permanent containers, so it would be a strict-mode
+  // violation and could never detach. Don't move the mouse onto the toast while waiting - hovering
+  // pauses its auto-dismiss timer.
+  await expect(page.locator('.v-toast__item')).toHaveCount(0, { timeout: 10_000 });
   await page.locator('.modal.show .modal-header .btn-close').click();
   await waitForModalClosed(page);
 });
