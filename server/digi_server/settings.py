@@ -169,8 +169,8 @@ class Settings:
 
         if not os.path.exists(self._base_path):
             get_logger().info(f"Creating base path {self._base_path}")
-            # exist_ok: another process (e.g. a parallel test worker on a fresh
-            # checkout) can create it between the check above and this call.
+            # exist_ok: parallel processes (e.g. pytest-xdist workers) can race
+            # between the exists() check and creation.
             os.makedirs(self._base_path, exist_ok=True)
 
         if settings_path:
