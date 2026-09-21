@@ -452,10 +452,11 @@ class TestScriptRoomSaveDraft(_ScriptTestSetup):
         room = ScriptRoom(self.revision_id, doc)
 
         with self._app.get_db().sessionmaker() as session:
-            update = await room.save_draft(session)
+            update, pages = await room.save_draft(session)
 
         self.assertIsInstance(update, bytes)
         self.assertGreater(len(update), 0)
+        self.assertEqual([1], pages)
 
         with self._app.get_db().sessionmaker() as session:
             lines = session.scalars(select(ScriptLine)).all()
@@ -471,10 +472,50 @@ class TestScriptRoomSaveDraft(_ScriptTestSetup):
         room.start_observing()
 
         with self._app.get_db().sessionmaker() as session:
-            await room.save_draft(session)
+            _, saved = await room.save_draft(session)
 
         self.assertFalse(room._dirty)
-        self.assertEqual([2], room.last_saved_pages)
+        self.assertEqual([2], saved)
+
+    @gen_test
+    async def test_each_save_reports_its_own_pages_even_when_saves_overlap(self):
+        """The pages come back per call: a second save that finds nothing to write
+        must not blank the list the first save is about to announce."""
+        doc = _build_empty_doc()
+        _add_line_to_doc(doc, "1", str(uuid.uuid4()))
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            _, first = await room.save_draft(session)
+        with self._app.get_db().sessionmaker() as session:
+            _, second = await room.save_draft(session)
+
+        self.assertEqual([1], first)
+        self.assertEqual([], second)
+
+    @gen_test
+    async def test_a_deletion_recorded_against_the_uuid_is_applied_after_the_patch(
+        self,
+    ):
+        """A client that has not yet received the id patch records the id it knows."""
+        uid = str(uuid.uuid4())
+        doc = _build_empty_doc()
+        _add_line_to_doc(doc, "1", uid)
+        room = ScriptRoom(self.revision_id, doc)
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+        db_id = int(str(doc.get("pages", type=pycrdt.Map)["1"][0]["_id"]))
+
+        # The lagging client deletes the line, still calling it by its UUID.
+        del doc.get("pages", type=pycrdt.Map)["1"][0]
+        doc.get("deleted_line_ids", type=pycrdt.Array).append(uid)
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNone(
+                session.get(ScriptLineRevisionAssociation, (self.revision_id, db_id))
+            )
 
     @gen_test
     async def test_save_draft_keeps_the_stable_uid_while_rewriting_the_id(self):
@@ -525,8 +566,10 @@ class TestScriptRoomSaveDraft(_ScriptTestSetup):
         room = ScriptRoom(self.revision_id, doc)
 
         with self._app.get_db().sessionmaker() as session:
-            update = await room.save_draft(session)
+            update, pages = await room.save_draft(session)
 
+        # Nothing differed from the DB, so no page is reported
+        self.assertEqual([], pages)
         # Returns bytes (meta.last_saved_at update) rather than None
         self.assertIsInstance(update, bytes)
         self.assertGreater(len(update), 0)
@@ -987,6 +1030,58 @@ class TestRoomManagerLoadOrBuildDocRecovery(_ScriptTestSetup):
                     )
                     is None
                 )
+        finally:
+            if os.path.exists(draft_path):
+                os.remove(draft_path)
+
+    @gen_test
+    async def test_a_non_array_page_from_a_client_is_healed_not_left_to_fail_forever(
+        self,
+    ):
+        """A deterministic failure must not be retried (and logged) on every update."""
+        room = _make_room()
+        room.doc.get("pages", type=pycrdt.Map)["1"] = pycrdt.Array()
+        client = pycrdt.Doc()
+        client.get("pages", type=pycrdt.Map)
+        client.apply_update(room.get_sync_state())
+        before = client.get_state()
+        client.get("pages", type=pycrdt.Map)["1"] = "garbage"
+
+        follow_up = await room.apply_update(client.get_update(before))
+
+        assert follow_up is not None
+        assert isinstance(room.doc.get("pages", type=pycrdt.Map)["1"], pycrdt.Array)
+        # ...and the healed doc is stable from here on.
+        assert await room.apply_update(client.get_update(client.get_state())) is None
+
+    @gen_test
+    async def test_a_legacy_draft_gains_a_trailing_page_and_uids_on_load(self):
+        """A draft checkpointed before the trailing-page rule and `_uid` existed."""
+        legacy = _build_empty_doc()
+        _add_line_to_doc(legacy, "1", str(uuid.uuid4()))
+        draft_dir = self._app.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+        os.makedirs(draft_dir, exist_ok=True)
+        draft_path = os.path.join(draft_dir, f"draft_{self.revision_id}.yjs")
+        with open(draft_path, "wb") as f:
+            f.write(legacy.get_update())
+
+        try:
+            with self._app.get_db().sessionmaker() as session:
+                session.add(
+                    ScriptDraft(revision_id=self.revision_id, data_path=draft_path)
+                )
+                session.commit()
+
+            doc = await RoomManager(self._app)._load_or_build_doc(self.revision_id)
+
+            pages = doc.get("pages", type=pycrdt.Map)
+            assert sorted(pages.keys()) == ["1", "2"]
+            assert len(pages["2"]) == 0
+            line = pages["1"][0]
+            assert line["_uid"] == line["_id"]
+            assert line["parts"][0]["_uid"] == line["parts"][0]["_id"]
         finally:
             if os.path.exists(draft_path):
                 os.remove(draft_path)

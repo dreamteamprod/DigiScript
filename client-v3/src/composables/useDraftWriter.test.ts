@@ -77,8 +77,8 @@ describe('useDraftWriter', () => {
     seedTrailingPage(store.getDraftYdoc()!);
     const writer = useDraftWriter();
     const { lineUid, partUid } = writer.addLine(1, { lineType: 1 });
-    writer.setPartText(1, lineUid, partUid, 'abc');
+    writer.setPartText(1, lineUid, partUid!, 'abc');
 
-    expect(writer.getPartText(1, lineUid, partUid)!.toString()).toBe('abc');
+    expect(writer.getPartText(1, lineUid, partUid!)!.toString()).toBe('abc');
   });
 });

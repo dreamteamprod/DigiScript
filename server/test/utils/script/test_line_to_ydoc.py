@@ -10,6 +10,7 @@ import pycrdt
 import pytest
 
 from utils.script.line_to_ydoc import (
+    backfill_uids,
     build_ydoc,
     ensure_trailing_page,
     numeric_page_keys,
@@ -530,16 +531,57 @@ class TestNumericPageKeys:
     def test_keeps_only_ascii_page_numbers(self):
         doc = pycrdt.Doc()
         pages = doc.get("pages", type=pycrdt.Map)
-        for key in ("1", "10", "notes", "²", "-1", "1.5", ""):
+        for key in ("1", "10", "notes", "²", "-1", "1.5", "", "01", "٣", "0"):
             pages[key] = pycrdt.Array()
 
-        assert sorted(numeric_page_keys(pages)) == ["1", "10"]
+        # "01" would read as page 1 beside a real "1"; "٣" is a digit int() accepts
+        # but pages[str(3)] can never find; "0" is the canonical form of page 0.
+        assert sorted(numeric_page_keys(pages)) == ["0", "1", "10"]
 
     def test_a_stray_key_does_not_confuse_the_trailing_page_check(self):
         doc = build_ydoc([], revision_id=1)
         doc.get("pages", type=pycrdt.Map)["notes"] = pycrdt.Array()
 
         assert ensure_trailing_page(doc) is None
+
+
+class TestRepairAndBackfill:
+    def test_repair_replaces_a_non_array_last_page_and_returns_the_update(self):
+        doc = build_ydoc([], revision_id=1)
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = "garbage"
+
+        update = ensure_trailing_page(doc, repair=True)
+
+        assert update is not None
+        assert isinstance(pages["1"], pycrdt.Array)
+        assert ensure_trailing_page(doc) is None  # now healthy
+
+    def test_backfill_gives_old_drafts_a_uid_equal_to_their_id(self):
+        doc = build_ydoc(
+            [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)],
+            revision_id=1,
+        )
+        line = doc.get("pages", type=pycrdt.Map)["1"][0]
+        del line["_uid"]
+        del line["parts"][0]["_uid"]
+
+        backfill_uids(doc)
+
+        assert line["_uid"] == "7"
+        assert line["parts"][0]["_uid"] == line["parts"][0]["_id"]
+
+    def test_backfill_never_overwrites_an_existing_uid(self):
+        doc = build_ydoc(
+            [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)],
+            revision_id=1,
+        )
+        line = doc.get("pages", type=pycrdt.Map)["1"][0]
+        line["_id"] = "501"  # a save has since rewritten _id
+
+        backfill_uids(doc)
+
+        assert line["_uid"] == "7"
 
 
 class TestEnsureTrailingPageConcurrency:

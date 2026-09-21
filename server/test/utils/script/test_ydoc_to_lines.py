@@ -814,6 +814,34 @@ class TestSaveScriptPage(_ScriptTestSetup):
             )
         self.assertEqual({1, 2}, changed)
 
+    def test_a_legacy_line_with_no_page_does_not_break_the_changed_pages_set(self):
+        """`ScriptLine.page` is nullable; a NULL must never reach the sorted() that
+        runs after the commit."""
+        changed: set[int] = set()
+        with self._app.get_db().sessionmaker() as session:
+            revision = session.get(ScriptRevision, self.revision_id)
+            a1 = self._seed_line(session, text="L1", page=None)
+            edited = self._assoc_to_line_dict(a1)
+            edited["line_parts"][0]["line_text"] = "edited"
+            _save_script_page(
+                revision, 1, [edited], [], session, revision.script.show, None, changed
+            )
+        self.assertEqual({1}, changed)
+        self.assertEqual([1], sorted(changed))
+
+    def test_extract_resolves_a_deletion_recorded_against_a_rewritten_id(self):
+        doc = _build_empty_doc()
+        doc.get("pages", type=pycrdt.Map)["1"] = pycrdt.Array()
+        deleted = doc.get("deleted_line_ids", type=pycrdt.Array)
+        deleted.append("some-uuid")
+        deleted.append("41")
+
+        _, ids = extract_lines_from_ydoc(
+            doc, {"some-uuid": "40", "40": "42", "41": "43"}
+        )
+
+        assert ids == [42, 43]  # a chain (uuid -> 40 -> 42) and a single hop
+
     def test_part_index_comes_from_array_position_not_the_stored_value(self):
         """Two editors appending a part concurrently both write the same index."""
         doc = pycrdt.Doc()

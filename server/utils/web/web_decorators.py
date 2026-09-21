@@ -9,6 +9,7 @@ from controllers.api.constants import (
     ERROR_COLLAB_EDITING_ENABLED,
     ERROR_SCRIPT_DRAFT_ACTIVE,
 )
+from digi_server.settings import COLLAB_EDITING_SETTING
 from models.script import Script
 from models.script_draft import ScriptDraft
 from models.show import Show
@@ -61,11 +62,15 @@ def no_collaborative_editing(
     REST write — e.g. from an old-UI client that ignored the mode — must not slip
     through and diverge from it. Reads the setting with ``Settings.get_sync`` so this
     stays a plain sync wrapper, like its siblings.
+
+    :param method: The request handler to guard.
+    :returns: The wrapped handler, which answers 409 with
+        ``ERROR_COLLAB_EDITING_ENABLED`` instead of calling *method* in that mode.
     """
 
     @functools.wraps(method)
     def wrapper(self: BaseController, *args, **kwargs):
-        if self.application.digi_settings.get_sync("collaborative_script_editing"):
+        if self.application.digi_settings.get_sync(COLLAB_EDITING_SETTING):
             self.set_status(409)
             self.finish({"message": ERROR_COLLAB_EDITING_ENABLED})
             return None

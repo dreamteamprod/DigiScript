@@ -3,7 +3,7 @@ from tornado import escape
 
 from controllers.api.constants import ERROR_COLLAB_MODE_CHANGE_BLOCKED
 from digi_server.logger import get_logger
-from digi_server.settings import Settings
+from digi_server.settings import COLLAB_EDITING_SETTING, Settings
 from models.session import Session
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
@@ -15,25 +15,23 @@ from utils.web.web_decorators import (
 )
 
 
-COLLAB_SETTING = "collaborative_script_editing"
-
-
 @ApiRoute("settings", ApiVersion.V1)
 class SettingsController(BaseAPIController):
     async def _collab_mode_change_blocked(self, settings: Settings, data: dict) -> bool:
         """Return True if *data* would change the editing mode while it's in use.
 
         Switching modes under someone would strand their work: an open classic edit
-        has nowhere to go in collaborative mode, and a draft has nowhere to go in
-        classic mode. Setting the same value again is always fine.
+        or cut session has nowhere to go in collaborative mode, and a draft (or a
+        collaborative room with anyone in it) has nowhere to go in classic mode.
+        Setting the same value again is always fine.
 
         :param settings: The application settings.
         :param data: The requested settings changes.
         :returns: True if the change must be refused.
         """
-        if COLLAB_SETTING not in data:
+        if COLLAB_EDITING_SETTING not in data:
             return False
-        if data[COLLAB_SETTING] == settings.get_sync(COLLAB_SETTING):
+        if data[COLLAB_EDITING_SETTING] == settings.get_sync(COLLAB_EDITING_SETTING):
             return False
 
         room_manager = self.application.room_manager
@@ -65,9 +63,11 @@ class SettingsController(BaseAPIController):
         data = escape.json_decode(self.request.body)
         get_logger().debug(f"New settings data patched: {data}")
 
-        if COLLAB_SETTING in data and not isinstance(data[COLLAB_SETTING], bool):
+        if COLLAB_EDITING_SETTING in data and not isinstance(
+            data[COLLAB_EDITING_SETTING], bool
+        ):
             self.set_status(400)
-            self.write({"message": f"{COLLAB_SETTING} must be a boolean"})
+            self.write({"message": f"{COLLAB_EDITING_SETTING} must be a boolean"})
             return
 
         if await self._collab_mode_change_blocked(settings, data):
@@ -75,8 +75,12 @@ class SettingsController(BaseAPIController):
             self.write({"message": ERROR_COLLAB_MODE_CHANGE_BLOCKED})
             return
 
-        for k, v in data.items():
-            await settings.set(k, v)
+        # The mode key first: the guard above ran with no yield since its last check,
+        # and `settings.set` yields (broadcasting) only after a key that changed, so
+        # writing it before any other key keeps check-and-write free of a scheduling
+        # point even for a multi-key PATCH.
+        for k in sorted(data, key=lambda key: key != COLLAB_EDITING_SETTING):
+            await settings.set(k, data[k])
 
         settings_json = await settings.as_json()
         await self.application.ws_send_to_all(

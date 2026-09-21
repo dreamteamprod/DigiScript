@@ -41,7 +41,7 @@ function buildEditedDoc(): { doc: Y.Doc; before: Uint8Array } {
     { lineType: 1, actId: 1, sceneId: 2, part: { characterId: 3 } },
     { newId }
   );
-  setPartText(doc, 1, dialogue.lineUid, dialogue.partUid, 'Brand new');
+  setPartText(doc, 1, dialogue.lineUid, dialogue.partUid!, 'Brand new');
 
   // 2. edit an existing line's text (minimal diff)
   setPartText(doc, 1, '1', '10', 'Hello brave world');
@@ -56,7 +56,7 @@ function buildEditedDoc(): { doc: Y.Doc; before: Uint8Array } {
     { lineType: 2, actId: 1, sceneId: 2, stageDirectionStyleId: 7, index: 0 },
     { newId }
   );
-  setPartText(doc, 1, direction.lineUid, direction.partUid, 'Enter stage left');
+  setPartText(doc, 1, direction.lineUid, direction.partUid!, 'Enter stage left');
 
   // 5. move an existing line to another act/scene and give it a second part
   setLineActScene(doc, 2, '3', 9, 8);
@@ -64,7 +64,7 @@ function buildEditedDoc(): { doc: Y.Doc; before: Uint8Array } {
   setPartText(doc, 2, '3', chorus!, 'Chorus');
 
   // 6. start a line on the server-created trailing page (page 3)
-  addLine(doc, 3, { lineType: 4 }, { newId });
+  addLine(doc, 3, { lineType: 4 }, { newId }); // a spacing line: no parts
 
   return { doc, before };
 }

@@ -4,7 +4,8 @@ import log from 'loglevel';
 /**
  * One-way Y.Doc → plain-object snapshot builder. Never write back through these
  * types (hence `Readonly`) — editing writes directly to the live Y.Map/Y.Text via
- * `doc.transact()`, using the same `_id` to find the right node. These are for
+ * `doc.transact()`, using the node's `_uid` to find it (`_id` is the DB identity, which
+ * a save rewrites). These are for
  * rendering and for anything that just needs to read current draft content.
  */
 
@@ -77,10 +78,14 @@ function hasId(map: Y.Map<unknown>, kind: string): boolean {
   return true;
 }
 
-/** Drafts from before `_uid` existed only have `_id`, which is then the best identity there is. */
-function uidOf(map: Y.Map<unknown>, rawId: string): string {
+/**
+ * The stable address of a line or part. Drafts from before `_uid` existed only have
+ * `_id`, which is then the best identity there is. The one definition, shared with the
+ * writer so the two can never disagree about which node a uid names.
+ */
+export function uidOf(map: Y.Map<unknown>): string {
   const uid = map.get('_uid');
-  return uid == null || uid === '' ? rawId : String(uid);
+  return uid == null || uid === '' ? String(map.get('_id')) : String(uid);
 }
 
 function ydocPartToPlain(partMap: Y.Map<unknown>, position: number): SnapshotLinePart {
@@ -88,7 +93,7 @@ function ydocPartToPlain(partMap: Y.Map<unknown>, position: number): SnapshotLin
   const text = partMap.get('line_text');
   return {
     _id: rawId,
-    _uid: uidOf(partMap, rawId),
+    _uid: uidOf(partMap),
     id: parseDbId(rawId),
     // Position, not the stored value: two editors appending a part at once both write
     // the same index, and array order is what Yjs converges on (the server does the same).
@@ -108,7 +113,7 @@ export function ydocLineToPlain(lineMap: Y.Map<unknown>): SnapshotLine {
       : [];
   return {
     _id: rawId,
-    _uid: uidOf(lineMap, rawId),
+    _uid: uidOf(lineMap),
     id: parseDbId(rawId),
     act_id: zeroToNull(readNumber(lineMap, 'act_id', 0)),
     scene_id: zeroToNull(readNumber(lineMap, 'scene_id', 0)),

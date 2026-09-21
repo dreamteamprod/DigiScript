@@ -13,7 +13,7 @@ export function useDraftWriter() {
   function doc(): Y.Doc {
     const current = store.getDraftYdoc();
     if (!current) {
-      throw new writer.DraftWriteError('There is no open draft to write to');
+      throw new writer.DraftWriteError('There is no open draft to write to', 'no-draft');
     }
     return current;
   }

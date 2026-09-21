@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
-import { nullToZero, parseDbId } from './yjsSnapshot';
+import { LINE_TYPES, type LineType } from '@/constants/lineTypes';
+import { nullToZero, parseDbId, uidOf } from './yjsSnapshot';
 import { applyTextDiff } from './ytextDiff';
 
 /**
@@ -31,10 +32,16 @@ import { applyTextDiff } from './ytextDiff';
 /** Transaction origin for edits made in this browser. */
 export const LOCAL_EDIT_ORIGIN = 'local-edit';
 
+/** Why a write was refused, so callers can branch without matching message strings. */
+export type DraftWriteErrorCode = 'no-draft' | 'page-missing' | 'invalid';
+
 export class DraftWriteError extends Error {
-  constructor(message: string) {
+  readonly code: DraftWriteErrorCode;
+
+  constructor(message: string, code: DraftWriteErrorCode = 'invalid') {
     super(message);
     this.name = 'DraftWriteError';
+    this.code = code;
   }
 }
 
@@ -61,17 +68,9 @@ type PageArray = Y.Array<LineMap>;
 function getPage(doc: Y.Doc, page: number): PageArray {
   const array = doc.getMap('pages').get(String(page));
   if (!(array instanceof Y.Array)) {
-    throw new DraftWriteError(`Page ${page} does not exist in the draft`);
+    throw new DraftWriteError(`Page ${page} does not exist in the draft`, 'page-missing');
   }
   return array as PageArray;
-}
-
-/**
- * The address of a line or part. Drafts written before `_uid` existed only have `_id`,
- * which is then the best identity there is.
- */
-function uidOf(map: Y.Map<unknown>): string {
-  return String(map.get('_uid') ?? map.get('_id'));
 }
 
 function findLine(
@@ -90,7 +89,7 @@ function findLine(
 function getParts(line: LineMap): Y.Array<PartMap> {
   const parts = line.get('parts');
   if (!(parts instanceof Y.Array)) {
-    throw new DraftWriteError('Line has no parts array');
+    throw new DraftWriteError('Line has no parts array', 'invalid');
   }
   return parts as Y.Array<PartMap>;
 }
@@ -142,26 +141,32 @@ function assertNotBoth(characterId: number | null, characterGroupId: number | nu
   }
 }
 
+/** Line types that carry parts; cue and spacing lines must have none (the server rejects them). */
+const PART_LINE_TYPES: readonly LineType[] = [LINE_TYPES.DIALOGUE, LINE_TYPES.STAGE_DIRECTION];
+
 export interface NewLine {
-  lineType: number;
+  lineType: LineType;
   actId?: number | null;
   sceneId?: number | null;
   stageDirectionStyleId?: number | null;
   /** Insert position within the page; defaults to the end. */
   index?: number;
-  /** Seeded into the line's first part. */
+  /** Seeded into the line's first part (only for line types that have parts). */
   part?: NewPart;
 }
 
 export interface NewLineIds {
   lineUid: string;
-  partUid: string;
+  /** The line's first part, or null for a line type that has none (cue, spacing). */
+  partUid: string | null;
 }
 
 /**
  * Add a line to an existing page and return the `_uid`s of the line and of its first
- * part. The line is created *with* one empty part in the same transaction: a separate
- * `addPart` call would let a peer, or a save, observe a line with no parts.
+ * part. A dialogue or stage-direction line is created *with* one empty part in the same
+ * transaction: a separate `addPart` call would let a peer, or a save, observe such a line
+ * with no parts. Cue and spacing lines have no parts (the server rejects them
+ * otherwise), so none is created and `partUid` is null.
  */
 export function addLine(
   doc: Y.Doc,
@@ -170,9 +175,14 @@ export function addLine(
   { newId = defaultNewId }: WriteOptions = {}
 ): NewLineIds {
   const lineUid = newId();
-  const partUid = newId();
+  const hasParts = PART_LINE_TYPES.includes(line.lineType);
+  if (line.part && !hasParts) {
+    throw new DraftWriteError(`Line type ${line.lineType} cannot have parts`);
+  }
+  const partUid = hasParts ? newId() : null;
   const seed = line.part ?? {};
   assertNotBoth(seed.characterId ?? null, seed.characterGroupId ?? null);
+  const requestedIndex = Number.isFinite(line.index) ? (line.index as number) : undefined;
   doc.transact(() => {
     const array = getPage(doc, page);
     const map: LineMap = new Y.Map<unknown>();
@@ -184,28 +194,35 @@ export function addLine(
     map.set('stage_direction_style_id', nullToZero(line.stageDirectionStyleId));
     const parts = new Y.Array<PartMap>();
     map.set('parts', parts);
-    array.insert(Math.min(Math.max(line.index ?? array.length, 0), array.length), [map]);
-    // Integrated into the doc first, then filled (a Y type must be attached to be written).
-    parts.push([makePartMap(partUid, 0, seed.characterId ?? null, seed.characterGroupId ?? null)]);
+    array.insert(Math.min(Math.max(requestedIndex ?? array.length, 0), array.length), [map]);
+    if (partUid !== null) {
+      // Integrated into the doc first, then filled (a Y type must be attached to be written).
+      parts.push([
+        makePartMap(partUid, 0, seed.characterId ?? null, seed.characterGroupId ?? null),
+      ]);
+    }
   }, LOCAL_EDIT_ORIGIN);
   return { lineUid, partUid };
 }
 
 /**
- * Remove a line. A line that already exists in the DB is also recorded in
- * `deleted_line_ids` so the server deletes it on save; a line that was never saved
- * (UUID `_id`) simply disappears. Returns false if the line was already gone.
+ * Remove a line and record its current `_id` in `deleted_line_ids`, so the server deletes
+ * the row on save. The id is recorded even when it is still a UUID: this client may just
+ * not have received the id patch of a save that already persisted the line, and the
+ * server remembers those rewrites and resolves the entry. For a line that was never
+ * saved the entry is harmless (skipped, then wiped by the next save). Returns false if
+ * the line was already gone.
  */
 export function deleteLine(doc: Y.Doc, page: number, lineUid: string): boolean {
   let deleted = false;
   doc.transact(() => {
     const found = findLine(doc, page, lineUid);
     if (!found) return;
-    // The *current* `_id`: a save may have turned the UUID it was created with into a DB id.
-    const dbId = String(found.line.get('_id'));
+    const id = found.line.get('_id');
     getPage(doc, page).delete(found.index, 1);
-    if (parseDbId(dbId) !== null) {
-      doc.getArray<string>('deleted_line_ids').push([dbId]);
+    // A missing `_id` (corrupt line) is not an id: `String(undefined)` would be recorded.
+    if (typeof id === 'string' && id !== '') {
+      doc.getArray<string>('deleted_line_ids').push([id]);
     }
     deleted = true;
   }, LOCAL_EDIT_ORIGIN);
@@ -361,9 +378,12 @@ export function getPartText(
   return text;
 }
 
+export type SetTextResult = 'changed' | 'unchanged' | 'gone';
+
 /**
- * Make a part's text equal `text` using the minimal edit. Returns whether anything
- * changed — false both when the text already matched and when the part is gone.
+ * Make a part's text equal `text` using the minimal edit. `'gone'` means the part no
+ * longer exists (another editor removed it), which a keystroke handler must tell apart
+ * from `'unchanged'` or the typed input is silently dropped.
  */
 export function setPartText(
   doc: Y.Doc,
@@ -371,7 +391,8 @@ export function setPartText(
   lineUid: string,
   partUid: string,
   text: string
-): boolean {
+): SetTextResult {
   const ytext = getPartText(doc, page, lineUid, partUid);
-  return ytext ? applyTextDiff(ytext, text, LOCAL_EDIT_ORIGIN) : false;
+  if (!ytext) return 'gone';
+  return applyTextDiff(ytext, text, LOCAL_EDIT_ORIGIN) ? 'changed' : 'unchanged';
 }

@@ -15,11 +15,18 @@ Regenerate from ``client-v3/`` with
 import base64
 import hashlib
 import json
+from types import SimpleNamespace
 
 import pycrdt
 
+from models.show import ShowScriptType
 from test.helpers.yjs_interop_fixture import FIXTURE_DIR, STATE_FIXTURE
-from utils.script.ydoc_to_lines import _parse_db_id, extract_lines_from_ydoc
+from utils.script.line_helpers import validate_line
+from utils.script.ydoc_to_lines import (
+    _parse_db_id,
+    _ydoc_line_to_dict,
+    extract_lines_from_ydoc,
+)
 
 
 WRITER_FIXTURE = FIXTURE_DIR / "writer_ops.json"
@@ -100,13 +107,11 @@ def test_the_server_reads_every_edit_the_writer_made():
     assert moved["line_parts"][1]["character_id"] is None
     assert moved["line_parts"][1]["character_group_id"] == 4
 
-    # Page 3: the trailing page the server created now holds a new line — created
-    # with its first (empty) part, never part-less.
+    # Page 3: the trailing page the server created now holds a spacing line, which
+    # must have no parts (the validator rejects one).
     assert [line["_id"] for line in pages[3]] == ["n-6"]
     assert pages[3][0]["line_type"] == 4
-    assert [(p["_id"], p["line_text"]) for p in pages[3][0]["line_parts"]] == [
-        ("n-7", "")
-    ]
+    assert pages[3][0]["line_parts"] == []
 
     # The deleted saved line is reported for the server to delete; new lines never are.
     assert deleted == [2]
@@ -121,3 +126,16 @@ def test_new_lines_are_recognised_as_unsaved_and_existing_ones_as_saved():
     assert _parse_db_id(_line(pages[1], "n-1")["_id"]) is None
     assert _parse_db_id(_line(pages[1], "1")["_id"]) == 1
     assert _parse_db_id(_line(pages[2], "3")["_id"]) == 3
+
+
+def test_every_line_the_writer_made_passes_the_savers_validator():
+    """Extraction alone proves the writer's output is readable, not that it can be
+    saved: `_save_script_page` validates each new or changed line and aborts the whole
+    save on one failure, so run the writer's lines through the same validator."""
+    lines_by_page, _ = extract_lines_from_ydoc(_doc_after_writer_ops())
+    show = SimpleNamespace(script_mode=ShowScriptType.FULL)
+
+    for page in lines_by_page:
+        for line in page["lines"]:
+            valid, error = validate_line(show, _ydoc_line_to_dict(line, page["page"]))
+            assert valid, f"page {page['page']} line {line['_id']}: {error}"

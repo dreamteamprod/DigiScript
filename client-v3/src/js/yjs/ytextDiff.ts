@@ -2,7 +2,8 @@ import * as Y from 'yjs';
 
 /**
  * The smallest single edit (one deletion plus one insertion at the same index) that
- * turns one string into another.
+ * turns one string into another, widened where needed so it never starts or ends inside
+ * a surrogate pair (so it can be a character or two longer than strictly minimal).
  *
  * Writing a text field to a `Y.Text` must use this rather than "delete everything,
  * insert the new value": the latter makes every keystroke a fresh replacement of the

@@ -24,6 +24,7 @@ from controllers.api.constants import (
     ERROR_INSUFFICIENT_PERMISSIONS,
 )
 from digi_server.logger import get_logger
+from digi_server.settings import COLLAB_EDITING_SETTING
 from models.script import Script
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
@@ -494,14 +495,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             show = session.get(Show, current_show_id)
             return bool(show and show.current_session_id)
 
-    async def _is_collab_editing_enabled(self) -> bool:
+    def _is_collab_editing_enabled(self) -> bool:
         """Return True if the server is in collaborative script editing mode.
 
-        :returns: The ``collaborative_script_editing`` setting.
+        :returns: The collaborative script editing setting.
         """
-        return bool(
-            self.application.digi_settings.get_sync("collaborative_script_editing")
-        )
+        return bool(self.application.digi_settings.get_sync(COLLAB_EDITING_SETTING))
 
     async def _get_current_show(self, session) -> Optional[Show]:
         """Look up the currently-loaded Show, if any.
@@ -578,7 +577,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         # in classic mode a stray client must not be able to open a room.
         # LEAVE_SCRIPT_ROOM stays allowed (harmless, and lets a client tidy up after
         # the mode is switched underneath it).
-        if ws_op in _COLLAB_ONLY_OPS and not await self._is_collab_editing_enabled():
+        if ws_op in _COLLAB_ONLY_OPS and not self._is_collab_editing_enabled():
             await self._reject_script_room_op(
                 "COLLAB_ERROR", "error", ERROR_COLLAB_EDITING_DISABLED
             )
@@ -615,7 +614,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 # Requiring the announcement to match the server's mode means an
                 # old-UI client is refused up front in collaborative mode, instead of
                 # letting it edit and then fail (and lose its work) at save time.
-                collab_enabled = await self._is_collab_editing_enabled()
+                collab_enabled = self._is_collab_editing_enabled()
                 # An explicit boolean is required so a client that omits the flag
                 # (a stale UI, or cut mode) is never mistaken for a collab request.
                 if data.get("collab", False) is not collab_enabled:

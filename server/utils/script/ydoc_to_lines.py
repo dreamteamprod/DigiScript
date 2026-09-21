@@ -64,8 +64,23 @@ def _parse_db_id(line_id) -> int | None:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_alias(raw, id_aliases: dict[str, str]):
+    """Follow a chain of id rewrites (UUID -> DB id -> newer DB id) to the current id.
+
+    A client that has not yet received a save's id patch records a deletion against
+    the id it still knows; the room remembers every rewrite so that is not lost.
+    """
+    seen = set()
+    key = str(raw)
+    while key in id_aliases and key not in seen:
+        seen.add(key)
+        key = id_aliases[key]
+    return key
+
+
 def extract_lines_from_ydoc(
     doc: pycrdt.Doc,
+    id_aliases: dict[str, str] | None = None,
 ) -> tuple[list[dict], list[int]]:
     """Read the Y.Doc and return plain Python data.
 
@@ -73,6 +88,8 @@ def extract_lines_from_ydoc(
     consistent point-in-time snapshot.
 
     :param doc: The pycrdt Y.Doc to extract from.
+    :param id_aliases: Optional ``{old_id: new_id}`` record of ids earlier saves have
+        rewritten, used to resolve deletions recorded against a stale id.
     :returns: ``(lines_by_page, deleted_line_ids)`` where ``lines_by_page`` is
         a list of ``{"page": int, "lines": list[dict]}`` dicts ordered by page
         number, and ``deleted_line_ids`` is a list of integer DB ids of lines
@@ -85,6 +102,8 @@ def extract_lines_from_ydoc(
     deleted_line_ids: list[int] = []
     for i in range(len(deleted_arr)):
         raw = deleted_arr[i]
+        if id_aliases:
+            raw = _resolve_alias(raw, id_aliases)
         db_id = _parse_db_id(raw)
         if db_id is not None:
             deleted_line_ids.append(db_id)
@@ -98,6 +117,13 @@ def extract_lines_from_ydoc(
     # Extract pages sorted by page number
     lines_by_page: list[dict] = []
     page_keys = sorted(numeric_page_keys(pages_map), key=int)
+    ignored = sorted(set(pages_map.keys()) - set(page_keys))
+    if ignored:
+        # Lines under such a key are not saved, yet the save would still report
+        # success, so say so.
+        get_logger().warning(
+            f"extract_lines_from_ydoc: ignoring non-page key(s) in pages map: {ignored}"
+        )
 
     get_logger().debug(
         f"extract_lines_from_ydoc: {len(page_keys)} page(s): {page_keys}"
@@ -384,8 +410,10 @@ def _save_script_page(
                 curr_line = curr_assoc.line
                 old_line_id = curr_line.id
                 changed_pages.add(page_number)
-                # A line moved between pages leaves its old page too.
-                changed_pages.add(curr_line.page)
+                # A line moved between pages leaves its old page too. `page` is
+                # nullable on legacy rows; a NULL is not a page anyone can be told about.
+                if curr_line.page is not None:
+                    changed_pages.add(curr_line.page)
                 _, line_object = create_new_line(
                     session, revision, line_dict, previous_line, with_association=False
                 )

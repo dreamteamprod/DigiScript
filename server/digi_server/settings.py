@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
+# Name of the setting that switches the server between classic and collaborative
+# script editing; shared so no caller spells the key by hand.
+COLLAB_EDITING_SETTING = "collaborative_script_editing"
+
+
 def _get_version() -> str:
     try:
         # Get path to pyproject.toml (one directory up from digi_server)
@@ -235,7 +240,7 @@ class Settings:
             category="General",
         )
         self.define(
-            "collaborative_script_editing",
+            COLLAB_EDITING_SETTING,
             bool,
             False,
             True,
@@ -244,8 +249,8 @@ class Settings:
                 "Use the collaborative script editor, where several people can edit the "
                 "script at once. When off, the classic editor is used and only one "
                 "person can edit at a time. Only the new UI supports collaborative "
-                "editing. Cannot be changed while anyone is editing the script or an "
-                "unsaved draft exists."
+                "editing. Cannot be changed while anyone is editing or cutting the script, "
+                "a collaborative session has people in it, or an unsaved draft exists."
             ),
             # Hidden until the collaborative editor is wired into the UI: switching it
             # on now would leave no client able to edit the script. Remove this in the

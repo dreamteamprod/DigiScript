@@ -196,6 +196,45 @@ describe('addLine', () => {
     expect(Y.encodeStateVector(doc)).toEqual(before);
   });
 
+  it.each([3, 4])('creates no part for a cue/spacing line (type %i), which must have none', (t) => {
+    const doc = makeServerDoc();
+
+    const ids = addLine(doc, 3, { lineType: t as 3 | 4 }, { newId: counter() });
+
+    expect(ids).toEqual({ lineUid: 'new-1', partUid: null });
+    expect(ydocPagesToPlain(doc)['3'][0].parts).toEqual([]);
+    expect(() => addLine(doc, 3, { lineType: t as 3 | 4, part: { characterId: 1 } })).toThrow(
+      /cannot have parts/
+    );
+  });
+
+  it('ignores a NaN index rather than inserting at a nonsense position', () => {
+    const doc = makeServerDoc();
+
+    addLine(doc, 1, { lineType: 1, index: Number.NaN }, { newId: counter() });
+
+    expect(ids(doc, 1)).toEqual(['1', '2', 'new-1']);
+  });
+
+  it('tells callers why a write failed through DraftWriteError.code', () => {
+    const doc = makeServerDoc();
+    let missing: unknown;
+    let both: unknown;
+    try {
+      addLine(doc, 9, { lineType: 1 });
+    } catch (e) {
+      missing = e;
+    }
+    try {
+      addLine(doc, 3, { lineType: 1, part: { characterId: 1, characterGroupId: 2 } });
+    } catch (e) {
+      both = e;
+    }
+
+    expect((missing as DraftWriteError).code).toBe('page-missing');
+    expect((both as DraftWriteError).code).toBe('invalid');
+  });
+
   it('generates UUIDs by default', () => {
     const doc = makeServerDoc();
     const { lineUid, partUid } = addLine(doc, 1, { lineType: 1 });
@@ -215,14 +254,26 @@ describe('deleteLine', () => {
     expect(ydocDeletedLineIds(doc)).toEqual([2]);
   });
 
-  it('removes a never-saved line without recording anything', () => {
+  it('removes a never-saved line; its UUID is recorded but is not a DB deletion', () => {
     const doc = makeServerDoc();
     const { lineUid } = addLine(doc, 1, { lineType: 1 }, { newId: counter() });
 
     expect(deleteLine(doc, 1, lineUid)).toBe(true);
 
     expect(ids(doc, 1)).toEqual(['1', '2']);
+    // Recorded so the server can resolve it if a save already persisted the line and
+    // this client just hasn't seen the id patch; otherwise it is skipped as a non-DB id.
+    expect(doc.getArray('deleted_line_ids').toArray()).toEqual([lineUid]);
     expect(ydocDeletedLineIds(doc)).toEqual([]);
+  });
+
+  it('records nothing for a corrupt line that has no _id', () => {
+    const doc = makeServerDoc();
+    const line = (doc.getMap('pages').get('1') as Y.Array<Y.Map<unknown>>).get(0);
+    line.delete('_id'); // still addressable by its _uid
+
+    expect(deleteLine(doc, 1, '1')).toBe(true);
+
     expect(doc.getArray('deleted_line_ids').length).toBe(0);
   });
 
@@ -404,7 +455,7 @@ describe('parts', () => {
     expect(setLineActScene(doc, 1, 'nope', 1, 2)).toBe(false);
     expect(addPart(doc, 1, 'nope')).toBeNull();
     expect(getPartText(doc, 1, '1', 'nope')).toBeNull();
-    expect(setPartText(doc, 1, '1', 'nope', 'x')).toBe(false);
+    expect(setPartText(doc, 1, '1', 'nope', 'x')).toBe('gone');
 
     expect(Y.encodeStateVector(doc)).toEqual(before);
   });
@@ -419,7 +470,7 @@ describe('setPartText', () => {
 
     const changed = setPartText(doc, 1, '1', '10', 'Hello brave world');
 
-    expect(changed).toBe(true);
+    expect(changed).toBe('changed');
     expect(deltas).toEqual([[{ retain: 6 }, { insert: 'brave ' }]]);
     expect(origins).toEqual([LOCAL_EDIT_ORIGIN]);
   });
@@ -428,7 +479,7 @@ describe('setPartText', () => {
     const doc = makeServerDoc();
     const origins = recordUpdates(doc);
 
-    expect(setPartText(doc, 1, '1', '10', 'Hello world')).toBe(false);
+    expect(setPartText(doc, 1, '1', '10', 'Hello world')).toBe('unchanged');
     expect(origins).toEqual([]);
   });
 });
@@ -498,7 +549,7 @@ describe('snapshotPagesToScriptLines (read adapter)', () => {
       { lineType: 2, actId: 1, sceneId: 2, part: { characterId: 5 } },
       { newId: counter() }
     );
-    setPartText(doc, 1, lineUid, partUid, 'Enter left');
+    setPartText(doc, 1, lineUid, partUid!, 'Enter left');
 
     const pages = snapshotPagesToScriptLines(ydocPagesToPlain(doc));
 
@@ -567,7 +618,7 @@ describe('after a save has rewritten the ids', () => {
 
     simulateSavePatch(doc, lineUid, '501', '601');
 
-    expect(setPartText(doc, 1, lineUid, partUid, 'before and after')).toBe(true);
+    expect(setPartText(doc, 1, lineUid, partUid!, 'before and after')).toBe('changed');
     expect(setPartField(doc, 1, lineUid, partUid, 'character_id', 3)).toBe(true);
     expect(setLineField(doc, 1, lineUid, 'act_id', 2)).toBe(true);
     const line = ydocPagesToPlain(doc)['1'].find((l) => l._uid === lineUid)!;

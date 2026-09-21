@@ -295,6 +295,46 @@ class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
     # ---- page notifications after a save ----
 
     @gen_test
+    async def test_saving_a_new_line_announces_exactly_its_page(self):
+        """The positive half: a page that changed is announced, the trailing page
+        the server added (nothing written to it) is not."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        replica = await self._join_and_sync(ws)
+
+        before = replica.get_state()
+        page = replica.get("pages", type=pycrdt.Map)["1"]
+        line = pycrdt.Map()
+        page.append(line)
+        line["_id"] = line["_uid"] = "line-uuid"
+        for key in ("act_id", "scene_id", "stage_direction_style_id"):
+            line[key] = 0
+        line["line_type"] = 2  # STAGE_DIRECTION: exactly one non-empty part
+        line["parts"] = pycrdt.Array()
+        part = pycrdt.Map()
+        line["parts"].append(part)
+        part["_id"] = part["_uid"] = "part-uuid"
+        part["part_index"] = 0
+        part["character_id"] = part["character_group_id"] = 0
+        part["line_text"] = pycrdt.Text("Enter stage left")
+        payload = base64.b64encode(replica.get_update(before)).decode("ascii")
+        await ws.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": payload}})
+        )
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        changed = []
+        for _ in range(25):
+            message = json.loads(await ws.read_message())
+            if message["ACTION"] == "SCRIPT_PAGE_CHANGED":
+                changed.append(message["DATA"]["page"])
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        self.assertEqual([1], changed)
+        ws.close()
+
+    @gen_test
     async def test_saving_names_only_the_pages_it_changed(self):
         """Nothing was written, so no page is announced: naming every page of a long
         script would make every client reload every cached page after each save.

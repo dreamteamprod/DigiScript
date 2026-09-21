@@ -31,6 +31,7 @@ from models.script_draft import ScriptDraft
 from models.user import User
 from utils.database import DigiDBSession
 from utils.script.line_to_ydoc import (
+    backfill_uids,
     build_ydoc,
     ensure_trailing_page,
     fetch_script_line_data,
@@ -108,8 +109,8 @@ class ScriptRoom:
         self.last_activity = time.monotonic()
         self._last_checkpoint = time.monotonic()
         self._dirty = False
-        # Pages whose DB content the latest save_draft altered (for SCRIPT_PAGE_CHANGED).
-        self.last_saved_pages: list[int] = []
+        # Ids that saves have rewritten, {old: new}; see save_draft.
+        self.id_aliases: dict[str, str] = {}
         self._doc_subscription = None
         self._trace_pages_sub = None
         self._trace_deleted_sub = None
@@ -287,7 +288,7 @@ class ScriptRoom:
                     exc_info=True,
                 )
 
-    async def save_draft(self, session: DigiDBSession) -> bytes:
+    async def save_draft(self, session: DigiDBSession) -> tuple[bytes, list[int]]:
         """Persist the current Y.Doc state to the database.
 
         Processes all pages in Y.Doc order, carrying the linked-list
@@ -297,7 +298,10 @@ class ScriptRoom:
         (so callers can broadcast it to clients).
 
         :param session: Active SQLAlchemy session.
-        :returns: Y.Doc update bytes containing the id-patch and meta update.
+        :returns: ``(update, changed_pages)``: Y.Doc update bytes containing the
+            id-patch and meta update, and the sorted pages whose DB content this
+            save altered. Returned per call, not stored on the room, so a second
+            save cannot overwrite the first save's list before it is announced.
         :raises Exception: Propagates any save/validation error after rolling
             back.
         """
@@ -309,7 +313,9 @@ class ScriptRoom:
                 raise ValueError(f"ScriptRevision {self.revision_id} not found")
             show = revision.script.show
 
-            lines_by_page, deleted_line_ids = extract_lines_from_ydoc(self.doc)
+            lines_by_page, deleted_line_ids = extract_lines_from_ydoc(
+                self.doc, self.id_aliases
+            )
             total_lines = sum(len(p["lines"]) for p in lines_by_page)
             log.info(
                 f"save_draft: revision={self.revision_id} "
@@ -351,9 +357,14 @@ class ScriptRoom:
                 f"new_line_id_map={new_line_id_map} "
                 f"new_part_ids={list(new_part_id_map.keys())}"
             )
+            # Sorted before the commit so bookkeeping can never fail after it.
+            saved_pages = sorted(changed_pages)
             session.commit()
             log.info(f"save_draft: revision={self.revision_id} commit successful")
-            self.last_saved_pages = sorted(changed_pages)
+            # Remember every id this save rewrites (UUID -> DB id, and old -> new DB
+            # id for changed lines): a client that has not received the id patch yet
+            # can still record a deletion against the id it knows.
+            self.id_aliases.update(new_line_id_map)
 
             # Capture state before mutating so we can compute the delta to broadcast.
             # Must come before the deleted_line_ids wipe below — otherwise the wipe
@@ -379,7 +390,7 @@ class ScriptRoom:
                 log.info(f"save_draft: revision={self.revision_id} no new IDs to patch")
                 update = self.doc.get_update(state_before)
                 self.mark_checkpointed()
-                return update
+                return update, saved_pages
 
             # Patch the Y.Doc: replace UUID _id values with real DB ids.
             pages_map = self.doc.get("pages", type=pycrdt.Map)
@@ -421,7 +432,7 @@ class ScriptRoom:
             # this reset, so it can never have its flag cleared without being saved.
             # (The id patch above marks the doc dirty itself, hence resetting after it.)
             self.mark_checkpointed()
-            return update
+            return update, saved_pages
 
     async def apply_update(self, update: bytes) -> bytes | None:
         """Apply a binary update to the Y.Doc.
@@ -447,10 +458,13 @@ class ScriptRoom:
                 )
                 raise
             try:
-                return ensure_trailing_page(self.doc)
+                # repair=True: a client that wrote a non-array under a page key would
+                # otherwise fail this check on every later update, forever. Replacing
+                # the value with an empty page heals the doc and is broadcast to all.
+                return ensure_trailing_page(self.doc, repair=True)
             except Exception:
                 # The client's update is already applied and must still be relayed;
-                # a missing trailing page is repaired by the next update.
+                # this is not a recoverable-by-retry error, so make it loud.
                 get_logger().exception(
                     f"Failed to maintain trailing page for revision {self.revision_id}"
                 )
@@ -580,11 +594,14 @@ class RoomManager:
         """Save the draft for the room that *ws* belongs to.
 
         Sequence:
-        1. Call ``save_draft()`` which commits to DB and returns ID-patch bytes.
+        1. Call ``save_draft()`` which commits to DB and returns the ID-patch bytes
+           and the pages it changed. It also resets ``_dirty`` (inside its lock, so
+           ``hasDraft`` becomes ``False`` without racing an edit).
         2. Broadcast the ID-patch update to **all** clients (so everyone's
            Y.Doc has real DB ids).
-        3. Reset ``_dirty`` so ``hasDraft`` becomes ``False`` immediately.
-        4. Broadcast ``SCRIPT_SAVED`` to all clients.
+        3. Broadcast ``SCRIPT_SAVED`` to all clients.
+        4. Broadcast ``SCRIPT_PAGE_CHANGED`` for each changed page, so clients
+           caching script pages reload them.
         5. Delete the draft file + DB record.
         6. Schedule script compilation.
 
@@ -599,7 +616,7 @@ class RoomManager:
 
         with self._application.get_db().sessionmaker() as session:
             try:
-                id_update = await room.save_draft(session)
+                id_update, saved_pages = await room.save_draft(session)
             except Exception as e:
                 get_logger().exception("save_draft failed")
                 try:
@@ -654,7 +671,7 @@ class RoomManager:
         # must do the same. Only the pages the save actually changed are named: each
         # notification makes every client reload its cached copy of that page over
         # HTTP, so naming every page of a long script would flood the event loop.
-        for page in room.last_saved_pages:
+        for page in saved_pages:
             try:
                 await self._application.ws_send_to_all(
                     "NOOP", "SCRIPT_PAGE_CHANGED", {"page": page}
@@ -856,6 +873,7 @@ class RoomManager:
                     # lack one. Done here so a malformed pages map takes the same
                     # corrupt-draft recovery as any other undecodable draft.
                     ensure_trailing_page(doc)
+                    backfill_uids(doc)
                     get_logger().info(
                         f"Loaded draft for revision {revision_id} "
                         f"from {draft.data_path}"
