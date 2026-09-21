@@ -1,11 +1,14 @@
-import { baseURL as platformBaseURL, makeURL as platformMakeURL } from '@/js/platform';
-
 export function baseURL(): string {
-  return platformBaseURL();
+  return `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
 }
 
 export function makeURL(path: string): string {
-  return platformMakeURL(path);
+  return `${baseURL()}${path}`;
+}
+
+export function getWebSocketURL(): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${protocol}://${window.location.hostname}:${window.location.port}/api/v1/ws`;
 }
 
 export function titleCase(str: string, sep = ' '): string {

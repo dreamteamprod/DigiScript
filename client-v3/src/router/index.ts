@@ -1,5 +1,4 @@
-import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router';
-import { isElectron } from '@/js/platform';
+import { createRouter, createWebHistory } from 'vue-router';
 import { useSystemStore } from '@/stores/system';
 import { useUserStore } from '@/stores/user';
 import { useShowStore } from '@/stores/show';
@@ -8,17 +7,9 @@ import { toast } from '@/js/toast';
 import HomeView from '@/views/HomeView.vue';
 import NotFoundView from '@/views/NotFoundView.vue';
 
-const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
-
 const router = createRouter({
-  history: isFileProtocol ? createWebHashHistory() : createWebHistory('/'),
+  history: createWebHistory('/'),
   routes: [
-    {
-      path: '/electron/server-selector',
-      name: 'electron-server-selector',
-      component: () => import('@/views/electron/ServerSelector.vue'),
-      meta: { requiresAuth: false, isElectronOnly: true },
-    },
     {
       path: '/',
       name: 'home',
@@ -163,28 +154,6 @@ type ToastFn = {
   info: (m: string) => void;
 };
 
-async function checkElectronGuards(
-  to: RouteLocationNormalized,
-  toast: ToastFn
-): Promise<string | undefined> {
-  if (isElectron() && to.path !== '/electron/server-selector') {
-    try {
-      const activeConnection = await window.electronAPI?.getActiveConnection?.();
-      if (!activeConnection) {
-        toast.warning('Please select a server to connect to');
-        return '/electron/server-selector';
-      }
-    } catch {
-      return '/electron/server-selector';
-    }
-  }
-  if (to.matched.some((r) => r.meta.isElectronOnly) && !isElectron()) {
-    toast.error('This page is only available in the desktop app');
-    return '/';
-  }
-  return undefined;
-}
-
 async function checkPermissionGuards(
   to: RouteLocationNormalized,
   from: RouteLocationNormalized,
@@ -252,10 +221,6 @@ async function checkLiveGuard(toast: ToastFn): Promise<string | undefined> {
 router.beforeEach(async (to, from) => {
   const systemStore = useSystemStore();
   const userStore = useUserStore();
-
-  const electronResult = await checkElectronGuards(to, toast);
-  if (electronResult !== undefined) return electronResult;
-  if (to.path === '/electron/server-selector') return undefined;
 
   if (systemStore.rbacRoles.length === 0) {
     await systemStore.getRbacRoles();

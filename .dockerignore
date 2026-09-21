@@ -5,7 +5,6 @@ scripts
 documentation
 dist
 hooks
-electron
 
 # Client
 client/node_modules

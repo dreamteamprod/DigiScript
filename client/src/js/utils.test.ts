@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { baseURL, makeURL, getVersion, getStorageAdapter, getWebSocketURL } from './browser.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { baseURL, makeURL, getWebSocketURL } from './utils';
 
-describe('browser.js', () => {
+describe('utils URL helpers', () => {
   describe('baseURL', () => {
     beforeEach(() => {
       // Reset location mock before each test
@@ -71,49 +71,6 @@ describe('browser.js', () => {
     it('should handle paths with query parameters', () => {
       const result = makeURL('/api/v1/show?id=123');
       expect(result).toBe('http://localhost:8080/api/v1/show?id=123');
-    });
-  });
-
-  describe('getVersion', () => {
-    it('should return version from VITE_APP_VERSION', () => {
-      // Mock import.meta.env
-      vi.stubEnv('VITE_APP_VERSION', '1.2.3');
-
-      const result = getVersion();
-      expect(result).toBe('1.2.3');
-
-      vi.unstubAllEnvs();
-    });
-
-    it('should return default version when VITE_APP_VERSION not set', () => {
-      vi.stubEnv('VITE_APP_VERSION', undefined);
-
-      const result = getVersion();
-      expect(result).toBe('0.23.0');
-
-      vi.unstubAllEnvs();
-    });
-  });
-
-  describe('getStorageAdapter', () => {
-    it('should return localStorage by default', () => {
-      const storage = getStorageAdapter();
-      expect(storage).toBe(window.localStorage);
-    });
-
-    it('should return localStorage when type is "local"', () => {
-      const storage = getStorageAdapter('local');
-      expect(storage).toBe(window.localStorage);
-    });
-
-    it('should return sessionStorage when type is "session"', () => {
-      const storage = getStorageAdapter('session');
-      expect(storage).toBe(window.sessionStorage);
-    });
-
-    it('should return localStorage for unknown types', () => {
-      const storage = getStorageAdapter('unknown');
-      expect(storage).toBe(window.localStorage);
     });
   });
 

@@ -44,7 +44,6 @@
   },
   "include": ["src/**/*.ts", "src/**/*.vue"],
   // Test files use partial object literals as mocks; vitest type-checks them independently.
-  // browser.test.ts and electron.test.ts also mutate window in ways that conflict with
-  // strict DOM types (location reassignment, electronAPI access).
-  "exclude": ["node_modules", "dist", "dist-electron", "src/**/*.test.ts"]
+  // utils.test.ts also mutates window.location in ways that conflict with strict DOM types.
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
 }
