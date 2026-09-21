@@ -63,7 +63,7 @@
     "@iconify-json/mdi": "^1.2.3",
     "@playwright/test": "^1.63.0",
     "@types/lodash": "~4.17.25",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.1",
     "@typescript-eslint/eslint-plugin": "^8.69.0",
     "@typescript-eslint/parser": "^8.69.0",
     "@vitejs/plugin-vue": "^6.0.8",
