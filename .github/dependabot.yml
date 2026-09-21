@@ -1,4 +1,8 @@
 version: 2
+# Version updates are grouped per ecosystem/directory so each one produces a single
+# PR (and a single CI run) instead of one PR per dependency. `dev` requires branches
+# to be up to date before merging, so N separate PRs means N serial rebase + full-CI
+# cycles. Security updates are not affected: they are opened separately and immediately.
 updates:
   - package-ecosystem: "npm"
     directory: "/client"
@@ -16,6 +20,10 @@ updates:
         versions: [">=5.0.0"]
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    groups:
+      client-npm:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     versioning-strategy: increase
     target-branch: dev
   - package-ecosystem: "npm"
@@ -25,6 +33,10 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    groups:
+      client-v3-npm:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     versioning-strategy: increase
     target-branch: dev
   - package-ecosystem: "npm"
@@ -34,6 +46,10 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-major" ]
+    groups:
+      electron-npm:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     versioning-strategy: increase
     target-branch: dev
   - package-ecosystem: "pip"
@@ -43,6 +59,10 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    groups:
+      server-pip:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     versioning-strategy: increase
     target-branch: dev
   - package-ecosystem: "docker"
@@ -60,4 +80,8 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     target-branch: dev
