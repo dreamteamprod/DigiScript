@@ -35,6 +35,11 @@ describe('useDraftWriter', () => {
 
     expect(() => writer.addLine(1, { lineType: 1 })).toThrow(DraftWriteError);
     expect(() => writer.setPartText(1, 'a', 'b', 'text')).toThrow(/no open draft/);
+    try {
+      writer.addLine(1, { lineType: 1 });
+    } catch (e) {
+      expect((e as DraftWriteError).code).toBe('no-draft');
+    }
   });
 
   it('writes to the live draft doc', () => {

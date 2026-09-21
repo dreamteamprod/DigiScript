@@ -64,7 +64,7 @@ def _parse_db_id(line_id) -> int | None:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_alias(raw, id_aliases: dict[str, str]):
+def _resolve_alias(raw, id_aliases: dict[str, str]) -> str:
     """Follow a chain of id rewrites (UUID -> DB id -> newer DB id) to the current id.
 
     A client that has not yet received a save's id patch records a deletion against
@@ -102,8 +102,7 @@ def extract_lines_from_ydoc(
     deleted_line_ids: list[int] = []
     for i in range(len(deleted_arr)):
         raw = deleted_arr[i]
-        if id_aliases:
-            raw = _resolve_alias(raw, id_aliases)
+        raw = _resolve_alias(raw, id_aliases or {})
         db_id = _parse_db_id(raw)
         if db_id is not None:
             deleted_line_ids.append(db_id)
@@ -118,12 +117,21 @@ def extract_lines_from_ydoc(
     lines_by_page: list[dict] = []
     page_keys = sorted(numeric_page_keys(pages_map), key=int)
     ignored = sorted(set(pages_map.keys()) - set(page_keys))
-    if ignored:
-        # Lines under such a key are not saved, yet the save would still report
-        # success, so say so.
-        get_logger().warning(
-            f"extract_lines_from_ydoc: ignoring non-page key(s) in pages map: {ignored}"
+    for key in ignored:
+        content = pages_map[key]
+        if isinstance(content, (pycrdt.Array, pycrdt.Map)) and len(content) > 0:
+            # Ignoring it would drop the content while the save reports success and
+            # the draft is deleted, so fail the save (and keep the draft) instead.
+            raise ValueError(
+                f"Draft has content under the non-page key {key!r}; refusing to save "
+                f"and silently drop it"
+            )
+        get_logger().debug(
+            f"extract_lines_from_ydoc: ignoring empty non-page key {key!r}"
         )
+    for key in page_keys:
+        if not isinstance(pages_map[key], pycrdt.Array):
+            raise ValueError(f"Page {key} is not a Y.Array; the draft is malformed")
 
     get_logger().debug(
         f"extract_lines_from_ydoc: {len(page_keys)} page(s): {page_keys}"

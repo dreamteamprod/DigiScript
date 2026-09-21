@@ -462,6 +462,28 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
             self.assertEqual(400, response.code, value)
         self.assertIs(False, self._app.digi_settings.settings[MODE].get_value())
 
+    def test_a_bad_value_anywhere_in_the_batch_applies_nothing(self):
+        """The mode key is written first, so a later bad value must not leave the
+        mode flipped behind a failed request."""
+        response = self._patch(**{MODE: True, "debug_mode": "not a bool"})
+
+        self.assertEqual(400, response.code)
+        self.assertIs(False, self._app.digi_settings.settings[MODE].get_value())
+
+    def test_the_mode_key_is_written_before_the_other_keys(self):
+        order = []
+        original = self._app.digi_settings.set
+
+        async def recording_set(key, value):
+            order.append(key)
+            return await original(key, value)
+
+        self._app.digi_settings.set = recording_set
+        response = self._patch(debug_mode=True, **{MODE: True})
+
+        self.assertEqual(200, response.code)
+        self.assertEqual([MODE, "debug_mode"], order)
+
     def test_setting_the_same_value_is_always_allowed(self):
         self._add_session(is_editor=True)
 

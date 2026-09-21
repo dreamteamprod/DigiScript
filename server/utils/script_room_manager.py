@@ -109,7 +109,12 @@ class ScriptRoom:
         self.last_activity = time.monotonic()
         self._last_checkpoint = time.monotonic()
         self._dirty = False
-        # Ids that saves have rewritten, {old: new}; see save_draft.
+        # Ids that saves have rewritten, {old: new}, so a deletion a lagging client
+        # recorded against a stale id can be resolved (see save_draft). In memory only:
+        # after the room closes a pending stale-id deletion resolves to itself and is
+        # dropped. Resolving by `_uid` would be immune to that, and to a lagging
+        # client's *edits* to a rewritten id, which are still skipped with a warning.
+        # Both are Step 2+ follow-ups (see the plan).
         self.id_aliases: dict[str, str] = {}
         self._doc_subscription = None
         self._trace_pages_sub = None
@@ -364,7 +369,12 @@ class ScriptRoom:
             # Remember every id this save rewrites (UUID -> DB id, and old -> new DB
             # id for changed lines): a client that has not received the id patch yet
             # can still record a deletion against the id it knows.
-            self.id_aliases.update(new_line_id_map)
+            for old, new in new_line_id_map.items():
+                # An id this save just assigned names a live row, so it must stop being
+                # an alias key: SQLite reuses freed rowids, and a stale `new -> later`
+                # entry would send a later deletion of a *reused* id to the wrong row.
+                self.id_aliases.pop(new, None)
+                self.id_aliases[old] = new
 
             # Capture state before mutating so we can compute the delta to broadcast.
             # Must come before the deleted_line_ids wipe below — otherwise the wipe

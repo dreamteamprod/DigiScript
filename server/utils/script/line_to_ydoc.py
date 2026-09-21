@@ -247,6 +247,7 @@ def ensure_trailing_page(doc: pycrdt.Doc, repair: bool = False) -> bytes | None:
         there a malformed doc is discarded and rebuilt instead.
     :returns: The update that adds the page (to broadcast to clients), or None if the
         doc already ended in an empty page.
+    :raises ValueError: If the last page is not a Y.Array and *repair* is False.
     """
     pages = doc.get("pages", type=pycrdt.Map)
     keys = numeric_page_keys(pages)
@@ -258,6 +259,11 @@ def ensure_trailing_page(doc: pycrdt.Doc, repair: bool = False) -> bytes | None:
                 raise ValueError(
                     f"Page {last} is not a Y.Array; the draft is malformed"
                 )
+            get_logger().warning(
+                f"ensure_trailing_page: replacing non-array page {last} "
+                f"({type(last_page).__name__}) with an empty page; any content a "
+                f"client wrote there is discarded"
+            )
             state_before = doc.get_state()
             pages[str(last)] = pycrdt.Array()
             return doc.get_update(state_before)
@@ -277,6 +283,8 @@ def backfill_uids(doc: pycrdt.Doc) -> None:
     """
     pages = doc.get("pages", type=pycrdt.Map)
     for key in numeric_page_keys(pages):
+        if not isinstance(pages[key], pycrdt.Array):
+            continue  # malformed; the extractor reports it at save time
         for line in pages[key]:
             if "_uid" not in line and "_id" in line:
                 line["_uid"] = str(line["_id"])

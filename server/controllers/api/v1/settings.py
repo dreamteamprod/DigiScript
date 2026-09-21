@@ -75,12 +75,24 @@ class SettingsController(BaseAPIController):
             self.write({"message": ERROR_COLLAB_MODE_CHANGE_BLOCKED})
             return
 
-        # The mode key first: the guard above ran with no yield since its last check,
-        # and `settings.set` yields (broadcasting) only after a key that changed, so
-        # writing it before any other key keeps check-and-write free of a scheduling
-        # point even for a multi-key PATCH.
-        for k in sorted(data, key=lambda key: key != COLLAB_EDITING_SETTING):
-            await settings.set(k, data[k])
+        # Validate everything before applying anything, so a bad value can't leave
+        # the batch half-applied (the mode flipped, then a 500).
+        try:
+            for k, v in data.items():
+                settings.validate(k, v)
+        except (TypeError, ValueError, RuntimeError) as e:
+            self.set_status(400)
+            self.write({"message": str(e)})
+            return
+
+        # The mode key goes first: the guard above ran with no yield since its last
+        # check, and `settings.set` yields (broadcasting) only after a key that
+        # changed, so this keeps check-and-write free of a scheduling point.
+        if COLLAB_EDITING_SETTING in data:
+            await settings.set(COLLAB_EDITING_SETTING, data[COLLAB_EDITING_SETTING])
+        for k, v in data.items():
+            if k != COLLAB_EDITING_SETTING:
+                await settings.set(k, v)
 
         settings_json = await settings.as_json()
         await self.application.ws_send_to_all(

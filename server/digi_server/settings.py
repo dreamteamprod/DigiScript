@@ -117,7 +117,8 @@ class SettingsObject:
         self.value = self.default
         self._loaded = True
 
-    def set_value(self, value, spawn_callbacks=True):
+    def validate(self, value):
+        """Raise if *value* is not acceptable for this setting; change nothing."""
         if not isinstance(value, self.val_type):
             if value is None and not self._nullable:
                 raise RuntimeError(
@@ -134,6 +135,9 @@ class SettingsObject:
                 f"Value for {self.key} must be one of the following options: "
                 f"{self.choice_options}"
             )
+
+    def set_value(self, value, spawn_callbacks=True):
+        self.validate(value)
 
         changed = False
         if value != self.value:
@@ -559,6 +563,11 @@ class Settings:
             if key not in self.settings:
                 raise KeyError(f"{key} is not a valid setting")
             return self.settings.get(key).get_value()
+
+    def validate(self, key, value):
+        """Raise if *value* would be refused for *key*; unknown keys are ignored (as ``set`` does)."""
+        if key in self.settings:
+            self.settings[key].validate(value)
 
     def get_sync(self, key):
         """Read a setting without awaiting, for callers that cannot be coroutines.

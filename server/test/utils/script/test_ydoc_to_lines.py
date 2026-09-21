@@ -814,9 +814,32 @@ class TestSaveScriptPage(_ScriptTestSetup):
             )
         self.assertEqual({1, 2}, changed)
 
+    def test_content_under_a_stray_key_fails_the_save_instead_of_being_dropped(self):
+        doc = _build_empty_doc()
+        _add_line_to_doc(doc, "01", "1")  # "01" is not a canonical page key
+
+        with pytest.raises(ValueError, match="non-page key"):
+            extract_lines_from_ydoc(doc)
+
+    def test_an_empty_stray_key_is_ignored(self):
+        doc = _build_empty_doc()
+        doc.get("pages", type=pycrdt.Map)["notes"] = pycrdt.Array()
+        _add_line_to_doc(doc, "1", "1")
+
+        lines_by_page, _ = extract_lines_from_ydoc(doc)
+
+        assert [p["page"] for p in lines_by_page] == [1]
+
+    def test_a_non_array_page_fails_the_save_loudly(self):
+        doc = _build_empty_doc()
+        doc.get("pages", type=pycrdt.Map)["1"] = "garbage"
+
+        with pytest.raises(ValueError, match="not a Y.Array"):
+            extract_lines_from_ydoc(doc)
+
     def test_a_legacy_line_with_no_page_does_not_break_the_changed_pages_set(self):
-        """`ScriptLine.page` is nullable; a NULL must never reach the sorted() that
-        runs after the commit."""
+        """`ScriptLine.page` is nullable; a NULL must never reach the sorted()
+        that runs (before the commit) on the changed pages."""
         changed: set[int] = set()
         with self._app.get_db().sessionmaker() as session:
             revision = session.get(ScriptRevision, self.revision_id)

@@ -128,10 +128,17 @@ def test_new_lines_are_recognised_as_unsaved_and_existing_ones_as_saved():
     assert _parse_db_id(_line(pages[2], "3")["_id"]) == 3
 
 
-def test_every_line_the_writer_made_passes_the_savers_validator():
+def test_every_line_in_the_fixture_passes_the_savers_validator():
     """Extraction alone proves the writer's output is readable, not that it can be
     saved: `_save_script_page` validates each new or changed line and aborts the whole
-    save on one failure, so run the writer's lines through the same validator."""
+    save on one failure, so run the fixture's lines through the same validator.
+
+    This proves the *fixture* (every line fully filled in) is saveable. It does not
+    claim the writer's defaults are: a fresh dialogue line has no character and a fresh
+    stage direction no text, so they fail validation until typed into. How to handle a
+    half-typed line at save time (skip it, gate it in the UI, or report per line) is a
+    Step 2 decision; see the plan.
+    """
     lines_by_page, _ = extract_lines_from_ydoc(_doc_after_writer_ops())
     show = SimpleNamespace(script_mode=ShowScriptType.FULL)
 

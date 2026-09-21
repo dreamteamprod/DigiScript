@@ -571,6 +571,33 @@ class TestRepairAndBackfill:
         assert line["_uid"] == "7"
         assert line["parts"][0]["_uid"] == line["parts"][0]["_id"]
 
+    def test_backfill_skips_a_malformed_page_instead_of_raising(self):
+        doc = build_ydoc([], revision_id=1)
+        doc.get("pages", type=pycrdt.Map)["0"] = "garbage"
+
+        backfill_uids(doc)  # must not raise
+
+    def test_backfill_is_idempotent(self):
+        doc = build_ydoc(
+            [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)],
+            revision_id=1,
+        )
+        backfill_uids(doc)
+        state = doc.get_update()
+
+        backfill_uids(doc)
+
+        assert doc.get_update() == state
+
+    def test_healing_a_non_array_page_is_logged(self, caplog):
+        doc = build_ydoc([], revision_id=1)
+        doc.get("pages", type=pycrdt.Map)["1"] = "garbage"
+
+        with caplog.at_level("WARNING"):
+            ensure_trailing_page(doc, repair=True)
+
+        assert any("non-array page 1" in r.getMessage() for r in caplog.records)
+
     def test_backfill_never_overwrites_an_existing_uid(self):
         doc = build_ydoc(
             [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)],

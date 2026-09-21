@@ -518,6 +518,46 @@ class TestScriptRoomSaveDraft(_ScriptTestSetup):
             )
 
     @gen_test
+    async def test_a_reused_rowid_is_not_shadowed_by_a_stale_alias(self):
+        """SQLite reuses freed rowids. An alias `2 -> 3` left over from an earlier
+        edit must not redirect the deletion of a *different* line that now has id 2."""
+        doc = _build_empty_doc()
+        first, second = str(uuid.uuid4()), str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", first)
+        _add_line_to_doc(doc, "1", second)
+        room = ScriptRoom(self.revision_id, doc)
+        page = doc.get("pages", type=pycrdt.Map)["1"]
+        deleted = doc.get("deleted_line_ids", type=pycrdt.Array)
+
+        async def save():
+            with self._app.get_db().sessionmaker() as session:
+                await room.save_draft(session)
+
+        await save()  # ids 1 and 2
+        assert str(page[1]["_id"]) == "2"
+        page[1]["parts"][0]["line_text"].insert(0, "edited ")
+        await save()  # the change replaces row 2 with row 3: alias 2 -> 3
+        assert str(page[1]["_id"]) == "3"
+        deleted.append(str(page[1]["_id"]))
+        del page[1]
+        await save()  # row 3 is freed; the highest id is 1 again
+        third = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", third)
+        await save()  # SQLite hands out id 2 again
+        reused = str(page[1]["_id"])
+        assert reused == "2", "premise: the rowid was reused"
+
+        deleted.append(reused)
+        del page[1]
+        await save()
+
+        with self._app.get_db().sessionmaker() as session:
+            assert (
+                session.get(ScriptLineRevisionAssociation, (self.revision_id, 2))
+                is None
+            ), "the reused row must be deleted, not skipped via the stale alias"
+
+    @gen_test
     async def test_save_draft_keeps_the_stable_uid_while_rewriting_the_id(self):
         doc = _build_empty_doc()
         uid = str(uuid.uuid4())

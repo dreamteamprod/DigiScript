@@ -17,10 +17,12 @@ import { applyTextDiff } from './ytextDiff';
  * Contract for a target that has vanished: with several editors that is a normal
  * condition (another editor deleted the line you were typing in), so the writers do not
  * throw for it. They return `false` (or `null` for functions that return an id), and
- * the caller decides what to tell the user. `DraftWriteError` is reserved for
- * conditions that are bugs or a broken draft: no open draft, or a page that does not exist.
+ * the caller decides what to tell the user. `setPartText` returns a string
+ * (`'changed' | 'unchanged' | 'gone'`), all truthy, so never test it with `!`. `DraftWriteError`
+ * (with a `code`) is reserved for bugs or a broken draft: no open draft, a page that does
+ * not exist, or a part given both a character and a group.
  *
- * Each function is exactly one Yjs transaction (so one update on the wire), tagged
+ * Each function is at most one Yjs transaction (so one update on the wire), tagged
  * with `LOCAL_EDIT_ORIGIN`. Nothing here holds a Yjs object between calls — they take
  * the `Y.Doc` and look things up fresh, so callers never keep a `Y.Map`/`Y.Text` in
  * reactive state.
@@ -60,7 +62,7 @@ type PartMap = Y.Map<unknown>;
 type PageArray = Y.Array<LineMap>;
 
 /**
- * Pages are created by the server (it always keeps one empty trailing page), never by a
+ * Pages are created by the server (it always keeps the doc ending in an empty page), never by a
  * client: if two editors each created the same new page, Yjs would keep only one of the
  * two arrays and silently discard the other editor's lines. Writing into an existing
  * array merges cleanly, so a missing page is an error here, not something to create.
