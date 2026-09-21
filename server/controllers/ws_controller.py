@@ -13,14 +13,18 @@ from tornado.ioloop import IOLoop
 from tornado.websocket import WebSocketClosedError, WebSocketHandler
 
 from controllers.api.constants import (
+    ERROR_COLLAB_EDITING_DISABLED,
+    ERROR_COLLAB_EDITING_ENABLED,
     ERROR_CUTS_BLOCKED_BY_CUTTER,
     ERROR_CUTS_BLOCKED_BY_DRAFT,
     ERROR_CUTS_BLOCKED_BY_EDITOR,
     ERROR_EDIT_BLOCKED_BY_CUTTER,
+    ERROR_EDIT_BLOCKED_BY_EDITOR,
     ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
     ERROR_INSUFFICIENT_PERMISSIONS,
 )
 from digi_server.logger import get_logger
+from digi_server.settings import COLLAB_EDITING_SETTING
 from models.script import Script
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
@@ -32,6 +36,19 @@ from utils.web.route import ApiRoute, ApiVersion
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
+
+
+# Collab-room operations that are refused when collaborative editing is switched off.
+_COLLAB_ONLY_OPS = frozenset(
+    {
+        "JOIN_SCRIPT_ROOM",
+        "YJS_SYNC",
+        "YJS_UPDATE",
+        "YJS_AWARENESS",
+        "SAVE_SCRIPT_DRAFT",
+        "DISCARD_SCRIPT_DRAFT",
+    }
+)
 
 
 @ApiRoute("ws", ApiVersion.V1)
@@ -478,6 +495,13 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             show = session.get(Show, current_show_id)
             return bool(show and show.current_session_id)
 
+    def _is_collab_editing_enabled(self) -> bool:
+        """Return True if the server is in collaborative script editing mode.
+
+        :returns: The collaborative script editing setting.
+        """
+        return bool(self.application.digi_settings.get_sync(COLLAB_EDITING_SETTING))
+
     async def _get_current_show(self, session) -> Optional[Show]:
         """Look up the currently-loaded Show, if any.
 
@@ -549,6 +573,16 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
         data = message.get("DATA", {})
 
+        # Everything that touches the shared draft only exists in collaborative mode;
+        # in classic mode a stray client must not be able to open a room.
+        # LEAVE_SCRIPT_ROOM stays allowed (harmless, and lets a client tidy up after
+        # the mode is switched underneath it).
+        if ws_op in _COLLAB_ONLY_OPS and not self._is_collab_editing_enabled():
+            await self._reject_script_room_op(
+                "COLLAB_ERROR", "error", ERROR_COLLAB_EDITING_DISABLED
+            )
+            return
+
         if ws_op == "REQUEST_SCRIPT_EDIT":
             with self.make_session() as session:
                 entry = session.get(Session, self.__getattribute__("internal_id"))
@@ -576,6 +610,23 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     )
                     return
 
+                # The collaborative editor announces itself with `collab: true`.
+                # Requiring the announcement to match the server's mode means an
+                # old-UI client is refused up front in collaborative mode, instead of
+                # letting it edit and then fail (and lose its work) at save time.
+                collab_enabled = self._is_collab_editing_enabled()
+                # An explicit boolean is required so a client that omits the flag
+                # (a stale UI, or cut mode) is never mistaken for a collab request.
+                if data.get("collab", False) is not collab_enabled:
+                    await self._reject_script_room_op(
+                        "REQUEST_EDIT_FAILURE",
+                        "reason",
+                        ERROR_COLLAB_EDITING_ENABLED
+                        if collab_enabled
+                        else ERROR_COLLAB_EDITING_DISABLED,
+                    )
+                    return
+
                 cutters = session.scalars(
                     select(Session).where(Session.is_cutting)
                 ).all()
@@ -588,6 +639,23 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         }
                     )
                     return
+
+                # Classic (REST) editing has no way to reconcile concurrent writers,
+                # so it stays single-editor; only collaborative mode allows several.
+                if not collab_enabled:
+                    other_editors = session.scalars(
+                        select(Session).where(
+                            Session.is_editor,
+                            Session.internal_id != self.__getattribute__("internal_id"),
+                        )
+                    ).all()
+                    if other_editors:
+                        await self._reject_script_room_op(
+                            "REQUEST_EDIT_FAILURE",
+                            "reason",
+                            ERROR_EDIT_BLOCKED_BY_EDITOR,
+                        )
+                        return
 
                 entry.is_editor = True
                 session.commit()
@@ -860,7 +928,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     f"applying {len(decoded)}B update from {self.request.remote_ip}"
                 )
                 try:
-                    await room.apply_update(decoded)
+                    follow_up = await room.apply_update(decoded)
                 except Exception:
                     get_logger().exception(
                         f"YJS_SYNC step=2: Failed to apply update for "
@@ -875,6 +943,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     )
                     return
                 await room.broadcast_update(decoded, sender=self)
+                if follow_up:
+                    await room.broadcast_update(follow_up)
         elif ws_op == "YJS_UPDATE":
             room = room_manager.get_room_for_client(self)
             if not room:
@@ -908,7 +978,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 f"applying {len(decoded)}B update from {self.request.remote_ip}"
             )
             try:
-                await room.apply_update(decoded)
+                follow_up = await room.apply_update(decoded)
             except Exception:
                 await self.write_message(
                     {
@@ -919,6 +989,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
                 return
             await room.broadcast_update(decoded, sender=self)
+            if follow_up:
+                # The server-made trailing page goes to everyone, sender included.
+                await room.broadcast_update(follow_up)
         elif ws_op == "YJS_AWARENESS":
             room = room_manager.get_room_for_client(self)
             if not room:

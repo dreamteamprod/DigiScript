@@ -7,8 +7,14 @@ and produces a pycrdt Y.Doc. No database needed — uses synthetic data.
 import base64
 
 import pycrdt
+import pytest
 
-from utils.script.line_to_ydoc import build_ydoc
+from utils.script.line_to_ydoc import (
+    backfill_uids,
+    build_ydoc,
+    ensure_trailing_page,
+    numeric_page_keys,
+)
 
 
 def _make_line_data(
@@ -50,14 +56,16 @@ def _make_line_data(
 
 
 class TestBuildYdocEmpty:
-    def test_empty_script_returns_doc_with_empty_pages(self):
+    def test_empty_script_has_a_single_empty_page_one(self):
         doc = build_ydoc([], revision_id=42)
 
         meta = doc.get("meta", type=pycrdt.Map)
         pages = doc.get("pages", type=pycrdt.Map)
 
         assert meta["revision_id"] == 42
-        assert len(pages) == 0
+        # Clients never create pages, so even an empty script needs page 1 to exist.
+        assert list(pages.keys()) == ["1"]
+        assert len(pages["1"]) == 0
 
     def test_empty_script_has_deleted_line_ids_array(self):
         doc = build_ydoc([], revision_id=1)
@@ -294,8 +302,10 @@ class TestBuildYdocBrokenChain:
         doc = build_ydoc(data, revision_id=1)
         pages = doc.get("pages", type=pycrdt.Map)
         assert "1" in pages
-        # Page 2 is absent because its bridge line is unreachable from the head
-        assert "2" not in pages
+        # Page 2's lines are absent because its bridge line is unreachable from the
+        # head — the only page 2 is the empty trailing page every doc ends with.
+        assert len(pages["2"]) == 0
+        assert "3" not in pages
 
     def test_complete_chain_reaches_all_lines(self):
         """When all pointers are intact, all lines across all pages are included."""
@@ -420,3 +430,216 @@ class TestCrdtConvergence:
         p2 = doc2.get("pages", type=pycrdt.Map)["1"][0]
         assert p1["act_id"] == p2["act_id"] == 10
         assert p1["scene_id"] == p2["scene_id"] == 20
+
+
+class TestEnsureTrailingPage:
+    """The doc always ends in one empty page; only the server creates page arrays."""
+
+    def test_built_doc_ends_in_one_empty_page(self):
+        data = [
+            _make_line_data(line_id=1, next_line_id=2, previous_line_id=None, page=1),
+            _make_line_data(line_id=2, next_line_id=None, previous_line_id=1, page=2),
+        ]
+        pages = build_ydoc(data, revision_id=1).get("pages", type=pycrdt.Map)
+
+        assert sorted(pages.keys()) == ["1", "2", "3"]
+        assert len(pages["2"]) == 1
+        assert len(pages["3"]) == 0
+
+    def test_no_op_when_the_last_page_is_already_empty(self):
+        doc = build_ydoc([], revision_id=1)
+
+        assert ensure_trailing_page(doc) is None
+        assert list(doc.get("pages", type=pycrdt.Map).keys()) == ["1"]
+
+    def test_adds_the_next_page_once_the_last_page_has_lines(self):
+        doc = build_ydoc([], revision_id=1)
+        pages = doc.get("pages", type=pycrdt.Map)
+        line = pycrdt.Map()
+        pages["1"].append(line)
+
+        update = ensure_trailing_page(doc)
+
+        assert update is not None
+        assert sorted(pages.keys()) == ["1", "2"]
+        assert len(pages["2"]) == 0
+
+    def test_follow_up_update_is_applicable_by_another_replica(self):
+        doc = build_ydoc([], revision_id=1)
+        replica = pycrdt.Doc()
+        replica.get("pages", type=pycrdt.Map)
+        replica.apply_update(doc.get_update())
+        doc.get("pages", type=pycrdt.Map)["1"].append(pycrdt.Map())
+
+        replica.apply_update(doc.get_update(replica.get_state()))
+        update = ensure_trailing_page(doc)
+        replica.apply_update(update)
+
+        assert sorted(replica.get("pages", type=pycrdt.Map).keys()) == ["1", "2"]
+
+    def test_only_the_highest_numeric_page_decides(self):
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = pycrdt.Array()
+        pages["1"].append(pycrdt.Map())
+        pages["2"] = pycrdt.Array()  # empty, and highest → nothing to add
+        pages["notes"] = pycrdt.Array()  # non-numeric keys are ignored
+
+        assert ensure_trailing_page(doc) is None
+
+    def test_a_non_array_last_page_is_rejected_not_indexed(self):
+        """A corrupt draft can hold anything under a page key."""
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = "not an array"
+
+        with pytest.raises(ValueError, match="not a Y.Array"):
+            ensure_trailing_page(doc)
+
+    def test_reloading_a_draft_without_a_trailing_page_is_stable(self):
+        """A server restart before the repair is checkpointed repairs it again.
+
+        Each load makes the page under a fresh client id; since nobody else is in
+        the room, the resulting state must be identical in shape either way.
+        """
+        original = build_ydoc([], revision_id=1)
+        original.get("pages", type=pycrdt.Map)["1"].append(pycrdt.Map())
+        stored = original.get_update()  # what a checkpoint holds: page 1 is full
+
+        shapes = []
+        for _ in range(2):
+            doc = pycrdt.Doc()
+            doc.get("pages", type=pycrdt.Map)
+            doc.apply_update(stored)
+            ensure_trailing_page(doc)
+            assert ensure_trailing_page(doc) is None  # idempotent within a load
+            pages = doc.get("pages", type=pycrdt.Map)
+            shapes.append({key: len(pages[key]) for key in sorted(pages.keys())})
+
+        assert shapes == [{"1": 1, "2": 0}, {"1": 1, "2": 0}]
+
+    def test_built_lines_and_parts_get_a_stable_uid(self):
+        data = [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)]
+        line = build_ydoc(data, revision_id=1).get("pages", type=pycrdt.Map)["1"][0]
+
+        assert line["_uid"] == line["_id"] == "7"
+        part = line["parts"][0]
+        assert part["_uid"] == part["_id"]
+
+
+class TestNumericPageKeys:
+    def test_keeps_only_ascii_page_numbers(self):
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        for key in ("1", "10", "notes", "²", "-1", "1.5", "", "01", "٣", "0"):
+            pages[key] = pycrdt.Array()
+
+        # "01" would read as page 1 beside a real "1"; "٣" is a digit int() accepts
+        # but pages[str(3)] can never find; "0" is the canonical form of page 0.
+        assert sorted(numeric_page_keys(pages)) == ["0", "1", "10"]
+
+    def test_a_stray_key_does_not_confuse_the_trailing_page_check(self):
+        doc = build_ydoc([], revision_id=1)
+        doc.get("pages", type=pycrdt.Map)["notes"] = pycrdt.Array()
+
+        assert ensure_trailing_page(doc) is None
+
+
+class TestRepairAndBackfill:
+    def test_repair_replaces_a_non_array_last_page_and_returns_the_update(self):
+        doc = build_ydoc([], revision_id=1)
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = "garbage"
+
+        update = ensure_trailing_page(doc, repair=True)
+
+        assert update is not None
+        assert isinstance(pages["1"], pycrdt.Array)
+        assert ensure_trailing_page(doc) is None  # now healthy
+
+    def test_backfill_gives_old_drafts_a_uid_equal_to_their_id(self):
+        doc = build_ydoc(
+            [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)],
+            revision_id=1,
+        )
+        line = doc.get("pages", type=pycrdt.Map)["1"][0]
+        del line["_uid"]
+        del line["parts"][0]["_uid"]
+
+        backfill_uids(doc)
+
+        assert line["_uid"] == "7"
+        assert line["parts"][0]["_uid"] == line["parts"][0]["_id"]
+
+    def test_backfill_skips_a_malformed_page_instead_of_raising(self):
+        doc = build_ydoc([], revision_id=1)
+        doc.get("pages", type=pycrdt.Map)["0"] = "garbage"
+
+        backfill_uids(doc)  # must not raise
+
+    def test_backfill_is_idempotent(self):
+        doc = build_ydoc(
+            [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)],
+            revision_id=1,
+        )
+        backfill_uids(doc)
+        state = doc.get_update()
+
+        backfill_uids(doc)
+
+        assert doc.get_update() == state
+
+    def test_healing_a_non_array_page_is_logged(self, caplog):
+        doc = build_ydoc([], revision_id=1)
+        doc.get("pages", type=pycrdt.Map)["1"] = "garbage"
+
+        with caplog.at_level("WARNING"):
+            ensure_trailing_page(doc, repair=True)
+
+        assert any("non-array page 1" in r.getMessage() for r in caplog.records)
+
+    def test_backfill_never_overwrites_an_existing_uid(self):
+        doc = build_ydoc(
+            [_make_line_data(line_id=7, next_line_id=None, previous_line_id=None)],
+            revision_id=1,
+        )
+        line = doc.get("pages", type=pycrdt.Map)["1"][0]
+        line["_id"] = "501"  # a save has since rewritten _id
+
+        backfill_uids(doc)
+
+        assert line["_uid"] == "7"
+
+
+class TestEnsureTrailingPageConcurrency:
+    def test_concurrent_edits_to_the_trailing_page_both_survive(self):
+        """The bug the trailing page exists to prevent: two editors, one new page.
+
+        Because the server already created page 2, both inserts go into the same
+        existing array and merge, instead of one editor's page array replacing the
+        other's and silently discarding its lines.
+        """
+        data = [_make_line_data(line_id=1, next_line_id=None, previous_line_id=None)]
+        server = build_ydoc(data, revision_id=1)
+
+        def replica():
+            doc = pycrdt.Doc()
+            doc.get("meta", type=pycrdt.Map)
+            doc.get("pages", type=pycrdt.Map)
+            doc.get("deleted_line_ids", type=pycrdt.Array)
+            doc.apply_update(server.get_update())
+            return doc
+
+        a, b = replica(), replica()
+        for doc, text in ((a, "from A"), (b, "from B")):
+            page = doc.get("pages", type=pycrdt.Map)["2"]
+            line = pycrdt.Map()
+            page.append(line)
+            line["text"] = text
+
+        a.apply_update(b.get_update())
+        b.apply_update(a.get_update())
+
+        for doc in (a, b):
+            texts = sorted(m["text"] for m in doc.get("pages", type=pycrdt.Map)["2"])
+            assert texts == ["from A", "from B"]

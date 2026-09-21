@@ -82,6 +82,8 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        # These tests exercise the collaborative editor.
+        self._app.digi_settings.settings["collaborative_script_editing"].set_value(True)
 
     # ------------------------------------------------------------------
     # REQUEST_SCRIPT_EDIT tests
@@ -92,7 +94,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         """Admin requests edit when no editors exist — should succeed."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
 
         response = await ws.read_message()
         response_data = json.loads(response)
@@ -125,7 +129,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
 
         # Multi-editor: should succeed with GET_SCRIPT_CONFIG_STATUS
         response = await ws.read_message()
@@ -154,7 +160,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
 
         response = await ws.read_message()
         response_data = json.loads(response)
@@ -169,7 +177,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         """Non-admin user without WRITE role is rejected."""
         ws, uuid = await self._connect_and_auth(self.viewer_id)
 
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
 
         response = await ws.read_message()
         response_data = json.loads(response)
@@ -568,7 +578,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
         # Now request edit — should upgrade role
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
 
         # Should receive ROOM_MEMBERS with upgraded role
         response = await ws.read_message()
@@ -589,7 +601,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # Join room (as editor)
@@ -629,7 +643,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # Join room (as editor)
@@ -673,7 +689,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode first
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # Consume GET_SCRIPT_CONFIG_STATUS
 
         # Now join room
@@ -702,7 +720,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -738,11 +758,15 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws2, uuid2 = await self._connect_and_auth(self.admin_id)
 
         # Both enter edit mode
-        await ws1.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws1.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws1
         await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws2 (broadcast)
 
-        await ws2.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws2.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws1 (broadcast)
         await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS for ws2
 
@@ -794,7 +818,7 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
         # Editor enters edit mode
         await ws_editor.write_message(
-            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}})
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
         )
         await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS
         await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS broadcast
@@ -849,7 +873,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -857,20 +883,25 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
-        # Send save request. save_draft always updates meta.last_saved_at in the Y.Doc,
-        # so save_room always broadcasts YJS_UPDATE first, then SCRIPT_SAVED.
+        # Send save request. The doc always ends in an empty trailing page, so there is
+        # at least one page to report progress for. save_draft always updates
+        # meta.last_saved_at in the Y.Doc, so save_room then broadcasts a YJS_UPDATE,
+        # and only after that SCRIPT_SAVED (clients rely on that ordering).
         await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
 
-        response = await ws.read_message()
-        response_data = json.loads(response)
-        self.assertEqual("NOOP", response_data["OP"])
-        self.assertEqual("YJS_UPDATE", response_data["ACTION"])
+        actions = []
+        saved = None
+        while saved is None:
+            response_data = json.loads(await ws.read_message())
+            self.assertEqual("NOOP", response_data["OP"])
+            actions.append(response_data["ACTION"])
+            if response_data["ACTION"] == "SCRIPT_SAVED":
+                saved = response_data
 
-        response = await ws.read_message()
-        response_data = json.loads(response)
-        self.assertEqual("NOOP", response_data["OP"])
-        self.assertEqual("SCRIPT_SAVED", response_data["ACTION"])
-        self.assertIn("last_saved_at", response_data["DATA"])
+        self.assertIn("last_saved_at", saved["DATA"])
+        self.assertIn("YJS_UPDATE", actions)
+        self.assertLess(actions.index("YJS_UPDATE"), actions.index("SCRIPT_SAVED"))
+        self.assertTrue(set(actions) <= {"SAVE_PROGRESS", "YJS_UPDATE", "SCRIPT_SAVED"})
 
         ws.close()
 
@@ -880,7 +911,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -916,7 +949,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -953,7 +988,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -993,7 +1030,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -1033,7 +1072,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         """A YJS_UPDATE whose apply_update raises returns COLLAB_ERROR, not a crash."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -1070,7 +1111,9 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         """A YJS_SYNC step=2 whose apply_update raises returns COLLAB_ERROR."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -1124,6 +1167,8 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        # These tests exercise the collaborative editor.
+        self._app.digi_settings.settings["collaborative_script_editing"].set_value(True)
 
     def _set_live_session_active(self):
         """Create a ShowSession and mark show.current_session_id.
@@ -1148,7 +1193,9 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
         self._set_live_session_active()
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
 
         response = await ws.read_message()
         response_data = json.loads(response)
@@ -1196,7 +1243,9 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room before activating the live session
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -1223,7 +1272,9 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room before activating the live session
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
@@ -1257,7 +1308,9 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room before activating the live session
-        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {}}))
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))

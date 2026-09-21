@@ -22,6 +22,7 @@ from models.script import (
     ScriptLineRevisionAssociation,
 )
 from utils.script.line_helpers import create_new_line, validate_line
+from utils.script.line_to_ydoc import numeric_page_keys
 
 
 if TYPE_CHECKING:
@@ -63,8 +64,23 @@ def _parse_db_id(line_id) -> int | None:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_alias(raw, id_aliases: dict[str, str]) -> str:
+    """Follow a chain of id rewrites (UUID -> DB id -> newer DB id) to the current id.
+
+    A client that has not yet received a save's id patch records a deletion against
+    the id it still knows; the room remembers every rewrite so that is not lost.
+    """
+    seen = set()
+    key = str(raw)
+    while key in id_aliases and key not in seen:
+        seen.add(key)
+        key = id_aliases[key]
+    return key
+
+
 def extract_lines_from_ydoc(
     doc: pycrdt.Doc,
+    id_aliases: dict[str, str] | None = None,
 ) -> tuple[list[dict], list[int]]:
     """Read the Y.Doc and return plain Python data.
 
@@ -72,6 +88,8 @@ def extract_lines_from_ydoc(
     consistent point-in-time snapshot.
 
     :param doc: The pycrdt Y.Doc to extract from.
+    :param id_aliases: Optional ``{old_id: new_id}`` record of ids earlier saves have
+        rewritten, used to resolve deletions recorded against a stale id.
     :returns: ``(lines_by_page, deleted_line_ids)`` where ``lines_by_page`` is
         a list of ``{"page": int, "lines": list[dict]}`` dicts ordered by page
         number, and ``deleted_line_ids`` is a list of integer DB ids of lines
@@ -84,6 +102,7 @@ def extract_lines_from_ydoc(
     deleted_line_ids: list[int] = []
     for i in range(len(deleted_arr)):
         raw = deleted_arr[i]
+        raw = _resolve_alias(raw, id_aliases or {})
         db_id = _parse_db_id(raw)
         if db_id is not None:
             deleted_line_ids.append(db_id)
@@ -96,7 +115,23 @@ def extract_lines_from_ydoc(
 
     # Extract pages sorted by page number
     lines_by_page: list[dict] = []
-    page_keys = sorted(pages_map.keys(), key=int)
+    page_keys = sorted(numeric_page_keys(pages_map), key=int)
+    ignored = sorted(set(pages_map.keys()) - set(page_keys))
+    for key in ignored:
+        content = pages_map[key]
+        if isinstance(content, (pycrdt.Array, pycrdt.Map)) and len(content) > 0:
+            # Ignoring it would drop the content while the save reports success and
+            # the draft is deleted, so fail the save (and keep the draft) instead.
+            raise ValueError(
+                f"Draft has content under the non-page key {key!r}; refusing to save "
+                f"and silently drop it"
+            )
+        get_logger().debug(
+            f"extract_lines_from_ydoc: ignoring empty non-page key {key!r}"
+        )
+    for key in page_keys:
+        if not isinstance(pages_map[key], pycrdt.Array):
+            raise ValueError(f"Page {key} is not a Y.Array; the draft is malformed")
 
     get_logger().debug(
         f"extract_lines_from_ydoc: {len(page_keys)} page(s): {page_keys}"
@@ -121,7 +156,10 @@ def extract_lines_from_ydoc(
                 line_parts.append(
                     {
                         "_id": part_map["_id"],
-                        "part_index": part_map["part_index"],
+                        # Position, not the stored value: two editors appending a
+                        # part concurrently both write the same index, and array
+                        # order is the one thing Yjs converges on.
+                        "part_index": j,
                         "character_id": _zero_to_none(part_map["character_id"]),
                         "character_group_id": _zero_to_none(
                             part_map["character_group_id"]
@@ -251,6 +289,7 @@ def _save_script_page(
     session: DigiDBSession,
     show: Show,
     previous_line: ScriptLineRevisionAssociation | None,
+    changed_pages: set[int] | None = None,
 ) -> tuple[ScriptLineRevisionAssociation | None, dict[str, str], dict[str, str]]:
     """Persist one page of Y.Doc data to the database.
 
@@ -277,12 +316,17 @@ def _save_script_page(
     :param show: Show model (used by the line validator).
     :param previous_line: Last association from the preceding page (or None
         for page 1).
+    :param changed_pages: Optional set that every page whose DB content this call
+        altered (a line created, replaced or deleted) is added to, so the caller can
+        notify clients about only those pages.
     :returns: ``(last_assoc, new_line_id_map, new_part_id_map)`` where the
         mappings are ``{uuid_str: str(db_id)}`` for newly inserted objects.
     :raises ValueError: If line validation fails.
     """
     new_line_id_map: dict[str, str] = {}
     new_part_id_map: dict[str, str] = {}
+    if changed_pages is None:
+        changed_pages = set()
 
     log = get_logger()
     log.debug(
@@ -317,6 +361,7 @@ def _save_script_page(
             assoc, line_obj = create_new_line(
                 session, revision, line_dict, previous_line
             )
+            changed_pages.add(page_number)
             log.debug(
                 f"  [{idx}] Created new ScriptLine id={line_obj.id} "
                 f"(ydoc_id {ydoc_id_str!r} → db id {line_obj.id})"
@@ -372,6 +417,11 @@ def _save_script_page(
 
                 curr_line = curr_assoc.line
                 old_line_id = curr_line.id
+                changed_pages.add(page_number)
+                # A line moved between pages leaves its old page too. `page` is
+                # nullable on legacy rows; a NULL is not a page anyone can be told about.
+                if curr_line.page is not None:
+                    changed_pages.add(curr_line.page)
                 _, line_object = create_new_line(
                     session, revision, line_dict, previous_line, with_association=False
                 )
@@ -499,6 +549,7 @@ def _save_script_page(
             )
             continue
         log.debug(f"  [del] Deleting line id={deleted_id} from page {page_number}")
+        changed_pages.add(page_number)
 
         # Update next/previous neighbour pointers (mirrors script.py:491–540)
         if assoc.next_line and assoc.previous_line:

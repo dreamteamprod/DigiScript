@@ -137,3 +137,14 @@ ERROR_EDIT_BLOCKED_BY_LIVE_SESSION = (
     "Cannot edit script while a live session is in progress"
 )
 ERROR_INSUFFICIENT_PERMISSIONS = "Insufficient permissions"
+
+# Collaborative-vs-classic editing mode (see COLLAB_EDITING_SETTING)
+ERROR_COLLAB_EDITING_ENABLED = (
+    "Collaborative editing is enabled — use the new interface to edit the script"
+)
+ERROR_COLLAB_EDITING_DISABLED = "Collaborative editing is disabled"
+ERROR_EDIT_BLOCKED_BY_EDITOR = "Cannot edit: another user is already editing"
+ERROR_COLLAB_MODE_CHANGE_BLOCKED = (
+    "Cannot change collaborative editing while someone is editing or cutting the "
+    "script, a collaborative session is open, or an unsaved draft exists"
+)

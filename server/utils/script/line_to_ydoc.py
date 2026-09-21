@@ -76,8 +76,8 @@ def fetch_script_line_data(session: Session, revision_id: int) -> list[dict]:
     ]
 
 
-def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
-    """Phase B: Build a Y.Doc from plain script line data.
+def _build_ydoc_content(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
+    """Build a Y.Doc holding the script's lines (no trailing page — see build_ydoc).
 
     CPU-bound — safe to run in a background thread via run_in_executor.
     No SQLAlchemy Session or ORM objects are used.
@@ -146,6 +146,9 @@ def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
         current_page_array.append(line_map)
 
         line_map["_id"] = str(line_data["id"])
+        # Never rewritten: `_id` becomes the DB id when a save patches it, but
+        # clients address lines by `_uid` so they survive that patch.
+        line_map["_uid"] = str(line_data["id"])
         line_map["act_id"] = (
             line_data["act_id"] if line_data["act_id"] is not None else 0
         )
@@ -170,6 +173,7 @@ def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
             parts_array.append(part_map)
 
             part_map["_id"] = str(part_data["id"])
+            part_map["_uid"] = str(part_data["id"])
             part_map["part_index"] = (
                 part_data["part_index"] if part_data["part_index"] is not None else 0
             )
@@ -198,4 +202,108 @@ def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
             )
         current = data_by_line_id.get(next_id) if next_id is not None else None
 
+    return doc
+
+
+def numeric_page_keys(pages: pycrdt.Map) -> list[str]:
+    """The page keys of a ``pages`` map that are canonical page numbers.
+
+    The one definition of "a page key" shared by the trailing-page check, save and
+    the extractor, so a stray key is ignored everywhere rather than tolerated in one
+    place and raising in another. Canonical means ``str(int(key)) == key``: that
+    excludes ``"01"`` (which ``int()`` reads as page 1 next to a real ``"1"``) and
+    keys such as ``"٣"`` (ASCII-only, since ``int()`` accepts non-ASCII digits but
+    ``pages[str(n)]`` would then never find them).
+    """
+    return [
+        key
+        for key in pages.keys()
+        if isinstance(key, str)
+        and key.isascii()
+        and key.isdecimal()
+        and str(int(key)) == key
+    ]
+
+
+def ensure_trailing_page(doc: pycrdt.Doc, repair: bool = False) -> bytes | None:
+    """Make sure the doc's last page is an empty one, so clients never create pages.
+
+    ``pages`` is a Y.Map keyed by page number. If two editors each create the same
+    new page key, Yjs keeps only one of the two arrays and silently discards the
+    other editor's lines. If the array already exists, concurrent inserts into it
+    merge cleanly. So the server is the only writer that ever creates a page array:
+    it always keeps an empty page at the end, and clients only insert into pages
+    that already exist.
+
+    Only the highest numeric page key is inspected, keeping this cheap enough to
+    run after every applied update. Non-numeric keys are ignored. Pages are never
+    removed, so the doc always *ends* in an empty page; it may also contain earlier
+    empty ones.
+
+    :param doc: The Y.Doc to check and, if needed, extend.
+    :param repair: If the last page is not a Y.Array (a client update wrote garbage
+        under a page key), replace it with an empty page instead of raising, so the
+        doc heals and the fix is broadcast. Loading a stored draft leaves this off:
+        there a malformed doc is discarded and rebuilt instead.
+    :returns: The update that adds the page (to broadcast to clients), or None if the
+        doc already ended in an empty page.
+    :raises ValueError: If the last page is not a Y.Array and *repair* is False.
+    """
+    pages = doc.get("pages", type=pycrdt.Map)
+    keys = numeric_page_keys(pages)
+    last = max((int(key) for key in keys), default=0)
+    if keys:
+        last_page = pages[str(last)]
+        if not isinstance(last_page, pycrdt.Array):
+            if not repair:
+                raise ValueError(
+                    f"Page {last} is not a Y.Array; the draft is malformed"
+                )
+            get_logger().warning(
+                f"ensure_trailing_page: replacing non-array page {last} "
+                f"({type(last_page).__name__}) with an empty page; any content a "
+                f"client wrote there is discarded"
+            )
+            state_before = doc.get_state()
+            pages[str(last)] = pycrdt.Array()
+            return doc.get_update(state_before)
+        if len(last_page) == 0:
+            return None
+
+    state_before = doc.get_state()
+    pages[str(last + 1)] = pycrdt.Array()
+    return doc.get_update(state_before)
+
+
+def backfill_uids(doc: pycrdt.Doc) -> None:
+    """Give lines and parts of a draft that predates ``_uid`` a ``_uid`` equal to ``_id``.
+
+    Clients address lines by ``_uid``; without one they fall back to ``_id``, which a
+    save rewrites, so such a draft would keep the write-after-save problem.
+    """
+    pages = doc.get("pages", type=pycrdt.Map)
+    for key in numeric_page_keys(pages):
+        if not isinstance(pages[key], pycrdt.Array):
+            continue  # malformed; the extractor reports it at save time
+        for line in pages[key]:
+            if "_uid" not in line and "_id" in line:
+                line["_uid"] = str(line["_id"])
+            for part in line.get("parts", []):
+                if "_uid" not in part and "_id" in part:
+                    part["_uid"] = str(part["_id"])
+
+
+def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
+    """Phase B: Build a Y.Doc from plain script line data.
+
+    CPU-bound — safe to run in a background thread via run_in_executor.
+    No SQLAlchemy Session or ORM objects are used. The doc always ends in an empty
+    trailing page (page 1 for an empty script), see ``ensure_trailing_page``.
+
+    :param script_data: List of dicts from fetch_script_line_data.
+    :param revision_id: The revision ID for metadata.
+    :returns: A pycrdt.Doc representing the full script.
+    """
+    doc = _build_ydoc_content(script_data, revision_id)
+    ensure_trailing_page(doc)
     return doc
