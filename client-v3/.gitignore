@@ -1,6 +1,5 @@
 node_modules/
 dist/
-dist-electron/
 junit/
 coverage/
 *.backup

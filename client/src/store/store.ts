@@ -4,7 +4,6 @@ import createPersistedState from 'vuex-persistedstate';
 import log from 'loglevel';
 
 import { makeURL } from '@/js/utils';
-import { getStorageAdapter } from '@/js/platform';
 import type { Show } from '@/types/api/show';
 import user from '@/store/modules/user/user';
 import websocket from './modules/websocket';
@@ -184,7 +183,7 @@ export default new Vuex.Store<{ currentShow: Show | null }>({
   },
   plugins: [
     createPersistedState({
-      storage: getStorageAdapter('session'),
+      storage: window.sessionStorage,
       key: 'digiscript',
       paths: ['websocket.internalUUID', 'show.stageManagerMode'],
     }),

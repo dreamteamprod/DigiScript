@@ -361,15 +361,6 @@ class Settings:
             help_text="Directory used to store collaborative editing draft files.",
         )
         self.define(
-            "mdns_advertising",
-            bool,
-            True,
-            True,
-            callback_fn=self._application.toggle_mdns_advertising,
-            display_name="Enable Network Discovery (mDNS)",
-            help_text="Advertise this server on the local network for automatic discovery by desktop clients.",
-        )
-        self.define(
             "client_log_enabled",
             bool,
             True,
@@ -609,7 +600,6 @@ class Settings:
             settings_json = {}
             for key, value in self.settings.items():
                 settings_json[key] = value.get_value()
-            # Add version for Electron client compatibility checking
             settings_json["version"] = _get_version()
             return json.loads(json.dumps(settings_json))
 

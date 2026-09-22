@@ -21,7 +21,6 @@ export default async function globalSetup(): Promise<void> {
     configPath,
     JSON.stringify({
       db_path: `sqlite:///${dbPath}`,
-      mdns_advertising: false,
       log_path: path.join(tempDir, 'digiscript.log'),
     })
   );
