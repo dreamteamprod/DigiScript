@@ -55,7 +55,6 @@ class TestHealthController(DigiScriptTestCase):
             "debug_mode",
             "current_show",
             "compiled_script_path",
-            "mdns_advertising",
         ]
 
         for field in sensitive_fields:

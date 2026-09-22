@@ -50,7 +50,7 @@ The [src](./src) directory is where the main Vue 3 project lives.
 * [components](./src/components): reusable Vue components, organised by feature area.
 * [composables](./src/composables): Composition API composables (shared logic, replaces Vue 2 mixins).
 * [constants](./src/constants): shared constants used across components.
-* [js](./src/js): plain TypeScript utilities — HTTP interceptor, validators, platform abstraction.
+* [js](./src/js): plain TypeScript utilities — HTTP interceptor, validators.
 * [router](./src/router): Vue Router configuration and navigation guards.
 * [stores](./src/stores): Pinia stores for application state (user, show, script, websocket, etc.).
 * [types](./src/types): TypeScript interfaces for API response shapes and shared types.

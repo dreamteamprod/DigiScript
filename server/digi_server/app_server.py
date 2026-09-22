@@ -39,7 +39,6 @@ from rbac.rbac import RBACController
 from services.user_service import UserService
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
-from utils.mdns_service import MDNSAdvertiser
 from utils.module_discovery import get_resource_path, is_frozen
 from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
@@ -74,7 +73,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self._db: DigiSQLAlchemy = models.db
         self.jwt_service: JWTService = None
         self.room_manager: Optional[RoomManager] = None
-        self.mdns_advertiser: Optional[MDNSAdvertiser] = None
         self.version_checker: Optional[VersionChecker] = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
@@ -457,7 +455,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     async def configure(self):
         await self._configure_logging()
-        await self.start_mdns_advertising()
         await self.start_version_checker()
 
     async def _configure_logging(self):
@@ -632,52 +629,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
             await client.write_message(
                 {"OP": ws_op, "DATA": ws_data, "ACTION": ws_action}
             )
-
-    async def start_mdns_advertising(self) -> None:
-        """Start mDNS advertising if enabled in settings."""
-        # Check if mDNS advertising is enabled
-        mdns_enabled = await self.digi_settings.get("mdns_advertising")
-        if not mdns_enabled:
-            get_logger().info("mDNS advertising is disabled in settings")
-            return
-
-        # Initialize and start the advertiser
-        if not self.mdns_advertiser:
-            self.mdns_advertiser = MDNSAdvertiser(port=self._port)
-
-        await self.mdns_advertiser.start()
-
-    async def stop_mdns_advertising(self) -> None:
-        """Stop mDNS advertising if it's running."""
-        if self.mdns_advertiser:
-            await self.mdns_advertiser.stop()
-            self.mdns_advertiser = None
-
-    def toggle_mdns_advertising(self) -> None:
-        """
-        Callback for when mdns_advertising setting changes.
-
-        Starts or stops mDNS advertising based on the current setting value.
-        """
-        if not IOLoop.current():
-            get_logger().error(
-                "Unable to toggle mDNS advertising as there is no current IOLoop"
-            )
-        else:
-            IOLoop.current().add_callback(self._toggle_mdns_advertising)
-
-    async def _toggle_mdns_advertising(self) -> None:
-        """Internal async implementation of toggle_mdns_advertising."""
-        mdns_enabled = await self.digi_settings.get("mdns_advertising")
-
-        if mdns_enabled:
-            # Start advertising
-            if not self.mdns_advertiser:
-                self.mdns_advertiser = MDNSAdvertiser(port=self._port)
-            await self.mdns_advertiser.start()
-        else:
-            # Stop advertising
-            await self.stop_mdns_advertising()
 
     async def start_version_checker(self) -> None:
         """Start the version checker service."""

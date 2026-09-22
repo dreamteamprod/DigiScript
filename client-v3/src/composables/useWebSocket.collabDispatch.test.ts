@@ -16,7 +16,6 @@ vi.mock('@/router', () => ({ default: { currentRoute: { value: { path: '/' } }, 
 vi.mock('@/js/toast', () => ({
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
-vi.mock('@/js/platform', () => ({ getWebSocketURL: () => 'ws://test/ws' }));
 
 class FakeWebSocket {
   static OPEN = 1;

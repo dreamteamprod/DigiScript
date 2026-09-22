@@ -7,7 +7,7 @@ import { useSystemStore } from '@/stores/system';
 import { useUserStore } from '@/stores/user';
 import { useShowStore } from '@/stores/show';
 import router from '@/router';
-import { getWebSocketURL } from '@/js/platform';
+import { getWebSocketURL } from '@/js/utils';
 import type { WsMessage } from '@/types/api/websocket';
 
 const INITIAL_RECONNECT_DELAY_MS = 1000;
@@ -161,13 +161,7 @@ function connect(): void {
     return;
   }
 
-  let wsURL: string;
-  try {
-    wsURL = getWebSocketURL();
-  } catch (e) {
-    log.error('Cannot determine WebSocket URL:', e);
-    return;
-  }
+  const wsURL = getWebSocketURL();
 
   log.debug('Connecting to WebSocket:', wsURL);
   ws = new WebSocket(wsURL);

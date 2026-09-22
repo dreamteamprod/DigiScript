@@ -11,7 +11,6 @@ function cleanV3StaticPlugin(): Plugin {
   return {
     name: 'clean-v3-static',
     buildStart() {
-      if (process.env.BUILD_TARGET === 'electron') return;
       const outDir = path.resolve(__dirname, '../server/static');
       if (fs.existsSync(outDir)) {
         for (const entry of fs.readdirSync(outDir)) {
@@ -37,10 +36,9 @@ export default defineConfig({
     }),
     cleanV3StaticPlugin(),
   ],
-  base: process.env.BUILD_TARGET === 'electron' ? './' : '/',
+  base: '/',
   build: {
-    outDir:
-      process.env.BUILD_TARGET === 'electron' ? './dist-electron' : '../server/static/',
+    outDir: '../server/static/',
     assetsDir: './assets',
     emptyOutDir: false,
     rollupOptions: {
