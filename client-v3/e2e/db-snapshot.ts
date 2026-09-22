@@ -2,10 +2,15 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import { test } from '@playwright/test';
-import { PID_FILE, TMPDIR_FILE, SERVER_PORT, waitForServer } from './global-setup.js';
+import { waitForServer } from './global-setup.js';
+import { SERVER_PORT, STATE_FILE, RunState } from './env.js';
+
+function readState(): RunState {
+  return JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
+}
 
 function getPaths() {
-  const tempDir = fs.readFileSync(TMPDIR_FILE, 'utf-8').trim();
+  const tempDir = readState().tempDir;
   const db = path.join(tempDir, 'digiscript.sqlite');
   const config = path.join(tempDir, 'digiscript.json');
   return {
@@ -35,16 +40,14 @@ export function snapshotSpecStart(): void {
  */
 export async function restoreSpecStartAndRestartServer(): Promise<void> {
   const { db, dbSpecStart, config, configSpecStart, serverDir } = getPaths();
+  const state = readState();
 
-  if (fs.existsSync(PID_FILE)) {
-    const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10);
-    try {
-      process.kill(pid, 'SIGKILL');
-    } catch {
-      // process already gone
-    }
-    await new Promise((r) => setTimeout(r, 500));
+  try {
+    process.kill(state.pid, 'SIGKILL');
+  } catch {
+    // process already gone
   }
+  await new Promise((r) => setTimeout(r, 500));
 
   // Remove any stale journal file (server uses DELETE journal mode, not WAL)
   try {
@@ -61,7 +64,7 @@ export async function restoreSpecStartAndRestartServer(): Promise<void> {
     ['main.py', `--port=${SERVER_PORT}`, `--settings_path=${config}`, '--debug=false'],
     { cwd: serverDir, detached: true, stdio: 'ignore' }
   );
-  fs.writeFileSync(PID_FILE, String(server.pid!));
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ ...state, pid: server.pid! }));
   server.unref();
 
   await waitForServer();
