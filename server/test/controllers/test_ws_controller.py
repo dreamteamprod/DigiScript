@@ -6,6 +6,7 @@ the query patterns in ws_controller.py, following our endpoint-based testing app
 
 import base64
 import json
+import unittest
 from unittest.mock import AsyncMock
 
 import pycrdt
@@ -1147,6 +1148,154 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         self.assertIn("error", response_data["DATA"])
 
         ws.close()
+
+    # ------------------------------------------------------------------
+    # REFRESH_CLIENT tests (see GitHub issue #1419)
+    #
+    # Two orderings are possible between the old connection's on_close and
+    # the new connection's REFRESH_CLIENT, and both lose is_editor/is_cutting
+    # -- via two different mechanisms. Which ordering a real browser reload
+    # actually produces is NOT verified here (nor by the E2E repro); both
+    # are exercised so whichever fix lands is proven against both.
+    #
+    # Both tests assert the DESIRED (currently unmet) behavior and are
+    # marked expectedFailure, so they go red (unexpected pass) the moment a
+    # real fix lands, rather than silently continuing to "pass" by encoding
+    # the bug.
+    # ------------------------------------------------------------------
+
+    @unittest.expectedFailure
+    @gen_test
+    async def test_refresh_client_before_stale_close_loses_is_editor(self):
+        """Mechanism B: REFRESH_CLIENT runs BEFORE the old socket's on_close.
+
+        H2 (new connection) resumes uuid1 via REFRESH_CLIENT while H1 (old
+        connection) is still technically open server-side. H2's internal_id
+        becomes uuid1, so H1 and H2 now both carry internal_id == uuid1 as a
+        Python attribute -- but there is only one Session row for uuid1,
+        which is now H2's live row.
+
+        When H1's on_close eventually fires (e.g. the browser's old socket
+        takes a moment to actually tear down after navigation), it looks up
+        Session by *its own* self.internal_id -- unchanged at uuid1 -- and
+        deletes it unconditionally. That deletes H2's freshly-resumed row,
+        not any state of H1's own, purely because the two handler objects
+        collided on the same internal_id string.
+        """
+        ws1, uuid1 = await self._connect_and_auth(self.admin_id)
+        ws_observer, _ = await self._connect_and_auth()
+
+        await ws1.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS (to ws1 itself)
+        await ws_observer.read_message()  # GET_SCRIPT_CONFIG_STATUS broadcast
+
+        # ws2 connects *after* the broadcast above so it doesn't consume it.
+        ws2, uuid2 = await self._connect_and_auth(self.admin_id)
+        self.assertNotEqual(uuid1, uuid2)
+
+        # ws2 resumes uuid1 while ws1 is still open server-side.
+        await ws2.write_message(json.dumps({"OP": "REFRESH_CLIENT", "DATA": uuid1}))
+        token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.admin_id}
+        )
+        await ws2.write_message(
+            json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
+        )
+        auth_response = json.loads(await ws2.read_message())
+        self.assertEqual("WS_AUTH_SUCCESS", auth_response["OP"])
+
+        with self._app.get_db().sessionmaker() as db_session:
+            entry = db_session.get(Session, uuid1)
+            self.assertIsNotNone(entry)
+            self.assertTrue(entry.is_editor, "resumed row should still be editor")
+
+        # Now the stale ws1 finally closes server-side.
+        ws1.close()
+        # notify_editor_change fires because the (now ws2-owned) uuid1 row
+        # is_editor=True; it broadcasts to everyone still in
+        # application.clients, which includes ws2 as well as the observer.
+        await ws_observer.read_message()  # GET_SCRIPT_CONFIG_STATUS from on_close
+        await ws2.read_message()  # GET_SCRIPT_CONFIG_STATUS from on_close
+
+        with self._app.get_db().sessionmaker() as db_session:
+            entry = db_session.get(Session, uuid1)
+            self.assertIsNotNone(
+                entry,
+                "stale ws1's on_close deleted the live, just-resumed uuid1 "
+                "row instead of leaving it alone",
+            )
+            self.assertTrue(entry.is_editor)
+
+        ws_observer.close()
+        ws2.close()
+
+    @unittest.expectedFailure
+    @gen_test
+    async def test_refresh_client_after_stale_close_loses_is_editor(self):
+        """Mechanism A: the old socket's on_close runs BEFORE REFRESH_CLIENT.
+
+        H1 (old connection) closes first -- on_close synchronously deletes
+        the Session row for uuid1 unconditionally, with no grace period.
+        By the time H2 (new connection, simulating the reloaded page) sends
+        REFRESH_CLIENT for uuid1, there is nothing left to resume: is_editor
+        is lost regardless of which row REFRESH_CLIENT's lookup logic reads
+        from, because the target row no longer exists.
+        """
+        ws1, uuid1 = await self._connect_and_auth(self.admin_id)
+        ws_observer, _ = await self._connect_and_auth()
+
+        await ws1.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await ws1.read_message()  # GET_SCRIPT_CONFIG_STATUS (to ws1 itself)
+        await ws_observer.read_message()  # GET_SCRIPT_CONFIG_STATUS broadcast
+
+        with self._app.get_db().sessionmaker() as db_session:
+            entry = db_session.get(Session, uuid1)
+            self.assertTrue(entry.is_editor)
+
+        # Close the "old" connection, as a page reload would. on_close's
+        # Session-row deletion is synchronous and it unconditionally
+        # notifies other clients (GET_SCRIPT_CONFIG_STATUS) right after
+        # committing the delete -- so once the observer receives that
+        # notification, the row for uuid1 is guaranteed to already be gone.
+        ws1.close()
+        await ws_observer.read_message()  # GET_SCRIPT_CONFIG_STATUS from on_close
+
+        with self._app.get_db().sessionmaker() as db_session:
+            self.assertIsNone(
+                db_session.get(Session, uuid1),
+                "expected on_close to have already deleted the old row",
+            )
+
+        # Now the "reloaded" page opens a fresh connection and asks to
+        # resume uuid1.
+        ws2, uuid2 = await self._connect_and_auth(self.admin_id)
+        self.assertNotEqual(uuid1, uuid2)
+
+        await ws2.write_message(json.dumps({"OP": "REFRESH_CLIENT", "DATA": uuid1}))
+        token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.admin_id}
+        )
+        await ws2.write_message(
+            json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
+        )
+        auth_response = json.loads(await ws2.read_message())
+        self.assertEqual("WS_AUTH_SUCCESS", auth_response["OP"])
+
+        with self._app.get_db().sessionmaker() as db_session:
+            entry = db_session.get(Session, uuid1)
+            self.assertIsNotNone(entry)
+            self.assertTrue(
+                entry.is_editor,
+                "is_editor did not survive a real reload -- on_close's "
+                "unconditional delete raced ahead of REFRESH_CLIENT",
+            )
+
+        ws_observer.close()
+        ws2.close()
 
 
 class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
