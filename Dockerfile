@@ -1,4 +1,6 @@
-FROM node:24-bookworm AS build_v2
+# The frontend builds emit platform-independent static files, so run them on the
+# native build platform rather than emulating the target arch (slow under QEMU).
+FROM --platform=$BUILDPLATFORM node:24-bookworm AS build_v2
 
 RUN mkdir -p /server/static
 COPY /client/package.json /client/package.json
@@ -9,7 +11,7 @@ RUN npm ci
 COPY /client /client
 RUN npm run build
 
-FROM node:24-bookworm AS build_v3
+FROM --platform=$BUILDPLATFORM node:24-bookworm AS build_v3
 
 RUN mkdir -p /server/static
 COPY /client-v3/package.json /client-v3/package.json

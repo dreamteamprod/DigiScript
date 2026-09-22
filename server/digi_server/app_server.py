@@ -30,6 +30,7 @@ from digi_server.settings import Settings
 from models import models
 from models.cue import CueType
 from models.script import CompiledScript, Script
+from models.script_draft import ScriptDraft
 from models.session import Session, ShowSession
 from models.settings import SystemSettings
 from models.show import Show
@@ -38,8 +39,8 @@ from rbac.rbac import RBACController
 from services.user_service import UserService
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
-from utils.mdns_service import MDNSAdvertiser
 from utils.module_discovery import get_resource_path, is_frozen
+from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
 from utils.web.route import Route
@@ -71,7 +72,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         self._db: DigiSQLAlchemy = models.db
         self.jwt_service: JWTService = None
-        self.mdns_advertiser: Optional[MDNSAdvertiser] = None
+        self.room_manager: Optional[RoomManager] = None
         self.version_checker: Optional[VersionChecker] = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
@@ -233,10 +234,53 @@ class DigiScriptServer(PrometheusMixIn, Application):
                             f"Failed to remove compiled script file: {ds_file}"
                         )
 
+            # 4.5. Tidy up draft script files (same pattern as compiled scripts)
+            draft_script_path = self.digi_settings.settings.get(
+                "draft_script_path"
+            ).get_value()
+            os.makedirs(draft_script_path, exist_ok=True)
+
+            removed_drafts = []
+            drafts: List[ScriptDraft] = session.scalars(select(ScriptDraft)).all()
+            for draft in drafts:
+                if not draft.data_path or not os.path.exists(draft.data_path):
+                    get_logger().info(
+                        f"Removing draft record for revision {draft.revision_id} "
+                        f"as data file not found at {draft.data_path}"
+                    )
+                    session.delete(draft)
+                    removed_drafts.append(draft)
+            if removed_drafts:
+                session.commit()
+                get_logger().info(
+                    f"Removed {len(removed_drafts)} stale draft records from the database."
+                )
+
+            for draft_file in glob.glob(f"{draft_script_path}/*.yjs"):
+                found = False
+                for draft in drafts:
+                    if draft in removed_drafts:
+                        continue
+                    if draft.data_path == draft_file:
+                        found = True
+                        break
+                if not found:
+                    get_logger().info(f"Removing unreferenced draft file: {draft_file}")
+                    try:
+                        os.remove(draft_file)
+                    except Exception:
+                        get_logger().exception(
+                            f"Failed to remove draft file: {draft_file}"
+                        )
+
             # 5. Clear out all sessions since we are starting the app up
             get_logger().debug("Emptying out sessions table!")
             session.execute(delete(Session))
             session.commit()
+
+        # Initialize the RoomManager for collaborative editing
+        self.room_manager = RoomManager(self)
+        self.room_manager.start()
 
         # Get static files path - adjust for PyInstaller if needed
         if is_frozen():
@@ -411,7 +455,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     async def configure(self):
         await self._configure_logging()
-        await self.start_mdns_advertising()
         await self.start_version_checker()
 
     async def _configure_logging(self):
@@ -536,6 +579,24 @@ class DigiScriptServer(PrometheusMixIn, Application):
             await self.digi_settings.set("has_admin_user", has_admin)
 
     async def _show_changed(self):
+        if hasattr(self, "room_manager") and self.room_manager:
+            room = self.room_manager.get_active_room()
+            if room and room._dirty:
+                get_logger().warning(
+                    "Show changed while script draft has unsaved changes "
+                    "— draft will be discarded"
+                )
+                await self.ws_send_to_all(
+                    "NOOP",
+                    "COLLAB_ERROR",
+                    {
+                        "error": (
+                            "Show changed while draft was active; "
+                            "unsaved changes were discarded"
+                        )
+                    },
+                )
+            await self.room_manager.close_active_room()
         await self.ws_send_to_all("NOOP", "SHOW_CHANGED", {})
 
     def get_db(self) -> DigiSQLAlchemy:
@@ -568,52 +629,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
             await client.write_message(
                 {"OP": ws_op, "DATA": ws_data, "ACTION": ws_action}
             )
-
-    async def start_mdns_advertising(self) -> None:
-        """Start mDNS advertising if enabled in settings."""
-        # Check if mDNS advertising is enabled
-        mdns_enabled = await self.digi_settings.get("mdns_advertising")
-        if not mdns_enabled:
-            get_logger().info("mDNS advertising is disabled in settings")
-            return
-
-        # Initialize and start the advertiser
-        if not self.mdns_advertiser:
-            self.mdns_advertiser = MDNSAdvertiser(port=self._port)
-
-        await self.mdns_advertiser.start()
-
-    async def stop_mdns_advertising(self) -> None:
-        """Stop mDNS advertising if it's running."""
-        if self.mdns_advertiser:
-            await self.mdns_advertiser.stop()
-            self.mdns_advertiser = None
-
-    def toggle_mdns_advertising(self) -> None:
-        """
-        Callback for when mdns_advertising setting changes.
-
-        Starts or stops mDNS advertising based on the current setting value.
-        """
-        if not IOLoop.current():
-            get_logger().error(
-                "Unable to toggle mDNS advertising as there is no current IOLoop"
-            )
-        else:
-            IOLoop.current().add_callback(self._toggle_mdns_advertising)
-
-    async def _toggle_mdns_advertising(self) -> None:
-        """Internal async implementation of toggle_mdns_advertising."""
-        mdns_enabled = await self.digi_settings.get("mdns_advertising")
-
-        if mdns_enabled:
-            # Start advertising
-            if not self.mdns_advertiser:
-                self.mdns_advertiser = MDNSAdvertiser(port=self._port)
-            await self.mdns_advertiser.start()
-        else:
-            # Stop advertising
-            await self.stop_mdns_advertising()
 
     async def start_version_checker(self) -> None:
         """Start the version checker service."""

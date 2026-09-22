@@ -1,5 +1,5 @@
 import tornado.escape
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
@@ -1040,6 +1040,51 @@ class TestCueTypesController(DigiScriptTestCase):
         with self._app.get_db().sessionmaker() as session:
             self.assertIsNone(session.get(CueType, cue_type_id))
             self.assertIsNone(session.get(CueGroup, group_id))
+
+    def test_delete_cue_type_cleans_up_rbac_mapping_row(self):
+        """Deleting a cue type removes the RBAC grant auto-created for its creator
+        (per #1154).
+
+        ``CueTypesController.delete()`` has no explicit RBAC cleanup call -- this
+        verifies the ``DigiDBSession`` delete-hook mechanism handles it instead.
+        """
+        response = self.fetch(
+            "/api/v1/show/cues/types",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"prefix": "SND", "description": "Sound", "colour": "#00ff00"}
+            ),
+            headers={"Authorization": f"Bearer {self.user_token}"},
+        )
+        self.assertEqual(200, response.code)
+        cue_type_id = tornado.escape.json_decode(response.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            user = session.get(User, self.user_id)
+            cue_type = session.get(CueType, cue_type_id)
+            self.assertTrue(
+                self._app.rbac.has_role(
+                    user, cue_type, Role.READ | Role.WRITE | Role.EXECUTE
+                )
+            )
+
+        response = self.fetch(
+            f"/api/v1/show/cues/types?id={cue_type_id}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {self.admin_token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            row_count = session.execute(
+                text("SELECT COUNT(*) FROM rbac_user_cuetypes WHERE cuetypes_id = :v"),
+                {"v": cue_type_id},
+            ).scalar()
+            self.assertEqual(
+                0,
+                row_count,
+                "rbac_user_cuetypes row should be removed when the cue type is deleted",
+            )
 
 
 class TestCueGroups(DigiScriptTestCase):

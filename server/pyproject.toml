@@ -45,6 +45,9 @@ addopts = [
     "-v",  # Verbose output
     "--tb=short",  # Shorter traceback format
     "--strict-markers",  # Ensure all markers are defined
+    # Run tests in parallel worker processes (pytest-xdist). Tests must not share
+    # files - see DigiScriptTestCase. Use `-n0` to run serially, e.g. for pdb.
+    "-n=auto",
 ]
 
 # Markers

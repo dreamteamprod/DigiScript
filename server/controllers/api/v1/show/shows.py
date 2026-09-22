@@ -11,6 +11,7 @@ from controllers.api.constants import (
 )
 from digi_server.logger import get_logger
 from models.script import Script, ScriptRevision
+from models.script_draft import ScriptDraft
 from models.show import Show, ShowScriptType
 from rbac.role import Role
 from schemas.schemas import ShowSchema
@@ -131,6 +132,18 @@ class ShowController(BaseAPIController):
                 self.get_query_argument("load", default="false").lower() == "true"
             )
             if should_load:
+                room_manager = getattr(self.application, "room_manager", None)
+                if room_manager:
+                    with self.make_session() as check_session:
+                        draft = check_session.scalar(select(ScriptDraft))
+                    if draft is not None:
+                        self.set_status(409)
+                        await self.finish(
+                            {
+                                "message": "Cannot change show while a script draft is active"
+                            }
+                        )
+                        return
                 await self.application.digi_settings.set("current_show", show.id)
 
         self.set_status(200)

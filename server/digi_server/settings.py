@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
+# Name of the setting that switches the server between classic and collaborative
+# script editing; shared so no caller spells the key by hand.
+COLLAB_EDITING_SETTING = "collaborative_script_editing"
+
+
 def _get_version() -> str:
     try:
         # Get path to pyproject.toml (one directory up from digi_server)
@@ -112,7 +117,8 @@ class SettingsObject:
         self.value = self.default
         self._loaded = True
 
-    def set_value(self, value, spawn_callbacks=True):
+    def validate(self, value):
+        """Raise if *value* is not acceptable for this setting; change nothing."""
         if not isinstance(value, self.val_type):
             if value is None and not self._nullable:
                 raise RuntimeError(
@@ -129,6 +135,9 @@ class SettingsObject:
                 f"Value for {self.key} must be one of the following options: "
                 f"{self.choice_options}"
             )
+
+    def set_value(self, value, spawn_callbacks=True):
+        self.validate(value)
 
         changed = False
         if value != self.value:
@@ -169,7 +178,9 @@ class Settings:
 
         if not os.path.exists(self._base_path):
             get_logger().info(f"Creating base path {self._base_path}")
-            os.makedirs(self._base_path)
+            # exist_ok: parallel processes (e.g. pytest-xdist workers) can race
+            # between the exists() check and creation.
+            os.makedirs(self._base_path, exist_ok=True)
 
         if settings_path:
             self.settings_path = settings_path
@@ -181,7 +192,7 @@ class Settings:
             get_logger().info(
                 f"Creating settings path {os.path.dirname(self.settings_path)}"
             )
-            os.makedirs(os.path.dirname(self.settings_path))
+            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
 
         self.categories: Dict[str : List[str]] = {"General": []}
         self.settings: Dict[str, SettingsObject] = {}
@@ -230,6 +241,25 @@ class Settings:
             display_name="Default UI Version",
             help_text="Which UI version users are directed to by default. User preferences override this.",
             choice_options=["old", "new"],
+            category="General",
+        )
+        self.define(
+            COLLAB_EDITING_SETTING,
+            bool,
+            False,
+            True,
+            display_name="Collaborative Script Editing",
+            help_text=(
+                "Use the collaborative script editor, where several people can edit the "
+                "script at once. When off, the classic editor is used and only one "
+                "person can edit at a time. Only the new UI supports collaborative "
+                "editing. Cannot be changed while anyone is editing or cutting the script, "
+                "a collaborative session has people in it, or an unsaved draft exists."
+            ),
+            # Hidden until the collaborative editor is wired into the UI: switching it
+            # on now would leave no client able to edit the script. Remove this in the
+            # step that ships the editor.
+            hide_from_ui=True,
             category="General",
         )
         self.define(
@@ -323,13 +353,12 @@ class Settings:
             help_text="Directory used to store compiled scripts.",
         )
         self.define(
-            "mdns_advertising",
-            bool,
-            True,
-            True,
-            callback_fn=self._application.toggle_mdns_advertising,
-            display_name="Enable Network Discovery (mDNS)",
-            help_text="Advertise this server on the local network for automatic discovery by desktop clients.",
+            "draft_script_path",
+            str,
+            os.path.join(self._base_path, "draft_scripts"),
+            False,
+            display_name="Draft Script Path",
+            help_text="Directory used to store collaborative editing draft files.",
         )
         self.define(
             "client_log_enabled",
@@ -526,6 +555,23 @@ class Settings:
                 raise KeyError(f"{key} is not a valid setting")
             return self.settings.get(key).get_value()
 
+    def validate(self, key, value):
+        """Raise if *value* would be refused for *key*; unknown keys are ignored (as ``set`` does)."""
+        if key in self.settings:
+            self.settings[key].validate(value)
+
+    def get_sync(self, key):
+        """Read a setting without awaiting, for callers that cannot be coroutines.
+
+        ``get`` only takes the lock to serialise with ``set``; the value itself is a
+        plain attribute, so a synchronous read is safe on the event loop.
+
+        :raises KeyError: If *key* is not a defined setting.
+        """
+        if key not in self.settings:
+            raise KeyError(f"{key} is not a valid setting")
+        return self.settings[key].get_value()
+
     async def set(self, key, item):
         changed = False
         async with self.lock:
@@ -554,7 +600,6 @@ class Settings:
             settings_json = {}
             for key, value in self.settings.items():
                 settings_json[key] = value.get_value()
-            # Add version for Electron client compatibility checking
             settings_json["version"] = _get_version()
             return json.loads(json.dumps(settings_json))
 

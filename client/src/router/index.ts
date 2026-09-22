@@ -1,7 +1,6 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
 import type { RouteConfig } from 'vue-router';
-import { isElectron } from '@/js/platform';
 
 Vue.use(VueRouter);
 
@@ -15,12 +14,6 @@ const VueToast = Vue as typeof Vue & {
 };
 
 const routes: RouteConfig[] = [
-  {
-    path: '/electron/server-selector',
-    name: 'electron-server-selector',
-    component: () => import('../views/electron/ServerSelector.vue'),
-    meta: { requiresAuth: false, isElectronOnly: true },
-  },
   {
     path: '/',
     name: 'home',
@@ -174,33 +167,6 @@ router.beforeEach(async (to, from, next) => {
     if (!rbacRoles || rbacRoles.length === 0) {
       requiresSettingsFetch = true;
     }
-  }
-
-  if (isElectron() && to.path !== '/electron/server-selector') {
-    try {
-      const activeConnection = await window.electronAPI?.getActiveConnection?.();
-      if (!activeConnection) {
-        if (app.$toast) {
-          app.$toast.warning('Please select a server to connect to');
-        }
-        return next('/electron/server-selector');
-      }
-    } catch (error) {
-      console.error('Error checking active connection:', error);
-      return next('/electron/server-selector');
-    }
-  }
-
-  const isElectronOnly = to.matched.some((record) => record.meta.isElectronOnly);
-  if (isElectronOnly && !isElectron()) {
-    if (app.$toast) {
-      app.$toast.error('This page is only available in the desktop app');
-    }
-    return next('/');
-  }
-
-  if (to.path === '/electron/server-selector') {
-    return next();
   }
 
   if (requiresSettingsFetch) {

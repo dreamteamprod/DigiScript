@@ -7,7 +7,7 @@ import { useSystemStore } from '@/stores/system';
 import { useUserStore } from '@/stores/user';
 import { useShowStore } from '@/stores/show';
 import router from '@/router';
-import { getWebSocketURL } from '@/js/platform';
+import { getWebSocketURL } from '@/js/utils';
 import type { WsMessage } from '@/types/api/websocket';
 
 const INITIAL_RECONNECT_DELAY_MS = 1000;
@@ -21,12 +21,14 @@ function getReconnectDelay(): number {
   return Math.min(INITIAL_RECONNECT_DELAY_MS * 2 ** errorCount, MAX_RECONNECT_DELAY_MS);
 }
 
-function sendObj(data: object): void {
+/** Returns false (after logging) if the socket isn't open, so callers can react to a dropped frame. */
+function sendObj(data: object): boolean {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
-  } else {
-    log.warn('Attempted to send WS message but socket is not open');
+    return true;
   }
+  log.warn('Attempted to send WS message but socket is not open');
+  return false;
 }
 
 const settingsChangedToast = debounce(() => toast.info('Settings synced from server'), 1000, {
@@ -159,13 +161,7 @@ function connect(): void {
     return;
   }
 
-  let wsURL: string;
-  try {
-    wsURL = getWebSocketURL();
-  } catch (e) {
-    log.error('Cannot determine WebSocket URL:', e);
-    return;
-  }
+  const wsURL = getWebSocketURL();
 
   log.debug('Connecting to WebSocket:', wsURL);
   ws = new WebSocket(wsURL);
