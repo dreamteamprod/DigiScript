@@ -1,6 +1,6 @@
-import crypto from 'crypto';
-import os from 'os';
-import path from 'path';
+import crypto from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
 
 /**
  * Backend port for the E2E test server.
@@ -20,14 +20,17 @@ import path from 'path';
 function resolvePort(): number {
   const envPort = process.env.E2E_PORT;
   if (envPort) {
-    const parsed = parseInt(envPort, 10);
+    const parsed = Number.parseInt(envPort, 10);
     if (Number.isNaN(parsed) || parsed <= 0 || parsed > 65535) {
       throw new Error(`E2E_PORT must be a valid port number, got: ${envPort}`);
     }
     return parsed;
   }
 
-  const hash = crypto.createHash('sha1').update(process.cwd()).digest();
+  // Not a security context — this just derives a stable, well-spread integer
+  // from the cwd path for port selection. SHA-256 (rather than SHA-1) avoids
+  // tripping "weak hash algorithm" scanners for no extra cost here.
+  const hash = crypto.createHash('sha256').update(process.cwd()).digest();
   const hashInt = hash.readUInt32BE(0);
   return 20000 + (hashInt % 20000);
 }

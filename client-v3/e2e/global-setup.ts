@@ -1,7 +1,7 @@
-import { spawn, execFileSync } from 'child_process';
-import fs from 'fs';
-import net from 'net';
-import path from 'path';
+import { spawn, execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import net from 'node:net';
+import path from 'node:path';
 
 import { SERVER_PORT, HEALTH_URL, RUN_DIR, STATE_FILE, SERVER_LOG_FILE, RunState } from './env.js';
 
@@ -73,11 +73,18 @@ export default async function globalSetup(): Promise<void> {
  * was already removed — e.g. a race between db-snapshot.ts's retry-restart
  * hook and Playwright's own globalTeardown.
  */
+// Fixed, unwriteable locations only — never resolved via $PATH — so this
+// can't be redirected by an earlier, attacker-controlled "ps" on the path.
+const PS_PATHS = ['/bin/ps', '/usr/bin/ps'];
+
 function findOwnServerPids(): number[] {
+  const psPath = PS_PATHS.find((p) => fs.existsSync(p));
+  if (!psPath) return []; // no usable `ps` (e.g. Windows) — nothing to reap
+
   let out: string;
   try {
-    // BSD/GNU `ps` both support this form; not available on Windows.
-    out = execFileSync('ps', ['-eo', 'pid=,command='], { encoding: 'utf-8' });
+    // BSD/GNU `ps` both support this form.
+    out = execFileSync(psPath, ['-eo', 'pid=,command='], { encoding: 'utf-8' });
   } catch {
     return [];
   }
@@ -86,8 +93,8 @@ function findOwnServerPids(): number[] {
   return out
     .split('\n')
     .filter((line) => line.includes('main.py') && line.includes(needle))
-    .map((line) => parseInt(line.trim().split(/\s+/)[0], 10))
-    .filter((pid) => !isNaN(pid));
+    .map((line) => Number.parseInt(line.trim().split(/\s+/)[0], 10))
+    .filter((pid) => !Number.isNaN(pid));
 }
 
 /**

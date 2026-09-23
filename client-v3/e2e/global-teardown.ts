@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'node:fs';
 
 import { STATE_FILE, RUN_DIR, RunState } from './env.js';
 

@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { spawn } from 'child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { test } from '@playwright/test';
 import { waitForServer } from './global-setup.js';
 import { SERVER_PORT, STATE_FILE, RunState } from './env.js';
