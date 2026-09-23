@@ -5,6 +5,7 @@
   "author": "DreamTeamProd",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@12.5.1",
   "scripts": {
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
@@ -23,7 +24,6 @@
     "dev": "vite"
   },
   "engines": {
-    "npm": ">=11.0.0 <12",
     "node": ">=24.0.0 <25"
   },
   "dependencies": {

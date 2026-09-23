@@ -5,6 +5,7 @@
   "author": "DreamTeamProd",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@12.5.1",
   "scripts": {
     "prebuild": "scripts/copy-docs.sh && node --strip-types scripts/generate-doc-manifest.ts",
     "build": "vite build",
@@ -27,7 +28,6 @@
     "test:e2e:report": "playwright show-report"
   },
   "engines": {
-    "npm": ">=11.0.0 <12",
     "node": ">=24.0.0 <25"
   },
   "dependencies": {
@@ -85,9 +85,6 @@
     "vite": "^8.3.0",
     "vitest": "^4.1.11",
     "vue-eslint-parser": "^10.4.1"
-  },
-  "overrides": {
-    "glob": "^13.0.6"
   },
   "browserslist": [
     "> 1%",

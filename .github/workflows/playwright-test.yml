@@ -26,27 +26,31 @@ jobs:
         run: pip install -r requirements.txt
         working-directory: ./server
 
+      - uses: pnpm/action-setup@v4
+
       - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: 'client-v3/pnpm-lock.yaml'
 
       - name: Install Node dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: ./client-v3
 
       - name: Build Vue 3 frontend
-        run: npm run build
+        run: pnpm run build
         working-directory: ./client-v3
 
       - name: Install Playwright browser
         # matrix.browser is a static value from the matrix definition (chromium/firefox)
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
         working-directory: ./client-v3
 
       - name: Run Playwright tests
         # matrix.browser is a static value from the matrix definition (chromium/firefox)
-        run: npx playwright test --project=${{ matrix.browser }}
+        run: pnpm exec playwright test --project=${{ matrix.browser }}
         working-directory: ./client-v3
 
       # Retries mean a test that fails then passes shows up in the run as

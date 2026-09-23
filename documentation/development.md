@@ -25,10 +25,11 @@ DigiScript uses split front-end and back-end architecture with the following key
 
 ## Project Structure
 
-DigiScript consists of two main components:
+DigiScript consists of three main components:
 
 - **`server/`** - Python Tornado backend with SQLite database
-- **`client/`** - Vue.js 2 frontend (builds to `server/static/`)
+- **`client-v3/`** - Vue.js 3 frontend (primary/active, builds to `server/static/`)
+- **`client/`** - Vue.js 2 frontend (legacy, builds to `server/static/ui-old/`)
 
 Refer to [DeepWiki](https://deepwiki.com/dreamteamprod/DigiScript) for detailed documentation on the architecture and design.
 
@@ -36,11 +37,11 @@ Refer to [DeepWiki](https://deepwiki.com/dreamteamprod/DigiScript) for detailed 
 
 ```shell
 cd client
-npm ci
-npm run build
+pnpm install
+pnpm run build
 ```
 
-This outputs the built frontend to `../server/static/` for serving by the Python backend.
+This outputs the built frontend to `../server/static/ui-old/` for serving by the Python backend. `client-v3/` follows the same pattern (`pnpm install` / `pnpm run build`), outputting to `../server/static/`.
 
 ## Contributing
 
@@ -49,8 +50,8 @@ Contributions are welcome! Please ensure all client and server code passes linti
 ```shell
 # Client linting and type checking
 cd client
-npm run lint
-npm run typecheck
+pnpm run lint
+pnpm run typecheck
 
 # Server linting
 cd server

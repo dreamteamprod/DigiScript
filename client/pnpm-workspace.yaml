@@ -1,0 +1,20 @@
+packages:
+  - '.'
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - bootstrap-vue
+  - core-js
+  - esbuild
+
+# @parcel/watcher: builds its native file-watching binding (used by chokidar,
+# which vite/vitest rely on for HMR/watch mode).
+# bootstrap-vue: postinstall is a no-op opencollective donation nag.
+# core-js: postinstall is a no-op donation-message print.
+# esbuild: postinstall downloads the platform-specific native binary — required
+# for vite/esbuild to run at all.
+allowBuilds:
+  '@parcel/watcher': true
+  bootstrap-vue: true
+  core-js: true
+  esbuild: true

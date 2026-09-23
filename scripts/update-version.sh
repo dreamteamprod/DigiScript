@@ -51,13 +51,13 @@ echo
 # Update client/package.json
 print_info "Updating client/package.json..."
 cd "$PROJECT_ROOT/client"
-npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
+pnpm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
 print_success "client/package.json updated"
 
 # Update client-v3/package.json
 print_info "Updating client-v3/package.json..."
 cd "$PROJECT_ROOT/client-v3"
-npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
+pnpm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
 print_success "client-v3/package.json updated"
 
 # Update server/pyproject.toml

@@ -1,42 +1,42 @@
 # DigiScript Client (V3)
 
-**Requirements**: Node 24.x
+**Requirements**: Node 24.x, pnpm 12.x
 
 ## Project setup
 ```
-npm ci
+pnpm install
 ```
 
 ### Run the development server
 ```
-npm run dev
+pnpm run dev
 ```
 
 The dev server starts at `http://localhost:5173` and proxies API requests to `http://localhost:8080`.
 
 ### Compiles and minifies for production
 ```
-npm run build
+pnpm run build
 ```
 
 ### Lints and formats files
 ```
-npm run lint
+pnpm run lint
 ```
 
 ### Type checking
 ```
-npm run typecheck
+pnpm run typecheck
 ```
 
 ### Unit tests
 ```
-npm run test:run
+pnpm run test:run
 ```
 
 ### E2E tests
 ```
-npm run test:e2e
+pnpm run test:e2e
 ```
 
 See [e2e/README.md](./e2e/README.md) for full details on running and writing E2E tests.

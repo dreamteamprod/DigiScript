@@ -1,0 +1,20 @@
+packages:
+  - '.'
+
+overrides:
+  glob: ^13.0.6
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - core-js
+  - vue-demi
+
+# @parcel/watcher: builds its native file-watching binding (used by chokidar,
+# which vite/vitest rely on for HMR/watch mode).
+# core-js: postinstall is a no-op donation-message print.
+# vue-demi: postinstall selects the Vue-2-vs-3 interop shim to match the
+# installed vue version — required for correct runtime behaviour.
+allowBuilds:
+  '@parcel/watcher': true
+  core-js: true
+  vue-demi: true
