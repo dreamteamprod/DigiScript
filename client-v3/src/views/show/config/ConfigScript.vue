@@ -3,7 +3,10 @@
     <BRow>
       <BCol>
         <BTabs content-class="mt-3">
-          <BTab title="Script" active><ScriptEditor /></BTab>
+          <BTab title="Script" active>
+            <CollabScriptEditor v-if="systemStore.isCollabScriptEditing" />
+            <ScriptEditor v-else />
+          </BTab>
           <BTab title="Stage Direction Styles"><StageDirectionStyles /></BTab>
         </BTabs>
       </BCol>
@@ -13,5 +16,9 @@
 
 <script setup lang="ts">
 import ScriptEditor from '@/components/show/config/script/ScriptEditor.vue';
+import CollabScriptEditor from '@/components/show/config/script/CollabScriptEditor.vue';
+import { useSystemStore } from '@/stores/system';
 import StageDirectionStyles from '@/components/show/config/script/StageDirectionStyles.vue';
+
+const systemStore = useSystemStore();
 </script>
