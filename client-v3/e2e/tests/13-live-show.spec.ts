@@ -136,16 +136,42 @@ test('session header shows current page number', async () => {
   await expect(leaderPage.locator('b:has-text("Page")')).toBeVisible();
 });
 
-test('follower receives leader page navigation via WebSocket scroll sync', async () => {
+test('follower tracks leader line-by-line via WebSocket scroll sync', async () => {
+  // Real content-position check (not just a flag): the leader steps forward one
+  // line with the keyboard (SCRIPT_SCROLL sync), and the follower must land on
+  // that exact same line — starting from page_1_line_0, so this genuinely moves.
+  await leaderPage.locator('#script-container').click();
+  await leaderPage.keyboard.press('ArrowDown');
+
+  await expect
+    .poll(
+      async () => {
+        const [leaderLine, followerLine] = await Promise.all([
+          leaderPage.evaluate(
+            () => document.querySelector('.script-item.current-line')?.id ?? null
+          ),
+          followerPage.evaluate(
+            () => document.querySelector('.script-item.current-line')?.id ?? null
+          ),
+        ]);
+        return leaderLine != null && leaderLine === followerLine ? leaderLine : null;
+      },
+      { timeout: 10_000 }
+    )
+    .not.toBe('page_1_line_0');
+});
+
+test('follower survives leader page navigation via WebSocket scroll sync', async () => {
   // Jump To Page broadcasts RELOAD_CLIENT to BOTH clients, which each do a full
   // window.location.reload() (see useWebSocket.ts). Register the `load` waits
-  // BEFORE triggering the jump so we don't race the reload itself, and so this
-  // assertion is checking state *after* the reload round-trip actually completed
+  // BEFORE triggering the jump so we don't race the reload itself, and so these
+  // assertions check state *after* the reload round-trip actually completed
   // rather than a leftover truthy value from before the jump (see issue #1414).
   const leaderReloaded = leaderPage.waitForEvent('load', { timeout: 15_000 });
   const followerReloaded = followerPage.waitForEvent('load', { timeout: 15_000 });
 
-  // Leader navigates using the navbar Jump To Page feature
+  // Leader navigates using the navbar Jump To Page feature — back to page 1,
+  // which is a real position change from the line-1 the previous test left us on.
   await leaderPage.locator('text=Live Config').click();
   const jumpBtn = leaderPage.locator('a:has-text("Jump To Page"), button:has-text("Jump To Page")');
   await jumpBtn.click();
@@ -156,13 +182,19 @@ test('follower receives leader page navigation via WebSocket scroll sync', async
   await Promise.all([leaderReloaded, followerReloaded]);
   await Promise.all([waitForAppReady(leaderPage), waitForAppReady(followerPage)]);
 
-  // Leader/follower roles must survive the reload round-trip: the leader (admin,
-  // who started the session) stays the leader, and the follower (the separate
-  // non-admin user) stays following. This is the invariant the reload-triggered
-  // leader re-election race (ws_controller.py on_close) can break.
-  await expect(leaderPage.locator('#script-container')).toBeVisible({ timeout: 15_000 });
-  await expect(followerPage.locator('#script-container')).toBeVisible({ timeout: 15_000 });
+  // The jump moved the position back to page_1_line_0 on both clients.
+  await expect(leaderPage.locator('#script-container .current-line')).toHaveId('page_1_line_0', {
+    timeout: 15_000,
+  });
+  await expect(followerPage.locator('#script-container .current-line')).toHaveId('page_1_line_0', {
+    timeout: 15_000,
+  });
 
+  // Leader/follower roles must also survive the reload round-trip: the leader
+  // (admin, who started the session) stays the leader, and the follower (the
+  // separate non-admin user) stays following. This is the invariant the
+  // reload-triggered leader re-election race (ws_controller.py on_close) can
+  // break — see the file header comment and issue #1414.
   await expect(leaderPage.locator('.session-header')).toContainText('Leading', {
     timeout: 10_000,
   });
