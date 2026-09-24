@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const SERVER_PORT = 8888;
+import { BASE_URL } from './e2e/env.js';
 
 export default defineConfig({
   testDir: './e2e/tests',
@@ -13,7 +13,7 @@ export default defineConfig({
     ['junit', { outputFile: 'junit/playwright-results.xml' }],
   ],
   use: {
-    baseURL: `http://localhost:${SERVER_PORT}`,
+    baseURL: BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
