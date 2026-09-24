@@ -43,6 +43,10 @@ from utils.module_discovery import get_resource_path, is_frozen
 from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
+from utils.web.pending_disconnects import (
+    WS_RECONNECT_GRACE_SECONDS,
+    PendingDisconnects,
+)
 from utils.web.route import Route
 
 
@@ -69,6 +73,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
         models.import_all_models()
 
         self.clients: List[WebSocketController] = []
+        # Reconnect grace window: a disconnected WS client's session state is held
+        # this long for a reload's REFRESH_CLIENT to resume (issue #1419).
+        self.ws_reconnect_grace_seconds: float = WS_RECONNECT_GRACE_SECONDS
+        self.pending_disconnects: PendingDisconnects = PendingDisconnects()
 
         self._db: DigiSQLAlchemy = models.db
         self.jwt_service: JWTService = None
@@ -611,7 +619,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
         return sockets
 
     def get_ws(self, internal_uuid: str) -> Optional[WebSocketController]:
-        for client in self.clients:
+        # Newest first: while a reload is in flight, the old (stale) handler and
+        # the new handler that resumed its uuid can briefly both be connected, and
+        # the new one is the live page.
+        for client in reversed(self.clients):
             if client.__getattribute__("internal_id") == internal_uuid:
                 return client
         return None

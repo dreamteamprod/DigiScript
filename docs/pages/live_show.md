@@ -49,7 +49,9 @@ The user who starts the show session becomes the **leader** for that session. Th
 All other connected clients (whether logged in or not) will automatically follow the leader's script position. They see the same script content and position as the leader.
 
 #### Manual Mode
-If the leader's client becomes disconnected, all other clients become "orphaned" and switch to manual mode, where they can control their own script position independently. When a client logged in as the leader user reconnects, it automatically resumes leadership, and all orphaned clients return to follower mode.
+If the leader's page is reloaded, or its connection drops for a moment, it keeps its leadership. The server holds the leader's place for a few seconds, the reconnecting page picks it up again, and followers are not interrupted. This also holds when the leader user has the live view open in more than one tab and all of them reload at once (for example after **Jump To Page** or **Reload Clients**): the tab that was leading stays the leader.
+
+If the leader's client stays disconnected for longer than that, leadership passes to another connected tab or device logged in as the same user, if there is one. If there isn't, all other clients become "orphaned" and switch to manual mode, where they can control their own script position independently. If the original leader's client then reconnects while nobody else has taken over, it automatically resumes leadership, and all orphaned clients return to follower mode.
 
 ### Current Cue Footer
 

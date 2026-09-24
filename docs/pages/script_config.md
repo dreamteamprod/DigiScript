@@ -98,6 +98,8 @@ The **Script** tab is where you edit the actual script content. When you first n
 
 To begin editing, click the **Begin Editing** button. This requests exclusive edit access from the backend, ensuring only one person can edit the script at a time to prevent conflicting changes.
 
+Your edit access belongs to your browser tab, and it survives a page reload: if you refresh the page (or your connection drops briefly) while editing, you come back still in edit mode. Any changes you had not saved are lost on reload, so save before refreshing. If a tab that holds edit access is closed or loses its connection for good, the lock is released a few seconds later, and then other users can begin editing.
+
 Once you have edit access, you'll see options to **Save** the script, along with a dropdown button for **Add Dialogue** that provides access to all line types.
 
 #### Line Types

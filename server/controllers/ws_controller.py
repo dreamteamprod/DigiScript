@@ -60,16 +60,44 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         self.current_username: str | None = None
         self._last_ping = 0.0
         self._last_pong = 0.0
+        # on_close can be invoked twice (by Tornado, and by write_message on a
+        # closed socket); only the first call may act.
+        self._close_handled = False
 
-    def update_session(self, is_editor=False, is_cutting=False, user_id=None):
+    @staticmethod
+    def _assign_session_user(entry: Session, user_id: Optional[int]) -> None:
+        """Set the user on a Session row, dropping privileges held by another user.
+
+        A resumed uuid keeps its edit/cut flags only while the same user holds it.
+        If a different user authenticates on it, the flags are cleared so a lock
+        never passes from one user to another.
+
+        :param entry: The Session row.
+        :param user_id: The authenticated user, or None to leave it unchanged.
+        """
+        if user_id is None or entry.user_id == user_id:
+            return
+        if entry.user_id is not None:
+            entry.is_editor = False
+            entry.is_cutting = False
+        entry.user_id = user_id
+
+    def update_session(self, user_id=None):
+        """Create or refresh the Session row for this connection's uuid.
+
+        Edit/cut flags are never set here: they change only through
+        ``REQUEST_SCRIPT_EDIT`` / ``REQUEST_SCRIPT_CUTS`` / ``STOP_SCRIPT_EDIT``,
+        and are carried across a reload by ``REFRESH_CLIENT`` resuming the
+        existing row.
+
+        :param user_id: Authenticated user id, or None to leave it unchanged.
+        """
         with self.make_session() as session:
             entry = session.get(Session, self.__getattribute__("internal_id"))
             if entry:
                 entry.last_ping = self._last_ping
                 entry.last_pong = self._last_pong
-                # Update user_id if it has changed
-                if user_id is not None and entry.user_id != user_id:
-                    entry.user_id = user_id
+                self._assign_session_user(entry, user_id)
             else:
                 session.add(
                     Session(
@@ -78,8 +106,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         last_ping=self._last_ping,
                         last_pong=self._last_pong,
                         user_id=user_id,
-                        is_editor=is_editor,
-                        is_cutting=is_cutting,
                     )
                 )
             if self.current_user_id:
@@ -109,57 +135,108 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         yield self.write_message({"OP": "NOOP", "DATA": {}, "ACTION": "GET_SETTINGS"})
 
     def on_close(self) -> None:
+        """Handle the socket closing.
+
+        The close is *not* treated as final. Tornado calls this when the socket
+        drops, and ``write_message`` calls it again if a write finds the socket
+        closed, so it only acts once per handler. Everything that a reloading page
+        can reclaim (the ``Session`` row with its edit/cut flags, live-show
+        leadership, the collaborative-editing room) is released only after the
+        reconnect grace window (``application.ws_reconnect_grace_seconds``) by
+        :meth:`_finalise_disconnect`. ``REFRESH_CLIENT`` for the same uuid cancels
+        that. See issue #1419.
+        """
+        if self._close_handled:
+            return
+        self._close_handled = True
+
         if self in self.application.clients:
             self.application.clients.remove(self)
 
-        # Remove from any collaborative editing room
-        if hasattr(self.application, "room_manager") and self.application.room_manager:
-            room = self.application.room_manager.get_room_for_client(self)
+        internal_id = getattr(self, "internal_id", None)
+        grace = self.application.ws_reconnect_grace_seconds
+
+        # This handler is dead, so it leaves the collaborative-editing room now.
+        # Closing the room when its last editor leaves is deferred to the end of
+        # the grace window, so a reloading editor that rejoins in time keeps the
+        # room (and its viewers never see ROOM_CLOSED).
+        room_manager = getattr(self.application, "room_manager", None)
+        if room_manager:
+            room = room_manager.get_room_for_client(self)
             if room:
                 was_editor = room.clients.get(self) == "editor"
                 room.remove_client(self)
-                # Schedule async broadcast (on_close is sync, so use add_callback)
                 app = self.application
-                rm = self.application.room_manager
 
-                async def _broadcast():
+                async def _broadcast_members():
                     try:
                         with app.get_db().sessionmaker() as session:
                             await room.broadcast_members(session)
-                        if was_editor and not room.has_editors and room._dirty:
-                            await rm._checkpoint_room(room)
-                            await app.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
                     except Exception:
-                        get_logger().exception("Error in on_close _broadcast callback")
-                    finally:
-                        if was_editor and not room.has_editors:
-                            try:
-                                await rm.close_active_room()
-                            except Exception:
-                                get_logger().exception(
-                                    "Error closing active room in on_close — "
-                                    "room may be left in a stale state"
-                                )
+                        get_logger().exception("Error in on_close members broadcast")
 
-                IOLoop.current().add_callback(_broadcast)
+                IOLoop.current().add_callback(_broadcast_members)
+                if was_editor and not room.has_editors:
+                    IOLoop.current().call_later(
+                        max(0.0, grace), self._close_room_if_editorless, room
+                    )
+
+        user_part = (
+            f"{self.current_username} ({self.request.remote_ip})"
+            if self.current_username
+            else self.request.remote_ip
+        )
+
+        if internal_id is None:
+            get_logger().info(f"WebSocket closed from: {user_part}")
+            return
+
+        if self.application.get_ws(internal_id) is not None:
+            # A newer connection has already resumed this uuid through
+            # REFRESH_CLIENT, so the Session row and leadership belong to the live
+            # handler. This one is stale and must not finalise them.
+            get_logger().info(
+                f"WebSocket closed from: {user_part} (client {internal_id} already "
+                f"resumed by a newer connection; nothing to release)"
+            )
+            return
+
+        self.application.pending_disconnects.schedule(
+            internal_id, grace, self._finalise_disconnect
+        )
+        get_logger().info(
+            f"WebSocket closed from: {user_part} (client {internal_id} held for "
+            f"{grace:g}s reconnect grace window)"
+        )
+
+    def _finalise_disconnect(self) -> None:
+        """Release a disconnected client's state once its grace window has expired.
+
+        Deletes the ``Session`` row. If the row held an edit or cut lock, tells
+        every client to re-fetch the script config status. If the row was the
+        live-show leader, runs leader election. Does nothing if a live connection
+        holds the uuid again.
+        """
+        internal_id = self.__getattribute__("internal_id")
+        if self.application.get_ws(internal_id) is not None:
+            return
 
         notify_editor_change = False
         elect_live_leader = False
-
         try:
             with self.make_session() as session:
-                entry = session.get(Session, self.__getattribute__("internal_id"))
+                entry = session.get(Session, internal_id)
                 if entry:
                     if entry.is_editor or entry.is_cutting:
                         notify_editor_change = True
                     if entry.live_session:
                         elect_live_leader = True
-
                     session.delete(entry)
                     session.commit()
         except Exception:
             get_logger().exception(
-                f"Error cleaning up session in on_close for {self.request.remote_ip}"
+                f"Error finalising disconnected session {internal_id} "
+                f"({self.request.remote_ip})"
             )
 
         if notify_editor_change:
@@ -169,68 +246,120 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
 
         if elect_live_leader:
-            _show_setting = self.application.digi_settings.settings.get("current_show")
-            if not _show_setting:
+            self._elect_live_leader(internal_id)
+
+    def _elect_live_leader(self, departed_id: str) -> None:
+        """Hand live-show leadership on after the leader *departed_id* has gone.
+
+        A candidate is a connected client of the show session's user that is not
+        itself inside a reconnect grace window. Candidates are tried in connection
+        order, so the result is deterministic. With no candidate, ``NO_LEADER`` is
+        broadcast and ``last_client_internal_id`` records the departed leader so
+        that it can reclaim leadership if it comes back later.
+
+        :param departed_id: The uuid of the leader whose session was finalised.
+        """
+        show_setting = self.application.digi_settings.settings.get("current_show")
+        if not show_setting:
+            return
+        current_show = show_setting.get_value()
+        if not current_show:
+            return
+
+        with self.make_session() as session:
+            show = session.get(Show, current_show)
+            if not show or not show.current_session_id:
                 return
-            current_show = _show_setting.get_value()
-            if current_show:
-                with self.make_session() as session:
-                    show = session.get(Show, current_show)
-                    if show.current_session_id:
-                        live_session: ShowSession = session.get(
-                            ShowSession, show.current_session_id
-                        )
-                        live_session.last_client_internal_id = self.__getattribute__(
-                            "internal_id"
-                        )
-                        session.flush()
-                        next_session: Session = session.scalars(
-                            select(Session).where(
-                                Session.user_id == live_session.user_id
-                            )
-                        ).first()
-                        if next_session:
-                            next_ws = self.application.get_ws(next_session.internal_id)
-                            if not next_ws:
-                                get_logger().error(
-                                    "Unable to elect new leader of live session"
-                                )
-                            else:
-                                live_session.client_internal_id = (
-                                    next_session.internal_id
-                                )
-                                live_session.last_client_internal_id = None
-                                next_ws.write_message(
-                                    {
-                                        "OP": "NOOP",
-                                        "ACTION": "ELECTED_LEADER",
-                                        "DATA": {
-                                            "latest_line_ref": live_session.latest_line_ref
-                                        },
-                                    }
-                                )
-                        else:
-                            for client in self.application.clients:
-                                client.write_message(
-                                    {"OP": "NOOP", "ACTION": "NO_LEADER", "DATA": {}}
-                                )
+            live_session: Optional[ShowSession] = session.get(
+                ShowSession, show.current_session_id
+            )
+            if live_session is None:
+                return
+            if live_session.client_internal_id not in (None, departed_id):
+                # Someone else already leads; leave them be.
+                return
 
-                        session.commit()
-                        for client in self.application.clients:
-                            client.write_message(
-                                {
-                                    "OP": "NOOP",
-                                    "ACTION": "GET_SHOW_SESSION_DATA",
-                                    "DATA": {},
-                                }
-                            )
+            live_session.last_client_internal_id = departed_id
+            session.flush()
 
-        user_part = (
-            f"{self.current_username} ({self.request.remote_ip})"
-            if self.current_username
-            else self.request.remote_ip
-        )
-        get_logger().info(f"WebSocket closed from: {user_part}")
+            next_ws = None
+            if live_session.user_id is not None:
+                candidate_ids = set(
+                    session.scalars(
+                        select(Session.internal_id).where(
+                            Session.user_id == live_session.user_id,
+                            Session.internal_id != departed_id,
+                        )
+                    ).all()
+                )
+                pending = self.application.pending_disconnects
+                for client in self.application.clients:
+                    client_id = getattr(client, "internal_id", None)
+                    if client_id in candidate_ids and not pending.is_pending(client_id):
+                        next_ws = client
+                        break
+
+            if next_ws is not None:
+                live_session.client_internal_id = next_ws.__getattribute__(
+                    "internal_id"
+                )
+                live_session.last_client_internal_id = None
+                next_ws.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "ELECTED_LEADER",
+                        "DATA": {"latest_line_ref": live_session.latest_line_ref},
+                    }
+                )
+            else:
+                live_session.client_internal_id = None
+                for client in self.application.clients:
+                    client.write_message(
+                        {"OP": "NOOP", "ACTION": "NO_LEADER", "DATA": {}}
+                    )
+
+            session.commit()
+            for client in self.application.clients:
+                client.write_message(
+                    {"OP": "NOOP", "ACTION": "GET_SHOW_SESSION_DATA", "DATA": {}}
+                )
+
+    async def _close_room_if_editorless(self, room) -> None:
+        """Close the collaborative-editing room if it still has no editors.
+
+        Scheduled by :meth:`on_close` when the room's last editor disconnects, and
+        run after the reconnect grace window. It is deliberately not cancelled by
+        ``REFRESH_CLIENT``: if the reloaded editor rejoined in time the room has
+        an editor again and this does nothing. Otherwise the room is checkpointed
+        (if dirty) and closed, which is what happened immediately before the grace
+        window existed. The draft survives in the checkpoint.
+
+        :param room: The room the editor left.
+        """
+        room_manager = getattr(self.application, "room_manager", None)
+        if (
+            room_manager is None
+            or room_manager.get_active_room() is not room
+            or room.has_editors
+        ):
+            return
+        try:
+            if room._dirty:
+                await room_manager._checkpoint_room(room)
+                await self.application.ws_send_to_all(
+                    "NOOP", "GET_SCRIPT_REVISIONS", {}
+                )
+        except Exception:
+            get_logger().exception("Error checkpointing room after last editor left")
+        finally:
+            if room_manager.get_active_room() is room and not room.has_editors:
+                try:
+                    await room_manager.close_active_room()
+                except Exception:
+                    get_logger().exception(
+                        "Error closing active room after last editor left — "
+                        "room may be left in a stale state"
+                    )
 
     async def authenticate_with_token(self, token):
         """Authenticate using JWT token"""
@@ -353,6 +482,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                             show_session.client_internal_id = self.__getattribute__(
                                 "internal_id"
                             )
+                            # A fresh leader supersedes any earlier leader's claim
+                            # to reclaim on reconnect (same as election does).
+                            show_session.last_client_internal_id = None
                             session.commit()
                             await self.write_message(
                                 {
@@ -367,38 +499,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                                 "NOOP", "GET_SHOW_SESSION_DATA", {}
                             )
             elif ws_op == "REFRESH_CLIENT":
-                new_uuid = message["DATA"]
-                is_editor = False
-                is_cutting = False
-                update_session_client = False
-
-                if entry:
-                    is_editor = entry.is_editor
-                    is_cutting = entry.is_cutting
-                    if show and show.current_session_id:
-                        show_session = session.get(ShowSession, show.current_session_id)
-                        if (
-                            show_session
-                            and show_session.last_client_internal_id == new_uuid
-                        ):
-                            update_session_client = True
-
-                    session.delete(entry)
-                    session.commit()
-
-                self.__setattr__("internal_id", new_uuid)
-                self.update_session(
-                    is_editor=is_editor,
-                    is_cutting=is_cutting,
-                    user_id=self.current_user_id,
-                )
-                if update_session_client:
-                    show_session.client_internal_id = new_uuid
-                    show_session.last_client_internal_id = None
-                    session.commit()
-                    await self.application.ws_send_to_all(
-                        "NOOP", "GET_SHOW_SESSION_DATA", {}
-                    )
+                await self._resume_client(session, entry, show, message.get("DATA"))
             elif ws_op == "SCRIPT_SCROLL":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
@@ -481,6 +582,80 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 get_logger().warning(
                     f"Unknown OP {ws_op} received from "
                     f"WebSocket connection {self.request.remote_ip}"
+                )
+
+    async def _resume_client(
+        self,
+        session,
+        placeholder: Optional[Session],
+        show: Optional[Show],
+        new_uuid: Any,
+    ) -> None:
+        """Handle ``REFRESH_CLIENT``: a reconnecting page resumes its old uuid.
+
+        Cancels the old uuid's pending disconnect finalisation, discards the
+        placeholder row that :meth:`open` created for this connection, and
+        adopts the old uuid's Session row as-is, keeping its edit/cut flags. The
+        row still holds live-show leadership if the reconnect happened inside the
+        grace window. If the window had already expired and the leader was
+        released with nobody else promoted, leadership is reclaimed here, but
+        only while no one else holds it.
+
+        :param session: Active SQLAlchemy session.
+        :param placeholder: This connection's placeholder Session row, if any.
+        :param show: The currently loaded Show, or None.
+        :param new_uuid: The uuid the client asks to resume.
+        """
+        if not isinstance(new_uuid, str) or not new_uuid:
+            get_logger().warning(
+                f"REFRESH_CLIENT with invalid uuid from {self.request.remote_ip}"
+            )
+            return
+        if new_uuid == self.__getattribute__("internal_id"):
+            return
+
+        was_pending = self.application.pending_disconnects.cancel(new_uuid)
+
+        if placeholder is not None:
+            session.delete(placeholder)
+            session.flush()
+        self.__setattr__("internal_id", new_uuid)
+
+        entry = session.get(Session, new_uuid)
+        if entry is None:
+            session.add(
+                Session(
+                    internal_id=new_uuid,
+                    remote_ip=self.request.remote_ip,
+                    last_ping=self._last_ping,
+                    last_pong=self._last_pong,
+                    user_id=self.current_user_id,
+                )
+            )
+        else:
+            entry.remote_ip = self.request.remote_ip
+            entry.last_ping = self._last_ping
+            entry.last_pong = self._last_pong
+            self._assign_session_user(entry, self.current_user_id)
+        session.commit()
+        get_logger().info(
+            f"WebSocket from {self.request.remote_ip} resumed client {new_uuid} "
+            f"({'within grace window' if was_pending else 'no pending disconnect'}"
+            f"{', session state restored' if entry is not None else ''})"
+        )
+
+        if show and show.current_session_id:
+            show_session = session.get(ShowSession, show.current_session_id)
+            if (
+                show_session
+                and show_session.client_internal_id is None
+                and show_session.last_client_internal_id == new_uuid
+            ):
+                show_session.client_internal_id = new_uuid
+                show_session.last_client_internal_id = None
+                session.commit()
+                await self.application.ws_send_to_all(
+                    "NOOP", "GET_SHOW_SESSION_DATA", {}
                 )
 
     async def _is_live_session_active(self) -> bool:

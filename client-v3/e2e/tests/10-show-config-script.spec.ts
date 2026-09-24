@@ -49,6 +49,16 @@ test('requests edit mode', async () => {
   await expect(page.locator('button:has-text("Stop Editing")')).toBeVisible({ timeout: 10_000 });
 });
 
+test('reloading while editing keeps edit mode', async () => {
+  // A reload closes and reopens the WebSocket; the reconnect resumes the same
+  // client id (REFRESH_CLIENT) inside the server's reconnect grace window, so the
+  // edit lock is kept rather than released (issue #1419).
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(page.locator('button:has-text("Stop Editing")')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).not.toBeVisible();
+});
+
 test('adds a dialogue line', async () => {
   await page.click('button:has-text("Add Dialogue")');
   // A ScriptLineEditor row appears with Done/Delete buttons
