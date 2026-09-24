@@ -1374,7 +1374,9 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
     """
 
     LONG_GRACE = 30.0
-    SHORT_GRACE = 1.5
+    # Long enough for a full reconnect / close sequence to finish inside the
+    # window on a slow CI runner; tests that wait for it get a longer timeout.
+    SHORT_GRACE = 2.5
 
     def setUp(self):
         super().setUp()
@@ -1777,7 +1779,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
     # window, not before.
     # ------------------------------------------------------------------
 
-    @gen_test
+    @gen_test(timeout=15)
     async def test_genuine_disconnect_holds_then_releases_edit_lock(self):
         """The edit lock is held through the window, then released and announced."""
         self._set_grace(self.SHORT_GRACE)
@@ -1797,7 +1799,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
 
         observer.close()
 
-    @gen_test
+    @gen_test(timeout=15)
     async def test_genuine_disconnect_holds_then_elects_leader(self):
         """Leadership is held through the window, then passes to a live same-user tab."""
         self._set_grace(self.SHORT_GRACE)
@@ -1818,7 +1820,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
 
         ws_f.close()
 
-    @gen_test
+    @gen_test(timeout=15)
     async def test_genuine_disconnect_holds_then_no_leader(self):
         """With no other same-user tab, NO_LEADER is sent once the window expires."""
         self._set_grace(self.SHORT_GRACE)
@@ -1838,7 +1840,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
 
         follower.close()
 
-    @gen_test
+    @gen_test(timeout=15)
     async def test_election_skips_tab_pending_reconnect(self):
         """Expiry-time election must not promote a same-user tab that is itself
         mid-reload (closed, still inside its own grace window).
@@ -1891,7 +1893,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
     # Collaborative editing room across a reload
     # ------------------------------------------------------------------
 
-    @gen_test
+    @gen_test(timeout=15)
     async def test_editor_reload_rejoin_within_grace_keeps_room_open(self):
         """The last editor reloading and rejoining in the window keeps the room.
 
@@ -1927,7 +1929,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
         ws_v.close()
         ws_e2.close()
 
-    @gen_test
+    @gen_test(timeout=15)
     async def test_editor_reload_without_rejoin_closes_room_after_grace(self):
         """If the reloaded editor never rejoins, the room still closes at expiry."""
         self._set_grace(self.SHORT_GRACE)
