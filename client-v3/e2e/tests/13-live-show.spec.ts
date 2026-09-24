@@ -1,17 +1,31 @@
 /**
  * Live show: start session, leader navigates, follower auto-scrolls to match.
  *
- * Uses two browser contexts to simulate two concurrent clients:
- *   leaderPage  — the first client to connect (elected leader)
- *   followerPage — the second client (becomes follower)
+ * Uses two browser contexts to simulate two concurrent clients, logged in as two
+ * DIFFERENT users:
+ *   leaderPage   — logs in as admin, starts the show session (server-elected leader)
+ *   followerPage — logs in as a second, non-admin user (becomes follower)
  *
- * The WS leader status is determined server-side by which client connects first.
+ * Leadership is assigned server-side to whichever session started the show (see
+ * SessionStartController), and re-elected on disconnect from among sessions
+ * belonging to that SAME user (see ws_controller.py on_close). Using two different
+ * user accounts here — rather than logging both tabs in as admin — matches real
+ * usage (leader and follower are normally different people) and keeps the
+ * follower's session out of the leader's own re-election pool, which is what a
+ * shared-login setup would otherwise race on when both tabs reload at once
+ * (see issue #1414).
  */
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import {
   UI_BASE,
+  ADMIN_USERNAME,
+  ADMIN_PASSWORD,
   waitForAppReady,
   loginAsAdmin,
+  loginAs,
+  apiLogin,
+  createUser,
+  deleteUserByUsername,
   waitForModal,
   confirmModal,
   waitForModalClosed,
@@ -23,24 +37,35 @@ test.describe.configure({ mode: 'serial' });
 
 registerRetryHooks();
 
+const FOLLOWER_USERNAME = 'live-follower';
+const FOLLOWER_PASSWORD = 'followerpass';
+
 let leaderCtx: BrowserContext;
 let followerCtx: BrowserContext;
 let leaderPage: Page;
 let followerPage: Page;
 
-test.beforeAll(async ({ browser }) => {
+test.beforeAll(async ({ browser, request }) => {
   leaderCtx = await browser.newContext();
   leaderPage = await leaderCtx.newPage();
   await loginAsAdmin(leaderPage);
 
+  // Create a distinct, non-admin user for the follower so it has a different
+  // user_id from the leader (admin) — see the file header comment.
+  const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
+  await createUser(request, adminToken, FOLLOWER_USERNAME, FOLLOWER_PASSWORD);
+
   followerCtx = await browser.newContext();
   followerPage = await followerCtx.newPage();
-  await loginAsAdmin(followerPage);
+  await loginAs(followerPage, FOLLOWER_USERNAME, FOLLOWER_PASSWORD);
 });
 
-test.afterAll(async () => {
+test.afterAll(async ({ request }) => {
   await leaderCtx.close();
   await followerCtx.close();
+
+  const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
+  await deleteUserByUsername(request, adminToken, FOLLOWER_USERNAME);
 });
 
 // ── Session lifecycle ──────────────────────────────────────────────────────
@@ -111,17 +136,67 @@ test('session header shows current page number', async () => {
   await expect(leaderPage.locator('b:has-text("Page")')).toBeVisible();
 });
 
-test('follower receives leader page navigation via WebSocket scroll sync', async () => {
-  // Leader navigates using the navbar Jump To Page feature
+test('follower tracks leader line-by-line via WebSocket scroll sync', async () => {
+  // Real content-position check (not just a flag): the leader steps forward one
+  // line with the keyboard (SCRIPT_SCROLL sync), and the follower must land on
+  // that exact same line — starting from page_1_line_0, so this genuinely moves.
+  const leaderLine = leaderPage.locator('#script-container .current-line');
+  const followerLine = followerPage.locator('#script-container .current-line');
+
+  await expect(leaderLine).toHaveId('page_1_line_0');
+  await expect(followerLine).toHaveId('page_1_line_0');
+
+  await leaderPage.keyboard.press('ArrowDown');
+
+  await expect(leaderLine).toHaveId('page_1_line_1', { timeout: 5_000 });
+  await expect(followerLine).toHaveId('page_1_line_1', { timeout: 10_000 });
+});
+
+test('follower survives leader page navigation via Jump To Page reload', async () => {
+  // Jump To Page broadcasts RELOAD_CLIENT to BOTH clients, which each do a full
+  // window.location.reload() (see useWebSocket.ts). Register the `load` waits
+  // BEFORE triggering the jump so we don't race the reload itself, and so these
+  // assertions check state *after* the reload round-trip actually completed
+  // rather than a leftover truthy value from before the jump (see issue #1414).
+  const leaderReloaded = leaderPage.waitForEvent('load', { timeout: 15_000 });
+  const followerReloaded = followerPage.waitForEvent('load', { timeout: 15_000 });
+
+  // Leader navigates using the navbar Jump To Page feature — back to page 1,
+  // which is a real position change from the line-1 the previous test left us on.
   await leaderPage.locator('text=Live Config').click();
   const jumpBtn = leaderPage.locator('a:has-text("Jump To Page"), button:has-text("Jump To Page")');
   await jumpBtn.click();
   await leaderPage.waitForSelector('.modal.show', { timeout: 5_000 });
   await leaderPage.fill('#page-input', '1');
   await confirmModal(leaderPage);
-  await waitForModalClosed(leaderPage);
 
-  // Follower should still be in following mode (scroll sync keeps it following)
+  await Promise.all([leaderReloaded, followerReloaded]);
+  await Promise.all([waitForAppReady(leaderPage), waitForAppReady(followerPage)]);
+
+  // The jump moved the position back to page_1_line_0 on both clients.
+  await expect(leaderPage.locator('#script-container .current-line')).toHaveId('page_1_line_0', {
+    timeout: 15_000,
+  });
+  await expect(followerPage.locator('#script-container .current-line')).toHaveId('page_1_line_0', {
+    timeout: 15_000,
+  });
+
+  // Leader/follower roles must also survive the reload round-trip: the leader
+  // (admin, who started the session) stays the leader, and the follower (the
+  // separate non-admin user) stays following. This is the invariant the
+  // reload-triggered leader re-election race (ws_controller.py on_close) can
+  // break — see the file header comment and issue #1414.
+  await expect(leaderPage.locator('.session-header')).toContainText('Leading', {
+    timeout: 10_000,
+  });
+  await expect(leaderPage.locator('#script-container')).not.toHaveAttribute(
+    'data-following',
+    'true'
+  );
+
+  await expect(followerPage.locator('.session-header')).toContainText('Following', {
+    timeout: 10_000,
+  });
   await expect(followerPage.locator('#script-container')).toHaveAttribute(
     'data-following',
     'true',
