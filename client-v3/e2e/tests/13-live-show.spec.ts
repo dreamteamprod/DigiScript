@@ -140,28 +140,19 @@ test('follower tracks leader line-by-line via WebSocket scroll sync', async () =
   // Real content-position check (not just a flag): the leader steps forward one
   // line with the keyboard (SCRIPT_SCROLL sync), and the follower must land on
   // that exact same line — starting from page_1_line_0, so this genuinely moves.
-  await leaderPage.locator('#script-container').click();
+  const leaderLine = leaderPage.locator('#script-container .current-line');
+  const followerLine = followerPage.locator('#script-container .current-line');
+
+  await expect(leaderLine).toHaveId('page_1_line_0');
+  await expect(followerLine).toHaveId('page_1_line_0');
+
   await leaderPage.keyboard.press('ArrowDown');
 
-  await expect
-    .poll(
-      async () => {
-        const [leaderLine, followerLine] = await Promise.all([
-          leaderPage.evaluate(
-            () => document.querySelector('.script-item.current-line')?.id ?? null
-          ),
-          followerPage.evaluate(
-            () => document.querySelector('.script-item.current-line')?.id ?? null
-          ),
-        ]);
-        return leaderLine != null && leaderLine === followerLine ? leaderLine : null;
-      },
-      { timeout: 10_000 }
-    )
-    .not.toBe('page_1_line_0');
+  await expect(leaderLine).toHaveId('page_1_line_1', { timeout: 5_000 });
+  await expect(followerLine).toHaveId('page_1_line_1', { timeout: 10_000 });
 });
 
-test('follower survives leader page navigation via WebSocket scroll sync', async () => {
+test('follower survives leader page navigation via Jump To Page reload', async () => {
   // Jump To Page broadcasts RELOAD_CLIENT to BOTH clients, which each do a full
   // window.location.reload() (see useWebSocket.ts). Register the `load` waits
   // BEFORE triggering the jump so we don't race the reload itself, and so these
