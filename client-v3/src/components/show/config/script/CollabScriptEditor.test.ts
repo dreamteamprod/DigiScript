@@ -272,7 +272,43 @@ describe('CollabScriptEditor', () => {
     expect(useScriptDraftStore().status).toBe('joining');
   });
 
-  it('Stop Editing leaves the room and tells the server', async () => {
+  it('a rejected join (COLLAB_ERROR while joining) shows the real server reason in the Retry alert', async () => {
+    becomeEditor();
+    const w = await mountEditor();
+    expect(useScriptDraftStore().status).toBe('joining');
+
+    useScriptDraftStore().collabError({ error: 'No show loaded' });
+    await flushPromises();
+
+    expect(w.find('.alert-stub').text()).toContain('No show loaded');
+    expect(useScriptDraftStore().isDraftActive).toBe(false);
+  });
+
+  it('a failed initial sync unwinds to the Retry alert instead of hanging on the spinner', async () => {
+    becomeEditor();
+    const w = await mountEditor();
+    expect(useScriptDraftStore().status).toBe('joining');
+
+    useScriptDraftStore().yjsSync({ step: 0, payload: 'not-valid-base64!!' });
+    await flushPromises();
+
+    expect(w.find('.alert-stub').exists()).toBe(true);
+    expect(useScriptDraftStore().isDraftActive).toBe(false);
+  });
+
+  it('ROOM_CLOSED after a successful sync also lands on Retry, not a stuck view', async () => {
+    becomeEditor();
+    const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
+
+    useScriptDraftStore().roomClosed();
+    await flushPromises();
+
+    expect(w.find('.alert-stub').exists()).toBe(true);
+  });
+
+  it('Stop Editing sends STOP only — never LEAVE first, which would make the server skip checkpoint/close', async () => {
     becomeEditor();
     vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
     const w = await mountEditor();
@@ -282,18 +318,79 @@ describe('CollabScriptEditor', () => {
 
     await button(w, 'Stop Editing')!.trigger('click');
 
-    expect(sentOps()).toContain('STOP_SCRIPT_EDIT');
+    // LEAVE_SCRIPT_ROOM first would remove us from room.clients before STOP_SCRIPT_EDIT
+    // arrives, so the server's get_room_for_client(self) would return None and skip
+    // checkpoint/close entirely — the local draft must not be torn down client-side
+    // either, until the server actually says so (ROOM_CLOSED, or editors no longer
+    // listing us).
+    expect(sentOps()).toEqual(['STOP_SCRIPT_EDIT']);
+    expect(useScriptDraftStore().isDraftActive).toBe(true);
+  });
+
+  it('Stop Editing as the last editor: ROOM_CLOSED (from the server) tears the draft down', async () => {
+    becomeEditor();
+    vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+    const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
+
+    await button(w, 'Stop Editing')!.trigger('click');
+    useScriptDraftStore().roomClosed();
+    await flushPromises();
+
     expect(useScriptDraftStore().isDraftActive).toBe(false);
+  });
+
+  it('Stop Editing with another editor still present: losing editor status tears the draft down', async () => {
+    becomeEditor();
+    vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+    const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
+
+    await button(w, 'Stop Editing')!.trigger('click');
+    // The server's GET_SCRIPT_CONFIG_STATUS reply no longer lists us.
+    useScriptConfigStore().editors = [];
+    await flushPromises();
+
+    expect(useScriptDraftStore().isDraftActive).toBe(false);
+  });
+
+  it('requestEdit tells the user when the frame could not be sent', async () => {
+    sendObj.mockReturnValueOnce(false);
+    vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+    const w = await mountEditor();
+
+    await button(w, 'Edit')!.trigger('click');
+
+    const { toast } = await import('@/js/toast');
+    expect(toast.error).toHaveBeenCalledWith('Cannot edit script: not connected to the server');
+  });
+
+  it('stopEditing tells the user when the frame could not be sent', async () => {
+    becomeEditor();
+    vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+    const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
+    sendObj.mockReturnValueOnce(false);
+
+    await button(w, 'Stop Editing')!.trigger('click');
+
+    const { toast } = await import('@/js/toast');
+    expect(toast.error).toHaveBeenCalledWith('Cannot stop editing: not connected to the server');
   });
 
   it('leaves the room when the component unmounts', async () => {
     becomeEditor();
     await mountEditor();
     syncDraft({ '1': [snap('a')], '2': [] });
+    sendObj.mockClear();
 
     wrapper!.unmount();
     wrapper = null;
 
+    expect(sentOps()).toContain('LEAVE_SCRIPT_ROOM');
     expect(useScriptDraftStore().isDraftActive).toBe(false);
   });
 

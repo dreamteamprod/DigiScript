@@ -135,14 +135,16 @@ import { useUserStore } from '@/stores/user';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useDraftPages } from '@/composables/useDraftPages';
+import { toast } from '@/js/toast';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import type { ScriptLine } from '@/types/api/script';
 
 /**
- * The script editor for collaborative mode (`collaborative_script_editing` on). Step 2:
- * read-only. An editor joins the shared draft and browses it; everyone else reads saved
- * pages over REST exactly as the classic editor's viewer does. The classic
- * `ScriptEditor.vue` is untouched and is what renders when the setting is off.
+ * The script editor for collaborative mode (`collaborative_script_editing` on).
+ * Currently read-only: an editor joins the shared draft and browses it; editing is not
+ * yet implemented. Everyone else reads saved pages over REST exactly as the classic
+ * editor's viewer does. The classic `ScriptEditor.vue` is untouched and is what renders
+ * when the setting is off.
  */
 
 const showStore = useShowStore();
@@ -217,7 +219,10 @@ function openGoToPage(): void {
 
 async function goToPage(): Promise<void> {
   const target = pageInputNo.value;
-  if (!Number.isInteger(target) || target < 1) return;
+  if (!Number.isInteger(target) || target < 1) {
+    pageError.value = 'Enter a page number of 1 or more.';
+    return;
+  }
   if (draftReady.value && target > maxPage.value) {
     pageError.value = `Page ${target} does not exist yet — the last page is ${maxPage.value}.`;
     return;
@@ -226,19 +231,28 @@ async function goToPage(): Promise<void> {
   changingPage.value = true;
   try {
     await navigateTo(target);
+    goToPageModal.value?.hide();
+  } catch {
+    pageError.value = 'Could not load that page — check the connection and try again.';
   } finally {
     changingPage.value = false;
   }
-  goToPageModal.value?.hide();
 }
 
 function requestEdit(): void {
-  sendObj({ OP: 'REQUEST_SCRIPT_EDIT', DATA: { collab: true } });
+  if (!sendObj({ OP: 'REQUEST_SCRIPT_EDIT', DATA: { collab: true } })) {
+    toast.error('Cannot edit script: not connected to the server');
+  }
 }
 
 function stopEditing(): void {
-  draftStore.leaveScriptRoom();
-  sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} });
+  // STOP only: the server only demotes, checkpoints and closes the room for a client
+  // that is still in it (LEAVE_SCRIPT_ROOM first would remove us before STOP arrives,
+  // so the server would skip both). ROOM_CLOSED (if we were the last editor) or the
+  // isEditor watcher below then tears down the local draft.
+  if (!sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
+    toast.error('Cannot stop editing: not connected to the server');
+  }
 }
 
 function retryJoin(): void {

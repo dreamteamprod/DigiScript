@@ -40,7 +40,7 @@ The backend port is **not** a fixed 8888. `e2e/env.ts` derives a stable port fro
 `process.cwd()`, so each checkout (e.g. separate git worktrees driven by parallel CI/agent jobs)
 gets its own port automatically and runs never collide — set `E2E_PORT=<port>` to pin a specific
 one instead (e.g. to reproduce CI's port locally). Setup only ever kills a server it can positively
-identify as its *own* leftover, by matching a live process's command line against
+identify as its _own_ leftover, by matching a live process's command line against
 `main.py ... --port=<port>` — not by trusting a PID pointer file alone, which a crashed run could
 leave stale or missing; if the resolved port is held by something else, the
 suite fails fast with a message telling you to set `E2E_PORT`, rather than killing a process it
