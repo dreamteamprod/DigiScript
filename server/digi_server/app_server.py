@@ -43,10 +43,7 @@ from utils.module_discovery import get_resource_path, is_frozen
 from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
-from utils.web.pending_disconnects import (
-    WS_RECONNECT_GRACE_SECONDS,
-    PendingDisconnects,
-)
+from utils.web.pending_disconnects import PendingDisconnects
 from utils.web.route import Route
 
 
@@ -73,9 +70,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
         models.import_all_models()
 
         self.clients: List[WebSocketController] = []
-        # Reconnect grace window: a disconnected WS client's session state is held
-        # this long for a reload's REFRESH_CLIENT to resume (issue #1419).
-        self.ws_reconnect_grace_seconds: float = WS_RECONNECT_GRACE_SECONDS
+        # Reconnect grace window: owns every timer that releases a disconnected WS
+        # client's state, and the window length (issue #1419).
         self.pending_disconnects: PendingDisconnects = PendingDisconnects()
 
         self._db: DigiSQLAlchemy = models.db

@@ -17,6 +17,10 @@ from utils.web.web_decorators import (
     redact_data_paths,
     require_admin,
 )
+from utils.web.ws_session_lifecycle import (
+    assign_session_user,
+    release_session_privileges,
+)
 
 
 @ApiRoute("auth/create", ApiVersion.V1)
@@ -176,8 +180,16 @@ class LoginHandler(BaseAPIController):
                     session_id = data.get("session_id", "")
                     if session_id:
                         ws_session: Session = session.get(Session, session_id)
-                        if ws_session:
-                            ws_session.user = user
+                        if ws_session and ws_session.user_id != user.id:
+                            # A lock or leadership never passes to a different
+                            # user through a login on someone else's client.
+                            release_session_privileges(
+                                self.application,
+                                session_id,
+                                "a different user logged in on this client",
+                            )
+                            session.refresh(ws_session)
+                            assign_session_user(ws_session, user.id)
                     user.last_login = datetime.now(tz=timezone.utc)
                     user.last_seen = datetime.now(tz=timezone.utc)
                     session.commit()
@@ -204,6 +216,31 @@ class LoginHandler(BaseAPIController):
 
 @ApiRoute("auth/logout", ApiVersion.V1)
 class LogoutHandler(BaseAPIController):
+    def _log_out_client(self, session_id: str) -> None:
+        """Detach the current user from their WebSocket client *session_id*.
+
+        Releases the client's edit/cut lock and live-show leadership (with the
+        usual broadcasts) and clears its user. Only acts on a client that
+        belongs to the current user, so logout can't be used against someone
+        else's client.
+
+        :param session_id: The client uuid sent by the logging-out page.
+        """
+        with self.make_session() as session:
+            ws_session: Session = session.get(Session, session_id)
+            if not ws_session or ws_session.user_id != self.current_user["id"]:
+                return
+        release_session_privileges(self.application, session_id, "user logged out")
+        with self.make_session() as session:
+            ws_session = session.get(Session, session_id)
+            if ws_session:
+                ws_session.user = None
+                session.commit()
+
+        ws_controller = self.application.get_ws(session_id)
+        if ws_controller and hasattr(ws_controller, "current_user_id"):
+            ws_controller.current_user_id = None
+
     @api_authenticated
     @allow_when_password_required
     async def post(self):
@@ -212,16 +249,7 @@ class LogoutHandler(BaseAPIController):
         if self.current_user:
             session_id = data.get("session_id", "")
             if session_id:
-                with self.make_session() as session:
-                    ws_session: Session = session.get(Session, session_id)
-                    if ws_session:
-                        ws_session.user = None
-                        session.commit()
-
-            # Update the WebSocket controller if it exists
-            ws_controller = self.application.get_ws(session_id)
-            if ws_controller and hasattr(ws_controller, "current_user_id"):
-                ws_controller.current_user_id = None
+                self._log_out_client(session_id)
 
             # Revoke the JWT
             auth_header = self.request.headers.get("Authorization", "")

@@ -5,7 +5,23 @@ from test.conftest import DigiScriptTestCase
 
 
 class TestWebsocketSessionsController(DigiScriptTestCase):
-    """Test suite for /api/v1/ws/sessions endpoint."""
+    """Test suite for /api/v1/ws/sessions endpoint (admin only)."""
+
+    def _admin_headers(self):
+        return {"Authorization": f"Bearer {self._create_and_login_admin()}"}
+
+    def test_get_sessions_requires_login(self):
+        """Session uuids are enough to resume a session, so the list isn't public."""
+        response = self.fetch("/api/v1/ws/sessions")
+        self.assertEqual(401, response.code)
+
+    def test_get_sessions_rejects_non_admin(self):
+        admin_token = self._create_and_login_admin()
+        user_token = self._create_and_login_user(admin_token)
+        response = self.fetch(
+            "/api/v1/ws/sessions", headers={"Authorization": f"Bearer {user_token}"}
+        )
+        self.assertEqual(401, response.code)
 
     def test_get_sessions_empty(self):
         """Test GET /api/v1/ws/sessions with no sessions.
@@ -13,7 +29,7 @@ class TestWebsocketSessionsController(DigiScriptTestCase):
         This tests the query at line 12 in controllers/api/websocket.py:
         session.scalars(select(Session)).all()
         """
-        response = self.fetch("/api/v1/ws/sessions")
+        response = self.fetch("/api/v1/ws/sessions", headers=self._admin_headers())
         self.assertEqual(200, response.code)
         response_body = tornado.escape.json_decode(response.body)
         self.assertIn("sessions", response_body)
@@ -29,7 +45,7 @@ class TestWebsocketSessionsController(DigiScriptTestCase):
             session.add(session2)
             session.commit()
 
-        response = self.fetch("/api/v1/ws/sessions")
+        response = self.fetch("/api/v1/ws/sessions", headers=self._admin_headers())
         self.assertEqual(200, response.code)
         response_body = tornado.escape.json_decode(response.body)
         self.assertEqual(2, len(response_body["sessions"]))
