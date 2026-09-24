@@ -49,6 +49,49 @@ jobs:
         run: npx playwright test --project=${{ matrix.browser }}
         working-directory: ./client-v3
 
+      # Retries mean a test that fails then passes shows up in the run as
+      # "flaky", not "failed" — junit/exit-code treat it as a pass, so it's
+      # easy to miss. This reads the json reporter output (client-v3/playwright.config.ts,
+      # CI-only) and lists any flaky tests in the job summary. Best-effort:
+      # guarded with `if: always()` and never fails the job.
+      - name: Summarize flaky tests
+        if: always()
+        working-directory: ./client-v3
+        run: |
+          set +e
+          REPORT="playwright-report/results.json"
+          {
+            echo "### Flaky tests — ${{ matrix.browser }}"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ ! -f "$REPORT" ]; then
+            echo "_No JSON report found (run may not have completed); skipping._" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          FLAKY=$(jq -r '
+            [.. | objects | select(has("tests") and has("ok"))
+              | . as $spec
+              | $spec.tests[]
+              | select(.status == "flaky")
+              | "| \($spec.file):\($spec.line) | \($spec.title) | \(.projectName) | \(.results | length) |"
+            ] | join("\n")
+          ' "$REPORT")
+          JQ_STATUS=$?
+          if [ "$JQ_STATUS" -ne 0 ]; then
+            echo "_Could not parse $REPORT (jq exited $JQ_STATUS) — unable to determine flaky status for this run._" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -z "$FLAKY" ]; then
+            echo "None." >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "A test that fails at least once but eventually passes on retry still counts as a pass overall — see [issue #1415](https://github.com/dreamteamprod/DigiScript/issues/1415)."
+              echo ""
+              echo "| Spec | Test | Project | Attempts |"
+              echo "|---|---|---|---|"
+              echo "$FLAKY"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 0
+
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
