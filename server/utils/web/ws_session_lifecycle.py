@@ -54,7 +54,7 @@ def broadcast(app: DigiScriptServer, action: str, data: Optional[dict] = None) -
     :param data: The ``DATA`` value (defaults to ``{}``).
     """
     message = {"OP": "NOOP", "ACTION": action, "DATA": data or {}}
-    for client in list(app.clients):
+    for client in app.clients.copy():
         safe_write(client, message)
 
 
@@ -230,7 +230,7 @@ def _downgrade_room_editor(app: DigiScriptServer, internal_id: str) -> None:
         return
     members = [
         ws
-        for ws, role in list(room.clients.items())
+        for ws, role in room.clients.items()
         if role == "editor" and getattr(ws, "internal_id", None) == internal_id
     ]
     if not members:

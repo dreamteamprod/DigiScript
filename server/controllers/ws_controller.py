@@ -542,53 +542,48 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             elif ws_op == "SCRIPT_SCROLL":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
-                    if show_session:
-                        if self._is_leader(show_session):
-                            show_session.latest_line_ref = message["DATA"][
-                                "current_line"
-                            ]
-                            session.commit()
-                            await self.application.ws_send_to_all(
-                                "NOOP", "SCRIPT_SCROLL", message["DATA"]
-                            )
+                    if self._is_leader(show_session):
+                        show_session.latest_line_ref = message["DATA"]["current_line"]
+                        session.commit()
+                        await self.application.ws_send_to_all(
+                            "NOOP", "SCRIPT_SCROLL", message["DATA"]
+                        )
             elif ws_op == "BEGIN_INTERVAL":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
-                    if show_session:
-                        if self._is_leader(show_session):
-                            act: Act = session.get(Act, message["DATA"]["actId"])
-                            if not entry:
-                                return
+                    if self._is_leader(show_session):
+                        act: Act = session.get(Act, message["DATA"]["actId"])
+                        if not entry:
+                            return
 
-                            show_interval = Interval(
-                                session_id=show_session.id,
-                                act_id=act.id,
-                                initial_length=message["DATA"]["length"],
-                            )
-                            session.add(show_interval)
-                            session.flush()
-                            show_session.current_interval_id = show_interval.id
-                            session.commit()
-                            await self.application.ws_send_to_all(
-                                "NOOP", "GET_SHOW_SESSION_DATA", {}
-                            )
+                        show_interval = Interval(
+                            session_id=show_session.id,
+                            act_id=act.id,
+                            initial_length=message["DATA"]["length"],
+                        )
+                        session.add(show_interval)
+                        session.flush()
+                        show_session.current_interval_id = show_interval.id
+                        session.commit()
+                        await self.application.ws_send_to_all(
+                            "NOOP", "GET_SHOW_SESSION_DATA", {}
+                        )
             elif ws_op == "END_INTERVAL":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
-                    if show_session:
-                        if self._is_leader(show_session):
-                            current_interval: Interval = session.get(
-                                Interval, show_session.current_interval_id
+                    if self._is_leader(show_session):
+                        current_interval: Interval = session.get(
+                            Interval, show_session.current_interval_id
+                        )
+                        if current_interval:
+                            current_interval.end_datetime = datetime.datetime.now(
+                                tz=datetime.timezone.utc
                             )
-                            if current_interval:
-                                current_interval.end_datetime = datetime.datetime.now(
-                                    tz=datetime.timezone.utc
-                                )
-                            show_session.current_interval_id = None
-                            session.commit()
-                            await self.application.ws_send_to_all(
-                                "NOOP", "GET_SHOW_SESSION_DATA", {}
-                            )
+                        show_session.current_interval_id = None
+                        session.commit()
+                        await self.application.ws_send_to_all(
+                            "NOOP", "GET_SHOW_SESSION_DATA", {}
+                        )
             elif ws_op == "RELOAD_CLIENTS":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)

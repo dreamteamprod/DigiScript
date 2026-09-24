@@ -126,7 +126,8 @@ class PendingDisconnects:
 
     def cancel_all(self) -> None:
         """Cancel every scheduled timer (for shutdown and test teardown)."""
-        for key in list(self._timers):
+        # Copy: cancel() removes keys from the dict being iterated.
+        for key in self._timers.copy():
             self.cancel(key)
 
     def is_scheduled(self, key: Hashable) -> bool:
