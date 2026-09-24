@@ -1383,7 +1383,9 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
     """
 
     LONG_GRACE = 30.0
-    SHORT_GRACE = 1.0
+    # Real-timer tests must finish a whole reconnect inside this window, so keep
+    # it well clear of a slow CI runner's round-trip times.
+    SHORT_GRACE = 3.0
     # Wall-clock waits for a SHORT_GRACE timer: the window plus generous headroom.
     TIMER_WAIT = SHORT_GRACE + 5.0
 
@@ -1840,7 +1842,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
     # released / re-elected
     # ------------------------------------------------------------------
 
-    @gen_test(timeout=20)
+    @gen_test(timeout=25)
     async def test_genuine_disconnect_holds_then_releases_edit_lock_real_timer(self):
         """The edit lock is held through the window, then released and announced.
 
@@ -2205,6 +2207,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
         ws_x = await self._reload(uuid_l, self.viewer_id)
 
         await self._read_until(ws_a, action="ELECTED_LEADER")
+        await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
         self.assertEqual((uuid_a, None), self._live_session_state())
 
         follower.close()
@@ -2232,9 +2235,36 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
 
         await self._fire(provisional_key(uuid_l))
         await self._read_until(follower, action="NO_LEADER")
+        await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
         self.assertEqual((None, uuid_l), self._live_session_state())
 
         follower.close()
+        ws_x.close()
+
+    @gen_test
+    async def test_adopted_leadership_released_when_auth_fails(self):
+        """Leadership adopted by REFRESH_CLIENT is handed on at once if
+        AUTHENTICATE fails, and followers are told to re-fetch session data.
+        """
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        ws_a, uuid_a = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+        await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
+
+        ws_x, _ = await self._refresh_only(uuid_l)
+        expired = self._token(self.admin_id, expires_delta=timedelta(seconds=-10))
+        self.assertEqual("WS_AUTH_ERROR", await self._authenticate(ws_x, expired))
+
+        await self._read_until(ws_a, action="ELECTED_LEADER")
+        await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
+        self.assertEqual((uuid_a, None), self._live_session_state())
+        self.assertFalse(
+            self._app.pending_disconnects.is_scheduled(provisional_key(uuid_l))
+        )
+
+        follower.close()
+        ws_a.close()
         ws_x.close()
 
     # ------------------------------------------------------------------
@@ -2255,6 +2285,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
         self.assertEqual((False, False, None), self._session_row(uuid1))
         _, skipped = await self._read_until(observer, action="NO_LEADER")
         self.assertIn("GET_SCRIPT_CONFIG_STATUS", [m.get("ACTION") for m in skipped])
+        await self._read_until(observer, action="GET_SHOW_SESSION_DATA")
         self.assertEqual((None, uuid1), self._live_session_state())
 
         observer.close()
@@ -2371,7 +2402,7 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
 
         ws_v.close()
 
-    @gen_test(timeout=20)
+    @gen_test(timeout=25)
     async def test_editor_reload_without_rejoin_closes_room_after_grace_real_timer(
         self,
     ):

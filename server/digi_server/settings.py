@@ -494,7 +494,7 @@ class Settings:
         for key, value in self.settings.items():
             settings_json[key] = value.get_value()
 
-        for client in self._application.clients:
+        for client in list(self._application.clients):
             client.write_message(
                 {
                     "OP": "SETTINGS_CHANGED",

@@ -608,7 +608,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     def get_all_ws(self, user_id: int) -> List[WebSocketController]:
         sockets = []
-        for client in self.clients:
+        # Iterate a copy: a failed send calls on_close, which removes the peer.
+        for client in list(self.clients):
             # Check JWT-based authentication (stored in controller property)
             if hasattr(client, "current_user_id") and client.current_user_id == user_id:
                 sockets.append(client)
@@ -624,7 +625,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
         return None
 
     async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):
-        for client in self.clients:
+        # Iterate a copy: a failed send calls the peer's on_close, which removes it
+        # from self.clients and would otherwise make this loop skip the next one.
+        for client in list(self.clients):
             await client.write_message(
                 {"OP": ws_op, "DATA": ws_data, "ACTION": ws_action}
             )
