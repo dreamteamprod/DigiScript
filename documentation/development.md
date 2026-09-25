@@ -25,22 +25,25 @@ DigiScript uses split front-end and back-end architecture with the following key
 
 ## Project Structure
 
-DigiScript consists of two main components:
+DigiScript consists of three main components:
 
 - **`server/`** - Python Tornado backend with SQLite database
-- **`client/`** - Vue.js 2 frontend (builds to `server/static/`)
+- **`client-v3/`** - Vue.js 3 frontend (primary/active, builds to `server/static/`)
+- **`client/`** - Vue.js 2 frontend (legacy, builds to `server/static/ui-old/`)
 
 Refer to [DeepWiki](https://deepwiki.com/dreamteamprod/DigiScript) for detailed documentation on the architecture and design.
 
 ## Building the Web Client
 
+The frontends use [pnpm](https://pnpm.io/). Node 24.15 or newer is required (an older 24.x fails on transitive dependencies' engine ranges). Node 24 ships Corepack but leaves it switched off, so run `corepack enable` once; pnpm will then use the version pinned in each `package.json`'s `packageManager` field. Running `npm install` in these directories is refused on purpose (`devEngines`), so the pnpm lockfiles stay the only source of truth.
+
 ```shell
 cd client
-npm ci
-npm run build
+pnpm install
+pnpm run build
 ```
 
-This outputs the built frontend to `../server/static/` for serving by the Python backend.
+This outputs the built frontend to `../server/static/ui-old/` for serving by the Python backend. `client-v3/` follows the same pattern (`pnpm install` / `pnpm run build`), outputting to `../server/static/`.
 
 ## Contributing
 
@@ -49,8 +52,8 @@ Contributions are welcome! Please ensure all client and server code passes linti
 ```shell
 # Client linting and type checking
 cd client
-npm run lint
-npm run typecheck
+pnpm run lint
+pnpm run typecheck
 
 # Server linting
 cd server

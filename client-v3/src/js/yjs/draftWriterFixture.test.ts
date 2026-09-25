@@ -16,7 +16,7 @@ import { bytesToBase64, base64ToBytes } from './base64';
  * The fixture is a Vitest file snapshot: it is only rewritten with `vitest -u`, and the
  * client id and generated ids are fixed so the bytes are deterministic. If this test
  * fails, the writer's wire output changed — check the server-side test still agrees,
- * then regenerate with `npx vitest run -u src/js/yjs/draftWriterFixture.test.ts`.
+ * then regenerate with `pnpm exec vitest run -u src/js/yjs/draftWriterFixture.test.ts`.
  */
 
 function makeIds(): () => string {
