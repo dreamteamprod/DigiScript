@@ -7,6 +7,7 @@ the query patterns in ws_controller.py, following our endpoint-based testing app
 import asyncio
 import base64
 import json
+import os
 from datetime import timedelta
 from unittest import mock
 from unittest.mock import AsyncMock
@@ -19,6 +20,7 @@ from tornado.websocket import websocket_connect
 
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger
+from models import models
 from models.script import Script
 from models.script_draft import ScriptDraft
 from models.session import Interval, Session, ShowSession
@@ -3038,6 +3040,31 @@ class TestWSUuidIsNotOwnership(_ReconnectTestBase):
         ws2.close()
 
     @gen_test
+    async def test_logout_that_cannot_read_the_client_says_nothing_changed(self):
+        """If the ownership lookup itself fails, logout still revokes the token,
+        leaves the client untouched, and its log says exactly that.
+        """
+        ws1, uuid1, observer = await self._editor_and_observer()
+        token = self._token(self.admin_id)
+        with mock.patch(
+            "controllers.api.v1.auth.user.row_owner",
+            side_effect=RuntimeError("database is locked"),
+        ):
+            with self.assertLogs(get_logger(), level="ERROR") as logs:
+                response = await self._post(
+                    "/api/v1/auth/logout", {"session_id": uuid1}, token
+                )
+        self.assertEqual(200, response.code)
+        self.assertTrue(await self._app.jwt_service.is_token_revoked(token))
+        self.assertTrue(any("nothing was changed" in line for line in logs.output))
+        self.assertEqual(self.admin_id, self._app.get_ws(uuid1).current_user_id)
+        self.assertFalse(self._app.pending_disconnects.is_pending(uuid1))
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid1))
+
+        observer.close()
+        ws1.close()
+
+    @gen_test
     async def test_logout_revokes_token_even_if_release_fails(self):
         ws1, uuid1, observer = await self._editor_and_observer()
         token = self._token(self.admin_id)
@@ -3591,3 +3618,127 @@ class TestWSHandlerMaps(DigiScriptTestCase):
                 callable(getattr(WebSocketController, name, None)),
                 f"{op} maps to missing method {name}",
             )
+
+
+class TestFileDatabaseWrites(_ReconnectTestBase):
+    """Paths that release a client's lock or leadership, on a real SQLite file.
+
+    The in-memory test database shares one connection, so it can't show a caller
+    holding an uncommitted write on one connection while the release writes on a
+    second one: on a file database that second write blocks the IOLoop for the
+    busy timeout and then fails with "database is locked" (review round 4).
+    """
+
+    def get_app(self):
+        with open(self.settings_path, encoding="UTF-8") as file_pointer:
+            settings = json.load(file_pointer)
+        settings["db_path"] = "sqlite:///" + os.path.join(
+            self._test_dir, "digiscript.sqlite"
+        )
+        with open(self.settings_path, "w", encoding="UTF-8") as file_pointer:
+            json.dump(settings, file_pointer)
+        return super().get_app()
+
+    def tearDown(self):
+        # Creating a fresh file database defines an ``alembic_version`` model on
+        # the shared metadata (DigiScriptServer.__init__); drop it so the next
+        # file-database app in this worker can define it again.
+        table = models.db.metadata.tables.get("alembic_version")
+        if table is not None:
+            models.db.metadata.remove(table)
+        super().tearDown()
+
+    async def _editor_leader(self, user_id):
+        ws, uuid = await self._connect_and_auth(user_id)
+        observer, _ = await self._connect_and_auth(self.admin2_id)
+        await self._become_editor(ws, observer)
+        self._start_live_session(uuid, user_id)
+        return ws, uuid, observer
+
+    @gen_test(timeout=30)
+    async def test_password_change_releases_promptly_on_a_file_database(self):
+        """change_password (admin reset) must not stall the server on the
+        force-logout fan-out, and the release must actually happen.
+        """
+        ws, uuid, observer = await self._editor_leader(self.admin_id)
+
+        started = asyncio.get_running_loop().time()
+        with self._app.get_db().sessionmaker() as session:
+            user = session.get(User, self.admin_id)
+            await self._app.user_service.change_password(
+                session, user, PasswordService.generate_temporary_password()
+            )
+        elapsed = asyncio.get_running_loop().time() - started
+
+        self.assertLess(elapsed, 2.0, f"password change blocked for {elapsed:.1f}s")
+        self.assertEqual((False, False, self.admin_id), self._session_row(uuid))
+        self.assertEqual((None, uuid), self._live_session_state())
+        await self._read_until(observer, action="NO_LEADER")
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual(1, session.get(User, self.admin_id).token_version)
+
+        observer.close()
+        ws.close()
+
+    @gen_test(timeout=30)
+    async def test_user_delete_releases_promptly_on_a_file_database(self):
+        """Regression guard for the delete path (it holds no writes when it
+        force-logs-out, so it was never affected).
+        """
+        ws, uuid = await self._connect_and_auth(self.viewer_id)
+        with self._app.get_db().sessionmaker() as session:
+            session.get(Session, uuid).is_cutting = True
+            session.commit()
+        observer, _ = await self._connect_and_auth(self.admin2_id)
+
+        started = asyncio.get_running_loop().time()
+        response = await self._post(
+            "/api/v1/auth/delete", {"id": self.viewer_id}, self._token(self.admin_id)
+        )
+        elapsed = asyncio.get_running_loop().time() - started
+
+        self.assertEqual(200, response.code)
+        self.assertLess(elapsed, 2.0, f"user delete blocked for {elapsed:.1f}s")
+        await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
+        row = self._session_row(uuid)
+        self.assertFalse(row is not None and row[1])
+
+        observer.close()
+        ws.close()
+
+
+class TestForceLogoutOrdering(_ReconnectTestBase):
+    """Force-logout logs every affected connection out before releasing any of
+    them, so leadership never bounces through a tab that is about to be logged
+    out, and the original leader keeps the claim to reclaim it.
+    """
+
+    @gen_test
+    async def test_force_logout_does_not_bounce_leadership_and_leader_reclaims(self):
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        ws_t, uuid_t = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+
+        with self._app.get_db().sessionmaker() as session:
+            user = session.get(User, self.admin_id)
+            await self._app.user_service.force_logout_all_sessions(session, user)
+
+        await self._read_until(follower, action="NO_LEADER")
+        self.assertNotIn("ELECTED_LEADER", await self._actions(ws_t))
+        self.assertEqual((None, uuid_l), self._live_session_state())
+
+        # The original leader tab logs back in and gets leadership back.
+        ws_l2 = ws_l
+        await ws_l2.write_message(
+            json.dumps(
+                {"OP": "AUTHENTICATE", "DATA": {"token": self._token(self.admin_id)}}
+            )
+        )
+        _, seen = await self._read_until(ws_l2, op="WS_AUTH_SUCCESS")
+        self.assertIn("ELECTED_LEADER", [m.get("ACTION") for m in seen])
+        self.assertEqual((uuid_l, None), self._live_session_state())
+
+        follower.close()
+        ws_t.close()
+        ws_l.close()

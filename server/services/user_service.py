@@ -32,6 +32,7 @@ class UserService:
         new_password: str,
         invalidate_tokens: bool = True,
         force_logout_sessions: bool = True,
+        requires_password_change: bool = False,
     ) -> None:
         """
         Change user's password and optionally invalidate all sessions.
@@ -45,6 +46,9 @@ class UserService:
         :type invalidate_tokens: bool
         :param force_logout_sessions: If True, broadcast logout to all sessions
         :type force_logout_sessions: bool
+        :param requires_password_change: Whether the user must change the new
+            password at next login (e.g. an admin-issued temporary password)
+        :type requires_password_change: bool
         :raises ValueError: If password validation fails
         """
         is_valid, error_msg = PasswordService.validate_password_strength(new_password)
@@ -54,17 +58,22 @@ class UserService:
         hashed = await PasswordService.hash_password(new_password)
 
         user.password = hashed
-        user.requires_password_change = False
+        user.requires_password_change = requires_password_change
 
         if invalidate_tokens:
             # Increment token version to invalidate all existing JWTs
             user.token_version += 1
 
+        # Commit before the force-logout fan-out: the password and token
+        # invalidation are then durable first, and this session holds no
+        # uncommitted write while the release writes through its own
+        # connections (which would otherwise wait on SQLite's lock and stall
+        # the event loop, then fail with "database is locked").
+        session.commit()
+
         if force_logout_sessions:
             # Force logout all WebSocket sessions
             await self.force_logout_all_sessions(session, user)
-
-        session.commit()
 
     async def refresh_token_all_sessions(self, user: User, new_token: str) -> None:
         """
@@ -109,13 +118,25 @@ class UserService:
         client_ids = session.scalars(
             select(Session.internal_id).where(Session.user_id == user.id)
         ).all()
+
+        # Log every affected connection out first, before releasing anything, so
+        # an election never picks a tab of this user that is about to be logged
+        # out, and last_client_internal_id keeps the original leader's client.
+        reached = self.application.get_all_ws(user.id)  # sent USER_LOGOUT above
+        affected = list(reached)
         for client_id in client_ids:
-            # Every connection using the uuid (e.g. a duplicated tab).
+            # Every connection using the uuid (e.g. a duplicated tab). A holder
+            # authenticated as someone else is not this user's connection
+            # (reconcile moves such connections to their own uuid anyway).
             for ws_session in holders(self.application, client_id):
-                if ws_session.current_user_id != user.id:
-                    # Not reached by ws_send_to_user above.
-                    safe_write(ws_session, logout_message)
-                ws_session.current_user_id = None
+                if ws_session.current_user_id in (None, user.id):
+                    affected.append(ws_session)
+        for ws_session in affected:
+            if ws_session not in reached:
+                safe_write(ws_session, logout_message)
+            ws_session.current_user_id = None
+
+        for client_id in client_ids:
             try:
                 release_session_privileges(self.application, client_id, "forced logout")
             except Exception:
@@ -124,6 +145,3 @@ class UserService:
                     f"{client_id} now; releasing it at its grace deadline"
                 )
                 schedule_disconnect_deadline(self.application, client_id)
-        # Any other connection still authenticated as this user.
-        for ws_session in self.application.get_all_ws(user.id):
-            ws_session.current_user_id = None

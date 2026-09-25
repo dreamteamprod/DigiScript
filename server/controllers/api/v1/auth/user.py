@@ -22,6 +22,7 @@ from utils.web.ws_session_lifecycle import (
     assign_session_user,
     holders,
     release_session_privileges,
+    row_owner,
     schedule_disconnect_deadline,
 )
 
@@ -229,10 +230,18 @@ class LogoutHandler(BaseAPIController):
 
         :param session_id: The client uuid sent by the logging-out page.
         """
-        with self.make_session() as session:
-            ws_session: Session = session.get(Session, session_id)
-            if not ws_session or ws_session.user_id != self.current_user["id"]:
-                return
+        user_id = self.current_user["id"]
+        try:
+            exists, owner_id = row_owner(self.application, session_id)
+            owns_client = exists and owner_id == user_id
+        except Exception:
+            get_logger().exception(
+                f"Logout of user {user_id}: could not look up client "
+                f"{session_id}; nothing was changed on it"
+            )
+            return
+        if not owns_client:
+            return
         for ws_controller in holders(self.application, session_id):
             ws_controller.current_user_id = None
         try:
@@ -243,7 +252,11 @@ class LogoutHandler(BaseAPIController):
             # it expires (finalise releases a row held only by unauthenticated
             # connections).
             schedule_disconnect_deadline(self.application, session_id)
-            raise
+            get_logger().exception(
+                f"Logout of user {user_id}: could not release client "
+                f"{session_id} now; its connections are logged out, and its lock "
+                f"and leadership are released when its grace deadline expires"
+            )
 
     @api_authenticated
     @allow_when_password_required
@@ -261,15 +274,8 @@ class LogoutHandler(BaseAPIController):
 
             session_id = data.get("session_id", "")
             if session_id:
-                try:
-                    self._log_out_client(session_id)
-                except Exception:
-                    get_logger().exception(
-                        f"Logout of user {self.current_user['id']}: could not "
-                        f"release client {session_id} now; its connections are "
-                        f"logged out, and its lock and leadership are released "
-                        f"when its grace deadline expires"
-                    )
+                # Logs its own failures, each saying how far it got.
+                self._log_out_client(session_id)
 
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})
@@ -439,16 +445,16 @@ class AdminPasswordResetController(BaseAPIController):
             # Change the password and force password change on next login
             try:
                 await self.application.user_service.change_password(
-                    session, target_user, temp_password, invalidate_tokens=True
+                    session,
+                    target_user,
+                    temp_password,
+                    invalidate_tokens=True,
+                    requires_password_change=True,
                 )
             except ValueError as e:
                 self.set_status(400)
                 await self.finish({"message": str(e)})
                 return
-
-            # Ensure requires_password_change is set
-            target_user.requires_password_change = True
-            session.commit()
 
             self.set_status(200)
             await self.finish(

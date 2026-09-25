@@ -1,6 +1,7 @@
 import tornado.escape
 
 from models.session import Session
+from models.user import User
 from test.conftest import DigiScriptTestCase
 
 
@@ -52,3 +53,23 @@ class TestWebsocketSessionsController(DigiScriptTestCase):
         session_ids = [s["internal_id"] for s in response_body["sessions"]]
         self.assertIn("test-session-1", session_ids)
         self.assertIn("test-session-2", session_ids)
+
+    def test_get_sessions_includes_owner(self):
+        """Each row carries its owner's user_id (SessionSchema include_fk), which
+        the admin connected-clients view and the E2E checks rely on.
+        """
+        headers = self._admin_headers()
+        with self._app.get_db().sessionmaker() as session:
+            owner = User(username="owner", password="hashed")
+            session.add(owner)
+            session.flush()
+            session.add(Session(internal_id="owned-session", user_id=owner.id))
+            session.commit()
+            owner_id = owner.id
+
+        response = self.fetch("/api/v1/ws/sessions", headers=headers)
+        self.assertEqual(200, response.code)
+        rows = tornado.escape.json_decode(response.body)["sessions"]
+        row = next(r for r in rows if r["internal_id"] == "owned-session")
+        self.assertIn("user_id", row)
+        self.assertEqual(owner_id, row["user_id"])
