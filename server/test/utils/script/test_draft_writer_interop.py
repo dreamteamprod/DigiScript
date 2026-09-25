@@ -8,7 +8,7 @@ the trailing page) to the doc the server built, and commits the resulting Yjs up
 what the writer emits that the server can't read fails here, not in production.
 
 Regenerate from ``client-v3/`` with
-``npx vitest run -u src/js/yjs/draftWriterFixture.test.ts`` after regenerating
+``pnpm exec vitest run -u src/js/yjs/draftWriterFixture.test.ts`` after regenerating
 ``pycrdt_state.json`` (see ``test/helpers/yjs_interop_fixture.py``).
 """
 

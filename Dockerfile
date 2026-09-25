@@ -2,25 +2,28 @@
 # native build platform rather than emulating the target arch (slow under QEMU).
 FROM --platform=$BUILDPLATFORM node:24-bookworm AS build_v2
 
+RUN corepack enable
 RUN mkdir -p /server/static
 COPY /client/package.json /client/package.json
-COPY /client/package-lock.json /client/package-lock.json
-COPY /client/.npmrc /client/.npmrc
+COPY /client/pnpm-lock.yaml /client/pnpm-lock.yaml
+COPY /client/pnpm-workspace.yaml /client/pnpm-workspace.yaml
 WORKDIR /client
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 COPY /client /client
-RUN npm run build
+RUN pnpm run build
 
 FROM --platform=$BUILDPLATFORM node:24-bookworm AS build_v3
 
+RUN corepack enable
 RUN mkdir -p /server/static
 COPY /client-v3/package.json /client-v3/package.json
-COPY /client-v3/package-lock.json /client-v3/package-lock.json
+COPY /client-v3/pnpm-lock.yaml /client-v3/pnpm-lock.yaml
+COPY /client-v3/pnpm-workspace.yaml /client-v3/pnpm-workspace.yaml
 WORKDIR /client-v3
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 COPY /client-v3 /client-v3
 COPY /docs /docs
-RUN npm run build
+RUN pnpm run build
 
 FROM python:3.13-bookworm
 
