@@ -35,6 +35,8 @@ Refer to [DeepWiki](https://deepwiki.com/dreamteamprod/DigiScript) for detailed 
 
 ## Building the Web Client
 
+The frontends use [pnpm](https://pnpm.io/). Node 24 ships Corepack but leaves it switched off, so run `corepack enable` once; pnpm will then use the version pinned in each `package.json`'s `packageManager` field. Running `npm install` in these directories is refused on purpose (`devEngines`), so the pnpm lockfiles stay the only source of truth.
+
 ```shell
 cd client
 pnpm install

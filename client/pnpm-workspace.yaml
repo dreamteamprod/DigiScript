@@ -1,20 +1,19 @@
 packages:
   - '.'
 
-onlyBuiltDependencies:
-  - '@parcel/watcher'
-  - bootstrap-vue
-  - core-js
-  - esbuild
+# pnpm 12 does not read `engine-strict` from .npmrc; it must be set here.
+engineStrict: true
 
+# Install scripts are blocked by default; each dependency that ships one is
+# listed here explicitly, true (run it) or false (acknowledge and skip it).
+#
 # @parcel/watcher: builds its native file-watching binding (used by chokidar,
-# which vite/vitest rely on for HMR/watch mode).
-# bootstrap-vue: postinstall is a no-op opencollective donation nag.
-# core-js: postinstall is a no-op donation-message print.
+#   which vite/vitest rely on for HMR/watch mode).
 # esbuild: postinstall downloads the platform-specific native binary — required
-# for vite/esbuild to run at all.
+#   for vite/esbuild to run at all.
+# bootstrap-vue, core-js: postinstalls only print a donation message; skipped.
 allowBuilds:
   '@parcel/watcher': true
-  bootstrap-vue: true
-  core-js: true
+  bootstrap-vue: false
+  core-js: false
   esbuild: true

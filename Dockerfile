@@ -2,12 +2,11 @@
 # native build platform rather than emulating the target arch (slow under QEMU).
 FROM --platform=$BUILDPLATFORM node:24-bookworm AS build_v2
 
-RUN corepack enable && corepack prepare pnpm@12.5.1 --activate
+RUN corepack enable
 RUN mkdir -p /server/static
 COPY /client/package.json /client/package.json
 COPY /client/pnpm-lock.yaml /client/pnpm-lock.yaml
 COPY /client/pnpm-workspace.yaml /client/pnpm-workspace.yaml
-COPY /client/.npmrc /client/.npmrc
 WORKDIR /client
 RUN pnpm install --frozen-lockfile
 COPY /client /client
@@ -15,7 +14,7 @@ RUN pnpm run build
 
 FROM --platform=$BUILDPLATFORM node:24-bookworm AS build_v3
 
-RUN corepack enable && corepack prepare pnpm@12.5.1 --activate
+RUN corepack enable
 RUN mkdir -p /server/static
 COPY /client-v3/package.json /client-v3/package.json
 COPY /client-v3/pnpm-lock.yaml /client-v3/pnpm-lock.yaml

@@ -1,20 +1,21 @@
 packages:
   - '.'
 
+# pnpm 12 does not read `engine-strict` from .npmrc; it must be set here.
+engineStrict: true
+
 overrides:
   glob: ^13.0.6
 
-onlyBuiltDependencies:
-  - '@parcel/watcher'
-  - core-js
-  - vue-demi
-
+# Install scripts are blocked by default; each dependency that ships one is
+# listed here explicitly, true (run it) or false (acknowledge and skip it).
+#
 # @parcel/watcher: builds its native file-watching binding (used by chokidar,
-# which vite/vitest rely on for HMR/watch mode).
-# core-js: postinstall is a no-op donation-message print.
+#   which vite/vitest rely on for HMR/watch mode).
 # vue-demi: postinstall selects the Vue-2-vs-3 interop shim to match the
-# installed vue version — required for correct runtime behaviour.
+#   installed vue version — required for correct runtime behaviour.
+# core-js: postinstall only prints a donation message; skipped.
 allowBuilds:
   '@parcel/watcher': true
-  core-js: true
+  core-js: false
   vue-demi: true

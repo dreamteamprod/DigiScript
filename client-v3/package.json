@@ -6,13 +6,19 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.5.1",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "onFail": "error"
+    }
+  },
   "scripts": {
     "prebuild": "scripts/copy-docs.sh && node --strip-types scripts/generate-doc-manifest.ts",
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
-    "lint": "npm run format && npm run lint:eslint",
+    "lint": "pnpm run format && pnpm run lint:eslint",
     "lint:eslint": "eslint 'src/**/*.{ts,vue}' 'e2e/**/*.ts' 'playwright.config.ts' --fix",
-    "ci-lint": "npm run format:check && npm run lint:eslint-check",
+    "ci-lint": "pnpm run format:check && pnpm run lint:eslint-check",
     "lint:eslint-check": "eslint 'src/**/*.{ts,vue}' 'e2e/**/*.ts' 'playwright.config.ts'",
     "format": "prettier --write 'src/**/*.{ts,vue,json,css,scss}' 'e2e/**/*.ts' 'playwright.config.ts'",
     "format:check": "prettier --check 'src/**/*.{ts,vue,json,css,scss}' 'e2e/**/*.ts' 'playwright.config.ts'",

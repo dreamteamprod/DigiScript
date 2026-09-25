@@ -80,7 +80,7 @@ safe_filename() {
 
 # Run eslint and capture output in a variable
 echo "Running eslint..."
-eslint_output=$(npm run lint 2>&1) || { echo "ESLint command failed"; exit 1; }
+eslint_output=$(pnpm run lint 2>&1) || { echo "ESLint command failed"; exit 1; }
 
 # Display full output if verbose mode is enabled
 if [[ "$verbose" = true ]]; then

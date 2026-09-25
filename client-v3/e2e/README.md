@@ -5,9 +5,9 @@ Tests run against a real backend instance with a clean SQLite database, covering
 
 ## Prerequisites
 
-* Node 24.x with dependencies installed (`npm ci` in `client-v3/`)
+* Node 24.x with dependencies installed (`pnpm install` in `client-v3/`)
 * Python 3.13.x with dependencies installed (`pip install -r requirements.txt` in `server/`)
-* A production build of the frontend (`npm run build` in `client-v3/`)
+* A production build of the frontend (`pnpm run build` in `client-v3/`)
 
 The global setup script starts and stops the backend automatically — no manual server management required.
 
@@ -15,16 +15,16 @@ The global setup script starts and stops the backend automatically — no manual
 
 ```bash
 # Chromium only (default, fastest)
-npm run test:e2e
+pnpm run test:e2e
 
 # Firefox only
-npm run test:e2e:firefox
+pnpm run test:e2e:firefox
 
 # Both browsers
-npm run test:e2e:all
+pnpm run test:e2e:all
 
 # Open the HTML report from the last run
-npm run test:e2e:report
+pnpm run test:e2e:report
 ```
 
 ## How it works
@@ -78,7 +78,7 @@ Failed test runs produce an HTML report and screenshots/videos under `playwright
 Open the report with:
 
 ```bash
-npm run test:e2e:report
+pnpm run test:e2e:report
 ```
 
 Trace files (recorded on failure) can be inspected with the Playwright Trace Viewer.

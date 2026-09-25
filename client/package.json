@@ -6,12 +6,18 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.5.1",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "onFail": "error"
+    }
+  },
   "scripts": {
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
-    "lint": "npm run format && npm run lint:eslint",
+    "lint": "pnpm run format && pnpm run lint:eslint",
     "lint:eslint": "eslint 'src/**/*.{ts,vue}' --fix",
-    "ci-lint": "npm run format:check && npm run lint:eslint-check",
+    "ci-lint": "pnpm run format:check && pnpm run lint:eslint-check",
     "lint:eslint-check": "eslint 'src/**/*.{ts,vue}'",
     "lint:filter": "./scripts/eslint-filter.sh",
     "format": "prettier --write 'src/**/*.{ts,vue,json,css,scss}'",
