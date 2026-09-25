@@ -5,6 +5,9 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import {
   UI_BASE,
+  ADMIN_USERNAME,
+  ADMIN_PASSWORD,
+  apiLogin,
   loginAsAdmin,
   waitForAppReady,
   waitForModal,
@@ -213,6 +216,63 @@ test('can edit a user to demote from admin', async () => {
 test('edit button is disabled for the current user', async () => {
   const adminRow = page.locator('tr', { has: page.locator('td:has-text("admin")') });
   await expect(adminRow.locator('button:has-text("Edit")')).toBeDisabled();
+});
+
+test('logging in as a different user on this tab, without a reload, gives it a new client id', async ({
+  request,
+}) => {
+  // An in-app sign-out then sign-in as another user must re-authenticate the open
+  // WebSocket. The server then moves this tab off the admin's client id to a fresh
+  // one owned by the new user (REASSIGN_UUID), so the new user never inherits the
+  // admin's client and can, for example, start a show from this tab.
+  const readUUID = () =>
+    page.evaluate(
+      () => JSON.parse(sessionStorage.getItem('websocket') ?? '{}').internalUUID ?? null
+    );
+  const before = await readUUID();
+  expect(before).toBeTruthy();
+
+  await page.locator('nav').getByText(ADMIN_USERNAME).click();
+  await page.click('button:has-text("Sign Out")');
+  await expect(page.locator('a:has-text("Login")')).toBeVisible({ timeout: 5_000 });
+  // No page load: follow the in-app Login link.
+  await page.click('a:has-text("Login")');
+  await page.fill('#username-input', 'testuser');
+  await page.fill('#password-input', 'testpassword');
+  await page.click('button:has-text("Login")');
+  await expect(page.locator('nav').getByText('testuser')).toBeVisible({ timeout: 10_000 });
+
+  await expect.poll(readUUID, { timeout: 10_000 }).not.toBe(before);
+  const after = await readUUID();
+
+  // Server side: the tab's new client is owned by testuser.
+  const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
+  const auth = { headers: { Authorization: `Bearer ${adminToken}` } };
+  const { users } = (await (await request.get(`${UI_BASE}/api/v1/auth/users`, auth)).json()) as {
+    users: { id: number; username: string }[];
+  };
+  const testUserId = users.find((u) => u.username === 'testuser')?.id;
+  const ownerOf = async (clientId: string) => {
+    const { sessions } = (await (
+      await request.get(`${UI_BASE}/api/v1/ws/sessions`, auth)
+    ).json()) as {
+      sessions: { internal_id: string; user_id: number | null }[];
+    };
+    return sessions.find((s) => s.internal_id === clientId)?.user_id ?? null;
+  };
+  await expect.poll(() => ownerOf(after)).toBe(testUserId);
+
+  // Restore the admin session on the Users tab for the following tests.
+  await page.locator('nav').getByText('testuser').click();
+  await page.click('button:has-text("Sign Out")');
+  await expect(page.locator('a:has-text("Login")')).toBeVisible({ timeout: 5_000 });
+  await loginAsAdmin(page);
+  await page.goto(`${UI_BASE}/config`);
+  await waitForAppReady(page);
+  await page.click(
+    'button[role="tab"]:has-text("Users"), a[role="tab"]:has-text("Users"), .nav-link:has-text("Users")'
+  );
+  await expect(page.locator('button:has-text("New User")')).toBeVisible({ timeout: 10_000 });
 });
 
 test('resets the non-admin user password', async () => {
