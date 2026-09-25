@@ -6,6 +6,7 @@ from tornado import gen
 from models.session import Session
 from models.user import User
 from services.password_service import PasswordService
+from utils.web.ws_session_lifecycle import holders
 
 
 class UserService:
@@ -102,8 +103,8 @@ class UserService:
 
         while user_sessions and session_logout_attempts < 5:
             for user_session in user_sessions:
-                ws_session = self.application.get_ws(user_session.internal_id)
-                if ws_session:
+                # Every connection using the uuid (e.g. same-browser tabs).
+                for ws_session in holders(self.application, user_session.internal_id):
                     await ws_session.write_message(
                         {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
                     )

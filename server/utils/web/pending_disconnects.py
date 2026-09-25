@@ -12,10 +12,9 @@ registry is the only owner of those timers and of the window length. Each timer 
 a key, and scheduling an existing key replaces the old timer. The key helpers below
 define the timer kinds:
 
-* :func:`disconnect_key`: finalise a closed client's Session row and leadership.
-  ``REFRESH_CLIENT`` for the uuid cancels it.
-* :func:`provisional_key`: revoke flags and leadership that a ``REFRESH_CLIENT``
-  adopted but no ``AUTHENTICATE`` for the row's owner has confirmed yet.
+* :func:`disconnect_key`: the grace deadline of a departed client uuid. Only an
+  ``AUTHENTICATE`` as the row's owner cancels it, and it is never re-armed while
+  it is running (see ``ws_session_lifecycle.schedule_disconnect_deadline``).
 * :func:`room_close_key`: close the collaborative-editing room if its last editor
   has not come back.
 """
@@ -39,11 +38,6 @@ GraceCallback = Callable[[], Optional[Awaitable[None]]]
 def disconnect_key(internal_id: str) -> Tuple[str, str]:
     """Key of the timer that finalises the disconnected client *internal_id*."""
     return ("disconnect", internal_id)
-
-
-def provisional_key(internal_id: str) -> Tuple[str, str]:
-    """Key of the timer that revokes unconfirmed state adopted by *internal_id*."""
-    return ("provisional", internal_id)
 
 
 def room_close_key(revision_id: int) -> Tuple[str, int]:
@@ -125,7 +119,12 @@ class PendingDisconnects:
         return True
 
     def cancel_all(self) -> None:
-        """Cancel every scheduled timer (for shutdown and test teardown)."""
+        """Cancel every scheduled timer. Used by test teardown.
+
+        The server has no graceful-shutdown hook (``main.py`` waits forever and
+        the process is simply stopped), so there is nothing to call it from in
+        production; the IOLoop's timers die with the process.
+        """
         # Copy: cancel() removes keys from the dict being iterated.
         for key in self._timers.copy():
             self.cancel(key)

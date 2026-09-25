@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from tornado import escape
 
+from digi_server.logger import get_logger
 from models.session import Session
 from models.user import User
 from registry.named_locks import NamedLockRegistry
@@ -19,6 +20,7 @@ from utils.web.web_decorators import (
 )
 from utils.web.ws_session_lifecycle import (
     assign_session_user,
+    holders,
     release_session_privileges,
 )
 
@@ -180,15 +182,12 @@ class LoginHandler(BaseAPIController):
                     session_id = data.get("session_id", "")
                     if session_id:
                         ws_session: Session = session.get(Session, session_id)
-                        if ws_session and ws_session.user_id != user.id:
-                            # A lock or leadership never passes to a different
-                            # user through a login on someone else's client.
-                            release_session_privileges(
-                                self.application,
-                                session_id,
-                                "a different user logged in on this client",
-                            )
-                            session.refresh(ws_session)
+                        # session_id comes from the request body and uuids are
+                        # not secret, so only an unowned client is attached here,
+                        # and nothing is ever released from this path. A browser
+                        # that really switches user is settled by its WebSocket
+                        # AUTHENTICATE (the WS controller's ownership rules).
+                        if ws_session and ws_session.user_id is None:
                             assign_session_user(ws_session, user.id)
                     user.last_login = datetime.now(tz=timezone.utc)
                     user.last_seen = datetime.now(tz=timezone.utc)
@@ -220,9 +219,10 @@ class LogoutHandler(BaseAPIController):
         """Detach the current user from their WebSocket client *session_id*.
 
         Releases the client's edit/cut lock and live-show leadership (with the
-        usual broadcasts) and clears its user. Only acts on a client that
-        belongs to the current user, so logout can't be used against someone
-        else's client.
+        usual broadcasts), clears its user, and marks every connection using
+        that uuid (for example several same-browser client-v3 tabs) as logged
+        out. Only acts on a client that belongs to the current user, so logout
+        can't be used against someone else's client.
 
         :param session_id: The client uuid sent by the logging-out page.
         """
@@ -230,6 +230,8 @@ class LogoutHandler(BaseAPIController):
             ws_session: Session = session.get(Session, session_id)
             if not ws_session or ws_session.user_id != self.current_user["id"]:
                 return
+        for ws_controller in holders(self.application, session_id):
+            ws_controller.current_user_id = None
         release_session_privileges(self.application, session_id, "user logged out")
         with self.make_session() as session:
             ws_session = session.get(Session, session_id)
@@ -237,26 +239,30 @@ class LogoutHandler(BaseAPIController):
                 ws_session.user = None
                 session.commit()
 
-        ws_controller = self.application.get_ws(session_id)
-        if ws_controller and hasattr(ws_controller, "current_user_id"):
-            ws_controller.current_user_id = None
-
     @api_authenticated
     @allow_when_password_required
     async def post(self):
         data = escape.json_decode(self.request.body)
 
         if self.current_user:
-            session_id = data.get("session_id", "")
-            if session_id:
-                self._log_out_client(session_id)
-
-            # Revoke the JWT
+            # Revoke the JWT first, so a failure below can never leave the token
+            # valid while the client believes it has logged out.
             auth_header = self.request.headers.get("Authorization", "")
             token = self.application.jwt_service.get_token_from_authorization_header(
                 auth_header
             )
             await self.application.jwt_service.revoke_token(token)
+
+            session_id = data.get("session_id", "")
+            if session_id:
+                try:
+                    self._log_out_client(session_id)
+                except Exception:
+                    get_logger().exception(
+                        f"Logout of user {self.current_user['id']}: could not "
+                        f"release client {session_id}; its lock and leadership "
+                        f"are released at the end of its next grace window"
+                    )
 
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})

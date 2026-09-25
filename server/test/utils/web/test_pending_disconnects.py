@@ -8,7 +8,6 @@ from test.conftest import DigiScriptTestCase
 from utils.web.pending_disconnects import (
     PendingDisconnects,
     disconnect_key,
-    provisional_key,
     room_close_key,
 )
 
@@ -106,12 +105,21 @@ class TestPendingDisconnects(DigiScriptTestCase):
         self.assertTrue(self.registry.is_scheduled(key))
 
     @gen_test
+    async def test_deadline_reports_when_a_timer_fires(self):
+        key = disconnect_key("u1")
+        self.assertIsNone(self.registry.deadline(key))
+        self.registry.schedule(key, lambda: None, delay=10)
+        self.assertIsNotNone(self.registry.deadline(key))
+        self.registry.cancel(key)
+        self.assertIsNone(self.registry.deadline(key))
+
+    @gen_test
     async def test_keys_are_independent_and_cancel_all(self):
         self.registry.schedule(disconnect_key("u1"), lambda: None)
-        self.registry.schedule(provisional_key("u1"), lambda: None)
+        self.registry.schedule(room_close_key(1), lambda: None)
         self.assertTrue(self.registry.is_pending("u1"))
         self.registry.cancel(disconnect_key("u1"))
         self.assertFalse(self.registry.is_pending("u1"))
-        self.assertTrue(self.registry.is_scheduled(provisional_key("u1")))
+        self.assertTrue(self.registry.is_scheduled(room_close_key(1)))
         self.registry.cancel_all()
-        self.assertFalse(self.registry.is_scheduled(provisional_key("u1")))
+        self.assertFalse(self.registry.is_scheduled(room_close_key(1)))

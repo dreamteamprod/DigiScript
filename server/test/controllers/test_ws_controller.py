@@ -8,6 +8,7 @@ import asyncio
 import base64
 import json
 from datetime import timedelta
+from unittest import mock
 from unittest.mock import AsyncMock
 
 import pycrdt
@@ -16,6 +17,7 @@ from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
 from tornado.websocket import websocket_connect
 
+from digi_server.logger import get_logger
 from models.script import Script
 from models.script_draft import ScriptDraft
 from models.session import Session, ShowSession
@@ -25,11 +27,12 @@ from services.password_service import PasswordService
 from test.conftest import DigiScriptTestCase
 from test.helpers.script_fixtures import create_show_script_revision
 from utils.script_room_manager import ScriptRoom
+from utils.web import ws_session_lifecycle
 from utils.web.pending_disconnects import (
     disconnect_key,
-    provisional_key,
     room_close_key,
 )
+from utils.web.ws_session_lifecycle import FINALISE_ATTEMPTS
 
 
 class _WSTestHelpers:
@@ -380,29 +383,14 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         # Genuine disconnect: finalisation (leader election) is deferred by the reconnect
         # grace window, so shrink it to 0 to assert the post-window outcome.
         self._app.pending_disconnects.grace_seconds = 0
-        # Connect first WebSocket (will be the leader)
-        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
-        ws1 = await websocket_connect(ws_url)
+        # Two connections authenticated as the same user. Both must really
+        # authenticate: under the ownership rule only a connection authenticated
+        # as the show's user can be elected, so setting Session.user_id in the
+        # database alone (as this test used to) no longer makes a candidate.
+        ws1, ws1_uuid = await self._connect_and_auth(self.user_id)
+        ws2, ws2_uuid = await self._connect_and_auth(self.user_id)
 
-        # Get the UUID for first connection
-        msg1 = await ws1.read_message()
-        ws1_uuid = json.loads(msg1)["DATA"]
-        await ws1.read_message()  # Consume GET_SETTINGS
-
-        # Connect second WebSocket (same user, will become new leader)
-        ws2 = await websocket_connect(ws_url)
-        msg2 = await ws2.read_message()
-        ws2_uuid = json.loads(msg2)["DATA"]
-        await ws2.read_message()  # Consume GET_SETTINGS
-
-        # Update both sessions to have the same user_id
         with self._app.get_db().sessionmaker() as session:
-            sess1 = session.get(Session, ws1_uuid)
-            sess2 = session.get(Session, ws2_uuid)
-            sess1.user_id = self.user_id
-            sess2.user_id = self.user_id
-            session.flush()
-
             # Create the show session controlled by first WebSocket
             show_session = ShowSession(
                 show_id=self.show_id,
@@ -1435,7 +1423,7 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
     async def _fire(self, key):
         """Expire the grace-window timer under *key* now, asserting it was scheduled.
 
-        :param key: Timer key (``disconnect_key`` / ``provisional_key`` /
+        :param key: Timer key (``disconnect_key`` /
             ``room_close_key``).
         """
         self.assertTrue(
@@ -1679,8 +1667,8 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         )
         self.assertIsNotNone(self._app.get_ws(uuid1))
         self.assertFalse(
-            self._app.pending_disconnects.is_scheduled(provisional_key(uuid1)),
-            "authenticating as the owner should have confirmed the adopted flags",
+            self._app.pending_disconnects.is_pending(uuid1),
+            "authenticating as the owner should have cancelled the grace deadline",
         )
 
         observer.close()
@@ -1970,24 +1958,25 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         ws_a.close()
         ws_b.close()
 
+    async def _departed_editor_leader(self):
+        """An editor that also leads the show disconnects; returns (uuid, follower)."""
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        await self._become_editor(ws_l, follower)
+        self._start_live_session(uuid_l, self.admin_id)
+        await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
+        return uuid_l, follower
+
     @gen_test
     async def test_finalise_retries_when_commit_fails(self):
         """A failed row delete neither announces a release nor elects; it retries."""
-        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
-        await self._become_editor(
-            ws_l, (await self._connect_and_auth(self.viewer_id))[0]
-        )
-        follower, _ = await self._connect_and_auth(self.viewer_id)
-        self._start_live_session(uuid_l, self.admin_id)
-        handler = self._app.get_ws(uuid_l)
-        await self._close_and_wait(ws_l, handler)
+        uuid_l, follower = await self._departed_editor_leader()
 
-        real_make_session = handler.make_session
-        handler.make_session = lambda: (_ for _ in ()).throw(
-            RuntimeError("database is locked")
-        )
-        await self._fire(disconnect_key(uuid_l))
-        handler.make_session = real_make_session
+        with mock.patch(
+            "utils.web.ws_session_lifecycle._delete_session_row",
+            side_effect=RuntimeError("database is locked"),
+        ):
+            await self._fire(disconnect_key(uuid_l))
 
         self.assertEqual((True, False, self.admin_id), self._session_row(uuid_l))
         self.assertEqual(uuid_l, self._live_session_state()[0])
@@ -1998,6 +1987,51 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         await self._fire(disconnect_key(uuid_l))
         await self._read_until(follower, action="NO_LEADER")
         self.assertIsNone(self._session_row(uuid_l))
+
+        follower.close()
+
+    @gen_test
+    async def test_finalise_exhausted_releases_without_deleting_and_says_so(self):
+        """When every delete attempt fails, the lock and leadership are still
+        released (without deleting the row) and an explicit error is logged.
+        """
+        uuid_l, follower = await self._departed_editor_leader()
+
+        with mock.patch(
+            "utils.web.ws_session_lifecycle._delete_session_row",
+            side_effect=RuntimeError("database is locked"),
+        ):
+            with self.assertLogs(get_logger(), level="ERROR") as logs:
+                for _ in range(FINALISE_ATTEMPTS):
+                    await self._fire(disconnect_key(uuid_l))
+
+        self.assertFalse(self._app.pending_disconnects.is_pending(uuid_l))
+        self.assertEqual((False, False, self.admin_id), self._session_row(uuid_l))
+        self.assertEqual((None, uuid_l), self._live_session_state())
+        _, skipped = await self._read_until(follower, action="NO_LEADER")
+        self.assertIn("GET_SCRIPT_CONFIG_STATUS", [m.get("ACTION") for m in skipped])
+        giving_up = [line for line in logs.output if "Giving up" in line]
+        self.assertEqual(1, len(giving_up))
+        self.assertIn("edit=True", giving_up[0])
+        self.assertIn("leader=True", giving_up[0])
+
+        follower.close()
+
+    @gen_test
+    async def test_failed_election_commit_still_tells_followers(self):
+        """If the election itself cannot commit, followers still get NO_LEADER."""
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+        await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
+
+        with mock.patch(
+            "utils.web.ws_session_lifecycle._pick_next_leader",
+            side_effect=RuntimeError("database is locked"),
+        ):
+            await self._fire(disconnect_key(uuid_l))
+        await self._read_until(follower, action="NO_LEADER")
+        await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
 
         follower.close()
 
@@ -2109,40 +2143,29 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         ws_l2.close()
 
     # ------------------------------------------------------------------
-    # State adopted by REFRESH_CLIENT is provisional until auth confirms it
+    # A resumed uuid's privileges wait for its owner; otherwise the
+    # original deadline releases them
     # ------------------------------------------------------------------
 
-    @gen_test
-    async def test_adopted_flags_released_when_auth_fails(self):
-        """An adopted edit lock is dropped at once if AUTHENTICATE fails
-        (e.g. the editor reloads with an expired token).
+    async def _expired_token_reload_releases_at_deadline(self, send_auth):
+        """The owner's page reloads but can't authenticate: the lock holds until
+        the original deadline and is then released, and the row is kept for the
+        still-connected (unauthenticated) page.
         """
         ws1, uuid1, observer = await self._editor_and_observer()
         await self._close_and_wait(ws1, self._app.get_ws(uuid1))
+        original = self._app.pending_disconnects.deadline(disconnect_key(uuid1))
 
         ws2, _ = await self._refresh_only(uuid1)
-        expired = self._token(self.admin_id, expires_delta=timedelta(seconds=-10))
-        self.assertEqual("WS_AUTH_ERROR", await self._authenticate(ws2, expired))
+        await send_auth(ws2)
 
-        await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
-        self.assertEqual((False, False, self.admin_id), self._session_row(uuid1))
-        self.assertFalse(
-            self._app.pending_disconnects.is_scheduled(provisional_key(uuid1))
+        # Nothing changes before the deadline, and the deadline is unchanged.
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid1))
+        self.assertEqual(
+            original, self._app.pending_disconnects.deadline(disconnect_key(uuid1))
         )
 
-        observer.close()
-        ws2.close()
-
-    @gen_test
-    async def test_adopted_flags_released_on_authenticate_without_token(self):
-        """AUTHENTICATE with no token also revokes adopted state straight away."""
-        ws1, uuid1, observer = await self._editor_and_observer()
-        await self._close_and_wait(ws1, self._app.get_ws(uuid1))
-
-        ws2, _ = await self._refresh_only(uuid1)
-        await ws2.write_message(json.dumps({"OP": "AUTHENTICATE", "DATA": {}}))
-        await self._read_until(ws2, op="WS_AUTH_ERROR")
-
+        await self._fire(disconnect_key(uuid1))
         await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
         self.assertEqual((False, False, self.admin_id), self._session_row(uuid1))
 
@@ -2150,73 +2173,116 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         ws2.close()
 
     @gen_test
-    async def test_adopted_flags_expire_without_authentication(self):
-        """A resumed tab that never authenticates (e.g. logged out) loses the lock
-        when its provisional window expires.
-        """
-        ws1, uuid1, observer = await self._editor_and_observer()
-        await self._close_and_wait(ws1, self._app.get_ws(uuid1))
+    async def test_reload_with_expired_token_releases_lock_at_deadline(self):
+        """Round-1 expired-token reload, now resolved by the original deadline."""
 
-        ws2, _ = await self._refresh_only(uuid1)
-        await asyncio.sleep(0.05)
-        # Still held inside the window.
-        self.assertEqual((True, False, self.admin_id), self._session_row(uuid1))
+        async def _expired(ws):
+            token = self._token(self.admin_id, expires_delta=timedelta(seconds=-10))
+            self.assertEqual("WS_AUTH_ERROR", await self._authenticate(ws, token))
 
-        await self._fire(provisional_key(uuid1))
-        await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
-        self.assertEqual((False, False, self.admin_id), self._session_row(uuid1))
-
-        observer.close()
-        ws2.close()
+        await self._expired_token_reload_releases_at_deadline(_expired)
 
     @gen_test
-    async def test_resumed_row_drops_flags_when_user_changes(self):
-        """Resuming another user's uuid does not inherit their edit lock, and the
-        release is announced.
+    async def test_reload_authenticating_without_token_releases_lock_at_deadline(
+        self,
+    ):
+        async def _no_token(ws):
+            await ws.write_message(json.dumps({"OP": "AUTHENTICATE", "DATA": {}}))
+            await self._read_until(ws, op="WS_AUTH_ERROR")
+
+        await self._expired_token_reload_releases_at_deadline(_no_token)
+
+    @gen_test
+    async def test_reload_that_never_authenticates_releases_lock_at_deadline(self):
+        """E.g. a logged-out page: it never sends AUTHENTICATE at all."""
+
+        async def _nothing(ws):
+            await asyncio.sleep(0.05)
+
+        await self._expired_token_reload_releases_at_deadline(_nothing)
+
+    @gen_test
+    async def test_other_user_reload_in_window_gets_nothing_then_row_at_deadline(
+        self,
+    ):
+        """A different user presenting a departed editor's uuid inside its window
+        gets none of its privileges, and the owner's lock is untouched until the
+        deadline. At the deadline the lock is released and, as that user is the
+        only one holding the uuid, the row becomes theirs.
         """
         ws1, uuid1, observer = await self._editor_and_observer()
         await self._close_and_wait(ws1, self._app.get_ws(uuid1))
 
         ws2 = await self._reload(uuid1, self.viewer_id)
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid1))
+        self.assertNotIn("GET_SCRIPT_CONFIG_STATUS", await self._actions(observer))
 
-        self.assertEqual((False, False, self.viewer_id), self._session_row(uuid1))
+        await self._fire(disconnect_key(uuid1))
         await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
+        self.assertEqual((False, False, self.viewer_id), self._session_row(uuid1))
 
         observer.close()
         ws2.close()
 
     @gen_test
-    async def test_rest_login_as_other_user_on_resumed_uuid_drops_flags(self):
-        """The REST login path cannot bind a different user onto an editor's row
-        and keep the lock (REFRESH_CLIENT, then POST /auth/login with session_id).
+    async def test_browser_switching_user_after_failed_logout_hands_over_row(self):
+        """The real "browser switches user" case: logout 401s (expired token), so
+        the row keeps its owner; REST login as someone else must not attach to it
+        (it is owned); the same socket's WS AUTHENTICATE as the new user then
+        takes the client over, releasing the old owner's lock with a broadcast.
         """
         ws1, uuid1, observer = await self._editor_and_observer()
-        ws2, _ = await self._refresh_only(uuid1)
-        await asyncio.sleep(0.05)
+
+        expired = self._token(self.admin_id, expires_delta=timedelta(seconds=-10))
+        response = await self._post(
+            "/api/v1/auth/logout", {"session_id": uuid1}, expired
+        )
+        self.assertEqual(401, response.code)
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid1))
 
         response = await self._post(
             "/api/v1/auth/login",
             {"username": "viewer", "password": "viewerpass", "session_id": uuid1},
         )
         self.assertEqual(200, response.code)
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid1))
+
+        self.assertEqual(
+            "WS_AUTH_SUCCESS",
+            await self._authenticate(ws1, self._token(self.viewer_id)),
+        )
         self.assertEqual((False, False, self.viewer_id), self._session_row(uuid1))
         await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
 
-        # The follow-up WS AUTHENTICATE as that user does not bring it back.
-        self.assertEqual(
-            "WS_AUTH_SUCCESS",
-            await self._authenticate(ws2, self._token(self.viewer_id)),
-        )
-        self.assertEqual((False, False, self.viewer_id), self._session_row(uuid1))
-
         observer.close()
         ws1.close()
-        ws2.close()
+
+    @gen_test
+    async def test_browser_switching_user_hands_leadership_on(self):
+        """The leadership half of a user switch: the show's leader tab
+        re-authenticates as a different user, so leadership moves on.
+        """
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        ws_a, uuid_a = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+
+        self.assertEqual(
+            "WS_AUTH_SUCCESS",
+            await self._authenticate(ws_l, self._token(self.viewer_id)),
+        )
+        await self._read_until(ws_a, action="ELECTED_LEADER")
+        await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
+        self.assertEqual((uuid_a, None), self._live_session_state())
+
+        follower.close()
+        ws_a.close()
+        ws_l.close()
 
     @gen_test
     async def test_other_user_resuming_leader_uuid_hands_leadership_on(self):
         """A different user who resumes the leader's uuid in the window does not
-        lead. Leadership passes to a live tab of the show's user.
+        lead. At the deadline, leadership passes to a live tab of the show's user.
         """
         ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
         ws_a, uuid_a = await self._connect_and_auth(self.admin_id)
@@ -2225,7 +2291,9 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
 
         ws_x = await self._reload(uuid_l, self.viewer_id)
+        self.assertEqual(uuid_l, self._live_session_state()[0])
 
+        await self._fire(disconnect_key(uuid_l))
         await self._read_until(ws_a, action="ELECTED_LEADER")
         await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
         self.assertEqual((uuid_a, None), self._live_session_state())
@@ -2235,9 +2303,9 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         ws_x.close()
 
     @gen_test
-    async def test_unconfirmed_leader_cannot_drive_and_expires(self):
-        """Leadership adopted without auth can't drive the show, and it is
-        released when the provisional window expires (NO_LEADER here).
+    async def test_unauthenticated_leader_uuid_cannot_drive_and_expires(self):
+        """A socket that presents the departed leader's uuid can't drive the show;
+        the original deadline then releases leadership (NO_LEADER here).
         """
         ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
         follower, _ = await self._connect_and_auth(self.viewer_id)
@@ -2253,7 +2321,7 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         await asyncio.sleep(0.05)
         self.assertNotIn("SCRIPT_SCROLL", await self._actions(follower))
 
-        await self._fire(provisional_key(uuid_l))
+        await self._fire(disconnect_key(uuid_l))
         await self._read_until(follower, action="NO_LEADER")
         await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
         self.assertEqual((None, uuid_l), self._live_session_state())
@@ -2262,30 +2330,97 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         ws_x.close()
 
     @gen_test
-    async def test_adopted_leadership_released_when_auth_fails(self):
-        """Leadership adopted by REFRESH_CLIENT is handed on at once if
-        AUTHENTICATE fails, and followers are told to re-fetch session data.
+    async def test_owner_authenticating_after_deadline_reclaims_leadership_only(self):
+        """The deadline passes while the owner's reloaded page is still
+        unauthenticated: its lock and leadership are released. When it then
+        authenticates it reclaims leadership (nobody else took it) but not the
+        edit lock.
         """
-        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
-        ws_a, uuid_a = await self._connect_and_auth(self.admin_id)
-        follower, _ = await self._connect_and_auth(self.viewer_id)
-        self._start_live_session(uuid_l, self.admin_id)
-        await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
+        ws1, uuid1, follower = await self._editor_and_observer()
+        self._start_live_session(uuid1, self.admin_id)
+        await self._close_and_wait(ws1, self._app.get_ws(uuid1))
 
-        ws_x, _ = await self._refresh_only(uuid_l)
-        expired = self._token(self.admin_id, expires_delta=timedelta(seconds=-10))
-        self.assertEqual("WS_AUTH_ERROR", await self._authenticate(ws_x, expired))
+        ws2, _ = await self._refresh_only(uuid1)
+        await self._fire(disconnect_key(uuid1))
+        await self._read_until(follower, action="NO_LEADER")
+        self.assertEqual((False, False, self.admin_id), self._session_row(uuid1))
 
-        await self._read_until(ws_a, action="ELECTED_LEADER")
-        await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
-        self.assertEqual((uuid_a, None), self._live_session_state())
-        self.assertFalse(
-            self._app.pending_disconnects.is_scheduled(provisional_key(uuid_l))
+        await ws2.write_message(
+            json.dumps(
+                {"OP": "AUTHENTICATE", "DATA": {"token": self._token(self.admin_id)}}
+            )
         )
+        _, skipped = await self._read_until(ws2, op="WS_AUTH_SUCCESS")
+        self.assertIn("ELECTED_LEADER", [m.get("ACTION") for m in skipped])
+        self.assertEqual((uuid1, None), self._live_session_state())
+        self.assertEqual((False, False, self.admin_id), self._session_row(uuid1))
 
         follower.close()
-        ws_a.close()
-        ws_x.close()
+        ws2.close()
+
+    @gen_test
+    async def test_resumed_tab_closing_before_auth_keeps_original_deadline(self):
+        """A reloaded page that closes before authenticating neither cancels nor
+        restarts the deadline; the row is deleted when it expires.
+        """
+        ws1, uuid1, observer = await self._editor_and_observer()
+        await self._close_and_wait(ws1, self._app.get_ws(uuid1))
+        original = self._app.pending_disconnects.deadline(disconnect_key(uuid1))
+
+        ws2, _ = await self._refresh_only(uuid1)
+        await self._close_and_wait(ws2, self._app.get_ws(uuid1))
+        self.assertEqual(
+            original, self._app.pending_disconnects.deadline(disconnect_key(uuid1))
+        )
+
+        await self._fire(disconnect_key(uuid1))
+        await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
+        self.assertIsNone(self._session_row(uuid1))
+
+        observer.close()
+
+    @gen_test
+    async def test_refresh_on_authenticated_socket_as_owner_confirms_at_once(self):
+        """REFRESH_CLIENT on a socket that already authenticated as the owner
+        settles ownership immediately: the deadline is cancelled, the lock kept.
+        """
+        ws1, uuid1, observer = await self._editor_and_observer()
+        await self._close_and_wait(ws1, self._app.get_ws(uuid1))
+
+        ws2, _ = await self._connect_and_auth(self.admin_id)
+        await ws2.write_message(json.dumps({"OP": "REFRESH_CLIENT", "DATA": uuid1}))
+        await self._barrier(ws2, self.admin_id)
+
+        self.assertFalse(self._app.pending_disconnects.is_pending(uuid1))
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid1))
+
+        observer.close()
+        ws2.close()
+
+    @gen_test
+    async def test_refresh_on_authenticated_socket_as_other_user_gets_nothing(self):
+        """The same, authenticated as someone else: nothing is granted or released
+        inside the window.
+        """
+        ws1, uuid1, observer = await self._editor_and_observer()
+        await self._close_and_wait(ws1, self._app.get_ws(uuid1))
+
+        ws2, _ = await self._connect_and_auth(self.admin2_id)
+        await ws2.write_message(json.dumps({"OP": "REFRESH_CLIENT", "DATA": uuid1}))
+        await asyncio.sleep(0.05)
+
+        self.assertTrue(self._app.pending_disconnects.is_pending(uuid1))
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid1))
+        await ws2.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
+        await self._read_until(ws2, action="GET_SCRIPT_CONFIG_STATUS")
+        self.assertEqual(
+            (True, False, self.admin_id),
+            self._session_row(uuid1),
+            "a non-owner was able to clear the owner's lock with STOP_SCRIPT_EDIT",
+        )
+
+        observer.close()
+        ws2.close()
 
     # ------------------------------------------------------------------
     # Logout
@@ -2400,27 +2535,81 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         ws_v.close()
         ws_e2.close()
 
-    @gen_test
-    async def test_second_reload_within_window_supersedes_room_close_timer(self):
-        """Reloading twice inside the window keeps one room-close timer, pushed back
-        to the second departure, so the first departure cannot close the room early.
+    @gen_test(timeout=25)
+    async def test_second_reload_within_window_supersedes_room_close_timer_real_timer(
+        self,
+    ):
+        """Reloading twice inside the window replaces the first room-close timer.
+
+        On real timers: the first departure's timer would fire at t0 + grace, but
+        the second departure (at about t0 + grace/2) replaced it, so at
+        t0 + grace + margin the close has not run and the room is still open.
+        It then closes at the second departure's deadline, exactly once.
         """
+        grace = self.SHORT_GRACE
+        self._set_grace(grace)
         ws_e, uuid_e, ws_v, room = await self._editor_viewer_in_room()
-        key = room_close_key(room.revision_id)
-        registry = self._app.pending_disconnects
+        calls = []
+        real_close = ws_session_lifecycle.close_room_if_editorless
 
-        await self._close_and_wait(ws_e, self._app.get_ws(uuid_e))
-        first_deadline = registry._timers[key][0].when()
+        async def _spy(app, target_room):
+            calls.append(asyncio.get_running_loop().time())
+            await real_close(app, target_room)
 
-        ws_e2 = await self._reload(uuid_e, self.admin_id)
-        await self._join_room(ws_e2)
-        await asyncio.sleep(0.05)
-        await self._close_and_wait(ws_e2, self._app.get_ws(uuid_e))
+        with mock.patch.object(ws_session_lifecycle, "close_room_if_editorless", _spy):
+            await self._close_and_wait(ws_e, self._app.get_ws(uuid_e))
+            first_departure = asyncio.get_running_loop().time()
 
-        self.assertTrue(registry.is_scheduled(key))
-        self.assertGreater(registry._timers[key][0].when(), first_deadline)
+            ws_e2 = await self._reload(uuid_e, self.admin_id)
+            await self._join_room(ws_e2)
+            await asyncio.sleep(
+                max(
+                    0.0, first_departure + grace / 2 - asyncio.get_running_loop().time()
+                )
+            )
+            await self._close_and_wait(ws_e2, self._app.get_ws(uuid_e))
+
+            await asyncio.sleep(
+                max(
+                    0.0,
+                    first_departure + grace + 0.5 - asyncio.get_running_loop().time(),
+                )
+            )
+            self.assertEqual(
+                [], calls, "the first departure's room-close timer still fired"
+            )
+            self.assertIs(room, self._app.room_manager.get_active_room())
+
+            await self._read_until(ws_v, action="ROOM_CLOSED", timeout=self.TIMER_WAIT)
+            self.assertEqual(1, len(calls))
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
         ws_v.close()
+
+    @gen_test
+    async def test_logout_downgrades_room_editor_to_viewer(self):
+        """An editor in the collaborative room who logs out becomes a viewer
+        there, and members are told.
+        """
+        ws_e, uuid_e, ws_v, room = await self._editor_viewer_in_room()
+        handler = self._app.get_ws(uuid_e)
+        self.assertEqual("editor", room.clients.get(handler))
+
+        response = await self._post(
+            "/api/v1/auth/logout", {"session_id": uuid_e}, self._token(self.admin_id)
+        )
+        self.assertEqual(200, response.code)
+
+        self.assertEqual("viewer", room.clients.get(handler))
+        # Earlier ROOM_MEMBERS (from the joins) may still be queued; the last
+        # one after the logout must show the downgrade.
+        roles = {}
+        while roles.get(uuid_e) != "viewer":
+            msg, _ = await self._read_until(ws_v, action="ROOM_MEMBERS")
+            roles = {m["client_id"]: m["role"] for m in msg["DATA"]["members"]}
+
+        ws_v.close()
+        ws_e.close()
 
     @gen_test(timeout=25)
     async def test_editor_reload_without_rejoin_closes_room_after_grace_real_timer(
@@ -2555,6 +2744,17 @@ class TestWSUuidIsNotOwnership(_ReconnectTestBase):
         )
         msg, _ = await self._read_until(ws_x, action="COLLAB_ERROR")
         self.assertIn("permission", msg["DATA"]["error"].lower())
+
+        await ws_x.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+        msg, _ = await self._read_until(ws_x, action="COLLAB_ERROR")
+        self.assertIn("permission", msg["DATA"]["error"].lower())
+
+        await ws_x.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        msg, _ = await self._read_until(ws_x, action="REQUEST_EDIT_FAILURE")
+        self.assertIn("permission", msg["DATA"]["reason"].lower())
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid_e))
 
         observer.close()
         ws_e.close()
@@ -2711,3 +2911,129 @@ class TestWSUuidIsNotOwnership(_ReconnectTestBase):
 
         follower.close()
         ws_l2.close()
+
+    @gen_test
+    async def test_election_skips_unauthenticated_holder_of_candidate_uuid(self):
+        """A same-user uuid held only by an unauthenticated socket is not a
+        leader candidate: that socket could never drive.
+        """
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        ws_f, uuid_f = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+
+        ws_x, _ = await self._refresh_only(uuid_f)
+        await self._close_and_wait(ws_f, self._handler_for_user(uuid_f, self.admin_id))
+        await self._fire(disconnect_key(uuid_f))  # F's owner never came back
+        self.assertEqual(self.admin_id, self._session_row(uuid_f)[2])
+
+        await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
+        await self._fire(disconnect_key(uuid_l))
+        await self._read_until(follower, action="NO_LEADER")
+        self.assertEqual((None, uuid_l), self._live_session_state())
+        self.assertNotIn("ELECTED_LEADER", await self._actions(ws_x))
+
+        follower.close()
+        ws_x.close()
+
+    @gen_test
+    async def test_new_client_on_row_owned_by_someone_else_does_not_lead(self):
+        """NEW_CLIENT from the show's user on a uuid whose row belongs to another
+        (connected) user does not make it leader.
+        """
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+        await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
+        await self._fire(disconnect_key(uuid_l))
+        await self._read_until(follower, action="NO_LEADER")
+
+        ws_other, uuid_other = await self._connect_and_auth(self.admin2_id)
+        ws_x, _ = await self._refresh_only(uuid_other)
+        self.assertEqual(
+            "WS_AUTH_SUCCESS",
+            await self._authenticate(ws_x, self._token(self.admin_id)),
+        )
+        await ws_x.write_message(json.dumps({"OP": "NEW_CLIENT", "DATA": {}}))
+        await self._barrier(ws_x, self.admin_id)
+
+        self.assertIsNone(self._live_session_state()[0])
+        self.assertEqual(self.admin2_id, self._session_row(uuid_other)[2])
+
+        follower.close()
+        ws_other.close()
+        ws_x.close()
+
+    @gen_test
+    async def test_logout_logs_out_every_tab_sharing_the_uuid(self):
+        """Same-browser tabs share one uuid; logout marks all of them logged out."""
+        ws1, uuid1 = await self._connect_and_auth(self.admin_id)
+        ws2, _ = await self._refresh_only(uuid1)
+        self.assertEqual(
+            "WS_AUTH_SUCCESS", await self._authenticate(ws2, self._token(self.admin_id))
+        )
+        self.assertEqual(2, len(self._holders(uuid1)))
+
+        response = await self._post(
+            "/api/v1/auth/logout", {"session_id": uuid1}, self._token(self.admin_id)
+        )
+        self.assertEqual(200, response.code)
+        self.assertEqual(
+            [None, None], [h.current_user_id for h in self._holders(uuid1)]
+        )
+
+        ws1.close()
+        ws2.close()
+
+    @gen_test
+    async def test_logout_revokes_token_even_if_release_fails(self):
+        ws1, uuid1, observer = await self._editor_and_observer()
+        token = self._token(self.admin_id)
+        with mock.patch(
+            "controllers.api.v1.auth.user.release_session_privileges",
+            side_effect=RuntimeError("database is locked"),
+        ):
+            response = await self._post(
+                "/api/v1/auth/logout", {"session_id": uuid1}, token
+            )
+        self.assertEqual(200, response.code)
+        self.assertTrue(await self._app.jwt_service.is_token_revoked(token))
+
+        observer.close()
+        ws1.close()
+
+    @gen_test
+    async def test_non_owner_holding_uuid_cannot_take_cut_lock(self):
+        """REQUEST_SCRIPT_CUTS from a write-capable user holding someone else's
+        live uuid is refused; the lock would land on the owner's row.
+        """
+        ws_o, uuid_o = await self._connect_and_auth(self.admin_id)
+        ws_x, _ = await self._refresh_only(uuid_o)
+        self.assertEqual(
+            "WS_AUTH_SUCCESS",
+            await self._authenticate(ws_x, self._token(self.admin2_id)),
+        )
+        await ws_x.write_message(json.dumps({"OP": "REQUEST_SCRIPT_CUTS", "DATA": {}}))
+        msg, _ = await self._read_until(ws_x, action="REQUEST_EDIT_FAILURE")
+        self.assertIn("permission", msg["DATA"]["reason"].lower())
+        self.assertEqual((False, False, self.admin_id), self._session_row(uuid_o))
+
+        ws_o.close()
+        ws_x.close()
+
+    @gen_test
+    async def test_finalise_does_nothing_while_owner_is_connected(self):
+        """Defence in depth: even if a deadline fires while a connection
+        authenticated as the owner holds the uuid, nothing is released.
+        """
+        ws_o, uuid_o, observer = await self._editor_and_observer()
+        self._start_live_session(uuid_o, self.admin_id)
+
+        ws_session_lifecycle.finalise_disconnect(self._app, uuid_o)
+
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid_o))
+        self.assertEqual(uuid_o, self._live_session_state()[0])
+        self.assertNotIn("NO_LEADER", await self._actions(observer))
+
+        observer.close()
+        ws_o.close()

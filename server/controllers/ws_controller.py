@@ -31,15 +31,17 @@ from models.show import Act, Show
 from models.user import User
 from rbac.role import Role
 from utils.web.base_controller import DatabaseMixin
-from utils.web.pending_disconnects import disconnect_key, provisional_key
+from utils.web.pending_disconnects import disconnect_key
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.ws_session_lifecycle import (
     assign_session_user,
     broadcast,
-    elect_live_leader,
     get_live_session,
+    owner_is_connected,
     release_session_privileges,
+    row_owner,
     safe_write,
+    schedule_disconnect_deadline,
     schedule_room_close,
 )
 
@@ -63,11 +65,6 @@ _COLLAB_ONLY_OPS = frozenset(
 
 @ApiRoute("ws", ApiVersion.V1)
 class WebSocketController(DatabaseMixin, WebSocketHandler):
-    #: Attempts at deleting a disconnected client's row before giving up.
-    FINALISE_ATTEMPTS = 3
-    #: Delay between those attempts, in seconds.
-    FINALISE_RETRY_SECONDS = 1.0
-
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
         self.application: DigiScriptServer = application
@@ -82,10 +79,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         self._placeholder_id: Optional[str] = None
         # A connection may resume a uuid via REFRESH_CLIENT at most once.
         self._resumed = False
-        # Edit/cut flags or leadership adopted by REFRESH_CLIENT stay provisional
-        # until an AUTHENTICATE for their owner confirms them (see _resume_client).
-        self._provisional = False
-        self._provisional_owner: Optional[int] = None
 
     def update_session(self, user_id=None) -> bool:
         """Create or refresh the Session row for this connection's uuid.
@@ -147,14 +140,17 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
         Tornado calls this when the socket drops, and ``write_message`` calls it
         again if a write finds the socket closed, so it only acts once per
-        handler. The Session row (with its edit/cut flags) and live-show
-        leadership are released only after the reconnect grace window, by
-        :meth:`_finalise_disconnect`. ``REFRESH_CLIENT`` for the same uuid
-        cancels that. The handler leaves any collaborative-editing room
-        immediately. If it was the room's last editor,
-        :func:`close_room_if_editorless` runs after the window; that timer is not
-        cancelled, and it does nothing if an editor has rejoined by then. See
-        issue #1419.
+        handler. If a connection authenticated as the row's owner still holds
+        this uuid (the owner's reloaded tab, or another of its same-browser
+        tabs), nothing is released. Otherwise the uuid's grace deadline starts
+        (see :func:`schedule_disconnect_deadline`), unless one is already
+        running, in which case the original deadline is kept. At the deadline
+        :func:`finalise_disconnect` releases the Session row, its edit/cut lock
+        and live-show leadership, unless the owner has authenticated again by
+        then. The handler leaves any collaborative-editing room immediately. If
+        it was the room's last editor, :func:`close_room_if_editorless` runs after
+        the window (not cancelled; it does nothing if an editor has rejoined).
+        See issue #1419.
         """
         if self._close_handled:
             return
@@ -162,16 +158,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
         if self in self.application.clients:
             self.application.clients.remove(self)
-
-        internal_id = getattr(self, "internal_id", None)
-        registry = self.application.pending_disconnects
-        if self._provisional:
-            # Unconfirmed state stays on the row; the disconnect timer (or a new
-            # connection's own provisional check) takes over from here.
-            registry.cancel(provisional_key(internal_id))
-            self._provisional = False
         self._leave_room()
 
+        internal_id = getattr(self, "internal_id", None)
         user_part = (
             f"{self.current_username} ({self.request.remote_ip})"
             if self.current_username
@@ -180,21 +169,30 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         if internal_id is None:
             get_logger().info(f"WebSocket closed from: {user_part}")
             return
-        if self.application.get_ws(internal_id) is not None:
-            # A newer connection has already resumed this uuid through
-            # REFRESH_CLIENT, so the Session row and leadership belong to the live
-            # handler. This one is stale and must not finalise them.
+
+        try:
+            _, owner_id = row_owner(self.application, internal_id)
+        except Exception:
+            get_logger().exception(f"Could not read the row of client {internal_id}")
+            owner_id = None
+        if owner_is_connected(self.application, internal_id, owner_id):
             get_logger().info(
-                f"WebSocket closed from: {user_part} (client {internal_id} already "
-                f"resumed by a newer connection; nothing to release)"
+                f"WebSocket closed from: {user_part} (client {internal_id} is still "
+                f"connected as its owner; nothing to release)"
             )
             return
 
-        registry.schedule(disconnect_key(internal_id), self._finalise_disconnect)
-        get_logger().info(
-            f"WebSocket closed from: {user_part} (client {internal_id} held for "
-            f"{registry.grace_seconds:g}s reconnect grace window)"
-        )
+        registry = self.application.pending_disconnects
+        if schedule_disconnect_deadline(self.application, internal_id):
+            get_logger().info(
+                f"WebSocket closed from: {user_part} (client {internal_id} held for "
+                f"{registry.grace_seconds:g}s reconnect grace window)"
+            )
+        else:
+            get_logger().info(
+                f"WebSocket closed from: {user_part} (client {internal_id} keeps "
+                f"its original grace deadline)"
+            )
 
     def _leave_room(self) -> None:
         """Remove this (closed) handler from the collaborative-editing room.
@@ -222,126 +220,89 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         if was_editor and not room.has_editors:
             schedule_room_close(app, room)
 
-    def _finalise_disconnect(self, attempt: int = 1) -> None:
-        """Release a disconnected client's state once its grace window has expired.
-
-        Deletes the ``Session`` row. Only after that commit succeeds does it
-        announce a released edit/cut lock (``GET_SCRIPT_CONFIG_STATUS``) and hand
-        on leadership. If the commit fails (for example SQLite "database is
-        locked"), it retries up to :attr:`FINALISE_ATTEMPTS` times. Does nothing
-        if a live connection holds the uuid again.
-
-        :param attempt: 1-based attempt number.
-        """
-        internal_id = self.__getattribute__("internal_id")
-        if self.application.get_ws(internal_id) is not None:
-            return
-
-        try:
-            with self.make_session() as session:
-                entry = session.get(Session, internal_id)
-                if entry is None:
-                    return
-                had_lock = bool(entry.is_editor or entry.is_cutting)
-                was_leader = entry.live_session is not None
-                session.delete(entry)
-                session.commit()
-        except Exception:
-            get_logger().exception(
-                f"Error finalising disconnected session {internal_id} "
-                f"(attempt {attempt}/{self.FINALISE_ATTEMPTS})"
-            )
-            if attempt < self.FINALISE_ATTEMPTS:
-                self.application.pending_disconnects.schedule(
-                    disconnect_key(internal_id),
-                    lambda: self._finalise_disconnect(attempt + 1),
-                    delay=self.FINALISE_RETRY_SECONDS,
-                )
-            return
-
-        if had_lock:
-            broadcast(self.application, "GET_SCRIPT_CONFIG_STATUS")
-        if was_leader:
-            elect_live_leader(self.application, internal_id)
-
     # ------------------------------------------------------------------
-    # Provisional state adopted by REFRESH_CLIENT
+    # Ownership: a uuid is identity, not a credential
     # ------------------------------------------------------------------
 
-    def _begin_provisional(self, owner_id: Optional[int]) -> None:
-        """Hold adopted edit/cut flags or leadership until auth confirms the owner.
+    def _owned_row(self, session) -> Optional[Session]:
+        """Return this connection's Session row if the connection owns it.
 
-        :param owner_id: The user who owned the resumed row.
+        The ownership rule: the edit/cut lock and leadership recorded against a
+        uuid may only be used by a connection authenticated as the row's owner.
+
+        :param session: Active SQLAlchemy session.
+        :returns: The row, or None if it is missing or owned by someone else (or
+            this connection is not authenticated).
         """
-        internal_id = self.__getattribute__("internal_id")
-        self._provisional = True
-        self._provisional_owner = owner_id
-        self.application.pending_disconnects.schedule(
-            provisional_key(internal_id), self._expire_provisional
-        )
+        if self.current_user_id is None:
+            return None
+        entry = session.get(Session, self.__getattribute__("internal_id"))
+        if entry is None or entry.user_id != self.current_user_id:
+            return None
+        return entry
 
-    def _end_provisional(self) -> None:
-        """Stop tracking provisional state (it was confirmed or revoked)."""
-        if self._provisional:
-            self.application.pending_disconnects.cancel(
-                provisional_key(self.__getattribute__("internal_id"))
-            )
-        self._provisional = False
-        self._provisional_owner = None
+    def _is_leader(self, session, show_session: Optional[ShowSession]) -> bool:
+        """Return True if this connection may act as the live-show leader.
 
-    def _revoke_provisional(self, reason: str) -> None:
-        """Release adopted state that authentication did not confirm.
+        Requires the uuid to hold leadership, the connection to be authenticated
+        as the show session's user, and the row to be owned by that user.
 
-        :param reason: Why, for the log.
+        :param session: Active SQLAlchemy session.
+        :param show_session: The running show session, or None.
         """
-        if not self._provisional:
-            return
-        self._end_provisional()
-        release_session_privileges(
-            self.application, self.__getattribute__("internal_id"), reason
+        return (
+            show_session is not None
+            and show_session.client_internal_id == self.__getattribute__("internal_id")
+            and show_session.user_id is not None
+            and show_session.user_id == self.current_user_id
+            and self._owned_row(session) is not None
         )
-
-    def _expire_provisional(self) -> None:
-        """Grace-window timer: no AUTHENTICATE confirmed the adopted state in time."""
-        self._revoke_provisional("not confirmed by authentication in time")
 
     def _reconcile_after_auth(self, user_id: int) -> None:
-        """Bring the row's privileges in line with the user who just authenticated.
+        """Settle who owns this connection's uuid once it has authenticated.
 
-        * Adopted (provisional) flags are kept only if *user_id* owned the row.
-        * Flags on a row owned by someone else (or by nobody) are released.
-        * Leadership is kept only if *user_id* is the show session's user.
-        * The departed leader coming back later (after its window expired, with
-          nobody else leading) reclaims leadership here: only for the uuid named
-          in ``last_client_internal_id`` and only for the show session's user.
+        * No row: a row owned by *user_id* is created.
+        * Owned by *user_id*: the owner is back. Its grace deadline (if any) is
+          cancelled and its lock and leadership carry on.
+        * Owned by someone else who is still connected as its owner (a shared or
+          presented uuid): the row is left alone and this connection gets no
+          privileges.
+        * Owned by someone else whose grace deadline is running: left alone
+          until the deadline decides (see :func:`finalise_disconnect`).
+        * No owner, or an owner that is gone with no deadline pending (this same
+          socket switching user): *user_id* takes the client over. Anything the
+          old owner held is released, with the usual broadcasts.
+        * Finally, a departed leader coming back after its deadline reclaims
+          leadership (see :meth:`_reclaim_leadership`).
 
         :param user_id: The authenticated user.
         """
         internal_id = self.__getattribute__("internal_id")
-        owner_mismatch = self._provisional and self._provisional_owner != user_id
-        self._end_provisional()
-        with self.make_session() as session:
-            entry = session.get(Session, internal_id)
-            live_session = get_live_session(self.application, session)
-            if entry is not None and entry.user_id != user_id:
-                owner_mismatch = owner_mismatch or bool(
-                    entry.is_editor or entry.is_cutting
+        registry = self.application.pending_disconnects
+        exists, owner_id = row_owner(self.application, internal_id)
+
+        if not exists or owner_id == user_id:
+            self.update_session(user_id=user_id)
+            if registry.cancel(disconnect_key(internal_id)):
+                get_logger().info(
+                    f"Client {internal_id} is back as its owner; grace deadline "
+                    f"cancelled"
                 )
-            leader_mismatch = (
-                live_session is not None
-                and live_session.client_internal_id == internal_id
-                and live_session.user_id != user_id
+        elif owner_is_connected(
+            self.application, internal_id, owner_id, exclude=self
+        ) or registry.is_pending(internal_id):
+            get_logger().info(
+                f"Client {internal_id} is owned by user {owner_id}, not {user_id}; "
+                f"this connection gets none of its privileges"
             )
-        if owner_mismatch or leader_mismatch:
+            self.update_session()
+            return
+        else:
             release_session_privileges(
-                self.application,
-                internal_id,
-                "authenticated as a different user",
-                flags=owner_mismatch,
-                leadership=leader_mismatch,
+                self.application, internal_id, f"taken over by user {user_id}"
             )
-        if self.update_session(user_id=user_id):
-            broadcast(self.application, "GET_SCRIPT_CONFIG_STATUS")
+            if self.update_session(user_id=user_id):
+                broadcast(self.application, "GET_SCRIPT_CONFIG_STATUS")
         self._reclaim_leadership(user_id)
 
     def _reclaim_leadership(self, user_id: int) -> None:
@@ -357,6 +318,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 or live_session.client_internal_id is not None
                 or live_session.last_client_internal_id != internal_id
                 or live_session.user_id != user_id
+                # Defence in depth: reconcile only reaches here once the row is
+                # owned by user_id, so this check cannot fail today.
+                or self._owned_row(session) is None
             ):
                 return
             live_session.client_internal_id = internal_id
@@ -374,31 +338,18 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         )
         broadcast(self.application, "GET_SHOW_SESSION_DATA")
 
-    def _is_leader(self, show_session: Optional[ShowSession]) -> bool:
-        """Return True if this connection may act as the live-show leader.
-
-        Leadership adopted by REFRESH_CLIENT counts only once auth confirms it.
-
-        :param show_session: The running show session, or None.
-        """
-        return (
-            show_session is not None
-            and not self._provisional
-            and show_session.client_internal_id == self.__getattribute__("internal_id")
-        )
-
     async def authenticate_with_token(self, token):
         """Authenticate using a JWT token.
 
-        On failure, any state this connection adopted through REFRESH_CLIENT and
-        has not had confirmed is released straight away.
+        A failed authentication changes nothing on the row: the connection simply
+        stays unauthenticated and so cannot use any privilege recorded against
+        its uuid.
 
         :param token: The JWT access token.
         :returns: True on success.
         """
         user = await self._user_for_token(token)
         if user is None:
-            self._revoke_provisional("authentication failed")
             return False
 
         self.current_user_id = user.id
@@ -469,7 +420,6 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             if token:
                 await self.authenticate_with_token(token)
             else:
-                self._revoke_provisional("AUTHENTICATE without a token")
                 await self.write_message(
                     {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
                 )
@@ -517,7 +467,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 if self.current_user_id and show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
                     if show_session and not show_session.client_internal_id:
-                        if show_session.user_id == self.current_user_id:
+                        if (
+                            show_session.user_id == self.current_user_id
+                            and self._owned_row(session) is not None
+                        ):
                             show_session.client_internal_id = self.__getattribute__(
                                 "internal_id"
                             )
@@ -542,7 +495,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             elif ws_op == "SCRIPT_SCROLL":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
-                    if self._is_leader(show_session):
+                    if self._is_leader(session, show_session):
                         show_session.latest_line_ref = message["DATA"]["current_line"]
                         session.commit()
                         await self.application.ws_send_to_all(
@@ -551,7 +504,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             elif ws_op == "BEGIN_INTERVAL":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
-                    if self._is_leader(show_session):
+                    if self._is_leader(session, show_session):
                         act: Act = session.get(Act, message["DATA"]["actId"])
                         if not entry:
                             return
@@ -571,7 +524,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             elif ws_op == "END_INTERVAL":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
-                    if self._is_leader(show_session):
+                    if self._is_leader(session, show_session):
                         current_interval: Interval = session.get(
                             Interval, show_session.current_interval_id
                         )
@@ -587,7 +540,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             elif ws_op == "RELOAD_CLIENTS":
                 if show and show.current_session_id:
                     show_session = session.get(ShowSession, show.current_session_id)
-                    if self._is_leader(show_session):
+                    if self._is_leader(session, show_session):
                         await self.application.ws_send_to_all(
                             "RELOAD_CLIENT", "NOOP", {}
                         )
@@ -611,21 +564,16 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
     def _resume_client(self, new_uuid: Any) -> None:
         """Handle ``REFRESH_CLIENT``: a reconnecting page resumes its old uuid.
 
-        Cancels the old uuid's pending disconnect finalisation, deletes the
-        placeholder row that :meth:`open` created for this connection, and takes
-        over the old uuid's Session row if it still exists (that is, inside the
-        grace window). Otherwise a new row with no edit/cut flags is created.
-        A connection can resume at most once, and invalid payloads are ignored.
-
-        Adopted edit/cut flags, and leadership if the uuid still leads the live
-        show, are *provisional*: the adopting connection has not proved who it is
-        yet (client-v3 sends REFRESH_CLIENT before AUTHENTICATE, and uuids are not
-        secret). They are confirmed only by an AUTHENTICATE as the row's owner
-        (and, for leadership, the show session's user). A failed or mismatched
-        AUTHENTICATE releases them at once, and so does the grace window
-        expiring without one (:meth:`_expire_provisional`). Leadership that has
-        already been released is reclaimed on AUTHENTICATE, never here (see
-        :meth:`_reclaim_leadership`).
+        This restores *identity only*. It deletes the placeholder row that
+        :meth:`open` created and switches this connection to *new_uuid*, taking
+        over that uuid's Session row if it still exists; otherwise a new row
+        with no edit/cut flags is created. It does **not** cancel the uuid's
+        grace deadline and grants nothing: uuids are not secret, so the lock and
+        leadership recorded against the uuid can only be used once this
+        connection authenticates as the row's owner (see :meth:`_owned_row`), and
+        only that authentication cancels the deadline
+        (:meth:`_reconcile_after_auth`). A connection can resume at most once,
+        and invalid payloads are ignored.
 
         :param new_uuid: The uuid the client asks to resume.
         """
@@ -642,20 +590,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             return
         if new_uuid == self.__getattribute__("internal_id"):
             return
-        self._resumed = True
 
-        was_pending = self.application.pending_disconnects.cancel(
-            disconnect_key(new_uuid)
-        )
-        privileged = False
-        owner_id = None
         with self.make_session() as session:
             placeholder = session.get(Session, self._placeholder_id)
             if placeholder is not None:
                 session.delete(placeholder)
                 session.flush()
-            self.__setattr__("internal_id", new_uuid)
-
             entry = session.get(Session, new_uuid)
             if entry is None:
                 session.add(
@@ -664,34 +604,23 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         remote_ip=self.request.remote_ip,
                         last_ping=self._last_ping,
                         last_pong=self._last_pong,
-                        user_id=self.current_user_id,
                     )
                 )
             else:
                 entry.remote_ip = self.request.remote_ip
                 entry.last_ping = self._last_ping
                 entry.last_pong = self._last_pong
-                owner_id = entry.user_id
-                live_session = get_live_session(self.application, session)
-                privileged = bool(entry.is_editor or entry.is_cutting) or (
-                    live_session is not None
-                    and live_session.client_internal_id == new_uuid
-                )
             session.commit()
+        # Only switch in memory once the database agrees.
+        self.__setattr__("internal_id", new_uuid)
+        self._resumed = True
         get_logger().info(
-            f"WebSocket from {self.request.remote_ip} resumed client {new_uuid} "
-            f"({'within grace window' if was_pending else 'no pending disconnect'}"
-            f"{', session state held provisionally' if privileged else ''})"
+            f"WebSocket from {self.request.remote_ip} resumed client {new_uuid}"
         )
 
-        if not privileged:
-            return
-        self._begin_provisional(owner_id)
         if self.current_user_id is not None:
-            # Already authenticated on this socket: confirm or revoke now.
+            # Already authenticated on this socket: settle ownership now.
             self._reconcile_after_auth(self.current_user_id)
-        elif owner_id is None:
-            self._revoke_provisional("resumed state has no owner to confirm it")
 
     async def _is_live_session_active(self) -> bool:
         """Return True if a show session is currently running.
@@ -757,7 +686,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         :param entry: The requester's Session row, or None.
         :returns: True if the requester may proceed.
         """
-        if entry is None or not entry.is_editor:
+        if entry is None or not entry.is_editor or self._owned_row(session) is None:
             await self._reject_script_room_op(
                 "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
             )
@@ -812,7 +741,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     )
                     return
 
-                if not self._user_has_script_write_access(session, show):
+                # Ownership rule: the lock is recorded against this uuid's row,
+                # so only a connection authenticated as the row's owner may take it.
+                if (
+                    not self._user_has_script_write_access(session, show)
+                    or self._owned_row(session) is None
+                ):
                     await self._reject_script_room_op(
                         "REQUEST_EDIT_FAILURE",
                         "reason",
@@ -898,7 +832,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     )
                     return
 
-                if not self._user_has_script_write_access(session, show):
+                # Ownership rule: the lock is recorded against this uuid's row,
+                # so only a connection authenticated as the row's owner may take it.
+                if (
+                    not self._user_has_script_write_access(session, show)
+                    or self._owned_row(session) is None
+                ):
                     await self._reject_script_room_op(
                         "REQUEST_EDIT_FAILURE",
                         "reason",
@@ -958,7 +897,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             )
         elif ws_op == "STOP_SCRIPT_EDIT":
             with self.make_session() as session:
-                entry = session.get(Session, self.__getattribute__("internal_id"))
+                # Only the owner can give up the lock; a socket that merely
+                # presented the uuid must not be able to strip it.
+                entry = self._owned_row(session)
                 if entry and (entry.is_editor or entry.is_cutting):
                     entry.is_editor = False
                     entry.is_cutting = False
@@ -1029,9 +970,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             role = "viewer"
             if self.current_user_id:
                 with self.make_session() as role_session:
-                    ws_session = role_session.get(
-                        Session, self.__getattribute__("internal_id")
-                    )
+                    ws_session = self._owned_row(role_session)
                     if ws_session and ws_session.is_editor:
                         role = "editor"
 

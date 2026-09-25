@@ -1,9 +1,12 @@
 """Unit tests for shared WebSocket session-lifecycle helpers."""
 
+import asyncio
+
 from tornado.concurrent import Future
 from tornado.testing import gen_test
 from tornado.websocket import WebSocketClosedError
 
+from digi_server.logger import get_logger
 from test.conftest import DigiScriptTestCase
 from utils.web.ws_session_lifecycle import broadcast, safe_write
 
@@ -71,3 +74,22 @@ class TestBroadcastHelpers(DigiScriptTestCase):
     def test_safe_write_swallows_errors(self):
         safe_write(_FakeClient(self._app, raises=WebSocketClosedError()), {})
         safe_write(_FakeClient(self._app, raises=RuntimeError("boom")), {})
+
+    @gen_test
+    async def test_safe_write_logs_a_send_that_fails_later(self):
+        """``write_message`` is a coroutine: a failure lands in its Future, and
+        ``safe_write`` logs it with the client's uuid instead of losing it.
+        """
+
+        class _AsyncFailClient:
+            internal_id = "client-123"
+
+            def write_message(self, message):
+                failed = Future()
+                failed.set_exception(TypeError("not JSON serialisable"))
+                return failed
+
+        with self.assertLogs(get_logger(), level="ERROR") as logs:
+            safe_write(_AsyncFailClient(), {})
+            await asyncio.sleep(0)
+        self.assertTrue(any("client-123" in line for line in logs.output))
