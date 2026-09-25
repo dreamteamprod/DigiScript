@@ -43,6 +43,7 @@ from utils.module_discovery import get_resource_path, is_frozen
 from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
+from utils.web.pending_disconnects import PendingDisconnects
 from utils.web.route import Route
 
 
@@ -69,6 +70,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
         models.import_all_models()
 
         self.clients: List[WebSocketController] = []
+        # Reconnect grace window: owns every timer that releases a disconnected WS
+        # client's state, and the window length (issue #1419).
+        self.pending_disconnects: PendingDisconnects = PendingDisconnects()
 
         self._db: DigiSQLAlchemy = models.db
         self.jwt_service: JWTService = None
@@ -604,20 +608,26 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     def get_all_ws(self, user_id: int) -> List[WebSocketController]:
         sockets = []
-        for client in self.clients:
+        # Iterate a copy: a failed send calls on_close, which removes the peer.
+        for client in self.clients.copy():
             # Check JWT-based authentication (stored in controller property)
             if hasattr(client, "current_user_id") and client.current_user_id == user_id:
                 sockets.append(client)
         return sockets
 
     def get_ws(self, internal_uuid: str) -> Optional[WebSocketController]:
-        for client in self.clients:
+        # Newest first: while a reload is in flight, the old (stale) handler and
+        # the new handler that resumed its uuid can briefly both be connected, and
+        # the new one is the live page.
+        for client in reversed(self.clients):
             if client.__getattribute__("internal_id") == internal_uuid:
                 return client
         return None
 
     async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):
-        for client in self.clients:
+        # Iterate a copy: a failed send calls the peer's on_close, which removes it
+        # from self.clients and would otherwise make this loop skip the next one.
+        for client in self.clients.copy():
             await client.write_message(
                 {"OP": ws_op, "DATA": ws_data, "ACTION": ws_action}
             )
