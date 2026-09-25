@@ -130,6 +130,14 @@ class PendingDisconnects:
         for key in self._timers.copy():
             self.cancel(key)
 
+    def deadline(self, key: Hashable) -> Optional[float]:
+        """Return the IOLoop time at which the timer under *key* fires, or None.
+
+        :param key: Timer key.
+        """
+        entry = self._timers.get(key)
+        return entry[0].when() if entry is not None else None
+
     def is_scheduled(self, key: Hashable) -> bool:
         """Return True if a timer is scheduled under *key*.
 

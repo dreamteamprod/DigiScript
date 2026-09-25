@@ -19,7 +19,7 @@ from tornado.websocket import websocket_connect
 from models.script import Script
 from models.script_draft import ScriptDraft
 from models.session import Session, ShowSession
-from models.show import Show
+from models.show import Act, Show
 from models.user import User
 from services.password_service import PasswordService
 from test.conftest import DigiScriptTestCase
@@ -1363,7 +1363,7 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
         ws.close()
 
 
-class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
+class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
     """Reload / reconnect semantics for the WS session lifecycle (issue #1419, #1424).
 
     A browser reload closes the old socket and opens a new one that sends
@@ -1404,6 +1404,13 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
             session.add(viewer)
             session.flush()
             self.viewer_id = viewer.id
+
+            # A second write-capable user, for adopters that authenticate as
+            # someone other than the uuid's owner.
+            admin2 = User(username="admin2", password="hashed", is_admin=True)
+            session.add(admin2)
+            session.flush()
+            self.admin2_id = admin2.id
 
             show, _script, revision = create_show_script_revision(session)
             self.show_id = show.id
@@ -1525,6 +1532,12 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
         ws, placeholder_uuid = await self._connect_and_auth()
         self.assertNotEqual(old_uuid, placeholder_uuid)
         await ws.write_message(json.dumps({"OP": "REFRESH_CLIENT", "DATA": old_uuid}))
+        # Wait until the server has switched this connection to old_uuid.
+        deadline = asyncio.get_running_loop().time() + 3.0
+        while self._app.get_ws(placeholder_uuid) is not None:
+            if asyncio.get_running_loop().time() > deadline:
+                self.fail("server did not process REFRESH_CLIENT in time")
+            await asyncio.sleep(0.01)
         return ws, placeholder_uuid
 
     async def _reload(self, old_uuid, user_id, new_client=True):
@@ -1631,6 +1644,13 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
             ),
             raise_error=False,
         )
+
+
+class TestWSReconnectReclaim(_ReconnectTestBase):
+    """Reload / reconnect semantics for the WS session lifecycle (issue #1419, #1424).
+
+    See :class:`_ReconnectTestBase` for the sync points and timer handling.
+    """
 
     # ------------------------------------------------------------------
     # Reload where the old socket's on_close runs first: edit/cut flags
@@ -2441,3 +2461,253 @@ class TestWSReconnectReclaim(_WSTestHelpers, DigiScriptTestCase):
             self.assertIsNotNone(draft, "the dirty room was not checkpointed")
 
         ws_v.close()
+
+
+class TestWSUuidIsNotOwnership(_ReconnectTestBase):
+    """A client uuid is identity, not proof of ownership (review round 2, #1427).
+
+    Uuids are public (``show/sessions``, ``show/script/config``), so a socket that
+    presents one via ``REFRESH_CLIENT`` must never be able to *use* the edit/cut
+    lock or live-show leadership recorded against it, nor hold them past the
+    original grace deadline, nor take them away from the uuid's live owner.
+    Privileges may be used only by a connection authenticated as the row's owner
+    (and, for leader ops, as the show session's user).
+    """
+
+    def _holders(self, uuid):
+        return [c for c in self._app.clients if c.internal_id == uuid]
+
+    def _handler_for_user(self, uuid, user_id):
+        matches = [c for c in self._holders(uuid) if c.current_user_id == user_id]
+        self.assertEqual(1, len(matches))
+        return matches[0]
+
+    def _deadline(self, uuid):
+        return self._app.pending_disconnects.deadline(disconnect_key(uuid))
+
+    def _latest_line_ref(self):
+        with self._app.get_db().sessionmaker() as session:
+            show = session.get(Show, self.show_id)
+            return session.get(ShowSession, show.current_session_id).latest_line_ref
+
+    # -- 1. privileges promoted onto a uuid after an unauthenticated adoption --
+
+    @gen_test
+    async def test_adopter_of_uuid_later_elected_leader_cannot_drive(self):
+        """An unauthenticated socket that adopted a same-user tab's uuid *before*
+        that tab was elected leader cannot send leader ops once it is.
+        """
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        ws_f, uuid_f = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+
+        ws_x, _ = await self._refresh_only(uuid_f)  # not privileged yet
+
+        await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
+        await self._fire(disconnect_key(uuid_l))
+        await self._read_until(ws_f, action="ELECTED_LEADER")
+        self.assertEqual(uuid_f, self._live_session_state()[0])
+        await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
+
+        await ws_x.write_message(
+            json.dumps(
+                {"OP": "SCRIPT_SCROLL", "DATA": {"current_line": "page_9_line_9"}}
+            )
+        )
+        await ws_x.write_message(json.dumps({"OP": "RELOAD_CLIENTS", "DATA": {}}))
+        await asyncio.sleep(0.1)
+
+        follower_msgs = await self._drain(follower)
+        self.assertNotIn("SCRIPT_SCROLL", [m.get("ACTION") for m in follower_msgs])
+        self.assertNotIn("RELOAD_CLIENT", [m.get("OP") for m in follower_msgs])
+        self.assertNotEqual("page_9_line_9", self._latest_line_ref())
+
+        follower.close()
+        ws_f.close()
+        ws_x.close()
+
+    @gen_test
+    async def test_other_user_adopter_of_uuid_later_made_editor_cannot_write(self):
+        """A socket authenticated as a *different* user that adopted a tab's uuid
+        before that tab began editing gets the viewer role and cannot write, and
+        the tab's row stays with its owner.
+        """
+        ws_e, uuid_e = await self._connect_and_auth(self.admin_id)
+        observer, _ = await self._connect_and_auth(self.viewer_id)
+
+        ws_x, _ = await self._refresh_only(uuid_e)
+        self.assertEqual(
+            "WS_AUTH_SUCCESS",
+            await self._authenticate(ws_x, self._token(self.admin2_id)),
+        )
+        self.assertEqual(self.admin_id, self._session_row(uuid_e)[2])
+
+        await self._become_editor(ws_e, observer)
+        await self._join_room(ws_e)
+        await self._join_room(ws_x)
+        room = self._app.room_manager.get_active_room()
+        self.assertEqual(
+            "viewer", room.clients.get(self._handler_for_user(uuid_e, self.admin2_id))
+        )
+        await ws_x.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": ""}})
+        )
+        msg, _ = await self._read_until(ws_x, action="COLLAB_ERROR")
+        self.assertIn("permission", msg["DATA"]["error"].lower())
+
+        observer.close()
+        ws_e.close()
+        ws_x.close()
+
+    # -- 2/3. the original deadline is never cancelled or re-armed by adopters --
+
+    @gen_test
+    async def test_two_adopters_do_not_hold_lock_past_original_deadline(self):
+        """X1 and X2 both adopt a departed editor's uuid and X2 closes: the lock
+        is still released at the original deadline.
+        """
+        ws1, uuid1, observer = await self._editor_and_observer()
+        await self._close_and_wait(ws1, self._app.get_ws(uuid1))
+        original = self._deadline(uuid1)
+        self.assertIsNotNone(original)
+
+        ws_x1, _ = await self._refresh_only(uuid1)
+        ws_x2, _ = await self._refresh_only(uuid1)
+        await self._close_and_wait(ws_x2, self._app.get_ws(uuid1))
+
+        self.assertEqual(original, self._deadline(uuid1))
+        await self._fire(disconnect_key(uuid1))
+        await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
+        row = self._session_row(uuid1)
+        self.assertFalse(row is not None and (row[0] or row[1]))
+
+        observer.close()
+        ws_x1.close()
+
+    @gen_test
+    async def test_reconnect_cycling_does_not_extend_lock(self):
+        """A socket that keeps reconnecting with the uuid never pushes the
+        deadline back.
+        """
+        ws1, uuid1, observer = await self._editor_and_observer()
+        await self._close_and_wait(ws1, self._app.get_ws(uuid1))
+        original = self._deadline(uuid1)
+        self.assertIsNotNone(original)
+
+        for _ in range(3):
+            ws_x, _ = await self._refresh_only(uuid1)
+            await self._close_and_wait(ws_x, self._app.get_ws(uuid1))
+            self.assertEqual(original, self._deadline(uuid1))
+
+        await self._fire(disconnect_key(uuid1))
+        await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
+        self.assertIsNone(self._session_row(uuid1))
+
+        observer.close()
+
+    # -- 4. a failed adopter never touches the live owner's state --
+
+    async def _failed_adopter_leaves_owner_alone(self, token):
+        ws_o, uuid_o, follower = await self._editor_and_observer()
+        self._start_live_session(uuid_o, self.admin_id)
+
+        ws_x, _ = await self._refresh_only(uuid_o)
+        if token is None:
+            await ws_x.write_message(json.dumps({"OP": "AUTHENTICATE", "DATA": {}}))
+            await self._read_until(ws_x, op="WS_AUTH_ERROR")
+        else:
+            self.assertEqual("WS_AUTH_ERROR", await self._authenticate(ws_x, token))
+
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid_o))
+        self.assertEqual(uuid_o, self._live_session_state()[0])
+        actions = await self._actions(follower)
+        self.assertNotIn("NO_LEADER", actions)
+        self.assertNotIn("GET_SCRIPT_CONFIG_STATUS", actions)
+
+        # The owner can still drive.
+        await ws_o.write_message(
+            json.dumps(
+                {"OP": "SCRIPT_SCROLL", "DATA": {"current_line": "page_1_line_1"}}
+            )
+        )
+        await self._read_until(follower, action="SCRIPT_SCROLL")
+
+        follower.close()
+        ws_o.close()
+        ws_x.close()
+
+    @gen_test
+    async def test_adopter_without_token_does_not_strip_live_owner(self):
+        await self._failed_adopter_leaves_owner_alone(None)
+
+    @gen_test
+    async def test_adopter_with_bad_token_does_not_strip_live_owner(self):
+        await self._failed_adopter_leaves_owner_alone("not-a-jwt")
+
+    @gen_test
+    async def test_same_browser_tab_with_expired_token_does_not_strip_owner(self):
+        """A second same-browser tab (same uuid, same user) whose token is stale."""
+        await self._failed_adopter_leaves_owner_alone(
+            self._token(self.admin_id, expires_delta=timedelta(seconds=-10))
+        )
+
+    # -- 5. REST login with someone else's uuid --
+
+    @gen_test
+    async def test_rest_login_with_victims_uuid_neither_releases_nor_reassigns(self):
+        ws_o, uuid_o, follower = await self._editor_and_observer()
+        self._start_live_session(uuid_o, self.admin_id)
+
+        response = await self._post(
+            "/api/v1/auth/login",
+            {"username": "viewer", "password": "viewerpass", "session_id": uuid_o},
+        )
+        self.assertEqual(200, response.code)
+
+        self.assertEqual((True, False, self.admin_id), self._session_row(uuid_o))
+        self.assertEqual(uuid_o, self._live_session_state()[0])
+        actions = await self._actions(follower)
+        self.assertNotIn("NO_LEADER", actions)
+        self.assertNotIn("GET_SCRIPT_CONFIG_STATUS", actions)
+
+        follower.close()
+        ws_o.close()
+
+    # -- 6. the legitimate owner still has full use of what it confirmed --
+
+    @gen_test
+    async def test_confirmed_reloaded_leader_can_drive(self):
+        with self._app.get_db().sessionmaker() as session:
+            act = Act(show_id=self.show_id, name="Act 1")
+            session.add(act)
+            session.commit()
+            act_id = act.id
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        follower, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+        await self._close_and_wait(ws_l, self._app.get_ws(uuid_l))
+        ws_l2 = await self._reload(uuid_l, self.admin_id)
+
+        await ws_l2.write_message(
+            json.dumps(
+                {"OP": "SCRIPT_SCROLL", "DATA": {"current_line": "page_1_line_3"}}
+            )
+        )
+        msg, _ = await self._read_until(follower, action="SCRIPT_SCROLL")
+        self.assertEqual("page_1_line_3", msg["DATA"]["current_line"])
+        self.assertEqual("page_1_line_3", self._latest_line_ref())
+
+        await ws_l2.write_message(
+            json.dumps(
+                {"OP": "BEGIN_INTERVAL", "DATA": {"actId": act_id, "length": 15}}
+            )
+        )
+        await self._read_until(follower, action="GET_SHOW_SESSION_DATA")
+        with self._app.get_db().sessionmaker() as session:
+            show = session.get(Show, self.show_id)
+            live = session.get(ShowSession, show.current_session_id)
+            self.assertIsNotNone(live.current_interval_id)
+
+        follower.close()
+        ws_l2.close()
