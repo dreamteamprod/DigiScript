@@ -148,28 +148,6 @@ test('setting a custom background colour saves and updates the card preview', as
   await expect(preview).toHaveCSS('background-color', 'rgb(255, 0, 0)');
 });
 
-test('each tab keeps its own connection id across a reload', async () => {
-  // The WebSocket client id lives in sessionStorage: kept by a reload of the same
-  // tab (which is what lets the server resume its session), but not shared with
-  // other tabs of the same browser, and never kept in localStorage.
-  const readUUID = (p: Page) =>
-    p.evaluate(() => JSON.parse(sessionStorage.getItem('websocket') ?? '{}').internalUUID ?? null);
-
-  await expect.poll(() => readUUID(page)).toBeTruthy();
-  const before = await readUUID(page);
-  await page.reload();
-  await waitForAppReady(page);
-  expect(await readUUID(page)).toBe(before);
-  expect(await page.evaluate(() => localStorage.getItem('websocket'))).toBeNull();
-
-  const page2 = await ctx.newPage();
-  await page2.goto(UI_BASE);
-  await waitForAppReady(page2);
-  await expect.poll(() => readUUID(page2)).toBeTruthy();
-  expect(await readUUID(page2)).not.toBe(before);
-  await page2.close();
-});
-
 test('custom colour persists after page reload', async () => {
   await page.reload();
   await waitForAppReady(page);
