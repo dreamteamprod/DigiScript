@@ -129,8 +129,9 @@ def holders(app: DigiScriptServer, internal_id: str) -> List[Any]:
     """Return every connected handler that currently uses *internal_id*.
 
     More than one handler can hold a uuid: a reload's new socket and the old one
-    that has not closed yet, same-browser client-v3 tabs (the uuid lives in
-    localStorage), or a socket that presented someone else's uuid.
+    that has not closed yet, a tab and its browser-"duplicated" copy (both
+    clients keep the uuid in per-tab sessionStorage, which duplication copies),
+    or a socket that presented someone else's uuid.
 
     :param app: The application.
     :param internal_id: The client uuid.

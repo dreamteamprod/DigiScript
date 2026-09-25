@@ -220,7 +220,7 @@ class LogoutHandler(BaseAPIController):
 
         Releases the client's edit/cut lock and live-show leadership (with the
         usual broadcasts), clears its user, and marks every connection using
-        that uuid (for example several same-browser client-v3 tabs) as logged
+        that uuid (for example a tab and its browser-duplicated copy) as logged
         out. Only acts on a client that belongs to the current user, so logout
         can't be used against someone else's client.
 

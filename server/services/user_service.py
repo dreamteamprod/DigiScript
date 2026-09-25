@@ -103,7 +103,7 @@ class UserService:
 
         while user_sessions and session_logout_attempts < 5:
             for user_session in user_sessions:
-                # Every connection using the uuid (e.g. same-browser tabs).
+                # Every connection using the uuid (e.g. a duplicated tab).
                 for ws_session in holders(self.application, user_session.internal_id):
                     await ws_session.write_message(
                         {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}

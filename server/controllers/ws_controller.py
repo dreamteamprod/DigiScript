@@ -163,7 +163,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         Tornado calls this when the socket drops, and ``write_message`` calls it
         again if a write finds the socket closed, so it only acts once per
         handler. If a connection authenticated as the row's owner still holds
-        this uuid (the owner's reloaded tab, or another of its same-browser
+        this uuid (the owner's reloaded tab, or a duplicate of that
         tabs), nothing is released. Otherwise the uuid's grace deadline starts
         (see :func:`schedule_disconnect_deadline`), unless one is already
         running, in which case the original deadline is kept. At the deadline

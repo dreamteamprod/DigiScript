@@ -1,6 +1,21 @@
 import { defineStore } from 'pinia';
 import log from 'loglevel';
 
+/** Storage key of the persisted websocket store (the plugin's default, the store id). */
+export const WEBSOCKET_PERSIST_KEY = 'websocket';
+
+/**
+ * Remove the client uuid that builds before the per-tab change persisted in
+ * localStorage, so that a stale shared value is never read again.
+ */
+export function removeLegacyPersistedUUID(): void {
+  try {
+    localStorage.removeItem(WEBSOCKET_PERSIST_KEY);
+  } catch (e) {
+    log.warn('Unable to remove legacy persisted websocket state', e);
+  }
+}
+
 export const useWebSocketStore = defineStore('websocket', {
   state: () => ({
     isConnected: false,
@@ -12,8 +27,16 @@ export const useWebSocketStore = defineStore('websocket', {
     // Registered by the useWebSocket composable — allows stores to send WS messages
     _sendFn: null as ((data: object) => void) | null,
   }),
+  // The client uuid is per tab (sessionStorage), like the legacy client: it
+  // survives a reload of the same tab, which is what REFRESH_CLIENT needs, but
+  // separate tabs no longer share one server session. Older builds kept it in
+  // localStorage under the same key; that copy is removed before hydrating so
+  // tabs stop picking up a shared uuid from it.
   persist: {
+    key: WEBSOCKET_PERSIST_KEY,
+    storage: sessionStorage,
     pick: ['internalUUID'],
+    beforeHydrate: () => removeLegacyPersistedUUID(),
   },
   getters: {
     websocketHealthy: (state) => state.isConnected,

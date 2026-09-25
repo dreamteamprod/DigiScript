@@ -2847,7 +2847,8 @@ class TestWSUuidIsNotOwnership(_ReconnectTestBase):
 
     @gen_test
     async def test_same_browser_tab_with_expired_token_does_not_strip_owner(self):
-        """A second same-browser tab (same uuid, same user) whose token is stale."""
+        """A second tab on the same uuid (e.g. a duplicated tab), same user, whose
+        token is stale."""
         await self._failed_adopter_leaves_owner_alone(
             self._token(self.admin_id, expires_delta=timedelta(seconds=-10))
         )
@@ -2966,7 +2967,7 @@ class TestWSUuidIsNotOwnership(_ReconnectTestBase):
 
     @gen_test
     async def test_logout_logs_out_every_tab_sharing_the_uuid(self):
-        """Same-browser tabs share one uuid; logout marks all of them logged out."""
+        """Tabs sharing one uuid (a duplicated tab) are all marked logged out."""
         ws1, uuid1 = await self._connect_and_auth(self.admin_id)
         ws2, _ = await self._refresh_only(uuid1)
         self.assertEqual(
