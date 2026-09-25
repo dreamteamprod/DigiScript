@@ -73,7 +73,7 @@ Every live show session is recorded with start/end times and can be tagged for o
 
 ### Requirements
 
-* Node v24.x (pnpm 12.x: run `corepack enable` once and it will use the version pinned in `packageManager`)
+* Node v24.15+ (pnpm 12.x: run `corepack enable` once and it will use the version pinned in `packageManager`)
 * Python 3.13.x
 
 ### Quick Start with Docker Compose (Recommended)

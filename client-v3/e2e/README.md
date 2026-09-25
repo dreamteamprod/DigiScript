@@ -5,7 +5,7 @@ Tests run against a real backend instance with a clean SQLite database, covering
 
 ## Prerequisites
 
-* Node 24.x with dependencies installed (`pnpm install` in `client-v3/`)
+* Node 24.15+ with dependencies installed (`pnpm install` in `client-v3/`)
 * Python 3.13.x with dependencies installed (`pip install -r requirements.txt` in `server/`)
 * A production build of the frontend (`pnpm run build` in `client-v3/`)
 

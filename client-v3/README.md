@@ -1,6 +1,6 @@
 # DigiScript Client (V3)
 
-**Requirements**: Node 24.x, pnpm 12.x (run `corepack enable` once; it uses the version pinned in `packageManager`)
+**Requirements**: Node 24.15+, pnpm 12.x (run `corepack enable` once; it uses the version pinned in `packageManager`)
 
 ## Project setup
 ```
