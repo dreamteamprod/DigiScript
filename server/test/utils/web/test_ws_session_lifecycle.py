@@ -93,3 +93,26 @@ class TestBroadcastHelpers(DigiScriptTestCase):
             safe_write(_AsyncFailClient(), {})
             await asyncio.sleep(0)
         self.assertTrue(any("client-123" in line for line in logs.output))
+
+    @gen_test
+    async def test_safe_write_logs_a_failure_after_the_write_started(self):
+        """WebSocketController.write_message is a @gen.coroutine with no yield: its
+        Future resolves at once with the *inner* write Future, which can fail
+        later (stream closed mid-write). That failure is logged too.
+        """
+        inner = Future()
+
+        class _LateFailClient:
+            internal_id = "client-456"
+
+            def write_message(self, message):
+                outer = Future()
+                outer.set_result(inner)
+                return outer
+
+        with self.assertLogs(get_logger(), level="ERROR") as logs:
+            safe_write(_LateFailClient(), {})
+            await asyncio.sleep(0)
+            inner.set_exception(RuntimeError("stream closed"))
+            await asyncio.sleep(0)
+        self.assertTrue(any("client-456" in line for line in logs.output))

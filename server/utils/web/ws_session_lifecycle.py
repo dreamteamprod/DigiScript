@@ -47,17 +47,25 @@ def _log_failed_send(client: Any, future) -> None:
             f"Failed to send WebSocket message to client "
             f"{getattr(client, 'internal_id', '?')}: {error!r}"
         )
+        return
+    # WebSocketController.write_message is a @gen.coroutine with no yield: its
+    # Future resolves at once with the *inner* stream-write Future as its result,
+    # so a failure after the write started only shows up on that one.
+    inner = future.result()
+    if inner is not None and hasattr(inner, "add_done_callback"):
+        inner.add_done_callback(lambda fut: _log_failed_send(client, fut))
 
 
 def safe_write(client: Any, message: Dict[str, Any]) -> None:
     """Send *message* to *client*, never raising, and log a failed send.
 
-    ``WebSocketController.write_message`` is a coroutine: a failure (for example a
-    message that cannot be JSON-encoded) lands in the Future it returns, not in
-    an exception here, so the Future gets a done-callback that logs it together
-    with the client's uuid. A closed socket is already handled inside
-    ``write_message``. The ``except`` covers handlers whose ``write_message``
-    raises synchronously.
+    ``WebSocketController.write_message`` is a coroutine: a failure lands in the
+    Future it returns (for example a message that cannot be JSON-encoded) or in
+    the inner stream-write Future that one resolves to (a failure after the
+    write started), not in an exception here. Both get a done-callback that logs
+    the failure with the client's uuid. A closed socket is already handled
+    inside ``write_message``. The ``except`` covers handlers whose
+    ``write_message`` raises synchronously.
 
     :param client: A WebSocket handler.
     :param message: The message dict to send.
@@ -250,7 +258,13 @@ def elect_live_leader(app: DigiScriptServer, departed_id: str) -> None:
             f"Leader election after {departed_id} failed to commit; telling "
             f"followers there is no leader"
         )
-        next_ws = None
+        # The rollback can leave the departed uuid recorded as leader (when the
+        # caller did not delete its row). Clear it in a fresh session so that
+        # re-fetched session data agrees with NO_LEADER and NEW_CLIENT can claim.
+        broadcast(app, "NO_LEADER")
+        if _clear_stale_leader(app, departed_id):
+            broadcast(app, "GET_SHOW_SESSION_DATA")
+        return
 
     if next_ws is not None:
         safe_write(
@@ -264,6 +278,28 @@ def elect_live_leader(app: DigiScriptServer, departed_id: str) -> None:
     else:
         broadcast(app, "NO_LEADER")
     broadcast(app, "GET_SHOW_SESSION_DATA")
+
+
+def _clear_stale_leader(app: DigiScriptServer, departed_id: str) -> bool:
+    """Clear leadership still recorded for *departed_id* after a failed election.
+
+    :returns: True if the live session no longer names *departed_id* as leader.
+    """
+    try:
+        with app.get_db().sessionmaker() as session:
+            live_session = get_live_session(app, session)
+            if live_session is None:
+                return True
+            if live_session.client_internal_id == departed_id:
+                live_session.client_internal_id = None
+                live_session.last_client_internal_id = departed_id
+                session.commit()
+            return True
+    except Exception:
+        get_logger().exception(
+            f"Could not clear leadership of departed client {departed_id}"
+        )
+        return False
 
 
 def schedule_room_close(app: DigiScriptServer, room) -> None:
@@ -454,25 +490,6 @@ def _delete_session_row(
     return had_lock, was_leader
 
 
-def _adopt_row_for_sole_user(app: DigiScriptServer, internal_id: str) -> None:
-    """Give the row to the connected user holding it, if there is exactly one.
-
-    Called at the deadline when the owner never came back but other connections
-    still hold the uuid (for example, a browser that switched to a different
-    user). If every holder is authenticated as the same user, that user becomes
-    the owner. The owner's privileges have already been released by then.
-    """
-    users = {getattr(c, "current_user_id", None) for c in holders(app, internal_id)}
-    if len(users) != 1 or None in users:
-        return
-    (user_id,) = users
-    with app.get_db().sessionmaker() as session:
-        entry = session.get(Session, internal_id)
-        if entry is not None and assign_session_user(entry, user_id):
-            broadcast(app, "GET_SCRIPT_CONFIG_STATUS")
-        session.commit()
-
-
 def finalise_disconnect(app: DigiScriptServer, internal_id: str, attempt: int = 1):
     """Grace deadline for a departed client *internal_id*.
 
@@ -480,8 +497,9 @@ def finalise_disconnect(app: DigiScriptServer, internal_id: str, attempt: int = 
       owner is back and nothing happens.
     * If other connections hold the uuid but none is authenticated as its owner,
       the owner's edit/cut lock and leadership are released. The row is kept,
-      because those sockets still use it; deleting it would only have the next
-      ping recreate it.
+      with its owner, because those sockets still use it (deleting it would only
+      have the next ping recreate it); none of them can own it unless it
+      authenticates as that owner.
     * Otherwise the row is deleted. After the commit succeeds, a released lock is
       announced and leadership is handed on. If the delete fails, it is retried
       (:data:`FINALISE_ATTEMPTS`) and then released without deleting.
@@ -499,12 +517,14 @@ def finalise_disconnect(app: DigiScriptServer, internal_id: str, attempt: int = 
         return
 
     if holders(app, internal_id):
-        release_session_privileges(
-            app,
-            internal_id,
-            "grace window expired and its owner did not authenticate again",
-        )
-        _adopt_row_for_sole_user(app, internal_id)
+        try:
+            release_session_privileges(
+                app,
+                internal_id,
+                "grace window expired and its owner did not authenticate again",
+            )
+        except Exception:
+            _finalise_failed(app, internal_id, attempt)
         return
 
     try:

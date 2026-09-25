@@ -38,7 +38,6 @@ from utils.web.ws_session_lifecycle import (
     broadcast,
     get_live_session,
     owner_is_connected,
-    release_session_privileges,
     row_owner,
     safe_write,
     schedule_disconnect_deadline,
@@ -101,6 +100,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         self._placeholder_id: Optional[str] = None
         # A connection may resume a uuid via REFRESH_CLIENT at most once.
         self._resumed = False
+        # The uuid this connection presented with REFRESH_CLIENT, even if it was
+        # not resumed (its row had gone); used for the late leadership reclaim.
+        self._presented_uuid: Optional[str] = None
 
     def update_session(self, user_id=None) -> bool:
         """Create or refresh the Session row for this connection's uuid.
@@ -164,7 +166,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         again if a write finds the socket closed, so it only acts once per
         handler. If a connection authenticated as the row's owner still holds
         this uuid (the owner's reloaded tab, or a duplicate of that
-        tabs), nothing is released. Otherwise the uuid's grace deadline starts
+        tab), nothing is released. Otherwise the uuid's grace deadline starts
         (see :func:`schedule_disconnect_deadline`), unless one is already
         running, in which case the original deadline is kept. At the deadline
         :func:`finalise_disconnect` releases the Session row, its edit/cut lock
@@ -283,52 +285,76 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
     def _reconcile_after_auth(self, user_id: int) -> None:
         """Settle who owns this connection's uuid once it has authenticated.
 
-        * No row: a row owned by *user_id* is created.
-        * Owned by *user_id*: the owner is back. Its grace deadline (if any) is
-          cancelled and its lock and leadership carry on.
-        * Owned by someone else who is still connected as its owner (a shared or
-          presented uuid): the row is left alone and this connection gets no
-          privileges.
-        * Owned by someone else whose grace deadline is running: left alone
-          until the deadline decides (see :func:`finalise_disconnect`).
-        * No owner, or an owner that is gone with no deadline pending (this same
-          socket switching user): *user_id* takes the client over. Anything the
-          old owner held is released, with the usual broadcasts.
+        A different user never inherits another user's client uuid:
+
+        * No row, a row with no owner (a placeholder that never authenticated),
+          or a row owned by *user_id*: this user owns it. Its grace deadline (if
+          any) is cancelled and its lock and leadership carry on.
+        * A row owned by another user: this connection is moved to a fresh uuid
+          of its own (:meth:`_move_to_fresh_uuid`), and the client is told to
+          store it. The other user's row is left alone, and if its owner is not
+          connected on it, its normal grace deadline runs.
         * Finally, a departed leader coming back after its deadline reclaims
           leadership (see :meth:`_reclaim_leadership`).
 
         :param user_id: The authenticated user.
         """
         internal_id = self.__getattribute__("internal_id")
-        registry = self.application.pending_disconnects
         exists, owner_id = row_owner(self.application, internal_id)
 
-        if not exists or owner_id == user_id:
+        if exists and owner_id is not None and owner_id != user_id:
+            self._move_to_fresh_uuid(
+                user_id, f"client {internal_id} belongs to user {owner_id}"
+            )
+            if not owner_is_connected(self.application, internal_id, owner_id):
+                schedule_disconnect_deadline(self.application, internal_id)
+        else:
             self.update_session(user_id=user_id)
-            if registry.cancel(disconnect_key(internal_id)):
+            if self.application.pending_disconnects.cancel(disconnect_key(internal_id)):
                 get_logger().info(
                     f"Client {internal_id} is back as its owner; grace deadline "
                     f"cancelled"
                 )
-        elif owner_is_connected(
-            self.application, internal_id, owner_id, exclude=self
-        ) or registry.is_pending(internal_id):
-            get_logger().info(
-                f"Client {internal_id} is owned by user {owner_id}, not {user_id}; "
-                f"this connection gets none of its privileges"
-            )
-            self.update_session()
-            return
-        else:
-            release_session_privileges(
-                self.application, internal_id, f"taken over by user {user_id}"
-            )
-            if self.update_session(user_id=user_id):
-                broadcast(self.application, "GET_SCRIPT_CONFIG_STATUS")
         self._reclaim_leadership(user_id)
+
+    def _move_to_fresh_uuid(self, user_id: int, reason: str) -> None:
+        """Give this connection a new client uuid of its own, owned by *user_id*.
+
+        Used when the uuid it holds belongs to another user, so that a tab is
+        never stuck on a uuid it cannot use. The client is sent
+        ``REASSIGN_UUID`` with the new uuid and stores it in place of the old
+        one, without trying to resume anything.
+
+        :param user_id: The authenticated user who will own the new uuid.
+        :param reason: Why, for the log.
+        """
+        old_uuid = self.__getattribute__("internal_id")
+        new_uuid = str(uuid4())
+        with self.make_session() as session:
+            session.add(
+                Session(
+                    internal_id=new_uuid,
+                    remote_ip=self.request.remote_ip,
+                    last_ping=self._last_ping,
+                    last_pong=self._last_pong,
+                    user_id=user_id,
+                )
+            )
+            session.commit()
+        self.__setattr__("internal_id", new_uuid)
+        get_logger().info(
+            f"Moved a connection of user {user_id} from client {old_uuid} to a fresh "
+            f"client {new_uuid}: {reason}"
+        )
+        safe_write(self, {"OP": "REASSIGN_UUID", "DATA": new_uuid})
 
     def _reclaim_leadership(self, user_id: int) -> None:
         """Give leadership back to a departed leader that authenticated again.
+
+        The departed leader is recognised by ``last_client_internal_id``: either
+        this connection holds that uuid, or it presented it with REFRESH_CLIENT
+        but was kept on a fresh uuid because that client's row had gone. Only
+        the show session's user can reclaim.
 
         :param user_id: The authenticated user.
         """
@@ -338,7 +364,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             if (
                 live_session is None
                 or live_session.client_internal_id is not None
-                or live_session.last_client_internal_id != internal_id
+                or live_session.last_client_internal_id
+                not in (internal_id, self._presented_uuid)
                 or live_session.user_id != user_id
                 # Defence in depth: reconcile only reaches here once the row is
                 # owned by user_id, so this check cannot fail today.
@@ -365,7 +392,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
         A failed authentication changes nothing on the row: the connection simply
         stays unauthenticated and so cannot use any privilege recorded against
-        its uuid.
+        its uuid. If settling ownership fails (for example a database error),
+        the connection is left unauthenticated and told so, never half
+        authenticated.
 
         :param token: The JWT access token.
         :returns: True on success.
@@ -374,12 +403,24 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         if user is None:
             return False
 
+        previous = (self.current_user_id, self.current_username)
         self.current_user_id = user.id
         self.current_username = user.username
+        try:
+            self._reconcile_after_auth(user.id)
+        except Exception:
+            self.current_user_id, self.current_username = previous
+            get_logger().exception(
+                f"Could not settle client {getattr(self, 'internal_id', '?')} for "
+                f"user {user.id} ({self.request.remote_ip}); not authenticated"
+            )
+            await self.write_message(
+                {"OP": "WS_AUTH_ERROR", "DATA": "Authentication failed"}
+            )
+            return False
         get_logger().info(
             f"WebSocket authenticated: {user.username} from {self.request.remote_ip}"
         )
-        self._reconcile_after_auth(user.id)
 
         await self.write_message(
             {
@@ -436,12 +477,23 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             )
             return
 
-        if ws_op in ("AUTHENTICATE", "REFRESH_TOKEN"):
-            await self._handle_auth_op(ws_op, message)
-        elif ws_op in self._SCRIPT_ROOM_OP_HANDLERS:
-            await self._handle_script_room_op(ws_op, message)
-        else:
-            await self._handle_session_op(ws_op, message)
+        # Connection boundary: an exception escaping on_message ends Tornado's
+        # read loop without calling on_close, leaving a handler that no longer
+        # reads frames but still counts as a connected owner. Each op keeps its
+        # own state consistent (authentication rolls itself back), so a failed
+        # op is logged and the connection carries on.
+        try:
+            if ws_op in ("AUTHENTICATE", "REFRESH_TOKEN"):
+                await self._handle_auth_op(ws_op, message)
+            elif ws_op in self._SCRIPT_ROOM_OP_HANDLERS:
+                await self._handle_script_room_op(ws_op, message)
+            else:
+                await self._handle_session_op(ws_op, message)
+        except Exception:
+            get_logger().exception(
+                f"Unhandled error in WS op {ws_op} from client "
+                f"{getattr(self, 'internal_id', '?')} ({self.request.remote_ip})"
+            )
 
     async def _handle_auth_op(self, ws_op: str, message: dict) -> None:
         """Handle ``AUTHENTICATE`` / ``REFRESH_TOKEN``.
@@ -449,7 +501,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         :param ws_op: The operation code.
         :param message: The full parsed message dict.
         """
-        token = message.get("DATA", {}).get("token")
+        data = message.get("DATA")
+        token = data.get("token") if isinstance(data, dict) else None
         if not token:
             await self.write_message(
                 {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
@@ -484,6 +537,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 if self._is_leader(session, show_session):
                     handler = getattr(self, self._LEADER_OP_HANDLERS[ws_op])
                     await handler(session, show_session, entry, message["DATA"])
+                else:
+                    get_logger().debug(
+                        f"Ignored {ws_op} from client "
+                        f"{self.__getattribute__('internal_id')} (user "
+                        f"{self.current_user_id}): not the live-show leader"
+                    )
             elif ws_op == "LIVE_SHOW_JUMP_TO_PAGE":
                 await self._jump_to_page(session, show, message["DATA"])
             else:
@@ -495,16 +554,23 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
     def _resume_client(self, new_uuid: Any) -> None:
         """Handle ``REFRESH_CLIENT``: a reconnecting page resumes its old uuid.
 
-        This restores *identity only*. It deletes the placeholder row that
-        :meth:`open` created and switches this connection to *new_uuid*, taking
-        over that uuid's Session row if it still exists; otherwise a new row
-        with no edit/cut flags is created. It does **not** cancel the uuid's
-        grace deadline and grants nothing: uuids are not secret, so the lock and
-        leadership recorded against the uuid can only be used once this
-        connection authenticates as the row's owner (see :meth:`_owned_row`), and
-        only that authentication cancels the deadline
-        (:meth:`_reconcile_after_auth`). A connection can resume at most once,
-        and invalid payloads are ignored.
+        This restores *identity only*. If *new_uuid* still has a Session row
+        (inside its grace window, or still held by another connection), the
+        placeholder row that :meth:`open` created is deleted and this connection
+        switches to *new_uuid*. It does **not** cancel the uuid's grace deadline
+        and grants nothing: uuids are not secret, so the lock and leadership
+        recorded against the uuid can only be used once this connection
+        authenticates as the row's owner (see :meth:`_owned_row`), and only that
+        authentication cancels the deadline (:meth:`_reconcile_after_auth`).
+
+        If the row has gone (its deadline passed), it is **not** recreated: an
+        unowned recreated row could be claimed by whoever authenticates first.
+        The connection keeps its own fresh uuid, the client is told to store it
+        (``REASSIGN_UUID``), and the presented uuid is remembered so the show's
+        user can still reclaim leadership it held under it
+        (:meth:`_reclaim_leadership`).
+
+        A connection can resume at most once, and invalid payloads are ignored.
 
         :param new_uuid: The uuid the client asks to resume.
         """
@@ -523,32 +589,34 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             return
 
         with self.make_session() as session:
-            placeholder = session.get(Session, self._placeholder_id)
-            if placeholder is not None:
-                session.delete(placeholder)
-                session.flush()
             entry = session.get(Session, new_uuid)
-            if entry is None:
-                session.add(
-                    Session(
-                        internal_id=new_uuid,
-                        remote_ip=self.request.remote_ip,
-                        last_ping=self._last_ping,
-                        last_pong=self._last_pong,
-                    )
-                )
-            else:
+            if entry is not None:
+                placeholder = session.get(Session, self._placeholder_id)
+                if placeholder is not None:
+                    session.delete(placeholder)
                 entry.remote_ip = self.request.remote_ip
                 entry.last_ping = self._last_ping
                 entry.last_pong = self._last_pong
-            session.commit()
-        # Only switch in memory once the database agrees.
-        self.__setattr__("internal_id", new_uuid)
+                session.commit()
+        # Only change in-memory state once the database agrees.
         self._resumed = True
+        self._presented_uuid = new_uuid
+
+        if entry is None:
+            placeholder_id = self.__getattribute__("internal_id")
+            get_logger().info(
+                f"WebSocket from {self.request.remote_ip} asked to resume client "
+                f"{new_uuid}, which no longer exists; keeping {placeholder_id}"
+            )
+            safe_write(self, {"OP": "REASSIGN_UUID", "DATA": placeholder_id})
+            if self.current_user_id is not None:
+                self._reclaim_leadership(self.current_user_id)
+            return
+
+        self.__setattr__("internal_id", new_uuid)
         get_logger().info(
             f"WebSocket from {self.request.remote_ip} resumed client {new_uuid}"
         )
-
         if self.current_user_id is not None:
             # Already authenticated on this socket: settle ownership now.
             self._reconcile_after_auth(self.current_user_id)

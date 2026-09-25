@@ -1,12 +1,17 @@
 """User service for user management operations"""
 
 from sqlalchemy import select
-from tornado import gen
 
+from digi_server.logger import get_logger
 from models.session import Session
 from models.user import User
 from services.password_service import PasswordService
-from utils.web.ws_session_lifecycle import holders
+from utils.web.ws_session_lifecycle import (
+    holders,
+    release_session_privileges,
+    safe_write,
+    schedule_disconnect_deadline,
+)
 
 
 class UserService:
@@ -85,33 +90,40 @@ class UserService:
         Force logout user from all active sessions via WebSocket.
 
         Process:
-        1. Send USER_LOGOUT WebSocket message to all user sessions
-        2. Wait for sessions to clear (with retry loop)
-        3. Manually send logout to any remaining sessions
-           Best-effort - some sessions may not receive message if offline
+        1. Send USER_LOGOUT to every connection authenticated as the user, and to
+           any other connection using one of the user's client uuids.
+        2. Mark all of those connections logged out on the server straight
+           away, rather than waiting for each client's REST logout (which
+           usually fails with 401 after a token_version bump).
+        3. Release each client's edit/cut lock, collaborative-room editor role
+           and live-show leadership, with the usual broadcasts (NO_LEADER or
+           ELECTED_LEADER).
 
         :param session: SQLAlchemy session
         :param user: User model instance
         :type user: User
         """
         await self.application.ws_send_to_user(user.id, "NOOP", "USER_LOGOUT", {})
+        logout_message = {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
 
-        session_logout_attempts = 0
-        user_sessions = session.scalars(
-            select(Session).where(Session.user_id == user.id)
+        client_ids = session.scalars(
+            select(Session.internal_id).where(Session.user_id == user.id)
         ).all()
-
-        while user_sessions and session_logout_attempts < 5:
-            for user_session in user_sessions:
-                # Every connection using the uuid (e.g. a duplicated tab).
-                for ws_session in holders(self.application, user_session.internal_id):
-                    await ws_session.write_message(
-                        {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
-                    )
-                    ws_session.current_user_id = None
-
-            await gen.sleep(0.2)
-            user_sessions = session.scalars(
-                select(Session).where(Session.user_id == user.id)
-            ).all()
-            session_logout_attempts += 1
+        for client_id in client_ids:
+            # Every connection using the uuid (e.g. a duplicated tab).
+            for ws_session in holders(self.application, client_id):
+                if ws_session.current_user_id != user.id:
+                    # Not reached by ws_send_to_user above.
+                    safe_write(ws_session, logout_message)
+                ws_session.current_user_id = None
+            try:
+                release_session_privileges(self.application, client_id, "forced logout")
+            except Exception:
+                get_logger().exception(
+                    f"Forced logout of user {user.id}: could not release client "
+                    f"{client_id} now; releasing it at its grace deadline"
+                )
+                schedule_disconnect_deadline(self.application, client_id)
+        # Any other connection still authenticated as this user.
+        for ws_session in self.application.get_all_ws(user.id):
+            ws_session.current_user_id = None

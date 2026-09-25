@@ -22,6 +22,7 @@ from utils.web.ws_session_lifecycle import (
     assign_session_user,
     holders,
     release_session_privileges,
+    schedule_disconnect_deadline,
 )
 
 
@@ -218,11 +219,13 @@ class LogoutHandler(BaseAPIController):
     def _log_out_client(self, session_id: str) -> None:
         """Detach the current user from their WebSocket client *session_id*.
 
-        Releases the client's edit/cut lock and live-show leadership (with the
-        usual broadcasts), clears its user, and marks every connection using
-        that uuid (for example a tab and its browser-duplicated copy) as logged
-        out. Only acts on a client that belongs to the current user, so logout
-        can't be used against someone else's client.
+        Marks every connection using that uuid (for example a tab and its
+        browser-duplicated copy) as logged out, then releases the client's
+        edit/cut lock and live-show leadership (with the usual broadcasts). The
+        row keeps its owner: a different user who later logs in on this tab is
+        moved to a fresh client uuid rather than inheriting this one. Only acts
+        on a client that belongs to the current user, so logout can't be used
+        against someone else's client.
 
         :param session_id: The client uuid sent by the logging-out page.
         """
@@ -232,12 +235,15 @@ class LogoutHandler(BaseAPIController):
                 return
         for ws_controller in holders(self.application, session_id):
             ws_controller.current_user_id = None
-        release_session_privileges(self.application, session_id, "user logged out")
-        with self.make_session() as session:
-            ws_session = session.get(Session, session_id)
-            if ws_session:
-                ws_session.user = None
-                session.commit()
+        try:
+            release_session_privileges(self.application, session_id, "user logged out")
+        except Exception:
+            # Its connections are already logged out, so the lock and leadership
+            # can't be used; start the grace deadline so they are released when
+            # it expires (finalise releases a row held only by unauthenticated
+            # connections).
+            schedule_disconnect_deadline(self.application, session_id)
+            raise
 
     @api_authenticated
     @allow_when_password_required
@@ -260,8 +266,9 @@ class LogoutHandler(BaseAPIController):
                 except Exception:
                     get_logger().exception(
                         f"Logout of user {self.current_user['id']}: could not "
-                        f"release client {session_id}; its lock and leadership "
-                        f"are released at the end of its next grace window"
+                        f"release client {session_id} now; its connections are "
+                        f"logged out, and its lock and leadership are released "
+                        f"when its grace deadline expires"
                     )
 
             self.set_status(200)
