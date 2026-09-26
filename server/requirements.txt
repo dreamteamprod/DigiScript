@@ -10,5 +10,5 @@ marshmallow>=4.3.1,<5
 pyjwt[crypto]==2.14.0
 setuptools==82.0.1
 xkcdpass==1.30.0
-pycrdt==0.14.5
+pycrdt==0.14.6
 python-jsonpath==2.2.1
