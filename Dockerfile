@@ -25,7 +25,7 @@ COPY /client-v3 /client-v3
 COPY /docs /docs
 RUN pnpm run build
 
-FROM python:3.13-bookworm
+FROM python:3.15-bookworm
 
 COPY /server/requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
