@@ -72,8 +72,16 @@ class UserService:
         session.commit()
 
         if force_logout_sessions:
-            # Force logout all WebSocket sessions
-            await self.force_logout_all_sessions(session, user)
+            # Force logout all WebSocket sessions. The password change has
+            # already landed, so a failure here must not fail the request.
+            try:
+                await self.force_logout_all_sessions(session, user)
+            except Exception:
+                get_logger().exception(
+                    f"Password change for user {user.id}: forced logout failed; "
+                    f"falling back to grace deadlines for its clients"
+                )
+                self._fallback_logout(user.id)
 
     async def refresh_token_all_sessions(self, user: User, new_token: str) -> None:
         """
@@ -94,16 +102,41 @@ class UserService:
             {"access_token": new_token, "token_type": "bearer"},
         )
 
+    def _fallback_logout(self, user_id: int) -> None:
+        """Best-effort logout when :meth:`force_logout_all_sessions` failed.
+
+        Marks the user's authenticated connections logged out (so nothing can
+        use their privileges) and starts the grace deadline of each of the
+        user's clients, which releases its lock and leadership. Never raises.
+
+        :param user_id: The user being logged out.
+        """
+        try:
+            for ws_session in self.application.get_all_ws(user_id):
+                ws_session.current_user_id = None
+            with self.application.get_db().sessionmaker() as fresh:
+                client_ids = fresh.scalars(
+                    select(Session.internal_id).where(Session.user_id == user_id)
+                ).all()
+            for client_id in client_ids:
+                schedule_disconnect_deadline(self.application, client_id)
+        except Exception:
+            get_logger().exception(
+                f"Fallback logout of user {user_id} failed; its locks and "
+                f"leadership are released when its connections close"
+            )
+
     async def force_logout_all_sessions(self, session, user: User) -> None:
         """
         Force logout user from all active sessions via WebSocket.
 
         Process:
-        1. Send USER_LOGOUT to every connection authenticated as the user, and to
-           any other connection using one of the user's client uuids.
-        2. Mark all of those connections logged out on the server straight
-           away, rather than waiting for each client's REST logout (which
-           usually fails with 401 after a token_version bump).
+        1. Snapshot every connection authenticated as the user, plus any
+           unauthenticated connection using one of the user's client uuids, and
+           mark them all logged out on the server straight away, rather than
+           waiting for each client's REST logout (which usually fails with 401
+           after a token_version bump).
+        2. Send each of them USER_LOGOUT (best effort, never raises).
         3. Release each client's edit/cut lock, collaborative-room editor role
            and live-show leadership, with the usual broadcasts (NO_LEADER or
            ELECTED_LEADER).
@@ -112,29 +145,41 @@ class UserService:
         :param user: User model instance
         :type user: User
         """
-        await self.application.ws_send_to_user(user.id, "NOOP", "USER_LOGOUT", {})
+        # Nothing below may raise into the caller: change_password calls this
+        # after the password change has committed, and the admin must still get
+        # the temporary password back. Sends use safe_write (never raises), and
+        # each database step is guarded with a deadline fallback.
         logout_message = {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
 
-        client_ids = session.scalars(
-            select(Session.internal_id).where(Session.user_id == user.id)
-        ).all()
+        try:
+            client_ids = session.scalars(
+                select(Session.internal_id).where(Session.user_id == user.id)
+            ).all()
+        except Exception:
+            get_logger().exception(
+                f"Forced logout of user {user.id}: could not list its clients; "
+                f"logging out its authenticated connections only"
+            )
+            client_ids = []
 
-        # Log every affected connection out first, before releasing anything, so
-        # an election never picks a tab of this user that is about to be logged
-        # out, and last_client_internal_id keeps the original leader's client.
-        reached = self.application.get_all_ws(user.id)  # sent USER_LOGOUT above
-        affected = list(reached)
+        # Snapshot and mark every affected connection logged out first, before
+        # sending or releasing anything, so an election never picks a tab of
+        # this user that is about to be logged out, and last_client_internal_id
+        # keeps the original leader's client.
+        affected = list(self.application.get_all_ws(user.id))
         for client_id in client_ids:
             # Every connection using the uuid (e.g. a duplicated tab). A holder
             # authenticated as someone else is not this user's connection
             # (reconcile moves such connections to their own uuid anyway).
             for ws_session in holders(self.application, client_id):
-                if ws_session.current_user_id in (None, user.id):
+                if ws_session.current_user_id in (None, user.id) and not any(
+                    ws_session is seen for seen in affected
+                ):
                     affected.append(ws_session)
         for ws_session in affected:
-            if ws_session not in reached:
-                safe_write(ws_session, logout_message)
             ws_session.current_user_id = None
+        for ws_session in affected:
+            safe_write(ws_session, logout_message)
 
         for client_id in client_ids:
             try:

@@ -3620,6 +3620,63 @@ class TestWSHandlerMaps(DigiScriptTestCase):
             )
 
 
+class TestPasswordResetFanOut(_ReconnectTestBase):
+    """Admin password reset: the password change is committed before the
+    force-logout fan-out, so the fan-out must never fail the request (review
+    round 5); the admin always gets the temporary password back.
+    """
+
+    async def _reset(self, target_id):
+        return await self._post(
+            "/api/v1/auth/reset-password",
+            {"user_id": target_id},
+            self._token(self.admin_id),
+        )
+
+    async def _locked_tab_of_admin2(self):
+        ws, uuid = await self._connect_and_auth(self.admin2_id)
+        with self._app.get_db().sessionmaker() as session:
+            session.get(Session, uuid).is_editor = True
+            session.commit()
+        return ws, uuid
+
+    @gen_test
+    async def test_reset_returns_password_when_client_release_fails(self):
+        ws, uuid = await self._locked_tab_of_admin2()
+        handler = self._app.get_ws(uuid)
+        with mock.patch(
+            "services.user_service.release_session_privileges",
+            side_effect=RuntimeError("database is locked"),
+        ):
+            response = await self._reset(self.admin2_id)
+        self.assertEqual(200, response.code)
+        self.assertIn("temporary_password", json.loads(response.body))
+        self.assertIsNone(handler.current_user_id)
+        self.assertTrue(self._app.pending_disconnects.is_pending(uuid))
+        await self._read_until(ws, action="USER_LOGOUT")
+        ws.close()
+
+    @gen_test
+    async def test_reset_returns_password_when_whole_fan_out_fails(self):
+        """Even an unexpected failure in the fan-out itself falls back to
+        logging the user's connections out and starting their deadlines.
+        """
+        ws, uuid = await self._locked_tab_of_admin2()
+        handler = self._app.get_ws(uuid)
+        with mock.patch(
+            "services.user_service.holders",
+            side_effect=RuntimeError("unexpected"),
+        ):
+            response = await self._reset(self.admin2_id)
+        self.assertEqual(200, response.code)
+        self.assertIn("temporary_password", json.loads(response.body))
+        self.assertIsNone(handler.current_user_id)
+        self.assertTrue(self._app.pending_disconnects.is_pending(uuid))
+        await self._fire(disconnect_key(uuid))
+        self.assertEqual((False, False, self.admin2_id), self._session_row(uuid))
+        ws.close()
+
+
 class TestFileDatabaseWrites(_ReconnectTestBase):
     """Paths that release a client's lock or leadership, on a real SQLite file.
 
