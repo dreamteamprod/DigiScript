@@ -1,42 +1,42 @@
 # DigiScript Client (V3)
 
-**Requirements**: Node 24.x
+**Requirements**: Node 24.15+, pnpm 12.x (run `corepack enable` once; it uses the version pinned in `packageManager`)
 
 ## Project setup
 ```
-npm ci
+pnpm install
 ```
 
 ### Run the development server
 ```
-npm run dev
+pnpm run dev
 ```
 
 The dev server starts at `http://localhost:5173` and proxies API requests to `http://localhost:8080`.
 
 ### Compiles and minifies for production
 ```
-npm run build
+pnpm run build
 ```
 
 ### Lints and formats files
 ```
-npm run lint
+pnpm run lint
 ```
 
 ### Type checking
 ```
-npm run typecheck
+pnpm run typecheck
 ```
 
 ### Unit tests
 ```
-npm run test:run
+pnpm run test:run
 ```
 
 ### E2E tests
 ```
-npm run test:e2e
+pnpm run test:e2e
 ```
 
 See [e2e/README.md](./e2e/README.md) for full details on running and writing E2E tests.
@@ -50,7 +50,7 @@ The [src](./src) directory is where the main Vue 3 project lives.
 * [components](./src/components): reusable Vue components, organised by feature area.
 * [composables](./src/composables): Composition API composables (shared logic, replaces Vue 2 mixins).
 * [constants](./src/constants): shared constants used across components.
-* [js](./src/js): plain TypeScript utilities — HTTP interceptor, validators, platform abstraction.
+* [js](./src/js): plain TypeScript utilities — HTTP interceptor, validators.
 * [router](./src/router): Vue Router configuration and navigation guards.
 * [stores](./src/stores): Pinia stores for application state (user, show, script, websocket, etc.).
 * [types](./src/types): TypeScript interfaces for API response shapes and shared types.

@@ -95,7 +95,15 @@ export const useUserStore = defineStore('user', {
       this.stageDirectionStyleOverrides = [];
       this.cueColourOverrides = [];
 
-      useWebSocketStore().$patch({ authenticated: false, authSucceeded: false });
+      // Mark the open WebSocket as waiting for authentication (as the legacy
+      // client's CLEAR_WS_AUTHENTICATION does), so the next in-app login
+      // re-authenticates it and the server can settle who owns this tab's client
+      // id (a different user is moved to a fresh id).
+      useWebSocketStore().$patch({
+        authenticated: false,
+        authSucceeded: false,
+        pendingAuthentication: true,
+      });
 
       if (token) {
         try {

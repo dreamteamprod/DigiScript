@@ -1,12 +1,6 @@
 <template>
   <BApp id="app">
-    <BNavbar
-      v-if="route.path !== '/electron/server-selector'"
-      toggleable="lg"
-      variant="info"
-      data-bs-theme="dark"
-      class="sticky-top"
-    >
+    <BNavbar toggleable="lg" variant="info" data-bs-theme="dark" class="sticky-top">
       <BNavbarBrand to="/"> DigiScript </BNavbarBrand>
       <BNavbarToggle target="nav-collapse" />
       <BCollapse id="nav-collapse" is-nav>
@@ -94,19 +88,9 @@
           </BNavItem>
         </BNavbarNav>
         <BNavbarNav class="ms-auto">
-          <BNavItem v-if="!isElectronEnv" href="/ui-old/?_switch=1">
-            Switch to Classic UI
-          </BNavItem>
+          <BNavItem href="/ui-old/?_switch=1"> Switch to Classic UI </BNavItem>
           <BNavItem to="/help"> Help </BNavItem>
           <BNavItem to="/about"> About </BNavItem>
-          <BNavItemDropdown v-if="isElectronEnv" text="Server">
-            <template #button-content>
-              <em>{{ serverConnectionName }}</em>
-            </template>
-            <BDropdownItemButton @click.stop.prevent="switchServer">
-              Switch Server
-            </BDropdownItemButton>
-          </BNavItemDropdown>
           <BNavItem v-if="userStore.currentUser == null" to="/login"> Login </BNavItem>
           <BNavItemDropdown v-else>
             <template #button-content>
@@ -121,9 +105,6 @@
           </BNavText>
         </BNavbarNav>
       </BCollapse>
-    </BNavbar>
-    <BNavbar v-else variant="info" data-bs-theme="dark" :sticky="true">
-      <BNavbarBrand to="#"> DigiScript </BNavbarBrand>
     </BNavbar>
 
     <template v-if="!loaded">
@@ -183,7 +164,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import type { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
@@ -198,9 +179,7 @@ import { useShowStore } from '@/stores/show';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { makeURL } from '@/js/utils';
-import { isElectron } from '@/js/platform';
 
-const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const systemStore = useSystemStore();
@@ -213,15 +192,12 @@ const { currentShow, settings } = storeToRefs(systemStore);
 const { sendObj, connect } = useWebSocket();
 const { confirm } = useConfirm();
 
-const isElectronEnv = ref(false);
-
 // Local state
 const loaded = ref(false);
 const startupError = ref(false);
 const stoppingSession = ref(false);
 const startingSession = ref(false);
 const changingPage = ref(false);
-const serverConnectionName = ref('Server');
 const goToPageModal = ref<InstanceType<typeof BModal>>();
 
 const currentShowSession = computed(() => showStore.currentSession);
@@ -232,24 +208,6 @@ const pageInputNo = ref(1);
 let loadTimer: ReturnType<typeof setTimeout> | null = null;
 
 onMounted(async () => {
-  isElectronEnv.value = isElectron();
-
-  if (isElectronEnv.value) {
-    try {
-      const activeConnection = await window.electronAPI?.getActiveConnection?.();
-      if (!activeConnection) {
-        loaded.value = true;
-        return;
-      }
-      const conn = activeConnection as { nickname?: string; url?: string };
-      serverConnectionName.value = conn.nickname ?? conn.url ?? 'Server';
-    } catch (error) {
-      log.error('Error checking active connection:', error);
-      loaded.value = true;
-      return;
-    }
-  }
-
   try {
     if (userStore.authToken) {
       await userStore.refreshToken();
@@ -383,14 +341,6 @@ async function reloadClients(): Promise<void> {
   if (confirmed) {
     sendObj({ OP: 'RELOAD_CLIENTS', DATA: {} });
   }
-}
-
-async function switchServer(): Promise<void> {
-  if (!isElectronEnv.value) return;
-  const api = window.electronAPI as { clearActiveConnection?: () => Promise<void> } | undefined;
-  await api?.clearActiveConnection?.();
-  await router.push('/electron/server-selector');
-  window.location.reload();
 }
 
 async function handleLogout(): Promise<void> {

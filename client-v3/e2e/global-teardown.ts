@@ -1,24 +1,30 @@
-import fs from 'fs';
-import { PID_FILE, TMPDIR_FILE } from './global-setup.js';
+import fs from 'node:fs';
+
+import { STATE_FILE, RUN_DIR, RunState } from './env.js';
 
 export default async function globalTeardown(): Promise<void> {
-  if (fs.existsSync(PID_FILE)) {
-    const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10);
+  if (fs.existsSync(STATE_FILE)) {
+    let state: RunState | undefined;
     try {
-      process.kill(pid, 'SIGKILL');
+      state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
     } catch {
-      // process may have already exited
+      // malformed state file — nothing to act on
     }
-    fs.unlinkSync(PID_FILE);
+
+    if (state) {
+      try {
+        process.kill(state.pid, 'SIGKILL');
+      } catch {
+        // process may have already exited
+      }
+      try {
+        fs.rmSync(state.tempDir, { recursive: true, force: true });
+      } catch {
+        // best-effort cleanup
+      }
+    }
   }
 
-  if (fs.existsSync(TMPDIR_FILE)) {
-    const tempDir = fs.readFileSync(TMPDIR_FILE, 'utf-8').trim();
-    try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    } catch {
-      // best-effort cleanup
-    }
-    fs.unlinkSync(TMPDIR_FILE);
-  }
+  // Removes state.json, the run's temp dirs, and server.stdout.log together.
+  fs.rmSync(RUN_DIR, { recursive: true, force: true });
 }

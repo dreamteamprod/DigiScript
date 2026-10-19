@@ -12,7 +12,7 @@ import store from '@/store/store';
 import App from './App.vue';
 import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
-import { getWebSocketURL, isElectron } from '@/js/platform';
+import { getWebSocketURL } from '@/js/utils';
 import { initRemoteLogging } from '@/js/logger';
 import log from 'loglevel';
 
@@ -40,28 +40,7 @@ Vue.use(ToastPlugin, {
 });
 
 /**
- * Check if we should initialize WebSocket
- * In Electron, only initialize if there's an active connection
- */
-async function shouldInitializeWebSocket() {
-  if (!isElectron()) {
-    // Browser mode: always initialize
-    return true;
-  }
-
-  // Electron mode: check if there's an active connection
-  try {
-    const activeConnection = await (window as any).electronAPI.getActiveConnection();
-    return activeConnection !== null;
-  } catch (error) {
-    console.warn('Could not check active connection, skipping WebSocket initialization:', error);
-    return false;
-  }
-}
-
-/**
  * Initialize WebSocket connection
- * Only called if we have a server to connect to
  */
 function initializeWebSocket() {
   try {
@@ -111,14 +90,7 @@ function initializeWebSocket() {
   }
 }
 
-// Initialize WebSocket conditionally
-shouldInitializeWebSocket().then((shouldInit) => {
-  if (shouldInit) {
-    initializeWebSocket();
-  } else {
-    console.log('Skipping WebSocket initialization - no server connection configured');
-  }
-});
+initializeWebSocket();
 
 Vue.config.productionTip = false;
 Vue.config.devtools = import.meta.env.MODE === 'development';

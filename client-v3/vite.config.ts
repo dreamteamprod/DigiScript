@@ -11,7 +11,6 @@ function cleanV3StaticPlugin(): Plugin {
   return {
     name: 'clean-v3-static',
     buildStart() {
-      if (process.env.BUILD_TARGET === 'electron') return;
       const outDir = path.resolve(__dirname, '../server/static');
       if (fs.existsSync(outDir)) {
         for (const entry of fs.readdirSync(outDir)) {
@@ -37,10 +36,9 @@ export default defineConfig({
     }),
     cleanV3StaticPlugin(),
   ],
-  base: process.env.BUILD_TARGET === 'electron' ? './' : '/',
+  base: '/',
   build: {
-    outDir:
-      process.env.BUILD_TARGET === 'electron' ? './dist-electron' : '../server/static/',
+    outDir: '../server/static/',
     assetsDir: './assets',
     emptyOutDir: false,
     rollupOptions: {
@@ -68,6 +66,11 @@ export default defineConfig({
             }
             if (id.includes('marked') || id.includes('dompurify') || id.includes('fuse.js')) {
               return 'docs-vendor';
+            }
+            // Only the script editor uses these, so keep them out of the eagerly loaded
+            // catch-all `vendor` chunk.
+            if (id.includes('/yjs/') || id.includes('/lib0/')) {
+              return 'yjs-vendor';
             }
             return 'vendor';
           }

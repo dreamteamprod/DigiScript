@@ -2,7 +2,7 @@
 set -e
 
 # Version Update Helper Script
-# Synchronizes version numbers across client, electron, and server components.
+# Synchronizes version numbers across client and server components.
 #
 # Usage: ./scripts/update-version.sh <version>
 # Example: ./scripts/update-version.sh 0.24.0
@@ -51,20 +51,14 @@ echo
 # Update client/package.json
 print_info "Updating client/package.json..."
 cd "$PROJECT_ROOT/client"
-npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
+pnpm version "$VERSION" --no-git-tag-version --allow-same-version --no-git-checks > /dev/null
 print_success "client/package.json updated"
 
 # Update client-v3/package.json
 print_info "Updating client-v3/package.json..."
 cd "$PROJECT_ROOT/client-v3"
-npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
+pnpm version "$VERSION" --no-git-tag-version --allow-same-version --no-git-checks > /dev/null
 print_success "client-v3/package.json updated"
-
-# Update electron/package.json
-print_info "Updating electron/package.json..."
-cd "$PROJECT_ROOT/electron"
-npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
-print_success "electron/package.json updated"
 
 # Update server/pyproject.toml
 print_info "Updating server/pyproject.toml..."
@@ -86,5 +80,4 @@ echo
 echo "Updated files:"
 echo "  - client/package.json"
 echo "  - client-v3/package.json"
-echo "  - electron/package.json"
 echo "  - server/pyproject.toml"

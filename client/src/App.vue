@@ -1,12 +1,6 @@
 <template>
   <div id="app">
-    <b-navbar
-      v-if="$route.path !== '/electron/server-selector'"
-      toggleable="lg"
-      type="dark"
-      variant="info"
-      :sticky="true"
-    >
+    <b-navbar toggleable="lg" type="dark" variant="info" :sticky="true">
       <b-navbar-brand to="/"> DigiScript </b-navbar-brand>
       <b-navbar-toggle target="nav-collapse" />
       <b-collapse id="nav-collapse" is-nav>
@@ -91,17 +85,9 @@
           </b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto">
-          <b-nav-item v-if="!isElectron()" href="/?_switch=1"> Switch to New UI </b-nav-item>
+          <b-nav-item href="/?_switch=1"> Switch to New UI </b-nav-item>
           <b-nav-item to="/help"> Help </b-nav-item>
           <b-nav-item to="/about"> About </b-nav-item>
-          <b-nav-item-dropdown v-if="isElectron()" text="Server">
-            <template #button-content>
-              <em>{{ serverConnectionName }}</em>
-            </template>
-            <b-dropdown-item-button @click.stop.prevent="switchServer">
-              Switch Server
-            </b-dropdown-item-button>
-          </b-nav-item-dropdown>
           <b-nav-item v-if="CURRENT_USER == null" to="/login"> Login </b-nav-item>
           <b-nav-item-dropdown v-else>
             <template #button-content>
@@ -118,9 +104,6 @@
           </b-nav-text>
         </b-navbar-nav>
       </b-collapse>
-    </b-navbar>
-    <b-navbar v-else toggleable="lg" type="dark" variant="info" :sticky="true">
-      <b-navbar-brand to="#"> DigiScript </b-navbar-brand>
     </b-navbar>
     <template v-if="!loaded">
       <div class="text-center center-spinner">
@@ -181,7 +164,6 @@ import CreateUser from '@/vue_components/user/CreateUser.vue';
 import { makeURL } from '@/js/utils';
 import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
 import { required, minValue } from 'vuelidate/lib/validators';
-import { isElectron } from '@/js/platform';
 
 export default defineComponent({
   components: { CreateUser },
@@ -196,7 +178,6 @@ export default defineComponent({
       pageInputFormState: {
         pageNo: 1,
       },
-      serverConnectionName: 'Server',
     };
   },
   validations: {
@@ -244,22 +225,6 @@ export default defineComponent({
     ]),
   },
   async created(): Promise<void> {
-    if (isElectron()) {
-      try {
-        const activeConnection = await (window as any).electronAPI.getActiveConnection();
-        if (!activeConnection) {
-          console.log('No active connection in Electron - skipping App initialization');
-          this.loaded = true;
-          return;
-        }
-        this.serverConnectionName = activeConnection.nickname || activeConnection.url;
-      } catch (error) {
-        console.error('Error checking active connection:', error);
-        this.loaded = true;
-        return;
-      }
-    }
-
     if ((this as any).AUTH_TOKEN) {
       await (this as any).REFRESH_TOKEN();
       await (this as any).SETUP_TOKEN_REFRESH();
@@ -293,23 +258,6 @@ export default defineComponent({
       'GET_USER_SETTINGS',
     ]),
     ...mapMutations(['SET_STAGE_MANAGER_MODE']),
-    isElectron,
-    async switchServer(): Promise<void> {
-      if (isElectron()) {
-        if ((this as any).$socket) {
-          (this as any).$socket.close();
-        }
-
-        await (window as any).electronAPI.clearActiveConnection();
-
-        if ((this.$router as any).mode === 'history') {
-          await this.$router.push('/electron/server-selector');
-        } else {
-          window.location.hash = '/electron/server-selector';
-        }
-        window.location.reload();
-      }
-    },
     async awaitWSConnect(): Promise<void> {
       if ((this as any).WEBSOCKET_HEALTHY) {
         clearTimeout(this.loadTimer!);

@@ -5,9 +5,9 @@ Tests run against a real backend instance with a clean SQLite database, covering
 
 ## Prerequisites
 
-* Node 24.x with dependencies installed (`npm ci` in `client-v3/`)
+* Node 24.15+ with dependencies installed (`pnpm install` in `client-v3/`)
 * Python 3.13.x with dependencies installed (`pip install -r requirements.txt` in `server/`)
-* A production build of the frontend (`npm run build` in `client-v3/`)
+* A production build of the frontend (`pnpm run build` in `client-v3/`)
 
 The global setup script starts and stops the backend automatically — no manual server management required.
 
@@ -15,23 +15,36 @@ The global setup script starts and stops the backend automatically — no manual
 
 ```bash
 # Chromium only (default, fastest)
-npm run test:e2e
+pnpm run test:e2e
 
 # Firefox only
-npm run test:e2e:firefox
+pnpm run test:e2e:firefox
 
 # Both browsers
-npm run test:e2e:all
+pnpm run test:e2e:all
 
 # Open the HTML report from the last run
-npm run test:e2e:report
+pnpm run test:e2e:report
 ```
 
 ## How it works
 
-Before the suite runs, `e2e/global-setup.ts` launches the Python backend on port 8888 with a
-temporary SQLite database. After the suite finishes, `e2e/global-teardown.ts` stops the server
-and cleans up the database file. All tests share this single server instance and database.
+Before the suite runs, `e2e/global-setup.ts` launches the Python backend with a temporary SQLite
+database (and its own temp dir for logs, compiled scripts and draft scripts). After the suite
+finishes, `e2e/global-teardown.ts` stops the server and removes the temp dir. All tests share
+this single server instance and database.
+
+### Running multiple suites in parallel
+
+The backend port is **not** a fixed 8888. `e2e/env.ts` derives a stable port from
+`process.cwd()`, so each checkout (e.g. separate git worktrees driven by parallel CI/agent jobs)
+gets its own port automatically and runs never collide — set `E2E_PORT=<port>` to pin a specific
+one instead (e.g. to reproduce CI's port locally). Setup only ever kills a server it can positively
+identify as its *own* leftover, by matching a live process's command line against
+`main.py ... --port=<port>` — not by trusting a PID pointer file alone, which a crashed run could
+leave stale or missing; if the resolved port is held by something else, the
+suite fails fast with a message telling you to set `E2E_PORT`, rather than killing a process it
+doesn't own.
 
 ## Spec files
 
@@ -65,7 +78,7 @@ Failed test runs produce an HTML report and screenshots/videos under `playwright
 Open the report with:
 
 ```bash
-npm run test:e2e:report
+pnpm run test:e2e:report
 ```
 
 Trace files (recorded on failure) can be inspected with the Playwright Trace Viewer.

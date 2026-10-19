@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/DigiScript-2.iml" filepath="$PROJECT_DIR$/.idea/DigiScript-2.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/digiscript-server.iml" filepath="$PROJECT_DIR$/.idea/digiscript-server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/gyp-next.iml" filepath="$PROJECT_DIR$/.idea/gyp-next.iml" />
     </modules>
   </component>
 </project>

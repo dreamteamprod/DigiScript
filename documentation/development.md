@@ -28,71 +28,22 @@ DigiScript uses split front-end and back-end architecture with the following key
 DigiScript consists of three main components:
 
 - **`server/`** - Python Tornado backend with SQLite database
-- **`client/`** - Vue.js 2 frontend (builds to `server/static/` for web, or `client/dist-electron/` for Electron)
-- **`electron/`** - Electron desktop application wrapper
+- **`client-v3/`** - Vue.js 3 frontend (primary/active, builds to `server/static/`)
+- **`client/`** - Vue.js 2 frontend (legacy, builds to `server/static/ui-old/`)
 
 Refer to [DeepWiki](https://deepwiki.com/dreamteamprod/DigiScript) for detailed documentation on the architecture and design.
 
 ## Building the Web Client
 
-```shell
-cd client
-npm ci
-npm run build
-```
-
-This outputs the built frontend to `../server/static/` for serving by the Python backend.
-
-## Building the Electron Desktop App
-
-The Electron app is a standalone desktop client that connects to a DigiScript server over the network.
-
-### Prerequisites
-
-- Node.js 24.x
-- npm 11.x
-
-### Development
+The frontends use [pnpm](https://pnpm.io/). Node 24.15 or newer is required (an older 24.x fails on transitive dependencies' engine ranges). Node 24 ships Corepack but leaves it switched off, so run `corepack enable` once; pnpm will then use the version pinned in each `package.json`'s `packageManager` field. Running `npm install` in these directories is refused on purpose (`devEngines`), so the pnpm lockfiles stay the only source of truth.
 
 ```shell
-# Build the Electron renderer (Vue app configured for Electron)
 cd client
-BUILD_TARGET=electron npm run build
-
-# Run the Electron app in development mode
-cd ../electron
-npm ci
-npm run dev
+pnpm install
+pnpm run build
 ```
 
-### Building Installers
-
-```shell
-# Full build (renderer + installers)
-cd electron
-npm run build
-
-# Or step by step:
-cd client
-BUILD_TARGET=electron npm run build
-cd ../electron
-npm run package  # Creates unpacked app
-npm run make     # Creates platform installers
-```
-
-Output locations:
-- **Windows**: `electron/out/make/squirrel.windows/x64/*.exe`
-- **macOS**: `electron/out/make/*.zip`
-- **Linux**: `electron/out/make/deb/x64/*.deb` and `electron/out/make/rpm/x64/*.rpm`
-
-### Electron vs Web Build
-
-The `BUILD_TARGET` environment variable controls how the Vue client is built:
-
-| Build Target | Output Directory | Base URL | Use Case |
-|--------------|------------------|----------|----------|
-| (default) | `server/static/` | `/` | Web client served by Python backend |
-| `electron` | `client/dist-electron/` | `./` (relative) | Electron app loads files locally |
+This outputs the built frontend to `../server/static/ui-old/` for serving by the Python backend. `client-v3/` follows the same pattern (`pnpm install` / `pnpm run build`), outputting to `../server/static/`.
 
 ## Contributing
 
@@ -101,17 +52,13 @@ Contributions are welcome! Please ensure all client and server code passes linti
 ```shell
 # Client linting and type checking
 cd client
-npm run lint
-npm run typecheck
+pnpm run lint
+pnpm run typecheck
 
 # Server linting
 cd server
 ruff check server/
 ruff format server/
-
-# Electron linting
-cd electron
-npm run lint
 ```
 
 When creating pull requests for new features, target the `dev` branch.

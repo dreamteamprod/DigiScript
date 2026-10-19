@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from tornado import escape
 
+from digi_server.logger import get_logger
 from models.session import Session
 from models.user import User
 from registry.named_locks import NamedLockRegistry
@@ -16,6 +17,13 @@ from utils.web.web_decorators import (
     no_live_session,
     redact_data_paths,
     require_admin,
+)
+from utils.web.ws_session_lifecycle import (
+    assign_session_user,
+    holders,
+    release_session_privileges,
+    row_owner,
+    schedule_disconnect_deadline,
 )
 
 
@@ -176,8 +184,13 @@ class LoginHandler(BaseAPIController):
                     session_id = data.get("session_id", "")
                     if session_id:
                         ws_session: Session = session.get(Session, session_id)
-                        if ws_session:
-                            ws_session.user = user
+                        # session_id comes from the request body and uuids are
+                        # not secret, so only an unowned client is attached here,
+                        # and nothing is ever released from this path. A browser
+                        # that really switches user is settled by its WebSocket
+                        # AUTHENTICATE (the WS controller's ownership rules).
+                        if ws_session and ws_session.user_id is None:
+                            assign_session_user(ws_session, user.id)
                     user.last_login = datetime.now(tz=timezone.utc)
                     user.last_seen = datetime.now(tz=timezone.utc)
                     session.commit()
@@ -204,31 +217,65 @@ class LoginHandler(BaseAPIController):
 
 @ApiRoute("auth/logout", ApiVersion.V1)
 class LogoutHandler(BaseAPIController):
+    def _log_out_client(self, session_id: str) -> None:
+        """Detach the current user from their WebSocket client *session_id*.
+
+        Marks every connection using that uuid (for example a tab and its
+        browser-duplicated copy) as logged out, then releases the client's
+        edit/cut lock and live-show leadership (with the usual broadcasts). The
+        row keeps its owner: a different user who later logs in on this tab is
+        moved to a fresh client uuid rather than inheriting this one. Only acts
+        on a client that belongs to the current user, so logout can't be used
+        against someone else's client.
+
+        :param session_id: The client uuid sent by the logging-out page.
+        """
+        user_id = self.current_user["id"]
+        try:
+            exists, owner_id = row_owner(self.application, session_id)
+            owns_client = exists and owner_id == user_id
+        except Exception:
+            get_logger().exception(
+                f"Logout of user {user_id}: could not look up client "
+                f"{session_id}; nothing was changed on it"
+            )
+            return
+        if not owns_client:
+            return
+        for ws_controller in holders(self.application, session_id):
+            ws_controller.current_user_id = None
+        try:
+            release_session_privileges(self.application, session_id, "user logged out")
+        except Exception:
+            # Its connections are already logged out, so the lock and leadership
+            # can't be used; start the grace deadline so they are released when
+            # it expires (finalise releases a row held only by unauthenticated
+            # connections).
+            schedule_disconnect_deadline(self.application, session_id)
+            get_logger().exception(
+                f"Logout of user {user_id}: could not release client "
+                f"{session_id} now; its connections are logged out, and its lock "
+                f"and leadership are released when its grace deadline expires"
+            )
+
     @api_authenticated
     @allow_when_password_required
     async def post(self):
         data = escape.json_decode(self.request.body)
 
         if self.current_user:
-            session_id = data.get("session_id", "")
-            if session_id:
-                with self.make_session() as session:
-                    ws_session: Session = session.get(Session, session_id)
-                    if ws_session:
-                        ws_session.user = None
-                        session.commit()
-
-            # Update the WebSocket controller if it exists
-            ws_controller = self.application.get_ws(session_id)
-            if ws_controller and hasattr(ws_controller, "current_user_id"):
-                ws_controller.current_user_id = None
-
-            # Revoke the JWT
+            # Revoke the JWT first, so a failure below can never leave the token
+            # valid while the client believes it has logged out.
             auth_header = self.request.headers.get("Authorization", "")
             token = self.application.jwt_service.get_token_from_authorization_header(
                 auth_header
             )
             await self.application.jwt_service.revoke_token(token)
+
+            session_id = data.get("session_id", "")
+            if session_id:
+                # Logs its own failures, each saying how far it got.
+                self._log_out_client(session_id)
 
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})
@@ -398,16 +445,16 @@ class AdminPasswordResetController(BaseAPIController):
             # Change the password and force password change on next login
             try:
                 await self.application.user_service.change_password(
-                    session, target_user, temp_password, invalidate_tokens=True
+                    session,
+                    target_user,
+                    temp_password,
+                    invalidate_tokens=True,
+                    requires_password_change=True,
                 )
             except ValueError as e:
                 self.set_status(400)
                 await self.finish({"message": str(e)})
                 return
-
-            # Ensure requires_password_change is set
-            target_user.requires_password_change = True
-            session.commit()
 
             self.set_status(200)
             await self.finish(

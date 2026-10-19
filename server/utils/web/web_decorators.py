@@ -2,8 +2,17 @@ import functools
 from typing import Awaitable, Callable, List, Optional
 
 from jsonpath import JSONPatch
+from sqlalchemy import select
 from tornado.web import HTTPError
 
+from controllers.api.constants import (
+    ERROR_COLLAB_EDITING_ENABLED,
+    ERROR_SCRIPT_DRAFT_ACTIVE,
+)
+from digi_server.settings import COLLAB_EDITING_SETTING
+from models.script import Script
+from models.script_draft import ScriptDraft
+from models.show import Show
 from utils.web.base_controller import BaseController
 
 
@@ -39,6 +48,69 @@ def no_live_session(
         current_show = self.get_current_show()
         if current_show and current_show["current_session_id"]:
             raise HTTPError(409, log_message="Current session in progress")
+        return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def no_collaborative_editing(
+    method: Callable[..., Optional[Awaitable[None]]],
+) -> Callable[..., Optional[Awaitable[None]]]:
+    """Refuse a classic (REST) script edit while collaborative editing is switched on.
+
+    In collaborative mode the shared draft is the only way to change the script, so a
+    REST write — e.g. from an old-UI client that ignored the mode — must not slip
+    through and diverge from it. Reads the setting with ``Settings.get_sync`` so this
+    stays a plain sync wrapper, like its siblings.
+
+    :param method: The request handler to guard.
+    :returns: The wrapped handler, which answers 409 with
+        ``ERROR_COLLAB_EDITING_ENABLED`` instead of calling *method* in that mode.
+    """
+
+    @functools.wraps(method)
+    def wrapper(self: BaseController, *args, **kwargs):
+        if self.application.digi_settings.get_sync(COLLAB_EDITING_SETTING):
+            self.set_status(409)
+            self.finish({"message": ERROR_COLLAB_EDITING_ENABLED})
+            return None
+        return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def no_active_script_draft(
+    method: Callable[..., Optional[Awaitable[None]]],
+) -> Callable[..., Optional[Awaitable[None]]]:
+    # A plain sync wrapper, matching the sibling decorators in this module —
+    # it works transparently whether the wrapped method is sync or async,
+    # since Tornado awaits a coroutine return value itself. An `async def`
+    # wrapper that `await`s the result breaks any sync handler it wraps
+    # (awaiting a sync method's None return raises TypeError).
+    @functools.wraps(method)
+    def wrapper(self: BaseController, *args, **kwargs):
+        with self.make_session() as session:
+            show = session.get(Show, self.get_current_show()["id"])
+            if show:
+                script: Script = session.scalars(
+                    select(Script).where(Script.show_id == show.id)
+                ).first()
+
+                if script and script.current_revision:
+                    current_revision_id = script.current_revision
+
+                    active_draft = session.scalar(
+                        select(ScriptDraft).where(
+                            ScriptDraft.revision_id == current_revision_id
+                        )
+                    )
+                    room_manager = getattr(self.application, "room_manager", None)
+                    room = room_manager.get_active_room() if room_manager else None
+                    if active_draft or (room and not room.is_empty):
+                        self.set_status(409)
+                        self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
+                        return None
+
         return method(self, *args, **kwargs)
 
     return wrapper

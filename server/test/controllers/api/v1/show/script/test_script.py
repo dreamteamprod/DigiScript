@@ -294,9 +294,17 @@ class TestScriptCutsController(DigiScriptTestCase):
             session.flush()
             self.line_part_id = line_part.id
 
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
 
     def test_get_script_cuts(self):
         """Test GET /api/v1/show/script/cuts.
@@ -339,6 +347,28 @@ class TestScriptCutsController(DigiScriptTestCase):
             ).all()
             self.assertEqual(1, len(cuts))
             self.assertEqual(self.line_part_id, cuts[0].line_part_id)
+
+    def test_put_script_cuts_via_http(self):
+        """PUT /api/v1/show/script/cuts succeeds end-to-end via a real HTTP request.
+
+        ScriptCutsController.put is a synchronous handler decorated with
+        @no_active_script_draft, which must not assume every wrapped method
+        is async — regression test for exactly that bug.
+        """
+        response = self.fetch(
+            "/api/v1/show/script/cuts",
+            method="PUT",
+            body=tornado.escape.json_encode({"cuts": [self.line_part_id]}),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            cuts = session.scalars(
+                select(ScriptCuts).where(ScriptCuts.revision_id == self.revision_id)
+            ).all()
+        self.assertEqual(1, len(cuts))
+        self.assertEqual(self.line_part_id, cuts[0].line_part_id)
 
 
 class TestScriptMaxPageController(DigiScriptTestCase):
