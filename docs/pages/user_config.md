@@ -117,6 +117,8 @@ Controls how long JWT access tokens remain valid after they are issued. The avai
 
 **Increasing the lifetime** applies to newly-issued tokens. Active users automatically receive a refreshed token within 30 minutes, at which point the longer lifetime takes effect for their session.
 
+**Maximum session length:** Regardless of this setting, a browser login cannot be kept alive indefinitely by automatic token refreshes. Thirty days after the original sign-in the session ends and the user must log in again. Logging out also invalidates the session token permanently, including across a server restart.
+
 > **Note:** This setting applies to JWT browser session tokens only. API tokens (long-lived keys used for machine-to-machine access) are not subject to this lifetime limit.
 
 ### Backup Management

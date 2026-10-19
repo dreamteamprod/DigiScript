@@ -1,8 +1,6 @@
-import secrets
-
 from models.user import User
-from services.password_service import PasswordService
 from utils.web.base_controller import BaseAPIController
+from utils.web.jwt_service import JWTService
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import api_authenticated
 
@@ -30,9 +28,7 @@ class UsersTokenV2Controller(BaseAPIController):
                 await self.finish({"message": "User not found"})
                 return
 
-            new_token = secrets.token_urlsafe(32)
-            hashed_token = await PasswordService.hash_password(new_token)
-            user.api_token = hashed_token
+            new_token, user.api_token = JWTService.generate_api_key(user.id)
             session.commit()
 
             self.set_status(200)

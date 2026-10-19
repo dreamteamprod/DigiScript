@@ -31,6 +31,12 @@ from models.show import Act, Show
 from models.user import User
 from rbac.role import Role
 from utils.web.base_controller import DatabaseMixin
+from utils.web.jwt_service import (
+    TOKEN_EXPIRED,
+    TOKEN_REVOKED,
+    TOKEN_SESSION_EXPIRED,
+    TOKEN_VERSION_INVALID,
+)
 from utils.web.pending_disconnects import disconnect_key
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.ws_session_lifecycle import (
@@ -436,17 +442,16 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         :param token: The JWT access token.
         :returns: The (detached) User, or None if the token is not acceptable.
         """
-        jwt_service = self.application.jwt_service
-        error = None
-        payload = None
-        if await jwt_service.is_token_revoked(token):
-            error = "Revoked token"
-        else:
-            payload = jwt_service.decode_access_token(token)
-            if not payload or "user_id" not in payload:
-                error = "Invalid or expired token"
-            elif not jwt_service.validate_token_age(payload):
-                error = "Token expired (lifetime exceeded)"
+        payload, reason = await self.application.jwt_service.validate_access_token(
+            token
+        )
+        error = {
+            None: None,
+            TOKEN_REVOKED: "Revoked token",
+            TOKEN_EXPIRED: "Token expired (lifetime exceeded)",
+            TOKEN_SESSION_EXPIRED: "Session expired (maximum session length reached)",
+            TOKEN_VERSION_INVALID: "Token no longer valid",
+        }.get(reason, "Invalid or expired token")
         user = None
         if error is None:
             with self.make_session() as session:

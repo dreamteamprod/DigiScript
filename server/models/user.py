@@ -85,6 +85,15 @@ class User(db.Model):
     sessions: Mapped[List[Session]] = relationship(back_populates="user")
 
 
+class RevokedToken(db.Model):
+    """A revoked JWT, identified by ``jti``, kept until its natural expiry."""
+
+    __tablename__ = "revoked_token"
+
+    jti: Mapped[str] = mapped_column(primary_key=True)
+    expires_at: Mapped[int] = mapped_column(index=True)
+
+
 class UserSettings(db.Model):
     __tablename__ = "user_settings"
 

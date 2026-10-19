@@ -289,11 +289,14 @@ class RefreshTokenHandler(BaseAPIController):
     @api_authenticated
     async def post(self):
         """Generate a new access token using the current authentication"""
-        access_token = self.application.jwt_service.create_access_token(
-            data={
-                "user_id": self.current_user["id"],
-            },
-        )
+        data = {"user_id": self.current_user["id"]}
+        # Carry the original login time forward so refreshing cannot extend the
+        # session past the absolute cap.
+        if self.token_payload and "auth_time" in self.token_payload:
+            data["auth_time"] = self.token_payload["auth_time"]
+        elif self.token_payload and "iat" in self.token_payload:
+            data["auth_time"] = self.token_payload["iat"]
+        access_token = self.application.jwt_service.create_access_token(data=data)
 
         self.set_status(200)
         await self.finish({"access_token": access_token, "token_type": "bearer"})

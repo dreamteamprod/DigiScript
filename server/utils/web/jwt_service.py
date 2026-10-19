@@ -1,13 +1,27 @@
+import hashlib
+import hmac
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
 import tornado.locks
 from jwt import PyJWS, PyJWT, PyJWTError
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from models.settings import SystemSettings
-from models.user import User
+from models.user import RevokedToken, User
+
+
+# Reasons returned by JWTService.validate_access_token.
+TOKEN_REVOKED = "revoked"
+TOKEN_INVALID = "invalid"
+TOKEN_EXPIRED = "expired"
+TOKEN_SESSION_EXPIRED = "session_expired"
+TOKEN_VERSION_INVALID = "version_invalid"
+
+# Absolute cap on how long a login session may be kept alive by refreshing.
+DEFAULT_MAX_SESSION_LIFETIME = timedelta(days=30)
 
 
 class JWTService:
@@ -17,6 +31,7 @@ class JWTService:
         secret=None,
         jwt_algorithm: str = "HS256",
         default_expiry: timedelta = timedelta(days=1),
+        max_session_lifetime: timedelta = DEFAULT_MAX_SESSION_LIFETIME,
     ):
         """
         Initialize JWT service with either application instance or direct secret
@@ -31,33 +46,115 @@ class JWTService:
         self._secret = secret
         self._jwt_algorithm = jwt_algorithm
         self._default_expiry = default_expiry
+        self._max_session_lifetime = max_session_lifetime
+        # jti -> expiry (unix seconds). Write-through cache of the
+        # ``revoked_token`` table (memory only when there is no application).
         self._revoked_tokens: Dict[str, int] = {}
+        self._revoked_loaded = False
         self._revoked_token_lock = tornado.locks.Lock()
 
-    async def revoke_token(self, token: str):
+    def _load_revoked(self) -> None:
+        """Load persisted revocations into the cache on first use (lock held)."""
+        if self._revoked_loaded:
+            return
+        self._revoked_loaded = True
+        if not self.application:
+            return
+        now = int(datetime.now(tz=timezone.utc).timestamp())
+        with self.application.get_db().sessionmaker() as session:
+            session.execute(delete(RevokedToken).where(RevokedToken.expires_at < now))
+            session.commit()
+            for row in session.scalars(select(RevokedToken)).all():
+                self._revoked_tokens[row.jti] = row.expires_at
+
+    def _unverified_claims(self, token: str) -> Optional[Dict[str, Any]]:
         try:
-            payload = self._jwt.decode(
+            return self._jwt.decode(
                 token,
                 options={"verify_signature": False, "verify_exp": False},
                 algorithms=[self._jwt_algorithm],
             )
-            expiry = payload.get("exp", -1)
         except Exception:
-            expiry = -1
-        async with self._revoked_token_lock:
-            self._revoked_tokens[token] = expiry
+            return None
 
-    async def is_token_revoked(self, token: str):
+    async def revoke_token(self, token: str):
+        """
+        Revoke a token by its ``jti`` until its natural expiry.
+
+        Revocations are persisted so they survive a restart, and expired ones
+        are pruned on every call (an expired token is rejected by signature
+        validation anyway).
+
+        :param token: The JWT to revoke.
+        """
+        payload = self._unverified_claims(token)
+        jti = payload.get("jti") if payload else None
+        if not jti:
+            return
+        expiry = int(payload.get("exp", 0))
+        now = int(datetime.now(tz=timezone.utc).timestamp())
         async with self._revoked_token_lock:
-            if token in self._revoked_tokens:
-                expiry = self._revoked_tokens[token]
-                if expiry != -1:
-                    expiry_time = datetime.fromtimestamp(expiry, tz=timezone.utc)
-                    current_time = datetime.now(tz=timezone.utc)
-                    if current_time > expiry_time:
-                        self._revoked_tokens.pop(token)
-                return True
+            self._load_revoked()
+            self._revoked_tokens = {
+                k: v for k, v in self._revoked_tokens.items() if v >= now
+            }
+            if expiry < now:
+                return
+            self._revoked_tokens[jti] = expiry
+            if self.application:
+                with self.application.get_db().sessionmaker() as session:
+                    session.execute(
+                        delete(RevokedToken).where(RevokedToken.expires_at < now)
+                    )
+                    session.merge(RevokedToken(jti=jti, expires_at=expiry))
+                    session.commit()
+
+    async def is_token_revoked(self, token: str) -> bool:
+        """
+        Check whether a token has been revoked.
+
+        :param token: The JWT to check.
+        :returns: True if the token's ``jti`` is on the (unexpired) revocation list.
+        """
+        payload = self._unverified_claims(token)
+        jti = payload.get("jti") if payload else None
+        if not jti:
             return False
+        async with self._revoked_token_lock:
+            self._load_revoked()
+            expiry = self._revoked_tokens.get(jti)
+            if expiry is None:
+                return False
+            if expiry < int(datetime.now(tz=timezone.utc).timestamp()):
+                self._revoked_tokens.pop(jti, None)
+                return False
+            return True
+
+    async def validate_access_token(
+        self, token: str
+    ) -> "tuple[Optional[Dict[str, Any]], Optional[str]]":
+        """
+        Single validation routine shared by REST and WebSocket authentication.
+
+        Checks, in order: revocation, signature/expiry, presence of ``user_id``,
+        per-token age, absolute session age, and the user's ``token_version``.
+
+        :param token: The JWT access token.
+        :returns: ``(payload, None)`` when valid, otherwise ``(None, reason)``
+            where reason is one of the ``TOKEN_*`` constants.
+        """
+        if await self.is_token_revoked(token):
+            return None, TOKEN_REVOKED
+        payload = self.decode_access_token(token)
+        if not payload or "user_id" not in payload:
+            return None, TOKEN_INVALID
+        if not self.validate_token_age(payload):
+            return None, TOKEN_EXPIRED
+        if not self.validate_session_age(payload):
+            return None, TOKEN_SESSION_EXPIRED
+        if not self.is_token_version_valid(payload):
+            return None, TOKEN_VERSION_INVALID
+        return payload, None
 
     def get_secret(self):
         """
@@ -104,9 +201,11 @@ class JWTService:
                 if user:
                     to_encode["token_version"] = user.token_version
 
-        to_encode.update(
-            {"exp": expire, "iat": datetime.now(tz=timezone.utc), "jti": str(uuid4())}
-        )
+        now = datetime.now(tz=timezone.utc)
+        # ``auth_time`` is when the user actually authenticated. Refreshes carry
+        # the original value forward so the session cap cannot be reset.
+        to_encode.setdefault("auth_time", int(now.timestamp()))
+        to_encode.update({"exp": expire, "iat": now, "jti": str(uuid4())})
         encoded_jwt = self._jwt.encode(
             to_encode, self.get_secret(), algorithm=self._jwt_algorithm
         )
@@ -183,6 +282,65 @@ class JWTService:
         issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
         age = datetime.now(tz=timezone.utc) - issued_at
         return age <= timedelta(hours=max_lifetime_hours)
+
+    def validate_session_age(self, payload: Dict[str, Any]) -> bool:
+        """
+        Check the absolute session cap using the ``auth_time`` claim.
+
+        Tokens issued before ``auth_time`` existed fall back to ``iat``.
+
+        :param payload: Decoded JWT payload.
+        :returns: True if the original login is within the maximum session lifetime.
+        """
+        auth_time = payload.get("auth_time", payload.get("iat"))
+        if auth_time is None:
+            return False
+        started = datetime.fromtimestamp(auth_time, tz=timezone.utc)
+        return datetime.now(tz=timezone.utc) - started <= self._max_session_lifetime
+
+    @staticmethod
+    def generate_api_key(user_id: int) -> "tuple[str, str]":
+        """
+        Generate an API key of the form ``<user_id>.<secret>``.
+
+        :param user_id: The owning user's id.
+        :returns: ``(plaintext_key, stored_hash)``; only the hash is stored.
+        """
+        secret = secrets.token_urlsafe(32)
+        return f"{user_id}.{secret}", JWTService.hash_api_secret(secret)
+
+    @staticmethod
+    def hash_api_secret(secret: str) -> str:
+        """SHA-256 hex digest of an API key secret (high entropy, so no KDF needed)."""
+        return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def parse_api_key(api_key: str) -> "Optional[tuple[int, str]]":
+        """
+        Split ``<user_id>.<secret>`` into its parts.
+
+        :returns: ``(user_id, secret)`` or None if malformed.
+        """
+        user_part, sep, secret = api_key.partition(".")
+        if not sep or not secret or not user_part.isascii() or not user_part.isdigit():
+            return None
+        return int(user_part), secret
+
+    @staticmethod
+    def verify_api_key(user: Optional[User], secret: str) -> bool:
+        """
+        Constant-time comparison of a presented secret against the stored hash.
+
+        :param user: The user looked up by the key's id (may be None).
+        :param secret: The presented secret.
+        :returns: True if the secret matches the user's stored key hash.
+        """
+        stored = user.api_token if user else None
+        matches = hmac.compare_digest(
+            JWTService.hash_api_secret(secret).encode(),
+            (stored or "0" * 64).encode(),
+        )
+        return matches and bool(stored)
 
     @staticmethod
     def get_token_from_authorization_header(auth_header: str) -> Optional[str]:
