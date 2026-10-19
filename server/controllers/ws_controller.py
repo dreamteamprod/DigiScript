@@ -677,7 +677,8 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
     async def _op_jump_to_page(self, session, show_session, entry, data) -> None:
         """Handle ``LIVE_SHOW_JUMP_TO_PAGE``: move the live position and reload all.
 
-        Gated on show EXECUTE access (or admin), not leadership. The page must be a positive integer; anything else is ignored.
+        Gated on show EXECUTE access (or admin), not leadership. The page must be
+        a positive integer; anything else is ignored.
         """
         page = data.get("page") if isinstance(data, dict) else None
         if isinstance(page, bool) or not isinstance(page, int) or page < 1:

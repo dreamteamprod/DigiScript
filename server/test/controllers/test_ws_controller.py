@@ -2794,6 +2794,20 @@ class TestWSUuidIsNotOwnership(_ReconnectTestBase):
             ws.close()
 
     @gen_test
+    async def test_jump_to_page_without_live_session_is_ignored(self):
+        ws_a, _ = await self._connect_and_auth(self.admin_id)
+        viewer, _ = await self._connect_and_auth(self.viewer_id)
+        await self._drain(viewer)
+        await ws_a.write_message(
+            json.dumps({"OP": "LIVE_SHOW_JUMP_TO_PAGE", "DATA": {"page": 3}})
+        )
+        await asyncio.sleep(0.1)
+        msgs = await self._drain(viewer)
+        self.assertNotIn("RELOAD_CLIENT", [m.get("OP") for m in msgs])
+        ws_a.close()
+        viewer.close()
+
+    @gen_test
     async def test_other_user_adopter_of_uuid_later_made_editor_cannot_write(self):
         """A socket authenticated as a *different* user that adopted a tab's uuid
         before that tab began editing gets the viewer role and cannot write, and

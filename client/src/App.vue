@@ -370,7 +370,7 @@ export default defineComponent({
       (this as any).$socket.sendObj({
         OP: 'LIVE_SHOW_JUMP_TO_PAGE',
         DATA: {
-          page: this.pageInputFormState.pageNo,
+          page: Number(this.pageInputFormState.pageNo),
         },
       });
     },
