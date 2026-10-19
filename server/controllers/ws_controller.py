@@ -131,8 +131,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         user_id=user_id,
                     )
                 )
-            if self.current_user_id:
-                user = session.get(User, self.current_user_id)
+            user = (
+                session.get(User, self.current_user_id)
+                if self.current_user_id
+                else None
+            )
+            if user is not None:
                 user.last_seen = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
         return cleared
@@ -466,16 +470,24 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             if self.current_username
             else self.request.remote_ip
         )
-        get_logger().debug(f"WebSocket message from {user_part}: {message}")
+        size = len(message)
 
         try:
             message = json.loads(message)
             ws_op = message["OP"]
-        except (json.JSONDecodeError, KeyError) as e:
+            if not isinstance(ws_op, str):
+                raise TypeError("OP must be a string")
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
             get_logger().warning(
-                f"Malformed WS message from {self.request.remote_ip}: {e}"
+                f"Malformed WS message ({size} bytes) from "
+                f"{self.request.remote_ip}: {type(e).__name__}"
             )
             return
+
+        # Never log the payload: AUTHENTICATE / REFRESH_TOKEN carry live JWTs.
+        get_logger().debug(
+            f"WebSocket message from {user_part}: {ws_op} ({size} bytes)"
+        )
 
         # Connection boundary: an exception escaping on_message ends Tornado's
         # read loop without calling on_close, leaving a handler that no longer
@@ -535,8 +547,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
                 # Ownership rule: only the authenticated show user on its own row.
                 if self._is_leader(session, show_session):
+                    data = message.get("DATA")
+                    if not isinstance(data, dict):
+                        get_logger().warning(f"Ignored {ws_op}: DATA must be an object")
+                        return
                     handler = getattr(self, self._LEADER_OP_HANDLERS[ws_op])
-                    await handler(session, show_session, entry, message["DATA"])
+                    await handler(session, show_session, entry, data)
                 else:
                     get_logger().debug(
                         f"Ignored {ws_op} from client "
@@ -551,7 +567,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                 )
                 if show_session and self._user_has_show_execute_access(session, show):
                     await self._op_jump_to_page(
-                        session, show_session, entry, message["DATA"]
+                        session, show_session, entry, message.get("DATA")
                     )
                 else:
                     get_logger().debug(
@@ -637,19 +653,35 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
     async def _op_script_scroll(self, session, show_session, entry, data) -> None:
         """Leader op ``SCRIPT_SCROLL``: record and broadcast the leader's line."""
-        show_session.latest_line_ref = data["current_line"]
+        line_ref = data.get("current_line")
+        if not isinstance(line_ref, str):
+            get_logger().warning("Ignored SCRIPT_SCROLL: invalid current_line")
+            return
+        show_session.latest_line_ref = line_ref
         session.commit()
         await self.application.ws_send_to_all("NOOP", "SCRIPT_SCROLL", data)
 
     async def _op_begin_interval(self, session, show_session, entry, data) -> None:
         """Leader op ``BEGIN_INTERVAL``: start an interval after the given act."""
-        act: Act = session.get(Act, data["actId"])
-        if not entry:
+        act_id = data.get("actId")
+        length = data.get("length")
+        if (
+            not entry
+            or isinstance(act_id, bool)
+            or not isinstance(act_id, int)
+            or isinstance(length, bool)
+            or not isinstance(length, (int, float))
+        ):
+            get_logger().warning("Ignored BEGIN_INTERVAL: invalid actId or length")
+            return
+        act: Optional[Act] = session.get(Act, act_id)
+        if act is None:
+            get_logger().warning("Ignored BEGIN_INTERVAL: unknown act")
             return
         show_interval = Interval(
             session_id=show_session.id,
             act_id=act.id,
-            initial_length=data["length"],
+            initial_length=length,
         )
         session.add(show_interval)
         session.flush()
@@ -825,7 +857,9 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             get_logger().warning("RoomManager not available, ignoring collab OP")
             return
 
-        data = message.get("DATA", {})
+        data = message.get("DATA")
+        if not isinstance(data, dict):
+            data = {}
 
         # Everything that touches the shared draft only exists in collaborative mode;
         # in classic mode a stray client must not be able to open a room.

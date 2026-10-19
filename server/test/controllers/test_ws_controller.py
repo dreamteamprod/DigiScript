@@ -3475,6 +3475,72 @@ class TestWSRobustness(_ReconnectTestBase):
         ws_l.close()
 
     @gen_test
+    async def test_leader_ops_with_malformed_data_are_ignored(self):
+        """Non-object / wrong-typed DATA on leader ops is rejected without
+        changing state or killing the connection.
+        """
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        self._start_live_session(uuid_l, self.admin_id)
+
+        def latest():
+            with self._app.get_db().sessionmaker() as session:
+                show = session.get(Show, self.show_id)
+                live = session.get(ShowSession, show.current_session_id)
+                return live.latest_line_ref
+
+        before = latest()
+        for op in ("SCRIPT_SCROLL", "BEGIN_INTERVAL", "END_INTERVAL"):
+            for bad in (None, [], "x", 5):
+                await ws_l.write_message(json.dumps({"OP": op, "DATA": bad}))
+            await ws_l.write_message(json.dumps({"OP": op}))
+        await ws_l.write_message(
+            json.dumps({"OP": "SCRIPT_SCROLL", "DATA": {"current_line": ["x"]}})
+        )
+        await ws_l.write_message(
+            json.dumps({"OP": "BEGIN_INTERVAL", "DATA": {"actId": "a", "length": 1}})
+        )
+        await ws_l.write_message(json.dumps({"OP": "LIVE_SHOW_JUMP_TO_PAGE"}))
+        await self._still_responsive(ws_l, self.admin_id)
+        self.assertEqual(before, latest())
+        ws_l.close()
+
+    @gen_test
+    async def test_non_object_and_non_string_op_frames_are_ignored(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        for frame in ("[]", '"abc"', "5", "null", '{"OP": ["x"]}', '{"OP": {}}'):
+            await ws.write_message(frame)
+        await self._still_responsive(ws, self.admin_id)
+        ws.close()
+
+    @gen_test
+    async def test_ws_payload_and_tokens_are_not_logged(self):
+        """AUTHENTICATE tokens never reach the log; only op name and size do."""
+        ws, _ = await self._connect_and_auth()
+        sentinel = self._app.jwt_service.create_access_token(
+            data={"user_id": self.admin_id}
+        )
+        with self.assertLogs(get_logger(), level="DEBUG") as captured:
+            await ws.write_message(
+                json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": sentinel}})
+            )
+            await self._read_until(ws, op="WS_AUTH_SUCCESS")
+        joined = "\n".join(captured.output)
+        self.assertIn("AUTHENTICATE", joined)
+        self.assertNotIn(sentinel, joined)
+        ws.close()
+
+    @gen_test
+    async def test_update_session_survives_deleted_user(self):
+        ws, uuid = await self._connect_and_auth(self.admin2_id)
+        handler = self._app.get_ws(uuid)
+        with self._app.get_db().sessionmaker() as session:
+            session.get(Session, uuid).user_id = None
+            session.delete(session.get(User, self.admin2_id))
+            session.commit()
+        handler.update_session()  # must not raise
+        ws.close()
+
+    @gen_test
     async def test_db_error_in_reconcile_leaves_connection_unauthenticated(self):
         """A failure while settling ownership must not leave the socket half
         authenticated (current_user_id set but no WS_AUTH_SUCCESS).

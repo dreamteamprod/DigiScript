@@ -15,6 +15,7 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
+from utils.web.log_redaction import redact_sensitive_keys
 
 
 if TYPE_CHECKING:
@@ -182,8 +183,10 @@ class BaseAPIController(BaseController):
             try:
                 body = escape.json_decode(self.request.body)
             except BaseException:
+                # Not JSON, so it cannot be redacted by key: log only its size.
                 get_logger().debug(
-                    f"{self.request.method} {self.request.path} {self.request.body}{user_suffix}",
+                    f"{self.request.method} {self.request.path} "
+                    f"<non-JSON body, {len(self.request.body)} bytes>{user_suffix}",
                     extra=self._log_extra(),
                 )
             else:
@@ -195,6 +198,7 @@ class BaseAPIController(BaseController):
                 ):
                     body = deepcopy(body)
                     redacted_data_paths.apply(body)
+                body = redact_sensitive_keys(body)
 
                 log_method(
                     f"{self.request.method} {self.request.path} {body}{user_suffix}",

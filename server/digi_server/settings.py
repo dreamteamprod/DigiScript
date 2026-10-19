@@ -265,7 +265,7 @@ class Settings:
         self.define(
             "log_level",
             str,
-            "DEBUG",
+            "INFO",
             True,
             self._application.regen_logging,
             display_name="Log Level",
