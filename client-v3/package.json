@@ -22,7 +22,7 @@
     "lint:eslint-check": "eslint 'src/**/*.{ts,vue}' 'e2e/**/*.ts' 'playwright.config.ts'",
     "format": "prettier --write 'src/**/*.{ts,vue,json,css,scss}' 'e2e/**/*.ts' 'playwright.config.ts'",
     "format:check": "prettier --check 'src/**/*.{ts,vue,json,css,scss}' 'e2e/**/*.ts' 'playwright.config.ts'",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
