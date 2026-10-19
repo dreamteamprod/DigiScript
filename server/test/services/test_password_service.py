@@ -1,3 +1,4 @@
+import bcrypt
 from tornado.testing import AsyncTestCase, gen_test
 
 from services.password_service import PasswordService
@@ -155,3 +156,12 @@ class TestPasswordService(AsyncTestCase):
         # Generated passwords should always be valid
         self.assertTrue(is_valid)
         self.assertGreaterEqual(len(password), 8)
+
+    def test_dummy_hash_is_a_valid_bcrypt_hash(self):
+        """The timing-equalisation hash must be well-formed so checkpw runs fully"""
+        self.assertFalse(bcrypt.checkpw(b"nope", PasswordService.DUMMY_HASH.encode()))
+
+    @gen_test
+    async def test_verify_dummy_password_returns_none(self):
+        """verify_dummy_password discards its result"""
+        self.assertIsNone(await PasswordService.verify_dummy_password("anything"))

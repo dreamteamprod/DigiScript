@@ -1,8 +1,23 @@
+import asyncio
+from unittest import mock
+
 from sqlalchemy import select
 from tornado import escape
+from tornado.httpclient import HTTPRequest
+from tornado.testing import gen_test
 
 from models.user import User
+from services.login_throttle import LoginThrottle
+from services.password_service import PasswordService
 from test.conftest import DigiScriptTestCase
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
 
 
 class TestAuthAPI(DigiScriptTestCase):
@@ -1249,3 +1264,101 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertEqual(400, response.code)
         response_body = escape.json_decode(response.body)
         self.assertEqual("user_id is required", response_body["message"])
+
+
+class TestLoginThrottling(DigiScriptTestCase):
+    """Login throttling, unknown-user timing, and first-run user creation."""
+
+    def setUp(self):
+        super().setUp()
+        self.clock = FakeClock()
+        self._app.login_throttle = LoginThrottle(clock=self.clock)
+
+    def _login(self, username, password):
+        return self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": username, "password": password}),
+        )
+
+    def _create_admin(self):
+        resp = self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+        self.assertEqual(200, resp.code)
+
+    def test_repeated_failures_get_429_with_retry_after(self):
+        self._create_admin()
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS):
+            self.assertEqual(401, self._login("admin", "wrongpass1").code)
+
+        resp = self._login("admin", "wrongpass1")
+        self.assertEqual(429, resp.code)
+        self.assertGreater(int(resp.headers["Retry-After"]), 0)
+
+        # The right password is refused too while locked out.
+        self.assertEqual(429, self._login("admin", "adminpass").code)
+
+        # ... and accepted once the lockout has passed.
+        self.clock.now += LoginThrottle.BASE_LOCKOUT + 1
+        self.assertEqual(200, self._login("admin", "adminpass").code)
+
+    def test_unknown_username_is_throttled_like_a_real_one(self):
+        self._create_admin()
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS):
+            self.assertEqual(401, self._login("nobody", "wrongpass1").code)
+        self.assertEqual(429, self._login("nobody", "wrongpass1").code)
+
+    def test_successful_login_resets_username_counter(self):
+        self._create_admin()
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS - 1):
+            self._login("admin", "wrongpass1")
+        self.assertEqual(200, self._login("admin", "adminpass").code)
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS - 1):
+            self.assertEqual(401, self._login("admin", "wrongpass1").code)
+
+    def test_unknown_user_still_runs_a_bcrypt_verification(self):
+        self._create_admin()
+        with mock.patch.object(
+            PasswordService,
+            "verify_dummy_password",
+            wraps=PasswordService.verify_dummy_password,
+        ) as dummy:
+            self.assertEqual(401, self._login("nobody", "whatever1").code)
+            dummy.assert_called_once()
+
+    def test_create_rejects_password_shorter_than_eight_characters(self):
+        resp = self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "1234567", "is_admin": True}
+            ),
+        )
+        self.assertEqual(400, resp.code)
+        self.assertIn("at least 8", escape.json_decode(resp.body)["message"])
+
+    @gen_test
+    async def test_concurrent_first_run_creates_only_one_admin(self):
+        def make(name):
+            return HTTPRequest(
+                self.get_url("/api/v1/auth/create"),
+                method="POST",
+                body=escape.json_encode(
+                    {"username": name, "password": "adminpass", "is_admin": True}
+                ),
+            )
+
+        responses = await asyncio.gather(
+            *[
+                self.http_client.fetch(make(f"admin{i}"), raise_error=False)
+                for i in range(4)
+            ]
+        )
+        self.assertEqual([200, 401, 401, 401], sorted(r.code for r in responses))
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual(1, len(session.scalars(select(User)).all()))

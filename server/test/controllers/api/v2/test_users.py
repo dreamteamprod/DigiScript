@@ -1,5 +1,9 @@
+import asyncio
+
 from sqlalchemy import select
 from tornado import escape
+from tornado.httpclient import HTTPRequest
+from tornado.testing import gen_test
 
 from models.user import User
 from test.conftest import DigiScriptTestCase
@@ -310,3 +314,24 @@ class TestUsersV2Controller(DigiScriptTestCase):
 
     # note: the last-admin delete guard (400 when target is the only admin) suffers the same
     # race-condition constraint as the PATCH guard — not reachable in a synchronous test.
+
+    @gen_test
+    async def test_concurrent_first_run_creates_only_one_admin(self):
+        def make(name):
+            return HTTPRequest(
+                self.get_url("/api/v2/users"),
+                method="POST",
+                body=escape.json_encode(
+                    {"username": name, "password": "adminpass", "is_admin": True}
+                ),
+            )
+
+        responses = await asyncio.gather(
+            *[
+                self.http_client.fetch(make(f"admin{i}"), raise_error=False)
+                for i in range(4)
+            ]
+        )
+        self.assertEqual([200, 401, 401, 401], sorted(r.code for r in responses))
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual(1, len(session.scalars(select(User)).all()))
