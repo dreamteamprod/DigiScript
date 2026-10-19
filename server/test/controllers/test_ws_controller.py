@@ -8,7 +8,7 @@ import asyncio
 import base64
 import json
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 from unittest.mock import AsyncMock
 
@@ -29,6 +29,7 @@ from models.user import User
 from rbac.role import Role
 from services.password_service import PasswordService
 from test.conftest import DigiScriptTestCase
+from test.helpers.auth_fixtures import bump_token_version, craft_token, make_user
 from test.helpers.script_fixtures import create_show_script_revision
 from utils.script_room_manager import ScriptRoom
 from utils.web import ws_session_lifecycle
@@ -3860,3 +3861,44 @@ class TestForceLogoutOrdering(_ReconnectTestBase):
         follower.close()
         ws_t.close()
         ws_l.close()
+
+
+class TestWSTokenValidation(DigiScriptTestCase):
+    async def _auth_reply(self, token: str) -> dict:
+        ws = await websocket_connect(
+            self.get_url("/api/v1/ws").replace("http://", "ws://")
+        )
+        await ws.read_message()  # internal uuid
+        await ws.read_message()  # GET_SETTINGS
+        await ws.write_message(
+            json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
+        )
+        reply = json.loads(await ws.read_message())
+        ws.close()
+        return reply
+
+    @gen_test
+    async def test_valid_token_authenticates(self):
+        token = craft_token(self._app, make_user(self._app))
+        self.assertEqual("WS_AUTH_SUCCESS", (await self._auth_reply(token))["OP"])
+
+    @gen_test
+    async def test_stale_token_version_is_rejected(self):
+        user_id = make_user(self._app)
+        token = craft_token(self._app, user_id)
+        bump_token_version(self._app, user_id)
+        self.assertEqual("WS_AUTH_ERROR", (await self._auth_reply(token))["OP"])
+
+    @gen_test
+    async def test_revoked_token_is_rejected(self):
+        token = craft_token(self._app, make_user(self._app))
+        await self._app.jwt_service.revoke_token(token)
+        self.assertEqual("WS_AUTH_ERROR", (await self._auth_reply(token))["OP"])
+
+    @gen_test
+    async def test_session_past_cap_is_rejected(self):
+        started = datetime.now(tz=timezone.utc) - timedelta(days=31)
+        token = craft_token(
+            self._app, make_user(self._app), auth_time=int(started.timestamp())
+        )
+        self.assertEqual("WS_AUTH_ERROR", (await self._auth_reply(token))["OP"])

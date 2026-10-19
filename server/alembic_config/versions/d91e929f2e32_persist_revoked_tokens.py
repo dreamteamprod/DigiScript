@@ -1,4 +1,4 @@
-"""Persist revoked tokens and invalidate legacy API keys
+"""Persist revoked tokens
 
 Revision ID: d91e929f2e32
 Revises: 0b3fa405e05b
@@ -33,16 +33,6 @@ def upgrade() -> None:
         )
 
     # ### end Alembic commands ###
-
-    # Data step (hand-written): legacy API keys are bcrypt hashes of a bare
-    # secret and cannot be converted to the new "<user_id>.<secret>" / SHA-256
-    # scheme, so clear them. Affected users must regenerate their key.
-    user_table = sa.table("user", sa.column("api_token", sa.String()))
-    op.execute(
-        user_table.update()
-        .where(user_table.c.api_token.isnot(None))
-        .values(api_token=None)
-    )
 
 
 def downgrade() -> None:

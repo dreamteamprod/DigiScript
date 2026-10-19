@@ -7,8 +7,9 @@ from sqlalchemy import select
 from tornado.testing import gen_test
 
 from digi_server.settings import SettingsObject
-from models.user import User
+from models.user import RevokedToken, User
 from test.conftest import DigiScriptTestCase
+from test.helpers.auth_fixtures import bump_token_version, craft_token, make_user
 from utils.web.jwt_service import JWTService
 
 
@@ -203,3 +204,91 @@ class TestChoiceLabelsValidation(TestCase):
         setting.set_to_default()
         json_repr = setting.as_json()
         assert json_repr["choice_labels"] is None
+
+
+class TestJWTAccessTokenValidation(DigiScriptTestCase):
+    @gen_test
+    async def test_valid_token_returns_payload(self):
+        user_id = make_user(self._app)
+        payload, reason = await self._app.jwt_service.validate_access_token(
+            craft_token(self._app, user_id)
+        )
+        self.assertIsNone(reason)
+        self.assertEqual(user_id, payload["user_id"])
+
+    @gen_test
+    async def test_stale_token_version_is_rejected(self):
+        user_id = make_user(self._app)
+        token = craft_token(self._app, user_id)
+        bump_token_version(self._app, user_id)
+        payload, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertIsNone(payload)
+        self.assertEqual("version_invalid", reason)
+
+    @gen_test
+    async def test_revoked_token_is_rejected(self):
+        token = craft_token(self._app, make_user(self._app))
+        await self._app.jwt_service.revoke_token(token)
+        _, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertEqual("revoked", reason)
+
+    @gen_test
+    async def test_session_older_than_cap_is_rejected_despite_fresh_iat(self):
+        started = datetime.now(tz=timezone.utc) - timedelta(days=31)
+        token = craft_token(
+            self._app,
+            make_user(self._app),
+            auth_time=int(started.timestamp()),
+        )
+        _, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertEqual("session_expired", reason)
+
+    def test_token_without_auth_time_falls_back_to_iat(self):
+        now = datetime.now(tz=timezone.utc)
+        old = (now - timedelta(days=31)).timestamp()
+        self.assertFalse(self._app.jwt_service.validate_session_age({"iat": old}))
+        self.assertTrue(
+            self._app.jwt_service.validate_session_age({"iat": now.timestamp()})
+        )
+
+    def test_new_token_records_auth_time(self):
+        token = self._app.jwt_service.create_access_token({"user_id": 1})
+        self.assertIn("auth_time", self._app.jwt_service.decode_access_token(token))
+
+    def test_rest_rejects_stale_token_version(self):
+        user_id = make_user(self._app)
+        token = craft_token(self._app, user_id)
+        bump_token_version(self._app, user_id)
+        response = self.fetch(
+            "/api/v1/auth", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(401, response.code)
+
+
+class TestJWTRevocationStorage(DigiScriptTestCase):
+    @gen_test
+    async def test_revocation_survives_service_restart(self):
+        user_id = make_user(self._app)
+        token = craft_token(self._app, user_id)
+        await self._app.jwt_service.revoke_token(token)
+
+        fresh_service = JWTService(application=self._app)
+        self.assertTrue(await fresh_service.is_token_revoked(token))
+        other = craft_token(self._app, user_id, jti="another-jti")
+        self.assertFalse(await fresh_service.is_token_revoked(other))
+
+    @gen_test
+    async def test_expired_revocations_are_pruned_on_revoke(self):
+        user_id = make_user(self._app)
+        now = int(datetime.now(tz=timezone.utc).timestamp())
+        with self._app.get_db().sessionmaker() as session:
+            session.add(RevokedToken(jti="stale", expires_at=now - 10))
+            session.commit()
+
+        await self._app.jwt_service.revoke_token(
+            craft_token(self._app, user_id, jti="live")
+        )
+
+        with self._app.get_db().sessionmaker() as session:
+            jtis = set(session.scalars(select(RevokedToken.jti)).all())
+        self.assertEqual({"live"}, jtis)

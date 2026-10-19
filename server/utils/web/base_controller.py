@@ -12,12 +12,12 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
+from utils.web.api_keys import ApiKeyRateLimited
 from utils.web.jwt_service import (
     TOKEN_EXPIRED,
     TOKEN_REVOKED,
     TOKEN_SESSION_EXPIRED,
     TOKEN_VERSION_INVALID,
-    JWTService,
 )
 
 
@@ -86,9 +86,13 @@ class BaseController(DatabaseMixin, RequestHandler):
             if not self.current_user:
                 api_key = self.request.headers.get("X-API-Key", "")
                 if api_key:
-                    parsed = JWTService.parse_api_key(api_key)
-                    user = session.get(User, parsed[0]) if parsed else None
-                    if parsed and JWTService.verify_api_key(user, parsed[1]):
+                    try:
+                        user = await self.application.jwt_service.api_keys.authenticate(
+                            session, api_key, self.request.remote_ip
+                        )
+                    except ApiKeyRateLimited:
+                        raise HTTPError(429, log_message="API key attempts limited")
+                    if user:
                         self.current_user = user_schema.dump(user)
                     else:
                         raise HTTPError(401, log_message="Invalid API key")

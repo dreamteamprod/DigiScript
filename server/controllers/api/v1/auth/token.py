@@ -1,6 +1,6 @@
 from models.user import User
+from utils.web.api_keys import ApiKeyService
 from utils.web.base_controller import BaseAPIController
-from utils.web.jwt_service import JWTService
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import (
     api_authenticated,
@@ -20,8 +20,9 @@ class ApiTokenGenerateController(BaseAPIController):
                 return
 
             # Key is "<user_id>.<secret>"; only the SHA-256 of the secret is stored
-            new_token, user.api_token = JWTService.generate_api_key(user.id)
+            new_token, user.api_token = ApiKeyService.generate()
             session.commit()
+            self.application.jwt_service.api_keys.invalidate()
 
             self.set_status(200)
             await self.finish(
@@ -51,6 +52,7 @@ class ApiTokenRevokeController(BaseAPIController):
 
             user.api_token = None
             session.commit()
+            self.application.jwt_service.api_keys.invalidate()
 
             self.set_status(200)
             await self.finish({"message": "API token revoked successfully"})

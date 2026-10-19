@@ -1,8 +1,11 @@
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 from tornado import escape
 
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from test.helpers.auth_fixtures import craft_token, make_user
 
 
 class TestAuthAPI(DigiScriptTestCase):
@@ -1249,3 +1252,36 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertEqual(400, response.code)
         response_body = escape.json_decode(response.body)
         self.assertEqual("user_id is required", response_body["message"])
+
+
+class TestAuthTokenLifecycleAPI(DigiScriptTestCase):
+    def _post(self, path: str, token: str):
+        return self.fetch(
+            path,
+            method="POST",
+            body=escape.json_encode({}),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    def test_logged_out_token_is_rejected(self):
+        token = craft_token(self._app, make_user(self._app))
+        self.assertEqual(200, self._post("/api/v1/auth/logout", token).code)
+        response = self.fetch(
+            "/api/v1/auth", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(401, response.code)
+
+    def test_refresh_carries_original_auth_time_forward(self):
+        started = int((datetime.now(tz=timezone.utc) - timedelta(days=3)).timestamp())
+        token = craft_token(self._app, make_user(self._app), auth_time=started)
+        response = self._post("/api/v1/auth/refresh-token", token)
+        self.assertEqual(200, response.code)
+        refreshed = self._app.jwt_service.decode_access_token(
+            escape.json_decode(response.body)["access_token"]
+        )
+        self.assertEqual(started, refreshed["auth_time"])
+
+    def test_refresh_is_refused_once_session_cap_is_reached(self):
+        started = int((datetime.now(tz=timezone.utc) - timedelta(days=31)).timestamp())
+        token = craft_token(self._app, make_user(self._app), auth_time=started)
+        self.assertEqual(401, self._post("/api/v1/auth/refresh-token", token).code)

@@ -1,6 +1,3 @@
-import hashlib
-import hmac
-import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 from uuid import uuid4
@@ -11,6 +8,7 @@ from sqlalchemy import delete, select
 
 from models.settings import SystemSettings
 from models.user import RevokedToken, User
+from utils.web.api_keys import ApiKeyService
 
 
 # Reasons returned by JWTService.validate_access_token.
@@ -47,6 +45,7 @@ class JWTService:
         self._jwt_algorithm = jwt_algorithm
         self._default_expiry = default_expiry
         self._max_session_lifetime = max_session_lifetime
+        self.api_keys = ApiKeyService()
         # jti -> expiry (unix seconds). Write-through cache of the
         # ``revoked_token`` table (memory only when there is no application).
         self._revoked_tokens: Dict[str, int] = {}
@@ -297,50 +296,6 @@ class JWTService:
             return False
         started = datetime.fromtimestamp(auth_time, tz=timezone.utc)
         return datetime.now(tz=timezone.utc) - started <= self._max_session_lifetime
-
-    @staticmethod
-    def generate_api_key(user_id: int) -> "tuple[str, str]":
-        """
-        Generate an API key of the form ``<user_id>.<secret>``.
-
-        :param user_id: The owning user's id.
-        :returns: ``(plaintext_key, stored_hash)``; only the hash is stored.
-        """
-        secret = secrets.token_urlsafe(32)
-        return f"{user_id}.{secret}", JWTService.hash_api_secret(secret)
-
-    @staticmethod
-    def hash_api_secret(secret: str) -> str:
-        """SHA-256 hex digest of an API key secret (high entropy, so no KDF needed)."""
-        return hashlib.sha256(secret.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def parse_api_key(api_key: str) -> "Optional[tuple[int, str]]":
-        """
-        Split ``<user_id>.<secret>`` into its parts.
-
-        :returns: ``(user_id, secret)`` or None if malformed.
-        """
-        user_part, sep, secret = api_key.partition(".")
-        if not sep or not secret or not user_part.isascii() or not user_part.isdigit():
-            return None
-        return int(user_part), secret
-
-    @staticmethod
-    def verify_api_key(user: Optional[User], secret: str) -> bool:
-        """
-        Constant-time comparison of a presented secret against the stored hash.
-
-        :param user: The user looked up by the key's id (may be None).
-        :param secret: The presented secret.
-        :returns: True if the secret matches the user's stored key hash.
-        """
-        stored = user.api_token if user else None
-        matches = hmac.compare_digest(
-            JWTService.hash_api_secret(secret).encode(),
-            (stored or "0" * 64).encode(),
-        )
-        return matches and bool(stored)
 
     @staticmethod
     def get_token_from_authorization_header(auth_header: str) -> Optional[str]:
