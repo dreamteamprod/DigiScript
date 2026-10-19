@@ -1186,7 +1186,7 @@ class TestAuthAPI(DigiScriptTestCase):
             headers={"Authorization": f"Bearer {user_token}"},
         )
 
-        self.assertEqual(401, response.code)
+        self.assertEqual(403, response.code)
 
     def test_admin_reset_password_user_not_found(self):
         """Test password reset fails for non-existent user"""

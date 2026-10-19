@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import select
-from tornado import escape
 
 from digi_server.logger import get_logger
 from models.session import Session
@@ -10,6 +9,7 @@ from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
 from utils.web.base_controller import BaseAPIController
+from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import (
     allow_when_password_required,
@@ -37,7 +37,7 @@ class UserCreateController(BaseAPIController):
             if has_any_users:
                 self.requires_admin()
 
-            data = escape.json_decode(self.request.body)
+            data = get_json_object(self)
 
             username = data.get("username", "")
             if not username:
@@ -99,7 +99,7 @@ class UserDeleteController(BaseAPIController):
     @require_admin
     @no_live_session
     async def post(self):
-        data = escape.json_decode(self.request.body)
+        data = get_json_object(self)
         user_to_delete = data.get("id", None)
         if not user_to_delete:
             self.set_status(400)
@@ -152,7 +152,7 @@ class UserDeleteController(BaseAPIController):
 class LoginHandler(BaseAPIController):
     @redact_data_paths(paths=["/password"])
     async def post(self):
-        data = escape.json_decode(self.request.body)
+        data = get_json_object(self)
 
         username = data.get("username", "")
         if not username:
@@ -261,7 +261,7 @@ class LogoutHandler(BaseAPIController):
     @api_authenticated
     @allow_when_password_required
     async def post(self):
-        data = escape.json_decode(self.request.body)
+        data = get_json_object(self)
 
         if self.current_user:
             # Revoke the JWT first, so a failure below can never leave the token
@@ -335,7 +335,7 @@ class PasswordChangeController(BaseAPIController):
 
         :return: 200 on success, 401 if old password wrong, 400 if new password invalid
         """
-        data = escape.json_decode(self.request.body)
+        data = get_json_object(self)
         old_password = data.get("old_password", "")
         new_password = data.get("new_password", "")
 
@@ -417,7 +417,7 @@ class AdminPasswordResetController(BaseAPIController):
 
         :return: 200 with temporary password on success, 400 if validation fails
         """
-        data = escape.json_decode(self.request.body)
+        data = get_json_object(self)
         user_id = data.get("user_id")
 
         if not user_id:

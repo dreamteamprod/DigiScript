@@ -33,8 +33,10 @@ def require_admin(
 ) -> Callable[..., Optional[Awaitable[None]]]:
     @functools.wraps(method)
     def wrapper(self: BaseController, *args, **kwargs):
-        if not self.current_user or not self.current_user["is_admin"]:
-            raise HTTPError(401, log_message="Not admin user")
+        if not self.current_user:
+            raise HTTPError(401, log_message="Not logged in")
+        if not self.current_user["is_admin"]:
+            raise HTTPError(403, log_message="Not admin user")
         return method(self, *args, **kwargs)
 
     return wrapper

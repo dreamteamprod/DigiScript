@@ -45,6 +45,16 @@ class BaseController(DatabaseMixin, RequestHandler):
         self.application: DigiScriptServer = self.application
         self.current_show: Optional[dict] = None
 
+    def set_default_headers(self) -> None:
+        """Add baseline security headers to every response.
+
+        No Content-Security-Policy is set: the SPA and the bundled docs rely on
+        inline styles/scripts, so a policy strict enough to be useful would break them.
+        """
+        self.set_header("X-Content-Type-Options", "nosniff")
+        self.set_header("X-Frame-Options", "SAMEORIGIN")
+        self.set_header("Referrer-Policy", "same-origin")
+
     async def prepare(
         self,
     ) -> Optional[Awaitable[None]]:

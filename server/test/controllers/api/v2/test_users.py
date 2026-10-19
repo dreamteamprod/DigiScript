@@ -74,7 +74,7 @@ class TestUsersV2Controller(DigiScriptTestCase):
             method="GET",
             headers={"Authorization": f"Bearer {nonadmin_token}"},
         )
-        self.assertEqual(401, resp.code)
+        self.assertEqual(403, resp.code)
 
     # ─── POST /api/v2/users ────────────────────────────────────────────────────
 
@@ -183,7 +183,7 @@ class TestUsersV2Controller(DigiScriptTestCase):
             body=escape.json_encode({"is_admin": True}),
             headers={"Authorization": f"Bearer {user_token}"},
         )
-        self.assertEqual(401, resp.code)
+        self.assertEqual(403, resp.code)
 
     def test_patch_missing_id(self):
         admin_token = self._setup_admin()
@@ -265,7 +265,7 @@ class TestUsersV2Controller(DigiScriptTestCase):
             allow_nonstandard_methods=True,
             headers={"Authorization": f"Bearer {user_token}"},
         )
-        self.assertEqual(401, resp.code)
+        self.assertEqual(403, resp.code)
 
     def test_delete_missing_id(self):
         admin_token = self._setup_admin()
