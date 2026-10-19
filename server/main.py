@@ -31,14 +31,20 @@ except ImportError:
         return path
 
 
-from digi_server.app_server import DigiScriptServer
+from digi_server.app_server import MAX_BODY_SIZE, DigiScriptServer
 from digi_server.logger import add_logging_level, get_logger
 
 
 add_logging_level("TRACE", logging.DEBUG - 5)
 get_logger().setLevel(logging.DEBUG)
 
-define("debug", type=bool, default=not IS_FROZEN, help="auto reload")
+define(
+    "debug",
+    type=bool,
+    default=False,
+    help="Development mode: autoreload, relaxed WebSocket origin checks. "
+    "Never enable on a deployed server.",
+)
 define("port", type=int, default=8080, help="port to listen on")
 define("settings_path", type=str, default=None, help="Path to settings JSON file")
 define("skip_migrations", type=bool, default=False, help="skip database migrations")
@@ -123,7 +129,7 @@ async def main():
     )
     await app.configure()
 
-    app.listen(options.port)
+    app.listen(options.port, max_body_size=MAX_BODY_SIZE)
     get_logger().info(f"Listening on port: {options.port}")
     if options.debug:
         get_logger().warning("Running in debug mode")

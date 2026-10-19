@@ -47,6 +47,14 @@ from utils.web.pending_disconnects import PendingDisconnects
 from utils.web.route import Route
 
 
+# Largest HTTP request body accepted by the server (passed to ``listen`` in
+# ``main.py``). Legitimate payloads are JSON well under this size.
+MAX_BODY_SIZE = 10 * 1024 * 1024
+# Largest single WebSocket message accepted: bigger than any control message,
+# with headroom for Yjs document syncs.
+MAX_WEBSOCKET_MESSAGE_SIZE = 16 * 1024 * 1024
+
+
 class DigiScriptServer(PrometheusMixIn, Application):
     def __init__(
         self,
@@ -331,8 +339,11 @@ class DigiScriptServer(PrometheusMixIn, Application):
         super().__init__(
             handlers=handlers,
             debug=debug,
+            # Never return stack traces to clients, even in debug mode.
+            serve_traceback=False,
             db=self._db,
             websocket_ping_interval=5,
+            websocket_max_message_size=MAX_WEBSOCKET_MESSAGE_SIZE,
             cookie_secret=self._get_cookie_secret(),
             login_url="/login",
         )

@@ -420,6 +420,33 @@ class TestShowDeletionController(DigiScriptTestCase):
                 " the script",
             )
 
+    def test_delete_show_unauthenticated(self):
+        """An unauthenticated request cannot delete a show."""
+        show_b_id = self._create_show()
+        response = self.fetch(
+            f"/api/v1/show?id={show_b_id}",
+            method="DELETE",
+            allow_nonstandard_methods=True,
+        )
+        self.assertEqual(401, response.code)
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNotNone(session.get(Show, show_b_id))
+
+    def test_delete_show_non_admin(self):
+        """A logged-in non-admin cannot delete a show."""
+        show_b_id = self._create_show()
+        with self._app.get_db().sessionmaker() as session:
+            user = User(username="regular", is_admin=False, password="test")
+            session.add(user)
+            session.flush()
+            user_id = user.id
+            session.commit()
+        token = self._app.jwt_service.create_access_token({"user_id": user_id})
+        response = self._delete(show_b_id, token=token)
+        self.assertIn(response.code, (401, 403))
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNotNone(session.get(Show, show_b_id))
+
     def test_delete_currently_loaded_show(self):
         """Attempting to delete the currently loaded show returns 400."""
         response = self._delete(self.show_a_id)

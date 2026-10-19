@@ -110,6 +110,8 @@ python3 main.py
 
 The server will be available at `http://localhost:8080`
 
+The server runs in production mode by default. When developing (for example with the `client-v3` Vite dev server), start it with `python3 main.py --debug` to enable autoreload and accept WebSocket connections from other origins. Never use `--debug` on a deployed server.
+
 ### First Launch Setup
 
 On first launch, DigiScript will prompt you to create an administrator user. From there, you can create shows, configure users, and begin building your production.

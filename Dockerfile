@@ -30,13 +30,13 @@ FROM python:3.13-bookworm
 COPY /server/requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
-RUN apt update
-RUN apt install -y nano
-
 COPY /server /server
 COPY --from=build_v2 /server/static /server/static
 COPY --from=build_v3 /server/static /server/static
 WORKDIR /server
-RUN mkdir conf
+RUN useradd --system --create-home --uid 1000 digiscript \
+    && mkdir -p conf \
+    && chown -R digiscript:digiscript /server/conf
+USER digiscript
 EXPOSE 8080
 ENTRYPOINT ["python3", "main.py"]
