@@ -170,6 +170,20 @@ class SettingsObject:
         }
 
 
+#: Settings holding server filesystem locations. They are only disclosed to
+#: administrators; everyone else (and every broadcast) gets them omitted.
+SENSITIVE_SETTINGS = frozenset(
+    {
+        "db_path",
+        "log_path",
+        "db_log_path",
+        "client_log_path",
+        "compiled_script_path",
+        "draft_script_path",
+    }
+)
+
+
 class Settings:
     def __init__(self, application: DigiScriptServer, settings_path=None):
         self._application = application
@@ -595,17 +609,31 @@ class Settings:
             settings_json[key] = value.get_value()
         return settings_json
 
-    async def as_json(self):
+    async def as_json(self, include_sensitive: bool = False):
+        """Return all setting values plus the server version.
+
+        :param include_sensitive: Include the filesystem path settings in
+            :data:`SENSITIVE_SETTINGS`. Only pass True for administrators.
+        """
         async with self.lock:
             settings_json = {}
             for key, value in self.settings.items():
+                if not include_sensitive and key in SENSITIVE_SETTINGS:
+                    continue
                 settings_json[key] = value.get_value()
             settings_json["version"] = _get_version()
             return json.loads(json.dumps(settings_json))
 
-    async def raw_json(self):
+    async def raw_json(self, include_sensitive: bool = False):
+        """Return full setting metadata (type, default, help text, ...).
+
+        :param include_sensitive: Include the filesystem path settings in
+            :data:`SENSITIVE_SETTINGS`. Only pass True for administrators.
+        """
         async with self.lock:
             settings_json = {}
             for key, value in self.settings.items():
+                if not include_sensitive and key in SENSITIVE_SETTINGS:
+                    continue
                 settings_json[key] = value.as_json()
             return json.loads(json.dumps(settings_json))

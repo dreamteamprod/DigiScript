@@ -33,11 +33,20 @@ function flushQueue() {
   flushTimer = null;
   if (logQueue.length === 0) return;
 
+  // The server only accepts log posts from logged-in users. Before login, keep the
+  // most recent entries queued (bounded) and send them once a token exists.
+  const token = useUserStore().authToken;
+  if (!token) {
+    if (logQueue.length > MAX_QUEUE_SIZE) logQueue.splice(0, logQueue.length - MAX_QUEUE_SIZE);
+    return;
+  }
+
   const batch = logQueue.splice(0);
 
-  const token = useUserStore().authToken;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
 
   fetch(makeURL('/api/v1/logs/batch'), {
     method: 'POST',

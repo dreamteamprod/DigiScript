@@ -91,6 +91,8 @@ All log entries are attributed to the logged-in user where one is present:
 
 - **Server logs**: Each HTTP access log line and request-body debug line includes `[username]` in the message (e.g. `200 GET /api/v1/user/settings (127.0.0.1) [alice] 5.23ms`). WebSocket messages and close events also include the username once the connection has been authenticated.
 - **Client logs**: The server extracts the username from the JWT token on each batch submission, so all client log entries are attributed even if the client sends no user information itself.
+- **Client log limits**: Submitting client logs requires being logged in, so entries generated before login are held in the browser and sent after login. A single batch may contain at most 100 entries, messages are truncated at 4 KB, oversized extra data is dropped, and each IP address is limited to 600 entries per minute (further entries are rejected until the window resets).
+- **Server file paths**: The database, log, compiled script and draft script locations are only shown to administrators (on the Settings tab); other users and logged-out visitors never receive them.
 
 #### Filtering
 

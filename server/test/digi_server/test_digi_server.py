@@ -10,7 +10,8 @@ from test.conftest import DigiScriptTestCase
 
 class TestDigiScriptServer(DigiScriptTestCase):
     def test_debug(self):
-        response = self.fetch("/debug")
+        token = self._create_and_login_admin()
+        response = self.fetch("/debug", headers={"Authorization": f"Bearer {token}"})
         response_body = tornado.escape.json_decode(response.body)
 
         self.assertEqual(200, response.code)
