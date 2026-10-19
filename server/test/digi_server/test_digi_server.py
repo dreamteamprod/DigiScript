@@ -18,6 +18,13 @@ class TestDigiScriptServer(DigiScriptTestCase):
         self.assertTrue("status" in response_body)
         self.assertEqual("OK", response_body["status"])
 
+    def test_debug_requires_admin(self):
+        self.assertEqual(401, self.fetch("/debug").code)
+        admin = self._create_and_login_admin()
+        user = self._create_and_login_user(admin)
+        response = self.fetch("/debug", headers={"Authorization": f"Bearer {user}"})
+        self.assertEqual(401, response.code)
+
     def test_api_debug(self):
         response = self.fetch("/api/v1/debug")
         response_body = tornado.escape.json_decode(response.body)

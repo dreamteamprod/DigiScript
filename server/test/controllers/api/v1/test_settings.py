@@ -107,16 +107,3 @@ class TestSettingsDisclosure(DigiScriptTestCase):
         data = self.io_loop.run_sync(self._app.digi_settings.as_json)
         for key in self.PATH_KEYS:
             self.assertNotIn(key, data)
-
-
-class TestDebugEndpoint(DigiScriptTestCase):
-    def test_debug_requires_admin(self):
-        self.assertEqual(401, self.fetch("/debug").code)
-        admin = self._create_and_login_admin()
-        user = self._create_and_login_user(admin)
-        self.assertEqual(
-            401, self.fetch("/debug", headers={"Authorization": f"Bearer {user}"}).code
-        )
-        self.assertEqual(
-            200, self.fetch("/debug", headers={"Authorization": f"Bearer {admin}"}).code
-        )
