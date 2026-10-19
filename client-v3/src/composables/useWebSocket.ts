@@ -58,6 +58,15 @@ async function handleMessage(msg: WsMessage): Promise<void> {
       }
       break;
     }
+    case 'REASSIGN_UUID': {
+      // The server moved this tab to a different client id: the one it had
+      // belongs to another user (or no longer exists). Store the new id as-is;
+      // unlike SET_UUID this must not trigger a REFRESH_CLIENT.
+      const assigned = msg.DATA as unknown as string;
+      log.info('Server assigned this tab a new client id:', assigned);
+      wsStore.$patch({ internalUUID: assigned });
+      break;
+    }
     case 'WS_AUTH_SUCCESS':
       wsStore.$patch({ authenticated: true, authSucceeded: true, pendingAuthentication: false });
       errorCount = 0;

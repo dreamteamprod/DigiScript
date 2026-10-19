@@ -98,6 +98,8 @@ The **Script** tab is where you edit the actual script content. When you first n
 
 To begin editing, click the **Begin Editing** button. This requests exclusive edit access from the backend, ensuring only one person can edit the script at a time to prevent conflicting changes.
 
+Your edit access belongs to the browser tab you started editing in: each tab has its own connection identity, in both the current interface and the legacy one at `/ui-old/`, so another tab does not share it. (A tab created with the browser's **Duplicate tab** command is the exception: it starts as a copy of the original tab and shares its edit access.) If a different user logs in on a tab, that tab is given a new connection identity: the previous user's edit access never passes to them, and it is released after the usual grace period. Edit access survives a page reload: if you refresh the page, or your connection drops briefly, while editing, you come back still in edit mode, as long as you are still logged in as the same user. Unsaved changes in the script editor are lost on reload, so save before refreshing. If you close the browser, or it loses its connection for good, the lock is released a few seconds later and then other users can begin editing. Logging out normally releases it straight away. If your login had already expired, the lock is instead released once that page reloads or closes and its grace period ends, because an expired login can no longer use the lock.
+
 Once you have edit access, you'll see options to **Save** the script, along with a dropdown button for **Add Dialogue** that provides access to all line types.
 
 #### Line Types

@@ -31,7 +31,18 @@ from models.show import Act, Show
 from models.user import User
 from rbac.role import Role
 from utils.web.base_controller import DatabaseMixin
+from utils.web.pending_disconnects import disconnect_key
 from utils.web.route import ApiRoute, ApiVersion
+from utils.web.ws_session_lifecycle import (
+    assign_session_user,
+    broadcast,
+    get_live_session,
+    owner_is_connected,
+    row_owner,
+    safe_write,
+    schedule_disconnect_deadline,
+    schedule_room_close,
+)
 
 
 if TYPE_CHECKING:
@@ -53,6 +64,28 @@ _COLLAB_ONLY_OPS = frozenset(
 
 @ApiRoute("ws", ApiVersion.V1)
 class WebSocketController(DatabaseMixin, WebSocketHandler):
+    # Live-show ops only the leader may send, and the method that handles each.
+    _LEADER_OP_HANDLERS = {
+        "SCRIPT_SCROLL": "_op_script_scroll",
+        "BEGIN_INTERVAL": "_op_begin_interval",
+        "END_INTERVAL": "_op_end_interval",
+        "RELOAD_CLIENTS": "_op_reload_clients",
+    }
+
+    # Script room / collaborative editing ops and the method that handles each.
+    _SCRIPT_ROOM_OP_HANDLERS = {
+        "REQUEST_SCRIPT_EDIT": "_op_request_script_edit",
+        "REQUEST_SCRIPT_CUTS": "_op_request_script_cuts",
+        "STOP_SCRIPT_EDIT": "_op_stop_script_edit",
+        "JOIN_SCRIPT_ROOM": "_op_join_script_room",
+        "LEAVE_SCRIPT_ROOM": "_op_leave_script_room",
+        "YJS_SYNC": "_op_yjs_sync",
+        "YJS_UPDATE": "_op_yjs_update",
+        "YJS_AWARENESS": "_op_yjs_awareness",
+        "SAVE_SCRIPT_DRAFT": "_op_save_script_draft",
+        "DISCARD_SCRIPT_DRAFT": "_op_discard_script_draft",
+    }
+
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
         self.application: DigiScriptServer = application
@@ -60,16 +93,34 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         self.current_username: str | None = None
         self._last_ping = 0.0
         self._last_pong = 0.0
+        # on_close can be invoked twice (by Tornado, and by write_message on a
+        # closed socket); only the first call may act.
+        self._close_handled = False
+        # The uuid open() created; REFRESH_CLIENT deletes only this row.
+        self._placeholder_id: Optional[str] = None
+        # A connection may resume a uuid via REFRESH_CLIENT at most once.
+        self._resumed = False
+        # The uuid this connection presented with REFRESH_CLIENT, even if it was
+        # not resumed (its row had gone); used for the late leadership reclaim.
+        self._presented_uuid: Optional[str] = None
 
-    def update_session(self, is_editor=False, is_cutting=False, user_id=None):
+    def update_session(self, user_id=None) -> bool:
+        """Create or refresh the Session row for this connection's uuid.
+
+        Edit/cut flags are never *granted* here (only ``REQUEST_SCRIPT_EDIT`` /
+        ``REQUEST_SCRIPT_CUTS`` grant them). They are cleared if the row changes
+        hands to a different user, see :func:`assign_session_user`.
+
+        :param user_id: Authenticated user id, or None to leave it unchanged.
+        :returns: True if edit/cut flags were cleared; the caller broadcasts.
+        """
+        cleared = False
         with self.make_session() as session:
             entry = session.get(Session, self.__getattribute__("internal_id"))
             if entry:
                 entry.last_ping = self._last_ping
                 entry.last_pong = self._last_pong
-                # Update user_id if it has changed
-                if user_id is not None and entry.user_id != user_id:
-                    entry.user_id = user_id
+                cleared = assign_session_user(entry, user_id)
             else:
                 session.add(
                     Session(
@@ -78,14 +129,13 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         last_ping=self._last_ping,
                         last_pong=self._last_pong,
                         user_id=user_id,
-                        is_editor=is_editor,
-                        is_cutting=is_cutting,
                     )
                 )
             if self.current_user_id:
                 user = session.get(User, self.current_user_id)
                 user.last_seen = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
+        return cleared
 
     def data_received(self, chunk: bytes) -> Optional[Awaitable[None]]:
         raise RuntimeError(f"Data streaming not supported for {self.__class__}")
@@ -98,6 +148,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
     @gen.coroutine
     def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:
         self.__setattr__("internal_id", str(uuid4()))
+        self._placeholder_id = self.__getattribute__("internal_id")
         self.application.clients.append(self)
 
         self.update_session(user_id=self.current_user_id)
@@ -109,175 +160,305 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         yield self.write_message({"OP": "NOOP", "DATA": {}, "ACTION": "GET_SETTINGS"})
 
     def on_close(self) -> None:
+        """Handle the socket closing, without treating the close as final.
+
+        Tornado calls this when the socket drops, and ``write_message`` calls it
+        again if a write finds the socket closed, so it only acts once per
+        handler. If a connection authenticated as the row's owner still holds
+        this uuid (the owner's reloaded tab, or a duplicate of that
+        tab), nothing is released. Otherwise the uuid's grace deadline starts
+        (see :func:`schedule_disconnect_deadline`), unless one is already
+        running, in which case the original deadline is kept. At the deadline
+        :func:`finalise_disconnect` releases the Session row, its edit/cut lock
+        and live-show leadership, unless the owner has authenticated again by
+        then. The handler leaves any collaborative-editing room immediately. If
+        it was the room's last editor, :func:`close_room_if_editorless` runs after
+        the window (not cancelled; it does nothing if an editor has rejoined).
+        See issue #1419.
+        """
+        if self._close_handled:
+            return
+        self._close_handled = True
+
         if self in self.application.clients:
             self.application.clients.remove(self)
+        self._leave_room()
 
-        # Remove from any collaborative editing room
-        if hasattr(self.application, "room_manager") and self.application.room_manager:
-            room = self.application.room_manager.get_room_for_client(self)
-            if room:
-                was_editor = room.clients.get(self) == "editor"
-                room.remove_client(self)
-                # Schedule async broadcast (on_close is sync, so use add_callback)
-                app = self.application
-                rm = self.application.room_manager
-
-                async def _broadcast():
-                    try:
-                        with app.get_db().sessionmaker() as session:
-                            await room.broadcast_members(session)
-                        if was_editor and not room.has_editors and room._dirty:
-                            await rm._checkpoint_room(room)
-                            await app.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
-                    except Exception:
-                        get_logger().exception("Error in on_close _broadcast callback")
-                    finally:
-                        if was_editor and not room.has_editors:
-                            try:
-                                await rm.close_active_room()
-                            except Exception:
-                                get_logger().exception(
-                                    "Error closing active room in on_close — "
-                                    "room may be left in a stale state"
-                                )
-
-                IOLoop.current().add_callback(_broadcast)
-
-        notify_editor_change = False
-        elect_live_leader = False
-
-        try:
-            with self.make_session() as session:
-                entry = session.get(Session, self.__getattribute__("internal_id"))
-                if entry:
-                    if entry.is_editor or entry.is_cutting:
-                        notify_editor_change = True
-                    if entry.live_session:
-                        elect_live_leader = True
-
-                    session.delete(entry)
-                    session.commit()
-        except Exception:
-            get_logger().exception(
-                f"Error cleaning up session in on_close for {self.request.remote_ip}"
-            )
-
-        if notify_editor_change:
-            for client in self.application.clients:
-                client.write_message(
-                    {"OP": "NOOP", "ACTION": "GET_SCRIPT_CONFIG_STATUS", "DATA": {}}
-                )
-
-        if elect_live_leader:
-            _show_setting = self.application.digi_settings.settings.get("current_show")
-            if not _show_setting:
-                return
-            current_show = _show_setting.get_value()
-            if current_show:
-                with self.make_session() as session:
-                    show = session.get(Show, current_show)
-                    if show.current_session_id:
-                        live_session: ShowSession = session.get(
-                            ShowSession, show.current_session_id
-                        )
-                        live_session.last_client_internal_id = self.__getattribute__(
-                            "internal_id"
-                        )
-                        session.flush()
-                        next_session: Session = session.scalars(
-                            select(Session).where(
-                                Session.user_id == live_session.user_id
-                            )
-                        ).first()
-                        if next_session:
-                            next_ws = self.application.get_ws(next_session.internal_id)
-                            if not next_ws:
-                                get_logger().error(
-                                    "Unable to elect new leader of live session"
-                                )
-                            else:
-                                live_session.client_internal_id = (
-                                    next_session.internal_id
-                                )
-                                live_session.last_client_internal_id = None
-                                next_ws.write_message(
-                                    {
-                                        "OP": "NOOP",
-                                        "ACTION": "ELECTED_LEADER",
-                                        "DATA": {
-                                            "latest_line_ref": live_session.latest_line_ref
-                                        },
-                                    }
-                                )
-                        else:
-                            for client in self.application.clients:
-                                client.write_message(
-                                    {"OP": "NOOP", "ACTION": "NO_LEADER", "DATA": {}}
-                                )
-
-                        session.commit()
-                        for client in self.application.clients:
-                            client.write_message(
-                                {
-                                    "OP": "NOOP",
-                                    "ACTION": "GET_SHOW_SESSION_DATA",
-                                    "DATA": {},
-                                }
-                            )
-
+        internal_id = getattr(self, "internal_id", None)
         user_part = (
             f"{self.current_username} ({self.request.remote_ip})"
             if self.current_username
             else self.request.remote_ip
         )
-        get_logger().info(f"WebSocket closed from: {user_part}")
+        if internal_id is None:
+            get_logger().info(f"WebSocket closed from: {user_part}")
+            return
+
+        try:
+            _, owner_id = row_owner(self.application, internal_id)
+        except Exception:
+            get_logger().exception(f"Could not read the row of client {internal_id}")
+            owner_id = None
+        if owner_is_connected(self.application, internal_id, owner_id):
+            get_logger().info(
+                f"WebSocket closed from: {user_part} (client {internal_id} is still "
+                f"connected as its owner; nothing to release)"
+            )
+            return
+
+        registry = self.application.pending_disconnects
+        if schedule_disconnect_deadline(self.application, internal_id):
+            get_logger().info(
+                f"WebSocket closed from: {user_part} (client {internal_id} held for "
+                f"{registry.grace_seconds:g}s reconnect grace window)"
+            )
+        else:
+            get_logger().info(
+                f"WebSocket closed from: {user_part} (client {internal_id} keeps "
+                f"its original grace deadline)"
+            )
+
+    def _leave_room(self) -> None:
+        """Remove this (closed) handler from the collaborative-editing room.
+
+        If it was the room's last editor, closing the room is deferred to the end
+        of the grace window, so a reloading editor that rejoins in time keeps the
+        room and its viewers never see ``ROOM_CLOSED``.
+        """
+        room_manager = getattr(self.application, "room_manager", None)
+        room = room_manager.get_room_for_client(self) if room_manager else None
+        if room is None:
+            return
+        was_editor = room.clients.get(self) == "editor"
+        room.remove_client(self)
+        app = self.application
+
+        async def _broadcast_members():
+            try:
+                with app.get_db().sessionmaker() as session:
+                    await room.broadcast_members(session)
+            except Exception:
+                get_logger().exception("Error in on_close members broadcast")
+
+        IOLoop.current().add_callback(_broadcast_members)
+        if was_editor and not room.has_editors:
+            schedule_room_close(app, room)
+
+    # ------------------------------------------------------------------
+    # Ownership: a uuid is identity, not a credential
+    # ------------------------------------------------------------------
+
+    def _owned_row(self, session) -> Optional[Session]:
+        """Return this connection's Session row if the connection owns it.
+
+        The ownership rule: the edit/cut lock and leadership recorded against a
+        uuid may only be used by a connection authenticated as the row's owner.
+
+        :param session: Active SQLAlchemy session.
+        :returns: The row, or None if it is missing or owned by someone else (or
+            this connection is not authenticated).
+        """
+        if self.current_user_id is None:
+            return None
+        entry = session.get(Session, self.__getattribute__("internal_id"))
+        if entry is None or entry.user_id != self.current_user_id:
+            return None
+        return entry
+
+    def _is_leader(self, session, show_session: Optional[ShowSession]) -> bool:
+        """Return True if this connection may act as the live-show leader.
+
+        Requires the uuid to hold leadership, the connection to be authenticated
+        as the show session's user, and the row to be owned by that user.
+
+        :param session: Active SQLAlchemy session.
+        :param show_session: The running show session, or None.
+        """
+        return (
+            show_session is not None
+            and show_session.client_internal_id == self.__getattribute__("internal_id")
+            and show_session.user_id is not None
+            and show_session.user_id == self.current_user_id
+            and self._owned_row(session) is not None
+        )
+
+    def _reconcile_after_auth(self, user_id: int) -> None:
+        """Settle who owns this connection's uuid once it has authenticated.
+
+        A different user never inherits another user's client uuid:
+
+        * No row, a row with no owner (a placeholder that never authenticated),
+          or a row owned by *user_id*: this user owns it. Its grace deadline (if
+          any) is cancelled and its lock and leadership carry on.
+        * A row owned by another user: this connection is moved to a fresh uuid
+          of its own (:meth:`_move_to_fresh_uuid`), and the client is told to
+          store it. The other user's row is left alone, and if its owner is not
+          connected on it, its normal grace deadline runs.
+        * Finally, a departed leader coming back after its deadline reclaims
+          leadership (see :meth:`_reclaim_leadership`).
+
+        :param user_id: The authenticated user.
+        """
+        internal_id = self.__getattribute__("internal_id")
+        exists, owner_id = row_owner(self.application, internal_id)
+
+        if exists and owner_id is not None and owner_id != user_id:
+            self._move_to_fresh_uuid(
+                user_id, f"client {internal_id} belongs to user {owner_id}"
+            )
+            if not owner_is_connected(self.application, internal_id, owner_id):
+                schedule_disconnect_deadline(self.application, internal_id)
+        else:
+            self.update_session(user_id=user_id)
+            if self.application.pending_disconnects.cancel(disconnect_key(internal_id)):
+                get_logger().info(
+                    f"Client {internal_id} is back as its owner; grace deadline "
+                    f"cancelled"
+                )
+        self._reclaim_leadership(user_id)
+
+    def _move_to_fresh_uuid(self, user_id: int, reason: str) -> None:
+        """Give this connection a new client uuid of its own, owned by *user_id*.
+
+        Used when the uuid it holds belongs to another user, so that a tab is
+        never stuck on a uuid it cannot use. The client is sent
+        ``REASSIGN_UUID`` with the new uuid and stores it in place of the old
+        one, without trying to resume anything.
+
+        :param user_id: The authenticated user who will own the new uuid.
+        :param reason: Why, for the log.
+        """
+        old_uuid = self.__getattribute__("internal_id")
+        new_uuid = str(uuid4())
+        with self.make_session() as session:
+            session.add(
+                Session(
+                    internal_id=new_uuid,
+                    remote_ip=self.request.remote_ip,
+                    last_ping=self._last_ping,
+                    last_pong=self._last_pong,
+                    user_id=user_id,
+                )
+            )
+            session.commit()
+        self.__setattr__("internal_id", new_uuid)
+        get_logger().info(
+            f"Moved a connection of user {user_id} from client {old_uuid} to a fresh "
+            f"client {new_uuid}: {reason}"
+        )
+        safe_write(self, {"OP": "REASSIGN_UUID", "DATA": new_uuid})
+
+    def _reclaim_leadership(self, user_id: int) -> None:
+        """Give leadership back to a departed leader that authenticated again.
+
+        The departed leader is recognised by ``last_client_internal_id``: either
+        this connection holds that uuid, or it presented it with REFRESH_CLIENT
+        but was kept on a fresh uuid because that client's row had gone. Only
+        the show session's user can reclaim.
+
+        :param user_id: The authenticated user.
+        """
+        internal_id = self.__getattribute__("internal_id")
+        with self.make_session() as session:
+            live_session = get_live_session(self.application, session)
+            if (
+                live_session is None
+                or live_session.client_internal_id is not None
+                or live_session.last_client_internal_id
+                not in (internal_id, self._presented_uuid)
+                or live_session.user_id != user_id
+                # Defence in depth: reconcile only reaches here once the row is
+                # owned by user_id, so this check cannot fail today.
+                or self._owned_row(session) is None
+            ):
+                return
+            live_session.client_internal_id = internal_id
+            live_session.last_client_internal_id = None
+            latest_line_ref = live_session.latest_line_ref
+            session.commit()
+        get_logger().info(f"Client {internal_id} reclaimed live-show leadership")
+        safe_write(
+            self,
+            {
+                "OP": "NOOP",
+                "ACTION": "ELECTED_LEADER",
+                "DATA": {"latest_line_ref": latest_line_ref},
+            },
+        )
+        broadcast(self.application, "GET_SHOW_SESSION_DATA")
 
     async def authenticate_with_token(self, token):
-        """Authenticate using JWT token"""
-        is_revoked = await self.application.jwt_service.is_token_revoked(token)
-        if is_revoked:
-            await self.write_message({"OP": "WS_AUTH_ERROR", "DATA": "Revoked token"})
+        """Authenticate using a JWT token.
+
+        A failed authentication changes nothing on the row: the connection simply
+        stays unauthenticated and so cannot use any privilege recorded against
+        its uuid. If settling ownership fails (for example a database error),
+        the connection is left unauthenticated and told so, never half
+        authenticated.
+
+        :param token: The JWT access token.
+        :returns: True on success.
+        """
+        user = await self._user_for_token(token)
+        if user is None:
             return False
 
-        payload = self.application.jwt_service.decode_access_token(token)
-        if not payload or "user_id" not in payload:
+        previous = (self.current_user_id, self.current_username)
+        self.current_user_id = user.id
+        self.current_username = user.username
+        try:
+            self._reconcile_after_auth(user.id)
+        except Exception:
+            self.current_user_id, self.current_username = previous
+            get_logger().exception(
+                f"Could not settle client {getattr(self, 'internal_id', '?')} for "
+                f"user {user.id} ({self.request.remote_ip}); not authenticated"
+            )
             await self.write_message(
-                {"OP": "WS_AUTH_ERROR", "DATA": "Invalid or expired token"}
+                {"OP": "WS_AUTH_ERROR", "DATA": "Authentication failed"}
             )
             return False
+        get_logger().info(
+            f"WebSocket authenticated: {user.username} from {self.request.remote_ip}"
+        )
 
-        if not self.application.jwt_service.validate_token_age(payload):
-            await self.write_message(
-                {"OP": "WS_AUTH_ERROR", "DATA": "Token expired (lifetime exceeded)"}
-            )
-            return False
+        await self.write_message(
+            {
+                "OP": "WS_AUTH_SUCCESS",
+                "DATA": {"user_id": user.id, "username": user.username},
+            }
+        )
+        return True
 
-        with self.make_session() as session:
-            user = session.get(User, int(payload["user_id"]))
-            if not user:
-                await self.write_message(
-                    {"OP": "WS_AUTH_ERROR", "DATA": "User not found"}
-                )
-                return False
+    async def _user_for_token(self, token) -> Optional[User]:
+        """Validate *token*, sending ``WS_AUTH_ERROR`` on failure.
 
-            # Update the user ID for this connection
-            self.current_user_id = user.id
-            self.current_username = user.username
-            get_logger().info(
-                f"WebSocket authenticated: {user.username} from {self.request.remote_ip}"
-            )
-
-            # Update the session with the user ID
-            self.update_session(user_id=user.id)
-
-            # Notify of successful authentication
-            await self.write_message(
-                {
-                    "OP": "WS_AUTH_SUCCESS",
-                    "DATA": {"user_id": user.id, "username": user.username},
-                }
-            )
-            return True
+        :param token: The JWT access token.
+        :returns: The (detached) User, or None if the token is not acceptable.
+        """
+        jwt_service = self.application.jwt_service
+        error = None
+        payload = None
+        if await jwt_service.is_token_revoked(token):
+            error = "Revoked token"
+        else:
+            payload = jwt_service.decode_access_token(token)
+            if not payload or "user_id" not in payload:
+                error = "Invalid or expired token"
+            elif not jwt_service.validate_token_age(payload):
+                error = "Token expired (lifetime exceeded)"
+        user = None
+        if error is None:
+            with self.make_session() as session:
+                user = session.get(User, int(payload["user_id"]))
+                if user is None:
+                    error = "User not found"
+                else:
+                    session.expunge(user)
+        if error is not None:
+            await self.write_message({"OP": "WS_AUTH_ERROR", "DATA": error})
+            return None
+        return user
 
     async def on_message(self, message: Union[str, bytes]):
         user_part = (
@@ -296,192 +477,234 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             )
             return
 
-        # Handle JWT authentication operations
-        if ws_op == "AUTHENTICATE":
-            token = message.get("DATA", {}).get("token")
-            if token:
-                await self.authenticate_with_token(token)
+        # Connection boundary: an exception escaping on_message ends Tornado's
+        # read loop without calling on_close, leaving a handler that no longer
+        # reads frames but still counts as a connected owner. Each op keeps its
+        # own state consistent (authentication rolls itself back), so a failed
+        # op is logged and the connection carries on.
+        try:
+            if ws_op in ("AUTHENTICATE", "REFRESH_TOKEN"):
+                await self._handle_auth_op(ws_op, message)
+            elif ws_op in self._SCRIPT_ROOM_OP_HANDLERS:
+                await self._handle_script_room_op(ws_op, message)
             else:
-                await self.write_message(
-                    {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
-                )
-            return
-        if ws_op == "REFRESH_TOKEN":
-            token = message.get("DATA", {}).get("token")
-            if token:
-                success = await self.authenticate_with_token(token)
-                if success:
-                    await self.write_message(
-                        {"OP": "WS_TOKEN_REFRESH_SUCCESS", "DATA": {}}
-                    )
-            else:
-                await self.write_message(
-                    {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
-                )
-            return
+                await self._handle_session_op(ws_op, message)
+        except Exception:
+            get_logger().exception(
+                f"Unhandled error in WS op {ws_op} from client "
+                f"{getattr(self, 'internal_id', '?')} ({self.request.remote_ip})"
+            )
 
-        # Handle script room and collaborative editing operations
-        if ws_op in (
-            "JOIN_SCRIPT_ROOM",
-            "LEAVE_SCRIPT_ROOM",
-            "YJS_SYNC",
-            "YJS_UPDATE",
-            "YJS_AWARENESS",
-            "SAVE_SCRIPT_DRAFT",
-            "DISCARD_SCRIPT_DRAFT",
-            "REQUEST_SCRIPT_EDIT",
-            "REQUEST_SCRIPT_CUTS",
-            "STOP_SCRIPT_EDIT",
-        ):
-            await self._handle_script_room_op(ws_op, message)
-            return
+    async def _handle_auth_op(self, ws_op: str, message: dict) -> None:
+        """Handle ``AUTHENTICATE`` / ``REFRESH_TOKEN``.
 
+        :param ws_op: The operation code.
+        :param message: The full parsed message dict.
+        """
+        data = message.get("DATA")
+        token = data.get("token") if isinstance(data, dict) else None
+        if not token:
+            await self.write_message(
+                {"OP": "WS_AUTH_ERROR", "DATA": "No token provided"}
+            )
+            return
+        success = await self.authenticate_with_token(token)
+        if success and ws_op == "REFRESH_TOKEN":
+            await self.write_message({"OP": "WS_TOKEN_REFRESH_SUCCESS", "DATA": {}})
+
+    async def _handle_session_op(self, ws_op: str, message: dict) -> None:
+        """Handle client-session and live-show operations.
+
+        :param ws_op: The operation code.
+        :param message: The full parsed message dict.
+        """
         with self.make_session() as session:
             entry: Session = session.get(Session, self.__getattribute__("internal_id"))
             current_show = await self.application.digi_settings.get("current_show")
-            if current_show:
-                show = session.get(Show, current_show)
-            else:
-                show = None
-            show_session: Optional[ShowSession] = None
+            show = session.get(Show, current_show) if current_show else None
 
             if ws_op == "NEW_CLIENT":
-                if self.current_user_id and show and show.current_session_id:
-                    show_session = session.get(ShowSession, show.current_session_id)
-                    if show_session and not show_session.client_internal_id:
-                        if show_session.user_id == self.current_user_id:
-                            show_session.client_internal_id = self.__getattribute__(
-                                "internal_id"
-                            )
-                            session.commit()
-                            await self.write_message(
-                                {
-                                    "OP": "NOOP",
-                                    "ACTION": "ELECTED_LEADER",
-                                    "DATA": {
-                                        "latest_line_ref": show_session.latest_line_ref
-                                    },
-                                }
-                            )
-                            await self.application.ws_send_to_all(
-                                "NOOP", "GET_SHOW_SESSION_DATA", {}
-                            )
+                await self._claim_vacant_leadership(session, show)
             elif ws_op == "REFRESH_CLIENT":
-                new_uuid = message["DATA"]
-                is_editor = False
-                is_cutting = False
-                update_session_client = False
-
-                if entry:
-                    is_editor = entry.is_editor
-                    is_cutting = entry.is_cutting
-                    if show and show.current_session_id:
-                        show_session = session.get(ShowSession, show.current_session_id)
-                        if (
-                            show_session
-                            and show_session.last_client_internal_id == new_uuid
-                        ):
-                            update_session_client = True
-
-                    session.delete(entry)
-                    session.commit()
-
-                self.__setattr__("internal_id", new_uuid)
-                self.update_session(
-                    is_editor=is_editor,
-                    is_cutting=is_cutting,
-                    user_id=self.current_user_id,
+                self._resume_client(message.get("DATA"))
+            elif ws_op in self._LEADER_OP_HANDLERS:
+                show_session = (
+                    session.get(ShowSession, show.current_session_id)
+                    if show and show.current_session_id
+                    else None
                 )
-                if update_session_client:
-                    show_session.client_internal_id = new_uuid
-                    show_session.last_client_internal_id = None
-                    session.commit()
-                    await self.application.ws_send_to_all(
-                        "NOOP", "GET_SHOW_SESSION_DATA", {}
+                # Ownership rule: only the authenticated show user on its own row.
+                if self._is_leader(session, show_session):
+                    handler = getattr(self, self._LEADER_OP_HANDLERS[ws_op])
+                    await handler(session, show_session, entry, message["DATA"])
+                else:
+                    get_logger().debug(
+                        f"Ignored {ws_op} from client "
+                        f"{self.__getattribute__('internal_id')} (user "
+                        f"{self.current_user_id}): not the live-show leader"
                     )
-            elif ws_op == "SCRIPT_SCROLL":
-                if show and show.current_session_id:
-                    show_session = session.get(ShowSession, show.current_session_id)
-                    if show_session:
-                        if show_session.client_internal_id == self.__getattribute__(
-                            "internal_id"
-                        ):
-                            show_session.latest_line_ref = message["DATA"][
-                                "current_line"
-                            ]
-                            session.commit()
-                            await self.application.ws_send_to_all(
-                                "NOOP", "SCRIPT_SCROLL", message["DATA"]
-                            )
-            elif ws_op == "BEGIN_INTERVAL":
-                if show and show.current_session_id:
-                    show_session = session.get(ShowSession, show.current_session_id)
-                    if show_session:
-                        if show_session.client_internal_id == self.__getattribute__(
-                            "internal_id"
-                        ):
-                            act: Act = session.get(Act, message["DATA"]["actId"])
-                            if not entry:
-                                return
-
-                            show_interval = Interval(
-                                session_id=show_session.id,
-                                act_id=act.id,
-                                initial_length=message["DATA"]["length"],
-                            )
-                            session.add(show_interval)
-                            session.flush()
-                            show_session.current_interval_id = show_interval.id
-                            session.commit()
-                            await self.application.ws_send_to_all(
-                                "NOOP", "GET_SHOW_SESSION_DATA", {}
-                            )
-            elif ws_op == "END_INTERVAL":
-                if show and show.current_session_id:
-                    show_session = session.get(ShowSession, show.current_session_id)
-                    if show_session:
-                        if show_session.client_internal_id == self.__getattribute__(
-                            "internal_id"
-                        ):
-                            current_interval: Interval = session.get(
-                                Interval, show_session.current_interval_id
-                            )
-                            if current_interval:
-                                current_interval.end_datetime = datetime.datetime.now(
-                                    tz=datetime.timezone.utc
-                                )
-                            show_session.current_interval_id = None
-                            session.commit()
-                            await self.application.ws_send_to_all(
-                                "NOOP", "GET_SHOW_SESSION_DATA", {}
-                            )
-            elif ws_op == "RELOAD_CLIENTS":
-                if show and show.current_session_id:
-                    show_session = session.get(ShowSession, show.current_session_id)
-                    if (
-                        show_session
-                        and show_session.client_internal_id
-                        == self.__getattribute__("internal_id")
-                    ):
-                        await self.application.ws_send_to_all(
-                            "RELOAD_CLIENT", "NOOP", {}
-                        )
             elif ws_op == "LIVE_SHOW_JUMP_TO_PAGE":
-                if show and show.current_session_id:
-                    show_session = session.get(ShowSession, show.current_session_id)
-                    if show_session:
-                        show_session.latest_line_ref = (
-                            f"page_{message['DATA']['page']}_line_0"
-                        )
-                        session.commit()
-                        await self.application.ws_send_to_all(
-                            "RELOAD_CLIENT", "NOOP", {}
-                        )
+                await self._jump_to_page(session, show, message["DATA"])
             else:
                 get_logger().warning(
                     f"Unknown OP {ws_op} received from "
                     f"WebSocket connection {self.request.remote_ip}"
                 )
+
+    def _resume_client(self, new_uuid: Any) -> None:
+        """Handle ``REFRESH_CLIENT``: a reconnecting page resumes its old uuid.
+
+        This restores *identity only*. If *new_uuid* still has a Session row
+        (inside its grace window, or still held by another connection), the
+        placeholder row that :meth:`open` created is deleted and this connection
+        switches to *new_uuid*. It does **not** cancel the uuid's grace deadline
+        and grants nothing: uuids are not secret, so the lock and leadership
+        recorded against the uuid can only be used once this connection
+        authenticates as the row's owner (see :meth:`_owned_row`), and only that
+        authentication cancels the deadline (:meth:`_reconcile_after_auth`).
+
+        If the row has gone (its deadline passed), it is **not** recreated: an
+        unowned recreated row could be claimed by whoever authenticates first.
+        The connection keeps its own fresh uuid, the client is told to store it
+        (``REASSIGN_UUID``), and the presented uuid is remembered so the show's
+        user can still reclaim leadership it held under it
+        (:meth:`_reclaim_leadership`).
+
+        A connection can resume at most once, and invalid payloads are ignored.
+
+        :param new_uuid: The uuid the client asks to resume.
+        """
+        if not isinstance(new_uuid, str) or not new_uuid:
+            get_logger().warning(
+                f"REFRESH_CLIENT with invalid uuid from {self.request.remote_ip}"
+            )
+            return
+        if self._resumed:
+            get_logger().warning(
+                f"Ignoring repeated REFRESH_CLIENT from {self.request.remote_ip}; "
+                f"this connection already resumed a client"
+            )
+            return
+        if new_uuid == self.__getattribute__("internal_id"):
+            return
+
+        with self.make_session() as session:
+            entry = session.get(Session, new_uuid)
+            if entry is not None:
+                placeholder = session.get(Session, self._placeholder_id)
+                if placeholder is not None:
+                    session.delete(placeholder)
+                entry.remote_ip = self.request.remote_ip
+                entry.last_ping = self._last_ping
+                entry.last_pong = self._last_pong
+                session.commit()
+        # Only change in-memory state once the database agrees.
+        self._resumed = True
+        self._presented_uuid = new_uuid
+
+        if entry is None:
+            placeholder_id = self.__getattribute__("internal_id")
+            get_logger().info(
+                f"WebSocket from {self.request.remote_ip} asked to resume client "
+                f"{new_uuid}, which no longer exists; keeping {placeholder_id}"
+            )
+            safe_write(self, {"OP": "REASSIGN_UUID", "DATA": placeholder_id})
+            if self.current_user_id is not None:
+                self._reclaim_leadership(self.current_user_id)
+            return
+
+        self.__setattr__("internal_id", new_uuid)
+        get_logger().info(
+            f"WebSocket from {self.request.remote_ip} resumed client {new_uuid}"
+        )
+        if self.current_user_id is not None:
+            # Already authenticated on this socket: settle ownership now.
+            self._reconcile_after_auth(self.current_user_id)
+
+    async def _op_script_scroll(self, session, show_session, entry, data) -> None:
+        """Leader op ``SCRIPT_SCROLL``: record and broadcast the leader's line."""
+        show_session.latest_line_ref = data["current_line"]
+        session.commit()
+        await self.application.ws_send_to_all("NOOP", "SCRIPT_SCROLL", data)
+
+    async def _op_begin_interval(self, session, show_session, entry, data) -> None:
+        """Leader op ``BEGIN_INTERVAL``: start an interval after the given act."""
+        act: Act = session.get(Act, data["actId"])
+        if not entry:
+            return
+        show_interval = Interval(
+            session_id=show_session.id,
+            act_id=act.id,
+            initial_length=data["length"],
+        )
+        session.add(show_interval)
+        session.flush()
+        show_session.current_interval_id = show_interval.id
+        session.commit()
+        await self.application.ws_send_to_all("NOOP", "GET_SHOW_SESSION_DATA", {})
+
+    async def _op_end_interval(self, session, show_session, entry, data) -> None:
+        """Leader op ``END_INTERVAL``: end the current interval."""
+        current_interval: Interval = session.get(
+            Interval, show_session.current_interval_id
+        )
+        if current_interval:
+            current_interval.end_datetime = datetime.datetime.now(
+                tz=datetime.timezone.utc
+            )
+        show_session.current_interval_id = None
+        session.commit()
+        await self.application.ws_send_to_all("NOOP", "GET_SHOW_SESSION_DATA", {})
+
+    async def _op_reload_clients(self, session, show_session, entry, data) -> None:
+        """Leader op ``RELOAD_CLIENTS``: tell every client to reload."""
+        await self.application.ws_send_to_all("RELOAD_CLIENT", "NOOP", {})
+
+    async def _jump_to_page(self, session, show: Optional[Show], data) -> None:
+        """Handle ``LIVE_SHOW_JUMP_TO_PAGE``: move the live position and reload all.
+
+        Not leader-gated (unchanged from before this PR).
+        """
+        if not (show and show.current_session_id):
+            return
+        show_session = session.get(ShowSession, show.current_session_id)
+        if show_session:
+            show_session.latest_line_ref = f"page_{data['page']}_line_0"
+            session.commit()
+            await self.application.ws_send_to_all("RELOAD_CLIENT", "NOOP", {})
+
+    async def _claim_vacant_leadership(self, session, show: Optional[Show]) -> None:
+        """Handle ``NEW_CLIENT``: take live-show leadership if nobody holds it.
+
+        Only a connection authenticated as the show session's user, on a row it
+        owns, can claim it.
+
+        :param session: Active SQLAlchemy session.
+        :param show: The currently loaded Show, or None.
+        """
+        if not (self.current_user_id and show and show.current_session_id):
+            return
+        show_session = session.get(ShowSession, show.current_session_id)
+        if (
+            show_session is None
+            or show_session.client_internal_id
+            or show_session.user_id != self.current_user_id
+            or self._owned_row(session) is None
+        ):
+            return
+        show_session.client_internal_id = self.__getattribute__("internal_id")
+        # A fresh leader supersedes any earlier leader's claim to reclaim on
+        # reconnect (same as election does).
+        show_session.last_client_internal_id = None
+        session.commit()
+        await self.write_message(
+            {
+                "OP": "NOOP",
+                "ACTION": "ELECTED_LEADER",
+                "DATA": {"latest_line_ref": show_session.latest_line_ref},
+            }
+        )
+        await self.application.ws_send_to_all("NOOP", "GET_SHOW_SESSION_DATA", {})
 
     async def _is_live_session_active(self) -> bool:
         """Return True if a show session is currently running.
@@ -547,7 +770,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         :param entry: The requester's Session row, or None.
         :returns: True if the requester may proceed.
         """
-        if entry is None or not entry.is_editor:
+        if entry is None or not entry.is_editor or self._owned_row(session) is None:
             await self._reject_script_room_op(
                 "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
             )
@@ -583,386 +806,345 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             )
             return
 
-        if ws_op == "REQUEST_SCRIPT_EDIT":
-            with self.make_session() as session:
-                entry = session.get(Session, self.__getattribute__("internal_id"))
-                if entry is None:
-                    get_logger().warning(
-                        "REQUEST_SCRIPT_EDIT: session entry not found "
-                        "(race with on_close?)"
-                    )
-                    return
-                show = await self._get_current_show(session)
+        handler = getattr(self, self._SCRIPT_ROOM_OP_HANDLERS[ws_op])
+        await handler(room_manager, data)
 
-                if show and show.current_session_id:
-                    await self._reject_script_room_op(
-                        "REQUEST_EDIT_FAILURE",
-                        "reason",
-                        ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
-                    )
-                    return
+    async def _op_request_script_edit(self, room_manager, data: dict) -> None:
+        """Handle ``REQUEST_SCRIPT_EDIT`` (see :meth:`_handle_script_room_op`)."""
+        with self.make_session() as session:
+            entry = session.get(Session, self.__getattribute__("internal_id"))
+            if entry is None:
+                get_logger().warning(
+                    "REQUEST_SCRIPT_EDIT: session entry not found (race with on_close?)"
+                )
+                return
+            show = await self._get_current_show(session)
 
-                if not self._user_has_script_write_access(session, show):
-                    await self._reject_script_room_op(
-                        "REQUEST_EDIT_FAILURE",
-                        "reason",
-                        ERROR_INSUFFICIENT_PERMISSIONS,
-                    )
-                    return
+            if show and show.current_session_id:
+                await self._reject_script_room_op(
+                    "REQUEST_EDIT_FAILURE",
+                    "reason",
+                    ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
+                )
+                return
 
-                # The collaborative editor announces itself with `collab: true`.
-                # Requiring the announcement to match the server's mode means an
-                # old-UI client is refused up front in collaborative mode, instead of
-                # letting it edit and then fail (and lose its work) at save time.
-                collab_enabled = self._is_collab_editing_enabled()
-                # An explicit boolean is required so a client that omits the flag
-                # (a stale UI, or cut mode) is never mistaken for a collab request.
-                if data.get("collab", False) is not collab_enabled:
-                    await self._reject_script_room_op(
-                        "REQUEST_EDIT_FAILURE",
-                        "reason",
-                        ERROR_COLLAB_EDITING_ENABLED
-                        if collab_enabled
-                        else ERROR_COLLAB_EDITING_DISABLED,
-                    )
-                    return
+            # Ownership rule: the lock is recorded against this uuid's row,
+            # so only a connection authenticated as the row's owner may take it.
+            if (
+                not self._user_has_script_write_access(session, show)
+                or self._owned_row(session) is None
+            ):
+                await self._reject_script_room_op(
+                    "REQUEST_EDIT_FAILURE",
+                    "reason",
+                    ERROR_INSUFFICIENT_PERMISSIONS,
+                )
+                return
 
-                cutters = session.scalars(
-                    select(Session).where(Session.is_cutting)
-                ).all()
-                if cutters:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_CUTTER},
-                        }
-                    )
-                    return
+            # The collaborative editor announces itself with `collab: true`.
+            # Requiring the announcement to match the server's mode means an
+            # old-UI client is refused up front in collaborative mode, instead of
+            # letting it edit and then fail (and lose its work) at save time.
+            collab_enabled = self._is_collab_editing_enabled()
+            # An explicit boolean is required so a client that omits the flag
+            # (a stale UI, or cut mode) is never mistaken for a collab request.
+            if data.get("collab", False) is not collab_enabled:
+                await self._reject_script_room_op(
+                    "REQUEST_EDIT_FAILURE",
+                    "reason",
+                    ERROR_COLLAB_EDITING_ENABLED
+                    if collab_enabled
+                    else ERROR_COLLAB_EDITING_DISABLED,
+                )
+                return
 
-                # Classic (REST) editing has no way to reconcile concurrent writers,
-                # so it stays single-editor; only collaborative mode allows several.
-                if not collab_enabled:
-                    other_editors = session.scalars(
-                        select(Session).where(
-                            Session.is_editor,
-                            Session.internal_id != self.__getattribute__("internal_id"),
-                        )
-                    ).all()
-                    if other_editors:
-                        await self._reject_script_room_op(
-                            "REQUEST_EDIT_FAILURE",
-                            "reason",
-                            ERROR_EDIT_BLOCKED_BY_EDITOR,
-                        )
-                        return
+            cutters = session.scalars(select(Session).where(Session.is_cutting)).all()
+            if cutters:
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "REQUEST_EDIT_FAILURE",
+                        "DATA": {"reason": ERROR_EDIT_BLOCKED_BY_CUTTER},
+                    }
+                )
+                return
 
-                entry.is_editor = True
-                session.commit()
-
-            room = room_manager.get_room_for_client(self)
-            if room:
-                room.add_client(self, "editor")
-                with self.make_session() as session:
-                    await room.broadcast_members(session)
-
-            await self.application.ws_send_to_all(
-                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
-            )
-        elif ws_op == "REQUEST_SCRIPT_CUTS":
-            with self.make_session() as session:
-                entry = session.get(Session, self.__getattribute__("internal_id"))
-                if entry is None:
-                    get_logger().warning(
-                        "REQUEST_SCRIPT_CUTS: session entry not found "
-                        "(race with on_close?)"
-                    )
-                    return
-                show = await self._get_current_show(session)
-
-                if show and show.current_session_id:
-                    await self._reject_script_room_op(
-                        "REQUEST_EDIT_FAILURE",
-                        "reason",
-                        ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
-                    )
-                    return
-
-                if not self._user_has_script_write_access(session, show):
-                    await self._reject_script_room_op(
-                        "REQUEST_EDIT_FAILURE",
-                        "reason",
-                        ERROR_INSUFFICIENT_PERMISSIONS,
-                    )
-                    return
-
-                cutters = session.scalars(
+            # Classic (REST) editing has no way to reconcile concurrent writers,
+            # so it stays single-editor; only collaborative mode allows several.
+            if not collab_enabled:
+                other_editors = session.scalars(
                     select(Session).where(
-                        Session.is_cutting,
+                        Session.is_editor,
                         Session.internal_id != self.__getattribute__("internal_id"),
                     )
                 ).all()
-                if cutters:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_CUTTER},
-                        }
+                if other_editors:
+                    await self._reject_script_room_op(
+                        "REQUEST_EDIT_FAILURE",
+                        "reason",
+                        ERROR_EDIT_BLOCKED_BY_EDITOR,
                     )
                     return
 
-                editors = session.scalars(
-                    select(Session).where(Session.is_editor)
-                ).all()
-                if editors:
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "REQUEST_EDIT_FAILURE",
-                            "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_EDITOR},
-                        }
-                    )
-                    return
+            entry.is_editor = True
+            session.commit()
 
-                if show:
-                    script = session.scalar(
-                        select(Script).where(Script.show_id == show.id)
-                    )
-                    if script and script.current_revision:
-                        if await room_manager.has_unsaved_changes():
-                            await self.write_message(
-                                {
-                                    "OP": "NOOP",
-                                    "ACTION": "REQUEST_EDIT_FAILURE",
-                                    "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_DRAFT},
-                                }
-                            )
-                            return
+        room = room_manager.get_room_for_client(self)
+        if room:
+            room.add_client(self, "editor")
+            with self.make_session() as session:
+                await room.broadcast_members(session)
 
-                entry.is_cutting = True
+        await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
+
+    async def _op_request_script_cuts(self, room_manager, data: dict) -> None:
+        """Handle ``REQUEST_SCRIPT_CUTS`` (see :meth:`_handle_script_room_op`)."""
+        with self.make_session() as session:
+            entry = session.get(Session, self.__getattribute__("internal_id"))
+            if entry is None:
+                get_logger().warning(
+                    "REQUEST_SCRIPT_CUTS: session entry not found (race with on_close?)"
+                )
+                return
+            show = await self._get_current_show(session)
+
+            if show and show.current_session_id:
+                await self._reject_script_room_op(
+                    "REQUEST_EDIT_FAILURE",
+                    "reason",
+                    ERROR_EDIT_BLOCKED_BY_LIVE_SESSION,
+                )
+                return
+
+            # Ownership rule: the lock is recorded against this uuid's row,
+            # so only a connection authenticated as the row's owner may take it.
+            if (
+                not self._user_has_script_write_access(session, show)
+                or self._owned_row(session) is None
+            ):
+                await self._reject_script_room_op(
+                    "REQUEST_EDIT_FAILURE",
+                    "reason",
+                    ERROR_INSUFFICIENT_PERMISSIONS,
+                )
+                return
+
+            cutters = session.scalars(
+                select(Session).where(
+                    Session.is_cutting,
+                    Session.internal_id != self.__getattribute__("internal_id"),
+                )
+            ).all()
+            if cutters:
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "REQUEST_EDIT_FAILURE",
+                        "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_CUTTER},
+                    }
+                )
+                return
+
+            editors = session.scalars(select(Session).where(Session.is_editor)).all()
+            if editors:
+                await self.write_message(
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "REQUEST_EDIT_FAILURE",
+                        "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_EDITOR},
+                    }
+                )
+                return
+
+            if show:
+                script = session.scalar(select(Script).where(Script.show_id == show.id))
+                if script and script.current_revision:
+                    if await room_manager.has_unsaved_changes():
+                        await self.write_message(
+                            {
+                                "OP": "NOOP",
+                                "ACTION": "REQUEST_EDIT_FAILURE",
+                                "DATA": {"reason": ERROR_CUTS_BLOCKED_BY_DRAFT},
+                            }
+                        )
+                        return
+
+            entry.is_cutting = True
+            session.commit()
+
+        await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
+
+    async def _op_stop_script_edit(self, room_manager, data: dict) -> None:
+        """Handle ``STOP_SCRIPT_EDIT`` (see :meth:`_handle_script_room_op`)."""
+        with self.make_session() as session:
+            # Only the owner can give up the lock; a socket that merely
+            # presented the uuid must not be able to strip it.
+            entry = self._owned_row(session)
+            if entry and (entry.is_editor or entry.is_cutting):
+                entry.is_editor = False
+                entry.is_cutting = False
                 session.commit()
 
-            await self.application.ws_send_to_all(
-                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
-            )
-        elif ws_op == "STOP_SCRIPT_EDIT":
+        room = room_manager.get_room_for_client(self)
+        if room:
+            room.add_client(self, "viewer")
             with self.make_session() as session:
-                entry = session.get(Session, self.__getattribute__("internal_id"))
-                if entry and (entry.is_editor or entry.is_cutting):
-                    entry.is_editor = False
-                    entry.is_cutting = False
-                    session.commit()
+                await room.broadcast_members(session)
+            if not room.has_editors:
+                if room._dirty:
+                    await room_manager._checkpoint_room(room)
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_SCRIPT_REVISIONS", {}
+                    )
+                await room_manager.close_active_room()
 
-            room = room_manager.get_room_for_client(self)
-            if room:
-                room.add_client(self, "viewer")
-                with self.make_session() as session:
-                    await room.broadcast_members(session)
-                if not room.has_editors:
-                    if room._dirty:
-                        await room_manager._checkpoint_room(room)
-                        await self.application.ws_send_to_all(
-                            "NOOP", "GET_SCRIPT_REVISIONS", {}
-                        )
-                    await room_manager.close_active_room()
+        await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
 
+    async def _op_join_script_room(self, room_manager, data: dict) -> None:
+        """Handle ``JOIN_SCRIPT_ROOM`` (see :meth:`_handle_script_room_op`)."""
+        # Server-side revision lookup: the client never needs to tell us which
+        # revision to join — there is only ever one active revision.
+        current_show_id = await self.application.digi_settings.get("current_show")
+        if not current_show_id:
+            await self.write_message(
+                {
+                    "OP": "NOOP",
+                    "ACTION": "COLLAB_ERROR",
+                    "DATA": {"error": "No show loaded"},
+                }
+            )
+            return
+        with self.make_session() as lookup_session:
+            show_obj = lookup_session.get(Show, current_show_id)
+            script_obj = (
+                lookup_session.scalar(
+                    select(Script).where(Script.show_id == show_obj.id)
+                )
+                if show_obj
+                else None
+            )
+            revision_id = script_obj.current_revision if script_obj else None
+        if not revision_id:
+            await self.write_message(
+                {
+                    "OP": "NOOP",
+                    "ACTION": "COLLAB_ERROR",
+                    "DATA": {"error": "No active revision"},
+                }
+            )
+            return
+
+        # Guard: block joining a room during a live show session
+        if await self._is_live_session_active():
+            await self.write_message(
+                {
+                    "OP": "NOOP",
+                    "ACTION": "COLLAB_ERROR",
+                    "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                }
+            )
+            return
+
+        # Determine role from the session's is_editor flag (set authoritatively
+        # by REQUEST_SCRIPT_EDIT which runs full RBAC enforcement).
+        role = "viewer"
+        if self.current_user_id:
+            with self.make_session() as role_session:
+                ws_session = self._owned_row(role_session)
+                if ws_session and ws_session.is_editor:
+                    role = "editor"
+
+        try:
+            room = await room_manager.get_or_create_room(revision_id)
+        except Exception:
+            get_logger().exception(
+                f"Failed to build/load Y.Doc for revision {revision_id}"
+            )
+            await self.write_message(
+                {
+                    "OP": "NOOP",
+                    "ACTION": "COLLAB_ERROR",
+                    "DATA": {"error": "Failed to open script for editing"},
+                }
+            )
+            return
+        room.add_client(self, role)
+
+        # Send initial sync: full document state
+        sync_state = room.get_sync_state()
+        await self.write_message(
+            {
+                "OP": "NOOP",
+                "ACTION": "YJS_SYNC",
+                "DATA": {
+                    "step": 0,
+                    "payload": base64.b64encode(sync_state).decode("ascii"),
+                },
+            }
+        )
+
+        # Broadcast updated member list to all room clients
+        with self.make_session() as session:
+            await room.broadcast_members(session)
+
+        # Notify all clients about the new collaborator
+        await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
+
+    async def _op_leave_script_room(self, room_manager, data: dict) -> None:
+        """Handle ``LEAVE_SCRIPT_ROOM`` (see :meth:`_handle_script_room_op`)."""
+        room = room_manager.get_room_for_client(self)
+        if room:
+            room.remove_client(self)
+            # Broadcast updated member list to remaining clients
+            with self.make_session() as session:
+                await room.broadcast_members(session)
             await self.application.ws_send_to_all(
                 "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
             )
-        elif ws_op == "JOIN_SCRIPT_ROOM":
-            # Server-side revision lookup: the client never needs to tell us which
-            # revision to join — there is only ever one active revision.
-            current_show_id = await self.application.digi_settings.get("current_show")
-            if not current_show_id:
-                await self.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "COLLAB_ERROR",
-                        "DATA": {"error": "No show loaded"},
-                    }
-                )
-                return
-            with self.make_session() as lookup_session:
-                show_obj = lookup_session.get(Show, current_show_id)
-                script_obj = (
-                    lookup_session.scalar(
-                        select(Script).where(Script.show_id == show_obj.id)
-                    )
-                    if show_obj
-                    else None
-                )
-                revision_id = script_obj.current_revision if script_obj else None
-            if not revision_id:
-                await self.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "COLLAB_ERROR",
-                        "DATA": {"error": "No active revision"},
-                    }
-                )
-                return
 
-            # Guard: block joining a room during a live show session
-            if await self._is_live_session_active():
-                await self.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "COLLAB_ERROR",
-                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
-                    }
-                )
-                return
+    async def _op_yjs_sync(self, room_manager, data: dict) -> None:
+        """Handle ``YJS_SYNC`` (see :meth:`_handle_script_room_op`)."""
+        room = room_manager.get_room_for_client(self)
+        if not room:
+            return
 
-            # Determine role from the session's is_editor flag (set authoritatively
-            # by REQUEST_SCRIPT_EDIT which runs full RBAC enforcement).
-            role = "viewer"
-            if self.current_user_id:
-                with self.make_session() as role_session:
-                    ws_session = role_session.get(
-                        Session, self.__getattribute__("internal_id")
-                    )
-                    if ws_session and ws_session.is_editor:
-                        role = "editor"
+        payload = data.get("payload", "")
+        step = data.get("step", 1)
 
-            try:
-                room = await room_manager.get_or_create_room(revision_id)
-            except Exception:
-                get_logger().exception(
-                    f"Failed to build/load Y.Doc for revision {revision_id}"
-                )
-                await self.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "COLLAB_ERROR",
-                        "DATA": {"error": "Failed to open script for editing"},
-                    }
-                )
-                return
-            room.add_client(self, role)
+        try:
+            decoded = base64.b64decode(payload)
+        except Exception:
+            get_logger().warning("Invalid base64 in YJS_SYNC message")
+            return
 
-            # Send initial sync: full document state
-            sync_state = room.get_sync_state()
+        if step == 1:
+            # Client sends its state vector; server responds with diff
+            get_logger().trace(
+                f"YJS_SYNC step=1 rev={room.revision_id} "
+                f"state-vector {len(decoded)}B from {self.request.remote_ip}"
+            )
+            diff = room.get_update_for(decoded)
+            get_logger().trace(
+                f"YJS_SYNC step=2 rev={room.revision_id} "
+                f"sending diff {len(diff)}B to {self.request.remote_ip}"
+            )
             await self.write_message(
                 {
                     "OP": "NOOP",
                     "ACTION": "YJS_SYNC",
                     "DATA": {
-                        "step": 0,
-                        "payload": base64.b64encode(sync_state).decode("ascii"),
+                        "step": 2,
+                        "payload": base64.b64encode(diff).decode("ascii"),
                     },
                 }
             )
-
-            # Broadcast updated member list to all room clients
-            with self.make_session() as session:
-                await room.broadcast_members(session)
-
-            # Notify all clients about the new collaborator
-            await self.application.ws_send_to_all(
-                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
-            )
-        elif ws_op == "LEAVE_SCRIPT_ROOM":
-            room = room_manager.get_room_for_client(self)
-            if room:
-                room.remove_client(self)
-                # Broadcast updated member list to remaining clients
-                with self.make_session() as session:
-                    await room.broadcast_members(session)
-                await self.application.ws_send_to_all(
-                    "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
-                )
-        elif ws_op == "YJS_SYNC":
-            room = room_manager.get_room_for_client(self)
-            if not room:
-                return
-
-            payload = data.get("payload", "")
-            step = data.get("step", 1)
-
-            try:
-                decoded = base64.b64decode(payload)
-            except Exception:
-                get_logger().warning("Invalid base64 in YJS_SYNC message")
-                return
-
-            if step == 1:
-                # Client sends its state vector; server responds with diff
-                get_logger().trace(
-                    f"YJS_SYNC step=1 rev={room.revision_id} "
-                    f"state-vector {len(decoded)}B from {self.request.remote_ip}"
-                )
-                diff = room.get_update_for(decoded)
-                get_logger().trace(
-                    f"YJS_SYNC step=2 rev={room.revision_id} "
-                    f"sending diff {len(diff)}B to {self.request.remote_ip}"
-                )
-                await self.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "YJS_SYNC",
-                        "DATA": {
-                            "step": 2,
-                            "payload": base64.b64encode(diff).decode("ascii"),
-                        },
-                    }
-                )
-            elif step == 2:
-                # Client sends its diff; server applies it
-                if room.clients.get(self) != "editor":
-                    await self._reject_script_room_op(
-                        "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
-                    )
-                    return
-                if await self._is_live_session_active():
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "COLLAB_ERROR",
-                            "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
-                        }
-                    )
-                    return
-                get_logger().trace(
-                    f"YJS_SYNC step=2 rev={room.revision_id} "
-                    f"applying {len(decoded)}B update from {self.request.remote_ip}"
-                )
-                try:
-                    follow_up = await room.apply_update(decoded)
-                except Exception:
-                    get_logger().exception(
-                        f"YJS_SYNC step=2: Failed to apply update for "
-                        f"revision {room.revision_id}"
-                    )
-                    await self.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "COLLAB_ERROR",
-                            "DATA": {"error": "Failed to apply document sync update"},
-                        }
-                    )
-                    return
-                await room.broadcast_update(decoded, sender=self)
-                if follow_up:
-                    await room.broadcast_update(follow_up)
-        elif ws_op == "YJS_UPDATE":
-            room = room_manager.get_room_for_client(self)
-            if not room:
-                return
-
+        elif step == 2:
+            # Client sends its diff; server applies it
             if room.clients.get(self) != "editor":
                 await self._reject_script_room_op(
                     "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
                 )
                 return
-
-            payload = data.get("payload", "")
-            try:
-                decoded = base64.b64decode(payload)
-            except Exception:
-                get_logger().warning("Invalid base64 in YJS_UPDATE message")
-                return
-
             if await self._is_live_session_active():
                 await self.write_message(
                     {
@@ -972,67 +1154,122 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                     }
                 )
                 return
-
             get_logger().trace(
-                f"YJS_UPDATE rev={room.revision_id} "
+                f"YJS_SYNC step=2 rev={room.revision_id} "
                 f"applying {len(decoded)}B update from {self.request.remote_ip}"
             )
             try:
                 follow_up = await room.apply_update(decoded)
             except Exception:
+                get_logger().exception(
+                    f"YJS_SYNC step=2: Failed to apply update for "
+                    f"revision {room.revision_id}"
+                )
                 await self.write_message(
                     {
                         "OP": "NOOP",
                         "ACTION": "COLLAB_ERROR",
-                        "DATA": {"error": "Failed to apply document update"},
+                        "DATA": {"error": "Failed to apply document sync update"},
                     }
                 )
                 return
             await room.broadcast_update(decoded, sender=self)
             if follow_up:
-                # The server-made trailing page goes to everyone, sender included.
                 await room.broadcast_update(follow_up)
-        elif ws_op == "YJS_AWARENESS":
-            room = room_manager.get_room_for_client(self)
-            if not room:
-                return
 
-            payload = data.get("payload", "")
-            try:
-                decoded = base64.b64decode(payload)
-            except Exception:
-                get_logger().warning("Invalid base64 in YJS_AWARENESS message")
-                return
+    async def _op_yjs_update(self, room_manager, data: dict) -> None:
+        """Handle ``YJS_UPDATE`` (see :meth:`_handle_script_room_op`)."""
+        room = room_manager.get_room_for_client(self)
+        if not room:
+            return
 
-            await room.broadcast_awareness(decoded, sender=self)
-        elif ws_op == "SAVE_SCRIPT_DRAFT":
-            if await self._is_live_session_active():
-                await self.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "COLLAB_ERROR",
-                        "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
-                    }
-                )
-                return
-            with self.make_session() as session:
-                entry = session.get(Session, self.__getattribute__("internal_id"))
-                if not await self._require_editor_write_access(session, entry):
-                    return
-            await room_manager.save_room(self)
-            await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
-        elif ws_op == "DISCARD_SCRIPT_DRAFT":
-            # Not blocked by a live session: discarding is the only recovery path if a
-            # live session starts while a draft is open, so it must stay reachable.
-            with self.make_session() as session:
-                entry = session.get(Session, self.__getattribute__("internal_id"))
-                if not await self._require_editor_write_access(session, entry):
-                    return
-            await room_manager.discard_room(self)
-            await self.application.ws_send_to_all(
-                "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
+        if room.clients.get(self) != "editor":
+            await self._reject_script_room_op(
+                "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
             )
-            await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
+            return
+
+        payload = data.get("payload", "")
+        try:
+            decoded = base64.b64decode(payload)
+        except Exception:
+            get_logger().warning("Invalid base64 in YJS_UPDATE message")
+            return
+
+        if await self._is_live_session_active():
+            await self.write_message(
+                {
+                    "OP": "NOOP",
+                    "ACTION": "COLLAB_ERROR",
+                    "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                }
+            )
+            return
+
+        get_logger().trace(
+            f"YJS_UPDATE rev={room.revision_id} "
+            f"applying {len(decoded)}B update from {self.request.remote_ip}"
+        )
+        try:
+            follow_up = await room.apply_update(decoded)
+        except Exception:
+            await self.write_message(
+                {
+                    "OP": "NOOP",
+                    "ACTION": "COLLAB_ERROR",
+                    "DATA": {"error": "Failed to apply document update"},
+                }
+            )
+            return
+        await room.broadcast_update(decoded, sender=self)
+        if follow_up:
+            # The server-made trailing page goes to everyone, sender included.
+            await room.broadcast_update(follow_up)
+
+    async def _op_yjs_awareness(self, room_manager, data: dict) -> None:
+        """Handle ``YJS_AWARENESS`` (see :meth:`_handle_script_room_op`)."""
+        room = room_manager.get_room_for_client(self)
+        if not room:
+            return
+
+        payload = data.get("payload", "")
+        try:
+            decoded = base64.b64decode(payload)
+        except Exception:
+            get_logger().warning("Invalid base64 in YJS_AWARENESS message")
+            return
+
+        await room.broadcast_awareness(decoded, sender=self)
+
+    async def _op_save_script_draft(self, room_manager, data: dict) -> None:
+        """Handle ``SAVE_SCRIPT_DRAFT`` (see :meth:`_handle_script_room_op`)."""
+        if await self._is_live_session_active():
+            await self.write_message(
+                {
+                    "OP": "NOOP",
+                    "ACTION": "COLLAB_ERROR",
+                    "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
+                }
+            )
+            return
+        with self.make_session() as session:
+            entry = session.get(Session, self.__getattribute__("internal_id"))
+            if not await self._require_editor_write_access(session, entry):
+                return
+        await room_manager.save_room(self)
+        await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
+
+    async def _op_discard_script_draft(self, room_manager, data: dict) -> None:
+        """Handle ``DISCARD_SCRIPT_DRAFT`` (see :meth:`_handle_script_room_op`)."""
+        # Not blocked by a live session: discarding is the only recovery path if a
+        # live session starts while a draft is open, so it must stay reachable.
+        with self.make_session() as session:
+            entry = session.get(Session, self.__getattribute__("internal_id"))
+            if not await self._require_editor_write_access(session, entry):
+                return
+        await room_manager.discard_room(self)
+        await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
+        await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
 
     def on_pong(self, data: bytes) -> None:
         self._last_pong = IOLoop.current().time()
