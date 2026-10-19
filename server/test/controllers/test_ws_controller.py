@@ -3512,9 +3512,8 @@ class TestWSRobustness(_ReconnectTestBase):
         await self._still_responsive(ws, self.admin_id)
         ws.close()
 
-    @gen_test
-    async def test_ws_payload_and_tokens_are_not_logged(self):
-        """AUTHENTICATE tokens never reach the log; only op name and size do."""
+    async def _auth_logs(self, redaction):
+        self._app.digi_settings.settings["log_redaction"].set_value(redaction)
         ws, _ = await self._connect_and_auth()
         sentinel = self._app.jwt_service.create_access_token(
             data={"user_id": self.admin_id}
@@ -3524,10 +3523,20 @@ class TestWSRobustness(_ReconnectTestBase):
                 json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": sentinel}})
             )
             await self._read_until(ws, op="WS_AUTH_SUCCESS")
-        joined = "\n".join(captured.output)
+        ws.close()
+        return sentinel, "\n".join(captured.output)
+
+    @gen_test
+    async def test_ws_payload_not_logged_when_redaction_on(self):
+        """With redaction on only the op name and size are logged."""
+        sentinel, joined = await self._auth_logs(True)
         self.assertIn("AUTHENTICATE", joined)
         self.assertNotIn(sentinel, joined)
-        ws.close()
+
+    @gen_test
+    async def test_ws_payload_logged_raw_when_redaction_off(self):
+        sentinel, joined = await self._auth_logs(False)
+        self.assertIn(sentinel, joined)
 
     @gen_test
     async def test_update_session_survives_deleted_user(self):

@@ -302,10 +302,14 @@ class Settings:
         self.define(
             "log_redaction",
             bool,
-            False,
+            True,
             True,
             display_name="Enable Log Redaction",
-            help_text="When enabled, potentially sensitive information will be redacted from logs.",
+            help_text=(
+                "When enabled (the default), passwords, tokens and WebSocket message "
+                "contents are kept out of the logs. Disable only while debugging: "
+                "logs will then contain credentials and tokens."
+            ),
             category="Logging",
         )
         self.define(

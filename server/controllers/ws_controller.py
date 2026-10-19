@@ -470,6 +470,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             if self.current_username
             else self.request.remote_ip
         )
+        raw = message
         size = len(message)
 
         try:
@@ -484,10 +485,14 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             )
             return
 
-        # Never log the payload: AUTHENTICATE / REFRESH_TOKEN carry live JWTs.
-        get_logger().debug(
-            f"WebSocket message from {user_part}: {ws_op} ({size} bytes)"
-        )
+        # With redaction on never log the payload: AUTHENTICATE / REFRESH_TOKEN
+        # carry live JWTs.
+        if self.application.digi_settings.get_sync("log_redaction"):
+            get_logger().debug(
+                f"WebSocket message from {user_part}: {ws_op} ({size} bytes)"
+            )
+        else:
+            get_logger().debug(f"WebSocket message from {user_part}: {raw}")
 
         # Connection boundary: an exception escaping on_message ends Tornado's
         # read loop without calling on_close, leaving a handler that no longer

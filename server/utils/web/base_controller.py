@@ -183,22 +183,21 @@ class BaseAPIController(BaseController):
             try:
                 body = escape.json_decode(self.request.body)
             except BaseException:
-                # Not JSON, so it cannot be redacted by key: log only its size.
+                if self.application.digi_settings.settings["log_redaction"].get_value():
+                    # Not JSON, so it cannot be redacted by key: log only its size.
+                    logged = f"<non-JSON body, {len(self.request.body)} bytes>"
+                else:
+                    logged = self.request.body
                 get_logger().debug(
-                    f"{self.request.method} {self.request.path} "
-                    f"<non-JSON body, {len(self.request.body)} bytes>{user_suffix}",
+                    f"{self.request.method} {self.request.path} {logged}{user_suffix}",
                     extra=self._log_extra(),
                 )
             else:
-                if (
-                    redacted_data_paths
-                    and self.application.digi_settings.settings[
-                        "log_redaction"
-                    ].get_value()
-                ):
+                if self.application.digi_settings.settings["log_redaction"].get_value():
                     body = deepcopy(body)
-                    redacted_data_paths.apply(body)
-                body = redact_sensitive_keys(body)
+                    if redacted_data_paths:
+                        redacted_data_paths.apply(body)
+                    body = redact_sensitive_keys(body)
 
                 log_method(
                     f"{self.request.method} {self.request.path} {body}{user_suffix}",
