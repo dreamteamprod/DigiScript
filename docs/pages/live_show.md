@@ -59,6 +59,10 @@ A "Current Cues" footer bar at the bottom of the script area shows the last cue 
 
 The footer is shown by default, but it can be turned off independently by each user from the **Settings** tab of the User Settings page (**Show current cue footer in Live view**). The preference is saved to your account and persists across sessions and devices.
 
+### Jumping to a Page
+
+Users with the show **Execute** role (and admins) can move the live show to a specific page: click **Live Config** in the navigation bar, select **Jump To Page** and enter a page number. Every connected client reloads at the new page. You do not need to be the leader to do this, but the page must be a whole number of 1 or more, and requests from users without the Execute role are ignored.
+
 ### Act Intervals
 
 If your show has intervals configured between acts, an interval screen will automatically appear between the acts during the live show. The interval will only display if there is script content in both acts surrounding the interval.

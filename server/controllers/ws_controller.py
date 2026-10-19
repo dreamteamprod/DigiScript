@@ -544,7 +544,21 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         f"{self.current_user_id}): not the live-show leader"
                     )
             elif ws_op == "LIVE_SHOW_JUMP_TO_PAGE":
-                await self._jump_to_page(session, show, message["DATA"])
+                show_session = (
+                    session.get(ShowSession, show.current_session_id)
+                    if show and show.current_session_id
+                    else None
+                )
+                if show_session and self._user_has_show_execute_access(session, show):
+                    await self._op_jump_to_page(
+                        session, show_session, entry, message["DATA"]
+                    )
+                else:
+                    get_logger().debug(
+                        f"Ignored {ws_op} from client "
+                        f"{self.__getattribute__('internal_id')} (user "
+                        f"{self.current_user_id}): no show execute access"
+                    )
             else:
                 get_logger().warning(
                     f"Unknown OP {ws_op} received from "
@@ -660,18 +674,21 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         """Leader op ``RELOAD_CLIENTS``: tell every client to reload."""
         await self.application.ws_send_to_all("RELOAD_CLIENT", "NOOP", {})
 
-    async def _jump_to_page(self, session, show: Optional[Show], data) -> None:
+    async def _op_jump_to_page(self, session, show_session, entry, data) -> None:
         """Handle ``LIVE_SHOW_JUMP_TO_PAGE``: move the live position and reload all.
 
-        Not leader-gated (unchanged from before this PR).
+        Gated on show EXECUTE access (or admin), not leadership. The page must be
+        a positive integer; anything else is ignored.
         """
-        if not (show and show.current_session_id):
+        page = data.get("page") if isinstance(data, dict) else None
+        if isinstance(page, bool) or not isinstance(page, int) or page < 1:
+            get_logger().warning(
+                f"Ignored LIVE_SHOW_JUMP_TO_PAGE: invalid page {page!r}"
+            )
             return
-        show_session = session.get(ShowSession, show.current_session_id)
-        if show_session:
-            show_session.latest_line_ref = f"page_{data['page']}_line_0"
-            session.commit()
-            await self.application.ws_send_to_all("RELOAD_CLIENT", "NOOP", {})
+        show_session.latest_line_ref = f"page_{page}_line_0"
+        session.commit()
+        await self.application.ws_send_to_all("RELOAD_CLIENT", "NOOP", {})
 
     async def _claim_vacant_leadership(self, session, show: Optional[Show]) -> None:
         """Handle ``NEW_CLIENT``: take live-show leadership if nobody holds it.
@@ -746,6 +763,20 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             return False
         return user.is_admin or bool(
             show and self.application.rbac.has_role(user, show, Role.WRITE)
+        )
+
+    def _user_has_show_execute_access(self, session, show: Optional[Show]) -> bool:
+        """Return True if the connected user is an admin or has EXECUTE on *show*.
+
+        :param session: Active SQLAlchemy session.
+        :param show: The current Show, or None.
+        :returns: True if the user may run live-show controls such as jump to page.
+        """
+        user = session.get(User, self.current_user_id) if self.current_user_id else None
+        if not user:
+            return False
+        return user.is_admin or bool(
+            show and self.application.rbac.has_role(user, show, Role.EXECUTE)
         )
 
     async def _reject_script_room_op(self, action: str, key: str, reason: str) -> None:

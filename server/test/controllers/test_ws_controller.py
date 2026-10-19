@@ -26,6 +26,7 @@ from models.script_draft import ScriptDraft
 from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
 from models.user import User
+from rbac.role import Role
 from services.password_service import PasswordService
 from test.conftest import DigiScriptTestCase
 from test.helpers.script_fixtures import create_show_script_revision
@@ -2745,6 +2746,66 @@ class TestWSUuidIsNotOwnership(_ReconnectTestBase):
         follower.close()
         ws_f.close()
         ws_x.close()
+
+    @gen_test
+    async def test_jump_to_page_requires_show_execute_and_valid_page(self):
+        """Jumping needs show EXECUTE (or admin), not leadership. Viewers,
+        unauthenticated sockets and invalid pages are refused without moving the
+        live position or reloading anyone.
+        """
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        ws_a2, _ = await self._connect_and_auth(self.admin2_id)  # non-leader admin
+        viewer, _ = await self._connect_and_auth(self.viewer_id)
+        self._start_live_session(uuid_l, self.admin_id)
+        ws_x, _ = await self._refresh_only(uuid_l)  # unauthenticated adopter
+        await self._drain(viewer)
+
+        def jump(page):
+            return json.dumps({"OP": "LIVE_SHOW_JUMP_TO_PAGE", "DATA": {"page": page}})
+
+        await ws_x.write_message(jump(9))
+        await viewer.write_message(jump(9))
+        for bad in (0, -1, "abc", 1.5, True, None):
+            await ws_a2.write_message(jump(bad))
+        await asyncio.sleep(0.1)
+
+        msgs = await self._drain(viewer)
+        self.assertNotIn("RELOAD_CLIENT", [m.get("OP") for m in msgs])
+        self.assertNotEqual("page_9_line_0", self._latest_line_ref())
+
+        # A non-leader admin may jump.
+        await ws_a2.write_message(jump(4))
+        await self._read_until(viewer, op="RELOAD_CLIENT")
+        self.assertEqual("page_4_line_0", self._latest_line_ref())
+
+        # A non-admin granted EXECUTE on the show may jump too.
+        with self._app.get_db().sessionmaker() as session:
+            self._app.rbac.give_role(
+                session.get(User, self.viewer_id),
+                session.get(Show, self.show_id),
+                Role.EXECUTE,
+            )
+            session.commit()
+        await viewer.write_message(jump(7))
+        await self._read_until(viewer, op="RELOAD_CLIENT")
+        self.assertEqual("page_7_line_0", self._latest_line_ref())
+
+        for ws in (ws_l, ws_a2, viewer, ws_x):
+            ws.close()
+
+    @gen_test
+    async def test_jump_to_page_without_live_session_is_ignored(self):
+        ws_a, _ = await self._connect_and_auth(self.admin_id)
+        viewer, _ = await self._connect_and_auth(self.viewer_id)
+        await self._drain(viewer)
+        await ws_a.write_message(
+            json.dumps({"OP": "LIVE_SHOW_JUMP_TO_PAGE", "DATA": {"page": 3}})
+        )
+        await asyncio.sleep(0.1)
+        msgs = await self._drain(viewer)
+        self.assertNotIn("RELOAD_CLIENT", [m.get("OP") for m in msgs])
+        ws_a.close()
+        viewer.close()
 
     @gen_test
     async def test_other_user_adopter_of_uuid_later_made_editor_cannot_write(self):
