@@ -310,3 +310,11 @@ class TestUsersV2Controller(DigiScriptTestCase):
 
     # note: the last-admin delete guard (400 when target is the only admin) suffers the same
     # race-condition constraint as the PATCH guard — not reachable in a synchronous test.
+
+
+class TestUsersV2JsonBodyValidation(DigiScriptTestCase):
+    def test_create_user_invalid_json_returns_400(self):
+        resp = self.fetch(
+            "/api/v2/users", method="POST", body="nope", raise_error=False
+        )
+        self.assertEqual(400, resp.code)
