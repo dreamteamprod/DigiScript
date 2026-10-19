@@ -5,6 +5,7 @@ from tornado.testing import gen_test
 from models.session import Session
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from utils.web.pending_disconnects import disconnect_key
 
 
 LOGOUT = {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
@@ -259,12 +260,15 @@ class TestUserService(DigiScriptTestCase):
 
     @gen_test
     async def test_force_logout_survives_a_failing_client_lookup(self):
-        """Even if the user's clients can't be listed, its authenticated
-        connections are still logged out, and nothing raises.
+        """If the user's clients can't be listed, its connected clients are still
+        logged out, their grace deadlines start, and when a deadline expires the
+        client's lock is released. Nothing raises.
         """
         with self._app.get_db().sessionmaker() as session:
             user = User(username="testuser", password="old_hash")
             session.add(user)
+            session.flush()
+            session.add(Session(internal_id="tab", user_id=user.id, is_editor=True))
             session.commit()
             user_id = user.id
 
@@ -278,6 +282,12 @@ class TestUserService(DigiScriptTestCase):
             await self.user_service.force_logout_all_sessions(broken, user)
             self.assertIsNone(tab.current_user_id)
             self.assertEqual([LOGOUT], self._sent(tab))
+            self.assertTrue(self._app.pending_disconnects.is_pending("tab"))
+
+            await self._app.pending_disconnects.fire(disconnect_key("tab"))
+            with self._app.get_db().sessionmaker() as session:
+                row = session.get(Session, "tab")
+                self.assertFalse(row.is_editor)
         finally:
             self._app.clients.clear()
 

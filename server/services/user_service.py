@@ -151,16 +151,28 @@ class UserService:
         # each database step is guarded with a deadline fallback.
         logout_message = {"OP": "NOOP", "DATA": "{}", "ACTION": "USER_LOGOUT"}
 
+        lookup_failed = False
         try:
             client_ids = session.scalars(
                 select(Session.internal_id).where(Session.user_id == user.id)
             ).all()
         except Exception:
+            # Fall back to the clients of the connections known to be this
+            # user's. This must run before the loop below clears
+            # current_user_id, which is what get_all_ws matches on.
+            lookup_failed = True
+            client_ids = sorted(
+                {
+                    ws.internal_id
+                    for ws in self.application.get_all_ws(user.id)
+                    if getattr(ws, "internal_id", None)
+                }
+            )
             get_logger().exception(
                 f"Forced logout of user {user.id}: could not list its clients; "
-                f"logging out its authenticated connections only"
+                f"logging out its connected clients {client_ids} and releasing "
+                f"them at their grace deadlines"
             )
-            client_ids = []
 
         # Snapshot and mark every affected connection logged out first, before
         # sending or releasing anything, so an election never picks a tab of
@@ -182,6 +194,12 @@ class UserService:
             safe_write(ws_session, logout_message)
 
         for client_id in client_ids:
+            if lookup_failed:
+                # The database just failed to answer; don't try to write to it
+                # now. finalise_disconnect releases a row held only by
+                # unauthenticated connections when the deadline expires.
+                schedule_disconnect_deadline(self.application, client_id)
+                continue
             try:
                 release_session_privileges(self.application, client_id, "forced logout")
             except Exception:
