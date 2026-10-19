@@ -56,9 +56,9 @@ class TestPasswordService(AsyncTestCase):
         self.assertFalse(result)
 
     def test_validate_password_strength_minimum_length(self):
-        """Test that passwords must be at least 6 characters"""
+        """Test that passwords must be at least 8 characters"""
         # Valid passwords
-        is_valid, error_msg = PasswordService.validate_password_strength("123456")
+        is_valid, error_msg = PasswordService.validate_password_strength("12345678")
         self.assertTrue(is_valid)
         self.assertEqual("", error_msg)
 
@@ -69,14 +69,14 @@ class TestPasswordService(AsyncTestCase):
         self.assertEqual("", error_msg)
 
     def test_validate_password_strength_too_short(self):
-        """Test that passwords under 6 characters are rejected"""
-        is_valid, error_msg = PasswordService.validate_password_strength("12345")
+        """Test that passwords under 8 characters are rejected"""
+        is_valid, error_msg = PasswordService.validate_password_strength("1234567")
         self.assertFalse(is_valid)
-        self.assertEqual("Password must be at least 6 characters long", error_msg)
+        self.assertEqual("Password must be at least 8 characters long", error_msg)
 
         is_valid, error_msg = PasswordService.validate_password_strength("")
         self.assertFalse(is_valid)
-        self.assertEqual("Password must be at least 6 characters long", error_msg)
+        self.assertEqual("Password must be at least 8 characters long", error_msg)
 
     def test_validate_password_strength_at_72_byte_limit(self):
         """Test that a password exactly 72 bytes long is accepted"""
@@ -103,12 +103,12 @@ class TestPasswordService(AsyncTestCase):
         self.assertEqual("Password must be 72 characters or fewer", error_msg)
 
     def test_generate_temporary_password_default_word_count(self):
-        """Test that generate_temporary_password produces 3-word password by default"""
+        """Test that generate_temporary_password produces 4-word password by default"""
         password = PasswordService.generate_temporary_password()
 
         # Should be dash-separated words
         words = password.split("-")
-        self.assertEqual(3, len(words))
+        self.assertEqual(4, len(words))
 
         # Each word should be non-empty and alphanumeric
         for word in words:
@@ -148,10 +148,10 @@ class TestPasswordService(AsyncTestCase):
         self.assertFalse(password.endswith("-"))
 
     def test_generate_temporary_password_meets_minimum_length(self):
-        """Test that generated temporary passwords meet 6-character minimum"""
+        """Test that generated temporary passwords meet 8-character minimum"""
         password = PasswordService.generate_temporary_password()
         is_valid, _ = PasswordService.validate_password_strength(password)
 
         # Generated passwords should always be valid
         self.assertTrue(is_valid)
-        self.assertGreaterEqual(len(password), 6)
+        self.assertGreaterEqual(len(password), 8)

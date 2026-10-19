@@ -758,7 +758,7 @@ class TestAuthAPI(DigiScriptTestCase):
         )
         token = escape.json_decode(response.body)["access_token"]
 
-        # Try to change to weak password (< 6 characters)
+        # Try to change to weak password (< 8 characters)
         response = self.fetch(
             "/api/v1/auth/change-password",
             method="PATCH",
@@ -770,7 +770,7 @@ class TestAuthAPI(DigiScriptTestCase):
 
         self.assertEqual(400, response.code)
         response_body = escape.json_decode(response.body)
-        self.assertIn("at least 6 characters", response_body["message"])
+        self.assertIn("at least 8 characters", response_body["message"])
 
     def test_change_password_requires_authentication(self):
         """Test password change requires authentication"""

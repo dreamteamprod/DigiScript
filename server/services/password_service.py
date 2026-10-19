@@ -9,6 +9,13 @@ from tornado.ioloop import IOLoop
 class PasswordService:
     """Service for password-related operations"""
 
+    #: Minimum accepted password length, in characters.
+    MIN_PASSWORD_LENGTH = 8
+
+    #: Valid bcrypt hash (cost 12) of a throwaway string. Verified against when
+    #: a login names an unknown user so the response time matches a real user.
+    DUMMY_HASH = "$2b$12$u.q6.DiCaDiZNrNJb.Uf1ef7s32mluZuh3Bbw5pu2jIS/Npvq8L1W"
+
     @staticmethod
     async def hash_password(password: str) -> str:
         """
@@ -44,12 +51,25 @@ class PasswordService:
         return matches
 
     @staticmethod
+    async def verify_dummy_password(password: str) -> None:
+        """
+        Spend the same time as a real verification, against a fixed dummy hash.
+
+        Used when the username does not exist so response timing does not reveal
+        which usernames are registered. The result is always discarded.
+
+        :param password: Plain text password submitted by the client
+        :type password: str
+        """
+        await PasswordService.verify_password(password, PasswordService.DUMMY_HASH)
+
+    @staticmethod
     def validate_password_strength(password: str) -> tuple[bool, str]:
         """
         Validate password meets strength requirements.
 
         Current requirements:
-        - Minimum 6 characters
+        - Minimum 8 characters
         - Maximum 72 bytes when UTF-8 encoded (bcrypt hard limit)
 
         :param password: Password to validate
@@ -59,8 +79,11 @@ class PasswordService:
                  description if invalid.
         :rtype: tuple[bool, str]
         """
-        if len(password) < 6:
-            return False, "Password must be at least 6 characters long"
+        if len(password) < PasswordService.MIN_PASSWORD_LENGTH:
+            return False, (
+                f"Password must be at least {PasswordService.MIN_PASSWORD_LENGTH} "
+                "characters long"
+            )
 
         if len(password.encode("utf-8")) > 72:
             return False, "Password must be 72 characters or fewer"
@@ -68,7 +91,7 @@ class PasswordService:
         return True, ""
 
     @staticmethod
-    def generate_temporary_password(word_count: int = 3) -> str:
+    def generate_temporary_password(word_count: int = 4) -> str:
         """
         Generate a human-readable temporary password using EFF wordlist.
 
@@ -78,9 +101,9 @@ class PasswordService:
         - 3 words = ~38.7 bits of entropy
         - 4 words = ~51.6 bits of entropy
 
-        :param word_count: Number of words to use (default: 3)
+        :param word_count: Number of words to use (default: 4)
         :type word_count: int
-        :return: Dash-separated password like "correct-horse-battery"
+        :return: Dash-separated password like "correct-horse-battery-staple"
         :rtype: str
         """
         wordlist = xp.generate_wordlist(wordfile=xp.locate_wordfile())

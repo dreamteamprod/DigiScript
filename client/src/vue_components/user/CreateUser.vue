@@ -33,7 +33,7 @@
         type="password"
       />
       <b-form-invalid-feedback id="password-feedback">
-        This is a required field and must be between 6 and 72 characters.
+        This is a required field and must be between 8 and 72 characters.
       </b-form-invalid-feedback>
     </b-form-group>
     <b-form-group
@@ -103,7 +103,7 @@ export default defineComponent({
   validations: {
     state: {
       username: { required, isUsernameUnique },
-      password: { required, minLength: minLength(6), maxPasswordByteLength },
+      password: { required, minLength: minLength(8), maxPasswordByteLength },
       confirmPassword: { required, sameAsPassword: sameAs('password') },
     },
   },
