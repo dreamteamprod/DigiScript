@@ -45,14 +45,10 @@ from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
 from utils.web.pending_disconnects import PendingDisconnects
 from utils.web.route import Route
-
-
-# Largest HTTP request body accepted by the server (passed to ``listen`` in
-# ``main.py``). Legitimate payloads are JSON well under this size.
-MAX_BODY_SIZE = 10 * 1024 * 1024
-# Largest single WebSocket message accepted: bigger than any control message,
-# with headroom for Yjs document syncs.
-MAX_WEBSOCKET_MESSAGE_SIZE = 16 * 1024 * 1024
+from utils.web.size_limits import (
+    DEFAULT_MAX_WS_MESSAGE_SIZE_MB,
+    MIB,
+)
 
 
 class DigiScriptServer(PrometheusMixIn, Application):
@@ -63,6 +59,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
         settings_path=None,
         skip_migrations=False,
         skip_migrations_check=False,
+        max_ws_message_size_mb=DEFAULT_MAX_WS_MESSAGE_SIZE_MB,
     ):
         self._port: int = port
         self.digi_settings: Settings = Settings(self, settings_path)
@@ -343,7 +340,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
             serve_traceback=False,
             db=self._db,
             websocket_ping_interval=5,
-            websocket_max_message_size=MAX_WEBSOCKET_MESSAGE_SIZE,
+            websocket_max_message_size=max_ws_message_size_mb * MIB,
             cookie_secret=self._get_cookie_secret(),
             login_url="/login",
         )

@@ -27,6 +27,10 @@ RUN pnpm run build
 
 FROM python:3.13-bookworm
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY /server/requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
@@ -37,6 +41,8 @@ WORKDIR /server
 RUN useradd --system --create-home --uid 1000 digiscript \
     && mkdir -p conf \
     && chown -R digiscript:digiscript /server/conf
-USER digiscript
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 8080
-ENTRYPOINT ["python3", "main.py"]
+# Starts as root only to fix ownership of existing volumes, then drops to the
+# digiscript user (see docker-entrypoint.sh).
+ENTRYPOINT ["docker-entrypoint.sh"]

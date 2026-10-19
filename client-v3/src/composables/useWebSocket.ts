@@ -12,6 +12,8 @@ import type { WsMessage } from '@/types/api/websocket';
 
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
+/** RFC 6455 close code sent by the server when a message exceeds its size limit. */
+const WS_CLOSE_MESSAGE_TOO_BIG = 1009;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -205,8 +207,18 @@ function connect(): void {
     }
   };
 
-  ws.onclose = () => {
+  ws.onclose = (event?: CloseEvent) => {
     wsStore.$patch({ isConnected: false, authenticated: false });
+    if (event?.code === WS_CLOSE_MESSAGE_TOO_BIG) {
+      // The server dropped us for sending an over-sized message. Back off (and tell the user)
+      // rather than reconnecting at the minimum delay, which would loop if the oversized
+      // message is re-sent on every connect.
+      errorCount++;
+      log.error('WebSocket closed by server: message exceeded the maximum size');
+      if (errorCount === 1) {
+        toast.error('Server closed the connection: message too large');
+      }
+    }
     log.info('WebSocket closed, scheduling reconnect');
     scheduleReconnect();
   };

@@ -33,6 +33,7 @@ from rbac.role import Role
 from utils.web.base_controller import DatabaseMixin
 from utils.web.pending_disconnects import disconnect_key
 from utils.web.route import ApiRoute, ApiVersion
+from utils.web.size_limits import LoggingWebSocketProtocol
 from utils.web.ws_session_lifecycle import (
     assign_session_user,
     broadcast,
@@ -144,6 +145,13 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         if self.settings.get("debug", False):
             return True
         return super().check_origin(origin)
+
+    def get_websocket_protocol(self):
+        """Use a protocol that logs when a message exceeds the size limit."""
+        protocol = super().get_websocket_protocol()
+        if protocol is not None:
+            protocol.__class__ = LoggingWebSocketProtocol
+        return protocol
 
     @gen.coroutine
     def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:

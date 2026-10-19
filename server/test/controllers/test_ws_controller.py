@@ -16,7 +16,7 @@ import pycrdt
 from sqlalchemy import select
 from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
-from tornado.websocket import websocket_connect
+from tornado.websocket import WebSocketClosedError, websocket_connect
 
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger
@@ -36,6 +36,7 @@ from utils.web.pending_disconnects import (
     disconnect_key,
     room_close_key,
 )
+from utils.web.size_limits import MIB
 from utils.web.ws_session_lifecycle import FINALISE_ATTEMPTS
 
 
@@ -3664,6 +3665,28 @@ class TestWSRobustness(_ReconnectTestBase):
 
         follower.close()
         ws_l.close()
+
+
+class TestWSMessageSizeLimit(DigiScriptTestCase):
+    @gen_test
+    async def test_oversized_message_closes_connection_and_logs(self):
+        """A message above the cap closes the socket (1009) and is logged."""
+        limit = MIB
+        self._app.settings["websocket_max_message_size"] = limit
+        conn = await websocket_connect(
+            f"ws://127.0.0.1:{self.get_http_port()}/api/v1/ws"
+        )
+        with self.assertLogs("DigiScript", level="WARNING") as logs:
+            try:
+                await conn.write_message("x" * (limit + 1024))
+            except WebSocketClosedError:
+                pass
+            # Drain greeting messages; the server then closes the connection.
+            message = await conn.read_message()
+            while message is not None:
+                message = await conn.read_message()
+        self.assertTrue(any("exceeds the maximum" in m for m in logs.output))
+        self.assertTrue(any(str(limit) in m for m in logs.output))
 
 
 class TestWSHandlerMaps(DigiScriptTestCase):

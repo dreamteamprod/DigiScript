@@ -1,3 +1,6 @@
+import ast
+from pathlib import Path
+
 import tornado.escape
 from sqlalchemy import func, select
 from tornado.testing import gen_test
@@ -6,6 +9,11 @@ from models.session import Session
 from models.settings import SystemSettings
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from utils.web.size_limits import (
+    DEFAULT_MAX_BODY_SIZE_MB,
+    DEFAULT_MAX_WS_MESSAGE_SIZE_MB,
+    MIB,
+)
 
 
 class TestDigiScriptServer(DigiScriptTestCase):
@@ -16,6 +24,44 @@ class TestDigiScriptServer(DigiScriptTestCase):
         self.assertEqual(200, response.code)
         self.assertTrue("status" in response_body)
         self.assertEqual("OK", response_body["status"])
+
+    def test_debug_mode_is_opt_in(self):
+        """Debug mode must be opt-in via ``--debug``."""
+        tree = ast.parse(
+            (Path(__file__).parents[2] / "main.py").read_text(encoding="utf-8")
+        )
+        defaults = [
+            kw.value.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and getattr(node.func, "id", None) == "define"
+            and node.args
+            and getattr(node.args[0], "value", None) == "debug"
+            for kw in node.keywords
+            if kw.arg == "default"
+        ]
+        self.assertEqual([False], defaults)
+
+    def test_traceback_not_returned_to_client(self):
+        """Even with debug=True (as in the test app) no traceback is returned."""
+        self.assertTrue(self._app.settings["debug"])
+        self.assertFalse(self._app.settings["serve_traceback"])
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body="{not valid json",
+        )
+        self.assertGreaterEqual(response.code, 400)
+        self.assertNotIn(b"Traceback", response.body)
+        self.assertNotIn(b".py", response.body)
+
+    def test_default_size_limits(self):
+        """Defaults leave >5x headroom over the measured legitimate payloads."""
+        self.assertEqual(5, DEFAULT_MAX_BODY_SIZE_MB)
+        self.assertEqual(
+            DEFAULT_MAX_WS_MESSAGE_SIZE_MB * MIB,
+            self._app.settings["websocket_max_message_size"],
+        )
 
     def test_api_debug(self):
         response = self.fetch("/api/v1/debug")
