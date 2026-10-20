@@ -110,3 +110,49 @@ class TestRBAC(DigiScriptTestCase):
         self.assertIn("objects", response_body)
         # Should find the script we created
         self.assertEqual(1, len(response_body["objects"]))
+
+
+class TestRBACRoleChangeValidation(DigiScriptTestCase):
+    def _body(self, **overrides):
+        body = {"resource": "shows", "object": {"id": 1}, "user": 1, "role": 1}
+        body.update(overrides)
+        return body
+
+    def _post(self, path, body, token):
+        return self.fetch(
+            path,
+            method="POST",
+            body=body if isinstance(body, str) else tornado.escape.json_encode(body),
+            headers={"Authorization": f"Bearer {token}"},
+            raise_error=False,
+        )
+
+    def test_grant_and_revoke_invalid_input_returns_400(self):
+        token = self._create_and_login_admin()
+        bad_bodies = [
+            self._body(role=999999),
+            self._body(role="admin"),
+            self._body(user="abc"),
+            self._body(object="not-a-dict"),
+            self._body(object={"unrelated": 1}),
+            self._body(resource=["shows"]),
+        ]
+        for path in (
+            "/api/v1/rbac/user/roles/grant",
+            "/api/v1/rbac/user/roles/revoke",
+        ):
+            for body in bad_bodies:
+                with self.subTest(path=path, body=body):
+                    self.assertEqual(400, self._post(path, body, token).code)
+
+    def test_grant_missing_field_returns_400(self):
+        token = self._create_and_login_admin()
+        body = self._body()
+        del body["role"]
+        resp = self._post("/api/v1/rbac/user/roles/grant", body, token)
+        self.assertEqual(400, resp.code)
+
+    def test_grant_invalid_json_returns_400(self):
+        token = self._create_and_login_admin()
+        resp = self._post("/api/v1/rbac/user/roles/grant", "nope", token)
+        self.assertEqual(400, resp.code)

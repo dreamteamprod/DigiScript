@@ -107,3 +107,16 @@ class TestSettingsDisclosure(DigiScriptTestCase):
         data = self.io_loop.run_sync(self._app.digi_settings.as_json)
         for key in self.PATH_KEYS:
             self.assertNotIn(key, data)
+
+
+class TestSettingsController(DigiScriptTestCase):
+    def test_patch_invalid_json_returns_400(self):
+        token = self._create_and_login_admin()
+        resp = self.fetch(
+            "/api/v1/settings",
+            method="PATCH",
+            body="nope",
+            headers={"Authorization": f"Bearer {token}"},
+            raise_error=False,
+        )
+        self.assertEqual(400, resp.code)

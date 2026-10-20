@@ -1,3 +1,6 @@
+import ast
+from pathlib import Path
+
 import tornado.escape
 from sqlalchemy import func, select
 from tornado.testing import gen_test
@@ -6,6 +9,7 @@ from models.session import Session
 from models.settings import SystemSettings
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from utils.web.request_size_metrics import http_request_body_bytes
 
 
 class TestDigiScriptServer(DigiScriptTestCase):
@@ -23,7 +27,80 @@ class TestDigiScriptServer(DigiScriptTestCase):
         admin = self._create_and_login_admin()
         user = self._create_and_login_user(admin)
         response = self.fetch("/debug", headers={"Authorization": f"Bearer {user}"})
-        self.assertEqual(401, response.code)
+        self.assertEqual(403, response.code)
+
+    def test_debug_mode_is_opt_in(self):
+        """Debug mode must be opt-in via ``--debug``."""
+        tree = ast.parse(
+            (Path(__file__).parents[2] / "main.py").read_text(encoding="utf-8")
+        )
+        defaults = [
+            getattr(kw.value, "value", "<non-literal default>")
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and getattr(node.func, "id", None) == "define"
+            and node.args
+            and getattr(node.args[0], "value", None) == "debug"
+            for kw in node.keywords
+            if kw.arg == "default"
+        ]
+        self.assertEqual(
+            [False],
+            defaults,
+            "--debug must default to the literal False (update this test if the "
+            "default is computed)",
+        )
+
+    def test_traceback_not_returned_to_client(self):
+        """Even with debug=True (as in the test app) no traceback is returned."""
+        self.assertTrue(self._app.settings["debug"])
+        self.assertFalse(self._app.settings["serve_traceback"])
+        response = self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body="{not valid json",
+        )
+        self.assertGreaterEqual(response.code, 400)
+        self.assertNotIn(b"Traceback", response.body)
+        self.assertNotIn(b".py", response.body)
+
+    def test_request_body_size_observed(self):
+        """Request bodies are recorded in the size histogram, labelled by handler."""
+        labels = ("ApiFallback", "POST")
+        before = self._body_count(*labels)
+        self.fetch("/api/v1/nonexistent", method="POST", body="x" * 2000)
+        self.assertEqual(before + 1, self._body_count(*labels))
+
+    def test_unknown_http_method_does_not_create_new_series(self):
+        """Arbitrary method strings are reported as OTHER, keeping labels bounded."""
+        before = self._body_count("ApiFallback", "OTHER")
+        for method in ("FOOA1", "FOOB2", "FOOC3"):
+            self.fetch(
+                "/api/v1/nonexistent",
+                method=method,
+                body="x" * 10,
+                allow_nonstandard_methods=True,
+            )
+        self.assertEqual(before + 3, self._body_count("ApiFallback", "OTHER"))
+        self.assertEqual(0, self._body_count("ApiFallback", "FOOA1"))
+
+    def test_request_without_body_not_observed(self):
+        """Body-less requests do not add to the size histogram."""
+        before = self._body_count("ApiFallback", "GET")
+        self.fetch("/api/v1/nonexistent")
+        self.assertEqual(before, self._body_count("ApiFallback", "GET"))
+
+    @staticmethod
+    def _body_count(handler, method):
+        for metric in http_request_body_bytes.collect():
+            for sample in metric.samples:
+                if (
+                    sample.name.endswith("_count")
+                    and sample.labels.get("handler") == handler
+                    and sample.labels.get("method") == method
+                ):
+                    return sample.value
+        return 0
 
     def test_api_debug(self):
         response = self.fetch("/api/v1/debug")

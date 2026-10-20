@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
 import bcrypt
+from jsonpath import JSONPatchError
 from sqlalchemy import select
 from tornado import escape, httputil
 from tornado.ioloop import IOLoop
@@ -15,10 +16,14 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
+from utils.web.log_redaction import redact_sensitive_keys
 
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
+
+# Returned by BaseAPIController._loggable_body when a body is not valid JSON.
+_NON_JSON = object()
 
 
 class DatabaseMixin:
@@ -44,6 +49,16 @@ class BaseController(DatabaseMixin, RequestHandler):
         super().__init__(application, request, **kwargs)
         self.application: DigiScriptServer = self.application
         self.current_show: Optional[dict] = None
+
+    def set_default_headers(self) -> None:
+        """Add baseline security headers to every response.
+
+        No Content-Security-Policy is set: the SPA and the bundled docs rely on
+        inline styles/scripts, so a policy strict enough to be useful would break them.
+        """
+        self.set_header("X-Content-Type-Options", "nosniff")
+        self.set_header("X-Frame-Options", "SAMEORIGIN")
+        self.set_header("Referrer-Policy", "same-origin")
 
     async def prepare(
         self,
@@ -164,6 +179,44 @@ class BaseAPIController(BaseController):
             extra["user_id"] = self.current_user.get("id")
         return extra
 
+    def _redaction_enabled(self) -> bool:
+        """Return True if the ``log_redaction`` setting is on."""
+        return bool(
+            self.application.digi_settings.settings["log_redaction"].get_value()
+        )
+
+    def _loggable_raw_body(self) -> Any:
+        """Return a non-JSON request body in the form allowed by ``log_redaction``.
+
+        With redaction on only its size is returned, as it cannot be redacted by key.
+        """
+        if self._redaction_enabled():
+            return f"<non-JSON body, {len(self.request.body)} bytes>"
+        return self.request.body
+
+    def _loggable_body(self, redacted_data_paths) -> Any:
+        """Decode the JSON request body, redacted if ``log_redaction`` is on.
+
+        :param redacted_data_paths: Decorator-supplied patch of paths to redact,
+            or None.
+        :returns: The body, or the ``_NON_JSON`` sentinel if it is not valid JSON.
+        """
+        try:
+            body = escape.json_decode(self.request.body)
+        except BaseException:
+            return _NON_JSON
+        if self._redaction_enabled():
+            body = deepcopy(body)
+            body = redact_sensitive_keys(body)
+            if redacted_data_paths:
+                try:
+                    redacted_data_paths.apply(body)
+                except JSONPatchError:
+                    # A decorated path is absent from this body (e.g. the optional
+                    # old_password); there is nothing at that path to redact.
+                    pass
+        return body
+
     def on_finish(self):
         from utils.web.route import Route  # noqa: PLC0415
 
@@ -179,26 +232,13 @@ class BaseAPIController(BaseController):
             method_name = self.request.method.lower()
             handler_method = getattr(self, method_name, None)
             redacted_data_paths = getattr(handler_method, "_redacted_data_paths", None)
-            try:
-                body = escape.json_decode(self.request.body)
-            except BaseException:
-                get_logger().debug(
-                    f"{self.request.method} {self.request.path} {self.request.body}{user_suffix}",
-                    extra=self._log_extra(),
-                )
-            else:
-                if (
-                    redacted_data_paths
-                    and self.application.digi_settings.settings[
-                        "log_redaction"
-                    ].get_value()
-                ):
-                    body = deepcopy(body)
-                    redacted_data_paths.apply(body)
-
-                log_method(
-                    f"{self.request.method} {self.request.path} {body}{user_suffix}",
-                    extra=self._log_extra(),
-                )
+            logged = self._loggable_body(redacted_data_paths)
+            if logged is _NON_JSON:
+                log_method = get_logger().debug
+                logged = self._loggable_raw_body()
+            log_method(
+                f"{self.request.method} {self.request.path} {logged}{user_suffix}",
+                extra=self._log_extra(),
+            )
 
         super().on_finish()

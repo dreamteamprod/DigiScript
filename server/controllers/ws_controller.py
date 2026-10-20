@@ -32,6 +32,7 @@ from models.user import User
 from rbac.role import Role
 from utils.web.base_controller import DatabaseMixin
 from utils.web.pending_disconnects import disconnect_key
+from utils.web.request_size_metrics import WSMessageSizeMetricsMixin
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.ws_session_lifecycle import (
     assign_session_user,
@@ -63,7 +64,7 @@ _COLLAB_ONLY_OPS = frozenset(
 
 
 @ApiRoute("ws", ApiVersion.V1)
-class WebSocketController(DatabaseMixin, WebSocketHandler):
+class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHandler):
     # Live-show ops only the leader may send, and the method that handles each.
     _LEADER_OP_HANDLERS = {
         "SCRIPT_SCROLL": "_op_script_scroll",
@@ -131,8 +132,12 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
                         user_id=user_id,
                     )
                 )
-            if self.current_user_id:
-                user = session.get(User, self.current_user_id)
+            user = (
+                session.get(User, self.current_user_id)
+                if self.current_user_id
+                else None
+            )
+            if user is not None:
                 user.last_seen = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
         return cleared
@@ -466,16 +471,33 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             if self.current_username
             else self.request.remote_ip
         )
-        get_logger().debug(f"WebSocket message from {user_part}: {message}")
+        raw = message
+        size = len(message)
 
         try:
             message = json.loads(message)
             ws_op = message["OP"]
-        except (json.JSONDecodeError, KeyError) as e:
+            if not isinstance(ws_op, str):
+                raise TypeError("OP must be a string")
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            if self.application.digi_settings.get_sync("log_redaction"):
+                content = f"<{size} bytes>"
+            else:
+                content = raw
             get_logger().warning(
-                f"Malformed WS message from {self.request.remote_ip}: {e}"
+                f"Malformed WS message from {self.request.remote_ip}: "
+                f"{type(e).__name__}: {e} {content}"
             )
             return
+
+        # With redaction on never log the payload: AUTHENTICATE / REFRESH_TOKEN
+        # carry live JWTs.
+        if self.application.digi_settings.get_sync("log_redaction"):
+            get_logger().debug(
+                f"WebSocket message from {user_part}: {ws_op} ({size} bytes)"
+            )
+        else:
+            get_logger().debug(f"WebSocket message from {user_part}: {raw}")
 
         # Connection boundary: an exception escaping on_message ends Tornado's
         # read loop without calling on_close, leaving a handler that no longer
@@ -528,42 +550,57 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             elif ws_op == "REFRESH_CLIENT":
                 self._resume_client(message.get("DATA"))
             elif ws_op in self._LEADER_OP_HANDLERS:
-                show_session = (
-                    session.get(ShowSession, show.current_session_id)
-                    if show and show.current_session_id
-                    else None
-                )
-                # Ownership rule: only the authenticated show user on its own row.
-                if self._is_leader(session, show_session):
-                    handler = getattr(self, self._LEADER_OP_HANDLERS[ws_op])
-                    await handler(session, show_session, entry, message["DATA"])
-                else:
-                    get_logger().debug(
-                        f"Ignored {ws_op} from client "
-                        f"{self.__getattribute__('internal_id')} (user "
-                        f"{self.current_user_id}): not the live-show leader"
-                    )
+                await self._handle_leader_op(session, show, entry, ws_op, message)
             elif ws_op == "LIVE_SHOW_JUMP_TO_PAGE":
-                show_session = (
-                    session.get(ShowSession, show.current_session_id)
-                    if show and show.current_session_id
-                    else None
-                )
-                if show_session and self._user_has_show_execute_access(session, show):
-                    await self._op_jump_to_page(
-                        session, show_session, entry, message["DATA"]
-                    )
-                else:
-                    get_logger().debug(
-                        f"Ignored {ws_op} from client "
-                        f"{self.__getattribute__('internal_id')} (user "
-                        f"{self.current_user_id}): no show execute access"
-                    )
+                await self._handle_jump_op(session, show, entry, ws_op, message)
             else:
                 get_logger().warning(
                     f"Unknown OP {ws_op} received from "
                     f"WebSocket connection {self.request.remote_ip}"
                 )
+
+    @staticmethod
+    def _live_show_session(session, show: Optional[Show]) -> Optional[ShowSession]:
+        """Return the show's current live ShowSession, or None."""
+        if show and show.current_session_id:
+            return session.get(ShowSession, show.current_session_id)
+        return None
+
+    async def _handle_leader_op(
+        self, session, show: Optional[Show], entry, ws_op: str, message: dict
+    ) -> None:
+        """Run a leader-only live-show op if this connection is the leader."""
+        show_session = self._live_show_session(session, show)
+        # Ownership rule: only the authenticated show user on its own row.
+        if not self._is_leader(session, show_session):
+            get_logger().debug(
+                f"Ignored {ws_op} from client "
+                f"{self.__getattribute__('internal_id')} (user "
+                f"{self.current_user_id}): not the live-show leader"
+            )
+            return
+        data = message.get("DATA")
+        if not isinstance(data, dict):
+            get_logger().warning(f"Ignored {ws_op}: DATA must be an object")
+            return
+        handler = getattr(self, self._LEADER_OP_HANDLERS[ws_op])
+        await handler(session, show_session, entry, data)
+
+    async def _handle_jump_op(
+        self, session, show: Optional[Show], entry, ws_op: str, message: dict
+    ) -> None:
+        """Run ``LIVE_SHOW_JUMP_TO_PAGE`` if the user has show EXECUTE access."""
+        show_session = self._live_show_session(session, show)
+        if show_session and self._user_has_show_execute_access(session, show):
+            await self._op_jump_to_page(
+                session, show_session, entry, message.get("DATA")
+            )
+            return
+        get_logger().debug(
+            f"Ignored {ws_op} from client "
+            f"{self.__getattribute__('internal_id')} (user "
+            f"{self.current_user_id}): no show execute access"
+        )
 
     def _resume_client(self, new_uuid: Any) -> None:
         """Handle ``REFRESH_CLIENT``: a reconnecting page resumes its old uuid.
@@ -637,19 +674,39 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
     async def _op_script_scroll(self, session, show_session, entry, data) -> None:
         """Leader op ``SCRIPT_SCROLL``: record and broadcast the leader's line."""
-        show_session.latest_line_ref = data["current_line"]
+        line_ref = data.get("current_line")
+        if not isinstance(line_ref, str):
+            get_logger().warning("Ignored SCRIPT_SCROLL: invalid current_line")
+            return
+        show_session.latest_line_ref = line_ref
         session.commit()
         await self.application.ws_send_to_all("NOOP", "SCRIPT_SCROLL", data)
 
     async def _op_begin_interval(self, session, show_session, entry, data) -> None:
         """Leader op ``BEGIN_INTERVAL``: start an interval after the given act."""
-        act: Act = session.get(Act, data["actId"])
+        act_id = data.get("actId")
+        length = data.get("length")
         if not entry:
+            get_logger().warning(
+                "Ignored BEGIN_INTERVAL: no session entry for this connection"
+            )
+            return
+        if (
+            isinstance(act_id, bool)
+            or not isinstance(act_id, int)
+            or isinstance(length, bool)
+            or not isinstance(length, (int, float))
+        ):
+            get_logger().warning("Ignored BEGIN_INTERVAL: invalid actId or length")
+            return
+        act: Optional[Act] = session.get(Act, act_id)
+        if act is None:
+            get_logger().warning("Ignored BEGIN_INTERVAL: unknown act")
             return
         show_interval = Interval(
             session_id=show_session.id,
             act_id=act.id,
-            initial_length=data["length"],
+            initial_length=length,
         )
         session.add(show_interval)
         session.flush()
@@ -825,7 +882,10 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             get_logger().warning("RoomManager not available, ignoring collab OP")
             return
 
-        data = message.get("DATA", {})
+        data = message.get("DATA")
+        if not isinstance(data, dict):
+            get_logger().warning(f"{ws_op}: DATA is not an object; treating as empty")
+            data = {}
 
         # Everything that touches the shared draft only exists in collaborative mode;
         # in classic mode a stray client must not be able to open a room.
