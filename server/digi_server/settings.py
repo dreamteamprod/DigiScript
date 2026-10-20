@@ -55,6 +55,7 @@ class SettingsObject:
         hide_from_ui: bool = False,
         choice_options: Optional[list] = None,
         choice_labels: Optional[list] = None,
+        sensitive: bool = False,
     ):
         if val_type not in self.ALLOWED_TYPES:
             raise RuntimeError(
@@ -110,6 +111,8 @@ class SettingsObject:
         self.display_name = display_name
         self.help_text = help_text
         self.hide_from_ui = hide_from_ui
+        # Sensitive settings (e.g. server filesystem paths) are only disclosed to admins.
+        self.sensitive = sensitive
         self.choice_options = choice_options
         self.choice_labels = choice_labels
 
@@ -170,20 +173,6 @@ class SettingsObject:
         }
 
 
-#: Settings holding server filesystem locations. They are only disclosed to
-#: administrators; everyone else (and every broadcast) gets them omitted.
-SENSITIVE_SETTINGS = frozenset(
-    {
-        "db_path",
-        "log_path",
-        "db_log_path",
-        "client_log_path",
-        "compiled_script_path",
-        "draft_script_path",
-    }
-)
-
-
 class Settings:
     def __init__(self, application: DigiScriptServer, settings_path=None):
         self._application = application
@@ -236,6 +225,7 @@ class Settings:
             False,
             nullable=False,
             display_name="Database Path",
+            sensitive=True,
         )
         self.define(
             "current_show",
@@ -294,6 +284,7 @@ class Settings:
             self._application.regen_logging,
             display_name="Application Log Path",
             category="Logging",
+            sensitive=True,
         )
         self.define(
             "max_log_mb",
@@ -343,6 +334,7 @@ class Settings:
             self._application.regen_logging,
             display_name="Database Log Path",
             category="DB Logging",
+            sensitive=True,
         )
         self.define(
             "db_max_log_mb",
@@ -369,6 +361,7 @@ class Settings:
             False,
             display_name="Compiled Script Path",
             help_text="Directory used to store compiled scripts.",
+            sensitive=True,
         )
         self.define(
             "draft_script_path",
@@ -377,6 +370,7 @@ class Settings:
             False,
             display_name="Draft Script Path",
             help_text="Directory used to store collaborative editing draft files.",
+            sensitive=True,
         )
         self.define(
             "client_log_enabled",
@@ -407,6 +401,7 @@ class Settings:
             display_name="Client Log Path",
             help_text="Path to the log file for client-side log messages.",
             category="Client Logging",
+            sensitive=True,
         )
         self.define(
             "client_max_log_mb",
@@ -478,6 +473,7 @@ class Settings:
         choice_options: Optional[list] = None,
         choice_labels: Optional[list] = None,
         category: str = "General",
+        sensitive: bool = False,
     ):
         if key in self.settings:
             raise KeyError(f"Setting {key} is already defined")
@@ -494,6 +490,7 @@ class Settings:
             hide_from_ui,
             choice_options,
             choice_labels,
+            sensitive,
         )
         if category not in self.categories:
             self.categories[category] = [key]
@@ -616,13 +613,14 @@ class Settings:
     async def as_json(self, include_sensitive: bool = False):
         """Return all setting values plus the server version.
 
-        :param include_sensitive: Include the filesystem path settings in
-            :data:`SENSITIVE_SETTINGS`. Only pass True for administrators.
+        :param include_sensitive: Include settings defined with
+            ``sensitive=True`` (server filesystem paths). Only pass True for
+            administrators.
         """
         async with self.lock:
             settings_json = {}
             for key, value in self.settings.items():
-                if not include_sensitive and key in SENSITIVE_SETTINGS:
+                if not include_sensitive and value.sensitive:
                     continue
                 settings_json[key] = value.get_value()
             settings_json["version"] = _get_version()
@@ -631,13 +629,14 @@ class Settings:
     async def raw_json(self, include_sensitive: bool = False):
         """Return full setting metadata (type, default, help text, ...).
 
-        :param include_sensitive: Include the filesystem path settings in
-            :data:`SENSITIVE_SETTINGS`. Only pass True for administrators.
+        :param include_sensitive: Include settings defined with
+            ``sensitive=True`` (server filesystem paths). Only pass True for
+            administrators.
         """
         async with self.lock:
             settings_json = {}
             for key, value in self.settings.items():
-                if not include_sensitive and key in SENSITIVE_SETTINGS:
+                if not include_sensitive and value.sensitive:
                     continue
                 settings_json[key] = value.as_json()
             return json.loads(json.dumps(settings_json))
