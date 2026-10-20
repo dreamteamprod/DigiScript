@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
 import bcrypt
+from jsonpath import JSONPatchError
 from sqlalchemy import select
 from tornado import escape, httputil
 from tornado.ioloop import IOLoop
@@ -206,9 +207,14 @@ class BaseAPIController(BaseController):
             return _NON_JSON
         if self._redaction_enabled():
             body = deepcopy(body)
-            if redacted_data_paths:
-                redacted_data_paths.apply(body)
             body = redact_sensitive_keys(body)
+            if redacted_data_paths:
+                try:
+                    redacted_data_paths.apply(body)
+                except JSONPatchError:
+                    # A decorated path is absent from this body (e.g. the optional
+                    # old_password); there is nothing at that path to redact.
+                    pass
         return body
 
     def on_finish(self):

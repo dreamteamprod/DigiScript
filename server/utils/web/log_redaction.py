@@ -11,6 +11,8 @@ REDACTED = "<-- REDACTED -->"
 SENSITIVE_KEYS = frozenset(
     {
         "password",
+        "confirmpassword",
+        "confirm_password",
         "new_password",
         "old_password",
         "current_password",
