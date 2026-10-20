@@ -16,6 +16,7 @@ from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
 from utils.web.log_redaction import apply_path_redactions, redact_sensitive_keys
+from utils.web.security_headers import apply_security_headers
 
 
 if TYPE_CHECKING:
@@ -50,14 +51,8 @@ class BaseController(DatabaseMixin, RequestHandler):
         self.current_show: Optional[dict] = None
 
     def set_default_headers(self) -> None:
-        """Add baseline security headers to every response.
-
-        No Content-Security-Policy is set: the SPA and the bundled docs rely on
-        inline styles/scripts, so a policy strict enough to be useful would break them.
-        """
-        self.set_header("X-Content-Type-Options", "nosniff")
-        self.set_header("X-Frame-Options", "SAMEORIGIN")
-        self.set_header("Referrer-Policy", "same-origin")
+        """Add the baseline security headers to every response."""
+        apply_security_headers(self)
 
     async def prepare(
         self,
