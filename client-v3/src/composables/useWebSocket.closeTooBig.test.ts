@@ -13,7 +13,7 @@ class FakeWebSocket {
   static CONNECTING = 0;
   static instances: FakeWebSocket[] = [];
   readyState = 3;
-  onopen: (() => void) | null = null;
+  onopen: (() => Promise<void> | void) | null = null;
   onmessage: ((e: { data: string }) => void) | null = null;
   onclose: ((e?: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
@@ -44,6 +44,45 @@ describe('close code 1009', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('re-syncs the live session after reconnecting from a 1009 close', async () => {
+    const { useShowStore } = await import('@/stores/show');
+    const showStore = useShowStore();
+    showStore.currentSession = { id: 1 } as never;
+    const resync = vi.spyOn(showStore, 'getShowSessionData').mockResolvedValue();
+
+    useWebSocket().connect();
+    FakeWebSocket.instances[0].onclose?.({ code: 1009 });
+    vi.advanceTimersByTime(2100);
+    await FakeWebSocket.instances[1].onopen?.();
+
+    expect(resync).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith('WebSocket reconnected after 1 attempt');
+  });
+
+  it('forgets earlier 1009 closes once a connection has stayed up for 30s', async () => {
+    useWebSocket().connect();
+    await FakeWebSocket.instances[0].onopen?.();
+    vi.advanceTimersByTime(30100);
+    FakeWebSocket.instances[0].onclose?.({ code: 1009 });
+    // Count was cleared, so this is the first close again: 2s delay.
+    vi.advanceTimersByTime(2100);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it('keeps the 1009 count when the connection was up for less than 30s', async () => {
+    useWebSocket().connect();
+    FakeWebSocket.instances[0].onclose?.({ code: 1009 });
+    vi.advanceTimersByTime(2100);
+    await FakeWebSocket.instances[1].onopen?.();
+    vi.advanceTimersByTime(10000);
+    FakeWebSocket.instances[1].onclose?.({ code: 1009 });
+    // Second consecutive close: 4s delay.
+    vi.advanceTimersByTime(3500);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    vi.advanceTimersByTime(600);
+    expect(FakeWebSocket.instances).toHaveLength(3);
   });
 
   it('keeps backing off when authentication succeeds between closes', async () => {

@@ -188,12 +188,11 @@ function connect(): void {
 
   ws.onopen = async () => {
     try {
-      const wasErrored = errorCount > 0;
+      const attempts = Math.max(errorCount, tooBigCount);
+      const wasErrored = attempts > 0;
       wsStore.$patch({ isConnected: true });
       if (wasErrored) {
-        toast.success(
-          `WebSocket reconnected after ${errorCount} attempt${errorCount > 1 ? 's' : ''}`
-        );
+        toast.success(`WebSocket reconnected after ${attempts} attempt${attempts > 1 ? 's' : ''}`);
       }
       log.info('WebSocket connected');
       if (stableTimer) clearTimeout(stableTimer);
