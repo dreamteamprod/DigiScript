@@ -76,13 +76,19 @@ Once users have been created, their permissions can be configured by clicking th
 
 RBAC configuration determines what shows a user can access and what actions they can perform within those shows.
 
+### Log Redaction
+
+The **Enable Log Redaction** system setting is on by default. While it is on, passwords, tokens and other credentials are replaced with a placeholder in logged HTTP request bodies, and WebSocket messages are logged as their operation name and size only.
+
+Turn it off to see the raw HTTP and WebSocket content while debugging. Request bodies and WebSocket messages are logged at debug level, so also set **Log Level** to `DEBUG` (the default is `INFO`). **Warning:** with redaction off, the logs contain credentials and authentication tokens, so only disable it temporarily and treat the log files as sensitive. A value you have saved is never changed by a later change to a setting's default.
+
 ### Log Viewer
 
 The **Logs** tab (admin only) provides a real-time view of server and client log entries stored in the in-memory log buffer.
 
 #### Sources
 
-- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs, request body debug logs, WebSocket connection events, and general application messages.
+- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs, request body and WebSocket message debug logs (only shown when the Log Level is `DEBUG`), WebSocket connection events, and general application messages.
 - **Client** — Logs forwarded from connected browser clients via the `/api/v1/logs/batch` endpoint.
 
 #### Username Attribution
