@@ -1,5 +1,3 @@
-"""Tests for BaseController: default response headers and request body logging."""
-
 import json
 
 from tornado.httpclient import HTTPRequest
