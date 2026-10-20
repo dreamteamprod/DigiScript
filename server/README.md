@@ -10,6 +10,8 @@ pip install -r requirements.txt
 python3 ./main.py
 ```
 
+Pass `--debug` for development (autoreload, relaxed WebSocket origin checks). It is off by default and must not be used on a deployed server.
+
 This requires that the client has been build first in order to server the static files
 
 ## Project Structure

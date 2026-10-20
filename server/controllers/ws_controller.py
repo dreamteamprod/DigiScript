@@ -32,6 +32,7 @@ from models.user import User
 from rbac.role import Role
 from utils.web.base_controller import DatabaseMixin
 from utils.web.pending_disconnects import disconnect_key
+from utils.web.request_size_metrics import WSMessageSizeMetricsMixin
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.ws_session_lifecycle import (
     assign_session_user,
@@ -63,7 +64,7 @@ _COLLAB_ONLY_OPS = frozenset(
 
 
 @ApiRoute("ws", ApiVersion.V1)
-class WebSocketController(DatabaseMixin, WebSocketHandler):
+class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHandler):
     # Live-show ops only the leader may send, and the method that handles each.
     _LEADER_OP_HANDLERS = {
         "SCRIPT_SCROLL": "_op_script_scroll",
