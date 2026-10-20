@@ -545,46 +545,57 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             elif ws_op == "REFRESH_CLIENT":
                 self._resume_client(message.get("DATA"))
             elif ws_op in self._LEADER_OP_HANDLERS:
-                show_session = (
-                    session.get(ShowSession, show.current_session_id)
-                    if show and show.current_session_id
-                    else None
-                )
-                # Ownership rule: only the authenticated show user on its own row.
-                if self._is_leader(session, show_session):
-                    data = message.get("DATA")
-                    if not isinstance(data, dict):
-                        get_logger().warning(f"Ignored {ws_op}: DATA must be an object")
-                        return
-                    handler = getattr(self, self._LEADER_OP_HANDLERS[ws_op])
-                    await handler(session, show_session, entry, data)
-                else:
-                    get_logger().debug(
-                        f"Ignored {ws_op} from client "
-                        f"{self.__getattribute__('internal_id')} (user "
-                        f"{self.current_user_id}): not the live-show leader"
-                    )
+                await self._handle_leader_op(session, show, entry, ws_op, message)
             elif ws_op == "LIVE_SHOW_JUMP_TO_PAGE":
-                show_session = (
-                    session.get(ShowSession, show.current_session_id)
-                    if show and show.current_session_id
-                    else None
-                )
-                if show_session and self._user_has_show_execute_access(session, show):
-                    await self._op_jump_to_page(
-                        session, show_session, entry, message.get("DATA")
-                    )
-                else:
-                    get_logger().debug(
-                        f"Ignored {ws_op} from client "
-                        f"{self.__getattribute__('internal_id')} (user "
-                        f"{self.current_user_id}): no show execute access"
-                    )
+                await self._handle_jump_op(session, show, entry, ws_op, message)
             else:
                 get_logger().warning(
                     f"Unknown OP {ws_op} received from "
                     f"WebSocket connection {self.request.remote_ip}"
                 )
+
+    @staticmethod
+    def _live_show_session(session, show: Optional[Show]) -> Optional[ShowSession]:
+        """Return the show's current live ShowSession, or None."""
+        if show and show.current_session_id:
+            return session.get(ShowSession, show.current_session_id)
+        return None
+
+    async def _handle_leader_op(
+        self, session, show: Optional[Show], entry, ws_op: str, message: dict
+    ) -> None:
+        """Run a leader-only live-show op if this connection is the leader."""
+        show_session = self._live_show_session(session, show)
+        # Ownership rule: only the authenticated show user on its own row.
+        if not self._is_leader(session, show_session):
+            get_logger().debug(
+                f"Ignored {ws_op} from client "
+                f"{self.__getattribute__('internal_id')} (user "
+                f"{self.current_user_id}): not the live-show leader"
+            )
+            return
+        data = message.get("DATA")
+        if not isinstance(data, dict):
+            get_logger().warning(f"Ignored {ws_op}: DATA must be an object")
+            return
+        handler = getattr(self, self._LEADER_OP_HANDLERS[ws_op])
+        await handler(session, show_session, entry, data)
+
+    async def _handle_jump_op(
+        self, session, show: Optional[Show], entry, ws_op: str, message: dict
+    ) -> None:
+        """Run ``LIVE_SHOW_JUMP_TO_PAGE`` if the user has show EXECUTE access."""
+        show_session = self._live_show_session(session, show)
+        if show_session and self._user_has_show_execute_access(session, show):
+            await self._op_jump_to_page(
+                session, show_session, entry, message.get("DATA")
+            )
+            return
+        get_logger().debug(
+            f"Ignored {ws_op} from client "
+            f"{self.__getattribute__('internal_id')} (user "
+            f"{self.current_user_id}): no show execute access"
+        )
 
     def _resume_client(self, new_uuid: Any) -> None:
         """Handle ``REFRESH_CLIENT``: a reconnecting page resumes its old uuid.
