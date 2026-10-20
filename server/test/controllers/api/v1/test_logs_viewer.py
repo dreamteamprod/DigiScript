@@ -83,11 +83,11 @@ class TestLogViewerController(DigiScriptTestCase):
         resp = self._fetch_view()
         self.assertEqual(401, resp.code)
 
-    def test_non_admin_returns_401(self):
+    def test_non_admin_returns_403(self):
         admin_token = self._create_and_login_admin()
         user_token = self._create_and_login_user(admin_token)
         resp = self._fetch_view(token=user_token)
-        self.assertEqual(401, resp.code)
+        self.assertEqual(403, resp.code)
 
     def test_admin_returns_200(self):
         token = self._create_and_login_admin()
@@ -367,11 +367,11 @@ class TestLogViewerController(DigiScriptTestCase):
         resp = self._fetch_stream_headers()
         self.assertEqual(401, resp.code)
 
-    def test_stream_non_admin_returns_401(self):
+    def test_stream_non_admin_returns_403(self):
         admin_token = self._create_and_login_admin()
         user_token = self._create_and_login_user(admin_token)
         resp = self._fetch_stream_headers(token=user_token)
-        self.assertEqual(401, resp.code)
+        self.assertEqual(403, resp.code)
 
     def test_stream_backfill_contains_existing_entries(self):
         """Entries injected before connection must appear in the first chunk.

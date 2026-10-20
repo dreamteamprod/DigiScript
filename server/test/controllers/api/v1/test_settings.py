@@ -64,3 +64,16 @@ class TestSettings(DigiScriptTestCase):
         self.assertEqual(
             len(json_repr["choice_labels"]), len(json_repr["choice_options"])
         )
+
+
+class TestSettingsController(DigiScriptTestCase):
+    def test_patch_invalid_json_returns_400(self):
+        token = self._create_and_login_admin()
+        resp = self.fetch(
+            "/api/v1/settings",
+            method="PATCH",
+            body="nope",
+            headers={"Authorization": f"Bearer {token}"},
+            raise_error=False,
+        )
+        self.assertEqual(400, resp.code)

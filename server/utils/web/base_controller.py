@@ -16,6 +16,7 @@ from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
 from utils.web.log_redaction import apply_path_redactions, redact_sensitive_keys
+from utils.web.security_headers import apply_security_headers
 
 
 if TYPE_CHECKING:
@@ -48,6 +49,10 @@ class BaseController(DatabaseMixin, RequestHandler):
         super().__init__(application, request, **kwargs)
         self.application: DigiScriptServer = self.application
         self.current_show: Optional[dict] = None
+
+    def set_default_headers(self) -> None:
+        """Add the baseline security headers to every response."""
+        apply_security_headers(self)
 
     async def prepare(
         self,

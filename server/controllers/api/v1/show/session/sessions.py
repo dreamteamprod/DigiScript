@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 from typing import List
 
 from sqlalchemy import select
-from tornado import escape
 
 from controllers.api.constants import ERROR_SHOW_NOT_FOUND
 from models.script import Script
@@ -11,6 +10,7 @@ from models.show import Show
 from rbac.role import Role
 from schemas.schemas import IntervalSchema, ShowSessionSchema
 from utils.web.base_controller import BaseAPIController
+from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import requires_show
 
@@ -100,7 +100,7 @@ class SessionStartController(BaseAPIController):
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
                 return
             self.requires_role(show, Role.EXECUTE)
-            data = escape.json_decode(self.request.body)
+            data = get_json_object(self)
             status, result = self._start_problem(session, show, data)
             if status is not None:
                 self.set_status(status)

@@ -22,7 +22,7 @@ class TestWebsocketSessionsController(DigiScriptTestCase):
         response = self.fetch(
             "/api/v1/ws/sessions", headers={"Authorization": f"Bearer {user_token}"}
         )
-        self.assertEqual(401, response.code)
+        self.assertEqual(403, response.code)
 
     def test_get_sessions_empty(self):
         """Test GET /api/v1/ws/sessions with no sessions.
