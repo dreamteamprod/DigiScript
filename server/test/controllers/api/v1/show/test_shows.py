@@ -450,7 +450,7 @@ class TestShowDeletionController(DigiScriptTestCase):
             session.commit()
         token = self._app.jwt_service.create_access_token({"user_id": user_id})
         response = self._delete(show_b_id, token=token)
-        self.assertEqual(401, response.code)
+        self.assertEqual(403, response.code)
         with self._app.get_db().sessionmaker() as session:
             self.assertIsNotNone(session.get(Show, show_b_id))
 

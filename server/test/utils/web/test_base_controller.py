@@ -4,6 +4,7 @@ import json
 
 from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
+
 from test.conftest import DigiScriptTestCase
 
 
