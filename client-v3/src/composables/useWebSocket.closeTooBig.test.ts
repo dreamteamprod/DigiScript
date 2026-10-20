@@ -63,12 +63,15 @@ describe('close code 1009', () => {
 
   it('forgets earlier 1009 closes once a connection has stayed up for 30s', async () => {
     useWebSocket().connect();
-    await FakeWebSocket.instances[0].onopen?.();
-    vi.advanceTimersByTime(30100);
     FakeWebSocket.instances[0].onclose?.({ code: 1009 });
-    // Count was cleared, so this is the first close again: 2s delay.
     vi.advanceTimersByTime(2100);
-    expect(FakeWebSocket.instances).toHaveLength(2);
+    // Second connection stays up long enough to clear the earlier 1009 count.
+    await FakeWebSocket.instances[1].onopen?.();
+    vi.advanceTimersByTime(30100);
+    FakeWebSocket.instances[1].onclose?.({ code: 1009 });
+    // Count was cleared, so this is a first close again: 2s delay, not 4s.
+    vi.advanceTimersByTime(2100);
+    expect(FakeWebSocket.instances).toHaveLength(3);
   });
 
   it('keeps the 1009 count when the connection was up for less than 30s', async () => {

@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock
 
 import pycrdt
 from sqlalchemy import select
-from tornado import gen
 from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
 from tornado.websocket import WebSocketClosedError, websocket_connect
@@ -3713,7 +3712,7 @@ class TestWSOversizedMessage(DigiScriptTestCase):
         )
         # Control case: a message under the cap leaves the connection open.
         await conn.write_message("x" * (limit - 1024))
-        await gen.sleep(0.2)
+        await asyncio.sleep(0.2)
         conn.ping(b"")
         self.assertIsNone(conn.close_code)
         try:
