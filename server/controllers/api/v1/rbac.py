@@ -158,8 +158,18 @@ class RBACUserRolesHandler(BaseAPIController):
             await self.finish({"roles": res})
 
 
-@ApiRoute("rbac/user/roles/grant", ApiVersion.V1)
-class RBACRolesGrantHandler(BaseAPIController):
+class _RBACRoleChangeHandler(BaseAPIController):
+    """Shared request handling for granting and revoking a role."""
+
+    def _apply_role(self, user: User, rbac_object, role: Role) -> None:
+        """Apply the role change.
+
+        :param user: The user whose role is changing.
+        :param rbac_object: The resource object the role applies to.
+        :param role: The role to grant or revoke.
+        """
+        raise NotImplementedError
+
     @api_authenticated
     @require_admin
     async def post(self):
@@ -178,11 +188,9 @@ class RBACRolesGrantHandler(BaseAPIController):
                 self.set_status(404)
                 await self.finish({"message": "user not found"})
                 return
-            resource = inspect(mapper)
-            cols = {}
-            cols.update(
-                {col.key: rbac_object.get(col.key) for col in resource.primary_key}
-            )
+            cols = {
+                col.key: rbac_object.get(col.key) for col in inspect(mapper).primary_key
+            }
             if any(v is None for v in cols.values()):
                 self.set_status(400)
                 await self.finish({"message": "object is missing primary key fields"})
@@ -192,49 +200,20 @@ class RBACRolesGrantHandler(BaseAPIController):
                 self.set_status(404)
                 await self.finish({"message": "object not found"})
                 return
-            self.application.rbac.give_role(user, rbac_object, role)
+            self._apply_role(user, rbac_object, role)
             for socket in self.application.get_all_ws(user.id):
                 await socket.write_message(
                     {"OP": "NOOP", "DATA": {}, "ACTION": "GET_CURRENT_RBAC"}
                 )
+
+
+@ApiRoute("rbac/user/roles/grant", ApiVersion.V1)
+class RBACRolesGrantHandler(_RBACRoleChangeHandler):
+    def _apply_role(self, user, rbac_object, role):
+        self.application.rbac.give_role(user, rbac_object, role)
 
 
 @ApiRoute("rbac/user/roles/revoke", ApiVersion.V1)
-class RBACRolesRevokeHandler(BaseAPIController):
-    @api_authenticated
-    @require_admin
-    async def post(self):
-        data = get_json_object(self)
-        resource, rbac_object, user, role = _parse_role_change(data)
-
-        mapper = self.application.get_db().get_mapper_for_table(resource)
-        if not mapper:
-            self.set_status(404)
-            await self.finish({"message": "resource not found"})
-            return
-
-        with self.make_session() as session:
-            user = session.get(User, user)
-            if not user:
-                self.set_status(404)
-                await self.finish({"message": "user not found"})
-                return
-            resource = inspect(mapper)
-            cols = {}
-            cols.update(
-                {col.key: rbac_object.get(col.key) for col in resource.primary_key}
-            )
-            if any(v is None for v in cols.values()):
-                self.set_status(400)
-                await self.finish({"message": "object is missing primary key fields"})
-                return
-            rbac_object = session.get(mapper, cols)
-            if not rbac_object:
-                self.set_status(404)
-                await self.finish({"message": "object not found"})
-                return
-            self.application.rbac.revoke_role(user, rbac_object, role)
-            for socket in self.application.get_all_ws(user.id):
-                await socket.write_message(
-                    {"OP": "NOOP", "DATA": {}, "ACTION": "GET_CURRENT_RBAC"}
-                )
+class RBACRolesRevokeHandler(_RBACRoleChangeHandler):
+    def _apply_role(self, user, rbac_object, role):
+        self.application.rbac.revoke_role(user, rbac_object, role)
