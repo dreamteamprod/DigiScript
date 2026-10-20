@@ -44,11 +44,8 @@ from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
 from utils.web.pending_disconnects import PendingDisconnects
+from utils.web.request_size_metrics import observe_http_request
 from utils.web.route import Route
-from utils.web.size_limits import (
-    DEFAULT_MAX_WS_MESSAGE_SIZE_MB,
-    MIB,
-)
 
 
 class DigiScriptServer(PrometheusMixIn, Application):
@@ -59,7 +56,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
         settings_path=None,
         skip_migrations=False,
         skip_migrations_check=False,
-        max_ws_message_size_mb=DEFAULT_MAX_WS_MESSAGE_SIZE_MB,
     ):
         self._port: int = port
         self.digi_settings: Settings = Settings(self, settings_path)
@@ -340,13 +336,14 @@ class DigiScriptServer(PrometheusMixIn, Application):
             serve_traceback=False,
             db=self._db,
             websocket_ping_interval=5,
-            websocket_max_message_size=max_ws_message_size_mb * MIB,
             cookie_secret=self._get_cookie_secret(),
             login_url="/login",
         )
 
     def log_request(self, handler):
         from tornado.log import access_log  # noqa: PLC0415
+
+        observe_http_request(handler)
 
         if handler.request.path in Route.ignored_logging_routes():
             return

@@ -33,12 +33,6 @@ except ImportError:
 
 from digi_server.app_server import DigiScriptServer
 from digi_server.logger import add_logging_level, get_logger
-from utils.web.size_limits import (
-    DEFAULT_MAX_BODY_SIZE_MB,
-    DEFAULT_MAX_WS_MESSAGE_SIZE_MB,
-    MIB,
-    install_body_limit_logging,
-)
 
 
 add_logging_level("TRACE", logging.DEBUG - 5)
@@ -50,18 +44,6 @@ define(
     default=False,
     help="Development mode: autoreload, relaxed WebSocket origin checks. "
     "Never enable on a deployed server.",
-)
-define(
-    "max_body_size_mb",
-    type=int,
-    default=DEFAULT_MAX_BODY_SIZE_MB,
-    help="Maximum HTTP request body size in MiB (restart required)",
-)
-define(
-    "max_ws_message_size_mb",
-    type=int,
-    default=DEFAULT_MAX_WS_MESSAGE_SIZE_MB,
-    help="Maximum single WebSocket message size in MiB (restart required)",
 )
 define("port", type=int, default=8080, help="port to listen on")
 define("settings_path", type=str, default=None, help="Path to settings JSON file")
@@ -144,13 +126,10 @@ async def main():
         debug=options.debug,
         settings_path=options.settings_path,
         skip_migrations=options.skip_migrations,
-        max_ws_message_size_mb=options.max_ws_message_size_mb,
     )
     await app.configure()
 
-    max_body_size = options.max_body_size_mb * MIB
-    install_body_limit_logging(max_body_size)
-    app.listen(options.port, max_body_size=max_body_size)
+    app.listen(options.port)
     get_logger().info(f"Listening on port: {options.port}")
     if options.debug:
         get_logger().warning("Running in debug mode")

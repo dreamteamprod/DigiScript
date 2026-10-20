@@ -9,11 +9,7 @@ from models.session import Session
 from models.settings import SystemSettings
 from models.user import User
 from test.conftest import DigiScriptTestCase
-from utils.web.size_limits import (
-    DEFAULT_MAX_BODY_SIZE_MB,
-    DEFAULT_MAX_WS_MESSAGE_SIZE_MB,
-    MIB,
-)
+from utils.web.request_size_metrics import http_request_body_bytes
 
 
 class TestDigiScriptServer(DigiScriptTestCase):
@@ -55,13 +51,30 @@ class TestDigiScriptServer(DigiScriptTestCase):
         self.assertNotIn(b"Traceback", response.body)
         self.assertNotIn(b".py", response.body)
 
-    def test_default_size_limits(self):
-        """Defaults leave >5x headroom over the measured legitimate payloads."""
-        self.assertEqual(5, DEFAULT_MAX_BODY_SIZE_MB)
-        self.assertEqual(
-            DEFAULT_MAX_WS_MESSAGE_SIZE_MB * MIB,
-            self._app.settings["websocket_max_message_size"],
-        )
+    def test_request_body_size_observed(self):
+        """Request bodies are recorded in the size histogram, labelled by handler."""
+        labels = ("ApiFallback", "POST")
+        before = self._body_count(*labels)
+        self.fetch("/api/v1/nonexistent", method="POST", body="x" * 2000)
+        self.assertEqual(before + 1, self._body_count(*labels))
+
+    def test_request_without_body_not_observed(self):
+        """Body-less requests do not add to the size histogram."""
+        before = self._body_count("ApiFallback", "GET")
+        self.fetch("/api/v1/nonexistent")
+        self.assertEqual(before, self._body_count("ApiFallback", "GET"))
+
+    @staticmethod
+    def _body_count(handler, method):
+        for metric in http_request_body_bytes.collect():
+            for sample in metric.samples:
+                if (
+                    sample.name.endswith("_count")
+                    and sample.labels.get("handler") == handler
+                    and sample.labels.get("method") == method
+                ):
+                    return sample.value
+        return 0
 
     def test_api_debug(self):
         response = self.fetch("/api/v1/debug")

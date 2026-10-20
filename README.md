@@ -86,29 +86,22 @@ docker-compose up -d
 
 DigiScript will be available at `http://localhost:8080`
 
-**Upgrading from an older image:** the container now runs the server as an unprivileged `digiscript`
-user. No manual steps are needed: on start, the entrypoint (`docker-entrypoint.sh`) runs as root,
-fixes the ownership of an existing `/server/conf` volume or bind mount if it is still root-owned
-(a one-time `chown`, skipped when ownership is already correct), then drops privileges. If you start
-the container with `--user`/`user:` the entrypoint skips the ownership fix, so the mounted directory
-must already be writable by that user.
+### Request size metrics
 
-### Server options
+The server exposes two Prometheus histograms at `/debug/metrics` so that request size limits can be
+tuned from real usage (Tornado's defaults currently apply: 100 MB HTTP bodies, 10 MiB WebSocket messages):
 
-Pass these to `python3 main.py` (or append them to the container command / compose `command:`):
+| Metric | Labels | Meaning |
+|--------|--------|---------|
+| `digiscript_http_request_body_bytes` | `handler`, `method` | Size of HTTP request bodies (requests with a body only) |
+| `digiscript_ws_message_bytes` | none | Size of inbound WebSocket messages |
 
-| Option | Default | Purpose |
-|--------|---------|---------|
-| `--debug` | off | Development only: autoreload and relaxed WebSocket origin checks |
-| `--max_body_size_mb` | 5 | Largest accepted HTTP request body, in MiB |
-| `--max_ws_message_size_mb` | 64 | Largest accepted single WebSocket message, in MiB |
+Buckets are powers of 4 from 1 KiB to 256 MiB. For example, the 99th percentile WebSocket message size
+over the last day in Prometheus:
 
-The defaults were derived from a 450 page / 18,000 line script: the largest normal REST request is
-one page of lines (about 17 KiB), and the largest WebSocket frame is a base64-encoded collaborative
-editing update (a rewrite touching every line is under 1 MiB; inserting an entire 450 page script in
-one go is about 14 MiB). A request over the HTTP limit is refused and an over-sized WebSocket message
-closes the connection (close code 1009); both log a warning naming the limit and the client address.
-Raise the limits and restart the server if you legitimately hit them.
+```
+histogram_quantile(0.99, sum(rate(digiscript_ws_message_bytes_bucket[1d])) by (le))
+```
 
 ### Manual Installation
 
