@@ -44,6 +44,7 @@ from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
 from utils.web.pending_disconnects import PendingDisconnects
+from utils.web.request_size_metrics import observe_http_request
 from utils.web.route import Route
 
 
@@ -331,6 +332,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
         super().__init__(
             handlers=handlers,
             debug=debug,
+            # Never return stack traces to clients, even in debug mode.
+            serve_traceback=False,
             db=self._db,
             websocket_ping_interval=5,
             cookie_secret=self._get_cookie_secret(),
@@ -339,6 +342,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     def log_request(self, handler):
         from tornado.log import access_log  # noqa: PLC0415
+
+        observe_http_request(handler)
 
         if handler.request.path in Route.ignored_logging_routes():
             return

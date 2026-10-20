@@ -12,7 +12,7 @@ pnpm install
 pnpm run dev
 ```
 
-The dev server starts at `http://localhost:5173` and proxies API requests to `http://localhost:8080`.
+The dev server starts at `http://localhost:5173` and proxies API requests to `http://localhost:8080`. Run the backend with `python3 main.py --debug` while developing.
 
 ### Compiles and minifies for production
 ```
