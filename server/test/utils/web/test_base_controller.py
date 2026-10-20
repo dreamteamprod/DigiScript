@@ -1,5 +1,9 @@
-"""Tests for the default response headers set by BaseController."""
+"""Tests for BaseController: default response headers and request body logging."""
 
+import json
+
+from tornado.httpclient import HTTPRequest
+from tornado.testing import gen_test
 from test.conftest import DigiScriptTestCase
 
 
@@ -14,3 +18,51 @@ class TestBaseControllerDefaultHeaders(DigiScriptTestCase):
         resp = self.fetch("/api/v1/rbac/user/resources", raise_error=False)
         self.assertEqual(401, resp.code)
         self.assertEqual("nosniff", resp.headers.get("X-Content-Type-Options"))
+
+
+class TestRequestBodyLogging(DigiScriptTestCase):
+    def _set_redaction(self, value):
+        self._app.digi_settings.settings["log_redaction"].set_value(value)
+
+    async def _post_login(self, body):
+        request = HTTPRequest(
+            self.get_url("/api/v1/auth/login"),
+            method="POST",
+            body=body,
+        )
+        with self.assertLogs(level="DEBUG") as captured:
+            await self.http_client.fetch(request, raise_error=False)
+        return "\n".join(captured.output)
+
+    @gen_test
+    async def test_secrets_hidden_when_redaction_enabled(self):
+        self._set_redaction(True)
+        joined = await self._post_login(
+            json.dumps(
+                {
+                    "username": "nobody",
+                    "password": "SENTINEL-PASSWORD",
+                    "extra": {"access_token": "SENTINEL-TOKEN"},
+                }
+            )
+        )
+        self.assertIn("/api/v1/auth/login", joined)
+        self.assertNotIn("SENTINEL-PASSWORD", joined)
+        self.assertNotIn("SENTINEL-TOKEN", joined)
+
+    @gen_test
+    async def test_body_logged_raw_when_redaction_disabled(self):
+        self._set_redaction(False)
+        joined = await self._post_login(
+            json.dumps({"username": "nobody", "password": "SENTINEL-PASSWORD"})
+        )
+        self.assertIn("SENTINEL-PASSWORD", joined)
+
+    @gen_test
+    async def test_non_json_body_follows_setting(self):
+        self._set_redaction(True)
+        self.assertNotIn(
+            "SENTINEL-RAW", await self._post_login("password=SENTINEL-RAW")
+        )
+        self._set_redaction(False)
+        self.assertIn("SENTINEL-RAW", await self._post_login("password=SENTINEL-RAW"))

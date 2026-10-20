@@ -76,6 +76,12 @@ Once users have been created, their permissions can be configured by clicking th
 
 RBAC configuration determines what shows a user can access and what actions they can perform within those shows.
 
+### Log Redaction
+
+The **Enable Log Redaction** system setting is on by default. While it is on, passwords, tokens and other credentials are replaced with a placeholder in logged HTTP request bodies, and WebSocket messages are logged as their operation name and size only.
+
+Turn it off to see the raw HTTP and WebSocket content while debugging. **Warning:** with redaction off, the logs contain credentials and authentication tokens, so only disable it temporarily and treat the log files as sensitive. Installations that already had the setting saved keep their existing value.
+
 ### Log Viewer
 
 The **Logs** tab (admin only) provides a real-time view of server and client log entries stored in the in-memory log buffer.
