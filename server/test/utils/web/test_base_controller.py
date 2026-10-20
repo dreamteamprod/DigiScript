@@ -1,5 +1,3 @@
-"""Tests for BaseController: default response headers and request body logging."""
-
 import json
 
 from tornado.httpclient import HTTPRequest
@@ -85,6 +83,16 @@ class TestRequestBodyLogging(DigiScriptTestCase):
         self.assertIn("/api/v1/auth/change-password", joined)
         self.assertNotIn("SENTINEL-NEW", joined)
         self.assertNotIn("Uncaught exception", joined)
+
+    @gen_test
+    async def test_json_string_body_does_not_break_logging(self):
+        """A body that decodes to a bare JSON string is still logged and does not
+        raise in on_finish (the handler's own rejection of it is separate).
+        """
+        self._set_redaction(True)
+        joined = await self._post_login('"{"')
+        self.assertIn("DEBUG:DigiScript:POST /api/v1/auth/login", joined)
+        self.assertNotIn("on_finish", joined)
 
     @gen_test
     async def test_confirm_password_redacted_without_decorator(self):

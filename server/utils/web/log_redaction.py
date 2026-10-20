@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from jsonpath import JSONPatch, JSONPatchError
+
 
 REDACTED = "<-- REDACTED -->"
 
@@ -46,3 +48,25 @@ def redact_sensitive_keys(value: Any) -> Any:
     if isinstance(value, list):
         return [redact_sensitive_keys(item) for item in value]
     return value
+
+
+def apply_path_redactions(patch: JSONPatch, body: Any) -> None:
+    """Apply each operation of a redaction *patch* to *body* independently, in place.
+
+    A path absent from the body is skipped without stopping the remaining paths
+    (``JSONPatch.apply`` would abort at the first failure). Bodies that are not a
+    dict or list are left alone: ``JSONPatch`` would treat a string as serialized
+    JSON and raise on it.
+
+    :param patch: Patch of ``replace`` operations built by ``redact_data_paths``.
+    :param body: Decoded JSON request body, modified in place.
+    """
+    if not isinstance(body, (dict, list)):
+        return
+    for operation in patch.ops:
+        single = JSONPatch()
+        single.ops.append(operation)
+        try:
+            single.apply(body)
+        except JSONPatchError:
+            continue

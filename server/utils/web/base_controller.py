@@ -4,7 +4,6 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
 import bcrypt
-from jsonpath import JSONPatchError
 from sqlalchemy import select
 from tornado import escape, httputil
 from tornado.ioloop import IOLoop
@@ -16,7 +15,8 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
-from utils.web.log_redaction import redact_sensitive_keys
+from utils.web.log_redaction import apply_path_redactions, redact_sensitive_keys
+from utils.web.security_headers import apply_security_headers
 
 
 if TYPE_CHECKING:
@@ -51,14 +51,8 @@ class BaseController(DatabaseMixin, RequestHandler):
         self.current_show: Optional[dict] = None
 
     def set_default_headers(self) -> None:
-        """Add baseline security headers to every response.
-
-        No Content-Security-Policy is set: the SPA and the bundled docs rely on
-        inline styles/scripts, so a policy strict enough to be useful would break them.
-        """
-        self.set_header("X-Content-Type-Options", "nosniff")
-        self.set_header("X-Frame-Options", "SAMEORIGIN")
-        self.set_header("Referrer-Policy", "same-origin")
+        """Add the baseline security headers to every response."""
+        apply_security_headers(self)
 
     async def prepare(
         self,
@@ -209,12 +203,7 @@ class BaseAPIController(BaseController):
             body = deepcopy(body)
             body = redact_sensitive_keys(body)
             if redacted_data_paths:
-                try:
-                    redacted_data_paths.apply(body)
-                except JSONPatchError:
-                    # A decorated path is absent from this body (e.g. the optional
-                    # old_password); there is nothing at that path to redact.
-                    pass
+                apply_path_redactions(redacted_data_paths, body)
         return body
 
     def on_finish(self):

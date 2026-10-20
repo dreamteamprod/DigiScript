@@ -1267,6 +1267,9 @@ class TestAuthJsonBodyValidation(DigiScriptTestCase):
     def test_login_non_object_json_returns_400(self):
         self.assertEqual(400, self._post("/api/v1/auth/login", "[1, 2]").code)
 
+    def test_login_bare_json_string_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", '"secret"').code)
+
     def test_login_empty_body_returns_400(self):
         self.assertEqual(400, self._post("/api/v1/auth/login", "").code)
 

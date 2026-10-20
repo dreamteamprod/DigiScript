@@ -1,6 +1,12 @@
 import unittest
 
-from utils.web.log_redaction import REDACTED, redact_sensitive_keys
+from jsonpath import JSONPatch
+
+from utils.web.log_redaction import (
+    REDACTED,
+    apply_path_redactions,
+    redact_sensitive_keys,
+)
 
 
 class TestRedactSensitiveKeys(unittest.TestCase):
@@ -27,3 +33,20 @@ class TestRedactSensitiveKeys(unittest.TestCase):
     def test_scalars_pass_through(self):
         self.assertEqual("x", redact_sensitive_keys("x"))
         self.assertIsNone(redact_sensitive_keys(None))
+
+
+class TestApplyPathRedactions(unittest.TestCase):
+    def _patch(self, *paths):
+        patch = JSONPatch()
+        for path in paths:
+            patch.replace(path, REDACTED)
+        return patch
+
+    def test_missing_path_does_not_stop_later_paths(self):
+        body = {"new_password": "secret"}
+        apply_path_redactions(self._patch("/old_password", "/new_password"), body)
+        self.assertEqual({"new_password": REDACTED}, body)
+
+    def test_non_container_body_is_ignored(self):
+        for body in ("{", 5, None):
+            apply_path_redactions(self._patch("/password"), body)
