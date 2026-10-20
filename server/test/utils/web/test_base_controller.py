@@ -52,3 +52,29 @@ class TestRequestBodyLogging(DigiScriptTestCase):
         )
         self._set_redaction(False)
         self.assertIn("SENTINEL-RAW", await self._post_login("password=SENTINEL-RAW"))
+
+    @gen_test
+    async def test_decorated_path_absent_from_body_still_logs_redacted(self):
+        """A body missing a decorated redaction path (optional old_password) must
+        still be logged, with its other secrets redacted, and must not error.
+        """
+        self._set_redaction(True)
+        request = HTTPRequest(
+            self.get_url("/api/v1/auth/change-password"),
+            method="PATCH",
+            body=json.dumps({"new_password": "SENTINEL-NEW"}),
+        )
+        with self.assertLogs(level="DEBUG") as captured:
+            await self.http_client.fetch(request, raise_error=False)
+        joined = "\n".join(captured.output)
+        self.assertIn("/api/v1/auth/change-password", joined)
+        self.assertNotIn("SENTINEL-NEW", joined)
+        self.assertNotIn("Uncaught exception", joined)
+
+    @gen_test
+    async def test_confirm_password_redacted_without_decorator(self):
+        self._set_redaction(True)
+        joined = await self._post_login(
+            json.dumps({"username": "x", "confirmPassword": "SENTINEL-CONFIRM"})
+        )
+        self.assertNotIn("SENTINEL-CONFIRM", joined)

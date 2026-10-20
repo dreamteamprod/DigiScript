@@ -479,9 +479,13 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
             if not isinstance(ws_op, str):
                 raise TypeError("OP must be a string")
         except (json.JSONDecodeError, KeyError, TypeError) as e:
+            if self.application.digi_settings.get_sync("log_redaction"):
+                content = f"<{size} bytes>"
+            else:
+                content = raw
             get_logger().warning(
-                f"Malformed WS message ({size} bytes) from "
-                f"{self.request.remote_ip}: {type(e).__name__}"
+                f"Malformed WS message from {self.request.remote_ip}: "
+                f"{type(e).__name__}: {e} {content}"
             )
             return
 
@@ -681,9 +685,13 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
         """Leader op ``BEGIN_INTERVAL``: start an interval after the given act."""
         act_id = data.get("actId")
         length = data.get("length")
+        if not entry:
+            get_logger().warning(
+                "Ignored BEGIN_INTERVAL: no session entry for this connection"
+            )
+            return
         if (
-            not entry
-            or isinstance(act_id, bool)
+            isinstance(act_id, bool)
             or not isinstance(act_id, int)
             or isinstance(length, bool)
             or not isinstance(length, (int, float))
@@ -875,6 +883,7 @@ class WebSocketController(DatabaseMixin, WebSocketHandler):
 
         data = message.get("DATA")
         if not isinstance(data, dict):
+            get_logger().warning(f"{ws_op}: DATA is not an object; treating as empty")
             data = {}
 
         # Everything that touches the shared draft only exists in collaborative mode;

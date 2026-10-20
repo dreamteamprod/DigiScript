@@ -3496,13 +3496,34 @@ class TestWSRobustness(_ReconnectTestBase):
         await ws_l.write_message(
             json.dumps({"OP": "SCRIPT_SCROLL", "DATA": {"current_line": ["x"]}})
         )
-        await ws_l.write_message(
-            json.dumps({"OP": "BEGIN_INTERVAL", "DATA": {"actId": "a", "length": 1}})
-        )
+        for bad_interval in (
+            {"actId": "a", "length": 1},
+            {"actId": True, "length": 1},
+            {"actId": 1, "length": True},
+        ):
+            await ws_l.write_message(
+                json.dumps({"OP": "BEGIN_INTERVAL", "DATA": bad_interval})
+            )
         await ws_l.write_message(json.dumps({"OP": "LIVE_SHOW_JUMP_TO_PAGE"}))
         await self._still_responsive(ws_l, self.admin_id)
         self.assertEqual(before, latest())
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual([], session.scalars(select(Interval)).all())
         ws_l.close()
+
+    @gen_test
+    async def test_malformed_frame_content_logging_follows_redaction_setting(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        for redaction, expect_raw in ((True, False), (False, True)):
+            self._app.digi_settings.settings["log_redaction"].set_value(redaction)
+            with self.assertLogs(get_logger(), level="WARNING") as captured:
+                await ws.write_message('{"NOOP": "SENTINEL-FRAME"}')
+                await self._still_responsive(ws, self.admin_id)
+                get_logger().warning("marker")
+            joined = "\n".join(captured.output)
+            self.assertIn("Malformed WS message", joined)
+            self.assertEqual(expect_raw, "SENTINEL-FRAME" in joined)
+        ws.close()
 
     @gen_test
     async def test_non_object_and_non_string_op_frames_are_ignored(self):
