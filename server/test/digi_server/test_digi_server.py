@@ -27,7 +27,7 @@ class TestDigiScriptServer(DigiScriptTestCase):
             (Path(__file__).parents[2] / "main.py").read_text(encoding="utf-8")
         )
         defaults = [
-            kw.value.value
+            getattr(kw.value, "value", "<non-literal default>")
             for node in ast.walk(tree)
             if isinstance(node, ast.Call)
             and getattr(node.func, "id", None) == "define"
@@ -36,7 +36,12 @@ class TestDigiScriptServer(DigiScriptTestCase):
             for kw in node.keywords
             if kw.arg == "default"
         ]
-        self.assertEqual([False], defaults)
+        self.assertEqual(
+            [False],
+            defaults,
+            "--debug must default to the literal False (update this test if the "
+            "default is computed)",
+        )
 
     def test_traceback_not_returned_to_client(self):
         """Even with debug=True (as in the test app) no traceback is returned."""
@@ -57,6 +62,19 @@ class TestDigiScriptServer(DigiScriptTestCase):
         before = self._body_count(*labels)
         self.fetch("/api/v1/nonexistent", method="POST", body="x" * 2000)
         self.assertEqual(before + 1, self._body_count(*labels))
+
+    def test_unknown_http_method_does_not_create_new_series(self):
+        """Arbitrary method strings are reported as OTHER, keeping labels bounded."""
+        before = self._body_count("ApiFallback", "OTHER")
+        for method in ("FOOA1", "FOOB2", "FOOC3"):
+            self.fetch(
+                "/api/v1/nonexistent",
+                method=method,
+                body="x" * 10,
+                allow_nonstandard_methods=True,
+            )
+        self.assertEqual(before + 3, self._body_count("ApiFallback", "OTHER"))
+        self.assertEqual(0, self._body_count("ApiFallback", "FOOA1"))
 
     def test_request_without_body_not_observed(self):
         """Body-less requests do not add to the size histogram."""

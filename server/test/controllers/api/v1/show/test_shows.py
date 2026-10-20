@@ -432,6 +432,13 @@ class TestShowDeletionController(DigiScriptTestCase):
         with self._app.get_db().sessionmaker() as session:
             self.assertIsNotNone(session.get(Show, show_b_id))
 
+    def test_delete_show_unauthenticated_nonexistent_show(self):
+        """Auth is checked before the show lookup, so existence is not leaked."""
+        response = self.fetch(
+            "/api/v1/show?id=99999", method="DELETE", allow_nonstandard_methods=True
+        )
+        self.assertEqual(401, response.code)
+
     def test_delete_show_non_admin(self):
         """A logged-in non-admin cannot delete a show."""
         show_b_id = self._create_show()
@@ -443,7 +450,7 @@ class TestShowDeletionController(DigiScriptTestCase):
             session.commit()
         token = self._app.jwt_service.create_access_token({"user_id": user_id})
         response = self._delete(show_b_id, token=token)
-        self.assertIn(response.code, (401, 403))
+        self.assertEqual(401, response.code)
         with self._app.get_db().sessionmaker() as session:
             self.assertIsNotNone(session.get(Show, show_b_id))
 

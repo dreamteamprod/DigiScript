@@ -16,7 +16,7 @@ import pycrdt
 from sqlalchemy import select
 from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
-from tornado.websocket import websocket_connect
+from tornado.websocket import WebSocketClosedError, websocket_connect
 
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger
@@ -3693,6 +3693,31 @@ class TestWSMessageSizeMetrics(DigiScriptTestCase):
             await asyncio.sleep(0.05)
         conn.close()
         self.assertGreaterEqual(self._message_count(), before + 2)
+
+
+class TestWSOversizedMessage(DigiScriptTestCase):
+    @gen_test
+    async def test_message_over_limit_closes_connection(self):
+        """The server ends the connection when a message exceeds the size cap.
+
+        The cap is Tornado's ``websocket_max_message_size`` (lowered here).
+        Tornado sends a 1009 close frame and then drops the socket while the
+        client is still uploading, so a client may observe 1009 or an abnormal
+        close; only the termination is asserted.
+        """
+        limit = 1024 * 1024
+        self._app.settings["websocket_max_message_size"] = limit
+        conn = await websocket_connect(
+            f"ws://127.0.0.1:{self.get_http_port()}/api/v1/ws"
+        )
+        try:
+            await conn.write_message("x" * (limit + 1024))
+        except WebSocketClosedError:
+            pass  # the server closed while the oversized frame was being sent
+        message = await conn.read_message()
+        while message is not None:
+            message = await conn.read_message()
+        self.assertIsNone(message)
 
 
 class TestWSHandlerMaps(DigiScriptTestCase):
