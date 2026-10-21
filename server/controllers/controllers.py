@@ -9,6 +9,7 @@ from digi_server.logger import get_logger
 from utils.module_discovery import get_resource_path, import_modules, is_frozen
 from utils.web.base_controller import BaseAPIController, BaseController
 from utils.web.route import ApiRoute, ApiVersion, Route
+from utils.web.web_decorators import api_authenticated, require_admin
 
 
 IMPORTED_CONTROLLERS = {}
@@ -128,6 +129,8 @@ class ApiFallback(BaseAPIController):
 
 @Route("/debug")
 class DebugController(BaseController):
+    @api_authenticated
+    @require_admin
     def get(self):
         self.set_status(200)
         self.set_header("Content-Type", "application/json")

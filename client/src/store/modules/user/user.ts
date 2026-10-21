@@ -116,6 +116,7 @@ const module: Module<UserState, RootState> = {
           await context.commit('SET_AUTH_TOKEN', data.access_token);
         }
         await context.dispatch('GET_RBAC_ROLES');
+        await context.dispatch('GET_RAW_SETTINGS');
         await context.dispatch('GET_CURRENT_USER');
         await context.dispatch('GET_CURRENT_RBAC');
         await context.dispatch('GET_USER_SETTINGS');
@@ -150,6 +151,8 @@ const module: Module<UserState, RootState> = {
       await context.commit('SET_USER_SETTINGS', []);
       await context.commit('SET_STAGE_DIRECTION_STYLE_OVERRIDES', []);
       await context.commit('CLEAR_WS_AUTHENTICATION');
+      // Re-fetch (now anonymous) so admin-only values are dropped from the cache.
+      context.dispatch('GET_RAW_SETTINGS');
       if (token) {
         try {
           const response = await fetch(makeURL('/api/v1/auth/logout'), {

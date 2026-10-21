@@ -86,13 +86,19 @@ Once users have been created, their permissions can be configured by clicking th
 
 RBAC configuration determines what shows a user can access and what actions they can perform within those shows.
 
+### Log Redaction
+
+The **Enable Log Redaction** system setting is on by default. While it is on, passwords, tokens and other credentials are replaced with a placeholder in logged HTTP request bodies, and WebSocket messages are logged as their operation name and size only.
+
+Turn it off to see the raw HTTP and WebSocket content while debugging. Request bodies and WebSocket messages are logged at debug level, so also set **Log Level** to `DEBUG` (the default is `INFO`). **Warning:** with redaction off, the logs contain credentials and authentication tokens, so only disable it temporarily and treat the log files as sensitive. A value you have saved is never changed by a later change to a setting's default.
+
 ### Log Viewer
 
 The **Logs** tab (admin only) provides a real-time view of server and client log entries stored in the in-memory log buffer.
 
 #### Sources
 
-- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs, request body debug logs, WebSocket connection events, and general application messages.
+- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs, request body and WebSocket message debug logs (only shown when the Log Level is `DEBUG`), WebSocket connection events, and general application messages.
 - **Client** — Logs forwarded from connected browser clients via the `/api/v1/logs/batch` endpoint.
 
 #### Username Attribution
@@ -101,6 +107,8 @@ All log entries are attributed to the logged-in user where one is present:
 
 - **Server logs**: Each HTTP access log line and request-body debug line includes `[username]` in the message (e.g. `200 GET /api/v1/user/settings (127.0.0.1) [alice] 5.23ms`). WebSocket messages and close events also include the username once the connection has been authenticated.
 - **Client logs**: The server extracts the username from the JWT token on each batch submission, so all client log entries are attributed even if the client sends no user information itself.
+- **Client log limits**: Submitting client logs requires being logged in, so entries generated before login are held in the browser and sent after login. A single batch may contain at most 100 entries, messages are truncated at 4 KB, oversized extra data is dropped, and each IP address is limited to 600 entries per minute (further entries are rejected until the window resets).
+- **Server file paths**: The database, log, compiled script and draft script locations are only shown to administrators (on the Settings tab); other users and logged-out visitors never receive them.
 
 #### Filtering
 
@@ -126,6 +134,8 @@ Controls how long JWT access tokens remain valid after they are issued. The avai
 **Reducing the lifetime** takes effect immediately — any token whose issue time is older than the new limit will be rejected on the next request, even if the token's expiry date has not passed yet. Affected users are redirected to the login page.
 
 **Increasing the lifetime** applies to newly-issued tokens. Active users automatically receive a refreshed token within 30 minutes, at which point the longer lifetime takes effect for their session.
+
+Logging out invalidates the session token permanently, including across a server restart.
 
 > **Note:** This setting applies to JWT browser session tokens only. API tokens (long-lived keys used for machine-to-machine access) are not subject to this lifetime limit.
 

@@ -10,6 +10,7 @@ from models.user import User
 from services.login_throttle import LoginThrottle
 from services.password_service import PasswordService
 from test.conftest import DigiScriptTestCase
+from test.helpers.auth_fixtures import craft_token, make_user
 
 
 class FakeClock:
@@ -1201,7 +1202,7 @@ class TestAuthAPI(DigiScriptTestCase):
             headers={"Authorization": f"Bearer {user_token}"},
         )
 
-        self.assertEqual(401, response.code)
+        self.assertEqual(403, response.code)
 
     def test_admin_reset_password_user_not_found(self):
         """Test password reset fails for non-existent user"""
@@ -1362,3 +1363,52 @@ class TestLoginThrottling(DigiScriptTestCase):
         self.assertEqual([200, 401, 401, 401], sorted(r.code for r in responses))
         with self._app.get_db().sessionmaker() as session:
             self.assertEqual(1, len(session.scalars(select(User)).all()))
+
+
+class TestAuthTokenLifecycleAPI(DigiScriptTestCase):
+    def _post(self, path: str, token: str):
+        return self.fetch(
+            path,
+            method="POST",
+            body=escape.json_encode({}),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    def test_logged_out_token_is_rejected(self):
+        token = craft_token(self._app, make_user(self._app))
+        self.assertEqual(200, self._post("/api/v1/auth/logout", token).code)
+        response = self.fetch(
+            "/api/v1/auth", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(401, response.code)
+
+
+class TestAuthJsonBodyValidation(DigiScriptTestCase):
+    def _post(self, path, body, token=None, method="POST"):
+        return self.fetch(
+            path,
+            method=method,
+            body=body,
+            headers={"Authorization": f"Bearer {token}"} if token else {},
+            raise_error=False,
+        )
+
+    def test_login_invalid_json_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", "{not json").code)
+
+    def test_login_non_object_json_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", "[1, 2]").code)
+
+    def test_login_bare_json_string_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", '"secret"').code)
+
+    def test_login_empty_body_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", "").code)
+
+    def test_create_user_invalid_json_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/create", "nope").code)
+
+    def test_change_password_invalid_json_returns_400(self):
+        token = self._create_and_login_admin()
+        resp = self._post("/api/v1/auth/change-password", "nope", token, "PATCH")
+        self.assertEqual(400, resp.code)

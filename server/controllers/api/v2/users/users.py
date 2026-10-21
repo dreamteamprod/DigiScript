@@ -1,13 +1,13 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import select
-from tornado import escape
 
 from models.user import User
 from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
 from utils.web.base_controller import BaseAPIController
+from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import (
     api_authenticated,
@@ -46,7 +46,7 @@ class UsersV2Controller(BaseAPIController):
             if has_any_users:
                 self.requires_admin()
 
-            data = escape.json_decode(self.request.body)
+            data = get_json_object(self)
 
             username = data.get("username", "")
             if not username:
@@ -109,7 +109,7 @@ class UsersV2Controller(BaseAPIController):
             await self.finish({"message": "Id missing"})
             return
 
-        data = escape.json_decode(self.request.body)
+        data = get_json_object(self)
 
         with self.make_session() as session:
             user: User = session.get(User, int(user_id))

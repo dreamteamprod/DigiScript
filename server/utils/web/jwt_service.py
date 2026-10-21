@@ -4,10 +4,19 @@ from uuid import uuid4
 
 import tornado.locks
 from jwt import PyJWS, PyJWT, PyJWTError
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
+from digi_server.logger import get_logger
 from models.settings import SystemSettings
-from models.user import User
+from models.user import RevokedToken, User
+from utils.web.api_keys import ApiKeyService
+
+
+# Reasons returned by JWTService.validate_access_token.
+TOKEN_REVOKED = "revoked"
+TOKEN_INVALID = "invalid"
+TOKEN_EXPIRED = "expired"
+TOKEN_VERSION_INVALID = "version_invalid"
 
 
 class JWTService:
@@ -31,33 +40,127 @@ class JWTService:
         self._secret = secret
         self._jwt_algorithm = jwt_algorithm
         self._default_expiry = default_expiry
+        self.api_keys = ApiKeyService()
+        # jti -> expiry (unix seconds). Write-through cache of the
+        # ``revoked_token`` table (memory only when there is no application).
         self._revoked_tokens: Dict[str, int] = {}
+        self._revoked_loaded = False
         self._revoked_token_lock = tornado.locks.Lock()
 
-    async def revoke_token(self, token: str):
+    def _load_revoked(self) -> None:
+        """Load persisted revocations into the cache on first use (lock held)."""
+        if self._revoked_loaded:
+            return
+        if not self.application:
+            self._revoked_loaded = True
+            return
+        now = int(datetime.now(tz=timezone.utc).timestamp())
         try:
-            payload = self._jwt.decode(
+            with self.application.get_db().sessionmaker() as session:
+                session.execute(
+                    delete(RevokedToken).where(RevokedToken.expires_at < now)
+                )
+                session.commit()
+                loaded = {
+                    row.jti: row.expires_at
+                    for row in session.scalars(select(RevokedToken)).all()
+                }
+        except Exception:
+            # Leave the flag unset so the next call retries, rather than
+            # running permanently with an empty (fail-open) revocation list.
+            get_logger().exception("Could not load persisted token revocations")
+            raise
+        self._revoked_tokens.update(loaded)
+        self._revoked_loaded = True
+
+    def _unverified_claims(self, token: str) -> Optional[Dict[str, Any]]:
+        try:
+            return self._jwt.decode(
                 token,
                 options={"verify_signature": False, "verify_exp": False},
                 algorithms=[self._jwt_algorithm],
             )
-            expiry = payload.get("exp", -1)
         except Exception:
-            expiry = -1
-        async with self._revoked_token_lock:
-            self._revoked_tokens[token] = expiry
+            return None
 
-    async def is_token_revoked(self, token: str):
+    async def revoke_token(self, token: str):
+        """
+        Revoke a token by its ``jti`` until its natural expiry.
+
+        Revocations are persisted so they survive a restart, and expired ones
+        are pruned on every call (an expired token is rejected by signature
+        validation anyway).
+
+        :param token: The JWT to revoke.
+        """
+        # Only a token that passes signature and expiry checks may be revoked,
+        # so unsigned claims never reach the database.
+        payload = self.decode_access_token(token)
+        jti = payload.get("jti") if payload else None
+        if not jti:
+            return
+        expiry = int(payload["exp"])
+        now = int(datetime.now(tz=timezone.utc).timestamp())
         async with self._revoked_token_lock:
-            if token in self._revoked_tokens:
-                expiry = self._revoked_tokens[token]
-                if expiry != -1:
-                    expiry_time = datetime.fromtimestamp(expiry, tz=timezone.utc)
-                    current_time = datetime.now(tz=timezone.utc)
-                    if current_time > expiry_time:
-                        self._revoked_tokens.pop(token)
-                return True
+            self._load_revoked()
+            self._revoked_tokens = {
+                k: v for k, v in self._revoked_tokens.items() if v >= now
+            }
+            if expiry < now:
+                return
+            self._revoked_tokens[jti] = expiry
+            if self.application:
+                with self.application.get_db().sessionmaker() as session:
+                    session.execute(
+                        delete(RevokedToken).where(RevokedToken.expires_at < now)
+                    )
+                    session.merge(RevokedToken(jti=jti, expires_at=expiry))
+                    session.commit()
+
+    async def is_token_revoked(self, token: str) -> bool:
+        """
+        Check whether a token has been revoked.
+
+        :param token: The JWT to check.
+        :returns: True if the token's ``jti`` is on the (unexpired) revocation list.
+        """
+        payload = self._unverified_claims(token)
+        jti = payload.get("jti") if payload else None
+        if not jti:
             return False
+        async with self._revoked_token_lock:
+            self._load_revoked()
+            expiry = self._revoked_tokens.get(jti)
+            if expiry is None:
+                return False
+            if expiry < int(datetime.now(tz=timezone.utc).timestamp()):
+                self._revoked_tokens.pop(jti, None)
+                return False
+            return True
+
+    async def validate_access_token(
+        self, token: str
+    ) -> "tuple[Optional[Dict[str, Any]], Optional[str]]":
+        """
+        Single validation routine shared by REST and WebSocket authentication.
+
+        Checks, in order: revocation, signature/expiry, presence of ``user_id``,
+        per-token age, and the user's ``token_version``.
+
+        :param token: The JWT access token.
+        :returns: ``(payload, None)`` when valid, otherwise ``(None, reason)``
+            where reason is one of the ``TOKEN_*`` constants.
+        """
+        if await self.is_token_revoked(token):
+            return None, TOKEN_REVOKED
+        payload = self.decode_access_token(token)
+        if not payload or "user_id" not in payload:
+            return None, TOKEN_INVALID
+        if not self.validate_token_age(payload):
+            return None, TOKEN_EXPIRED
+        if not self.is_token_version_valid(payload):
+            return None, TOKEN_VERSION_INVALID
+        return payload, None
 
     def get_secret(self):
         """

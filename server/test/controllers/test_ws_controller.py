@@ -16,7 +16,7 @@ import pycrdt
 from sqlalchemy import select
 from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
-from tornado.websocket import websocket_connect
+from tornado.websocket import WebSocketClosedError, websocket_connect
 
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger
@@ -29,6 +29,7 @@ from models.user import User
 from rbac.role import Role
 from services.password_service import PasswordService
 from test.conftest import DigiScriptTestCase
+from test.helpers.auth_fixtures import bump_token_version, craft_token, make_user
 from test.helpers.script_fixtures import create_show_script_revision
 from utils.script_room_manager import ScriptRoom
 from utils.web import ws_session_lifecycle
@@ -36,6 +37,7 @@ from utils.web.pending_disconnects import (
     disconnect_key,
     room_close_key,
 )
+from utils.web.request_size_metrics import ws_message_bytes
 from utils.web.ws_session_lifecycle import FINALISE_ATTEMPTS
 
 
@@ -3475,6 +3477,102 @@ class TestWSRobustness(_ReconnectTestBase):
         ws_l.close()
 
     @gen_test
+    async def test_leader_ops_with_malformed_data_are_ignored(self):
+        """Non-object / wrong-typed DATA on leader ops is rejected without
+        changing state or killing the connection.
+        """
+        ws_l, uuid_l = await self._connect_and_auth(self.admin_id)
+        self._start_live_session(uuid_l, self.admin_id)
+
+        def latest():
+            with self._app.get_db().sessionmaker() as session:
+                show = session.get(Show, self.show_id)
+                live = session.get(ShowSession, show.current_session_id)
+                return live.latest_line_ref
+
+        before = latest()
+        for op in ("SCRIPT_SCROLL", "BEGIN_INTERVAL", "END_INTERVAL"):
+            for bad in (None, [], "x", 5):
+                await ws_l.write_message(json.dumps({"OP": op, "DATA": bad}))
+            await ws_l.write_message(json.dumps({"OP": op}))
+        await ws_l.write_message(
+            json.dumps({"OP": "SCRIPT_SCROLL", "DATA": {"current_line": ["x"]}})
+        )
+        for bad_interval in (
+            {"actId": "a", "length": 1},
+            {"actId": True, "length": 1},
+            {"actId": 1, "length": True},
+        ):
+            await ws_l.write_message(
+                json.dumps({"OP": "BEGIN_INTERVAL", "DATA": bad_interval})
+            )
+        await ws_l.write_message(json.dumps({"OP": "LIVE_SHOW_JUMP_TO_PAGE"}))
+        await self._still_responsive(ws_l, self.admin_id)
+        self.assertEqual(before, latest())
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual([], session.scalars(select(Interval)).all())
+        ws_l.close()
+
+    @gen_test
+    async def test_malformed_frame_content_logging_follows_redaction_setting(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        for redaction, expect_raw in ((True, False), (False, True)):
+            self._app.digi_settings.settings["log_redaction"].set_value(redaction)
+            with self.assertLogs(get_logger(), level="WARNING") as captured:
+                await ws.write_message('{"NOOP": "SENTINEL-FRAME"}')
+                await self._still_responsive(ws, self.admin_id)
+                get_logger().warning("marker")
+            joined = "\n".join(captured.output)
+            self.assertIn("Malformed WS message", joined)
+            self.assertEqual(expect_raw, "SENTINEL-FRAME" in joined)
+        ws.close()
+
+    @gen_test
+    async def test_non_object_and_non_string_op_frames_are_ignored(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        for frame in ("[]", '"abc"', "5", "null", '{"OP": ["x"]}', '{"OP": {}}'):
+            await ws.write_message(frame)
+        await self._still_responsive(ws, self.admin_id)
+        ws.close()
+
+    async def _auth_logs(self, redaction):
+        self._app.digi_settings.settings["log_redaction"].set_value(redaction)
+        ws, _ = await self._connect_and_auth()
+        sentinel = self._app.jwt_service.create_access_token(
+            data={"user_id": self.admin_id}
+        )
+        with self.assertLogs(get_logger(), level="DEBUG") as captured:
+            await ws.write_message(
+                json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": sentinel}})
+            )
+            await self._read_until(ws, op="WS_AUTH_SUCCESS")
+        ws.close()
+        return sentinel, "\n".join(captured.output)
+
+    @gen_test
+    async def test_ws_payload_not_logged_when_redaction_on(self):
+        """With redaction on only the op name and size are logged."""
+        sentinel, joined = await self._auth_logs(True)
+        self.assertIn("AUTHENTICATE", joined)
+        self.assertNotIn(sentinel, joined)
+
+    @gen_test
+    async def test_ws_payload_logged_raw_when_redaction_off(self):
+        sentinel, joined = await self._auth_logs(False)
+        self.assertIn(sentinel, joined)
+
+    @gen_test
+    async def test_update_session_survives_deleted_user(self):
+        ws, uuid = await self._connect_and_auth(self.admin2_id)
+        handler = self._app.get_ws(uuid)
+        with self._app.get_db().sessionmaker() as session:
+            session.get(Session, uuid).user_id = None
+            session.delete(session.get(User, self.admin2_id))
+            session.commit()
+        handler.update_session()  # must not raise
+        ws.close()
+
+    @gen_test
     async def test_db_error_in_reconcile_leaves_connection_unauthenticated(self):
         """A failure while settling ownership must not leave the socket half
         authenticated (current_user_id set but no WS_AUTH_SUCCESS).
@@ -3664,6 +3762,64 @@ class TestWSRobustness(_ReconnectTestBase):
 
         follower.close()
         ws_l.close()
+
+
+class TestWSMessageSizeMetrics(DigiScriptTestCase):
+    @staticmethod
+    def _message_count():
+        return next(
+            sample.value
+            for metric in ws_message_bytes.collect()
+            for sample in metric.samples
+            if sample.name.endswith("_count")
+        )
+
+    @gen_test
+    async def test_inbound_message_size_observed(self):
+        """Every inbound WebSocket message is recorded in the size histogram."""
+        before = self._message_count()
+        conn = await websocket_connect(
+            f"ws://127.0.0.1:{self.get_http_port()}/api/v1/ws"
+        )
+        await conn.read_message()  # SET_UUID greeting
+        await conn.write_message(json.dumps({"OP": "PING", "DATA": "x" * 100}))
+        await conn.write_message("not json")
+        for _ in range(50):
+            if self._message_count() >= before + 2:
+                break
+            await asyncio.sleep(0.05)
+        conn.close()
+        self.assertGreaterEqual(self._message_count(), before + 2)
+
+
+class TestWSOversizedMessage(DigiScriptTestCase):
+    @gen_test
+    async def test_message_over_limit_closes_connection(self):
+        """The server ends the connection when a message exceeds the size cap.
+
+        The cap is Tornado's ``websocket_max_message_size`` (lowered here).
+        Tornado sends a 1009 close frame and then drops the socket while the
+        client is still uploading, so a client may observe 1009 or an abnormal
+        close; only the termination is asserted.
+        """
+        limit = 1024 * 1024
+        self._app.settings["websocket_max_message_size"] = limit
+        conn = await websocket_connect(
+            f"ws://127.0.0.1:{self.get_http_port()}/api/v1/ws"
+        )
+        # Control case: a message under the cap leaves the connection open.
+        await conn.write_message("x" * (limit - 1024))
+        await asyncio.sleep(0.2)
+        conn.ping(b"")
+        self.assertIsNone(conn.close_code)
+        try:
+            await conn.write_message("x" * (limit + 1024))
+        except WebSocketClosedError:
+            pass  # the server closed while the oversized frame was being sent
+        message = await conn.read_message()
+        while message is not None:
+            message = await conn.read_message()
+        self.assertIsNone(message)
 
 
 class TestWSHandlerMaps(DigiScriptTestCase):
@@ -3860,3 +4016,36 @@ class TestForceLogoutOrdering(_ReconnectTestBase):
         follower.close()
         ws_t.close()
         ws_l.close()
+
+
+class TestWSTokenValidation(DigiScriptTestCase):
+    async def _auth_reply(self, token: str) -> dict:
+        ws = await websocket_connect(
+            self.get_url("/api/v1/ws").replace("http://", "ws://")
+        )
+        await ws.read_message()  # internal uuid
+        await ws.read_message()  # GET_SETTINGS
+        await ws.write_message(
+            json.dumps({"OP": "AUTHENTICATE", "DATA": {"token": token}})
+        )
+        reply = json.loads(await ws.read_message())
+        ws.close()
+        return reply
+
+    @gen_test
+    async def test_valid_token_authenticates(self):
+        token = craft_token(self._app, make_user(self._app))
+        self.assertEqual("WS_AUTH_SUCCESS", (await self._auth_reply(token))["OP"])
+
+    @gen_test
+    async def test_stale_token_version_is_rejected(self):
+        user_id = make_user(self._app)
+        token = craft_token(self._app, user_id)
+        bump_token_version(self._app, user_id)
+        self.assertEqual("WS_AUTH_ERROR", (await self._auth_reply(token))["OP"])
+
+    @gen_test
+    async def test_revoked_token_is_rejected(self):
+        token = craft_token(self._app, make_user(self._app))
+        await self._app.jwt_service.revoke_token(token)
+        self.assertEqual("WS_AUTH_ERROR", (await self._auth_reply(token))["OP"])

@@ -12,7 +12,7 @@ from alembic.config import Config
 from alembic.runtime import migration
 from sqlalchemy import Column, String, delete, select
 from tornado.ioloop import IOLoop
-from tornado.web import Application, StaticFileHandler
+from tornado.web import Application
 from tornado_prometheus import PrometheusMixIn
 
 from controllers import controllers
@@ -45,7 +45,9 @@ from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
 from utils.web.jwt_service import JWTService
 from utils.web.pending_disconnects import PendingDisconnects
+from utils.web.request_size_metrics import observe_http_request
 from utils.web.route import Route
+from utils.web.security_headers import SecureStaticFileHandler
 
 
 class DigiScriptServer(PrometheusMixIn, Application):
@@ -319,22 +321,26 @@ class DigiScriptServer(PrometheusMixIn, Application):
         handlers = Route.routes()
         handlers.append(("/favicon.ico", controllers.StaticController))
         handlers.append(
-            (r"/assets/(.*)", StaticFileHandler, {"path": static_files_path})
+            (r"/assets/(.*)", SecureStaticFileHandler, {"path": static_files_path})
         )
         handlers.append(
             (
                 r"/ui-old/assets/(.*)",
-                StaticFileHandler,
+                SecureStaticFileHandler,
                 {"path": ui_old_static_files_path},
             )
         )
-        handlers.append((r"/docs/(.*)", StaticFileHandler, {"path": docs_files_path}))
+        handlers.append(
+            (r"/docs/(.*)", SecureStaticFileHandler, {"path": docs_files_path})
+        )
         handlers.append((r"/api/.*", controllers.ApiFallback))
         handlers.append((r"/ui-old(/?.*)", controllers.RootController))
         handlers.append((r"/(.*)", controllers.RootControllerV3))
         super().__init__(
             handlers=handlers,
             debug=debug,
+            # Never return stack traces to clients, even in debug mode.
+            serve_traceback=False,
             db=self._db,
             websocket_ping_interval=5,
             cookie_secret=self._get_cookie_secret(),
@@ -343,6 +349,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     def log_request(self, handler):
         from tornado.log import access_log  # noqa: PLC0415
+
+        observe_http_request(handler)
 
         if handler.request.path in Route.ignored_logging_routes():
             return

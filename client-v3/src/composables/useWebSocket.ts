@@ -12,13 +12,24 @@ import type { WsMessage } from '@/types/api/websocket';
 
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
+/** RFC 6455 close code sent by the server when a message exceeds its size limit. */
+const WS_CLOSE_MESSAGE_TOO_BIG = 1009;
+const STABLE_CONNECTION_MS = 30000;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let errorCount = 0;
+// Consecutive 1009 closes. Kept apart from errorCount, which a successful authentication resets,
+// so a client that keeps tripping the limit still backs off. Cleared once a connection has stayed
+// up for STABLE_CONNECTION_MS.
+let tooBigCount = 0;
+let stableTimer: ReturnType<typeof setTimeout> | null = null;
 
 function getReconnectDelay(): number {
-  return Math.min(INITIAL_RECONNECT_DELAY_MS * 2 ** errorCount, MAX_RECONNECT_DELAY_MS);
+  return Math.min(
+    INITIAL_RECONNECT_DELAY_MS * 2 ** Math.max(errorCount, tooBigCount),
+    MAX_RECONNECT_DELAY_MS
+  );
 }
 
 /** Returns false (after logging) if the socket isn't open, so callers can react to a dropped frame. */
@@ -177,14 +188,18 @@ function connect(): void {
 
   ws.onopen = async () => {
     try {
-      const wasErrored = errorCount > 0;
+      const attempts = Math.max(errorCount, tooBigCount);
+      const wasErrored = attempts > 0;
       wsStore.$patch({ isConnected: true });
       if (wasErrored) {
-        toast.success(
-          `WebSocket reconnected after ${errorCount} attempt${errorCount > 1 ? 's' : ''}`
-        );
+        toast.success(`WebSocket reconnected after ${attempts} attempt${attempts > 1 ? 's' : ''}`);
       }
       log.info('WebSocket connected');
+      if (stableTimer) clearTimeout(stableTimer);
+      stableTimer = setTimeout(() => {
+        stableTimer = null;
+        tooBigCount = 0;
+      }, STABLE_CONNECTION_MS);
       if (wasErrored) {
         const showStore = useShowStore();
         if (showStore.currentSession != null) {
@@ -205,10 +220,30 @@ function connect(): void {
     }
   };
 
-  ws.onclose = () => {
+  ws.onclose = (event?: CloseEvent) => {
     wsStore.$patch({ isConnected: false, authenticated: false });
+    if (stableTimer) {
+      clearTimeout(stableTimer);
+      stableTimer = null;
+    }
+    const tooBig = event?.code === WS_CLOSE_MESSAGE_TOO_BIG;
+    if (tooBig) {
+      // The server dropped us for sending an over-sized message. Back off (and tell the user)
+      // rather than reconnecting at the minimum delay, which would loop if the oversized
+      // message is re-sent on every connect.
+      tooBigCount++;
+      log.error('WebSocket closed by server: message exceeded the maximum size');
+    }
     log.info('WebSocket closed, scheduling reconnect');
+    // Schedule before notifying so a failing toast can never stop the reconnect.
     scheduleReconnect();
+    if (tooBig && tooBigCount === 1) {
+      try {
+        toast.error('Server closed the connection: message too large');
+      } catch (e) {
+        log.error('Failed to show WebSocket close toast:', e);
+      }
+    }
   };
 
   ws.onerror = () => {

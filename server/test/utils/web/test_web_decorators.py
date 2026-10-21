@@ -116,3 +116,24 @@ class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
             self.assertNotEqual(409, response.code)
         finally:
             del self._app.room_manager
+
+
+class TestRequireAdminDecorator(DigiScriptTestCase):
+    """require_admin: 401 when not logged in, 403 for a logged-in non-admin."""
+
+    def _grant(self, token=None):
+        return self.fetch(
+            "/api/v1/rbac/user/roles/grant",
+            method="POST",
+            body="{}",
+            headers={"Authorization": f"Bearer {token}"} if token else {},
+            raise_error=False,
+        )
+
+    def test_unauthenticated_is_401(self):
+        self.assertEqual(401, self._grant().code)
+
+    def test_non_admin_is_403(self):
+        admin_token = self._create_and_login_admin()
+        user_token = self._create_and_login_user(admin_token)
+        self.assertEqual(403, self._grant(user_token).code)
