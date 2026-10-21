@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from unittest import TestCase
+from unittest import TestCase, mock
 
 import pytest
 from jwt import PyJWT
@@ -240,6 +240,26 @@ class TestJWTAccessTokenValidation(DigiScriptTestCase):
         self.assertIsNone(reason)
         self.assertIsNotNone(payload)
 
+    @gen_test
+    async def test_expired_token_is_rejected(self):
+        token = craft_token(
+            self._app,
+            make_user(self._app),
+            iat=datetime.now(tz=timezone.utc) - timedelta(days=3),
+        )
+        payload, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertIsNone(payload)
+        self.assertEqual("expired", reason)
+
+    @gen_test
+    async def test_garbage_and_wrongly_signed_tokens_are_invalid(self):
+        user_id = make_user(self._app)
+        forged = PyJWT().encode({"user_id": user_id, "exp": 9999999999}, "other")
+        for token in ("not-a-jwt", forged):
+            payload, reason = await self._app.jwt_service.validate_access_token(token)
+            self.assertIsNone(payload)
+            self.assertEqual("invalid", reason)
+
     def test_rest_rejects_stale_token_version(self):
         user_id = make_user(self._app)
         token = craft_token(self._app, user_id)
@@ -277,3 +297,22 @@ class TestJWTRevocationStorage(DigiScriptTestCase):
         with self._app.get_db().sessionmaker() as session:
             jtis = set(session.scalars(select(RevokedToken.jti)).all())
         self.assertEqual({"live"}, jtis)
+
+    @gen_test
+    async def test_unsigned_token_is_never_persisted_on_revoke(self):
+        forged = PyJWT().encode(
+            {"jti": "forged", "exp": 9999999999999999}, "other", algorithm="HS256"
+        )
+        await self._app.jwt_service.revoke_token(forged)
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual([], session.scalars(select(RevokedToken.jti)).all())
+
+    @gen_test
+    async def test_failed_revocation_load_is_retried_not_treated_as_empty(self):
+        token = craft_token(self._app, make_user(self._app))
+        await self._app.jwt_service.revoke_token(token)
+        service = JWTService(application=self._app)
+        with mock.patch.object(self._app, "get_db", side_effect=RuntimeError("locked")):
+            with self.assertRaises(RuntimeError):
+                await service.is_token_revoked(token)
+        self.assertTrue(await service.is_token_revoked(token))

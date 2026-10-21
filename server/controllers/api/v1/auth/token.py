@@ -19,7 +19,7 @@ class ApiTokenGenerateController(BaseAPIController):
                 await self.finish({"message": "User not found"})
                 return
 
-            # Key is "<user_id>.<secret>"; only the SHA-256 of the secret is stored
+            # Key is a random secret; only its SHA-256 digest is stored
             new_token, user.api_token = ApiKeyService.generate()
             session.commit()
             self.application.jwt_service.api_keys.invalidate()

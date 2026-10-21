@@ -47,3 +47,14 @@ class TestPersistRevokedTokensMigration(TestCase):
                 self.assertEqual([("$2b$12$abc",), (None,)], [tuple(r) for r in tokens])
                 self.assertIn("revoked_token", sa.inspect(conn).get_table_names())
             engine.dispose()
+
+    def test_downgrade_drops_table(self):
+        module = _load_migration()
+        with tempfile.TemporaryDirectory() as tmp:
+            engine = sa.create_engine(f"sqlite:///{os.path.join(tmp, 'db.sqlite')}")
+            with engine.begin() as conn:
+                with Operations.context(MigrationContext.configure(conn)):
+                    module.upgrade()
+                    module.downgrade()
+                self.assertNotIn("revoked_token", sa.inspect(conn).get_table_names())
+            engine.dispose()

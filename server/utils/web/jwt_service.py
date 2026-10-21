@@ -6,6 +6,7 @@ import tornado.locks
 from jwt import PyJWS, PyJWT, PyJWTError
 from sqlalchemy import delete, select
 
+from digi_server.logger import get_logger
 from models.settings import SystemSettings
 from models.user import RevokedToken, User
 from utils.web.api_keys import ApiKeyService
@@ -50,15 +51,27 @@ class JWTService:
         """Load persisted revocations into the cache on first use (lock held)."""
         if self._revoked_loaded:
             return
-        self._revoked_loaded = True
         if not self.application:
+            self._revoked_loaded = True
             return
         now = int(datetime.now(tz=timezone.utc).timestamp())
-        with self.application.get_db().sessionmaker() as session:
-            session.execute(delete(RevokedToken).where(RevokedToken.expires_at < now))
-            session.commit()
-            for row in session.scalars(select(RevokedToken)).all():
-                self._revoked_tokens[row.jti] = row.expires_at
+        try:
+            with self.application.get_db().sessionmaker() as session:
+                session.execute(
+                    delete(RevokedToken).where(RevokedToken.expires_at < now)
+                )
+                session.commit()
+                loaded = {
+                    row.jti: row.expires_at
+                    for row in session.scalars(select(RevokedToken)).all()
+                }
+        except Exception:
+            # Leave the flag unset so the next call retries, rather than
+            # running permanently with an empty (fail-open) revocation list.
+            get_logger().exception("Could not load persisted token revocations")
+            raise
+        self._revoked_tokens.update(loaded)
+        self._revoked_loaded = True
 
     def _unverified_claims(self, token: str) -> Optional[Dict[str, Any]]:
         try:
@@ -80,11 +93,13 @@ class JWTService:
 
         :param token: The JWT to revoke.
         """
-        payload = self._unverified_claims(token)
+        # Only a token that passes signature and expiry checks may be revoked,
+        # so unsigned claims never reach the database.
+        payload = self.decode_access_token(token)
         jti = payload.get("jti") if payload else None
         if not jti:
             return
-        expiry = int(payload.get("exp", 0))
+        expiry = int(payload["exp"])
         now = int(datetime.now(tz=timezone.utc).timestamp())
         async with self._revoked_token_lock:
             self._load_revoked()

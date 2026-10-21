@@ -7,8 +7,9 @@ from collections import deque
 from typing import Callable, Deque, Dict, Optional
 
 import bcrypt
-from sqlalchemy import select
+from sqlalchemy import select, update
 
+from digi_server.logger import get_logger
 from models.user import User
 
 
@@ -82,7 +83,16 @@ class ApiKeyService:
         attempts = self._failures.get(address)
         if attempts is None:
             if len(self._failures) >= self._max_tracked:
-                self._failures.clear()
+                # Drop addresses with no failures left in the window first, so
+                # flooding with new addresses cannot reset an active limit; only
+                # if every tracked address is active is the oldest one evicted.
+                idle = [
+                    ip
+                    for ip, hits in self._failures.items()
+                    if not hits or now - hits[-1] >= self._window
+                ]
+                for ip in idle or [next(iter(self._failures))]:
+                    del self._failures[ip]
             attempts = self._failures[address] = deque()
         while attempts and now - attempts[0] >= self._window:
             attempts.popleft()
@@ -102,6 +112,8 @@ class ApiKeyService:
         """
         digest = self.hash_key(api_key)
         user = session.scalars(select(User).where(User.api_token == digest)).first()
+        # The lookup already matched on the digest; the constant-time compare is
+        # belt-and-braces so the match never depends on database collation.
         if user and hmac.compare_digest(user.api_token.encode(), digest.encode()):
             return user
 
@@ -112,30 +124,43 @@ class ApiKeyService:
         attempts = self._prune(remote_ip, now)
         if len(attempts) >= self._max_failed:
             raise ApiKeyRateLimited()
+        # Reserve the slot before scanning so a concurrent burst from one address
+        # is bounded; it is released again if the scan finds a match.
+        attempts.append(now)
 
         legacy_users = session.scalars(
             select(User).where(User.api_token.like("$2%"))
         ).all()
         loop = asyncio.get_running_loop()
         for candidate in legacy_users:
+            stored = candidate.api_token
             matches = await loop.run_in_executor(
-                None,
-                _check_bcrypt,
-                api_key,
-                candidate.api_token,
+                None, _check_bcrypt, api_key, stored, candidate.id
             )
-            if matches:
-                candidate.api_token = digest
-                session.commit()
-                self.invalidate()
-                return candidate
+            if not matches:
+                continue
+            # Conditional upgrade: if the key was revoked or regenerated while the
+            # (slow) bcrypt check ran, the row no longer holds ``stored`` and the
+            # stale match must not revive it.
+            result = session.execute(
+                update(User)
+                .where(User.id == candidate.id, User.api_token == stored)
+                .values(api_token=digest)
+            )
+            session.commit()
+            self.invalidate()
+            if result.rowcount != 1:
+                continue
+            attempts.remove(now)
+            session.refresh(candidate)
+            return candidate
 
-        attempts.append(now)
         return None
 
 
-def _check_bcrypt(api_key: str, stored: str) -> bool:
+def _check_bcrypt(api_key: str, stored: str, user_id: int) -> bool:
     try:
         return bcrypt.checkpw(api_key.encode("utf-8"), stored.encode("utf-8"))
     except ValueError:
+        get_logger().warning(f"Malformed legacy api_token hash for user {user_id}")
         return False
