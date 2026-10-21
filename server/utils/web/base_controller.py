@@ -3,10 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
-import bcrypt
-from sqlalchemy import select
 from tornado import escape, httputil
-from tornado.ioloop import IOLoop
 from tornado.web import HTTPError, RequestHandler
 
 from digi_server.logger import get_logger
@@ -15,6 +12,12 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
+from utils.web.api_keys import ApiKeyRateLimited
+from utils.web.jwt_service import (
+    TOKEN_EXPIRED,
+    TOKEN_REVOKED,
+    TOKEN_VERSION_INVALID,
+)
 from utils.web.log_redaction import apply_path_redactions, redact_sensitive_keys
 from utils.web.security_headers import apply_security_headers
 
@@ -68,49 +71,35 @@ class BaseController(DatabaseMixin, RequestHandler):
             )
 
             if token:
-                is_revoked = await self.application.jwt_service.is_token_revoked(token)
-                if is_revoked:
+                (
+                    payload,
+                    reason,
+                ) = await self.application.jwt_service.validate_access_token(token)
+                if reason == TOKEN_REVOKED:
                     raise HTTPError(401, log_message="JWT revoked")
-
-                payload = self.application.jwt_service.decode_access_token(token)
-                if payload and "user_id" in payload:
-                    if not self.application.jwt_service.validate_token_age(payload):
-                        raise HTTPError(
-                            401,
-                            log_message="JWT token age exceeded configured lifetime",
-                        )
-                    # Validate token version to check if token is still valid
-                    if not self.application.jwt_service.is_token_version_valid(payload):
-                        raise HTTPError(401, log_message="JWT token version invalid")
-
+                if reason == TOKEN_EXPIRED:
+                    raise HTTPError(
+                        401, log_message="JWT token age exceeded configured lifetime"
+                    )
+                if reason == TOKEN_VERSION_INVALID:
+                    raise HTTPError(401, log_message="JWT token version invalid")
+                if payload:
                     user = session.get(User, int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
 
-            # If not authenticated via JWT, try API token authentication
+            # If not authenticated via JWT, try API key authentication
             if not self.current_user:
                 api_key = self.request.headers.get("X-API-Key", "")
                 if api_key:
-                    # Get all users with API tokens and check each one
-                    users_with_tokens = session.scalars(
-                        select(User).where(User.api_token.isnot(None))
-                    ).all()
-
-                    authenticated_user = None
-                    for user in users_with_tokens:
-                        # Compare the provided token with the hashed token
-                        token_matches = await IOLoop.current().run_in_executor(
-                            None,
-                            bcrypt.checkpw,
-                            escape.utf8(api_key),
-                            escape.utf8(user.api_token),
+                    try:
+                        user = await self.application.jwt_service.api_keys.authenticate(
+                            session, api_key, self.request.remote_ip
                         )
-                        if token_matches:
-                            authenticated_user = user
-                            break
-
-                    if authenticated_user:
-                        self.current_user = user_schema.dump(authenticated_user)
+                    except ApiKeyRateLimited:
+                        raise HTTPError(429, log_message="API key attempts limited")
+                    if user:
+                        self.current_user = user_schema.dump(user)
                     else:
                         raise HTTPError(401, log_message="Invalid API key")
 

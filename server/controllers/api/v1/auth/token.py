@@ -1,7 +1,5 @@
-import secrets
-
 from models.user import User
-from services.password_service import PasswordService
+from utils.web.api_keys import ApiKeyService
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import (
@@ -21,13 +19,10 @@ class ApiTokenGenerateController(BaseAPIController):
                 await self.finish({"message": "User not found"})
                 return
 
-            # Generate a secure random token (plain text to return to user)
-            new_token = secrets.token_urlsafe(32)
-
-            hashed_token = await PasswordService.hash_password(new_token)
-
-            user.api_token = hashed_token
+            # Key is a random secret; only its SHA-256 digest is stored
+            new_token, user.api_token = ApiKeyService.generate()
             session.commit()
+            self.application.jwt_service.api_keys.invalidate()
 
             self.set_status(200)
             await self.finish(
@@ -57,6 +52,7 @@ class ApiTokenRevokeController(BaseAPIController):
 
             user.api_token = None
             session.commit()
+            self.application.jwt_service.api_keys.invalidate()
 
             self.set_status(200)
             await self.finish({"message": "API token revoked successfully"})
