@@ -30,7 +30,6 @@ def craft_token(app, user_id: int, **overrides) -> str:
         "user_id": user_id,
         "token_version": version,
         "iat": now,
-        "auth_time": int(now.timestamp()),
         "exp": now + timedelta(hours=1),
         "jti": "crafted-jti",
     }

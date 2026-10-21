@@ -15,11 +15,7 @@ from utils.web.api_keys import ApiKeyService
 TOKEN_REVOKED = "revoked"
 TOKEN_INVALID = "invalid"
 TOKEN_EXPIRED = "expired"
-TOKEN_SESSION_EXPIRED = "session_expired"
 TOKEN_VERSION_INVALID = "version_invalid"
-
-# Absolute cap on how long a login session may be kept alive by refreshing.
-DEFAULT_MAX_SESSION_LIFETIME = timedelta(days=30)
 
 
 class JWTService:
@@ -29,7 +25,6 @@ class JWTService:
         secret=None,
         jwt_algorithm: str = "HS256",
         default_expiry: timedelta = timedelta(days=1),
-        max_session_lifetime: timedelta = DEFAULT_MAX_SESSION_LIFETIME,
     ):
         """
         Initialize JWT service with either application instance or direct secret
@@ -44,7 +39,6 @@ class JWTService:
         self._secret = secret
         self._jwt_algorithm = jwt_algorithm
         self._default_expiry = default_expiry
-        self._max_session_lifetime = max_session_lifetime
         self.api_keys = ApiKeyService()
         # jti -> expiry (unix seconds). Write-through cache of the
         # ``revoked_token`` table (memory only when there is no application).
@@ -136,7 +130,7 @@ class JWTService:
         Single validation routine shared by REST and WebSocket authentication.
 
         Checks, in order: revocation, signature/expiry, presence of ``user_id``,
-        per-token age, absolute session age, and the user's ``token_version``.
+        per-token age, and the user's ``token_version``.
 
         :param token: The JWT access token.
         :returns: ``(payload, None)`` when valid, otherwise ``(None, reason)``
@@ -149,8 +143,6 @@ class JWTService:
             return None, TOKEN_INVALID
         if not self.validate_token_age(payload):
             return None, TOKEN_EXPIRED
-        if not self.validate_session_age(payload):
-            return None, TOKEN_SESSION_EXPIRED
         if not self.is_token_version_valid(payload):
             return None, TOKEN_VERSION_INVALID
         return payload, None
@@ -200,11 +192,9 @@ class JWTService:
                 if user:
                     to_encode["token_version"] = user.token_version
 
-        now = datetime.now(tz=timezone.utc)
-        # ``auth_time`` is when the user actually authenticated. Refreshes carry
-        # the original value forward so the session cap cannot be reset.
-        to_encode.setdefault("auth_time", int(now.timestamp()))
-        to_encode.update({"exp": expire, "iat": now, "jti": str(uuid4())})
+        to_encode.update(
+            {"exp": expire, "iat": datetime.now(tz=timezone.utc), "jti": str(uuid4())}
+        )
         encoded_jwt = self._jwt.encode(
             to_encode, self.get_secret(), algorithm=self._jwt_algorithm
         )
@@ -281,21 +271,6 @@ class JWTService:
         issued_at = datetime.fromtimestamp(iat, tz=timezone.utc)
         age = datetime.now(tz=timezone.utc) - issued_at
         return age <= timedelta(hours=max_lifetime_hours)
-
-    def validate_session_age(self, payload: Dict[str, Any]) -> bool:
-        """
-        Check the absolute session cap using the ``auth_time`` claim.
-
-        Tokens issued before ``auth_time`` existed fall back to ``iat``.
-
-        :param payload: Decoded JWT payload.
-        :returns: True if the original login is within the maximum session lifetime.
-        """
-        auth_time = payload.get("auth_time", payload.get("iat"))
-        if auth_time is None:
-            return False
-        started = datetime.fromtimestamp(auth_time, tz=timezone.utc)
-        return datetime.now(tz=timezone.utc) - started <= self._max_session_lifetime
 
     @staticmethod
     def get_token_from_authorization_header(auth_header: str) -> Optional[str]:

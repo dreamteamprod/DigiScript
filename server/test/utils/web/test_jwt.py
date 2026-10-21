@@ -233,27 +233,12 @@ class TestJWTAccessTokenValidation(DigiScriptTestCase):
         self.assertEqual("revoked", reason)
 
     @gen_test
-    async def test_session_older_than_cap_is_rejected_despite_fresh_iat(self):
-        started = datetime.now(tz=timezone.utc) - timedelta(days=31)
-        token = craft_token(
-            self._app,
-            make_user(self._app),
-            auth_time=int(started.timestamp()),
-        )
-        _, reason = await self._app.jwt_service.validate_access_token(token)
-        self.assertEqual("session_expired", reason)
-
-    def test_token_without_auth_time_falls_back_to_iat(self):
-        now = datetime.now(tz=timezone.utc)
-        old = (now - timedelta(days=31)).timestamp()
-        self.assertFalse(self._app.jwt_service.validate_session_age({"iat": old}))
-        self.assertTrue(
-            self._app.jwt_service.validate_session_age({"iat": now.timestamp()})
-        )
-
-    def test_new_token_records_auth_time(self):
-        token = self._app.jwt_service.create_access_token({"user_id": 1})
-        self.assertIn("auth_time", self._app.jwt_service.decode_access_token(token))
+    async def test_legacy_auth_time_claim_is_ignored(self):
+        old = int((datetime.now(tz=timezone.utc) - timedelta(days=90)).timestamp())
+        token = craft_token(self._app, make_user(self._app), auth_time=old)
+        payload, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertIsNone(reason)
+        self.assertIsNotNone(payload)
 
     def test_rest_rejects_stale_token_version(self):
         user_id = make_user(self._app)

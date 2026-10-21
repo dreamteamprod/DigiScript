@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta, timezone
-
 from sqlalchemy import select
 from tornado import escape
 
@@ -1270,21 +1268,6 @@ class TestAuthTokenLifecycleAPI(DigiScriptTestCase):
             "/api/v1/auth", headers={"Authorization": f"Bearer {token}"}
         )
         self.assertEqual(401, response.code)
-
-    def test_refresh_carries_original_auth_time_forward(self):
-        started = int((datetime.now(tz=timezone.utc) - timedelta(days=3)).timestamp())
-        token = craft_token(self._app, make_user(self._app), auth_time=started)
-        response = self._post("/api/v1/auth/refresh-token", token)
-        self.assertEqual(200, response.code)
-        refreshed = self._app.jwt_service.decode_access_token(
-            escape.json_decode(response.body)["access_token"]
-        )
-        self.assertEqual(started, refreshed["auth_time"])
-
-    def test_refresh_is_refused_once_session_cap_is_reached(self):
-        started = int((datetime.now(tz=timezone.utc) - timedelta(days=31)).timestamp())
-        token = craft_token(self._app, make_user(self._app), auth_time=started)
-        self.assertEqual(401, self._post("/api/v1/auth/refresh-token", token).code)
 
 
 class TestAuthJsonBodyValidation(DigiScriptTestCase):

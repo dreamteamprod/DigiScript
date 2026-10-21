@@ -34,7 +34,6 @@ from utils.web.base_controller import DatabaseMixin
 from utils.web.jwt_service import (
     TOKEN_EXPIRED,
     TOKEN_REVOKED,
-    TOKEN_SESSION_EXPIRED,
     TOKEN_VERSION_INVALID,
 )
 from utils.web.pending_disconnects import disconnect_key
@@ -454,7 +453,6 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             None: None,
             TOKEN_REVOKED: "Revoked token",
             TOKEN_EXPIRED: "Token expired (lifetime exceeded)",
-            TOKEN_SESSION_EXPIRED: "Session expired (maximum session length reached)",
             TOKEN_VERSION_INVALID: "Token no longer valid",
         }.get(reason, "Invalid or expired token")
         user = None

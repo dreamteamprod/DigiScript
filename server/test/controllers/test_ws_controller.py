@@ -8,7 +8,7 @@ import asyncio
 import base64
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from unittest import mock
 from unittest.mock import AsyncMock
 
@@ -4048,12 +4048,4 @@ class TestWSTokenValidation(DigiScriptTestCase):
     async def test_revoked_token_is_rejected(self):
         token = craft_token(self._app, make_user(self._app))
         await self._app.jwt_service.revoke_token(token)
-        self.assertEqual("WS_AUTH_ERROR", (await self._auth_reply(token))["OP"])
-
-    @gen_test
-    async def test_session_past_cap_is_rejected(self):
-        started = datetime.now(tz=timezone.utc) - timedelta(days=31)
-        token = craft_token(
-            self._app, make_user(self._app), auth_time=int(started.timestamp())
-        )
         self.assertEqual("WS_AUTH_ERROR", (await self._auth_reply(token))["OP"])

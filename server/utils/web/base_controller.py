@@ -16,7 +16,6 @@ from utils.web.api_keys import ApiKeyRateLimited
 from utils.web.jwt_service import (
     TOKEN_EXPIRED,
     TOKEN_REVOKED,
-    TOKEN_SESSION_EXPIRED,
     TOKEN_VERSION_INVALID,
 )
 from utils.web.log_redaction import apply_path_redactions, redact_sensitive_keys
@@ -53,7 +52,6 @@ class BaseController(DatabaseMixin, RequestHandler):
         super().__init__(application, request, **kwargs)
         self.application: DigiScriptServer = self.application
         self.current_show: Optional[dict] = None
-        self.token_payload: Optional[dict] = None
 
     def set_default_headers(self) -> None:
         """Add the baseline security headers to every response."""
@@ -79,14 +77,13 @@ class BaseController(DatabaseMixin, RequestHandler):
                 ) = await self.application.jwt_service.validate_access_token(token)
                 if reason == TOKEN_REVOKED:
                     raise HTTPError(401, log_message="JWT revoked")
-                if reason in (TOKEN_EXPIRED, TOKEN_SESSION_EXPIRED):
+                if reason == TOKEN_EXPIRED:
                     raise HTTPError(
                         401, log_message="JWT token age exceeded configured lifetime"
                     )
                 if reason == TOKEN_VERSION_INVALID:
                     raise HTTPError(401, log_message="JWT token version invalid")
                 if payload:
-                    self.token_payload = payload
                     user = session.get(User, int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
