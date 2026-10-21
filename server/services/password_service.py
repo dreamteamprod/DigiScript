@@ -1,5 +1,7 @@
 """Password service for hashing, verification, and generation"""
 
+import secrets
+
 import bcrypt
 import xkcdpass.xkcd_password as xp
 from tornado import escape
@@ -12,9 +14,10 @@ class PasswordService:
     #: Minimum accepted password length, in characters.
     MIN_PASSWORD_LENGTH = 8
 
-    #: Valid bcrypt hash (cost 12) of a throwaway string. Verified against when
-    #: a login names an unknown user so the response time matches a real user.
-    DUMMY_HASH = "$2b$12$u.q6.DiCaDiZNrNJb.Uf1ef7s32mluZuh3Bbw5pu2jIS/Npvq8L1W"
+    #: Lazily generated bcrypt hash of a random throwaway string. Verified
+    #: against when a login names an unknown user so the response time matches
+    #: a real user. Generated at runtime so no hash literal lives in the source.
+    _dummy_hash: str | None = None
 
     @staticmethod
     async def hash_password(password: str) -> str:
@@ -61,7 +64,11 @@ class PasswordService:
         :param password: Plain text password submitted by the client
         :type password: str
         """
-        await PasswordService.verify_password(password, PasswordService.DUMMY_HASH)
+        if PasswordService._dummy_hash is None:
+            PasswordService._dummy_hash = await PasswordService.hash_password(
+                secrets.token_urlsafe(16)
+            )
+        await PasswordService.verify_password(password, PasswordService._dummy_hash)
 
     @staticmethod
     def validate_password_strength(password: str) -> tuple[bool, str]:

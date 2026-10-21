@@ -157,9 +157,12 @@ class TestPasswordService(AsyncTestCase):
         self.assertTrue(is_valid)
         self.assertGreaterEqual(len(password), 8)
 
-    def test_dummy_hash_is_a_valid_bcrypt_hash(self):
+    @gen_test
+    async def test_dummy_hash_is_a_valid_bcrypt_hash(self):
         """The timing-equalisation hash must be well-formed so checkpw runs fully"""
-        self.assertFalse(bcrypt.checkpw(b"nope", PasswordService.DUMMY_HASH.encode()))
+        await PasswordService.verify_dummy_password("anything")
+        dummy = PasswordService._dummy_hash
+        self.assertFalse(bcrypt.checkpw(b"nope", dummy.encode()))
 
     @gen_test
     async def test_verify_dummy_password_returns_none(self):
