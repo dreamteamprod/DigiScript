@@ -1,6 +1,6 @@
 import json
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from tornado import escape, httputil
 
@@ -22,11 +22,19 @@ RATE_LIMIT_ENTRIES = 600
 RATE_LIMIT_WINDOW_SECONDS = 60.0
 
 
+class _Window(NamedTuple):
+    """A client's current rate-limit window."""
+
+    start: float
+    used: int
+
+
 class ClientLogRateLimiter:
     """Fixed-window, per-IP limiter on the number of client log entries.
 
     One instance lives on the application object, so no state is shared between
-    application instances (or test workers).
+    application instances (or test workers). Clients are keyed by raw IP address,
+    so users sharing an IP (NAT, proxy) share one budget.
     """
 
     def __init__(
@@ -34,30 +42,41 @@ class ClientLogRateLimiter:
         limit: int = RATE_LIMIT_ENTRIES,
         window: float = RATE_LIMIT_WINDOW_SECONDS,
     ):
+        """
+        :param limit: Entries allowed per window; must be positive.
+        :param window: Window length in seconds; must be positive.
+        :raises ValueError: If *limit* or *window* is not positive.
+        """
+        if limit <= 0 or window <= 0:
+            raise ValueError("limit and window must be positive")
         self.limit = limit
         self.window = window
-        self._windows: Dict[str, tuple] = {}
+        self._windows: Dict[str, _Window] = {}
 
-    def check(self, key: str, cost: int, now: Optional[float] = None) -> float:
+    def check(
+        self, key: str, cost: int, now: Optional[float] = None
+    ) -> Optional[float]:
         """Try to consume *cost* entries for *key*.
 
         :param key: The client identifier (IP address).
         :param cost: Number of entries in the request.
         :param now: Current monotonic time; defaults to ``time.monotonic()``.
-        :returns: 0 if allowed, otherwise the seconds until the window resets.
+        :returns: None if allowed, otherwise the seconds (at least 1) until the
+            window resets.
         """
         now = time.monotonic() if now is None else now
-        # Drop expired windows so the dict stays bounded by active clients.
+        # Runs on every call (not periodically): this bounds memory and is also what
+        # resets a key's window once it has expired.
         expired = [
-            ip for ip, (start, _) in self._windows.items() if now - start >= self.window
+            ip for ip, win in self._windows.items() if now - win.start >= self.window
         ]
         for ip in expired:
             del self._windows[ip]
-        start, used = self._windows.get(key, (now, 0))
-        if used + cost > self.limit:
-            return max(self.window - (now - start), 1.0)
-        self._windows[key] = (start, used + cost)
-        return 0.0
+        win = self._windows.get(key, _Window(now, 0))
+        if win.used + cost > self.limit:
+            return max(self.window - (now - win.start), 1.0)
+        self._windows[key] = _Window(win.start, win.used + cost)
+        return None
 
 
 def _clean_text(value: Any, limit: int) -> str:
@@ -68,16 +87,24 @@ def _clean_text(value: Any, limit: int) -> str:
     return text.replace("\r", "\\r").replace("\n", "\\n")
 
 
-def _clean_extra(value: Any) -> Dict:
-    """Return *value* if it is a small JSON-serialisable dict, else a stand-in."""
+def _clean_extra(value: Any) -> Tuple[Dict, Optional[str]]:
+    """Sanitise an entry's client-supplied ``extra``.
+
+    :param value: The raw ``extra`` value.
+    :returns: A ``(extra, omitted_reason)`` pair. A small JSON-serialisable dict is
+        returned as-is with no reason. Non-dict input is dropped silently
+        (``{}``, no reason). An oversized or non-serialisable dict is replaced by
+        ``{}`` with a reason, which the caller records under a server-controlled
+        key so a client cannot forge it.
+    """
     if not isinstance(value, dict):
-        return {}
+        return {}, None
     try:
         if len(json.dumps(value, default=str)) > MAX_EXTRA_LENGTH:
-            return {"extra": "[omitted: too large]"}
-    except (TypeError, ValueError):
-        return {"extra": "[omitted: not serialisable]"}
-    return {str(k): v for k, v in value.items()}
+            return {}, "too large"
+    except (TypeError, ValueError, RecursionError):
+        return {}, "not serialisable"
+    return {str(k): v for k, v in value.items()}, None
 
 
 class ClientLoggingBase(BaseAPIController):
@@ -102,7 +129,7 @@ class ClientLoggingBase(BaseAPIController):
             limiter = ClientLogRateLimiter()
             self.application.client_log_limiter = limiter
         retry_after = limiter.check(self.request.remote_ip or "unknown", len(entries))
-        if retry_after:
+        if retry_after is not None:
             self.set_status(429)
             self.set_header("Retry-After", str(int(retry_after) + 1))
             self.write({"message": "Too many log entries"})
@@ -119,12 +146,18 @@ class ClientLoggingBase(BaseAPIController):
             request_extra["user_id"] = self.current_user.get("id")
             request_extra["username"] = self.current_user.get("username")
 
+        dropped = 0
         for entry in entries:
             if not isinstance(entry, dict):
+                dropped += 1
                 continue
             level = _clean_text(entry.get("level", "INFO"), 16).upper()
             message = _clean_text(entry.get("message", ""), MAX_MESSAGE_LENGTH)
-            extra = {**_clean_extra(entry.get("extra")), **request_extra}
+            client_extra, omitted = _clean_extra(entry.get("extra"))
+            # Server-set keys come last so a client cannot forge them.
+            extra = {**client_extra, **request_extra}
+            if omitted:
+                extra["extra_omitted"] = omitted
 
             log_level = map_client_level(level)
 
@@ -145,6 +178,12 @@ class ClientLoggingBase(BaseAPIController):
                 },
             )
 
+        if dropped:
+            get_logger().warning(
+                f"Dropped {dropped} malformed client log entries from "
+                f"{request_extra['remote_ip']}"
+            )
+
         self.set_status(200)
         self.write({"status": "OK"})
 
@@ -163,7 +202,7 @@ class ClientLoggingBatchController(ClientLoggingBase):
 
         try:
             data = escape.json_decode(self.request.body)
-        except ValueError:
+        except (ValueError, RecursionError):
             self.set_status(400)
             self.write({"message": "Invalid JSON"})
             return
@@ -203,9 +242,14 @@ class ClientLoggingController(ClientLoggingBase):
 
         try:
             data = escape.json_decode(self.request.body)
-        except ValueError:
+        except (ValueError, RecursionError):
             self.set_status(400)
             self.write({"message": "Invalid JSON"})
+            return
+
+        if not isinstance(data, dict):
+            self.set_status(400)
+            self.write({"message": "Expected a JSON object log entry"})
             return
 
         self.process_logs([data])

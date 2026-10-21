@@ -111,7 +111,8 @@ class SettingsObject:
         self.display_name = display_name
         self.help_text = help_text
         self.hide_from_ui = hide_from_ui
-        # Sensitive settings (e.g. server filesystem paths) are only disclosed to admins.
+        # Sensitive settings (e.g. server filesystem paths) are only ever disclosed to
+        # admins: every payload sent to other users or broadcast omits them.
         self.sensitive = sensitive
         self.choice_options = choice_options
         self.choice_labels = choice_labels
@@ -501,13 +502,22 @@ class Settings:
         get_logger().info("Settings file deleted; recreating from in memory settings")
         self._save()
 
+    def _values(self, include_sensitive: bool) -> dict:
+        """Return the current value of every setting, omitting sensitive ones unless asked.
+
+        :param include_sensitive: Include settings defined with ``sensitive=True``.
+        """
+        return {
+            key: value.get_value()
+            for key, value in self.settings.items()
+            if include_sensitive or not value.sensitive
+        }
+
     def auto_reload_changes(self):
         get_logger().info("Settings file changed; auto reloading")
         self._load(spawn_callbacks=True)
 
-        settings_json = {}
-        for key, value in self.settings.items():
-            settings_json[key] = value.get_value()
+        settings_json = self._values(include_sensitive=False)
 
         for client in self._application.clients.copy():
             client.write_message(
@@ -613,24 +623,18 @@ class Settings:
     async def as_json(self, include_sensitive: bool = False):
         """Return all setting values plus the server version.
 
-        :param include_sensitive: Include settings defined with
-            ``sensitive=True`` (server filesystem paths). Only pass True for
+        :param include_sensitive: Include sensitive settings. Only pass True for
             administrators.
         """
         async with self.lock:
-            settings_json = {}
-            for key, value in self.settings.items():
-                if not include_sensitive and value.sensitive:
-                    continue
-                settings_json[key] = value.get_value()
+            settings_json = self._values(include_sensitive)
             settings_json["version"] = _get_version()
             return json.loads(json.dumps(settings_json))
 
     async def raw_json(self, include_sensitive: bool = False):
         """Return full setting metadata (type, default, help text, ...).
 
-        :param include_sensitive: Include settings defined with
-            ``sensitive=True`` (server filesystem paths). Only pass True for
+        :param include_sensitive: Include sensitive settings. Only pass True for
             administrators.
         """
         async with self.lock:

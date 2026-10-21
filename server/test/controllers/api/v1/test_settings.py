@@ -103,6 +103,26 @@ class TestSettingsDisclosure(DigiScriptTestCase):
             for key in self.PATH_KEYS:
                 self.assertIn(key, data)
 
+    def test_file_reload_broadcast_has_no_paths(self):
+        class FakeClient:
+            def __init__(self):
+                self.messages = []
+
+            def write_message(self, message):
+                self.messages.append(message)
+
+        client = FakeClient()
+        self._app.clients.append(client)
+        try:
+            self._app.digi_settings.auto_reload_changes()
+        finally:
+            self._app.clients.remove(client)
+        self.assertEqual(1, len(client.messages))
+        data = client.messages[0]["DATA"]
+        for key in self.PATH_KEYS:
+            self.assertNotIn(key, data)
+        self.assertIn("client_log_enabled", data)
+
     def test_broadcast_payload_has_no_paths(self):
         data = self.io_loop.run_sync(self._app.digi_settings.as_json)
         for key in self.PATH_KEYS:
