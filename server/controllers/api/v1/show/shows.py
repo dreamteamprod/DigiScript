@@ -244,6 +244,8 @@ class ShowController(BaseAPIController):
                 self.set_status(404)
                 await self.finish({"message": ERROR_SHOW_NOT_FOUND})
 
+    @api_authenticated
+    @require_admin
     @requires_show
     @no_live_session
     async def delete(self):

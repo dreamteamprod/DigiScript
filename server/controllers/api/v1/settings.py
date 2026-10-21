@@ -1,11 +1,11 @@
 from sqlalchemy import select
-from tornado import escape
 
 from controllers.api.constants import ERROR_COLLAB_MODE_CHANGE_BLOCKED
 from digi_server.logger import get_logger
 from digi_server.settings import COLLAB_EDITING_SETTING, Settings
 from models.session import Session
 from utils.web.base_controller import BaseAPIController
+from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import (
     allow_when_password_required,
@@ -51,7 +51,8 @@ class SettingsController(BaseAPIController):
     @allow_when_password_required
     async def get(self):
         settings: Settings = self.application.digi_settings
-        settings_json = await settings.as_json()
+        is_admin = bool(self.current_user and self.current_user["is_admin"])
+        settings_json = await settings.as_json(include_sensitive=is_admin)
         await self.finish(settings_json)
 
     @api_authenticated
@@ -60,7 +61,7 @@ class SettingsController(BaseAPIController):
     async def patch(self):
         settings: Settings = self.application.digi_settings
 
-        data = escape.json_decode(self.request.body)
+        data = get_json_object(self)
         get_logger().debug(f"New settings data patched: {data}")
 
         if COLLAB_EDITING_SETTING in data and not isinstance(
@@ -114,5 +115,6 @@ class SettingsCategoriesController(BaseAPIController):
 class RawSettingsController(BaseAPIController):
     async def get(self):
         settings: Settings = self.application.digi_settings
-        settings_json = await settings.raw_json()
+        is_admin = bool(self.current_user and self.current_user["is_admin"])
+        settings_json = await settings.raw_json(include_sensitive=is_admin)
         await self.finish(settings_json)

@@ -1189,7 +1189,7 @@ class TestAuthAPI(DigiScriptTestCase):
             headers={"Authorization": f"Bearer {user_token}"},
         )
 
-        self.assertEqual(401, response.code)
+        self.assertEqual(403, response.code)
 
     def test_admin_reset_password_user_not_found(self):
         """Test password reset fails for non-existent user"""
@@ -1285,3 +1285,34 @@ class TestAuthTokenLifecycleAPI(DigiScriptTestCase):
         started = int((datetime.now(tz=timezone.utc) - timedelta(days=31)).timestamp())
         token = craft_token(self._app, make_user(self._app), auth_time=started)
         self.assertEqual(401, self._post("/api/v1/auth/refresh-token", token).code)
+
+
+class TestAuthJsonBodyValidation(DigiScriptTestCase):
+    def _post(self, path, body, token=None, method="POST"):
+        return self.fetch(
+            path,
+            method=method,
+            body=body,
+            headers={"Authorization": f"Bearer {token}"} if token else {},
+            raise_error=False,
+        )
+
+    def test_login_invalid_json_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", "{not json").code)
+
+    def test_login_non_object_json_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", "[1, 2]").code)
+
+    def test_login_bare_json_string_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", '"secret"').code)
+
+    def test_login_empty_body_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/login", "").code)
+
+    def test_create_user_invalid_json_returns_400(self):
+        self.assertEqual(400, self._post("/api/v1/auth/create", "nope").code)
+
+    def test_change_password_invalid_json_returns_400(self):
+        token = self._create_and_login_admin()
+        resp = self._post("/api/v1/auth/change-password", "nope", token, "PATCH")
+        self.assertEqual(400, resp.code)
