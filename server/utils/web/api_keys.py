@@ -151,7 +151,9 @@ class ApiKeyService:
             self.invalidate()
             if result.rowcount != 1:
                 continue
-            attempts.remove(now)
+            # The reservation may already have aged out of the window.
+            if now in attempts:
+                attempts.remove(now)
             session.refresh(candidate)
             return candidate
 

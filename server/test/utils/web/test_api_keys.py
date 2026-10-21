@@ -179,3 +179,22 @@ class TestApiKeyLegacyUpgradeRaces(DigiScriptTestCase):
                     await service.authenticate(session, "anything", "10.0.0.1")
                 )
         self.assertTrue(any(f"user {user_id}" in line for line in logs.output))
+
+    @gen_test
+    async def test_upgrade_succeeds_when_reservation_aged_out_during_scan(self):
+        self._legacy_user()
+        now = [0.0]
+        service = ApiKeyService(window_seconds=10, clock=lambda: now[0])
+
+        async def slow_match(executor, func, api_key, stored, uid):
+            now[0] += 100  # scan outlasts the window
+            service._prune("10.0.0.1", now[0])
+            return True
+
+        loop = asyncio.get_running_loop()
+        with self._app.get_db().sessionmaker() as session:
+            with mock.patch.object(loop, "run_in_executor", slow_match):
+                user = await service.authenticate(
+                    session, "legacy-secret-value", "10.0.0.1"
+                )
+        self.assertIsNotNone(user)
