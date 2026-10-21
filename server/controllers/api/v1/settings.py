@@ -51,7 +51,8 @@ class SettingsController(BaseAPIController):
     @allow_when_password_required
     async def get(self):
         settings: Settings = self.application.digi_settings
-        settings_json = await settings.as_json()
+        is_admin = bool(self.current_user and self.current_user["is_admin"])
+        settings_json = await settings.as_json(include_sensitive=is_admin)
         await self.finish(settings_json)
 
     @api_authenticated
@@ -114,5 +115,6 @@ class SettingsCategoriesController(BaseAPIController):
 class RawSettingsController(BaseAPIController):
     async def get(self):
         settings: Settings = self.application.digi_settings
-        settings_json = await settings.raw_json()
+        is_admin = bool(self.current_user and self.current_user["is_admin"])
+        settings_json = await settings.raw_json(include_sensitive=is_admin)
         await self.finish(settings_json)

@@ -14,12 +14,20 @@ from utils.web.request_size_metrics import http_request_body_bytes
 
 class TestDigiScriptServer(DigiScriptTestCase):
     def test_debug(self):
-        response = self.fetch("/debug")
+        token = self._create_and_login_admin()
+        response = self.fetch("/debug", headers={"Authorization": f"Bearer {token}"})
         response_body = tornado.escape.json_decode(response.body)
 
         self.assertEqual(200, response.code)
         self.assertTrue("status" in response_body)
         self.assertEqual("OK", response_body["status"])
+
+    def test_debug_requires_admin(self):
+        self.assertEqual(401, self.fetch("/debug").code)
+        admin = self._create_and_login_admin()
+        user = self._create_and_login_user(admin)
+        response = self.fetch("/debug", headers={"Authorization": f"Bearer {user}"})
+        self.assertEqual(403, response.code)
 
     def test_debug_mode_is_opt_in(self):
         """Debug mode must be opt-in via ``--debug``."""

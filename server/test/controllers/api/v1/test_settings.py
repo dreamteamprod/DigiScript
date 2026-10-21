@@ -1,4 +1,5 @@
 import pytest
+from tornado import escape
 from tornado.testing import gen_test
 
 from digi_server.logger import get_logger
@@ -64,6 +65,68 @@ class TestSettings(DigiScriptTestCase):
         self.assertEqual(
             len(json_repr["choice_labels"]), len(json_repr["choice_options"])
         )
+
+
+class TestSettingsDisclosure(DigiScriptTestCase):
+    PATH_KEYS = (
+        "db_path",
+        "log_path",
+        "db_log_path",
+        "client_log_path",
+        "compiled_script_path",
+        "draft_script_path",
+    )
+
+    def _get(self, path, token=None):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        return escape.json_decode(self.fetch(path, headers=headers).body)
+
+    def test_settings_hide_paths_from_anonymous(self):
+        for path in ("/api/v1/settings", "/api/v1/settings/raw"):
+            data = self._get(path)
+            for key in self.PATH_KEYS:
+                self.assertNotIn(key, data)
+            self.assertIn("client_log_enabled", data)
+
+    def test_settings_hide_paths_from_non_admin(self):
+        admin = self._create_and_login_admin()
+        user = self._create_and_login_user(admin)
+        for path in ("/api/v1/settings", "/api/v1/settings/raw"):
+            data = self._get(path, user)
+            for key in self.PATH_KEYS:
+                self.assertNotIn(key, data)
+
+    def test_settings_show_paths_to_admin(self):
+        admin = self._create_and_login_admin()
+        for path in ("/api/v1/settings", "/api/v1/settings/raw"):
+            data = self._get(path, admin)
+            for key in self.PATH_KEYS:
+                self.assertIn(key, data)
+
+    def test_file_reload_broadcast_has_no_paths(self):
+        class FakeClient:
+            def __init__(self):
+                self.messages = []
+
+            def write_message(self, message):
+                self.messages.append(message)
+
+        client = FakeClient()
+        self._app.clients.append(client)
+        try:
+            self._app.digi_settings.auto_reload_changes()
+        finally:
+            self._app.clients.remove(client)
+        self.assertEqual(1, len(client.messages))
+        data = client.messages[0]["DATA"]
+        for key in self.PATH_KEYS:
+            self.assertNotIn(key, data)
+        self.assertIn("client_log_enabled", data)
+
+    def test_broadcast_payload_has_no_paths(self):
+        data = self.io_loop.run_sync(self._app.digi_settings.as_json)
+        for key in self.PATH_KEYS:
+            self.assertNotIn(key, data)
 
 
 class TestSettingsController(DigiScriptTestCase):

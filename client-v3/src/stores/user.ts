@@ -57,6 +57,7 @@ export const useUserStore = defineStore('user', {
 
         try {
           await useSystemStore().getRbacRoles();
+          await useSystemStore().getRawSettings();
           await this.getCurrentUser();
           await this.getCurrentRbac();
           await this.getUserSettings();
@@ -94,6 +95,7 @@ export const useUserStore = defineStore('user', {
       this.userSettings = {};
       this.stageDirectionStyleOverrides = [];
       this.cueColourOverrides = [];
+      void useSystemStore().getRawSettings(); // drop admin-only values from the cache
 
       // Mark the open WebSocket as waiting for authentication (as the legacy
       // client's CLEAR_WS_AUTHENTICATION does), so the next in-app login
