@@ -2,9 +2,11 @@
 Tests for health check endpoint.
 """
 
+import asyncio
 import os
 import tempfile
 import threading
+import time
 from unittest.mock import patch
 
 from tornado import escape
@@ -121,8 +123,34 @@ class TestHealthController(DigiScriptTestCase):
         self.assertNotIn("/var/secret/path", response.body.decode())
 
     @gen_test
-    async def test_health_database_timeout_is_single_flight(self):
-        """A hung probe yields 503 and later polls do not start another probe."""
+    async def test_health_concurrent_polls_share_slow_healthy_probe(self):
+        """Overlapping polls during a slow but healthy probe all report ok."""
+        calls = []
+
+        def slow(_self):
+            calls.append(1)
+            time.sleep(0.3)
+
+        with patch.object(HealthController, "_check_database_sync", slow):
+            responses = await asyncio.gather(
+                *(
+                    self.http_client.fetch(
+                        self.get_url("/api/v1/health"), raise_error=False
+                    )
+                    for _ in range(3)
+                )
+            )
+
+        for response in responses:
+            self.assertEqual(200, response.code)
+            self.assertEqual(
+                "ok", escape.json_decode(response.body)["checks"]["database"]
+            )
+        self.assertEqual(1, len(calls), "overlapping polls must share one probe")
+
+    @gen_test
+    async def test_health_hung_probe_fails_all_callers_without_new_thread(self):
+        """A hung probe fails every caller within the timeout; no second probe."""
         release = threading.Event()
         calls = []
 
@@ -133,24 +161,32 @@ class TestHealthController(DigiScriptTestCase):
         try:
             with (
                 patch.object(HealthController, "_check_database_sync", hang),
-                patch("controllers.api.v1.health.DB_CHECK_TIMEOUT_SECONDS", 0.05),
+                patch("controllers.api.v1.health.DB_CHECK_TIMEOUT_SECONDS", 0.1),
             ):
+                started = time.monotonic()
                 first = await self.http_client.fetch(
                     self.get_url("/api/v1/health"), raise_error=False
                 )
-                second = await self.http_client.fetch(
-                    self.get_url("/api/v1/health"), raise_error=False
+                later = await asyncio.gather(
+                    *(
+                        self.http_client.fetch(
+                            self.get_url("/api/v1/health"), raise_error=False
+                        )
+                        for _ in range(2)
+                    )
                 )
+                elapsed = time.monotonic() - started
         finally:
             release.set()
             if health._probe is not None:
                 health._probe.result(timeout=5)
 
-        for response in (first, second):
+        for response in (first, *later):
             self.assertEqual(503, response.code)
             data = escape.json_decode(response.body)
             self.assertEqual("fail", data["checks"]["database"])
-        self.assertEqual(1, len(calls), "second poll must not start another probe")
+        self.assertLess(elapsed, 2.0)
+        self.assertEqual(1, len(calls), "no second probe while one is hung")
 
         # Once the stuck probe has finished, the endpoint recovers.
         recovered = await self.http_client.fetch(self.get_url("/api/v1/health"))
