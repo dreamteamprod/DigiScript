@@ -24,7 +24,7 @@
         id="new-password-input-group"
         label="New Password"
         label-for="new-password-input"
-        description="6–72 characters"
+        description="8–72 characters"
       >
         <b-form-input
           id="new-password-input"
@@ -36,7 +36,7 @@
           autocomplete="new-password"
         />
         <b-form-invalid-feedback id="new-password-feedback">
-          This is a required field and must be between 6 and 72 characters.
+          This is a required field and must be between 8 and 72 characters.
         </b-form-invalid-feedback>
       </b-form-group>
 

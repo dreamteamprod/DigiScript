@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from models.user import User
-from registry.named_locks import NamedLockRegistry
+from registry.named_locks import USER_CREATE_LOCK, NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
 from utils.web.auth_audit import actor, audit
@@ -33,6 +33,12 @@ class UsersV2Controller(BaseAPIController):
 
     @redact_data_paths(paths=["/password", "/confirmPassword"])
     async def post(self):
+        # The has-any-users check and the insert form one critical section;
+        # otherwise concurrent first-run requests could each create an admin.
+        async with NamedLockRegistry.acquire(USER_CREATE_LOCK):
+            await self._create_user()
+
+    async def _create_user(self):
         with self.make_session() as session:
             has_any_users = session.scalars(select(User)).first() is not None
             if has_any_users:

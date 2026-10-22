@@ -1,13 +1,28 @@
+import asyncio
 import json
+from unittest import mock
 from unittest.mock import AsyncMock, patch
 
 from prometheus_client import REGISTRY
 from sqlalchemy import select
 from tornado import escape
+from tornado.httpclient import HTTPRequest
+from tornado.testing import gen_test
 
 from models.user import User
+from services.login_throttle import LoginThrottle
+from services.password_service import PasswordService
 from test.conftest import DigiScriptTestCase
 from test.helpers.auth_fixtures import craft_token, make_user
+from test.helpers.first_run import assert_concurrent_first_run_creates_one_admin
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
 
 
 class TestAuthAPI(DigiScriptTestCase):
@@ -763,7 +778,7 @@ class TestAuthAPI(DigiScriptTestCase):
         )
         token = escape.json_decode(response.body)["access_token"]
 
-        # Try to change to weak password (< 6 characters)
+        # Try to change to weak password (< 8 characters)
         response = self.fetch(
             "/api/v1/auth/change-password",
             method="PATCH",
@@ -775,7 +790,7 @@ class TestAuthAPI(DigiScriptTestCase):
 
         self.assertEqual(400, response.code)
         response_body = escape.json_decode(response.body)
-        self.assertIn("at least 6 characters", response_body["message"])
+        self.assertIn("at least 8 characters", response_body["message"])
 
     def test_change_password_requires_authentication(self):
         """Test password change requires authentication"""
@@ -1256,6 +1271,125 @@ class TestAuthAPI(DigiScriptTestCase):
         self.assertEqual("user_id is required", response_body["message"])
 
 
+class TestLoginThrottling(DigiScriptTestCase):
+    """Login throttling, unknown-user timing, and first-run user creation."""
+
+    def setUp(self):
+        super().setUp()
+        self.clock = FakeClock()
+        self._app.login_throttle = LoginThrottle(clock=self.clock)
+
+    def _login(self, username, password):
+        return self.fetch(
+            "/api/v1/auth/login",
+            method="POST",
+            body=escape.json_encode({"username": username, "password": password}),
+        )
+
+    def _create_admin(self):
+        resp = self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "adminpass", "is_admin": True}
+            ),
+        )
+        self.assertEqual(200, resp.code)
+
+    def test_repeated_failures_get_429_with_retry_after(self):
+        self._create_admin()
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS):
+            self.assertEqual(401, self._login("admin", "wrongpass1").code)
+
+        resp = self._login("admin", "wrongpass1")
+        self.assertEqual(429, resp.code)
+        self.assertGreater(int(resp.headers["Retry-After"]), 0)
+        self.assertIn(
+            "Too many failed login attempts", escape.json_decode(resp.body)["message"]
+        )
+
+        # The right password is refused too while locked out.
+        self.assertEqual(429, self._login("admin", "adminpass").code)
+
+        # ... and accepted once the lockout has passed.
+        self.clock.now += LoginThrottle.BASE_LOCKOUT + 1
+        self.assertEqual(200, self._login("admin", "adminpass").code)
+
+    def test_unknown_username_is_throttled_like_a_real_one(self):
+        self._create_admin()
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS):
+            self.assertEqual(401, self._login("nobody", "wrongpass1").code)
+        self.assertEqual(429, self._login("nobody", "wrongpass1").code)
+
+    def test_successful_login_resets_username_counter(self):
+        self._create_admin()
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS - 1):
+            self._login("admin", "wrongpass1")
+        self.assertEqual(200, self._login("admin", "adminpass").code)
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS - 1):
+            self.assertEqual(401, self._login("admin", "wrongpass1").code)
+
+    def test_unknown_user_still_runs_a_bcrypt_verification(self):
+        self._create_admin()
+        with mock.patch.object(
+            PasswordService,
+            "verify_dummy_password",
+            wraps=PasswordService.verify_dummy_password,
+        ) as dummy:
+            self.assertEqual(401, self._login("nobody", "whatever1").code)
+            dummy.assert_called_once()
+
+    def test_create_rejects_password_shorter_than_eight_characters(self):
+        resp = self.fetch(
+            "/api/v1/auth/create",
+            method="POST",
+            body=escape.json_encode(
+                {"username": "admin", "password": "1234567", "is_admin": True}
+            ),
+        )
+        self.assertEqual(400, resp.code)
+        self.assertIn("at least 8", escape.json_decode(resp.body)["message"])
+
+    @gen_test
+    async def test_concurrent_first_run_creates_only_one_admin(self):
+        await assert_concurrent_first_run_creates_one_admin(self, "/api/v1/auth/create")
+
+    @gen_test
+    async def test_concurrent_first_run_across_v1_and_v2_creates_only_one_admin(self):
+        await assert_concurrent_first_run_creates_one_admin(
+            self, "/api/v1/auth/create", "/api/v2/users"
+        )
+
+    @gen_test
+    async def test_concurrent_wrong_password_burst_is_bounded_by_the_throttle(self):
+        await self.http_client.fetch(
+            HTTPRequest(
+                self.get_url("/api/v1/auth/create"),
+                method="POST",
+                body=escape.json_encode(
+                    {"username": "admin", "password": "adminpass", "is_admin": True}
+                ),
+            )
+        )
+
+        def attempt():
+            return self.http_client.fetch(
+                HTTPRequest(
+                    self.get_url("/api/v1/auth/login"),
+                    method="POST",
+                    body=escape.json_encode(
+                        {"username": "admin", "password": "wrongpass1"}
+                    ),
+                ),
+                raise_error=False,
+            )
+
+        responses = await asyncio.gather(*[attempt() for _ in range(15)])
+        codes = sorted(r.code for r in responses)
+        self.assertEqual(LoginThrottle.USER_FREE_ATTEMPTS, codes.count(401))
+        self.assertEqual(15 - LoginThrottle.USER_FREE_ATTEMPTS, codes.count(429))
+
+
 class TestAuthTokenLifecycleAPI(DigiScriptTestCase):
     def _post(self, path: str, token: str):
         return self.fetch(
@@ -1382,6 +1516,21 @@ class TestAuthAuditLogging(DigiScriptTestCase):
         self.assertEqual("WARNING", bad_pw.records[0].levelname)
         self._assert_no_secrets(bad_pw, "wrong-Secret-Pw-9", self.PASSWORD)
         self.assertEqual(before + 2, self._count("login", "failure"))
+
+    def test_throttled_login_is_audited(self):
+        self._create()
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS):
+            self.assertEqual(401, self._login(password="wrong-Secret-Pw-9").code)
+        before = self._count("login", "failure")
+        with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+            locked_out = self._login(password="wrong-Secret-Pw-9")
+        self.assertEqual(429, locked_out.code)
+        self.assertEqual(1, len(logs.output))
+        self.assertIn("reason=throttled", logs.output[0])
+        self.assertRegex(logs.records[0].getMessage(), r"retry_after=\d+")
+        self.assertEqual("WARNING", logs.records[0].levelname)
+        self._assert_no_secrets(logs, "wrong-Secret-Pw-9", self.PASSWORD)
+        self.assertEqual(before + 1, self._count("login", "failure"))
 
     def test_login_failure_sanitises_username(self):
         hostile = 'bob" ip=6.6.6.6\r\nAUDIT login success\x1b[31m' + "x" * 200

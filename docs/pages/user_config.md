@@ -53,11 +53,21 @@ The users table shows:
 
 Click the **New User** button to add a new user. You'll need to provide:
 - Username (must be unique across the entire system)
-- Password
+- Password (8 to 72 characters)
 - First Name
 - Last Name
 
 Users are created at the system level and are not tied to individual shows. Their access to specific shows and resources is controlled through RBAC configuration.
+
+#### Resetting a User's Password
+
+Admins can reset another user's password from the Users table. DigiScript generates a temporary password made of four random words (for example `word-word-word-word`) and shows it once; the user must choose a new password (8 to 72 characters) the next time they log in.
+
+#### Login Protection
+
+To slow down password guessing, repeated failed logins are throttled. After 5 failed attempts for the same username (or 20 failed attempts from the same network address), further login attempts are refused with a "Too many failed login attempts" message for 30 seconds, which doubles with each additional failure up to 15 minutes. While a username or address is locked out, even the correct password is refused until the delay ends. The counters are only forgotten after a quiet period following the end of a lockout, so retrying the moment a lockout ends does not give a fresh set of attempts. A successful login clears the username's counter. The throttle is held in memory, so it resets when the server restarts.
+
+> **Note:** DigiScript does not read forwarded-client-address headers (such as `X-Forwarded-For`), so if it is served through a reverse proxy, every client behind that proxy shares one address counter. The username counter is shared by everyone, so someone who repeatedly fails to log in as a user can briefly lock that user out; wait for the delay shown, then try again. If a lockout needs clearing immediately, restart the server.
 
 #### Editing Users
 
@@ -107,6 +117,7 @@ Security-relevant authentication actions are recorded as `AUDIT` lines (logger `
 - `AUDIT user_delete success username="admin" user_id=1 ip=203.0.113.5 target_user_id=7`
 - `AUDIT login failure username="alice" user_id=3 ip=203.0.113.5 reason=bad_password`
 - `AUDIT login failure username="alcie" ip=203.0.113.5 reason=unknown_user` (no `user_id`, because no such account exists)
+- `AUDIT login failure username="alice" ip=203.0.113.5 reason=throttled retry_after=300` (the client was locked out after repeated failed attempts, so the password was not checked)
 - `AUDIT password_reset success username="admin" user_id=1 ip=203.0.113.5 target_user_id=4` (the username is the administrator who performed the reset)
 
 A failed login records whether the username was unknown or the password was wrong, but the response sent to the client is identical in both cases. Passwords, tokens and API keys are never deliberately logged. The username of a failed login is recorded as typed, so text mistakenly entered into the username field (for example a password) will appear in the log; treat the log files as sensitive. Usernames typed by a client are stripped of control characters, truncated to 64 characters and quoted, and the client address is quoted unless it is a valid IP address. The events are also counted in the `digiscript_auth_events_total{event,result}` Prometheus metric (per event type and result, never per user; every combination is reported as `0` until it first occurs), which is useful for alerting on bursts of failed logins.
