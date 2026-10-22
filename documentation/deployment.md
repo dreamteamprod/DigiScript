@@ -58,9 +58,10 @@ balancer or container health checks. The Docker image uses it for its built-in
 not written to the access log.
 
 Database check: `SELECT 1 FROM sqlite_master LIMIT 1` (reads the database file
-header/schema) with a 3s timeout. Probes run single-flight on a dedicated one-worker
-executor: while an earlier timed-out probe is still hung, the check reports `fail`
-immediately until that probe finishes, so a stuck database cannot pile up threads.
+header/schema). Probes run single-flight on a dedicated one-worker executor: overlapping
+polls await the same in-flight probe, and every caller is bounded by a 3s timeout. While a
+probe is genuinely hung, each poll waits up to 3s and then reports `fail`; no second probe
+starts until the first finishes, so a stuck database cannot pile up threads.
 
 Storage check: the parent directories of `log_path`, `db_log_path` and `client_log_path`,
 plus `draft_script_path` and `compiled_script_path`, must be writable. A directory that
