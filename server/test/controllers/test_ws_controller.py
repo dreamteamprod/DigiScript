@@ -8,11 +8,13 @@ import asyncio
 import base64
 import json
 import os
+import weakref
 from datetime import timedelta
 from unittest import mock
 from unittest.mock import AsyncMock
 
 import pycrdt
+from prometheus_client import REGISTRY
 from sqlalchemy import select
 from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
@@ -20,6 +22,7 @@ from tornado.websocket import WebSocketClosedError, websocket_connect
 
 from controllers.ws_controller import WebSocketController
 from digi_server.logger import get_logger
+from digi_server.settings import get_version
 from models import models
 from models.script import Script
 from models.script_draft import ScriptDraft
@@ -32,7 +35,7 @@ from test.conftest import DigiScriptTestCase
 from test.helpers.auth_fixtures import bump_token_version, craft_token, make_user
 from test.helpers.script_fixtures import create_show_script_revision
 from utils.script_room_manager import ScriptRoom
-from utils.web import ws_session_lifecycle
+from utils.web import app_metrics, ws_session_lifecycle
 from utils.web.pending_disconnects import (
     disconnect_key,
     room_close_key,
@@ -1121,6 +1124,72 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
         ws.close()
 
+    async def _join_collab_room(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+        return ws
+
+    @gen_test
+    async def test_invalid_base64_is_logged_with_context(self):
+        """Invalid base64 on YJS ops is logged with revision, never the payload."""
+        ws = await self._join_collab_room()
+        room = self._app.room_manager.get_active_room()
+        bad = "not*base64*secret-marker"
+        for op, level in (
+            ("YJS_UPDATE", "WARNING"),
+            ("YJS_SYNC", "WARNING"),
+            ("YJS_AWARENESS", "DEBUG"),
+        ):
+            with self.assertLogs(get_logger(), level=level) as captured:
+                await ws.write_message(
+                    json.dumps({"OP": op, "DATA": {"payload": bad, "step": 1}})
+                )
+                for _ in range(100):
+                    if any(f"Invalid base64 in {op}" in m for m in captured.output):
+                        break
+                    await asyncio.sleep(0.02)
+            line = next(m for m in captured.output if f"Invalid base64 in {op}" in m)
+            self.assertIn(f"revision {room.revision_id}", line)
+            self.assertIn("127.0.0.1", line)
+            self.assertNotIn("secret-marker", line)
+        ws.close()
+
+    @gen_test
+    async def test_yjs_update_apply_failure_is_logged(self):
+        """A failing YJS_UPDATE apply logs the exception with the revision."""
+        ws = await self._join_collab_room()
+        room = self._app.room_manager.get_active_room()
+
+        async def _raise_apply_update(_data):
+            raise ValueError("Simulated corrupt Yjs payload")
+
+        room.apply_update = _raise_apply_update
+        with self.assertLogs(get_logger(), level="ERROR") as captured:
+            await ws.write_message(
+                json.dumps(
+                    {
+                        "OP": "YJS_UPDATE",
+                        "DATA": {"payload": base64.b64encode(b"x").decode("ascii")},
+                    }
+                )
+            )
+            await ws.read_message()  # COLLAB_ERROR
+        self.assertTrue(
+            any(
+                f"YJS_UPDATE: Failed to apply update for revision {room.revision_id}"
+                in m
+                for m in captured.output
+            )
+        )
+        ws.close()
+
     @gen_test
     async def test_yjs_sync_step2_corrupt_payload_returns_collab_error(self):
         """A YJS_SYNC step=2 whose apply_update raises returns COLLAB_ERROR."""
@@ -1201,6 +1270,24 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
             show.current_session_id = show_session.id
             session.commit()
             return show_session.id
+
+    def test_show_session_active_gauge_follows_current_session(self):
+        """``digiscript_show_session_active`` is 1 only while a session is live."""
+
+        def active():
+            return REGISTRY.get_sample_value("digiscript_show_session_active")
+
+        # Apps from earlier tests may still be alive; look at this one only.
+        with mock.patch.object(
+            app_metrics, "_applications", weakref.WeakSet([self._app])
+        ):
+            self.assertEqual(0.0, active())
+            self._set_live_session_active()
+            self.assertEqual(1.0, active())
+            with self._app.get_db().sessionmaker() as session:
+                session.get(Show, self.show_id).current_session_id = None
+                session.commit()
+            self.assertEqual(0.0, active())
 
     @gen_test
     async def test_request_script_edit_blocked_by_live_session(self):
@@ -3790,6 +3877,120 @@ class TestWSMessageSizeMetrics(DigiScriptTestCase):
             await asyncio.sleep(0.05)
         conn.close()
         self.assertGreaterEqual(self._message_count(), before + 2)
+
+
+class TestWSAppMetrics(_WSTestHelpers, DigiScriptTestCase):
+    """Connection gauge and per-OP counter. Series are process-wide: read deltas."""
+
+    @staticmethod
+    def _sample(name, labels=None):
+        return REGISTRY.get_sample_value(name, labels or {}) or 0.0
+
+    def _connections(self):
+        return self._sample("digiscript_ws_connections")
+
+    def _op_count(self, op):
+        return self._sample("digiscript_ws_messages_total", {"op": op})
+
+    async def _wait_for(self, predicate):
+        for _ in range(100):
+            if predicate():
+                return
+            await asyncio.sleep(0.02)
+        self.fail("condition not reached")
+
+    @gen_test
+    async def test_connections_gauge_up_on_open_down_on_close(self):
+        before = self._connections()
+        ws, uuid = await self._connect_and_auth()
+        self.assertEqual(before + 1, self._connections())
+        ws2, _ = await self._connect_and_auth()
+        self.assertEqual(before + 2, self._connections())
+
+        ws.close()
+        await self._wait_for(lambda: self._connections() == before + 1)
+        ws2.close()
+        await self._wait_for(lambda: self._connections() == before)
+
+    @gen_test
+    async def test_double_close_decrements_once(self):
+        before = self._connections()
+        ws, uuid = await self._connect_and_auth()
+        handler = self._app.get_ws(uuid)
+        self.assertEqual(before + 1, self._connections())
+
+        handler.on_close()
+        handler.on_close()
+        self.assertEqual(before, self._connections())
+        ws.close()
+        await asyncio.sleep(0.1)
+        self.assertEqual(before, self._connections())
+
+    @gen_test
+    async def test_close_without_open_does_not_decrement(self):
+        before = self._connections()
+        handler = WebSocketController.__new__(WebSocketController)
+        handler._close_handled = False
+        handler._counted_connection = False
+        handler.application = self._app
+        handler.request = mock.Mock(remote_ip="127.0.0.1")
+        handler.current_username = None
+        WebSocketController.on_close(handler)
+        self.assertEqual(before, self._connections())
+
+    @gen_test
+    async def test_reconnect_does_not_double_count(self):
+        """A resumed uuid is a new connection: +1 for it, -1 for the old one."""
+        before = self._connections()
+        ws, _ = await self._connect_and_auth()
+        ws.close()
+        await self._wait_for(lambda: self._connections() == before)
+        ws2, _ = await self._connect_and_auth()
+        self.assertEqual(before + 1, self._connections())
+        ws2.close()
+        await self._wait_for(lambda: self._connections() == before)
+
+    @gen_test
+    async def test_messages_counted_by_op_and_unknown_bounded(self):
+        known_before = self._op_count("NEW_CLIENT")
+        other_before = self._op_count("OTHER")
+        ws, _ = await self._connect_and_auth()
+        await ws.write_message(json.dumps({"OP": "NEW_CLIENT", "DATA": {}}))
+        await ws.write_message(json.dumps({"OP": "ATTACKER_OP_1", "DATA": {}}))
+        await ws.write_message(json.dumps({"OP": "ATTACKER_OP_2", "DATA": {}}))
+        await ws.write_message("not json")
+        await self._wait_for(lambda: self._op_count("OTHER") >= other_before + 3)
+        self.assertEqual(known_before + 1, self._op_count("NEW_CLIENT"))
+        self.assertEqual(other_before + 3, self._op_count("OTHER"))
+        self.assertIsNone(
+            REGISTRY.get_sample_value(
+                "digiscript_ws_messages_total", {"op": "ATTACKER_OP_1"}
+            )
+        )
+        ws.close()
+
+    def test_known_ops_cover_every_handler(self):
+        for op in (
+            *WebSocketController._LEADER_OP_HANDLERS,
+            *WebSocketController._SCRIPT_ROOM_OP_HANDLERS,
+            "AUTHENTICATE",
+            "REFRESH_TOKEN",
+            "NEW_CLIENT",
+            "REFRESH_CLIENT",
+            "LIVE_SHOW_JUMP_TO_PAGE",
+        ):
+            self.assertIn(op, WebSocketController._KNOWN_OPS)
+
+    def test_info_gauge_carries_version(self):
+        self.assertEqual(
+            1.0,
+            REGISTRY.get_sample_value("digiscript_info", {"version": get_version()}),
+        )
+        app_metrics.register_app_info()  # idempotent
+        self.assertEqual(
+            1.0,
+            REGISTRY.get_sample_value("digiscript_info", {"version": get_version()}),
+        )
 
 
 class TestWSOversizedMessage(DigiScriptTestCase):

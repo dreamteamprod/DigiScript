@@ -30,6 +30,7 @@ from models.session import Interval, Session, ShowSession
 from models.show import Act, Show
 from models.user import User
 from rbac.role import Role
+from utils.web import app_metrics
 from utils.web.base_controller import DatabaseMixin
 from utils.web.jwt_service import (
     TOKEN_EXPIRED,
@@ -68,6 +69,9 @@ _COLLAB_ONLY_OPS = frozenset(
 )
 
 
+app_metrics.register_app_info()
+
+
 @ApiRoute("ws", ApiVersion.V1)
 class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHandler):
     # Live-show ops only the leader may send, and the method that handles each.
@@ -92,8 +96,20 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         "DISCARD_SCRIPT_DRAFT": "_op_discard_script_draft",
     }
 
+    # Every OP the server handles; the only values used for the ``op`` metric
+    # label, so a client cannot create unlimited series.
+    _SESSION_OPS = frozenset({"NEW_CLIENT", "REFRESH_CLIENT", "LIVE_SHOW_JUMP_TO_PAGE"})
+    _KNOWN_OPS = (
+        frozenset({"AUTHENTICATE", "REFRESH_TOKEN"})
+        | _SESSION_OPS
+        | frozenset(_LEADER_OP_HANDLERS)
+        | frozenset(_SCRIPT_ROOM_OP_HANDLERS)
+    )
+
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
+        # True between open() counting this connection and on_close() releasing it.
+        self._counted_connection = False
         self.application: DigiScriptServer = application
         self.current_user_id = None
         self.current_username: str | None = None
@@ -109,6 +125,12 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         # The uuid this connection presented with REFRESH_CLIENT, even if it was
         # not resumed (its row had gone); used for the late leadership reclaim.
         self._presented_uuid: Optional[str] = None
+
+    def _who(self) -> str:
+        """Return ``username (ip)`` (or just the ip) for log messages."""
+        if self.current_username:
+            return f"{self.current_username} ({self.request.remote_ip})"
+        return str(self.request.remote_ip)
 
     def update_session(self, user_id=None) -> bool:
         """Create or refresh the Session row for this connection's uuid.
@@ -157,6 +179,8 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
 
     @gen.coroutine
     def open(self, *args: str, **kwargs: str) -> Optional[Awaitable[None]]:
+        app_metrics.ws_connections.inc()
+        self._counted_connection = True
         self.__setattr__("internal_id", str(uuid4()))
         self._placeholder_id = self.__getattribute__("internal_id")
         self.application.clients.append(self)
@@ -189,6 +213,9 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         if self._close_handled:
             return
         self._close_handled = True
+        if self._counted_connection:
+            self._counted_connection = False
+            app_metrics.ws_connections.dec()
 
         if self in self.application.clients:
             self.application.clients.remove(self)
@@ -487,11 +514,16 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
                 content = f"<{size} bytes>"
             else:
                 content = raw
+            app_metrics.ws_messages_total.labels(app_metrics.OTHER_OP).inc()
             get_logger().warning(
                 f"Malformed WS message from {self.request.remote_ip}: "
                 f"{type(e).__name__}: {e} {content}"
             )
             return
+
+        app_metrics.ws_messages_total.labels(
+            app_metrics.bounded_op(ws_op, self._KNOWN_OPS)
+        ).inc()
 
         # With redaction on never log the payload: AUTHENTICATE / REFRESH_TOKEN
         # carry live JWTs.
@@ -1208,7 +1240,11 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         try:
             decoded = base64.b64decode(payload)
         except Exception:
-            get_logger().warning("Invalid base64 in YJS_SYNC message")
+            get_logger().warning(
+                f"Invalid base64 in YJS_SYNC message for revision "
+                f"{room.revision_id} from {self._who()} "
+                f"(payload {len(str(payload))} chars)"
+            )
             return
 
         if step == 1:
@@ -1287,7 +1323,11 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         try:
             decoded = base64.b64decode(payload)
         except Exception:
-            get_logger().warning("Invalid base64 in YJS_UPDATE message")
+            get_logger().warning(
+                f"Invalid base64 in YJS_UPDATE message for revision "
+                f"{room.revision_id} from {self._who()} "
+                f"(payload {len(str(payload))} chars)"
+            )
             return
 
         if await self._is_live_session_active():
@@ -1307,6 +1347,10 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         try:
             follow_up = await room.apply_update(decoded)
         except Exception:
+            get_logger().exception(
+                f"YJS_UPDATE: Failed to apply update for revision "
+                f"{room.revision_id} from {self._who()}"
+            )
             await self.write_message(
                 {
                     "OP": "NOOP",
@@ -1330,7 +1374,11 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         try:
             decoded = base64.b64decode(payload)
         except Exception:
-            get_logger().warning("Invalid base64 in YJS_AWARENESS message")
+            get_logger().debug(
+                f"Invalid base64 in YJS_AWARENESS message for revision "
+                f"{room.revision_id} from {self._who()} "
+                f"(payload {len(str(payload))} chars)"
+            )
             return
 
         await room.broadcast_awareness(decoded, sender=self)

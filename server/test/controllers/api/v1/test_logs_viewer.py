@@ -1,9 +1,11 @@
 """Integration tests for GET /api/v1/logs/view."""
 
 import logging
+from unittest import mock
 
 from tornado import escape
 
+from digi_server.logger import get_logger
 from test.conftest import DigiScriptTestCase
 from utils.log_buffer import get_client_buffer, get_server_buffer
 
@@ -372,6 +374,40 @@ class TestLogViewerController(DigiScriptTestCase):
         user_token = self._create_and_login_user(admin_token)
         resp = self._fetch_stream_headers(token=user_token)
         self.assertEqual(403, resp.code)
+
+    def test_stream_error_is_logged_at_debug(self):
+        """An error ending the live stream is logged instead of swallowed."""
+        token = self._create_and_login_admin()
+        calls = []
+
+        def flaky_filter(entries, *args):
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError("boom")
+            return []
+
+        self.io_loop.call_later(
+            0.3, lambda: self._inject_server_entry("sse_error_trigger")
+        )
+        with (
+            mock.patch("controllers.api.v1.logs_viewer._filter_entries", flaky_filter),
+            self.assertLogs(get_logger(), level="DEBUG") as captured,
+        ):
+            try:
+                self.fetch(
+                    "/api/v1/logs/stream?source=server",
+                    method="GET",
+                    headers={"Authorization": f"Bearer {token}"},
+                    raise_error=False,
+                    request_timeout=1.0,
+                    streaming_callback=lambda _chunk: None,
+                )
+            except Exception:
+                pass  # HTTPTimeoutError: the stream stays open otherwise
+        self.assertTrue(
+            any("Log stream (server)" in line for line in captured.output),
+            captured.output,
+        )
 
     def test_stream_backfill_contains_existing_entries(self):
         """Entries injected before connection must appear in the first chunk.

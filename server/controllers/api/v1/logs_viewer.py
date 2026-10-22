@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 
+from digi_server.logger import get_logger
 from utils.log_buffer import get_client_buffer, get_server_buffer
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
@@ -234,7 +235,11 @@ class LogStreamController(BaseAPIController):
                 if matched:
                     self.write(f"data: {json.dumps(matched[0])}\n\n")
                     await self.flush()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            # Usually the client dropping the stream mid-write; not an error.
+            get_logger().debug(
+                f"Log stream ({source}) from {self.request.remote_ip} ended on error",
+                exc_info=True,
+            )
         finally:
             unsubscribe()

@@ -39,6 +39,7 @@ from utils.script.line_to_ydoc import (
 )
 from utils.script.ydoc_to_lines import _save_script_page, extract_lines_from_ydoc
 from utils.script.yjs_debug import attach_trace_observers
+from utils.web import app_metrics
 
 
 if TYPE_CHECKING:
@@ -70,12 +71,18 @@ def _write_checkpoint_sync(state: bytes, draft_path: str, draft_dir: str) -> Non
     except Exception:
         try:
             os.close(fd)
-        except OSError:
-            pass
+        except OSError as close_err:
+            # Usually already closed by the failing step; not the root cause.
+            get_logger().debug(
+                f"Checkpoint cleanup: could not close fd for {tmp_path}: {close_err}"
+            )
         try:
             os.unlink(tmp_path)
-        except OSError:
-            pass
+        except OSError as unlink_err:
+            get_logger().warning(
+                f"Checkpoint cleanup: could not remove temporary file "
+                f"{tmp_path}: {unlink_err}"
+            )
         raise
 
 
@@ -285,7 +292,10 @@ class ScriptRoom:
                     }
                 )
             except WebSocketClosedError:
-                pass
+                get_logger().debug(
+                    f"Client disconnected during SAVE_PROGRESS broadcast "
+                    f"in room {self.revision_id}"
+                )
             except Exception:
                 get_logger().debug(
                     f"Unexpected error sending save progress "
@@ -523,6 +533,8 @@ class RoomManager:
         self._room: ScriptRoom | None = None
         self._room_lock: asyncio.Lock = asyncio.Lock()
         self._maintenance_handle = None
+        app_metrics.register_room_manager(self)
+        app_metrics.register_application(application)
 
     def start(self):
         self._schedule_maintenance()
