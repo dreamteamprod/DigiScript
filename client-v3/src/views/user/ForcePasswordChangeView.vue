@@ -17,7 +17,7 @@
                 id="new-password-input-group"
                 label="New Password"
                 label-for="new-password-input"
-                description="6–72 characters"
+                description="8–72 characters"
               >
                 <BFormInput
                   id="new-password-input"
@@ -29,7 +29,7 @@
                   autocomplete="new-password"
                 />
                 <BFormInvalidFeedback id="new-password-feedback">
-                  This is a required field and must be between 6 and 72 characters.
+                  This is a required field and must be between 8 and 72 characters.
                 </BFormInvalidFeedback>
               </BFormGroup>
 
@@ -87,7 +87,7 @@ const state = ref({ newPassword: '', confirmPassword: '' });
 const loading = ref(false);
 
 const rules = computed(() => ({
-  newPassword: { required, minLength: minLength(6), maxPasswordByteLength },
+  newPassword: { required, minLength: minLength(8), maxPasswordByteLength },
   confirmPassword: { required, sameAsPassword: sameAs(state.value.newPassword) },
 }));
 
