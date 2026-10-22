@@ -58,9 +58,10 @@ balancer or container health checks. The Docker image uses it for its built-in
 not written to the access log.
 
 Database check: `SELECT 1 FROM sqlite_master LIMIT 1` (reads the database file
-header/schema) with a 3s timeout. Probes run single-flight on a dedicated one-worker
-executor: while an earlier timed-out probe is still hung, the check reports `fail`
-immediately until that probe finishes, so a stuck database cannot pile up threads.
+header/schema). Probes run single-flight on a dedicated one-worker executor: overlapping
+polls await the same in-flight probe, and every caller is bounded by a 3s timeout. While a
+probe is genuinely hung, each poll waits up to 3s and then reports `fail`; no second probe
+starts until the first finishes, so a stuck database cannot pile up threads.
 
 Storage check: the parent directories of `log_path`, `db_log_path` and `client_log_path`,
 plus `draft_script_path` and `compiled_script_path`, must be writable. A directory that
@@ -70,7 +71,7 @@ does not exist yet is judged by its nearest existing ancestor.
 |---|---|---|
 | Database and storage checks pass | `200` | `ok` |
 | Either check fails or the database times out | `503` | `degraded` |
-| Unexpected internal error | `503` | `degraded` (checks are `"unknown"`, no `uptime_seconds`) |
+| Unexpected internal error | `503` | `degraded` (`checks` are `"unknown"`, `uptime_seconds` omitted) |
 
 Example healthy response:
 
@@ -85,24 +86,32 @@ Example healthy response:
 
 A failing check is reported as `"fail"` in `checks`. The response never includes error
 text or file paths; the detail is written to the server log instead (`ERROR` for the
-database, `WARNING` for storage), so look there to find out why a probe is failing. On an unexpected internal error the
-`checks` values are `"unknown"` and `uptime_seconds` is omitted.
+database, `WARNING` for storage), so look there to find out why a probe is failing.
 
 The Docker `HEALTHCHECK` calls `http://localhost:8080/api/v1/health` with Python's
 `urllib`; any non-2xx response marks the container unhealthy. The port is hard-wired to
-8080 because the app has no environment variable for its port. If you run the server on a
-different port, override the check with `--health-cmd` or a compose `healthcheck:` block:
+8080 because the app has no environment variable for its port. If you change the
+listening port with the `--port` flag, override the check with `--health-cmd` or a
+compose `healthcheck:` block that targets the same container port. For example, to
+listen on 8081 (published on host port 8081):
 
 ```yaml
 services:
   server:
+    command: ["--port=8081"]
+    ports:
+      - 8081:8081
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/api/v1/health', timeout=4)"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/api/v1/health', timeout=4)"]
       interval: 30s
       timeout: 5s
       start_period: 30s
       retries: 3
 ```
+
+If you also use the monitoring overlay, change the scrape target in
+`monitoring/prometheus/prometheus.yml` to `server:8081` too. Avoid host ports 3000 and
+9090, which the overlay uses for Grafana and Prometheus.
 
 #### Metrics reference
 

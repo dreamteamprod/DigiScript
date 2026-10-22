@@ -9,6 +9,7 @@ import asyncio
 import base64
 import inspect
 import json
+import math
 import os
 import textwrap
 import weakref
@@ -4044,6 +4045,36 @@ class TestWSAppMetrics(_WSTestHelpers, DigiScriptTestCase):
                 any("live show session" in m for m in captured.output),
                 captured.output,
             )
+
+    def test_live_session_value_rule_pinned(self):
+        """1 if any app confirms active; else NaN if any failed; else 0."""
+        false_app, true_app, bad_app = mock.Mock(), mock.Mock(), mock.Mock()
+
+        def fake(app):
+            if app is bad_app:
+                raise RuntimeError("x")
+            return app is true_app
+
+        cases = (
+            ([false_app, bad_app], "nan"),
+            ([bad_app, false_app], "nan"),
+            ([true_app, bad_app], 1.0),
+            ([bad_app, true_app], 1.0),
+            ([false_app, false_app], 0.0),
+            ([], 0.0),
+        )
+        for apps, expected in cases:
+            with (
+                self.subTest(apps=[id(a) for a in apps]),
+                mock.patch.object(app_metrics, "_app_has_live_session", fake),
+                mock.patch.object(app_metrics, "_applications", apps),
+                mock.patch.object(app_metrics, "get_logger"),
+            ):
+                value = app_metrics._live_session_value()
+            if expected == "nan":
+                self.assertTrue(math.isnan(value))
+            else:
+                self.assertEqual(expected, value)
 
     def test_info_gauge_carries_version(self):
         self.assertEqual(

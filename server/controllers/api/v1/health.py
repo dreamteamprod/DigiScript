@@ -75,19 +75,21 @@ class HealthController(BaseAPIController):
 
         Probes are single-flight on a dedicated one-thread executor: a timed
         out probe cannot be cancelled (its thread keeps running), so while one
-        is still in flight further calls report failure without starting
-        another. This caps leaked threads and connections at one.
+        is in flight, overlapping callers await that same probe (shielded, so
+        one caller's timeout never cancels it) rather than starting another.
+        This caps leaked threads and connections at one without reporting a
+        healthy database as failed for merely overlapping polls. Every caller
+        is still bounded by its own timeout.
 
         :returns: ``True`` if the query succeeded in time.
         """
         global _probe  # noqa: PLW0603
-        if _probe is not None and not _probe.done():
-            get_logger().error("Health check: previous database probe still running")
-            return False
-        _probe = _PROBE_EXECUTOR.submit(self._check_database_sync)
+        if _probe is None or _probe.done():
+            _probe = _PROBE_EXECUTOR.submit(self._check_database_sync)
+        probe = _probe
         try:
             await asyncio.wait_for(
-                asyncio.shield(asyncio.wrap_future(_probe)),
+                asyncio.shield(asyncio.wrap_future(probe)),
                 timeout=DB_CHECK_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
