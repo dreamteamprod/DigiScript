@@ -3,8 +3,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import tornado.escape
+import tornado.gen
 from sqlalchemy import func, select
 from tornado.testing import gen_test
+from tornado.websocket import websocket_connect
 from tornado_prometheus import requests_total
 
 from controllers.controllers import ApiDebugController
@@ -119,6 +121,40 @@ class TestDigiScriptServer(DigiScriptTestCase):
         ):
             response = self.fetch("/api/v1/debug")
         self.assertEqual(200, response.code)
+
+    def test_metrics_failure_warns_once_and_other_observer_runs(self):
+        """Failures are warned about once per interval and observers are independent."""
+        before = self._body_count("ApiFallback", "POST")
+        with (
+            patch.object(self._app, "observe_request", side_effect=RuntimeError("x")),
+            self.assertLogs("tornado.access", level="DEBUG") as logs,
+        ):
+            self.fetch("/api/v1/nonexistent", method="POST", body="x" * 10)
+            self.fetch("/api/v1/nonexistent", method="POST", body="x" * 10)
+        failures = [r for r in logs.records if "Failed to record" in r.getMessage()]
+        self.assertEqual(["WARNING", "DEBUG"], [r.levelname for r in failures])
+        self.assertIsNotNone(failures[0].exc_info)
+        self.assertEqual(before + 2, self._body_count("ApiFallback", "POST"))
+
+    @gen_test
+    async def test_websocket_upgrade_not_counted_as_5xx(self):
+        """A 101 upgrade must not land in the 5xx series (tornado_prometheus quirk)."""
+        before_5xx = self._status_count("5xx")
+        ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
+        ws = await websocket_connect(ws_url)
+        ws.close()
+        await tornado.gen.sleep(0.2)
+        self.assertEqual(before_5xx, self._status_count("5xx"))
+
+    def _status_count(self, status):
+        total = 0
+        for metric in requests_total.collect():
+            for sample in metric.samples:
+                if sample.name.endswith("_total") and (
+                    sample.labels.get("status") == status
+                ):
+                    total += sample.value
+        return total
 
     def test_access_log_levels(self):
         """2xx logs at DEBUG, 4xx at WARNING and 5xx at ERROR."""

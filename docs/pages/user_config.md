@@ -88,7 +88,7 @@ The **Logs** tab (admin only) provides a real-time view of server and client log
 
 #### Sources
 
-- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs (successful 1xx-3xx responses are logged at `DEBUG`, client errors at `WARNING`, server errors at `ERROR`), request body and WebSocket message debug logs (only shown when the Log Level is `DEBUG`), WebSocket connection events, and general application messages.
+- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs (successful 1xx-3xx responses are logged at `DEBUG`, client errors at `WARNING`, server errors at `ERROR`), request body and WebSocket message debug logs (only shown when the Log Level is `DEBUG`), WebSocket connection events, and general application messages. HTTP request metrics (`tornado_http_requests_total`, `tornado_http_request_duration_seconds`) are exposed on `/debug/metrics`; WebSocket upgrades (HTTP 101) are not counted in the request-status series.
 - **Client** — Logs forwarded from connected browser clients via the `/api/v1/logs/batch` endpoint.
 
 #### Username Attribution
