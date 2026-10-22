@@ -1,3 +1,6 @@
+import json
+from unittest.mock import AsyncMock, patch
+
 from prometheus_client import REGISTRY
 from sqlalchemy import select
 from tornado import escape
@@ -1391,7 +1394,56 @@ class TestAuthAuditLogging(DigiScriptTestCase):
         self.assertNotIn("\r", message)
         self.assertNotIn("\x1b", message)
         self.assertLessEqual(len(logs.records[0].username), 64)
-        self.assertTrue(message.startswith("AUDIT login failure username="))
+        # Control chars removed, capped at 64, quote escaped; the lookalike
+        # ``ip=`` stays inside the quoted username and the real one appears once.
+        sanitised = 'bob" ip=6.6.6.6AUDIT login success[31m' + "x" * 26
+        self.assertEqual(
+            f"AUDIT login failure username={json.dumps(sanitised)} "
+            "ip=127.0.0.1 reason=unknown_user",
+            message,
+        )
+        self.assertEqual(1, message.count(" ip=127.0.0.1"))
+        self.assertNotIn('username="bob" ip=6.6.6.6', message)
+
+    def test_admin_reset_password_refusals_are_audited(self):
+        self._create()
+        token = self._token()
+        with self._app.get_db().sessionmaker() as session:
+            admin_id = (
+                session.scalars(select(User).where(User.username == "alice")).one().id
+            )
+        before = self._count("password_reset", "failure")
+        with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+            missing = self._post(
+                "/api/v1/auth/reset-password", {"user_id": 9999}, token=token
+            )
+            own = self._post(
+                "/api/v1/auth/reset-password", {"user_id": admin_id}, token=token
+            )
+        self.assertEqual(404, missing.code)
+        self.assertEqual(400, own.code)
+        self.assertIn("reason=not_found", logs.output[0])
+        self.assertIn("reason=self_reset", logs.output[1])
+        self.assertEqual(before + 2, self._count("password_reset", "failure"))
+
+    def test_admin_reset_password_invalid_password_is_audited(self):
+        self._create()
+        token = self._token()
+        bob_id = make_user(self._app, username="bob", is_admin=False)
+        before = self._count("password_reset", "failure")
+        with patch.object(
+            type(self._app.user_service),
+            "change_password",
+            AsyncMock(side_effect=ValueError("too weak")),
+        ):
+            with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+                response = self._post(
+                    "/api/v1/auth/reset-password", {"user_id": bob_id}, token=token
+                )
+        self.assertEqual(400, response.code)
+        self.assertIn("reason=invalid_password", logs.output[0])
+        self.assertIn(f"target_user_id={bob_id}", logs.output[0])
+        self.assertEqual(before + 1, self._count("password_reset", "failure"))
 
     def test_logout(self):
         self._create()
@@ -1504,6 +1556,11 @@ class TestAuthUserAdminAudit(DigiScriptTestCase):
                 {"username": "root", "password": self.PASSWORD, "is_admin": True},
             )
         self.assertIn("AUDIT user_create success", boot.output[0])
+        # No actor: the bootstrap request is unauthenticated.
+        self.assertNotIn(" username=", boot.output[0])
+        self.assertNotIn(" user_id=", boot.output[0])
+        self.assertFalse(hasattr(boot.records[0], "username"))
+        self.assertFalse(hasattr(boot.records[0], "user_id"))
         token = escape.json_decode(
             self._post(
                 "/api/v1/auth/login", {"username": "root", "password": self.PASSWORD}

@@ -1,15 +1,21 @@
 """Audit logging and metrics for authentication events.
 
-Every security-relevant authentication action (login, logout, password change
-and reset, token refresh, API token generation and revocation) is recorded
-through :func:`audit`. Each call emits a single line on the ``DigiScript.Audit``
-logger and increments the ``digiscript_auth_events_total`` Prometheus counter.
+Every security-relevant authentication or user-management action (see
+:data:`EVENTS` for the full set) is recorded through :func:`audit`. Each call
+emits a single line on the ``DigiScript.Audit`` logger and increments the
+``digiscript_auth_events_total`` Prometheus counter.
 
-Secrets (passwords, tokens, API keys) must never be passed to this module.
-Attacker-controlled strings (notably the username supplied to the login
-endpoint) are sanitised before they are logged, and the metric labels are drawn
-from fixed sets, so a client cannot inject log lines or create unbounded label
-cardinality.
+Secrets (passwords, tokens, API keys) are never deliberately passed to this
+module. Attacker-controlled strings (notably the username supplied to the login
+endpoint) are stripped of control characters, length-capped and JSON-quoted, and
+the client address is emitted bare only when it parses as an IP address
+(otherwise it is quoted), so a client cannot inject extra lines or fake
+fields. The metric labels are drawn from fixed sets and every combination is
+pre-initialised, so cardinality is bounded and alerts see ``0`` rather than no
+data. Text typed into the username field is recorded as typed.
+
+:func:`audit` never raises: it runs after the real action has succeeded, so a
+failure here is logged and swallowed rather than failing the request.
 
 The counter is module-level so it is registered exactly once per process,
 however many application instances are created (tests create many).
@@ -17,6 +23,7 @@ however many application instances are created (tests create many).
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import unicodedata
@@ -50,6 +57,10 @@ auth_events_total = Counter(
     documentation="Authentication events by type and outcome",
     labelnames=("event", "result"),
 )
+# Create every series up front so alerts on failures see 0, not "no data".
+for _event in EVENTS:
+    for _result in RESULTS:
+        auth_events_total.labels(event=_event, result=_result)
 
 
 def sanitise(value: object, max_length: int = MAX_FIELD_LENGTH) -> str:
@@ -102,11 +113,33 @@ def audit(
     :param user_id: Database id of that user, if known.
     :param remote_ip: Client IP address.
     :param detail: Optional short context, sanitised before logging.
-    :raises ValueError: If ``event`` or ``result`` is not a known value.
+
+    This function never raises. An unknown ``event``/``result`` (a programming
+    error) is logged at ERROR and not counted, so labels stay bounded; any other
+    failure is logged with its traceback.
     """
     if event not in EVENTS or result not in RESULTS:
-        raise ValueError(f"Unknown audit event/result: {event!r}/{result!r}")
+        get_logger("Audit").error(
+            f"Unknown audit event/result: {sanitise(event)!r}/{sanitise(result)!r}"
+        )
+        return
+    try:
+        _emit(event, result, username, user_id, remote_ip, detail)
+    except Exception:
+        get_logger("Audit").exception(f"Failed to record audit event {event} {result}")
 
+
+def _format_ip(remote_ip: str) -> str:
+    """Render a client address, quoting it unless it is a valid IP address."""
+    try:
+        ipaddress.ip_address(remote_ip)
+    except ValueError:
+        return json.dumps(sanitise(remote_ip))
+    return remote_ip
+
+
+def _emit(event, result, username, user_id, remote_ip, detail) -> None:
+    """Count and log one already-validated audit event."""
     auth_events_total.labels(event=event, result=result).inc()
 
     safe_username = sanitise(username) if username is not None else None
@@ -117,7 +150,7 @@ def audit(
     if user_id is not None:
         parts.append(f"user_id={user_id}")
     if remote_ip:
-        parts.append(f"ip={sanitise(remote_ip)}")
+        parts.append(f"ip={_format_ip(remote_ip)}")
     if detail:
         parts.append(sanitise(detail, 128))
 

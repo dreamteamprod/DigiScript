@@ -364,7 +364,14 @@ class TestUsersV2Audit(DigiScriptTestCase):
         # First-user bootstrap is unauthenticated: audited without an actor.
         with self.assertLogs("DigiScript", "INFO") as boot:
             token = self._admin_token()
-        self.assertTrue(any("AUDIT user_create success" in o for o in boot.output))
+        created = [
+            r for r in boot.records if "AUDIT user_create success" in r.getMessage()
+        ]
+        self.assertEqual(1, len(created))
+        self.assertNotIn(" username=", created[0].getMessage())
+        self.assertNotIn(" user_id=", created[0].getMessage())
+        self.assertFalse(hasattr(created[0], "username"))
+        self.assertFalse(hasattr(created[0], "user_id"))
 
         create_before = self._count("user_create", "success")
         update_before = self._count("user_update", "success")

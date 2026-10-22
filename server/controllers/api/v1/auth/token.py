@@ -1,6 +1,6 @@
 from models.user import User
 from utils.web.api_keys import ApiKeyService
-from utils.web.auth_audit import audit
+from utils.web.auth_audit import actor, audit
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import (
@@ -28,9 +28,7 @@ class ApiTokenGenerateController(BaseAPIController):
             audit(
                 "api_token_generate",
                 "success",
-                username=self.current_user.get("username"),
-                user_id=user.id,
-                remote_ip=self.request.remote_ip,
+                **actor(self),
             )
             self.set_status(200)
             await self.finish(
@@ -57,10 +55,8 @@ class ApiTokenRevokeController(BaseAPIController):
                 audit(
                     "api_token_revoke",
                     "failure",
-                    username=self.current_user.get("username"),
-                    user_id=user.id,
-                    remote_ip=self.request.remote_ip,
                     detail="reason=no_token",
+                    **actor(self),
                 )
                 self.set_status(400)
                 await self.finish({"message": "No API token to revoke"})
@@ -73,9 +69,7 @@ class ApiTokenRevokeController(BaseAPIController):
             audit(
                 "api_token_revoke",
                 "success",
-                username=self.current_user.get("username"),
-                user_id=user.id,
-                remote_ip=self.request.remote_ip,
+                **actor(self),
             )
             self.set_status(200)
             await self.finish({"message": "API token revoked successfully"})

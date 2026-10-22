@@ -519,11 +519,23 @@ class AdminPasswordResetController(BaseAPIController):
         with self.make_session() as session:
             target_user = session.get(User, int(user_id))
             if not target_user:
+                audit(
+                    "password_reset",
+                    "failure",
+                    detail="reason=not_found",
+                    **actor(self),
+                )
                 self.set_status(404)
                 await self.finish({"message": "User not found"})
                 return
 
             if target_user.id == self.current_user["id"]:
+                audit(
+                    "password_reset",
+                    "failure",
+                    detail="reason=self_reset",
+                    **actor(self),
+                )
                 self.set_status(400)
                 await self.finish(
                     {"message": "Cannot reset your own password via admin endpoint"}

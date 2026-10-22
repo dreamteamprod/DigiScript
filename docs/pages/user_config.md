@@ -105,11 +105,11 @@ All log entries are attributed to the logged-in user where one is present:
 Security-relevant authentication actions are recorded as `AUDIT` lines (logger `DigiScript.Audit`) at the default `INFO` log level, independent of the **Enable Log Redaction** setting. Successes are logged at `INFO` and failures at `WARNING`. The covered events are login, logout, password change, admin password reset, token refresh, API token generation and revocation, and user creation, update (such as changing the admin flag) and deletion (on both the v1 and v2 APIs). For user management events the username is the acting administrator and `target_user_id` identifies the affected account; the creation of the very first user is logged without an actor. For example:
 
 - `AUDIT user_delete success username="admin" user_id=1 ip=203.0.113.5 target_user_id=7`
-
-- `AUDIT login failure username="alice" ip=203.0.113.5 reason=bad_password`
+- `AUDIT login failure username="alice" user_id=3 ip=203.0.113.5 reason=bad_password`
+- `AUDIT login failure username="alcie" ip=203.0.113.5 reason=unknown_user` (no `user_id`, because no such account exists)
 - `AUDIT password_reset success username="admin" user_id=1 ip=203.0.113.5 target_user_id=4` (the username is the administrator who performed the reset)
 
-A failed login records whether the username was unknown or the password was wrong, but the response sent to the client is identical in both cases. Passwords, tokens and API keys are never written to the log. Usernames typed by a client are stripped of control characters and truncated to 64 characters. The same events are counted in the `digiscript_auth_events_total{event,result}` Prometheus metric, which is useful for alerting on bursts of failed logins.
+A failed login records whether the username was unknown or the password was wrong, but the response sent to the client is identical in both cases. Passwords, tokens and API keys are never deliberately logged. The username of a failed login is recorded as typed, so text mistakenly entered into the username field (for example a password) will appear in the log; treat the log files as sensitive. Usernames typed by a client are stripped of control characters, truncated to 64 characters and quoted, and the client address is quoted unless it is a valid IP address. The events are also counted in the `digiscript_auth_events_total{event,result}` Prometheus metric (per event type and result, never per user; every combination is reported as `0` until it first occurs), which is useful for alerting on bursts of failed logins.
 
 #### Filtering
 

@@ -153,7 +153,7 @@ class UsersV2Controller(BaseAPIController):
             for field in self.EDITABLE_FIELDS:
                 if field in data:
                     setattr(user, field, data[field])
-                    changed.append(f"{field}={bool(data[field])}")
+                    changed.append(f"{field}={data[field]!r}")
 
             session.commit()
             audit(
