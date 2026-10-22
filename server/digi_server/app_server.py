@@ -347,10 +347,46 @@ class DigiScriptServer(PrometheusMixIn, Application):
             login_url="/login",
         )
 
+    _METRICS_WARN_INTERVAL = 60.0
+    _last_metrics_warning = float("-inf")
+
+    def _observe_metrics(self, handler, access_log):
+        """
+        Record Prometheus metrics for a finished request.
+
+        Each observer runs independently so one failing does not skip the other,
+        and failures never propagate into request handling. A failure is warned
+        about at most once per ``_METRICS_WARN_INTERVAL`` seconds (with the
+        traceback) and logged at DEBUG otherwise, so a persistent regression is
+        visible at INFO without per-request spam.
+
+        Informational (1xx) responses, i.e. the 101 of a WebSocket upgrade, are
+        not fed to ``observe_request``: ``tornado_prometheus`` classifies any
+        status outside 200-499 as ``5xx``, which would count every WebSocket
+        connect as a server error.
+
+        :param handler: The finished request handler.
+        :param access_log: The ``tornado.access`` logger.
+        """
+        observers = [observe_http_request]
+        if handler.get_status() >= 200:
+            observers.insert(0, self.observe_request)
+        for observe in observers:
+            try:
+                observe(handler)
+            except Exception:
+                now = time.monotonic()
+                if now - self._last_metrics_warning >= self._METRICS_WARN_INTERVAL:
+                    self._last_metrics_warning = now
+                    log = access_log.warning
+                else:
+                    log = access_log.debug
+                log("Failed to record HTTP request metrics", exc_info=True)
+
     def log_request(self, handler):
         from tornado.log import access_log  # noqa: PLC0415
 
-        observe_http_request(handler)
+        self._observe_metrics(handler, access_log)
 
         if handler.request.path in Route.ignored_logging_routes():
             return
@@ -361,8 +397,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
             username = handler.current_user.get("username")
             user_id = handler.current_user.get("id")
 
+        # Successful/redirect/informational responses (including 304 polling and
+        # 101 websocket upgrades) are noisy, so they only appear at DEBUG.
         if handler.get_status() < 400:
-            log_method = access_log.info
+            log_method = access_log.debug
         elif handler.get_status() < 500:
             log_method = access_log.warning
         else:
