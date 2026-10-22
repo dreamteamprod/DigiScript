@@ -85,7 +85,7 @@ database, `WARNING` for storage), so look there to find out why a probe is faili
 | Metric | Type | Meaning |
 |--------|------|---------|
 | `python_*`, `process_*` | various | Python runtime and process stats |
-| `tornado_http_requests_total` | counter | HTTP requests by method, handler and status (see note) |
+| `tornado_http_requests_total` | counter | HTTP requests by method, handler and status |
 | `tornado_http_request_duration_seconds` | histogram | HTTP request latency |
 | `digiscript_http_request_body_bytes` | histogram | Size of HTTP request bodies, by handler and method |
 | `digiscript_ws_message_bytes` | histogram | Size of inbound WebSocket messages |
@@ -97,10 +97,9 @@ database, `WARNING` for storage), so look there to find out why a probe is faili
 | `digiscript_auth_events_total{event,result}` | counter | Authentication events by type and result |
 | `digiscript_unhandled_errors_total{source}` | counter | Unhandled errors by source |
 
-Note: `tornado_http_*` currently has no samples until the pending "fix HTTP metrics"
-change is released, and the `digiscript_*` metrics from `digiscript_ws_connections`
-onwards are being added incrementally. Dashboard panels for metrics your server version
-does not yet expose show "No data".
+Note: older releases do not expose all of these metrics (for example the `tornado_http_*`
+series and the newer `digiscript_*` gauges and counters). Dashboard panels for metrics
+your server version does not expose show "No data".
 
 ### Pre-built Server Executables
 

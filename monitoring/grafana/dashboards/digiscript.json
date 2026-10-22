@@ -247,8 +247,8 @@
             "type": "prometheus",
             "uid": "digiscript-prometheus"
           },
-          "expr": "sum by (status_class) (label_replace(rate(tornado_http_requests_total[5m]), \"status_class\", \"${1}xx\", \"status\", \"(\\\\d)..\"))",
-          "legendFormat": "{{status_class}}"
+          "expr": "sum by (status) (rate(tornado_http_requests_total{handler!=\"WebSocketController\"}[5m]))",
+          "legendFormat": "{{status}}"
         }
       ],
       "fieldConfig": {
@@ -259,7 +259,7 @@
         "overrides": []
       },
       "options": {},
-      "description": "No data until HTTP metrics are recorded by the server."
+      "description": "HTTP requests per second by status class. WebSocket upgrades (101) are excluded."
     },
     {
       "id": 8,
@@ -553,7 +553,7 @@
             "type": "prometheus",
             "uid": "digiscript-prometheus"
           },
-          "expr": "sum by (source) (increase(digiscript_unhandled_errors_total[5m]))",
+          "expr": "sum by (source) (increase(digiscript_unhandled_errors_total[5m])) or sum by (source) (digiscript_unhandled_errors_total > 0 unless digiscript_unhandled_errors_total offset 5m)",
           "legendFormat": "{{source}}"
         }
       ],
