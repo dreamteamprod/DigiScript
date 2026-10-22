@@ -1,15 +1,13 @@
-from datetime import datetime, timezone
-
 from sqlalchemy import select
 
 from models.user import User
 from registry.named_locks import USER_CREATE_LOCK, NamedLockRegistry
 from schemas.schemas import UserSchema
-from services.password_service import PasswordService
 from utils.web.auth_audit import actor, audit
 from utils.web.base_controller import BaseAPIController
 from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
+from utils.web.user_admin import create_user, delete_user
 from utils.web.web_decorators import (
     api_authenticated,
     no_live_session,
@@ -36,84 +34,7 @@ class UsersV2Controller(BaseAPIController):
         # The has-any-users check and the insert form one critical section;
         # otherwise concurrent first-run requests could each create an admin.
         async with NamedLockRegistry.acquire(USER_CREATE_LOCK):
-            await self._create_user()
-
-    async def _create_user(self):
-        with self.make_session() as session:
-            has_any_users = session.scalars(select(User)).first() is not None
-            if has_any_users:
-                self.requires_admin()
-
-            data = get_json_object(self)
-
-            username = data.get("username", "")
-            if not username:
-                self.set_status(400)
-                await self.finish({"message": "Username missing"})
-                return
-
-            password = data.get("password", "")
-            if not password:
-                self.set_status(400)
-                await self.finish({"message": "Password missing"})
-                return
-
-            is_admin = data.get("is_admin", False)
-            if not has_any_users and not is_admin:
-                self.set_status(400)
-                await self.finish({"message": "First user must be an admin"})
-                return
-
-            is_valid, error_msg = PasswordService.validate_password_strength(password)
-            if not is_valid:
-                audit(
-                    "user_create",
-                    "failure",
-                    detail="reason=weak_password",
-                    **actor(self),
-                )
-                self.set_status(400)
-                await self.finish({"message": error_msg})
-                return
-
-            async with NamedLockRegistry.acquire(f"UserLock::{username}"):
-                conflict_user = session.scalars(
-                    select(User).where(User.username == username)
-                ).first()
-                if conflict_user:
-                    audit(
-                        "user_create",
-                        "failure",
-                        detail="reason=username_taken",
-                        **actor(self),
-                    )
-                    self.set_status(400)
-                    await self.finish({"message": "Username already taken"})
-                    return
-
-                hashed_password = await PasswordService.hash_password(password)
-
-                new_user = User(
-                    username=username,
-                    password=hashed_password,
-                    is_admin=is_admin,
-                    created_on=datetime.now(tz=timezone.utc),
-                )
-                session.add(new_user)
-                session.commit()
-                audit(
-                    "user_create",
-                    "success",
-                    detail=f"target_user_id={new_user.id} is_admin={bool(is_admin)}",
-                    **actor(self),
-                )
-
-                if is_admin:
-                    await self.application.digi_settings.set("has_admin_user", True)
-
-                self.set_status(200)
-                await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
-                await self.finish({"message": "Successfully created user"})
+            await create_user(self)
 
     @api_authenticated
     @require_admin
@@ -190,44 +111,4 @@ class UsersV2Controller(BaseAPIController):
                 await self.finish({"message": "User not found"})
                 return
 
-            if user_to_delete.id == self.current_user["id"]:
-                self.set_status(400)
-                await self.finish(
-                    {"message": "Cannot delete currently authenticated user"}
-                )
-                return
-
-            all_admins = session.scalars(
-                select(User).where(User.is_admin.is_(True))
-            ).all()
-            if user_to_delete.is_admin and len(all_admins) <= 1:
-                audit(
-                    "user_delete",
-                    "failure",
-                    detail=f"target_user_id={user_to_delete.id} reason=only_admin",
-                    **actor(self),
-                )
-                self.set_status(400)
-                await self.finish({"message": "Cannot delete the only admin user"})
-                return
-
-            async with NamedLockRegistry.acquire(
-                f"UserLock::{user_to_delete.username}"
-            ):
-                await self.application.user_service.force_logout_all_sessions(
-                    session, user_to_delete
-                )
-                self.application.rbac.delete_actor(user_to_delete)
-                target_id = user_to_delete.id
-                session.delete(user_to_delete)
-                session.commit()
-                audit(
-                    "user_delete",
-                    "success",
-                    detail=f"target_user_id={target_id}",
-                    **actor(self),
-                )
-
-                self.set_status(200)
-                await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
-                await self.finish({"message": "Successfully deleted user"})
+            await delete_user(self, session, user_to_delete)
