@@ -14,10 +14,16 @@ from models.session import Session
 from models.settings import SystemSettings
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from utils.web import app_metrics
 from utils.web.request_size_metrics import http_request_body_bytes
 
 
 class TestDigiScriptServer(DigiScriptTestCase):
+    def test_server_registers_itself_for_app_metrics(self):
+        """Constructing a DigiScriptServer registers it (once) with app_metrics."""
+        registered = [app for app in app_metrics._applications if app is self._app]
+        self.assertEqual([self._app], registered)
+
     def test_debug(self):
         token = self._create_and_login_admin()
         response = self.fetch("/debug", headers={"Authorization": f"Bearer {token}"})
