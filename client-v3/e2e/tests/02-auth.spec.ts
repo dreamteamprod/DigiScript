@@ -9,6 +9,7 @@ import {
   ADMIN_PASSWORD,
   waitForAppReady,
   loginAsAdmin,
+  apiLogin,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
 
@@ -119,4 +120,30 @@ test('each tab keeps its own connection id, and a reload resumes it', async () =
   } finally {
     await page2.close();
   }
+});
+
+test('repeated failed logins for an unknown user are throttled with 429', async ({ request }) => {
+  // Uses a username that does not exist so no real account is ever locked.
+  const attempt = () =>
+    request.post(`${UI_BASE}/api/v1/auth/login`, {
+      data: { username: 'throttle-probe', password: 'wrongpassword' },
+    });
+  for (let i = 0; i < 5; i++) {
+    expect((await attempt()).status()).toBe(401);
+  }
+  const throttled = await attempt();
+  expect(throttled.status()).toBe(429);
+  expect(Number(throttled.headers()['retry-after'])).toBeGreaterThan(0);
+});
+
+test('creating a user with a password shorter than 8 characters is rejected', async ({
+  request,
+}) => {
+  const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
+  const response = await request.post(`${UI_BASE}/api/v1/auth/create`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { username: 'shortpw-probe', password: '1234567', is_admin: false },
+  });
+  expect(response.status()).toBe(400);
+  expect((await response.json()).message).toContain('at least 8');
 });

@@ -19,7 +19,7 @@
         type="password"
         :state="fieldState('password')"
       />
-      <BFormInvalidFeedback>Required, between 6 and 72 characters.</BFormInvalidFeedback>
+      <BFormInvalidFeedback>Required, between 8 and 72 characters.</BFormInvalidFeedback>
     </BFormGroup>
 
     <BFormGroup label="Confirm Password" label-for="confirm-password-input" label-cols="4">
@@ -79,7 +79,7 @@ const passwordRef = computed(() => state.value.password);
 
 const rules = {
   username: { required, isUsernameUnique },
-  password: { required, minLength: minLength(6), maxPasswordByteLength },
+  password: { required, minLength: minLength(8), maxPasswordByteLength },
   confirmPassword: { required, sameAs: sameAs(passwordRef) },
 };
 

@@ -1,8 +1,10 @@
 from sqlalchemy import select
 from tornado import escape
+from tornado.testing import gen_test
 
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from test.helpers.first_run import assert_concurrent_first_run_creates_one_admin
 
 
 class TestUsersV2Controller(DigiScriptTestCase):
@@ -310,6 +312,10 @@ class TestUsersV2Controller(DigiScriptTestCase):
 
     # note: the last-admin delete guard (400 when target is the only admin) suffers the same
     # race-condition constraint as the PATCH guard — not reachable in a synchronous test.
+
+    @gen_test
+    async def test_concurrent_first_run_creates_only_one_admin(self):
+        await assert_concurrent_first_run_creates_one_admin(self, "/api/v2/users")
 
 
 class TestUsersV2JsonBodyValidation(DigiScriptTestCase):
