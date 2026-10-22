@@ -1,8 +1,13 @@
 """Prometheus gauges and counters answering "is the show healthy?".
 
-Everything here is module-level so it is registered exactly once per process,
-however many application instances are created (tests create many). The series
-are exposed alongside the others at ``/debug/metrics``:
+The metric objects are module-level singletons, so each series is registered
+with Prometheus exactly once per process however many application instances are
+created (tests create many). The room managers and applications the live gauges
+read from are a different matter: each instance registers itself in a weak set,
+so several can be tracked at once and they drop out when garbage collected.
+Every collect-time callback is guarded so that one failing gauge can never break
+the ``/debug/metrics`` scrape. The series are exposed alongside the others at
+``/debug/metrics``:
 
 * ``digiscript_ws_connections`` - currently open WebSocket connections.
 * ``digiscript_ws_messages_total{op}`` - inbound WebSocket messages by OP. The
@@ -93,12 +98,23 @@ def register_app_info() -> None:
 
 
 def _count_rooms() -> float:
-    return float(sum(1 for m in list(_room_managers) if m.get_active_room()))
+    """Count active rooms across registered managers, skipping any that fail."""
+    count = 0
+    for manager in _room_managers:
+        try:
+            if manager.get_active_room():
+                count += 1
+        except Exception:
+            get_logger().warning(
+                f"Could not read the active room of {type(manager).__name__} "
+                f"for metrics",
+                exc_info=True,
+            )
+    return float(count)
 
 
 def _app_has_live_session(app: DigiScriptServer) -> bool:
-    setting = app.digi_settings.settings.get("current_show")
-    show_id = setting.get_value() if setting else None
+    show_id = app.digi_settings.get_sync("current_show")
     if not show_id:
         return False
     with app.get_db().sessionmaker() as session:
@@ -107,18 +123,29 @@ def _app_has_live_session(app: DigiScriptServer) -> bool:
 
 
 def _live_session_value() -> float:
+    """Return 1 if any registered app has a live session, else 0.
+
+    Each app is checked independently; one that fails is logged (with its type
+    and id) and skipped. The value is NaN only if no app could be read and at
+    least one failed, so a failure is never reported as a confident 0.
+    """
     active = False
-    for app in list(_applications):
+    failed = 0
+    for app in _applications:
         try:
             active = active or _app_has_live_session(app)
         except Exception:
+            failed += 1
             get_logger().warning(
-                "Could not determine live show session state for metrics",
+                f"Could not determine live show session state of "
+                f"{type(app).__name__} {id(app):#x} for metrics",
                 exc_info=True,
             )
-            return float("nan")
+    if not active and failed:
+        return float("nan")
     return 1.0 if active else 0.0
 
 
 collab_rooms.set_function(_count_rooms)
 show_session_active.set_function(_live_session_value)
+register_app_info()

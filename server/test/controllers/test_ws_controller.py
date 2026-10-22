@@ -4,17 +4,20 @@ These tests connect to the WebSocket endpoint and send messages to trigger
 the query patterns in ws_controller.py, following our endpoint-based testing approach.
 """
 
+import ast
 import asyncio
 import base64
+import inspect
 import json
 import os
+import textwrap
 import weakref
 from datetime import timedelta
 from unittest import mock
 from unittest.mock import AsyncMock
 
 import pycrdt
-from prometheus_client import REGISTRY
+from prometheus_client import REGISTRY, generate_latest
 from sqlalchemy import select
 from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
@@ -3969,17 +3972,72 @@ class TestWSAppMetrics(_WSTestHelpers, DigiScriptTestCase):
         )
         ws.close()
 
-    def test_known_ops_cover_every_handler(self):
-        for op in (
-            *WebSocketController._LEADER_OP_HANDLERS,
-            *WebSocketController._SCRIPT_ROOM_OP_HANDLERS,
-            "AUTHENTICATE",
-            "REFRESH_TOKEN",
-            "NEW_CLIENT",
-            "REFRESH_CLIENT",
-            "LIVE_SHOW_JUMP_TO_PAGE",
+    def test_known_ops_cover_every_op_the_handler_code_compares(self):
+        """Every OP literal compared against ``ws_op`` in the controller is known.
+
+        Parses the controller source, so adding an ``elif ws_op == "NEW_OP"``
+        branch without updating ``_KNOWN_OPS`` fails here.
+        """
+        tree = ast.parse(textwrap.dedent(inspect.getsource(WebSocketController)))
+        compared = set()
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Compare)
+                and isinstance(node.left, ast.Name)
+                and node.left.id == "ws_op"
+            ):
+                continue
+            for comparator in node.comparators:
+                for const in ast.walk(comparator):
+                    if isinstance(const, ast.Constant) and isinstance(const.value, str):
+                        compared.add(const.value)
+        self.assertIn("NEW_CLIENT", compared)  # the walk really finds literals
+        self.assertIn("AUTHENTICATE", compared)
+        self.assertFalse(compared - WebSocketController._KNOWN_OPS)
+        for table in (
+            WebSocketController._LEADER_OP_HANDLERS,
+            WebSocketController._SCRIPT_ROOM_OP_HANDLERS,
         ):
-            self.assertIn(op, WebSocketController._KNOWN_OPS)
+            self.assertTrue(set(table) <= WebSocketController._KNOWN_OPS)
+
+    def test_failing_gauge_callbacks_do_not_break_the_scrape(self):
+        bad_manager = mock.Mock()
+        bad_manager.get_active_room.side_effect = RuntimeError("boom")
+        with (
+            mock.patch.object(
+                app_metrics, "_room_managers", weakref.WeakSet([bad_manager])
+            ),
+            mock.patch.object(
+                app_metrics, "_app_has_live_session", side_effect=RuntimeError("x")
+            ),
+            mock.patch.object(
+                app_metrics, "_applications", weakref.WeakSet([self._app])
+            ),
+            self.assertLogs(get_logger(), level="WARNING") as captured,
+        ):
+            output = generate_latest().decode()
+        self.assertIn("digiscript_collab_rooms 0.0", output)
+        self.assertIn("digiscript_show_session_active NaN", output)
+        self.assertIn("digiscript_ws_connections", output)
+        self.assertTrue(any("active room" in m for m in captured.output))
+        self.assertTrue(any("live show session" in m for m in captured.output))
+
+    def test_one_failing_app_does_not_hide_a_live_session_elsewhere(self):
+        good, bad = mock.Mock(), mock.Mock()
+
+        def fake(app):
+            if app is bad:
+                raise RuntimeError("x")
+            return True
+
+        with (
+            mock.patch.object(app_metrics, "_app_has_live_session", fake),
+            mock.patch.object(
+                app_metrics, "_applications", weakref.WeakSet([bad, good])
+            ),
+            self.assertLogs(get_logger(), level="WARNING"),
+        ):
+            self.assertEqual(1.0, app_metrics._live_session_value())
 
     def test_info_gauge_carries_version(self):
         self.assertEqual(

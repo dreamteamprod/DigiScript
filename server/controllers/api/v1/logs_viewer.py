@@ -12,6 +12,8 @@ import asyncio
 import json
 import logging
 
+from tornado.iostream import StreamClosedError
+
 from digi_server.logger import get_logger
 from utils.log_buffer import get_client_buffer, get_server_buffer
 from utils.web.base_controller import BaseAPIController
@@ -235,10 +237,17 @@ class LogStreamController(BaseAPIController):
                 if matched:
                     self.write(f"data: {json.dumps(matched[0])}\n\n")
                     await self.flush()
-        except Exception:
-            # Usually the client dropping the stream mid-write; not an error.
+        except StreamClosedError:
+            # The client dropped the stream mid-write; expected, not an error.
             get_logger().debug(
-                f"Log stream ({source}) from {self.request.remote_ip} ended on error",
+                f"Log stream ({source}) from {self.request.remote_ip} closed "
+                f"by the client"
+            )
+        except Exception:
+            # Filtering or serialising an entry failed: a bug, not a disconnect.
+            get_logger().warning(
+                f"Log stream ({source}) from {self.request.remote_ip} ended "
+                f"on an unexpected error",
                 exc_info=True,
             )
         finally:
