@@ -36,6 +36,7 @@ from models.settings import SystemSettings
 from models.show import Show
 from models.user import User
 from rbac.rbac import RBACController
+from services.login_throttle import LoginThrottle
 from services.user_service import UserService
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
@@ -133,6 +134,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         # Configure the User service
         self.user_service = UserService(self)
+
+        # Brute-force protection for login (per server instance, never global)
+        self.login_throttle = LoginThrottle()
 
         # On startup, perform the following checks/operations with the database:
         with self._db.sessionmaker() as session:

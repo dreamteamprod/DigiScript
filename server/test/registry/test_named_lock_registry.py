@@ -11,8 +11,10 @@ from registry.named_locks import NamedLockRegistry, acquire_lock
 def reset_registry():
     """Reset the NamedLockRegistry between tests"""
     NamedLockRegistry._locks = {}
+    NamedLockRegistry._refs = {}
     yield
     NamedLockRegistry._locks = {}
+    NamedLockRegistry._refs = {}
 
 
 @pytest.mark.asyncio
@@ -161,3 +163,32 @@ async def test_acquire_exceptions_release_lock(reset_registry):
 
     # Lock should be released even though an exception was raised
     assert lock._block._value == 1
+
+
+@pytest.mark.asyncio
+async def test_locks_are_discarded_after_use(reset_registry):
+    """Idle locks are pruned so user-derived names cannot grow the registry"""
+    for i in range(50):
+        async with NamedLockRegistry.acquire(f"prune-test-{i}"):
+            pass
+    assert NamedLockRegistry._locks == {}
+    assert NamedLockRegistry._refs == {}
+
+
+@pytest.mark.asyncio
+async def test_lock_survives_while_waiters_are_queued(reset_registry):
+    """A lock is only discarded once the last holder or waiter is done"""
+    name = "prune-test-contended"
+    order = []
+
+    async def worker(tag):
+        async with NamedLockRegistry.acquire(name):
+            order.append(f"in-{tag}")
+            await asyncio.sleep(0.01)
+            order.append(f"out-{tag}")
+
+    await asyncio.gather(worker(1), worker(2), worker(3))
+    # Strictly serialised: each "in" is immediately followed by its own "out".
+    for i in range(0, 6, 2):
+        assert order[i][3:] == order[i + 1][4:]
+    assert name not in NamedLockRegistry._locks

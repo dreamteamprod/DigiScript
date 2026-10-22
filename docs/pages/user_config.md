@@ -53,11 +53,21 @@ The users table shows:
 
 Click the **New User** button to add a new user. You'll need to provide:
 - Username (must be unique across the entire system)
-- Password
+- Password (8 to 72 characters)
 - First Name
 - Last Name
 
 Users are created at the system level and are not tied to individual shows. Their access to specific shows and resources is controlled through RBAC configuration.
+
+#### Resetting a User's Password
+
+Admins can reset another user's password from the Users table. DigiScript generates a temporary password made of four random words (for example `word-word-word-word`) and shows it once; the user must choose a new password (8 to 72 characters) the next time they log in.
+
+#### Login Protection
+
+To slow down password guessing, repeated failed logins are throttled. After 5 failed attempts for the same username (or 20 failed attempts from the same network address), further login attempts are refused with a "Too many failed login attempts" message for 30 seconds, which doubles with each additional failure up to 15 minutes. While a username or address is locked out, even the correct password is refused until the delay ends. The counters are only forgotten after a quiet period following the end of a lockout, so retrying the moment a lockout ends does not give a fresh set of attempts. A successful login clears the username's counter. The throttle is held in memory, so it resets when the server restarts.
+
+> **Note:** DigiScript does not read forwarded-client-address headers (such as `X-Forwarded-For`), so if it is served through a reverse proxy, every client behind that proxy shares one address counter. The username counter is shared by everyone, so someone who repeatedly fails to log in as a user can briefly lock that user out; wait for the delay shown, then try again. If a lockout needs clearing immediately, restart the server.
 
 #### Editing Users
 
