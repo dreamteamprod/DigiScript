@@ -4030,14 +4030,20 @@ class TestWSAppMetrics(_WSTestHelpers, DigiScriptTestCase):
                 raise RuntimeError("x")
             return True
 
-        with (
-            mock.patch.object(app_metrics, "_app_has_live_session", fake),
-            mock.patch.object(
-                app_metrics, "_applications", weakref.WeakSet([bad, good])
-            ),
-            self.assertLogs(get_logger(), level="WARNING"),
-        ):
-            self.assertEqual(1.0, app_metrics._live_session_value())
+        # A WeakSet iterates in an address-dependent order, so check both orders
+        # explicitly: the failing app must be logged and the live one still count.
+        for apps in ([bad, good], [good, bad]):
+            with (
+                self.subTest(order=["bad" if a is bad else "good" for a in apps]),
+                mock.patch.object(app_metrics, "_app_has_live_session", fake),
+                mock.patch.object(app_metrics, "_applications", apps),
+                self.assertLogs(get_logger(), level="WARNING") as captured,
+            ):
+                self.assertEqual(1.0, app_metrics._live_session_value())
+            self.assertTrue(
+                any("live show session" in m for m in captured.output),
+                captured.output,
+            )
 
     def test_info_gauge_carries_version(self):
         self.assertEqual(

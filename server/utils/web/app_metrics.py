@@ -133,7 +133,10 @@ def _live_session_value() -> float:
     failed = 0
     for app in _applications:
         try:
-            active = active or _app_has_live_session(app)
+            # Evaluate every app (no short-circuit) so a failing app is always
+            # logged, whatever order the weak set happens to iterate in.
+            has_live_session = _app_has_live_session(app)
+            active = active or has_live_session
         except Exception:
             failed += 1
             get_logger().warning(
