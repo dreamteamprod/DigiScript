@@ -5,7 +5,7 @@ from sqlalchemy import select
 from digi_server.logger import get_logger
 from models.session import Session
 from models.user import User
-from registry.named_locks import NamedLockRegistry
+from registry.named_locks import USER_CREATE_LOCK, NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
 from utils.web.base_controller import BaseAPIController
@@ -31,6 +31,12 @@ from utils.web.ws_session_lifecycle import (
 class UserCreateController(BaseAPIController):
     @redact_data_paths(paths=["/password", "/confirmPassword"])
     async def post(self):
+        # The has-any-users check and the insert form one critical section;
+        # otherwise concurrent first-run requests could each create an admin.
+        async with NamedLockRegistry.acquire(USER_CREATE_LOCK):
+            await self._create_user()
+
+    async def _create_user(self):
         with self.make_session() as session:
             # If there are no users, allow creation without authentication, otherwise require admin.
             has_any_users = session.scalars(select(User)).first() is not None
@@ -166,53 +172,78 @@ class LoginHandler(BaseAPIController):
             await self.finish({"message": "Password missing"})
             return
 
+        throttle = self.application.login_throttle
+        client_ip = self.request.remote_ip
+
+        # Check and reserve an attempt in one step (no await between), and
+        # refuse before spending any bcrypt time on a locked-out client.
+        retry_after, attempt = throttle.begin_attempt(client_ip, username)
+        if retry_after > 0:
+            self.set_header("Retry-After", str(retry_after))
+            self.set_status(429)
+            await self.finish(
+                {
+                    "message": (
+                        "Too many failed login attempts. "
+                        f"Try again in {retry_after} seconds"
+                    )
+                }
+            )
+            return
+
+        # No per-username lock here: holding one across the bcrypt check would
+        # let anyone stall a victim's logins by spamming their username.
         with self.make_session() as session:
-            async with NamedLockRegistry.acquire(f"UserLock::{username}"):
-                user = session.scalars(
-                    select(User).where(User.username == username)
-                ).first()
-                if not user:
-                    self.set_status(401)
-                    await self.finish({"message": "Invalid username/password"})
-                    return
+            user = session.scalars(
+                select(User).where(User.username == username)
+            ).first()
+            if not user:
+                # Same bcrypt cost as a real check, so response timing does not
+                # reveal which usernames exist.
+                await PasswordService.verify_dummy_password(password)
+                self.set_status(401)
+                await self.finish({"message": "Invalid username/password"})
+                return
 
-                password_equal = await PasswordService.verify_password(
-                    password, user.password
-                )
+            password_equal = await PasswordService.verify_password(
+                password, user.password
+            )
 
-                if password_equal:
-                    session_id = data.get("session_id", "")
-                    if session_id:
-                        ws_session: Session = session.get(Session, session_id)
-                        # session_id comes from the request body and uuids are
-                        # not secret, so only an unowned client is attached here,
-                        # and nothing is ever released from this path. A browser
-                        # that really switches user is settled by its WebSocket
-                        # AUTHENTICATE (the WS controller's ownership rules).
-                        if ws_session and ws_session.user_id is None:
-                            assign_session_user(ws_session, user.id)
-                    user.last_login = datetime.now(tz=timezone.utc)
-                    user.last_seen = datetime.now(tz=timezone.utc)
-                    session.commit()
+            if not password_equal:
+                self.set_status(401)
+                await self.finish({"message": "Invalid username/password"})
+                return
 
-                    # Create JWT token
-                    access_token = self.application.jwt_service.create_access_token(
-                        data={
-                            "user_id": user.id,
-                        },
-                    )
+            throttle.record_success(attempt)
+            session_id = data.get("session_id", "")
+            if session_id:
+                ws_session: Session = session.get(Session, session_id)
+                # session_id comes from the request body and uuids are
+                # not secret, so only an unowned client is attached here,
+                # and nothing is ever released from this path. A browser
+                # that really switches user is settled by its WebSocket
+                # AUTHENTICATE (the WS controller's ownership rules).
+                if ws_session and ws_session.user_id is None:
+                    assign_session_user(ws_session, user.id)
+            user.last_login = datetime.now(tz=timezone.utc)
+            user.last_seen = datetime.now(tz=timezone.utc)
+            session.commit()
 
-                    self.set_status(200)
-                    await self.finish(
-                        {
-                            "message": "Successful log in",
-                            "access_token": access_token,
-                            "token_type": "bearer",
-                        }
-                    )
-                else:
-                    self.set_status(401)
-                    await self.finish({"message": "Invalid username/password"})
+            # Create JWT token
+            access_token = self.application.jwt_service.create_access_token(
+                data={
+                    "user_id": user.id,
+                },
+            )
+
+            self.set_status(200)
+            await self.finish(
+                {
+                    "message": "Successful log in",
+                    "access_token": access_token,
+                    "token_type": "bearer",
+                }
+            )
 
 
 @ApiRoute("auth/logout", ApiVersion.V1)
