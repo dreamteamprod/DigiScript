@@ -8,6 +8,7 @@ from models.user import User
 from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
+from utils.web.auth_audit import audit
 from utils.web.base_controller import BaseAPIController
 from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
@@ -166,12 +167,20 @@ class LoginHandler(BaseAPIController):
             await self.finish({"message": "Password missing"})
             return
 
+        ip = self.request.remote_ip
         with self.make_session() as session:
             async with NamedLockRegistry.acquire(f"UserLock::{username}"):
                 user = session.scalars(
                     select(User).where(User.username == username)
                 ).first()
                 if not user:
+                    audit(
+                        "login",
+                        "failure",
+                        username=username,
+                        remote_ip=ip,
+                        detail="reason=unknown_user",
+                    )
                     self.set_status(401)
                     await self.finish({"message": "Invalid username/password"})
                     return
@@ -202,6 +211,13 @@ class LoginHandler(BaseAPIController):
                         },
                     )
 
+                    audit(
+                        "login",
+                        "success",
+                        username=user.username,
+                        user_id=user.id,
+                        remote_ip=ip,
+                    )
                     self.set_status(200)
                     await self.finish(
                         {
@@ -211,6 +227,14 @@ class LoginHandler(BaseAPIController):
                         }
                     )
                 else:
+                    audit(
+                        "login",
+                        "failure",
+                        username=username,
+                        user_id=user.id,
+                        remote_ip=ip,
+                        detail="reason=bad_password",
+                    )
                     self.set_status(401)
                     await self.finish({"message": "Invalid username/password"})
 
@@ -277,6 +301,13 @@ class LogoutHandler(BaseAPIController):
                 # Logs its own failures, each saying how far it got.
                 self._log_out_client(session_id)
 
+            audit(
+                "logout",
+                "success",
+                username=self.current_user.get("username"),
+                user_id=self.current_user["id"],
+                remote_ip=self.request.remote_ip,
+            )
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})
         else:
@@ -295,6 +326,13 @@ class RefreshTokenHandler(BaseAPIController):
             },
         )
 
+        audit(
+            "token_refresh",
+            "success",
+            username=self.current_user.get("username"),
+            user_id=self.current_user["id"],
+            remote_ip=self.request.remote_ip,
+        )
         self.set_status(200)
         await self.finish({"access_token": access_token, "token_type": "bearer"})
 
@@ -361,6 +399,14 @@ class PasswordChangeController(BaseAPIController):
                     old_password, user.password
                 )
                 if not password_matches:
+                    audit(
+                        "password_change",
+                        "failure",
+                        username=user.username,
+                        user_id=user.id,
+                        remote_ip=self.request.remote_ip,
+                        detail="reason=bad_old_password",
+                    )
                     self.set_status(401)
                     await self.finish({"message": "Current password is incorrect"})
                     return
@@ -376,6 +422,14 @@ class PasswordChangeController(BaseAPIController):
                     force_logout_sessions=False,
                 )
             except ValueError as e:
+                audit(
+                    "password_change",
+                    "failure",
+                    username=user.username,
+                    user_id=user.id,
+                    remote_ip=self.request.remote_ip,
+                    detail="reason=invalid_new_password",
+                )
                 self.set_status(400)
                 await self.finish({"message": str(e)})
                 return
@@ -390,6 +444,13 @@ class PasswordChangeController(BaseAPIController):
                 user, new_token
             )
 
+            audit(
+                "password_change",
+                "success",
+                username=user.username,
+                user_id=user.id,
+                remote_ip=self.request.remote_ip,
+            )
             self.set_status(200)
             await self.finish(
                 {
@@ -452,10 +513,26 @@ class AdminPasswordResetController(BaseAPIController):
                     requires_password_change=True,
                 )
             except ValueError as e:
+                audit(
+                    "password_reset",
+                    "failure",
+                    username=self.current_user.get("username"),
+                    user_id=self.current_user["id"],
+                    remote_ip=self.request.remote_ip,
+                    detail=f"target_user_id={target_user.id} reason=invalid_password",
+                )
                 self.set_status(400)
                 await self.finish({"message": str(e)})
                 return
 
+            audit(
+                "password_reset",
+                "success",
+                username=self.current_user.get("username"),
+                user_id=self.current_user["id"],
+                remote_ip=self.request.remote_ip,
+                detail=f"target_user_id={target_user.id}",
+            )
             self.set_status(200)
             await self.finish(
                 {

@@ -100,6 +100,15 @@ All log entries are attributed to the logged-in user where one is present:
 - **Client log limits**: Submitting client logs requires being logged in, so entries generated before login are held in the browser and sent after login. A single batch may contain at most 100 entries, messages are truncated at 4 KB, oversized extra data is dropped, and each IP address is limited to 600 entries per minute (further entries are rejected until the window resets).
 - **Server file paths**: The database, log, compiled script and draft script locations are only shown to administrators (on the Settings tab); other users and logged-out visitors never receive them.
 
+#### Authentication Audit Log
+
+Security-relevant authentication actions are recorded as `AUDIT` lines (logger `DigiScript.Audit`) at the default `INFO` log level, independent of the **Enable Log Redaction** setting. Successes are logged at `INFO` and failures at `WARNING`. The covered events are login, logout, password change, admin password reset, token refresh, and API token generation and revocation. For example:
+
+- `AUDIT login failure username="alice" ip=203.0.113.5 reason=bad_password`
+- `AUDIT password_reset success username="admin" user_id=1 ip=203.0.113.5 target_user_id=4` (the username is the administrator who performed the reset)
+
+A failed login records whether the username was unknown or the password was wrong, but the response sent to the client is identical in both cases. Passwords, tokens and API keys are never written to the log. Usernames typed by a client are stripped of control characters and truncated to 64 characters. The same events are counted in the `digiscript_auth_events_total{event,result}` Prometheus metric, which is useful for alerting on bursts of failed logins.
+
 #### Filtering
 
 Use the **Username** filter field to show only entries from a specific user. This filter applies to both Server and Client sources. Combined with the **Level** and **Search** filters, you can quickly isolate activity from a particular user across the full log stream.
