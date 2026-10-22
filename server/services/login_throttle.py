@@ -3,7 +3,18 @@
 import math
 import time
 from collections import OrderedDict
-from typing import Callable, Hashable
+from dataclasses import dataclass
+from typing import Callable, Hashable, Optional
+
+
+@dataclass(frozen=True)
+class _Ticket:
+    """A reserved login attempt, redeemed on success to undo its address count."""
+
+    ip: str
+    username: str
+    reserved_at: float
+    ip_prior: tuple[float, float]
 
 
 class _Tracker:
@@ -54,7 +65,12 @@ class _Tracker:
             return 0.0
         return max(0.0, entry[2] - now)
 
-    def record_failure(self, key: Hashable, now: float) -> None:
+    def record_failure(self, key: Hashable, now: float) -> tuple[float, float]:
+        """Count a failure for *key*.
+
+        :return: The entry's ``(last_failure, locked_until)`` from before this
+                 failure, so the failure can later be undone exactly.
+        """
         entry = self.entries.get(key)
         if entry is not None and self._expired(entry, now):
             del self.entries[key]
@@ -66,6 +82,7 @@ class _Tracker:
                 self.entries.popitem(last=False)
             entry = [0, now, 0.0]
             self.entries[key] = entry
+        prior = (entry[1], entry[2])
         entry[0] += 1
         entry[1] = now
         over = entry[0] - self.free_attempts
@@ -75,15 +92,31 @@ class _Tracker:
                 self.base_lockout * (2 ** min(over, 30)), self.max_lockout
             )
         self.entries.move_to_end(key)
+        return prior
 
-    def refund(self, key: Hashable) -> None:
-        """Take back one counted failure (used when an attempt succeeded)."""
+    def refund(
+        self, key: Hashable, prior: tuple[float, float], reserved_at: float
+    ) -> None:
+        """Undo one counted failure (used when an attempt turned out valid).
+
+        If nothing else touched the entry since the failure was counted, its
+        last-failure time and lockout are restored exactly, so a valid login
+        neither escalates a lockout nor keeps stale failures from decaying.
+        If other attempts have been counted since, only the count is reduced.
+
+        :param key: The key the failure was counted against.
+        :param prior: Value returned by :meth:`record_failure`.
+        :param reserved_at: The ``now`` passed to :meth:`record_failure`.
+        """
         entry = self.entries.get(key)
         if entry is None:
             return
         entry[0] -= 1
         if entry[0] <= 0:
             del self.entries[key]
+            return
+        if entry[1] == reserved_at:
+            entry[1], entry[2] = prior
         elif entry[0] < self.free_attempts:
             entry[2] = 0.0
 
@@ -159,7 +192,7 @@ class LoginThrottle:
         self._ips.record_failure(ip, now)
         self._users.record_failure(self._user_key(username), now)
 
-    def begin_attempt(self, ip: str, username: str) -> int:
+    def begin_attempt(self, ip: str, username: str) -> tuple[int, Optional[_Ticket]]:
         """Atomically check the throttle and, if allowed, reserve an attempt.
 
         The check and the reservation happen with no ``await`` in between, so a
@@ -170,26 +203,29 @@ class LoginThrottle:
 
         :param ip: Client address.
         :param username: Submitted username.
-        :return: Seconds the caller must wait (the attempt is refused and not
-                 counted), or 0 if the attempt may proceed.
+        :return: ``(wait, ticket)``. ``wait`` is the seconds the caller must
+                 wait (the attempt is refused, not counted and has no ticket),
+                 or 0 if the attempt may proceed, in which case ``ticket`` is
+                 to be passed to :meth:`record_success` if the login is valid.
         """
         wait = self.retry_after(ip, username)
         if wait > 0:
-            return wait
-        self.record_failure(ip, username)
-        return 0
+            return wait, None
+        now = self._clock()
+        prior = self._ips.record_failure(ip, now)
+        self._users.record_failure(self._user_key(username), now)
+        return 0, _Ticket(ip, username, now, prior)
 
-    def record_success(self, ip: str, username: str) -> None:
+    def record_success(self, ticket: _Ticket) -> None:
         """Settle a reserved attempt that turned out to be a valid login.
 
         Clears the username's counter and gives back the address's reserved
         attempt, so legitimate logins never accumulate against an address.
 
-        :param ip: Client address.
-        :param username: Submitted username.
+        :param ticket: The ticket returned by :meth:`begin_attempt`.
         """
-        self._users.clear(self._user_key(username))
-        self._ips.refund(ip)
+        self._users.clear(self._user_key(ticket.username))
+        self._ips.refund(ticket.ip, ticket.ip_prior, ticket.reserved_at)
 
     def reset(self) -> None:
         """Forget all state."""

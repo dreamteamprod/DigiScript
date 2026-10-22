@@ -177,7 +177,7 @@ class LoginHandler(BaseAPIController):
 
         # Check and reserve an attempt in one step (no await between), and
         # refuse before spending any bcrypt time on a locked-out client.
-        retry_after = throttle.begin_attempt(client_ip, username)
+        retry_after, attempt = throttle.begin_attempt(client_ip, username)
         if retry_after > 0:
             self.set_header("Retry-After", str(retry_after))
             self.set_status(429)
@@ -214,7 +214,7 @@ class LoginHandler(BaseAPIController):
                 await self.finish({"message": "Invalid username/password"})
                 return
 
-            throttle.record_success(client_ip, username)
+            throttle.record_success(attempt)
             session_id = data.get("session_id", "")
             if session_id:
                 ws_session: Session = session.get(Session, session_id)

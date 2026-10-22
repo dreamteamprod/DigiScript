@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from services.login_throttle import LoginThrottle, _Tracker
+from services.login_throttle import LoginThrottle, _Ticket, _Tracker
 
 
 class FakeClock:
@@ -60,22 +60,25 @@ class TestLoginThrottle(unittest.TestCase):
 
     def test_begin_attempt_reserves_so_a_burst_is_bounded(self):
         allowed = sum(
-            1 for _ in range(50) if self.throttle.begin_attempt("1.1.1.1", "alice") == 0
+            1
+            for _ in range(50)
+            if self.throttle.begin_attempt("1.1.1.1", "alice")[0] == 0
         )
         self.assertEqual(LoginThrottle.USER_FREE_ATTEMPTS, allowed)
 
     def test_begin_attempt_refusal_is_not_counted(self):
         for _ in range(LoginThrottle.USER_FREE_ATTEMPTS):
             self.throttle.begin_attempt("1.1.1.1", "alice")
-        first = self.throttle.begin_attempt("1.1.1.1", "alice")
+        first = self.throttle.begin_attempt("1.1.1.1", "alice")[0]
         for _ in range(10):
             self.throttle.begin_attempt("1.1.1.1", "alice")
-        self.assertEqual(first, self.throttle.begin_attempt("1.1.1.1", "alice"))
+        self.assertEqual(first, self.throttle.begin_attempt("1.1.1.1", "alice")[0])
 
     def test_successful_attempt_is_refunded_on_the_address(self):
         for _ in range(LoginThrottle.IP_FREE_ATTEMPTS * 3):
-            self.assertEqual(0, self.throttle.begin_attempt("1.1.1.1", "alice"))
-            self.throttle.record_success("1.1.1.1", "alice")
+            wait, ticket = self.throttle.begin_attempt("1.1.1.1", "alice")
+            self.assertEqual(0, wait)
+            self.throttle.record_success(ticket)
 
     def test_invalid_configuration_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -93,7 +96,9 @@ class TestLoginThrottle(unittest.TestCase):
         for _ in range(LoginThrottle.USER_FREE_ATTEMPTS):
             self.throttle.record_failure("1.1.1.1", "alice")
         self.assertGreater(self.throttle.retry_after("2.2.2.2", "alice"), 0)
-        self.throttle.record_success("2.2.2.2", "alice")
+        self.throttle.record_success(
+            _Ticket("2.2.2.2", "alice", self.clock.now, (self.clock.now, 0.0))
+        )
         self.assertEqual(0, self.throttle.retry_after("2.2.2.2", "alice"))
 
     def test_state_decays(self):
@@ -117,3 +122,28 @@ class TestLoginThrottle(unittest.TestCase):
             self.throttle.record_failure("1.1.1.1", "alice")
         self.throttle.reset()
         self.assertEqual(0, self.throttle.retry_after("1.1.1.1", "alice"))
+
+    def test_successful_attempt_does_not_escalate_an_expired_lockout(self):
+        for i in range(LoginThrottle.IP_FREE_ATTEMPTS + 1):
+            self.throttle.record_failure("1.1.1.1", f"user{i}")
+        self.clock.now += LoginThrottle.BASE_LOCKOUT * 2 + 1
+        self.assertEqual(0, self.throttle.retry_after("1.1.1.1", "legit"))
+
+        wait, ticket = self.throttle.begin_attempt("1.1.1.1", "legit")
+        self.assertEqual(0, wait)
+        self.throttle.record_success(ticket)
+
+        self.assertEqual(0, self.throttle.retry_after("1.1.1.1", "someone_else"))
+
+    def test_successful_logins_do_not_keep_stale_failures_alive(self):
+        for i in range(3):
+            self.throttle.record_failure("1.1.1.1", f"user{i}")
+        for _ in range(20):
+            self.clock.now += LoginThrottle.DECAY / 4
+            _, ticket = self.throttle.begin_attempt("1.1.1.1", "legit")
+            self.throttle.record_success(ticket)
+        # The three old failures decayed despite the steady successful logins,
+        # so the address again has its full set of free attempts.
+        for i in range(LoginThrottle.IP_FREE_ATTEMPTS - 1):
+            self.throttle.record_failure("1.1.1.1", f"other{i}")
+        self.assertEqual(0, self.throttle.retry_after("1.1.1.1", "fresh"))
