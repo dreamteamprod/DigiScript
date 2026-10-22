@@ -43,6 +43,7 @@ from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
 from utils.module_discovery import get_resource_path, is_frozen
 from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
+from utils.web import app_metrics
 from utils.web.jwt_service import JWTService
 from utils.web.pending_disconnects import PendingDisconnects
 from utils.web.request_size_metrics import observe_http_request
@@ -346,6 +347,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
             cookie_secret=self._get_cookie_secret(),
             login_url="/login",
         )
+        # Fully constructed: let the metrics read this app's live state at scrape
+        # time (weakly referenced, so no teardown is needed).
+        app_metrics.register_application(self)
 
     _METRICS_WARN_INTERVAL = 60.0
     _last_metrics_warning = float("-inf")

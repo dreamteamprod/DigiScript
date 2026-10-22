@@ -533,12 +533,7 @@ class RoomManager:
         self._room: ScriptRoom | None = None
         self._room_lock: asyncio.Lock = asyncio.Lock()
         self._maintenance_handle = None
-        # Metrics read live state from registered instances at scrape time. The
-        # application is registered here (rather than in DigiScriptServer) only
-        # because that file is outside this change; every real app builds a
-        # RoomManager at start-up.
         app_metrics.register_room_manager(self)
-        app_metrics.register_application(application)
 
     def start(self):
         self._schedule_maintenance()

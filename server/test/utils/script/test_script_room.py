@@ -10,7 +10,7 @@ import os
 import tempfile
 import time
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pycrdt
 import pytest
@@ -1206,3 +1206,14 @@ class TestSilentFailureLogging:
             await room._broadcast_save_progress(1, 2)
         get_logger.return_value.debug.assert_called_once()
         assert "11" in get_logger.return_value.debug.call_args[0][0]
+
+
+class TestRoomManagerRegistration:
+    """Registration with app_metrics: managers register, applications do not."""
+
+    def test_room_manager_registers_itself_but_not_the_application(self):
+        app = MagicMock()
+        manager = RoomManager(app)
+
+        assert manager in app_metrics._room_managers
+        assert app not in app_metrics._applications
