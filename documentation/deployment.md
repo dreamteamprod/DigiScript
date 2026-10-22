@@ -57,13 +57,20 @@ balancer or container health checks. The Docker image uses it for its built-in
 `HEALTHCHECK` (every 30s, 5s timeout, 30s start period, 3 retries). Requests to it are
 not written to the access log.
 
-It runs `SELECT 1` against the database (3s timeout) and checks that the directories
-holding the log files, the draft script path and the compiled script path are writable.
+Database check: `SELECT 1 FROM sqlite_master LIMIT 1` (reads the database file
+header/schema) with a 3s timeout. Probes run single-flight on a dedicated one-worker
+executor: while an earlier timed-out probe is still hung, the check reports `fail`
+immediately until that probe finishes, so a stuck database cannot pile up threads.
+
+Storage check: the parent directories of `log_path`, `db_log_path` and `client_log_path`,
+plus `draft_script_path` and `compiled_script_path`, must be writable. A directory that
+does not exist yet is judged by its nearest existing ancestor.
 
 | Condition | HTTP status | `status` |
 |---|---|---|
 | Database and storage checks pass | `200` | `ok` |
 | Either check fails or the database times out | `503` | `degraded` |
+| Unexpected internal error | `503` | `degraded` (checks are `"unknown"`, no `uptime_seconds`) |
 
 Example healthy response:
 
@@ -78,7 +85,24 @@ Example healthy response:
 
 A failing check is reported as `"fail"` in `checks`. The response never includes error
 text or file paths; the detail is written to the server log instead (`ERROR` for the
-database, `WARNING` for storage), so look there to find out why a probe is failing.
+database, `WARNING` for storage), so look there to find out why a probe is failing. On an unexpected internal error the
+`checks` values are `"unknown"` and `uptime_seconds` is omitted.
+
+The Docker `HEALTHCHECK` calls `http://localhost:8080/api/v1/health` with Python's
+`urllib`; any non-2xx response marks the container unhealthy. The port is hard-wired to
+8080 because the app has no environment variable for its port. If you run the server on a
+different port, override the check with `--health-cmd` or a compose `healthcheck:` block:
+
+```yaml
+services:
+  server:
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/api/v1/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+```
 
 #### Metrics reference
 
