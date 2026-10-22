@@ -48,9 +48,37 @@ in front. The scrape path is configured in `monitoring/prometheus/prometheus.yml
 **Security:** `/debug/metrics` is currently unauthenticated. Do not expose DigiScript's
 port 8080 to the public internet without a reverse proxy that restricts this path.
 
-**Health check:** `/api/v1/health` returns the server health and is suitable for load
-balancer or container health checks. Application logs can be viewed in-app via the log
-viewer.
+Application logs can be viewed in-app via the log viewer.
+
+#### Health check
+
+`GET /api/v1/health` is an unauthenticated liveness/readiness probe, suitable for load
+balancer or container health checks. The Docker image uses it for its built-in
+`HEALTHCHECK` (every 30s, 5s timeout, 30s start period, 3 retries). Requests to it are
+not written to the access log.
+
+It runs `SELECT 1` against the database (3s timeout) and checks that the directories
+holding the log files, the draft script path and the compiled script path are writable.
+
+| Condition | HTTP status | `status` |
+|---|---|---|
+| Database and storage checks pass | `200` | `ok` |
+| Either check fails or the database times out | `503` | `degraded` |
+
+Example healthy response:
+
+```json
+{
+  "version": "0.35.2",
+  "status": "ok",
+  "checks": { "database": "ok", "storage": "ok" },
+  "uptime_seconds": 1234
+}
+```
+
+A failing check is reported as `"fail"` in `checks`. The response never includes error
+text or file paths; the detail is written to the server log instead (`ERROR` for the
+database, `WARNING` for storage), so look there to find out why a probe is failing.
 
 #### Metrics reference
 
