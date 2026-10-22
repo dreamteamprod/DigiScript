@@ -7,14 +7,17 @@ Uses mock WebSocket handlers since we don't need a real server.
 import asyncio
 import datetime
 import os
+import tempfile
 import time
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pycrdt
 import pytest
+from prometheus_client import REGISTRY
 from sqlalchemy import select
 from tornado.testing import gen_test
+from tornado.websocket import WebSocketClosedError
 
 from models.script import (
     ScriptLine,
@@ -29,7 +32,13 @@ from test.utils.script.test_ydoc_to_lines import (
     _ScriptTestSetup,
 )
 from utils.script.line_to_ydoc import build_ydoc, fetch_script_line_data
-from utils.script_room_manager import CHECKPOINT_INTERVAL, RoomManager, ScriptRoom
+from utils.script_room_manager import (
+    CHECKPOINT_INTERVAL,
+    RoomManager,
+    ScriptRoom,
+    _write_checkpoint_sync,
+)
+from utils.web import app_metrics
 
 
 def _make_mock_ws():
@@ -1125,3 +1134,86 @@ class TestRoomManagerLoadOrBuildDocRecovery(_ScriptTestSetup):
         finally:
             if os.path.exists(draft_path):
                 os.remove(draft_path)
+
+
+class TestRoomManagerMetrics:
+    """The ``digiscript_collab_rooms`` gauge follows the active room."""
+
+    @staticmethod
+    def _rooms():
+        return REGISTRY.get_sample_value("digiscript_collab_rooms")
+
+    @pytest.mark.asyncio
+    async def test_collab_rooms_gauge_tracks_create_and_close(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._room = None
+        manager._room_lock = asyncio.Lock()
+        app_metrics.register_room_manager(manager)
+        manager._load_or_build_doc = AsyncMock(return_value=pycrdt.Doc())
+        before = self._rooms()
+
+        await manager.get_or_create_room(7)
+        assert self._rooms() == before + 1
+
+        # Same revision again must not double count.
+        await manager.get_or_create_room(7)
+        assert self._rooms() == before + 1
+
+        await manager.close_active_room()
+        assert self._rooms() == before
+        # Closing again is a no-op.
+        await manager.close_active_room()
+        assert self._rooms() == before
+
+    def test_collab_rooms_gauge_drops_on_stop(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._maintenance_handle = None
+        manager._room = _make_room(3)
+        app_metrics.register_room_manager(manager)
+        before = self._rooms()
+
+        manager.stop()
+
+        assert self._rooms() == before - 1
+
+
+class TestSilentFailureLogging:
+    """Previously silent branches now leave a log line."""
+
+    def test_checkpoint_cleanup_logs_unlink_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "x.yjs")
+            with (
+                patch("utils.script_room_manager.os.rename", side_effect=OSError("no")),
+                patch("utils.script_room_manager.os.unlink", side_effect=OSError("u")),
+                patch("utils.script_room_manager.get_logger") as get_logger,
+            ):
+                with pytest.raises(OSError):
+                    _write_checkpoint_sync(b"abc", target, tmp)
+            warning = get_logger.return_value.warning
+            warning.assert_called_once()
+            assert "could not remove temporary file" in warning.call_args[0][0]
+            # The fd was already closed before the rename failed (EBADF).
+            get_logger.return_value.debug.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_save_progress_closed_client_logged_at_debug(self):
+        room = _make_room(revision_id=11)
+        ws = _make_mock_ws()
+        ws.write_message.side_effect = WebSocketClosedError()
+        room.add_client(ws, "editor")
+        with patch("utils.script_room_manager.get_logger") as get_logger:
+            await room._broadcast_save_progress(1, 2)
+        get_logger.return_value.debug.assert_called_once()
+        assert "11" in get_logger.return_value.debug.call_args[0][0]
+
+
+class TestRoomManagerRegistration:
+    """Registration with app_metrics: managers register, applications do not."""
+
+    def test_room_manager_registers_itself_but_not_the_application(self):
+        app = MagicMock()
+        manager = RoomManager(app)
+
+        assert manager in app_metrics._room_managers
+        assert app not in app_metrics._applications
