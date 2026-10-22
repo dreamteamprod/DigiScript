@@ -2,9 +2,13 @@
 Tests for health check endpoint.
 """
 
+import time
+from unittest.mock import patch
+
 from tornado import escape
 from tornado.testing import gen_test
 
+from controllers.api.v1.health import HealthController
 from test.conftest import DigiScriptTestCase
 
 
@@ -44,8 +48,11 @@ class TestHealthController(DigiScriptTestCase):
 
         data = escape.json_decode(response.body)
 
-        # Verify ONLY version and status are present
-        self.assertEqual(2, len(data), "Health endpoint should return exactly 2 fields")
+        self.assertEqual(
+            {"version", "status", "checks", "uptime_seconds"},
+            set(data),
+            "Health endpoint should only return the documented fields",
+        )
 
         # Verify sensitive fields are NOT present
         sensitive_fields = [
@@ -77,3 +84,70 @@ class TestHealthController(DigiScriptTestCase):
         # Each part should be numeric
         for part in parts:
             self.assertTrue(part.isdigit(), f"Version part '{part}' should be numeric")
+
+    @gen_test
+    async def test_health_reports_checks_ok(self):
+        """Healthy server reports ok for every check."""
+        response = await self.http_client.fetch(self.get_url("/api/v1/health"))
+
+        self.assertEqual(200, response.code)
+        data = escape.json_decode(response.body)
+        self.assertEqual({"database": "ok", "storage": "ok"}, data["checks"])
+        self.assertIsInstance(data["uptime_seconds"], int)
+
+    @gen_test
+    async def test_health_database_failure_returns_503_without_leaking(self):
+        """A failing database yields 503/degraded and no exception text."""
+        with patch.object(
+            HealthController,
+            "_check_database_sync",
+            side_effect=RuntimeError("secret-db-detail /var/secret/path"),
+        ):
+            response = await self.http_client.fetch(
+                self.get_url("/api/v1/health"), raise_error=False
+            )
+
+        self.assertEqual(503, response.code)
+        data = escape.json_decode(response.body)
+        self.assertEqual("degraded", data["status"])
+        self.assertEqual("fail", data["checks"]["database"])
+        self.assertEqual("ok", data["checks"]["storage"])
+        self.assertIn("version", data)
+        self.assertNotIn("secret-db-detail", response.body.decode())
+        self.assertNotIn("/var/secret/path", response.body.decode())
+
+    @gen_test
+    async def test_health_database_timeout_returns_503(self):
+        """A hung database probe is bounded by the timeout."""
+
+        def hang(_self):
+            time.sleep(0.5)
+
+        with (
+            patch.object(HealthController, "_check_database_sync", hang),
+            patch("controllers.api.v1.health.DB_CHECK_TIMEOUT_SECONDS", 0.05),
+        ):
+            response = await self.http_client.fetch(
+                self.get_url("/api/v1/health"), raise_error=False
+            )
+
+        self.assertEqual(503, response.code)
+        data = escape.json_decode(response.body)
+        self.assertEqual("fail", data["checks"]["database"])
+
+    @gen_test
+    async def test_health_unwritable_storage_returns_503(self):
+        """An unwritable storage directory yields 503 without leaking paths."""
+        with patch("controllers.api.v1.health.os.access", return_value=False):
+            response = await self.http_client.fetch(
+                self.get_url("/api/v1/health"), raise_error=False
+            )
+
+        self.assertEqual(503, response.code)
+        data = escape.json_decode(response.body)
+        self.assertEqual("degraded", data["status"])
+        self.assertEqual("fail", data["checks"]["storage"])
+        self.assertEqual("ok", data["checks"]["database"])
+        for key in ("log_path", "draft_script_path", "compiled_script_path"):
+            path = self._app.digi_settings.get_sync(key)
+            self.assertNotIn(path, response.body.decode())

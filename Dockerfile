@@ -39,4 +39,6 @@ COPY --from=build_v3 /server/static /server/static
 WORKDIR /server
 RUN mkdir conf
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v1/health', timeout=4)"]
 ENTRYPOINT ["python3", "main.py"]
