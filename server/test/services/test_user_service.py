@@ -86,7 +86,7 @@ class TestUserService(DigiScriptTestCase):
             session.commit()
             user_id = user.id
 
-        # Try to change to weak password (< 6 characters)
+        # Try to change to weak password (< 8 characters)
         with self._app.get_db().sessionmaker() as session:
             user = session.get(User, user_id)
             with self.assertRaises(ValueError) as context:
@@ -94,7 +94,7 @@ class TestUserService(DigiScriptTestCase):
                     session, user, "short", invalidate_tokens=False
                 )
 
-            self.assertIn("at least 6 characters", str(context.exception))
+            self.assertIn("at least 8 characters", str(context.exception))
 
     @gen_test
     async def test_change_password_with_invalidate_tokens(self):
