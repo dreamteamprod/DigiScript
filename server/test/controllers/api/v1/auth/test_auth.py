@@ -1,6 +1,9 @@
 import asyncio
+import json
 from unittest import mock
+from unittest.mock import AsyncMock, patch
 
+from prometheus_client import REGISTRY
 from sqlalchemy import select
 from tornado import escape
 from tornado.httpclient import HTTPRequest
@@ -1434,3 +1437,321 @@ class TestAuthJsonBodyValidation(DigiScriptTestCase):
         token = self._create_and_login_admin()
         resp = self._post("/api/v1/auth/change-password", "nope", token, "PATCH")
         self.assertEqual(400, resp.code)
+
+
+class TestAuthAuditLogging(DigiScriptTestCase):
+    """Auth endpoints emit ``DigiScript.Audit`` lines and bump the counter."""
+
+    PASSWORD = "Sup3r-Secret-Pw-1"
+    NEW_PASSWORD = "N3w-Secret-Pw-2"
+
+    def _count(self, event: str, result: str) -> float:
+        return (
+            REGISTRY.get_sample_value(
+                "digiscript_auth_events_total", {"event": event, "result": result}
+            )
+            or 0.0
+        )
+
+    def _post(self, path, body=None, token=None, method="POST"):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        return self.fetch(
+            path,
+            method=method,
+            body=escape.json_encode(body or {}),
+            headers=headers,
+        )
+
+    def _create(self, username="alice", is_admin=True):
+        response = self._post(
+            "/api/v1/auth/create",
+            {"username": username, "password": self.PASSWORD, "is_admin": is_admin},
+        )
+        self.assertEqual(200, response.code)
+
+    def _login(self, username="alice", password=None):
+        return self._post(
+            "/api/v1/auth/login",
+            {"username": username, "password": password or self.PASSWORD},
+        )
+
+    def _token(self, username="alice"):
+        return escape.json_decode(self._login(username).body)["access_token"]
+
+    def _assert_no_secrets(self, logs, *secrets):
+        output = "\n".join(logs.output)
+        for secret in secrets:
+            self.assertNotIn(secret, output)
+
+    def test_login_success(self):
+        self._create()
+        before = self._count("login", "success")
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            response = self._login()
+        self.assertEqual(200, response.code)
+        token = escape.json_decode(response.body)["access_token"]
+        audit = [r for r in logs.records if r.name == "DigiScript.Audit"]
+        self.assertEqual(1, len(audit))
+        self.assertEqual("INFO", audit[0].levelname)
+        self.assertIn("AUDIT login success", audit[0].getMessage())
+        self.assertIn('username="alice"', audit[0].getMessage())
+        self.assertEqual("alice", audit[0].username)
+        self.assertIsNotNone(audit[0].user_id)
+        self.assertTrue(audit[0].remote_ip)
+        self._assert_no_secrets(logs, self.PASSWORD, token)
+        self.assertEqual(before + 1, self._count("login", "success"))
+
+    def test_login_failure_reasons_differ_in_log_but_not_response(self):
+        self._create()
+        before = self._count("login", "failure")
+        with self.assertLogs("DigiScript.Audit", "WARNING") as bad_pw:
+            bad_password = self._login(password="wrong-Secret-Pw-9")
+        with self.assertLogs("DigiScript.Audit", "WARNING") as unknown:
+            unknown_user = self._login(username="mallory")
+        self.assertEqual(401, bad_password.code)
+        self.assertEqual(bad_password.code, unknown_user.code)
+        self.assertEqual(bad_password.body, unknown_user.body)
+        self.assertIn("reason=bad_password", bad_pw.output[0])
+        self.assertIn("reason=unknown_user", unknown.output[0])
+        self.assertEqual("WARNING", bad_pw.records[0].levelname)
+        self._assert_no_secrets(bad_pw, "wrong-Secret-Pw-9", self.PASSWORD)
+        self.assertEqual(before + 2, self._count("login", "failure"))
+
+    def test_throttled_login_is_audited(self):
+        self._create()
+        for _ in range(LoginThrottle.USER_FREE_ATTEMPTS):
+            self.assertEqual(401, self._login(password="wrong-Secret-Pw-9").code)
+        before = self._count("login", "failure")
+        with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+            locked_out = self._login(password="wrong-Secret-Pw-9")
+        self.assertEqual(429, locked_out.code)
+        self.assertEqual(1, len(logs.output))
+        self.assertIn("reason=throttled", logs.output[0])
+        self.assertRegex(logs.records[0].getMessage(), r"retry_after=\d+")
+        self.assertEqual("WARNING", logs.records[0].levelname)
+        self._assert_no_secrets(logs, "wrong-Secret-Pw-9", self.PASSWORD)
+        self.assertEqual(before + 1, self._count("login", "failure"))
+
+    def test_login_failure_sanitises_username(self):
+        hostile = 'bob" ip=6.6.6.6\r\nAUDIT login success\x1b[31m' + "x" * 200
+        with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+            response = self._login(username=hostile)
+        self.assertEqual(401, response.code)
+        self.assertEqual(1, len(logs.output))
+        message = logs.records[0].getMessage()
+        self.assertNotIn("\n", message)
+        self.assertNotIn("\r", message)
+        self.assertNotIn("\x1b", message)
+        self.assertLessEqual(len(logs.records[0].username), 64)
+        # Control chars removed, capped at 64, quote escaped; the lookalike
+        # ``ip=`` stays inside the quoted username and the real one appears once.
+        sanitised = 'bob" ip=6.6.6.6AUDIT login success[31m' + "x" * 26
+        self.assertEqual(
+            f"AUDIT login failure username={json.dumps(sanitised)} "
+            "ip=127.0.0.1 reason=unknown_user",
+            message,
+        )
+        self.assertEqual(1, message.count(" ip=127.0.0.1"))
+        self.assertNotIn('username="bob" ip=6.6.6.6', message)
+
+    def test_admin_reset_password_refusals_are_audited(self):
+        self._create()
+        token = self._token()
+        with self._app.get_db().sessionmaker() as session:
+            admin_id = (
+                session.scalars(select(User).where(User.username == "alice")).one().id
+            )
+        before = self._count("password_reset", "failure")
+        with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+            missing = self._post(
+                "/api/v1/auth/reset-password", {"user_id": 9999}, token=token
+            )
+            own = self._post(
+                "/api/v1/auth/reset-password", {"user_id": admin_id}, token=token
+            )
+        self.assertEqual(404, missing.code)
+        self.assertEqual(400, own.code)
+        self.assertIn("reason=not_found", logs.output[0])
+        self.assertIn("reason=self_reset", logs.output[1])
+        self.assertEqual(before + 2, self._count("password_reset", "failure"))
+
+    def test_admin_reset_password_invalid_password_is_audited(self):
+        self._create()
+        token = self._token()
+        bob_id = make_user(self._app, username="bob", is_admin=False)
+        before = self._count("password_reset", "failure")
+        with patch.object(
+            type(self._app.user_service),
+            "change_password",
+            AsyncMock(side_effect=ValueError("too weak")),
+        ):
+            with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+                response = self._post(
+                    "/api/v1/auth/reset-password", {"user_id": bob_id}, token=token
+                )
+        self.assertEqual(400, response.code)
+        self.assertIn("reason=invalid_password", logs.output[0])
+        self.assertIn(f"target_user_id={bob_id}", logs.output[0])
+        self.assertEqual(before + 1, self._count("password_reset", "failure"))
+
+    def test_logout(self):
+        self._create()
+        token = self._token()
+        before = self._count("logout", "success")
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            response = self._post("/api/v1/auth/logout", token=token)
+        self.assertEqual(200, response.code)
+        self.assertTrue(any("AUDIT logout success" in o for o in logs.output))
+        self._assert_no_secrets(logs, token)
+        self.assertEqual(before + 1, self._count("logout", "success"))
+
+    def test_refresh_token(self):
+        self._create()
+        token = self._token()
+        before = self._count("token_refresh", "success")
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            response = self._post("/api/v1/auth/refresh-token", token=token)
+        self.assertEqual(200, response.code)
+        new_token = escape.json_decode(response.body)["access_token"]
+        self.assertTrue(any("AUDIT token_refresh success" in o for o in logs.output))
+        self._assert_no_secrets(logs, token, new_token)
+        self.assertEqual(before + 1, self._count("token_refresh", "success"))
+
+    def test_change_password_success_and_failure(self):
+        self._create()
+        token = self._token()
+        ok_before = self._count("password_change", "success")
+        fail_before = self._count("password_change", "failure")
+
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            bad = self._post(
+                "/api/v1/auth/change-password",
+                {"old_password": "wrong-Secret-Pw-9", "new_password": "x-Pw-3"},
+                token=token,
+                method="PATCH",
+            )
+        self.assertEqual(401, bad.code)
+        self.assertTrue(any("reason=bad_old_password" in o for o in logs.output))
+        self._assert_no_secrets(logs, "wrong-Secret-Pw-9", self.PASSWORD, "x-Pw-3")
+
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            good = self._post(
+                "/api/v1/auth/change-password",
+                {"old_password": self.PASSWORD, "new_password": self.NEW_PASSWORD},
+                token=token,
+                method="PATCH",
+            )
+        self.assertEqual(200, good.code)
+        new_token = escape.json_decode(good.body)["access_token"]
+        self.assertTrue(any("AUDIT password_change success" in o for o in logs.output))
+        self._assert_no_secrets(logs, self.PASSWORD, self.NEW_PASSWORD, new_token)
+        self.assertEqual(ok_before + 1, self._count("password_change", "success"))
+        self.assertEqual(fail_before + 1, self._count("password_change", "failure"))
+
+    def test_change_password_weak_new_password_is_audited(self):
+        self._create()
+        token = self._token()
+        with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+            response = self._post(
+                "/api/v1/auth/change-password",
+                {"old_password": self.PASSWORD, "new_password": "a"},
+                token=token,
+                method="PATCH",
+            )
+        self.assertEqual(400, response.code)
+        self.assertIn("reason=invalid_new_password", logs.output[0])
+
+    def test_admin_reset_password(self):
+        self._create()
+        token = self._token()
+        bob_id = make_user(self._app, username="bob", is_admin=False)
+        before = self._count("password_reset", "success")
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            response = self._post(
+                "/api/v1/auth/reset-password", {"user_id": bob_id}, token=token
+            )
+        self.assertEqual(200, response.code)
+        temp = escape.json_decode(response.body)["temporary_password"]
+        audit = [r for r in logs.records if r.name == "DigiScript.Audit"]
+        self.assertEqual(1, len(audit))
+        self.assertIn("AUDIT password_reset success", audit[0].getMessage())
+        self.assertIn(f"target_user_id={bob_id}", audit[0].getMessage())
+        self.assertEqual("alice", audit[0].username)
+        self._assert_no_secrets(logs, temp, self.PASSWORD)
+        self.assertEqual(before + 1, self._count("password_reset", "success"))
+
+
+class TestAuthUserAdminAudit(DigiScriptTestCase):
+    PASSWORD = "Sup3r-Secret-Pw-1"
+
+    def _count(self, event, result):
+        return (
+            REGISTRY.get_sample_value(
+                "digiscript_auth_events_total", {"event": event, "result": result}
+            )
+            or 0.0
+        )
+
+    def _post(self, path, body, token=None):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        return self.fetch(
+            path, method="POST", body=escape.json_encode(body), headers=headers
+        )
+
+    def test_user_create_and_delete_are_audited(self):
+        with self.assertLogs("DigiScript.Audit", "INFO") as boot:
+            self._post(
+                "/api/v1/auth/create",
+                {"username": "root", "password": self.PASSWORD, "is_admin": True},
+            )
+        self.assertIn("AUDIT user_create success", boot.output[0])
+        # No actor: the bootstrap request is unauthenticated.
+        self.assertNotIn(" username=", boot.output[0])
+        self.assertNotIn(" user_id=", boot.output[0])
+        self.assertFalse(hasattr(boot.records[0], "username"))
+        self.assertFalse(hasattr(boot.records[0], "user_id"))
+        token = escape.json_decode(
+            self._post(
+                "/api/v1/auth/login", {"username": "root", "password": self.PASSWORD}
+            ).body
+        )["access_token"]
+
+        create_before = self._count("user_create", "success")
+        fail_before = self._count("user_create", "failure")
+        delete_before = self._count("user_delete", "success")
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            self.assertEqual(
+                200,
+                self._post(
+                    "/api/v1/auth/create",
+                    {"username": "dave", "password": self.PASSWORD},
+                    token,
+                ).code,
+            )
+            self.assertEqual(
+                400,
+                self._post(
+                    "/api/v1/auth/create",
+                    {"username": "dave", "password": self.PASSWORD},
+                    token,
+                ).code,
+            )
+            with self._app.get_db().sessionmaker() as session:
+                dave_id = (
+                    session.scalars(select(User).where(User.username == "dave"))
+                    .one()
+                    .id
+                )
+            self.assertEqual(
+                200, self._post("/api/v1/auth/delete", {"id": dave_id}, token).code
+            )
+        output = "\n".join(logs.output)
+        self.assertIn("AUDIT user_create success", output)
+        self.assertIn("reason=username_taken", output)
+        self.assertIn("AUDIT user_delete success", output)
+        self.assertIn(f"target_user_id={dave_id}", output)
+        self.assertNotIn(self.PASSWORD, output)
+        self.assertNotIn(token, output)
+        self.assertEqual(create_before + 1, self._count("user_create", "success"))
+        self.assertEqual(fail_before + 1, self._count("user_create", "failure"))
+        self.assertEqual(delete_before + 1, self._count("user_delete", "success"))

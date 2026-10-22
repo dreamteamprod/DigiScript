@@ -8,9 +8,11 @@ from models.user import User
 from registry.named_locks import USER_CREATE_LOCK, NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
+from utils.web.auth_audit import actor, audit
 from utils.web.base_controller import BaseAPIController
 from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
+from utils.web.user_admin import create_user, delete_user
 from utils.web.web_decorators import (
     allow_when_password_required,
     api_authenticated,
@@ -34,69 +36,7 @@ class UserCreateController(BaseAPIController):
         # The has-any-users check and the insert form one critical section;
         # otherwise concurrent first-run requests could each create an admin.
         async with NamedLockRegistry.acquire(USER_CREATE_LOCK):
-            await self._create_user()
-
-    async def _create_user(self):
-        with self.make_session() as session:
-            # If there are no users, allow creation without authentication, otherwise require admin.
-            has_any_users = session.scalars(select(User)).first() is not None
-            if has_any_users:
-                self.requires_admin()
-
-            data = get_json_object(self)
-
-            username = data.get("username", "")
-            if not username:
-                self.set_status(400)
-                await self.finish({"message": "Username missing"})
-                return
-
-            password = data.get("password", "")
-            if not password:
-                self.set_status(400)
-                await self.finish({"message": "Password missing"})
-                return
-
-            is_admin = data.get("is_admin", False)
-            if not has_any_users and not is_admin:
-                self.set_status(400)
-                await self.finish({"message": "First user must be an admin"})
-                return
-
-            # Validate password strength
-            is_valid, error_msg = PasswordService.validate_password_strength(password)
-            if not is_valid:
-                self.set_status(400)
-                await self.finish({"message": error_msg})
-                return
-
-            async with NamedLockRegistry.acquire(f"UserLock::{username}"):
-                conflict_user = session.scalars(
-                    select(User).where(User.username == username)
-                ).first()
-                if conflict_user:
-                    self.set_status(400)
-                    await self.finish({"message": "Username already taken"})
-                    return
-
-                hashed_password = await PasswordService.hash_password(password)
-
-                session.add(
-                    User(
-                        username=username,
-                        password=hashed_password,
-                        is_admin=is_admin,
-                        created_on=datetime.now(tz=timezone.utc),
-                    )
-                )
-                session.commit()
-
-                if is_admin:
-                    await self.application.digi_settings.set("has_admin_user", True)
-
-                self.set_status(200)
-                await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
-                await self.finish({"message": "Successfully created user"})
+            await create_user(self)
 
 
 @ApiRoute("auth/delete", ApiVersion.V1)
@@ -114,44 +54,12 @@ class UserDeleteController(BaseAPIController):
 
         with self.make_session() as session:
             user_to_delete: User = session.get(User, int(user_to_delete))
-            all_admins = session.scalars(
-                select(User).where(User.is_admin.is_(True))
-            ).all()
             if not user_to_delete:
                 self.set_status(400)
                 await self.finish({"message": "Could not find user to delete"})
                 return
 
-            if user_to_delete.id == self.current_user["id"]:
-                self.set_status(400)
-                await self.finish(
-                    {"message": "Cannot delete currently authenticated user"}
-                )
-                return
-
-            if user_to_delete.is_admin and len(all_admins) <= 1:
-                self.set_status(400)
-                await self.finish({"message": "Cannot delete the only admin user"})
-                return
-
-            async with NamedLockRegistry.acquire(
-                f"UserLock::{user_to_delete.username}"
-            ):
-                # Force logout all sessions using UserService
-                await self.application.user_service.force_logout_all_sessions(
-                    session, user_to_delete
-                )
-
-                # Delete all RBAC associations for this user
-                self.application.rbac.delete_actor(user_to_delete)
-
-                # Then we can delete the user
-                session.delete(user_to_delete)
-                session.commit()
-
-                self.set_status(200)
-                await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
-                await self.finish({"message": "Successfully deleted user"})
+            await delete_user(self, session, user_to_delete)
 
 
 @ApiRoute("auth/login", ApiVersion.V1)
@@ -179,6 +87,13 @@ class LoginHandler(BaseAPIController):
         # refuse before spending any bcrypt time on a locked-out client.
         retry_after, attempt = throttle.begin_attempt(client_ip, username)
         if retry_after > 0:
+            audit(
+                "login",
+                "failure",
+                username=username,
+                remote_ip=client_ip,
+                detail=f"reason=throttled retry_after={retry_after}",
+            )
             self.set_header("Retry-After", str(retry_after))
             self.set_status(429)
             await self.finish(
@@ -201,6 +116,13 @@ class LoginHandler(BaseAPIController):
                 # Same bcrypt cost as a real check, so response timing does not
                 # reveal which usernames exist.
                 await PasswordService.verify_dummy_password(password)
+                audit(
+                    "login",
+                    "failure",
+                    username=username,
+                    remote_ip=client_ip,
+                    detail="reason=unknown_user",
+                )
                 self.set_status(401)
                 await self.finish({"message": "Invalid username/password"})
                 return
@@ -210,6 +132,14 @@ class LoginHandler(BaseAPIController):
             )
 
             if not password_equal:
+                audit(
+                    "login",
+                    "failure",
+                    username=username,
+                    user_id=user.id,
+                    remote_ip=client_ip,
+                    detail="reason=bad_password",
+                )
                 self.set_status(401)
                 await self.finish({"message": "Invalid username/password"})
                 return
@@ -236,6 +166,13 @@ class LoginHandler(BaseAPIController):
                 },
             )
 
+            audit(
+                "login",
+                "success",
+                username=user.username,
+                user_id=user.id,
+                remote_ip=client_ip,
+            )
             self.set_status(200)
             await self.finish(
                 {
@@ -308,6 +245,13 @@ class LogoutHandler(BaseAPIController):
                 # Logs its own failures, each saying how far it got.
                 self._log_out_client(session_id)
 
+            audit(
+                "logout",
+                "success",
+                username=self.current_user.get("username"),
+                user_id=self.current_user["id"],
+                remote_ip=self.request.remote_ip,
+            )
             self.set_status(200)
             await self.finish({"message": "Successfully logged out"})
         else:
@@ -326,6 +270,13 @@ class RefreshTokenHandler(BaseAPIController):
             },
         )
 
+        audit(
+            "token_refresh",
+            "success",
+            username=self.current_user.get("username"),
+            user_id=self.current_user["id"],
+            remote_ip=self.request.remote_ip,
+        )
         self.set_status(200)
         await self.finish({"access_token": access_token, "token_type": "bearer"})
 
@@ -392,6 +343,14 @@ class PasswordChangeController(BaseAPIController):
                     old_password, user.password
                 )
                 if not password_matches:
+                    audit(
+                        "password_change",
+                        "failure",
+                        username=user.username,
+                        user_id=user.id,
+                        remote_ip=self.request.remote_ip,
+                        detail="reason=bad_old_password",
+                    )
                     self.set_status(401)
                     await self.finish({"message": "Current password is incorrect"})
                     return
@@ -407,6 +366,14 @@ class PasswordChangeController(BaseAPIController):
                     force_logout_sessions=False,
                 )
             except ValueError as e:
+                audit(
+                    "password_change",
+                    "failure",
+                    username=user.username,
+                    user_id=user.id,
+                    remote_ip=self.request.remote_ip,
+                    detail="reason=invalid_new_password",
+                )
                 self.set_status(400)
                 await self.finish({"message": str(e)})
                 return
@@ -421,6 +388,13 @@ class PasswordChangeController(BaseAPIController):
                 user, new_token
             )
 
+            audit(
+                "password_change",
+                "success",
+                username=user.username,
+                user_id=user.id,
+                remote_ip=self.request.remote_ip,
+            )
             self.set_status(200)
             await self.finish(
                 {
@@ -459,11 +433,23 @@ class AdminPasswordResetController(BaseAPIController):
         with self.make_session() as session:
             target_user = session.get(User, int(user_id))
             if not target_user:
+                audit(
+                    "password_reset",
+                    "failure",
+                    detail="reason=not_found",
+                    **actor(self),
+                )
                 self.set_status(404)
                 await self.finish({"message": "User not found"})
                 return
 
             if target_user.id == self.current_user["id"]:
+                audit(
+                    "password_reset",
+                    "failure",
+                    detail="reason=self_reset",
+                    **actor(self),
+                )
                 self.set_status(400)
                 await self.finish(
                     {"message": "Cannot reset your own password via admin endpoint"}
@@ -483,10 +469,26 @@ class AdminPasswordResetController(BaseAPIController):
                     requires_password_change=True,
                 )
             except ValueError as e:
+                audit(
+                    "password_reset",
+                    "failure",
+                    username=self.current_user.get("username"),
+                    user_id=self.current_user["id"],
+                    remote_ip=self.request.remote_ip,
+                    detail=f"target_user_id={target_user.id} reason=invalid_password",
+                )
                 self.set_status(400)
                 await self.finish({"message": str(e)})
                 return
 
+            audit(
+                "password_reset",
+                "success",
+                username=self.current_user.get("username"),
+                user_id=self.current_user["id"],
+                remote_ip=self.request.remote_ip,
+                detail=f"target_user_id={target_user.id}",
+            )
             self.set_status(200)
             await self.finish(
                 {

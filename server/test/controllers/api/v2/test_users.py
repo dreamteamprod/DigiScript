@@ -1,3 +1,4 @@
+from prometheus_client import REGISTRY
 from sqlalchemy import select
 from tornado import escape
 from tornado.testing import gen_test
@@ -324,3 +325,126 @@ class TestUsersV2JsonBodyValidation(DigiScriptTestCase):
             "/api/v2/users", method="POST", body="nope", raise_error=False
         )
         self.assertEqual(400, resp.code)
+
+
+class TestUsersV2Audit(DigiScriptTestCase):
+    PASSWORD = "Sup3r-Secret-Pw-1"
+
+    def _count(self, event, result):
+        return (
+            REGISTRY.get_sample_value(
+                "digiscript_auth_events_total", {"event": event, "result": result}
+            )
+            or 0.0
+        )
+
+    def _req(self, path, method, body=None, token=None):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        return self.fetch(
+            path,
+            method=method,
+            body=None if method == "DELETE" else escape.json_encode(body or {}),
+            headers=headers,
+        )
+
+    def _admin_token(self):
+        resp = self._req(
+            "/api/v2/users",
+            "POST",
+            {"username": "root", "password": self.PASSWORD, "is_admin": True},
+        )
+        self.assertEqual(200, resp.code)
+        resp = self._req(
+            "/api/v1/auth/login",
+            "POST",
+            {"username": "root", "password": self.PASSWORD},
+        )
+        return escape.json_decode(resp.body)["access_token"]
+
+    def _no_secrets(self, logs, *secrets):
+        output = "\n".join(logs.output)
+        for secret in secrets:
+            self.assertNotIn(secret, output)
+
+    def test_create_update_delete_are_audited(self):
+        # First-user bootstrap is unauthenticated: audited without an actor.
+        with self.assertLogs("DigiScript", "INFO") as boot:
+            token = self._admin_token()
+        created = [
+            r for r in boot.records if "AUDIT user_create success" in r.getMessage()
+        ]
+        self.assertEqual(1, len(created))
+        self.assertNotIn(" username=", created[0].getMessage())
+        self.assertNotIn(" user_id=", created[0].getMessage())
+        self.assertFalse(hasattr(created[0], "username"))
+        self.assertFalse(hasattr(created[0], "user_id"))
+
+        create_before = self._count("user_create", "success")
+        update_before = self._count("user_update", "success")
+        delete_before = self._count("user_delete", "success")
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            self.assertEqual(
+                200,
+                self._req(
+                    "/api/v2/users",
+                    "POST",
+                    {"username": "dave", "password": self.PASSWORD},
+                    token,
+                ).code,
+            )
+            with self._app.get_db().sessionmaker() as session:
+                dave_id = (
+                    session.scalars(select(User).where(User.username == "dave"))
+                    .one()
+                    .id
+                )
+            self.assertEqual(
+                200,
+                self._req(
+                    f"/api/v2/users?id={dave_id}", "PATCH", {"is_admin": True}, token
+                ).code,
+            )
+            self.assertEqual(
+                200,
+                self._req(f"/api/v2/users?id={dave_id}", "DELETE", None, token).code,
+            )
+        audit = [r.getMessage() for r in logs.records if r.name == "DigiScript.Audit"]
+        self.assertTrue(any("AUDIT user_create success" in m for m in audit))
+        self.assertTrue(
+            any(
+                "AUDIT user_update success" in m
+                and f"target_user_id={dave_id}" in m
+                and "is_admin=True" in m
+                and 'username="root"' in m
+                for m in audit
+            )
+        )
+        self.assertTrue(
+            any(
+                "AUDIT user_delete success" in m and f"target_user_id={dave_id}" in m
+                for m in audit
+            )
+        )
+        self._no_secrets(logs, self.PASSWORD, token)
+        self.assertEqual(create_before + 1, self._count("user_create", "success"))
+        self.assertEqual(update_before + 1, self._count("user_update", "success"))
+        self.assertEqual(delete_before + 1, self._count("user_delete", "success"))
+
+    def test_create_failures_are_audited(self):
+        token = self._admin_token()
+        before = self._count("user_create", "failure")
+        with self.assertLogs("DigiScript.Audit", "WARNING") as logs:
+            taken = self._req(
+                "/api/v2/users",
+                "POST",
+                {"username": "root", "password": self.PASSWORD},
+                token,
+            )
+            weak = self._req(
+                "/api/v2/users", "POST", {"username": "eve", "password": "a"}, token
+            )
+        self.assertEqual(400, taken.code)
+        self.assertEqual(400, weak.code)
+        self.assertIn("reason=username_taken", logs.output[0])
+        self.assertIn("reason=weak_password", logs.output[1])
+        self.assertEqual(before + 2, self._count("user_create", "failure"))

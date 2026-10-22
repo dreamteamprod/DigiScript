@@ -1,5 +1,6 @@
 import hashlib
 
+from prometheus_client import REGISTRY
 from tornado import escape
 
 from models.user import User
@@ -49,3 +50,40 @@ class TestUsersTokenV2API(DigiScriptTestCase):
         self.assertEqual(200, response.code)
         self.assertFalse(has())
         self.assertEqual(401, self._whoami(key).code)
+
+
+class TestUsersTokenV2Audit(DigiScriptTestCase):
+    def _count(self, event, result):
+        return (
+            REGISTRY.get_sample_value(
+                "digiscript_auth_events_total", {"event": event, "result": result}
+            )
+            or 0.0
+        )
+
+    def _req(self, method, user_id):
+        return self.fetch(
+            "/api/v2/users/token",
+            method=method,
+            body=None if method == "DELETE" else escape.json_encode({}),
+            headers={"Authorization": f"Bearer {craft_token(self._app, user_id)}"},
+        )
+
+    def test_generate_and_revoke_audited_without_key(self):
+        user_id = make_user(self._app, username="erin")
+        gen = self._count("api_token_generate", "success")
+        rev = self._count("api_token_revoke", "success")
+        fail = self._count("api_token_revoke", "failure")
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            key = escape.json_decode(self._req("POST", user_id).body)["api_token"]
+            self.assertEqual(200, self._req("DELETE", user_id).code)
+            self.assertEqual(400, self._req("DELETE", user_id).code)
+        output = "\n".join(logs.output)
+        self.assertIn("AUDIT api_token_generate success", output)
+        self.assertIn("AUDIT api_token_revoke success", output)
+        self.assertIn("AUDIT api_token_revoke failure", output)
+        self.assertIn('username="erin"', output)
+        self.assertNotIn(key, output)
+        self.assertEqual(gen + 1, self._count("api_token_generate", "success"))
+        self.assertEqual(rev + 1, self._count("api_token_revoke", "success"))
+        self.assertEqual(fail + 1, self._count("api_token_revoke", "failure"))
