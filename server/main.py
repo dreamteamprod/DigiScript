@@ -55,6 +55,10 @@ define("skip_migrations", type=bool, default=False, help="skip database migratio
 
 
 async def main():
+    # Installed first so crashes during startup are counted and reach stderr
+    # (logging's last-resort handler). The durable file log and in-app buffer
+    # handlers are attached later by DigiScriptServer.configure(), so errors in
+    # this early window are not written to the log file.
     install_exception_hooks(asyncio.get_running_loop())
 
     # Parse command-line options

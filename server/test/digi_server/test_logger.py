@@ -11,6 +11,7 @@ from tornado.ioloop import IOLoop
 from digi_server.logger import (
     ALL_LOGGERS,
     CLIENT_LEVEL_MAP,
+    UNHANDLED_ERROR_SOURCES,
     UNHANDLED_ERRORS,
     install_exception_hooks,
     logger,
@@ -89,9 +90,22 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
     def _count(source):
         return UNHANDLED_ERRORS.labels(source=source)._value.get()
 
+    def test_label_series_preregistered_at_zero(self):
+        samples = {
+            s.labels["source"]: s.value
+            for m in UNHANDLED_ERRORS.collect()
+            for s in m.samples
+            if s.name == "digiscript_unhandled_errors_total"
+        }
+        self.assertEqual(
+            {"sys_excepthook", "asyncio", "thread"}, set(UNHANDLED_ERROR_SOURCES)
+        )
+        for source in UNHANDLED_ERROR_SOURCES:
+            self.assertIn(source, samples)
+
     def test_all_loggers_cover_stdlib_sources(self):
         names = {lg.name for lg in ALL_LOGGERS}
-        self.assertTrue({"asyncio", "alembic", "py.warnings", "DigiScript"} <= names)
+        self.assertLessEqual({"asyncio", "alembic", "py.warnings", "DigiScript"}, names)
         self.assertNotIn("sqlalchemy.engine", names)
         self.assertNotIn("root", names)
 
@@ -129,6 +143,8 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], self.handler.records)
 
     def test_thread_excepthook_logs_and_counts(self):
+        # Replace pytest's own thread hook so it doesn't flag the intended crash.
+        threading.excepthook = lambda _args: None
         install_exception_hooks()
         before = self._count("thread")
 
@@ -213,11 +229,107 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
         self.assertIn("future: <Task", records[0].getMessage())
 
     def test_warnings_reach_py_warnings_logger_once(self):
-        install_exception_hooks()
         with warnings.catch_warnings():
             warnings.simplefilter("always")
-            logging.captureWarnings(True)
+            install_exception_hooks()
             warnings.warn("obs-test-warning", UserWarning)
         records = [r for r in self.handler.records if r.name == "py.warnings"]
         self.assertEqual(1, len(records))
         self.assertIn("obs-test-warning", records[0].getMessage())
+
+    def test_hooks_chain_to_preexisting_hooks(self):
+        sys_calls, thread_calls = [], []
+        sys.excepthook = lambda *a: sys_calls.append(a)
+        threading.excepthook = thread_calls.append
+        install_exception_hooks()
+        try:
+            raise ValueError("chain-sys")
+        except ValueError:
+            sys.excepthook(*sys.exc_info())
+        t = threading.Thread(target=lambda: 1 / 0)
+        t.start()
+        t.join()
+        self.assertEqual(1, len(sys_calls))
+        self.assertEqual(1, len(thread_calls))
+        self.assertEqual(
+            2, len([r for r in self.handler.records if r.name == "DigiScript"])
+        )
+
+    def test_reinstall_cycles_restore_originals(self):
+        install_exception_hooks()
+        uninstall_exception_hooks()
+        install_exception_hooks()
+        install_exception_hooks()
+        uninstall_exception_hooks()
+        self.assertIs(self._excepthook, sys.excepthook)
+        self.assertIs(self._thread_hook, threading.excepthook)
+
+    def test_concurrent_install_is_race_free(self):
+        threads = [threading.Thread(target=install_exception_hooks) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        uninstall_exception_hooks()
+        self.assertIs(self._excepthook, sys.excepthook)
+        self.assertIs(self._thread_hook, threading.excepthook)
+
+    def test_keyboard_interrupt_does_not_recurse_after_reinstall(self):
+        calls = []
+        sys.excepthook = lambda *a: calls.append(a)
+        install_exception_hooks()
+        install_exception_hooks()
+        sys.excepthook(KeyboardInterrupt, KeyboardInterrupt(), None)
+        self.assertEqual(1, len(calls))
+
+    def test_uninstall_restores_warning_capture_state(self):
+        logging.captureWarnings(True)
+        install_exception_hooks()
+        uninstall_exception_hooks()
+        self.assertIsNotNone(logging._warnings_showwarning)
+        logging.captureWarnings(False)
+        install_exception_hooks()
+        uninstall_exception_hooks()
+        self.assertIsNone(logging._warnings_showwarning)
+
+    async def test_uninstall_restores_loop_handler(self):
+        loop = asyncio.get_running_loop()
+
+        def previous(_loop, _ctx):
+            pass
+
+        loop.set_exception_handler(previous)
+        install_exception_hooks(loop)
+        self.assertIsNot(previous, loop.get_exception_handler())
+        uninstall_exception_hooks()
+        self.assertIs(previous, loop.get_exception_handler())
+
+    async def test_message_only_context_not_counted_as_error(self):
+        loop = asyncio.get_running_loop()
+        install_exception_hooks(loop)
+        before = self._count("asyncio")
+        loop.call_exception_handler({"message": "Executing <Handle> took 1.0s"})
+        self.assertEqual(before, self._count("asyncio"))
+        records = [r for r in self.handler.records if r.name == "DigiScript"]
+        self.assertEqual(1, len(records))
+        self.assertEqual(logging.WARNING, records[0].levelno)
+
+    async def test_asyncio_handler_survives_failing_repr(self):
+        class BadRepr:
+            def __repr__(self):
+                raise RuntimeError("repr failed")
+
+        loop = asyncio.get_running_loop()
+        install_exception_hooks(loop)
+        before = self._count("asyncio")
+        loop.call_exception_handler(
+            {
+                "message": "boom",
+                "exception": RuntimeError("boom-repr"),
+                "future": BadRepr(),
+            }
+        )
+        self.assertEqual(before + 1, self._count("asyncio"))
+        records = [r for r in self.handler.records if "boom-repr" in repr(r.exc_info)]
+        self.assertEqual(1, len(records))
+        self.assertIn("unrepresentable BadRepr", records[0].getMessage())

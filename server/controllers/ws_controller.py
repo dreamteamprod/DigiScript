@@ -69,9 +69,6 @@ _COLLAB_ONLY_OPS = frozenset(
 )
 
 
-app_metrics.register_app_info()
-
-
 @ApiRoute("ws", ApiVersion.V1)
 class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHandler):
     # Live-show ops only the leader may send, and the method that handles each.
@@ -96,9 +93,9 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         "DISCARD_SCRIPT_DRAFT": "_op_discard_script_draft",
     }
 
+    _SESSION_OPS = frozenset({"NEW_CLIENT", "REFRESH_CLIENT", "LIVE_SHOW_JUMP_TO_PAGE"})
     # Every OP the server handles; the only values used for the ``op`` metric
     # label, so a client cannot create unlimited series.
-    _SESSION_OPS = frozenset({"NEW_CLIENT", "REFRESH_CLIENT", "LIVE_SHOW_JUMP_TO_PAGE"})
     _KNOWN_OPS = (
         frozenset({"AUTHENTICATE", "REFRESH_TOKEN"})
         | _SESSION_OPS

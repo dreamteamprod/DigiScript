@@ -4,6 +4,7 @@ import logging
 from unittest import mock
 
 from tornado import escape
+from tornado.iostream import StreamClosedError
 
 from digi_server.logger import get_logger
 from test.conftest import DigiScriptTestCase
@@ -375,15 +376,18 @@ class TestLogViewerController(DigiScriptTestCase):
         resp = self._fetch_stream_headers(token=user_token)
         self.assertEqual(403, resp.code)
 
-    def test_stream_error_is_logged_at_debug(self):
-        """An error ending the live stream is logged instead of swallowed."""
+    def _run_stream_with_failing_filter(self, exc):
+        """Stream /logs/stream with a live-entry filter that raises ``exc``.
+
+        :returns: Tuple of (level name, message) for each ``Log stream`` record.
+        """
         token = self._create_and_login_admin()
         calls = []
 
         def flaky_filter(entries, *args):
             calls.append(1)
             if len(calls) > 1:
-                raise RuntimeError("boom")
+                raise exc
             return []
 
         self.io_loop.call_later(
@@ -404,10 +408,19 @@ class TestLogViewerController(DigiScriptTestCase):
                 )
             except Exception:
                 pass  # HTTPTimeoutError: the stream stays open otherwise
-        self.assertTrue(
-            any("Log stream (server)" in line for line in captured.output),
-            captured.output,
-        )
+        return [
+            (r.levelname, r.getMessage())
+            for r in captured.records
+            if "Log stream (server)" in r.getMessage()
+        ]
+
+    def test_stream_client_disconnect_is_logged_at_debug(self):
+        records = self._run_stream_with_failing_filter(StreamClosedError())
+        self.assertEqual(["DEBUG"], [level for level, _ in records])
+
+    def test_stream_unexpected_error_is_logged_at_warning(self):
+        records = self._run_stream_with_failing_filter(RuntimeError("boom"))
+        self.assertEqual(["WARNING"], [level for level, _ in records])
 
     def test_stream_backfill_contains_existing_entries(self):
         """Entries injected before connection must appear in the first chunk.
