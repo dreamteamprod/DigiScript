@@ -52,7 +52,7 @@ def _count_unhandled(source: str) -> None:
 
 
 def _chain(previous, default, *args) -> None:
-    """Call a pre-existing hook, skipping interpreter defaults and ourselves.
+    """Call a pre-existing hook, skipping the interpreter default.
 
     The defaults only print to stderr, which would duplicate the log record.
     """
@@ -66,8 +66,6 @@ def _chain(previous, default, *args) -> None:
 
 def _sys_excepthook(exc_type, exc_value, exc_tb):
     previous = _saved_hooks.get("sys")
-    if previous is _sys_excepthook:
-        previous = None
     if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
         (previous or sys.__excepthook__)(exc_type, exc_value, exc_tb)
         return
@@ -80,8 +78,6 @@ def _sys_excepthook(exc_type, exc_value, exc_tb):
 
 def _threading_excepthook(args):
     previous = _saved_hooks.get("thread")
-    if previous is _threading_excepthook:
-        previous = None
     if issubclass(args.exc_type, SystemExit):
         _chain(previous, threading.__excepthook__, args)
         return
@@ -107,10 +103,11 @@ def _safe_repr(value) -> str:
 def _asyncio_exception_handler(loop, context):
     exc = context.get("exception")
     previous = _saved_loop_handlers.get(loop)
-    if previous is _asyncio_exception_handler:
-        previous = None
     if isinstance(exc, (KeyboardInterrupt, SystemExit)):
-        loop.default_exception_handler(context)
+        if previous is not None:
+            previous(loop, context)
+        else:
+            loop.default_exception_handler(context)
         return
     try:
         message = context.get("message", "Unhandled exception in event loop")
@@ -184,10 +181,14 @@ def uninstall_exception_hooks() -> None:
     with _hooks_lock:
         if not _saved_hooks:
             return
-        sys.excepthook = _saved_hooks["sys"]
-        threading.excepthook = _saved_hooks["thread"]
+        # Only restore hooks that are still ours; never clobber a wrapper
+        # installed after us.
+        if sys.excepthook is _sys_excepthook:
+            sys.excepthook = _saved_hooks["sys"]
+        if threading.excepthook is _threading_excepthook:
+            threading.excepthook = _saved_hooks["thread"]
         logging.captureWarnings(_saved_hooks["warnings"])
-        for loop, previous in list(_saved_loop_handlers.items()):
+        for loop, previous in _saved_loop_handlers.items():
             if not loop.is_closed() and (
                 loop.get_exception_handler() is _asyncio_exception_handler
             ):

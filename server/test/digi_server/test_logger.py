@@ -3,11 +3,14 @@ import gc
 import logging
 import sys
 import threading
+import time
 import unittest
 import warnings
+from unittest import mock
 
 from tornado.ioloop import IOLoop
 
+import digi_server.logger as logger_module
 from digi_server.logger import (
     ALL_LOGGERS,
     CLIENT_LEVEL_MAP,
@@ -265,14 +268,62 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self._thread_hook, threading.excepthook)
 
     def test_concurrent_install_is_race_free(self):
-        threads = [threading.Thread(target=install_exception_hooks) for _ in range(8)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        """Force the check-then-act interleaving: every thread passes the
+        "is anything saved yet" check before any of them writes."""
+
+        class SlowCheckDict(dict):
+            def __len__(self):
+                size = super().__len__()
+                time.sleep(0.05)  # widen the window after the emptiness check
+                return size
+
+        sentinel_sys = lambda *_a: None  # noqa: E731
+        sentinel_thread = lambda _a: None  # noqa: E731
+        sys.excepthook = sentinel_sys
+        threading.excepthook = sentinel_thread
+        barrier = threading.Barrier(4)
+
+        def run():
+            barrier.wait()
+            install_exception_hooks()
+
+        with mock.patch.object(logger_module, "_saved_hooks", SlowCheckDict()):
+            threads = [threading.Thread(target=run) for _ in range(4)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            uninstall_exception_hooks()
+        # Without the lock a late thread saves one of our own hooks / defaults
+        # as the "original", so the sentinels would not be restored.
+        self.assertIs(sentinel_sys, sys.excepthook)
+        self.assertIs(sentinel_thread, threading.excepthook)
+
+    def test_uninstall_does_not_clobber_later_hooks(self):
+        install_exception_hooks()
+
+        def later_sys(*_a):
+            pass
+
+        def later_thread(_a):
+            pass
+
+        sys.excepthook = later_sys
+        threading.excepthook = later_thread
         uninstall_exception_hooks()
-        self.assertIs(self._excepthook, sys.excepthook)
-        self.assertIs(self._thread_hook, threading.excepthook)
+        self.assertIs(later_sys, sys.excepthook)
+        self.assertIs(later_thread, threading.excepthook)
+
+    async def test_keyboard_interrupt_in_loop_uses_previous_handler(self):
+        loop = asyncio.get_running_loop()
+        calls = []
+        loop.set_exception_handler(lambda lp, ctx: calls.append(ctx))
+        install_exception_hooks(loop)
+        before = self._count("asyncio")
+        context = {"message": "ki", "exception": KeyboardInterrupt()}
+        loop.call_exception_handler(context)
+        self.assertEqual([context], calls)
+        self.assertEqual(before, self._count("asyncio"))
 
     def test_keyboard_interrupt_does_not_recurse_after_reinstall(self):
         calls = []
