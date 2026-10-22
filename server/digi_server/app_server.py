@@ -346,7 +346,12 @@ class DigiScriptServer(PrometheusMixIn, Application):
     def log_request(self, handler):
         from tornado.log import access_log  # noqa: PLC0415
 
-        observe_http_request(handler)
+        try:
+            self.observe_request(handler)
+            observe_http_request(handler)
+        except Exception:
+            # Metrics must never break request handling.
+            access_log.debug("Failed to record HTTP request metrics", exc_info=True)
 
         if handler.request.path in Route.ignored_logging_routes():
             return
@@ -357,8 +362,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
             username = handler.current_user.get("username")
             user_id = handler.current_user.get("id")
 
+        # Successful/redirect/informational responses (including 304 polling and
+        # 101 websocket upgrades) are noisy, so they only appear at DEBUG.
         if handler.get_status() < 400:
-            log_method = access_log.info
+            log_method = access_log.debug
         elif handler.get_status() < 500:
             log_method = access_log.warning
         else:

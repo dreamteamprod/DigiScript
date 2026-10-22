@@ -1,10 +1,13 @@
 import ast
 from pathlib import Path
+from unittest.mock import patch
 
 import tornado.escape
 from sqlalchemy import func, select
 from tornado.testing import gen_test
+from tornado_prometheus import requests_total
 
+from controllers.controllers import ApiDebugController
 from models.session import Session
 from models.settings import SystemSettings
 from models.user import User
@@ -89,6 +92,62 @@ class TestDigiScriptServer(DigiScriptTestCase):
         before = self._body_count("ApiFallback", "GET")
         self.fetch("/api/v1/nonexistent")
         self.assertEqual(before, self._body_count("ApiFallback", "GET"))
+
+    def test_http_request_metrics_exposed(self):
+        """Handled requests produce tornado_http_* samples on /debug/metrics."""
+        self.fetch("/api/v1/debug")
+        self.fetch("/api/v1/nonexistent")
+        body = self.fetch("/debug/metrics").body.decode()
+        self.assertRegex(body, r"(?m)^tornado_http_requests_total\{.*\} [1-9]")
+        self.assertRegex(
+            body,
+            r"(?m)^tornado_http_request_duration_seconds_count\{.*\} [1-9]",
+        )
+
+    def test_ignored_logging_route_counted_but_not_logged(self):
+        """Ignored-logging routes are observed in metrics but emit no access log."""
+        before = self._request_count("DebugMetricsController")
+        with self.assertNoLogs("tornado.access", level="DEBUG"):
+            response = self.fetch("/debug/metrics")
+        self.assertEqual(200, response.code)
+        self.assertEqual(before + 1, self._request_count("DebugMetricsController"))
+
+    def test_metrics_failure_does_not_break_request(self):
+        """A failing metrics observer is swallowed and the request still succeeds."""
+        with patch.object(
+            self._app, "observe_request", side_effect=RuntimeError("boom")
+        ):
+            response = self.fetch("/api/v1/debug")
+        self.assertEqual(200, response.code)
+
+    def test_access_log_levels(self):
+        """2xx logs at DEBUG, 4xx at WARNING and 5xx at ERROR."""
+        with self.assertLogs("tornado.access", level="DEBUG") as ok:
+            self.fetch("/api/v1/debug")
+        self.assertEqual(["DEBUG"], [r.levelname for r in ok.records])
+        self.assertIn("200 GET /api/v1/debug", ok.records[0].getMessage())
+
+        with self.assertLogs("tornado.access", level="DEBUG") as warn:
+            self.fetch("/api/v1/nonexistent")
+        self.assertEqual(["WARNING"], [r.levelname for r in warn.records])
+
+        with (
+            patch.object(ApiDebugController, "get", side_effect=RuntimeError("x")),
+            self.assertLogs("tornado.access", level="DEBUG") as err,
+        ):
+            self.fetch("/api/v1/debug")
+        self.assertEqual(["ERROR"], [r.levelname for r in err.records])
+
+    def _request_count(self, handler):
+        total = 0
+        for metric in requests_total.collect():
+            for sample in metric.samples:
+                if (
+                    sample.name.endswith("_total")
+                    and sample.labels.get("handler") == handler
+                ):
+                    total += sample.value
+        return total
 
     @staticmethod
     def _body_count(handler, method):
