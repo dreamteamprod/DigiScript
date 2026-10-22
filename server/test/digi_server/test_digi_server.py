@@ -1,9 +1,9 @@
 import ast
+import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
 import tornado.escape
-import tornado.gen
 from sqlalchemy import func, select
 from tornado.testing import gen_test
 from tornado.websocket import websocket_connect
@@ -140,10 +140,20 @@ class TestDigiScriptServer(DigiScriptTestCase):
     async def test_websocket_upgrade_not_counted_as_5xx(self):
         """A 101 upgrade must not land in the 5xx series (tornado_prometheus quirk)."""
         before_5xx = self._status_count("5xx")
+        upgrade_logged = asyncio.Event()
+        original = self._app.log_request
+
+        def log_request(handler):
+            original(handler)
+            if handler.get_status() == 101:
+                upgrade_logged.set()
+
         ws_url = self.get_url("/api/v1/ws").replace("http://", "ws://")
-        ws = await websocket_connect(ws_url)
-        ws.close()
-        await tornado.gen.sleep(0.2)
+        with patch.object(self._app, "log_request", side_effect=log_request):
+            ws = await websocket_connect(ws_url)
+            ws.close()
+            # Wait (bounded) for the server to finish handling the upgrade.
+            await asyncio.wait_for(upgrade_logged.wait(), timeout=10)
         self.assertEqual(before_5xx, self._status_count("5xx"))
 
     def _status_count(self, status):
