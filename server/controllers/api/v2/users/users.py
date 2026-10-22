@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from models.user import User
-from registry.named_locks import NamedLockRegistry
+from registry.named_locks import USER_CREATE_LOCK, NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
 from utils.web.base_controller import BaseAPIController
@@ -15,9 +15,6 @@ from utils.web.web_decorators import (
     redact_data_paths,
     require_admin,
 )
-
-
-USER_CREATE_LOCK = "UserCreate"
 
 
 @ApiRoute("users", ApiVersion.V2)

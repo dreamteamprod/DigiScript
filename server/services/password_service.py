@@ -65,9 +65,14 @@ class PasswordService:
         :type password: str
         """
         if PasswordService._dummy_hash is None:
+            # Generating the hash costs one bcrypt run, the same as a
+            # verification, so the first call is no slower than later ones.
+            # Concurrent first calls may each generate one; the extra results
+            # are simply overwritten.
             PasswordService._dummy_hash = await PasswordService.hash_password(
                 secrets.token_urlsafe(16)
             )
+            return
         await PasswordService.verify_password(password, PasswordService._dummy_hash)
 
     @staticmethod

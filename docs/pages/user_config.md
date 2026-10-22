@@ -65,9 +65,9 @@ Admins can reset another user's password from the Users table. DigiScript genera
 
 #### Login Protection
 
-To slow down password guessing, repeated failed logins are throttled. After 5 failed attempts for the same username (or 20 failed attempts from the same network address), further login attempts are refused with a "Too many failed login attempts" message for a short time, which doubles with each additional failure up to 15 minutes. A successful login clears the username's counter. The throttle is held in memory, so it resets when the server restarts.
+To slow down password guessing, repeated failed logins are throttled. After 5 failed attempts for the same username (or 20 failed attempts from the same network address), further login attempts are refused with a "Too many failed login attempts" message for 30 seconds, which doubles with each additional failure up to 15 minutes. While a username or address is locked out, even the correct password is refused until the delay ends. The counters are only forgotten after a quiet period following the end of a lockout, so retrying the moment a lockout ends does not give a fresh set of attempts. A successful login clears the username's counter. The throttle is held in memory, so it resets when the server restarts.
 
-> **Note:** If DigiScript is behind a reverse proxy that does not forward the client address, all clients share one address counter. Because the username counter is shared by everyone, someone who repeatedly fails to log in as a user can briefly lock that user out; wait for the delay shown, then try again.
+> **Note:** DigiScript does not read forwarded-client-address headers (such as `X-Forwarded-For`), so if it is served through a reverse proxy, every client behind that proxy shares one address counter. The username counter is shared by everyone, so someone who repeatedly fails to log in as a user can briefly lock that user out; wait for the delay shown, then try again. If a lockout needs clearing immediately, restart the server.
 
 #### Editing Users
 

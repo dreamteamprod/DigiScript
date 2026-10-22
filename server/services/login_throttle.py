@@ -9,10 +9,13 @@ from typing import Callable, Hashable
 class _Tracker:
     """Failure counters with exponential lockout for one kind of key.
 
-    Once a key has accumulated ``free_attempts`` failures, every further failure
-    locks it for ``base_lockout * 2 ** (failures - free_attempts)`` seconds,
-    capped at ``max_lockout``. Entries are forgotten after ``decay`` seconds
-    without a failure and the table never holds more than ``max_entries`` keys.
+    The failure that brings a key to ``free_attempts`` failures locks it for
+    ``base_lockout`` seconds (so ``free_attempts`` attempts are allowed before
+    the first lockout); each further failure doubles the lockout, capped at
+    ``max_lockout``. Entries are forgotten once ``decay`` seconds have passed
+    since the later of the last failure and the end of the lockout, so a key
+    that is still locked out never resets. The table never holds more than
+    ``max_entries`` keys.
     """
 
     def __init__(
@@ -23,6 +26,10 @@ class _Tracker:
         decay: float,
         max_entries: int,
     ):
+        if free_attempts < 1 or max_entries < 1:
+            raise ValueError("free_attempts and max_entries must be at least 1")
+        if base_lockout <= 0 or max_lockout < base_lockout or decay <= 0:
+            raise ValueError("lockout and decay durations are inconsistent")
         self.free_attempts = free_attempts
         self.base_lockout = base_lockout
         self.max_lockout = max_lockout
@@ -32,7 +39,7 @@ class _Tracker:
         self.entries: "OrderedDict[Hashable, list]" = OrderedDict()
 
     def _expired(self, entry: list, now: float) -> bool:
-        return now >= entry[2] and now - entry[1] >= self.decay
+        return now >= entry[2] and now - max(entry[1], entry[2]) >= self.decay
 
     def _prune(self, now: float) -> None:
         for key in [k for k, e in self.entries.items() if self._expired(e, now)]:
@@ -69,6 +76,17 @@ class _Tracker:
             )
         self.entries.move_to_end(key)
 
+    def refund(self, key: Hashable) -> None:
+        """Take back one counted failure (used when an attempt succeeded)."""
+        entry = self.entries.get(key)
+        if entry is None:
+            return
+        entry[0] -= 1
+        if entry[0] <= 0:
+            del self.entries[key]
+        elif entry[0] < self.free_attempts:
+            entry[2] = 0.0
+
     def clear(self, key: Hashable) -> None:
         self.entries.pop(key, None)
 
@@ -79,10 +97,11 @@ class LoginThrottle:
     Failed attempts are counted against both the client address and the
     submitted username (whether or not that username exists, so the response
     does not reveal which accounts are real). Once a key has used up its free
-    attempts it is locked out with exponential backoff. A successful login
-    clears the username counter only; the address counter is left to decay so
-    that logging into an account of your own does not unlock guessing against
-    others.
+    attempts it is locked out with exponential backoff. Attempts are reserved
+    up front (see :meth:`begin_attempt`) so concurrent requests cannot outrun
+    the limit. A successful login clears the username counter and refunds only
+    its own attempt on the address counter, so logging into an account of your
+    own does not unlock guessing against others.
 
     A single instance lives on the application so state is per-server (and thus
     per-test), never module-level. The clock is injectable for tests.
@@ -131,14 +150,46 @@ class LoginThrottle:
         return math.ceil(wait)
 
     def record_failure(self, ip: str, username: str) -> None:
-        """Count a failed login against the address and the username."""
+        """Count a failed login against the address and the username.
+
+        :param ip: Client address.
+        :param username: Submitted username.
+        """
         now = self._clock()
         self._ips.record_failure(ip, now)
         self._users.record_failure(self._user_key(username), now)
 
-    def record_success(self, username: str) -> None:
-        """Clear the username's failure counter after a successful login."""
+    def begin_attempt(self, ip: str, username: str) -> int:
+        """Atomically check the throttle and, if allowed, reserve an attempt.
+
+        The check and the reservation happen with no ``await`` in between, so a
+        burst of concurrent requests cannot all pass the check before any of
+        them is counted: each allowed request is counted as a failure up front,
+        and :meth:`record_success` takes it back if the login turns out to be
+        valid.
+
+        :param ip: Client address.
+        :param username: Submitted username.
+        :return: Seconds the caller must wait (the attempt is refused and not
+                 counted), or 0 if the attempt may proceed.
+        """
+        wait = self.retry_after(ip, username)
+        if wait > 0:
+            return wait
+        self.record_failure(ip, username)
+        return 0
+
+    def record_success(self, ip: str, username: str) -> None:
+        """Settle a reserved attempt that turned out to be a valid login.
+
+        Clears the username's counter and gives back the address's reserved
+        attempt, so legitimate logins never accumulate against an address.
+
+        :param ip: Client address.
+        :param username: Submitted username.
+        """
         self._users.clear(self._user_key(username))
+        self._ips.refund(ip)
 
     def reset(self) -> None:
         """Forget all state."""

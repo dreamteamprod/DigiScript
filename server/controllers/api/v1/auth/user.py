@@ -5,7 +5,7 @@ from sqlalchemy import select
 from digi_server.logger import get_logger
 from models.session import Session
 from models.user import User
-from registry.named_locks import NamedLockRegistry
+from registry.named_locks import USER_CREATE_LOCK, NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
 from utils.web.base_controller import BaseAPIController
@@ -25,9 +25,6 @@ from utils.web.ws_session_lifecycle import (
     row_owner,
     schedule_disconnect_deadline,
 )
-
-
-USER_CREATE_LOCK = "UserCreate"
 
 
 @ApiRoute("auth/create", ApiVersion.V1)
@@ -178,8 +175,9 @@ class LoginHandler(BaseAPIController):
         throttle = self.application.login_throttle
         client_ip = self.request.remote_ip
 
-        # Refuse before spending any bcrypt time on a locked-out client.
-        retry_after = throttle.retry_after(client_ip, username)
+        # Check and reserve an attempt in one step (no await between), and
+        # refuse before spending any bcrypt time on a locked-out client.
+        retry_after = throttle.begin_attempt(client_ip, username)
         if retry_after > 0:
             self.set_header("Retry-After", str(retry_after))
             self.set_status(429)
@@ -203,7 +201,6 @@ class LoginHandler(BaseAPIController):
                 # Same bcrypt cost as a real check, so response timing does not
                 # reveal which usernames exist.
                 await PasswordService.verify_dummy_password(password)
-                throttle.record_failure(client_ip, username)
                 self.set_status(401)
                 await self.finish({"message": "Invalid username/password"})
                 return
@@ -213,12 +210,11 @@ class LoginHandler(BaseAPIController):
             )
 
             if not password_equal:
-                throttle.record_failure(client_ip, username)
                 self.set_status(401)
                 await self.finish({"message": "Invalid username/password"})
                 return
 
-            throttle.record_success(username)
+            throttle.record_success(client_ip, username)
             session_id = data.get("session_id", "")
             if session_id:
                 ws_session: Session = session.get(Session, session_id)

@@ -5,6 +5,11 @@ from typing import Dict
 import tornado.locks
 
 
+#: Held while checking for existing users and creating one, shared by every
+#: user-creation endpoint so first-run requests cannot race across them.
+USER_CREATE_LOCK = "UserCreate"
+
+
 class NamedLockRegistry:
     """Registry of named asyncio locks.
 
@@ -19,6 +24,15 @@ class NamedLockRegistry:
 
     @classmethod
     def get_lock(cls, name: str) -> tornado.locks.Lock:
+        """Return the raw lock for *name*, creating it if needed.
+
+        Internal to :meth:`acquire`. Using the returned lock directly bypasses
+        the reference counting that keeps idle locks from accumulating, so
+        callers must go through :meth:`acquire` instead.
+
+        :param name: Lock name.
+        :return: The lock registered under *name*.
+        """
         if name in cls._locks:
             return cls._locks[name]
 

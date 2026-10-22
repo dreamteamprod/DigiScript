@@ -1,7 +1,9 @@
+import asyncio
 from unittest import mock
 
 from sqlalchemy import select
 from tornado import escape
+from tornado.httpclient import HTTPRequest
 from tornado.testing import gen_test
 
 from models.user import User
@@ -1299,6 +1301,9 @@ class TestLoginThrottling(DigiScriptTestCase):
         resp = self._login("admin", "wrongpass1")
         self.assertEqual(429, resp.code)
         self.assertGreater(int(resp.headers["Retry-After"]), 0)
+        self.assertIn(
+            "Too many failed login attempts", escape.json_decode(resp.body)["message"]
+        )
 
         # The right password is refused too while locked out.
         self.assertEqual(429, self._login("admin", "adminpass").code)
@@ -1345,6 +1350,41 @@ class TestLoginThrottling(DigiScriptTestCase):
     @gen_test
     async def test_concurrent_first_run_creates_only_one_admin(self):
         await assert_concurrent_first_run_creates_one_admin(self, "/api/v1/auth/create")
+
+    @gen_test
+    async def test_concurrent_first_run_across_v1_and_v2_creates_only_one_admin(self):
+        await assert_concurrent_first_run_creates_one_admin(
+            self, "/api/v1/auth/create", "/api/v2/users"
+        )
+
+    @gen_test
+    async def test_concurrent_wrong_password_burst_is_bounded_by_the_throttle(self):
+        await self.http_client.fetch(
+            HTTPRequest(
+                self.get_url("/api/v1/auth/create"),
+                method="POST",
+                body=escape.json_encode(
+                    {"username": "admin", "password": "adminpass", "is_admin": True}
+                ),
+            )
+        )
+
+        def attempt():
+            return self.http_client.fetch(
+                HTTPRequest(
+                    self.get_url("/api/v1/auth/login"),
+                    method="POST",
+                    body=escape.json_encode(
+                        {"username": "admin", "password": "wrongpass1"}
+                    ),
+                ),
+                raise_error=False,
+            )
+
+        responses = await asyncio.gather(*[attempt() for _ in range(15)])
+        codes = sorted(r.code for r in responses)
+        self.assertEqual(LoginThrottle.USER_FREE_ATTEMPTS, codes.count(401))
+        self.assertEqual(15 - LoginThrottle.USER_FREE_ATTEMPTS, codes.count(429))
 
 
 class TestAuthTokenLifecycleAPI(DigiScriptTestCase):
