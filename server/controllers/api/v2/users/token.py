@@ -1,5 +1,6 @@
 from models.user import User
 from utils.web.api_keys import ApiKeyService
+from utils.web.auth_audit import actor, audit
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import api_authenticated
@@ -32,6 +33,7 @@ class UsersTokenV2Controller(BaseAPIController):
             session.commit()
             self.application.jwt_service.api_keys.invalidate()
 
+            audit("api_token_generate", "success", **actor(self))
             self.set_status(200)
             await self.finish(
                 {
@@ -50,6 +52,12 @@ class UsersTokenV2Controller(BaseAPIController):
                 return
 
             if not user.api_token:
+                audit(
+                    "api_token_revoke",
+                    "failure",
+                    detail="reason=no_token",
+                    **actor(self),
+                )
                 self.set_status(400)
                 await self.finish({"message": "No API token to revoke"})
                 return
@@ -58,5 +66,6 @@ class UsersTokenV2Controller(BaseAPIController):
             session.commit()
             self.application.jwt_service.api_keys.invalidate()
 
+            audit("api_token_revoke", "success", **actor(self))
             self.set_status(200)
             await self.finish({"message": "API token revoked successfully"})

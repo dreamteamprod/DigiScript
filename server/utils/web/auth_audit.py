@@ -36,6 +36,9 @@ EVENTS = frozenset(
         "token_refresh",
         "api_token_generate",
         "api_token_revoke",
+        "user_create",
+        "user_update",
+        "user_delete",
     }
 )
 RESULTS = frozenset({"success", "failure"})
@@ -61,6 +64,21 @@ def sanitise(value: object, max_length: int = MAX_FIELD_LENGTH) -> str:
     """
     text = "".join(ch for ch in str(value) if unicodedata.category(ch)[0] != "C")
     return text[:max_length]
+
+
+def actor(controller) -> dict:
+    """Return the ``audit`` keyword arguments identifying a request's actor.
+
+    :param controller: A request handler with ``current_user`` and ``request``.
+    :returns: ``username``, ``user_id`` and ``remote_ip`` for the caller (the
+        first two are ``None`` when the request is unauthenticated).
+    """
+    user = controller.current_user or {}
+    return {
+        "username": user.get("username"),
+        "user_id": user.get("id"),
+        "remote_ip": controller.request.remote_ip,
+    }
 
 
 def audit(

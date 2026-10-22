@@ -6,6 +6,7 @@ from models.user import User
 from registry.named_locks import NamedLockRegistry
 from schemas.schemas import UserSchema
 from services.password_service import PasswordService
+from utils.web.auth_audit import actor, audit
 from utils.web.base_controller import BaseAPIController
 from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
@@ -59,6 +60,12 @@ class UsersV2Controller(BaseAPIController):
 
             is_valid, error_msg = PasswordService.validate_password_strength(password)
             if not is_valid:
+                audit(
+                    "user_create",
+                    "failure",
+                    detail="reason=weak_password",
+                    **actor(self),
+                )
                 self.set_status(400)
                 await self.finish({"message": error_msg})
                 return
@@ -68,21 +75,32 @@ class UsersV2Controller(BaseAPIController):
                     select(User).where(User.username == username)
                 ).first()
                 if conflict_user:
+                    audit(
+                        "user_create",
+                        "failure",
+                        detail="reason=username_taken",
+                        **actor(self),
+                    )
                     self.set_status(400)
                     await self.finish({"message": "Username already taken"})
                     return
 
                 hashed_password = await PasswordService.hash_password(password)
 
-                session.add(
-                    User(
-                        username=username,
-                        password=hashed_password,
-                        is_admin=is_admin,
-                        created_on=datetime.now(tz=timezone.utc),
-                    )
+                new_user = User(
+                    username=username,
+                    password=hashed_password,
+                    is_admin=is_admin,
+                    created_on=datetime.now(tz=timezone.utc),
                 )
+                session.add(new_user)
                 session.commit()
+                audit(
+                    "user_create",
+                    "success",
+                    detail=f"target_user_id={new_user.id} is_admin={bool(is_admin)}",
+                    **actor(self),
+                )
 
                 if is_admin:
                     await self.application.digi_settings.set("has_admin_user", True)
@@ -119,17 +137,31 @@ class UsersV2Controller(BaseAPIController):
                     select(User).where(User.is_admin.is_(True))
                 ).all()
                 if len(all_admins) <= 1:
+                    audit(
+                        "user_update",
+                        "failure",
+                        detail=f"target_user_id={user.id} reason=only_admin",
+                        **actor(self),
+                    )
                     self.set_status(400)
                     await self.finish(
                         {"message": "Cannot remove admin from the only admin user"}
                     )
                     return
 
+            changed = []
             for field in self.EDITABLE_FIELDS:
                 if field in data:
                     setattr(user, field, data[field])
+                    changed.append(f"{field}={bool(data[field])}")
 
             session.commit()
+            audit(
+                "user_update",
+                "success",
+                detail=f"target_user_id={user.id} changed={','.join(changed) or 'none'}",
+                **actor(self),
+            )
 
         self.set_status(200)
         await self.application.ws_send_to_all("NOOP", "GET_USERS", {})
@@ -163,6 +195,12 @@ class UsersV2Controller(BaseAPIController):
                 select(User).where(User.is_admin.is_(True))
             ).all()
             if user_to_delete.is_admin and len(all_admins) <= 1:
+                audit(
+                    "user_delete",
+                    "failure",
+                    detail=f"target_user_id={user_to_delete.id} reason=only_admin",
+                    **actor(self),
+                )
                 self.set_status(400)
                 await self.finish({"message": "Cannot delete the only admin user"})
                 return
@@ -174,8 +212,15 @@ class UsersV2Controller(BaseAPIController):
                     session, user_to_delete
                 )
                 self.application.rbac.delete_actor(user_to_delete)
+                target_id = user_to_delete.id
                 session.delete(user_to_delete)
                 session.commit()
+                audit(
+                    "user_delete",
+                    "success",
+                    detail=f"target_user_id={target_id}",
+                    **actor(self),
+                )
 
                 self.set_status(200)
                 await self.application.ws_send_to_all("NOOP", "GET_USERS", {})

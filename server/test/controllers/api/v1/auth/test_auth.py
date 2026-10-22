@@ -1478,3 +1478,74 @@ class TestAuthAuditLogging(DigiScriptTestCase):
         self.assertEqual("alice", audit[0].username)
         self._assert_no_secrets(logs, temp, self.PASSWORD)
         self.assertEqual(before + 1, self._count("password_reset", "success"))
+
+
+class TestAuthUserAdminAudit(DigiScriptTestCase):
+    PASSWORD = "Sup3r-Secret-Pw-1"
+
+    def _count(self, event, result):
+        return (
+            REGISTRY.get_sample_value(
+                "digiscript_auth_events_total", {"event": event, "result": result}
+            )
+            or 0.0
+        )
+
+    def _post(self, path, body, token=None):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        return self.fetch(
+            path, method="POST", body=escape.json_encode(body), headers=headers
+        )
+
+    def test_user_create_and_delete_are_audited(self):
+        with self.assertLogs("DigiScript.Audit", "INFO") as boot:
+            self._post(
+                "/api/v1/auth/create",
+                {"username": "root", "password": self.PASSWORD, "is_admin": True},
+            )
+        self.assertIn("AUDIT user_create success", boot.output[0])
+        token = escape.json_decode(
+            self._post(
+                "/api/v1/auth/login", {"username": "root", "password": self.PASSWORD}
+            ).body
+        )["access_token"]
+
+        create_before = self._count("user_create", "success")
+        fail_before = self._count("user_create", "failure")
+        delete_before = self._count("user_delete", "success")
+        with self.assertLogs("DigiScript", "INFO") as logs:
+            self.assertEqual(
+                200,
+                self._post(
+                    "/api/v1/auth/create",
+                    {"username": "dave", "password": self.PASSWORD},
+                    token,
+                ).code,
+            )
+            self.assertEqual(
+                400,
+                self._post(
+                    "/api/v1/auth/create",
+                    {"username": "dave", "password": self.PASSWORD},
+                    token,
+                ).code,
+            )
+            with self._app.get_db().sessionmaker() as session:
+                dave_id = (
+                    session.scalars(select(User).where(User.username == "dave"))
+                    .one()
+                    .id
+                )
+            self.assertEqual(
+                200, self._post("/api/v1/auth/delete", {"id": dave_id}, token).code
+            )
+        output = "\n".join(logs.output)
+        self.assertIn("AUDIT user_create success", output)
+        self.assertIn("reason=username_taken", output)
+        self.assertIn("AUDIT user_delete success", output)
+        self.assertIn(f"target_user_id={dave_id}", output)
+        self.assertNotIn(self.PASSWORD, output)
+        self.assertNotIn(token, output)
+        self.assertEqual(create_before + 1, self._count("user_create", "success"))
+        self.assertEqual(fail_before + 1, self._count("user_create", "failure"))
+        self.assertEqual(delete_before + 1, self._count("user_delete", "success"))

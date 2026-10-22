@@ -102,7 +102,9 @@ All log entries are attributed to the logged-in user where one is present:
 
 #### Authentication Audit Log
 
-Security-relevant authentication actions are recorded as `AUDIT` lines (logger `DigiScript.Audit`) at the default `INFO` log level, independent of the **Enable Log Redaction** setting. Successes are logged at `INFO` and failures at `WARNING`. The covered events are login, logout, password change, admin password reset, token refresh, and API token generation and revocation. For example:
+Security-relevant authentication actions are recorded as `AUDIT` lines (logger `DigiScript.Audit`) at the default `INFO` log level, independent of the **Enable Log Redaction** setting. Successes are logged at `INFO` and failures at `WARNING`. The covered events are login, logout, password change, admin password reset, token refresh, API token generation and revocation, and user creation, update (such as changing the admin flag) and deletion (on both the v1 and v2 APIs). For user management events the username is the acting administrator and `target_user_id` identifies the affected account; the creation of the very first user is logged without an actor. For example:
+
+- `AUDIT user_delete success username="admin" user_id=1 ip=203.0.113.5 target_user_id=7`
 
 - `AUDIT login failure username="alice" ip=203.0.113.5 reason=bad_password`
 - `AUDIT password_reset success username="admin" user_id=1 ip=203.0.113.5 target_user_id=4` (the username is the administrator who performed the reset)
