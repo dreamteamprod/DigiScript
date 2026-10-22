@@ -126,8 +126,10 @@ def _live_session_value() -> float:
     """Return 1 if any registered app has a live session, else 0.
 
     Each app is checked independently; one that fails is logged (with its type
-    and id) and skipped. The value is NaN only if no app could be read and at
-    least one failed, so a failure is never reported as a confident 0.
+    and id) and counted as unknown. The rule is: 1 if any app confirms a live
+    session; otherwise NaN if any app failed (the failed app's state is unknown,
+    so "no live session anywhere" is not confirmed, even if another app
+    confidently reported none); otherwise 0.
     """
     active = False
     failed = 0
