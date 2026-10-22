@@ -1,10 +1,10 @@
 import asyncio
 import os
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Optional
 
 from sqlalchemy import text
-from tornado.ioloop import IOLoop
 
 from digi_server.logger import get_logger
 from digi_server.settings import get_version
@@ -21,6 +21,11 @@ _STORAGE_FILE_SETTINGS = ("log_path", "db_log_path", "client_log_path")
 _STORAGE_DIR_SETTINGS = ("draft_script_path", "compiled_script_path")
 
 _STARTED_AT = time.monotonic()
+
+# A single dedicated worker so a hung probe can never occupy more than one
+# thread, nor starve the shared default executor.
+_PROBE_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="health-probe")
+_probe: Optional[Future] = None
 
 
 def _writable(path: str) -> bool:
@@ -54,17 +59,35 @@ class HealthController(BaseAPIController):
         """Skip authentication so a broken database cannot fail the probe itself."""
 
     def _check_database_sync(self) -> None:
+        """Read the schema table of the database on a pooled connection.
+
+        Querying ``sqlite_master`` forces SQLite to read the database file
+        header and schema, so a locked or corrupt file fails here, unlike a
+        bare ``SELECT 1`` which may never touch the file.
+
+        :raises Exception: Any database error, handled by the caller.
+        """
         with self.make_session() as session:
-            session.execute(text("SELECT 1"))
+            session.execute(text("SELECT 1 FROM sqlite_master LIMIT 1"))
 
     async def _check_database(self) -> bool:
-        """Run ``SELECT 1`` off the event loop with a bounded wait.
+        """Probe the database off the event loop with a bounded wait.
+
+        Probes are single-flight on a dedicated one-thread executor: a timed
+        out probe cannot be cancelled (its thread keeps running), so while one
+        is still in flight further calls report failure without starting
+        another. This caps leaked threads and connections at one.
 
         :returns: ``True`` if the query succeeded in time.
         """
+        global _probe  # noqa: PLW0603
+        if _probe is not None and not _probe.done():
+            get_logger().error("Health check: previous database probe still running")
+            return False
+        _probe = _PROBE_EXECUTOR.submit(self._check_database_sync)
         try:
             await asyncio.wait_for(
-                IOLoop.current().run_in_executor(None, self._check_database_sync),
+                asyncio.shield(asyncio.wrap_future(_probe)),
                 timeout=DB_CHECK_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
@@ -73,13 +96,21 @@ class HealthController(BaseAPIController):
                 f"{DB_CHECK_TIMEOUT_SECONDS}s"
             )
             return False
-        except Exception as e:  # noqa: BLE001
-            get_logger().error(f"Health check: database probe failed: {e!r}")
+        except Exception as e:
+            get_logger().error(
+                f"Health check: database probe failed: {e!r}", exc_info=True
+            )
             return False
         return True
 
     @staticmethod
     def _setting(settings, key: str) -> Optional[str]:
+        """Read a setting without raising for unknown keys.
+
+        :param settings: The application settings object.
+        :param key: Setting name.
+        :returns: The setting value, or ``None`` if the setting is not defined.
+        """
         try:
             return settings.get_sync(key)
         except KeyError:
@@ -112,7 +143,11 @@ class HealthController(BaseAPIController):
 
     async def get(self):
         db_ok = await self._check_database()
-        storage_ok = self._check_storage()
+        try:
+            storage_ok = self._check_storage()
+        except Exception:
+            get_logger().error("Health check: storage check raised", exc_info=True)
+            storage_ok = False
         healthy = db_ok and storage_ok
 
         if not healthy:
@@ -126,5 +161,25 @@ class HealthController(BaseAPIController):
                     "storage": "ok" if storage_ok else "fail",
                 },
                 "uptime_seconds": int(time.monotonic() - _STARTED_AT),
+            }
+        )
+
+    def write_error(self, status_code: int, **kwargs) -> None:
+        """Never serve a traceback or error text, even with ``serve_traceback`` on.
+
+        Server errors become a minimal degraded body; client errors (such as
+        405) keep Tornado's default handling.
+
+        :param status_code: HTTP status of the error.
+        """
+        if status_code < 500:
+            super().write_error(status_code, **kwargs)
+            return
+        self.set_status(503)
+        self.finish(
+            {
+                "version": get_version(),
+                "status": "degraded",
+                "checks": {"database": "unknown", "storage": "unknown"},
             }
         )
