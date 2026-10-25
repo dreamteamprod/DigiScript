@@ -19,6 +19,7 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 function enqueueLog(level: string, message: string, extra: Record<string, unknown>): void {
   logQueue.push({ level, message, extra });
+  if (logQueue.length > MAX_QUEUE_SIZE) logQueue.shift();
   if (logQueue.length >= MAX_QUEUE_SIZE) {
     flushQueue();
     return;
@@ -33,9 +34,13 @@ function flushQueue() {
   flushTimer = null;
   if (logQueue.length === 0) return;
 
+  // The server only accepts log posts from logged-in users, so entries stay queued
+  // (capped in enqueueLog) until a token exists.
+  const token = useUserStore().authToken;
+  if (!token) return;
+
   const batch = logQueue.splice(0);
 
-  const token = useUserStore().authToken;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 

@@ -1,11 +1,30 @@
-from tornado import escape
-
 from digi_server.logger import get_logger
 from models.user import UserSettings
 from schemas.schemas import UserSettingsSchema
 from utils.web.base_controller import BaseAPIController
+from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import allow_when_password_required, api_authenticated
+
+
+# Settings a user may change themselves. Anything else (including internal
+# ``_``-prefixed columns and non-column attributes) is ignored.
+EDITABLE_USER_SETTINGS = frozenset(
+    {
+        "enable_script_auto_save",
+        "script_auto_save_interval",
+        "cue_position_right",
+        "script_text_alignment",
+        "console_log_level",
+        "character_mru_sort",
+        "character_combined_dropdown",
+        "preferred_ui",
+        "table_page_sizes",
+        "default_sd_text_colour",
+        "default_sd_background_colour",
+        "show_current_cue_footer",
+    }
+)
 
 
 @ApiRoute("user/settings", ApiVersion.V1)
@@ -28,7 +47,7 @@ class UserSettingsController(BaseAPIController):
     @api_authenticated
     async def patch(self):
         log = get_logger()
-        data = escape.json_decode(self.request.body)
+        data = get_json_object(self)
         with self.make_session() as session:
             user_settings = session.get(UserSettings, self.current_user["id"])
             if not user_settings:
@@ -38,16 +57,11 @@ class UserSettingsController(BaseAPIController):
                 session.flush()
 
             for k, v in data.items():
-                if hasattr(user_settings, k):
-                    if k[0] == "_":
-                        log.warning(
-                            f"User attempted to set protected setting: {k}. Ignoring."
-                        )
-                    else:
-                        setattr(user_settings, k, v)
+                if k in EDITABLE_USER_SETTINGS:
+                    setattr(user_settings, k, v)
                 else:
                     log.warning(
-                        f"User attempted to set unknown setting: {k}. Ignoring."
+                        f"User attempted to set non-editable setting: {k}. Ignoring."
                     )
 
             session.commit()

@@ -73,7 +73,7 @@ Every live show session is recorded with start/end times and can be tagged for o
 
 ### Requirements
 
-* Node v24.x (npm 11.x)
+* Node v24.15+ (pnpm 12.x: run `corepack enable` once and it will use the version pinned in `packageManager`)
 * Python 3.13.x
 
 ### Quick Start with Docker Compose (Recommended)
@@ -86,6 +86,23 @@ docker-compose up -d
 
 DigiScript will be available at `http://localhost:8080`
 
+### Request size metrics
+
+The server exposes two Prometheus histograms at `/debug/metrics` so that request size limits can be
+tuned from real usage (Tornado's defaults currently apply: 100 MB HTTP bodies, 10 MiB WebSocket messages):
+
+| Metric | Labels | Meaning |
+|--------|--------|---------|
+| `digiscript_http_request_body_bytes` | `handler`, `method` | Size of HTTP request bodies (requests with a body only) |
+| `digiscript_ws_message_bytes` | none | Size of inbound WebSocket messages |
+
+Buckets are powers of 4 from 1 KiB to 256 MiB. For example, the 99th percentile WebSocket message size
+over the last day in Prometheus:
+
+```
+histogram_quantile(0.99, sum(rate(digiscript_ws_message_bytes_bucket[1d])) by (le))
+```
+
 ### Manual Installation
 
 #### Client
@@ -93,9 +110,9 @@ DigiScript will be available at `http://localhost:8080`
 Build the frontend (output goes to `../server/static/`):
 
 ```shell
-cd client
-npm ci
-npm run build
+cd client-v3
+pnpm install
+pnpm run build
 ```
 
 #### Server
@@ -109,6 +126,8 @@ python3 main.py
 ```
 
 The server will be available at `http://localhost:8080`
+
+The server runs in production mode by default. When developing (for example with the `client-v3` Vite dev server), start it with `python3 main.py --debug` to enable autoreload and accept WebSocket connections from other origins. Never use `--debug` on a deployed server.
 
 ### First Launch Setup
 

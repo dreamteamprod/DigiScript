@@ -155,29 +155,23 @@ test('Next Page stops at the last page that exists', async () => {
   await expect(page.locator('p:has-text("Current Page: 1")')).toBeVisible();
 });
 
-test('reloading loses editor status (known gap, issue #1419) but not the draft', async () => {
-  // A full reload closes and reopens the WebSocket, and REFRESH_CLIENT does not
-  // currently preserve is_editor across that (see issue #1419) — this is a pre-existing
-  // gap in shared session-lifecycle code, not specific to the collaborative editor.
-  // What must still hold: no draft content is lost, and clicking Edit again resumes the
-  // *same* draft rather than starting a fresh one, so this captures the content before
-  // reloading and compares it after — a fresh/empty draft would also show a first row,
-  // so "a row is visible" alone wouldn't prove that.
+test('reloading while editing keeps editor status and the same draft', async () => {
+  // A reload closes and reopens the WebSocket; the reconnect resumes the same client
+  // id (REFRESH_CLIENT) inside the server's reconnect grace window, so the edit lock
+  // is kept rather than released (issue #1419, fixed by #1427) — mirrors spec 10's
+  // "reloading while editing keeps edit mode" for the classic editor. What must also
+  // hold here, since the draft itself is a separate round trip from the lock: no
+  // content is lost and CollabScriptEditor rejoins the *same* draft rather than a
+  // fresh one, so this captures the content before reloading and compares it after —
+  // a fresh/empty draft would also show a first row, so "a row is visible" alone
+  // wouldn't prove that.
   const before = await firstRow(page).textContent();
 
   await page.reload();
   await waitForAppReady(page);
 
-  // Tripwire, not the desired behaviour: this asserts the #1419 bug (Edit shown again,
-  // not silently rejoined). It will start failing the moment #1419 is fixed server-side
-  // — see the note left on that issue — at which point invert this to assert
-  // `stopEditing(page)` is visible instead, since CollabScriptEditor's reload-rejoin
-  // code path (onMounted's `if (isEditor.value) retryJoin()`) needs no change to cover
-  // that case.
-  await expect(editButton(page)).toBeVisible({ timeout: 15_000 });
-
-  await editButton(page).click();
-  await expect(stopEditing(page)).toBeVisible({ timeout: 10_000 });
+  await expect(stopEditing(page)).toBeVisible({ timeout: 15_000 });
+  await expect(editButton(page)).not.toBeVisible();
   await expect(firstRow(page)).toBeVisible({ timeout: 15_000 });
   await expect(firstRow(page)).toHaveText(before ?? '');
 });

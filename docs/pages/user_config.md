@@ -53,11 +53,21 @@ The users table shows:
 
 Click the **New User** button to add a new user. You'll need to provide:
 - Username (must be unique across the entire system)
-- Password
+- Password (8 to 72 characters)
 - First Name
 - Last Name
 
 Users are created at the system level and are not tied to individual shows. Their access to specific shows and resources is controlled through RBAC configuration.
+
+#### Resetting a User's Password
+
+Admins can reset another user's password from the Users table. DigiScript generates a temporary password made of four random words (for example `word-word-word-word`) and shows it once; the user must choose a new password (8 to 72 characters) the next time they log in.
+
+#### Login Protection
+
+To slow down password guessing, repeated failed logins are throttled. After 5 failed attempts for the same username (or 20 failed attempts from the same network address), further login attempts are refused with a "Too many failed login attempts" message for 30 seconds, which doubles with each additional failure up to 15 minutes. While a username or address is locked out, even the correct password is refused until the delay ends. The counters are only forgotten after a quiet period following the end of a lockout, so retrying the moment a lockout ends does not give a fresh set of attempts. A successful login clears the username's counter. The throttle is held in memory, so it resets when the server restarts.
+
+> **Note:** DigiScript does not read forwarded-client-address headers (such as `X-Forwarded-For`), so if it is served through a reverse proxy, every client behind that proxy shares one address counter. The username counter is shared by everyone, so someone who repeatedly fails to log in as a user can briefly lock that user out; wait for the delay shown, then try again. If a lockout needs clearing immediately, restart the server.
 
 #### Editing Users
 
@@ -76,13 +86,19 @@ Once users have been created, their permissions can be configured by clicking th
 
 RBAC configuration determines what shows a user can access and what actions they can perform within those shows.
 
+### Log Redaction
+
+The **Enable Log Redaction** system setting is on by default. While it is on, passwords, tokens and other credentials are replaced with a placeholder in logged HTTP request bodies, and WebSocket messages are logged as their operation name and size only.
+
+Turn it off to see the raw HTTP and WebSocket content while debugging. Request bodies and WebSocket messages are logged at debug level, so also set **Log Level** to `DEBUG` (the default is `INFO`). **Warning:** with redaction off, the logs contain credentials and authentication tokens, so only disable it temporarily and treat the log files as sensitive. A value you have saved is never changed by a later change to a setting's default.
+
 ### Log Viewer
 
 The **Logs** tab (admin only) provides a real-time view of server and client log entries stored in the in-memory log buffer.
 
 #### Sources
 
-- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs, request body debug logs, WebSocket connection events, and general application messages.
+- **Server** — Application-level logs from the DigiScript backend: HTTP request access logs (successful 1xx-3xx responses are logged at `DEBUG`, client errors at `WARNING`, server errors at `ERROR`), request body and WebSocket message debug logs (only shown when the Log Level is `DEBUG`), WebSocket connection events, and general application messages. HTTP request metrics (`tornado_http_requests_total`, `tornado_http_request_duration_seconds`) are exposed on `/debug/metrics`; WebSocket upgrades (HTTP 101) are not counted in the request-status series.
 - **Client** — Logs forwarded from connected browser clients via the `/api/v1/logs/batch` endpoint.
 
 #### Username Attribution
@@ -91,6 +107,20 @@ All log entries are attributed to the logged-in user where one is present:
 
 - **Server logs**: Each HTTP access log line and request-body debug line includes `[username]` in the message (e.g. `200 GET /api/v1/user/settings (127.0.0.1) [alice] 5.23ms`). WebSocket messages and close events also include the username once the connection has been authenticated.
 - **Client logs**: The server extracts the username from the JWT token on each batch submission, so all client log entries are attributed even if the client sends no user information itself.
+- **Client log limits**: Submitting client logs requires being logged in, so entries generated before login are held in the browser and sent after login. A single batch may contain at most 100 entries, messages are truncated at 4 KB, oversized extra data is dropped, and each IP address is limited to 600 entries per minute (further entries are rejected until the window resets).
+- **Server file paths**: The database, log, compiled script and draft script locations are only shown to administrators (on the Settings tab); other users and logged-out visitors never receive them.
+
+#### Authentication Audit Log
+
+Security-relevant authentication actions are recorded as `AUDIT` lines (logger `DigiScript.Audit`) at the default `INFO` log level, independent of the **Enable Log Redaction** setting. Successes are logged at `INFO` and failures at `WARNING`. The covered events are login, logout, password change, admin password reset, token refresh, API token generation and revocation, and user creation, update (such as changing the admin flag) and deletion (on both the v1 and v2 APIs). For user management events the username is the acting administrator and `target_user_id` identifies the affected account; the creation of the very first user is logged without an actor. For example:
+
+- `AUDIT user_delete success username="admin" user_id=1 ip=203.0.113.5 target_user_id=7`
+- `AUDIT login failure username="alice" user_id=3 ip=203.0.113.5 reason=bad_password`
+- `AUDIT login failure username="alcie" ip=203.0.113.5 reason=unknown_user` (no `user_id`, because no such account exists)
+- `AUDIT login failure username="alice" ip=203.0.113.5 reason=throttled retry_after=300` (the client was locked out after repeated failed attempts, so the password was not checked)
+- `AUDIT password_reset success username="admin" user_id=1 ip=203.0.113.5 target_user_id=4` (the username is the administrator who performed the reset)
+
+A failed login records whether the username was unknown or the password was wrong, but the response sent to the client is identical in both cases. Passwords, tokens and API keys are never deliberately logged. The username of a failed login is recorded as typed, so text mistakenly entered into the username field (for example a password) will appear in the log; treat the log files as sensitive. Usernames typed by a client are stripped of control characters, truncated to 64 characters and quoted, and the client address is quoted unless it is a valid IP address. The events are also counted in the `digiscript_auth_events_total{event,result}` Prometheus metric (per event type and result, never per user; every combination is reported as `0` until it first occurs), which is useful for alerting on bursts of failed logins.
 
 #### Filtering
 
@@ -116,6 +146,8 @@ Controls how long JWT access tokens remain valid after they are issued. The avai
 **Reducing the lifetime** takes effect immediately — any token whose issue time is older than the new limit will be rejected on the next request, even if the token's expiry date has not passed yet. Affected users are redirected to the login page.
 
 **Increasing the lifetime** applies to newly-issued tokens. Active users automatically receive a refreshed token within 30 minutes, at which point the longer lifetime takes effect for their session.
+
+Logging out invalidates the session token permanently, including across a server restart.
 
 > **Note:** This setting applies to JWT browser session tokens only. API tokens (long-lived keys used for machine-to-machine access) are not subject to this lifetime limit.
 

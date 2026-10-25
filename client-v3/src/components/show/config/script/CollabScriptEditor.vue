@@ -303,13 +303,11 @@ onMounted(async () => {
   await loadViewerPage(currentPage.value);
 
   loaded.value = true;
-  // Covers a reconnect that *does* keep our editor flag (a brief drop, not a full
-  // reload). A full page reload currently does not preserve is_editor server-side
-  // (issue #1419 — REFRESH_CLIENT reads the wrong session row, and on_close deletes
-  // the old one before it can be resumed), so isEditor is false here after a reload
-  // and the user sees Edit again rather than being silently rejoined; no draft data is
-  // lost, since the room rebuilds from the checkpoint on the next join. Once #1419 is
-  // fixed server-side this line needs no client change to also cover the reload case.
+  // Covers both a brief reconnect and a full page reload: the server holds
+  // is_editor through a short reconnect grace window (issue #1419, fixed by #1427 —
+  // REFRESH_CLIENT resumes the session row, confirmed once AUTHENTICATE succeeds),
+  // so isEditor is already true here by the time this component re-mounts. No
+  // client-side change was needed to pick that up.
   if (isEditor.value) retryJoin();
 });
 

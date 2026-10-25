@@ -61,6 +61,8 @@ class DigiScriptTestCase(AsyncHTTPTestCase):
 
     def tearDown(self):
         try:
+            # Drop any reconnect grace-window timers so none fires after teardown.
+            self._app.pending_disconnects.cancel_all()
             for rbac_table in self._app.rbac._rbac_db._mappings:
                 table = self._app.rbac._rbac_db._mappings[rbac_table]
                 table_inspect = inspect(table)

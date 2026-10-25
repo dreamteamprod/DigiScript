@@ -90,6 +90,15 @@ const module: Module<WebsocketState, RootState> = {
             state.pendingAuthentication = true;
           }
           break;
+        case 'REASSIGN_UUID':
+          // The server moved this tab to a different client id: the one it had
+          // belongs to another user (or no longer exists). Store the new id as-is
+          // (unlike SET_UUID this must not trigger a REFRESH_CLIENT) and announce
+          // it like a new connection once authenticated.
+          log.info('Server assigned this tab a new client id:', message.DATA);
+          state.internalUUID = message.DATA as string;
+          state.newConnection = true;
+          break;
         case 'WS_AUTH_SUCCESS':
           state.authenticated = true;
           state.authenticationInProgress = false;

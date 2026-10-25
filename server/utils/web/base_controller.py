@@ -3,10 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Optional
 
-import bcrypt
-from sqlalchemy import select
 from tornado import escape, httputil
-from tornado.ioloop import IOLoop
 from tornado.web import HTTPError, RequestHandler
 
 from digi_server.logger import get_logger
@@ -15,10 +12,21 @@ from models.show import Show
 from models.user import User
 from rbac.role import Role
 from schemas.schemas import ShowSchema, UserSchema
+from utils.web.api_keys import ApiKeyRateLimited
+from utils.web.jwt_service import (
+    TOKEN_EXPIRED,
+    TOKEN_REVOKED,
+    TOKEN_VERSION_INVALID,
+)
+from utils.web.log_redaction import apply_path_redactions, redact_sensitive_keys
+from utils.web.security_headers import apply_security_headers
 
 
 if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
+
+# Returned by BaseAPIController._loggable_body when a body is not valid JSON.
+_NON_JSON = object()
 
 
 class DatabaseMixin:
@@ -45,6 +53,10 @@ class BaseController(DatabaseMixin, RequestHandler):
         self.application: DigiScriptServer = self.application
         self.current_show: Optional[dict] = None
 
+    def set_default_headers(self) -> None:
+        """Add the baseline security headers to every response."""
+        apply_security_headers(self)
+
     async def prepare(
         self,
     ) -> Optional[Awaitable[None]]:
@@ -59,49 +71,35 @@ class BaseController(DatabaseMixin, RequestHandler):
             )
 
             if token:
-                is_revoked = await self.application.jwt_service.is_token_revoked(token)
-                if is_revoked:
+                (
+                    payload,
+                    reason,
+                ) = await self.application.jwt_service.validate_access_token(token)
+                if reason == TOKEN_REVOKED:
                     raise HTTPError(401, log_message="JWT revoked")
-
-                payload = self.application.jwt_service.decode_access_token(token)
-                if payload and "user_id" in payload:
-                    if not self.application.jwt_service.validate_token_age(payload):
-                        raise HTTPError(
-                            401,
-                            log_message="JWT token age exceeded configured lifetime",
-                        )
-                    # Validate token version to check if token is still valid
-                    if not self.application.jwt_service.is_token_version_valid(payload):
-                        raise HTTPError(401, log_message="JWT token version invalid")
-
+                if reason == TOKEN_EXPIRED:
+                    raise HTTPError(
+                        401, log_message="JWT token age exceeded configured lifetime"
+                    )
+                if reason == TOKEN_VERSION_INVALID:
+                    raise HTTPError(401, log_message="JWT token version invalid")
+                if payload:
                     user = session.get(User, int(payload["user_id"]))
                     if user:
                         self.current_user = user_schema.dump(user)
 
-            # If not authenticated via JWT, try API token authentication
+            # If not authenticated via JWT, try API key authentication
             if not self.current_user:
                 api_key = self.request.headers.get("X-API-Key", "")
                 if api_key:
-                    # Get all users with API tokens and check each one
-                    users_with_tokens = session.scalars(
-                        select(User).where(User.api_token.isnot(None))
-                    ).all()
-
-                    authenticated_user = None
-                    for user in users_with_tokens:
-                        # Compare the provided token with the hashed token
-                        token_matches = await IOLoop.current().run_in_executor(
-                            None,
-                            bcrypt.checkpw,
-                            escape.utf8(api_key),
-                            escape.utf8(user.api_token),
+                    try:
+                        user = await self.application.jwt_service.api_keys.authenticate(
+                            session, api_key, self.request.remote_ip
                         )
-                        if token_matches:
-                            authenticated_user = user
-                            break
-
-                    if authenticated_user:
-                        self.current_user = user_schema.dump(authenticated_user)
+                    except ApiKeyRateLimited:
+                        raise HTTPError(429, log_message="API key attempts limited")
+                    if user:
+                        self.current_user = user_schema.dump(user)
                     else:
                         raise HTTPError(401, log_message="Invalid API key")
 
@@ -164,6 +162,39 @@ class BaseAPIController(BaseController):
             extra["user_id"] = self.current_user.get("id")
         return extra
 
+    def _redaction_enabled(self) -> bool:
+        """Return True if the ``log_redaction`` setting is on."""
+        return bool(
+            self.application.digi_settings.settings["log_redaction"].get_value()
+        )
+
+    def _loggable_raw_body(self) -> Any:
+        """Return a non-JSON request body in the form allowed by ``log_redaction``.
+
+        With redaction on only its size is returned, as it cannot be redacted by key.
+        """
+        if self._redaction_enabled():
+            return f"<non-JSON body, {len(self.request.body)} bytes>"
+        return self.request.body
+
+    def _loggable_body(self, redacted_data_paths) -> Any:
+        """Decode the JSON request body, redacted if ``log_redaction`` is on.
+
+        :param redacted_data_paths: Decorator-supplied patch of paths to redact,
+            or None.
+        :returns: The body, or the ``_NON_JSON`` sentinel if it is not valid JSON.
+        """
+        try:
+            body = escape.json_decode(self.request.body)
+        except BaseException:
+            return _NON_JSON
+        if self._redaction_enabled():
+            body = deepcopy(body)
+            body = redact_sensitive_keys(body)
+            if redacted_data_paths:
+                apply_path_redactions(redacted_data_paths, body)
+        return body
+
     def on_finish(self):
         from utils.web.route import Route  # noqa: PLC0415
 
@@ -179,26 +210,13 @@ class BaseAPIController(BaseController):
             method_name = self.request.method.lower()
             handler_method = getattr(self, method_name, None)
             redacted_data_paths = getattr(handler_method, "_redacted_data_paths", None)
-            try:
-                body = escape.json_decode(self.request.body)
-            except BaseException:
-                get_logger().debug(
-                    f"{self.request.method} {self.request.path} {self.request.body}{user_suffix}",
-                    extra=self._log_extra(),
-                )
-            else:
-                if (
-                    redacted_data_paths
-                    and self.application.digi_settings.settings[
-                        "log_redaction"
-                    ].get_value()
-                ):
-                    body = deepcopy(body)
-                    redacted_data_paths.apply(body)
-
-                log_method(
-                    f"{self.request.method} {self.request.path} {body}{user_suffix}",
-                    extra=self._log_extra(),
-                )
+            logged = self._loggable_body(redacted_data_paths)
+            if logged is _NON_JSON:
+                log_method = get_logger().debug
+                logged = self._loggable_raw_body()
+            log_method(
+                f"{self.request.method} {self.request.path} {logged}{user_suffix}",
+                extra=self._log_extra(),
+            )
 
         super().on_finish()

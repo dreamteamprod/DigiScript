@@ -9,6 +9,7 @@ import {
   ADMIN_PASSWORD,
   waitForAppReady,
   loginAsAdmin,
+  apiLogin,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
 
@@ -80,4 +81,69 @@ test('can log back in after logout', async () => {
   await loginAsAdmin(page);
   // Allow extra time for user data to populate the nav after WS reconnect
   await expect(page.locator('nav').getByText(ADMIN_USERNAME)).toBeVisible({ timeout: 15_000 });
+});
+
+test('each tab keeps its own connection id, and a reload resumes it', async () => {
+  // The WebSocket client id lives in sessionStorage: kept by a reload of the same
+  // tab (so the server resumes the same client), not shared with other tabs, and
+  // never kept in localStorage.
+  const readUUID = (p: Page) =>
+    p.evaluate(() => JSON.parse(sessionStorage.getItem('websocket') ?? '{}').internalUUID ?? null);
+  const serverOwnerOf = (p: Page, id: string) =>
+    p.evaluate(async (clientId) => {
+      // Absolute URLs: the app's fetch interceptor only adds the auth token to those.
+      const api = (path: string) => new URL(path, window.location.origin).href;
+      const me = await (await fetch(api('/api/v1/auth'))).json();
+      const response = await fetch(api('/api/v1/ws/sessions'));
+      if (!response.ok) return null;
+      const { sessions } = await response.json();
+      const row = sessions.find((s: { internal_id: string }) => s.internal_id === clientId);
+      return row ? row.user_id === me.id : null;
+    }, id);
+
+  await expect.poll(() => readUUID(page)).toBeTruthy();
+  const before = (await readUUID(page)) as string;
+
+  await page.reload();
+  await waitForAppReady(page);
+  expect(await readUUID(page)).toBe(before);
+  expect(await page.evaluate(() => localStorage.getItem('websocket'))).toBeNull();
+  // Server side: the admin sessions list shows the same client, owned by admin.
+  await expect.poll(() => serverOwnerOf(page, before), { timeout: 10_000 }).toBe(true);
+
+  const page2 = await ctx.newPage();
+  try {
+    await page2.goto(UI_BASE);
+    await waitForAppReady(page2);
+    await expect.poll(() => readUUID(page2)).toBeTruthy();
+    expect(await readUUID(page2)).not.toBe(before);
+  } finally {
+    await page2.close();
+  }
+});
+
+test('repeated failed logins for an unknown user are throttled with 429', async ({ request }) => {
+  // Uses a username that does not exist so no real account is ever locked.
+  const attempt = () =>
+    request.post(`${UI_BASE}/api/v1/auth/login`, {
+      data: { username: 'throttle-probe', password: 'wrongpassword' },
+    });
+  for (let i = 0; i < 5; i++) {
+    expect((await attempt()).status()).toBe(401);
+  }
+  const throttled = await attempt();
+  expect(throttled.status()).toBe(429);
+  expect(Number(throttled.headers()['retry-after'])).toBeGreaterThan(0);
+});
+
+test('creating a user with a password shorter than 8 characters is rejected', async ({
+  request,
+}) => {
+  const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
+  const response = await request.post(`${UI_BASE}/api/v1/auth/create`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { username: 'shortpw-probe', password: '1234567', is_admin: false },
+  });
+  expect(response.status()).toBe(400);
+  expect((await response.json()).message).toContain('at least 8');
 });

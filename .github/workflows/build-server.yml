@@ -17,39 +17,43 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: client/package.json
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: 'client/package-lock.json'
+          cache: 'pnpm'
+          cache-dependency-path: 'client/pnpm-lock.yaml'
 
       - name: Install dependencies
         run: |
           cd client
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Build frontend
         run: |
           cd client
-          npm run build
+          pnpm run build
 
       - name: Setup Node.js (V3)
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: 'client-v3/package-lock.json'
+          cache: 'pnpm'
+          cache-dependency-path: 'client-v3/pnpm-lock.yaml'
 
       - name: Install dependencies (V3)
         run: |
           cd client-v3
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Build frontend (V3)
         run: |
           cd client-v3
-          npm run build
+          pnpm run build
 
       - name: Upload frontend build
         uses: actions/upload-artifact@v4

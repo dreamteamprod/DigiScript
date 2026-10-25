@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: DigiScript
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
