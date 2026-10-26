@@ -59,22 +59,44 @@
     <BRow v-else class="script-row">
       <BCol cols="12">
         <template v-if="draftReady">
-          <ScriptLineViewer
-            v-for="(line, index) in draftLines"
-            :key="line._uid"
-            :line-index="index"
-            :line="line"
-            :page="draftLines"
-            :acts="showStore.actList"
-            :scenes="showStore.sceneList"
-            :characters="showStore.characterList"
-            :character-groups="showStore.characterGroupList"
-            :previous-line="draftPages.previousLineOf(currentPage, index)"
-            :can-edit="false"
-            :line-part-cuts="[]"
-            :stage-direction-styles="scriptStore.stageDirectionStyles"
-            :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
-          />
+          <template v-for="(line, index) in draftLines" :key="line._uid">
+            <CollabScriptLineEditor
+              v-if="editingLines.has(line._uid)"
+              :page="currentPage"
+              :line="line"
+              :line-type="line.line_type"
+              :acts="showStore.actList"
+              :scenes="showStore.sceneList"
+              :characters="showStore.characterList"
+              :character-groups="showStore.characterGroupList"
+              :previous-line="draftPages.previousLineOf(currentPage, index)"
+              :next-line="draftLines[index + 1] ?? null"
+              :stage-direction-styles="scriptStore.stageDirectionStyles"
+              @done-editing="doneEditingLine(line._uid)"
+              @delete-line="deleteLine(line._uid)"
+            />
+            <ScriptLineViewer
+              v-else
+              :line-index="index"
+              :line="line"
+              :page="draftLines"
+              :acts="showStore.actList"
+              :scenes="showStore.sceneList"
+              :characters="showStore.characterList"
+              :character-groups="showStore.characterGroupList"
+              :previous-line="draftPages.previousLineOf(currentPage, index)"
+              :can-edit="canEditDraft"
+              :line-part-cuts="[]"
+              :stage-direction-styles="scriptStore.stageDirectionStyles"
+              :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
+              @edit-line="beginEditingLine(line._uid)"
+              @insert-dialogue="insertLineAt(index, LINE_TYPES.DIALOGUE)"
+              @insert-stage-direction="insertLineAt(index, LINE_TYPES.STAGE_DIRECTION)"
+              @insert-cue-line="insertLineAt(index, LINE_TYPES.CUE_LINE)"
+              @insert-spacing="insertLineAt(index, LINE_TYPES.SPACING)"
+              @delete-line="deleteLine(line._uid)"
+            />
+          </template>
         </template>
         <template v-else-if="!isEditor">
           <ScriptLineViewer
@@ -94,6 +116,20 @@
             :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
           />
         </template>
+      </BCol>
+    </BRow>
+    <BRow v-if="canEditDraft" class="script-row pt-1">
+      <BCol cols="10" class="ms-auto">
+        <BButtonGroup style="float: right">
+          <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
+          <BDropdown variant="primary" end toggle-class="dropdown-toggle-split">
+            <BDropdownItem @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
+              >Add Stage Direction</BDropdownItem
+            >
+            <BDropdownItem @click="addNewLine(LINE_TYPES.CUE_LINE)">Add Cue Line</BDropdownItem>
+            <BDropdownItem @click="addNewLine(LINE_TYPES.SPACING)">Add Spacing</BDropdownItem>
+          </BDropdown>
+        </BButtonGroup>
       </BCol>
     </BRow>
 
@@ -126,6 +162,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import type { BModal } from 'bootstrap-vue-next';
+import { LINE_TYPES } from '@/constants/lineTypes';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
 import { useScriptStore } from '@/stores/script';
@@ -135,16 +172,20 @@ import { useUserStore } from '@/stores/user';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useDraftPages } from '@/composables/useDraftPages';
+import { useDraftWriter } from '@/composables/useDraftWriter';
 import { toast } from '@/js/toast';
 import ScriptLineViewer from './ScriptLineViewer.vue';
+import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import type { ScriptLine } from '@/types/api/script';
+import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 
 /**
- * The script editor for collaborative mode (`collaborative_script_editing` on).
- * Currently read-only: an editor joins the shared draft and browses it; editing is not
- * yet implemented. Everyone else reads saved pages over REST exactly as the classic
- * editor's viewer does. The classic `ScriptEditor.vue` is untouched and is what renders
- * when the setting is off.
+ * The script editor for collaborative mode (`collaborative_script_editing` on). An
+ * editor joins the shared draft, browses and edits it with line/text changes writing
+ * straight through `useDraftWriter` (Phase 3 Step 3); everyone else reads saved pages
+ * over REST exactly as the classic editor's viewer does. Save, discard, bulk edit and
+ * cuts are not yet implemented (Steps 4-5). The classic `ScriptEditor.vue` is untouched
+ * and is what renders when the setting is off.
  */
 
 const showStore = useShowStore();
@@ -156,6 +197,7 @@ const userStore = useUserStore();
 const wsStore = useWebSocketStore();
 const { sendObj } = useWebSocket();
 const draftPages = useDraftPages();
+const writer = useDraftWriter();
 
 const loaded = ref(false);
 const currentPage = ref(1);
@@ -170,6 +212,13 @@ const goToPageModal = ref<InstanceType<typeof BModal>>();
 // would show the "could not open the script draft" alert — with a Retry that would
 // rejoin the room we just asked to leave — for that one round trip.
 const stopRequested = ref(false);
+// Lines currently open in a CollabScriptLineEditor, keyed by `_uid` — never by index or
+// position, so another editor's concurrent insert/delete elsewhere on the page can't
+// desync this set the way the classic editor's `page_N_line_I` keys would.
+const editingLines = ref(new Set<string>());
+// The most recently auto-added line (from "Add Dialogue"), so finishing it chains
+// straight into another blank one for continuous typing, matching the classic editor.
+const latestAddedLine = ref<string | null>(null);
 
 // We are an editor when the server lists us among the editors. The server commits
 // `is_editor` before it broadcasts GET_SCRIPT_CONFIG_STATUS, so this is also the moment
@@ -182,6 +231,7 @@ const isEditor = computed(
 const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
 
 const draftReady = computed(() => isEditor.value && draftStore.isDraftSynced);
+const canEditDraft = computed(() => isEditor.value && draftReady.value);
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
 // this the user is an editor with no room and no way out but Stop Editing. Suppressed
 // while our own stopEditing() is still awaiting confirmation (see stopRequested).
@@ -197,6 +247,49 @@ const viewerLines = computed<ScriptLine[]>(() => scriptStore.getScriptPage(curre
 function viewerPreviousLine(index: number): ScriptLine | null {
   if (index > 0) return viewerLines.value[index - 1] ?? null;
   return scriptStore.getScriptPage(currentPage.value - 1).at(-1) ?? null;
+}
+
+function beginEditingLine(lineUid: string): void {
+  editingLines.value.add(lineUid);
+}
+
+function doneEditingLine(lineUid: string): void {
+  editingLines.value.delete(lineUid);
+  if (latestAddedLine.value === lineUid) {
+    latestAddedLine.value = null;
+    addNewLine(LINE_TYPES.DIALOGUE);
+  }
+}
+
+function deleteLine(lineUid: string): void {
+  // Clear this first: a delete must never chain into another auto-added line the way
+  // finishing one normally would.
+  if (latestAddedLine.value === lineUid) latestAddedLine.value = null;
+  writer.deleteLine(currentPage.value, lineUid);
+  editingLines.value.delete(lineUid);
+}
+
+function addNewLine(lineType: number): void {
+  const insertIndex = draftLines.value.length;
+  const prev = draftPages.previousLineOf(currentPage.value, insertIndex);
+  const { lineUid } = writer.addLine(currentPage.value, {
+    lineType,
+    actId: prev?.act_id ?? null,
+    sceneId: prev?.scene_id ?? null,
+  });
+  editingLines.value.add(lineUid);
+  latestAddedLine.value = lineUid;
+}
+
+function insertLineAt(index: number, lineType: number): void {
+  const anchor: DraftScriptLine | undefined = draftLines.value[index];
+  const { lineUid } = writer.addLine(currentPage.value, {
+    lineType,
+    actId: anchor?.act_id ?? null,
+    sceneId: anchor?.scene_id ?? null,
+    index: index + 1,
+  });
+  editingLines.value.add(lineUid);
 }
 
 async function loadViewerPage(page: number): Promise<void> {
@@ -282,6 +375,8 @@ watch(isEditor, async (now, was) => {
     // The server has confirmed we're no longer an editor (our own stop, or losing
     // the lock some other way) — stopRequested has done its job, if it was set.
     stopRequested.value = false;
+    editingLines.value.clear();
+    latestAddedLine.value = null;
     draftStore.leaveScriptRoom();
     await loadViewerPage(currentPage.value);
   }
