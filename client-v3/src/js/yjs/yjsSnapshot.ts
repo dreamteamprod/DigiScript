@@ -9,11 +9,19 @@ import log from 'loglevel';
  * rendering and for anything that just needs to read current draft content.
  */
 
+declare const lineUidTag: unique symbol;
+declare const partUidTag: unique symbol;
+
+/** A line's stable identity (see `uidOf`). Branded so a `PartUid` can't be passed where a `LineUid` is expected, and vice versa. */
+export type LineUid = string & { readonly [lineUidTag]: void };
+/** A part's stable identity (see `uidOf`). */
+export type PartUid = string & { readonly [partUidTag]: void };
+
 export type SnapshotLinePart = Readonly<{
   /** The database identity (or a UUID until saved). A save rewrites it; do not address edits by it. */
   _id: string;
   /** Stable for the life of the part; what edits address it by (see `draftWriter`). */
-  _uid: string;
+  _uid: PartUid;
   id: number | null;
   part_index: number;
   character_id: number | null;
@@ -23,7 +31,7 @@ export type SnapshotLinePart = Readonly<{
 
 export type SnapshotLine = Readonly<{
   _id: string;
-  _uid: string;
+  _uid: LineUid;
   id: number | null;
   act_id: number | null;
   scene_id: number | null;
@@ -93,7 +101,7 @@ function ydocPartToPlain(partMap: Y.Map<unknown>, position: number): SnapshotLin
   const text = partMap.get('line_text');
   return {
     _id: rawId,
-    _uid: uidOf(partMap),
+    _uid: uidOf(partMap) as PartUid,
     id: parseDbId(rawId),
     // Position, not the stored value: two editors appending a part at once both write
     // the same index, and array order is what Yjs converges on (the server does the same).
@@ -113,7 +121,7 @@ export function ydocLineToPlain(lineMap: Y.Map<unknown>): SnapshotLine {
       : [];
   return {
     _id: rawId,
-    _uid: uidOf(lineMap),
+    _uid: uidOf(lineMap) as LineUid,
     id: parseDbId(rawId),
     act_id: zeroToNull(readNumber(lineMap, 'act_id', 0)),
     scene_id: zeroToNull(readNumber(lineMap, 'scene_id', 0)),

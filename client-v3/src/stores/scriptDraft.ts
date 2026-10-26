@@ -98,6 +98,22 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     // Components should read editors/cutters from here.
     editors: () => useScriptConfigStore().editors,
     cutters: () => useScriptConfigStore().cutters,
+
+    /**
+     * The store-side half of D8's save gate: dirty and not already saving. Callers
+     * must also check there are no locally-open line editors (component-local state,
+     * not tracked here).
+     *
+     * `isDraftDirty` alone misses one real case: `yjsSync` clears it unconditionally
+     * on step 0 (the initial sync), which is correct for a brand new join but wrong
+     * for *resuming* a draft kept from a prior Stop Editing (D9) — that draft is
+     * exactly as unsaved as when it was left. `scriptConfig.hasDraft` covers it: the
+     * server sets it before this client's join even starts (the REQUEST_SCRIPT_EDIT
+     * round trip's GET_SCRIPT_CONFIG_STATUS precedes JOIN_SCRIPT_ROOM — see D3), so by
+     * the time yjsSync resets isDraftDirty, hasDraft is already correct.
+     */
+    canSaveDraft: (state): boolean =>
+      (state.isDraftDirty || useScriptConfigStore().hasDraft) && !state.isDraftSaving,
   },
 
   actions: {

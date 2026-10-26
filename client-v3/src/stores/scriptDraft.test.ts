@@ -605,6 +605,50 @@ describe('scriptDraft store', () => {
     expect(store.status).toBe('joining');
   });
 
+  describe('canSaveDraft', () => {
+    it('is false when neither dirty nor saving a draft exists', () => {
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+      store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+
+      expect(store.canSaveDraft).toBe(false);
+    });
+
+    it('is true once a local edit lands', () => {
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+      store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+
+      store.yjsUpdate({ payload: makeRemoteUpdate((doc) => doc.getMap('meta').set('x', 1)) });
+
+      expect(store.canSaveDraft).toBe(true);
+    });
+
+    it('is false while a save is in flight', () => {
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+      store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+      store.yjsUpdate({ payload: makeRemoteUpdate((doc) => doc.getMap('meta').set('x', 1)) });
+      store.saveDraft();
+
+      expect(store.canSaveDraft).toBe(false);
+    });
+
+    it('stays true after resuming a draft kept from a prior session, even though isDraftDirty resets on sync', () => {
+      // Stop Editing -> Keep Draft -> re-enter: the server already reflects hasDraft
+      // (its own GET_SCRIPT_CONFIG_STATUS precedes JOIN_SCRIPT_ROOM per D3) by the time
+      // yjsSync's step-0 handler clears isDraftDirty, so canSaveDraft must not go false.
+      useScriptConfigStore().hasDraft = true;
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+
+      store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+
+      expect(store.isDraftDirty).toBe(false);
+      expect(store.canSaveDraft).toBe(true);
+    });
+  });
+
   describe('reconnect', () => {
     async function reconnect(): Promise<void> {
       const ws = useWebSocketStore();

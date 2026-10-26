@@ -28,6 +28,7 @@ from tornado.websocket import WebSocketClosedError
 from digi_server.logger import get_logger
 from models.script import CompiledScript, ScriptRevision
 from models.script_draft import ScriptDraft
+from models.session import Session
 from models.user import User
 from utils.database import DigiDBSession
 from utils.script.line_to_ydoc import (
@@ -806,10 +807,21 @@ class RoomManager:
         await self.close_active_room()
 
     async def close_active_room(self):
-        """Checkpoint if dirty, broadcast ROOM_CLOSED, and tear down the active room.
+        """Checkpoint if dirty, demote every remaining editor/cutter, broadcast
+        ROOM_CLOSED, and tear down the active room.
 
         Safe to call when no room is active (no-op). Also safe if called
         concurrently — ``_room is None`` check is idempotent.
+
+        Demoting here (not just trusting each client to have already demoted
+        itself) matters for ``DISCARD_SCRIPT_DRAFT``: a discard closes the room
+        for *everyone* in it, but only ``STOP_SCRIPT_EDIT`` ever cleared the
+        caller's own ``is_editor``/``is_cutting`` — every *other* editor still
+        in a discarded room would otherwise stay marked as an editor forever,
+        with no room or draft left to show for it. Harmless to repeat for a
+        client that already demoted itself (e.g. the one calling STOP, whose
+        row is already clear) — a plain idempotent re-clear, in a session
+        separate from that caller's own commit.
         """
         room = self._room
         if room is None:
@@ -817,6 +829,17 @@ class RoomManager:
 
         if room._dirty:
             await self._checkpoint_room(room)
+
+        with self._application.get_db().sessionmaker() as session:
+            for ws in list(room.clients.keys()):
+                internal_id = getattr(ws, "internal_id", None)
+                if internal_id is None:
+                    continue
+                entry = session.get(Session, internal_id)
+                if entry and (entry.is_editor or entry.is_cutting):
+                    entry.is_editor = False
+                    entry.is_cutting = False
+            session.commit()
 
         message = {"OP": "NOOP", "ACTION": "ROOM_CLOSED", "DATA": {}}
         for ws in list(room.clients.keys()):

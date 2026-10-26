@@ -26,6 +26,7 @@ from models.script import (
     ScriptLineType,
 )
 from models.script_draft import ScriptDraft
+from models.session import Session
 from test.utils.script.test_ydoc_to_lines import (
     _add_line_to_doc,
     _build_empty_doc,
@@ -301,6 +302,9 @@ class TestRoomManagerCloseRoom:
 
         # Inject room into a RoomManager (no real app needed)
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = room
 
         await manager.close_active_room()
@@ -323,6 +327,9 @@ class TestRoomManagerCloseRoom:
     async def test_close_room_nonexistent_is_noop(self):
         """Closing a room that doesn't exist does nothing."""
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = None
 
         await manager.close_active_room()  # Should not raise
@@ -338,6 +345,9 @@ class TestRoomManagerCloseRoom:
         room.add_client(ws_bad, "viewer")
 
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = room
 
         await manager.close_active_room()
@@ -351,6 +361,9 @@ class TestRoomManagerCloseRoom:
         """get_active_room returns the active room or None."""
         room = _make_room(revision_id=42)
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = room
 
         assert manager.get_active_room() is room
@@ -362,6 +375,9 @@ class TestRoomManagerCloseRoom:
     async def test_close_active_room_noop_when_no_room(self):
         """close_active_room does nothing when no room is active."""
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = None
 
         await manager.close_active_room()  # Should not raise
@@ -377,6 +393,9 @@ class TestRoomManagerCloseRoom:
         room.add_client(ws2, "editor")
 
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = room
 
         await manager.close_active_room()
@@ -395,6 +414,9 @@ class TestRoomManagerCloseRoom:
         room._dirty = True
 
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = room
 
         checkpoint_called = []
@@ -407,6 +429,101 @@ class TestRoomManagerCloseRoom:
         await manager.close_active_room()
 
         assert 3 in checkpoint_called
+        assert manager._room is None
+
+
+class TestRoomManagerCloseRoomDemotesEditors(_ScriptTestSetup):
+    """close_active_room must clear every remaining client's is_editor/is_cutting —
+    not just the caller's own, which is all STOP_SCRIPT_EDIT itself ever did. Without
+    this, DISCARD_SCRIPT_DRAFT (which closes the room for everyone, not just the
+    requester) leaves every *other* editor in the room stuck marked as an editor
+    forever, with no room or draft left to show for it."""
+
+    def _seed_session(
+        self, session, internal_id: str, is_editor=False, is_cutting=False
+    ):
+        row = Session(
+            internal_id=internal_id, is_editor=is_editor, is_cutting=is_cutting
+        )
+        session.add(row)
+        session.flush()
+
+    @gen_test
+    async def test_demotes_every_editor_and_cutter_still_in_the_room(self):
+        editor_id, cutter_id, viewer_id = (
+            str(uuid.uuid4()),
+            str(uuid.uuid4()),
+            str(uuid.uuid4()),
+        )
+        with self._app.get_db().sessionmaker() as session:
+            self._seed_session(session, editor_id, is_editor=True)
+            self._seed_session(session, cutter_id, is_cutting=True)
+            self._seed_session(session, viewer_id)
+
+        room = _make_room(revision_id=self.revision_id)
+        ws_editor, ws_cutter, ws_viewer = (
+            _make_mock_ws(),
+            _make_mock_ws(),
+            _make_mock_ws(),
+        )
+        ws_editor.internal_id = editor_id
+        ws_cutter.internal_id = cutter_id
+        ws_viewer.internal_id = viewer_id
+        room.add_client(ws_editor, "editor")
+        room.add_client(
+            ws_cutter, "editor"
+        )  # cut mode also joins as "editor" server-side
+        room.add_client(ws_viewer, "viewer")
+
+        manager = RoomManager(self._app)
+        manager._room = room
+
+        await manager.close_active_room()
+
+        with self._app.get_db().sessionmaker() as session:
+            editor_row = session.get(Session, editor_id)
+            cutter_row = session.get(Session, cutter_id)
+            viewer_row = session.get(Session, viewer_id)
+        self.assertFalse(editor_row.is_editor)
+        self.assertFalse(cutter_row.is_cutting)
+        self.assertFalse(viewer_row.is_editor)
+        self.assertFalse(viewer_row.is_cutting)
+
+    @gen_test
+    async def test_is_harmless_for_a_client_already_demoted_by_its_own_stop(self):
+        """The caller of STOP_SCRIPT_EDIT already cleared its own row in a separate,
+        already-committed transaction before close_active_room ever runs — this must
+        not error or un-clear anything when it re-checks that same row."""
+        already_stopped_id = str(uuid.uuid4())
+        with self._app.get_db().sessionmaker() as session:
+            self._seed_session(session, already_stopped_id, is_editor=False)
+
+        room = _make_room(revision_id=self.revision_id)
+        ws = _make_mock_ws()
+        ws.internal_id = already_stopped_id
+        room.add_client(ws, "viewer")
+
+        manager = RoomManager(self._app)
+        manager._room = room
+
+        await manager.close_active_room()  # should not raise
+
+        with self._app.get_db().sessionmaker() as session:
+            row = session.get(Session, already_stopped_id)
+        self.assertFalse(row.is_editor)
+
+    @gen_test
+    async def test_ignores_a_client_with_no_session_row(self):
+        room = _make_room(revision_id=self.revision_id)
+        ws = _make_mock_ws()
+        ws.internal_id = str(uuid.uuid4())  # never seeded — no matching row
+        room.add_client(ws, "viewer")
+
+        manager = RoomManager(self._app)
+        manager._room = room
+
+        await manager.close_active_room()  # should not raise
+
         assert manager._room is None
 
 
@@ -859,6 +976,9 @@ class TestRoomManagerGetOrCreateRoom:
         old_room = _make_room(revision_id=1)
 
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = old_room
         manager._room_lock = asyncio.Lock()
 
@@ -892,6 +1012,9 @@ class TestRoomManagerGetOrCreateRoom:
         room = _make_room(revision_id=5)
 
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = room
         manager._room_lock = asyncio.Lock()
         manager.close_active_room = AsyncMock()
@@ -1146,6 +1269,9 @@ class TestRoomManagerMetrics:
     @pytest.mark.asyncio
     async def test_collab_rooms_gauge_tracks_create_and_close(self):
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._room = None
         manager._room_lock = asyncio.Lock()
         app_metrics.register_room_manager(manager)
@@ -1167,6 +1293,9 @@ class TestRoomManagerMetrics:
 
     def test_collab_rooms_gauge_drops_on_stop(self):
         manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
         manager._maintenance_handle = None
         manager._room = _make_room(3)
         app_metrics.register_room_manager(manager)

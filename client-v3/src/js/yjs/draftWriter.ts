@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { LINE_TYPES, type LineType } from '@/constants/lineTypes';
-import { nullToZero, parseDbId, uidOf } from './yjsSnapshot';
+import { nullToZero, parseDbId, uidOf, type LineUid, type PartUid } from './yjsSnapshot';
 import { applyTextDiff } from './ytextDiff';
 
 /**
@@ -78,7 +78,7 @@ function getPage(doc: Y.Doc, page: number): PageArray {
 function findLine(
   doc: Y.Doc,
   page: number,
-  lineUid: string
+  lineUid: LineUid
 ): { line: LineMap; index: number } | null {
   const array = getPage(doc, page);
   for (let index = 0; index < array.length; index += 1) {
@@ -99,8 +99,8 @@ function getParts(line: LineMap): Y.Array<PartMap> {
 function findPart(
   doc: Y.Doc,
   page: number,
-  lineUid: string,
-  partUid: string
+  lineUid: LineUid,
+  partUid: PartUid
 ): { part: PartMap; index: number; parts: Y.Array<PartMap> } | null {
   const found = findLine(doc, page, lineUid);
   if (!found) return null;
@@ -158,9 +158,9 @@ export interface NewLine {
 }
 
 export interface NewLineIds {
-  lineUid: string;
+  lineUid: LineUid;
   /** The line's first part, or null for a line type that has none (cue, spacing). */
-  partUid: string | null;
+  partUid: PartUid | null;
 }
 
 /**
@@ -176,12 +176,12 @@ export function addLine(
   line: NewLine,
   { newId = defaultNewId }: WriteOptions = {}
 ): NewLineIds {
-  const lineUid = newId();
+  const lineUid = newId() as LineUid;
   const hasParts = PART_LINE_TYPES.includes(line.lineType);
   if (line.part && !hasParts) {
     throw new DraftWriteError(`Line type ${line.lineType} cannot have parts`);
   }
-  const partUid = hasParts ? newId() : null;
+  const partUid = hasParts ? (newId() as PartUid) : null;
   const seed = line.part ?? {};
   assertNotBoth(seed.characterId ?? null, seed.characterGroupId ?? null);
   const requestedIndex = Number.isFinite(line.index) ? (line.index as number) : undefined;
@@ -215,7 +215,7 @@ export function addLine(
  * saved the entry is harmless (skipped, then wiped by the next save). Returns false if
  * the line was already gone.
  */
-export function deleteLine(doc: Y.Doc, page: number, lineUid: string): boolean {
+export function deleteLine(doc: Y.Doc, page: number, lineUid: LineUid): boolean {
   let deleted = false;
   doc.transact(() => {
     const found = findLine(doc, page, lineUid);
@@ -234,7 +234,7 @@ export function deleteLine(doc: Y.Doc, page: number, lineUid: string): boolean {
 export function setLineField(
   doc: Y.Doc,
   page: number,
-  lineUid: string,
+  lineUid: LineUid,
   field: LineField,
   value: number | null
 ): boolean {
@@ -252,7 +252,7 @@ export function setLineField(
 export function setLineActScene(
   doc: Y.Doc,
   page: number,
-  lineUid: string,
+  lineUid: LineUid,
   actId: number | null,
   sceneId: number | null
 ): boolean {
@@ -276,14 +276,14 @@ export interface NewPart {
 export function addPart(
   doc: Y.Doc,
   page: number,
-  lineUid: string,
+  lineUid: LineUid,
   part: NewPart = {},
   { newId = defaultNewId }: WriteOptions = {}
-): string | null {
+): PartUid | null {
   const characterId = part.characterId ?? null;
   const characterGroupId = part.characterGroupId ?? null;
   assertNotBoth(characterId, characterGroupId);
-  const uid = newId();
+  const uid = newId() as PartUid;
   let added = false;
   doc.transact(() => {
     const found = findLine(doc, page, lineUid);
@@ -300,7 +300,7 @@ export function addPart(
  * removal already shifts, and renumbering from one editor's view is exactly what
  * concurrent edits would get wrong. Returns false if the part was already gone.
  */
-export function removePart(doc: Y.Doc, page: number, lineUid: string, partUid: string): boolean {
+export function removePart(doc: Y.Doc, page: number, lineUid: LineUid, partUid: PartUid): boolean {
   let removed = false;
   doc.transact(() => {
     const found = findPart(doc, page, lineUid, partUid);
@@ -319,8 +319,8 @@ export function removePart(doc: Y.Doc, page: number, lineUid: string, partUid: s
 export function setPartField(
   doc: Y.Doc,
   page: number,
-  lineUid: string,
-  partUid: string,
+  lineUid: LineUid,
+  partUid: PartUid,
   field: PartField,
   value: number | null
 ): boolean {
@@ -344,8 +344,8 @@ export function setPartField(
 export function setPartCharacter(
   doc: Y.Doc,
   page: number,
-  lineUid: string,
-  partUid: string,
+  lineUid: LineUid,
+  partUid: PartUid,
   characterId: number | null,
   characterGroupId: number | null
 ): boolean {
@@ -368,8 +368,8 @@ export function setPartCharacter(
 export function getPartText(
   doc: Y.Doc,
   page: number,
-  lineUid: string,
-  partUid: string
+  lineUid: LineUid,
+  partUid: PartUid
 ): Y.Text | null {
   const found = findPart(doc, page, lineUid, partUid);
   if (!found) return null;
@@ -390,8 +390,8 @@ export type SetTextResult = 'changed' | 'unchanged' | 'gone';
 export function setPartText(
   doc: Y.Doc,
   page: number,
-  lineUid: string,
-  partUid: string,
+  lineUid: LineUid,
+  partUid: PartUid,
   text: string
 ): SetTextResult {
   const ytext = getPartText(doc, page, lineUid, partUid);
