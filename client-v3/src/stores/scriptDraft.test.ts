@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import * as Y from 'yjs';
 import { nextTick } from 'vue';
-import { useScriptDraftStore, SAVE_STALL_TIMEOUT_MS } from './scriptDraft';
+import { useScriptDraftStore, SAVE_STALL_TIMEOUT_MS, JOIN_STALL_TIMEOUT_MS } from './scriptDraft';
 import { useScriptConfigStore } from './scriptConfig';
 import { useWebSocketStore } from './websocket';
 import { bytesToBase64 } from '@/js/yjs/base64';
@@ -513,6 +513,7 @@ describe('scriptDraft store', () => {
     vi.useFakeTimers();
     const store = useScriptDraftStore();
     store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
     store.saveDraft();
 
     vi.advanceTimersByTime(SAVE_STALL_TIMEOUT_MS + 1);
@@ -526,6 +527,7 @@ describe('scriptDraft store', () => {
     vi.useFakeTimers();
     const store = useScriptDraftStore();
     store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
     store.saveDraft();
 
     vi.advanceTimersByTime(SAVE_STALL_TIMEOUT_MS - 1000);
@@ -541,6 +543,7 @@ describe('scriptDraft store', () => {
     vi.useFakeTimers();
     const store = useScriptDraftStore();
     store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
     store.saveDraft();
     store.scriptSaved({ last_saved_at: 't' });
 
@@ -548,6 +551,47 @@ describe('scriptDraft store', () => {
 
     expect(store.lastCollabError).toBeNull();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('unwinds a stuck join when the server never replies (join watchdog)', () => {
+    vi.useFakeTimers();
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+
+    vi.advanceTimersByTime(JOIN_STALL_TIMEOUT_MS + 1);
+
+    // Torn down, not left "joining" forever: isDraftActive false means retryJoin() (a
+    // no-op while active) can actually rejoin, and joinFailed (which only fires on
+    // 'idle') can show the alert.
+    expect(store.status).toBe('idle');
+    expect(store.isDraftActive).toBe(false);
+    expect(store.lastCollabError).not.toBeNull();
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('a successful sync cancels the join watchdog', () => {
+    vi.useFakeTimers();
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+
+    vi.advanceTimersByTime(JOIN_STALL_TIMEOUT_MS * 2);
+
+    expect(store.status).toBe('synced');
+    expect(store.lastCollabError).toBeNull();
+  });
+
+  it('a failed initial sync unwinds the join instead of hanging on the spinner', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+
+    store.yjsSync({ step: 0, payload: 'not-valid-base64!!' });
+
+    // Same shape as a rejected join (collabError while joining): torn down so Retry
+    // has something to retry, rather than left "joining" with no way out.
+    expect(store.status).toBe('idle');
+    expect(store.isDraftActive).toBe(false);
+    expect(store.lastCollabError).not.toBeNull();
   });
 
   it('accepts a YJS_UPDATE before the initial sync without reporting synced', () => {

@@ -173,8 +173,12 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       }
     },
 
-    async requestEditFailure(): Promise<void> {
-      toast.error('Unable to edit script');
+    async requestEditFailure(data?: { reason?: string }): Promise<void> {
+      // Also fires for a rejected REQUEST_SCRIPT_CUTS (same ACTION, e.g. a cutter or
+      // editor already in the way, or a live show) — "Unable to edit script" is the
+      // closest one-size-fits-all label. The server sends a reason (mode mismatch, a
+      // live show, a cutter/editor in the way, missing permission); show it.
+      toast.error(data?.reason ? `Unable to edit script: ${data.reason}` : 'Unable to edit script');
       await this.getScriptConfigStatus();
       this.cutMode = false;
     },

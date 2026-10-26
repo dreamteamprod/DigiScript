@@ -38,6 +38,15 @@ export type DraftStatus = 'idle' | 'joining' | 'synced';
  */
 export const SAVE_STALL_TIMEOUT_MS = 30_000;
 
+/**
+ * How long a join may go without reaching `synced` before we give up — covers both a
+ * `JOIN_SCRIPT_ROOM` the server never answers, and an initial sync that arrives but
+ * fails to apply (see `yjsSync`). Without this, either leaves the spinner up forever:
+ * `joinFailed` only fires on `status === 'idle'`, and `retryJoin()` is a no-op while
+ * `isDraftActive` (which `'joining'` counts as) is still true.
+ */
+export const JOIN_STALL_TIMEOUT_MS = 15_000;
+
 // The Y.Doc/provider must never live inside Pinia's reactive state — Vue 3's Proxy
 // walks nested objects the same way Vue 2's defineProperty did, and Yjs's internal
 // bookkeeping (_item, _map, doc, ...) breaks under that walk. A plain module-level
@@ -49,6 +58,7 @@ let provider: ScriptDocProvider | null = null;
 let unsubscribeDoc: (() => void) | null = null;
 let stopReconnectWatch: (() => void) | null = null;
 let saveWatchdog: ReturnType<typeof setTimeout> | null = null;
+let joinWatchdog: ReturnType<typeof setTimeout> | null = null;
 // Count of local-origin doc updates since the last saveDraft() call, used to decide
 // whether a following scriptSaved is allowed to clear isDraftDirty (see scriptSaved).
 let localEditsSinceSaveRequest = 0;
@@ -209,7 +219,9 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       if (!provider.join()) {
         this._teardown();
         toast.error('Cannot open script draft: not connected to the server');
+        return;
       }
+      this._armJoinWatchdog();
     },
 
     /** Leave the draft room and tear down the Y.Doc. Safe to call when not active. */
@@ -225,6 +237,7 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       stopReconnectWatch?.();
       stopReconnectWatch = null;
       this._clearSaveWatchdog();
+      this._clearJoinWatchdog();
       provider?.destroy();
       provider = null;
       ydoc?.destroy();
@@ -289,6 +302,24 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       }
     },
 
+    _armJoinWatchdog(): void {
+      this._clearJoinWatchdog();
+      joinWatchdog = setTimeout(() => {
+        joinWatchdog = null;
+        if (this.status !== 'joining') return;
+        this.lastCollabError = 'Joining the script draft timed out';
+        toast.error('Joining the script draft timed out — check the connection and try again');
+        this._teardown();
+      }, JOIN_STALL_TIMEOUT_MS);
+    },
+
+    _clearJoinWatchdog(): void {
+      if (joinWatchdog !== null) {
+        clearTimeout(joinWatchdog);
+        joinWatchdog = null;
+      }
+    },
+
     saveDraft(): void {
       if (!this.isDraftActive) return;
       // A second request while one is in flight would race two saves of the same doc.
@@ -325,11 +356,18 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       if (!applied) {
         // Covers step 0 (initial full state) and step 2 (a resync diff): a failed apply
         // leaves the local doc missing server state, so never report synced over it,
-        // and surface the failure rather than diverging silently.
+        // and surface the failure rather than diverging silently. While still joining,
+        // there is no other way out of this for the caller (retryJoin() is a no-op
+        // while isDraftActive, and joinFailed only fires on 'idle') — unwind exactly as
+        // collabError does for a rejected join, so the Retry alert can appear.
         this.lastCollabError = 'Failed to apply a script sync from the server';
         toast.error('Failed to load the script draft — try rejoining');
+        if (this.status === 'joining') {
+          this._teardown();
+        }
         return;
       }
+      this._clearJoinWatchdog();
       this.status = 'synced';
       if (data.step === 0) {
         this.isDraftDirty = false;

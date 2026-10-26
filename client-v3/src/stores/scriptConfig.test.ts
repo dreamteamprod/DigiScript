@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
 import type { ScriptLine } from '@/types/api/script';
-import { computePageStatus } from './scriptConfig';
+import { computePageStatus, useScriptConfigStore } from './scriptConfig';
+import { toast } from '@/js/toast';
+
+vi.mock('@/js/toast', () => ({
+  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
+}));
 
 function makeLine(id: number | null, numParts: number): ScriptLine {
   return {
@@ -96,5 +102,31 @@ describe('computePageStatus', () => {
     expect(status.updated).toHaveLength(0);
     expect(status.deleted).toHaveLength(0);
     expect(status.inserted).toHaveLength(0);
+  });
+});
+
+describe('requestEditFailure', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it('shows the server reason when there is one', async () => {
+    const store = useScriptConfigStore();
+    vi.spyOn(store, 'getScriptConfigStatus').mockResolvedValue();
+
+    await store.requestEditFailure({ reason: 'Collaborative editing is enabled' });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'Unable to edit script: Collaborative editing is enabled'
+    );
+  });
+
+  it('falls back to a generic message with no reason', async () => {
+    const store = useScriptConfigStore();
+    vi.spyOn(store, 'getScriptConfigStatus').mockResolvedValue();
+
+    await store.requestEditFailure();
+
+    expect(toast.error).toHaveBeenCalledWith('Unable to edit script');
   });
 });
