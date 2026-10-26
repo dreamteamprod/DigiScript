@@ -1,11 +1,11 @@
-tornado==6.5.10
+tornado==6.6
 sqlalchemy>=2.1.6,<2.2.0
 python-dateutil==2.9.0.post0
 marshmallow-sqlalchemy>=1.6.0
 tornado-prometheus==0.1.2
 bcrypt==5.0.0
 anytree==2.13.0
-alembic==1.20.0
+alembic==1.20.1
 marshmallow>=4.3.1,<5
 pyjwt[crypto]==2.15.1
 setuptools==82.0.1
