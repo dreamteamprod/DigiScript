@@ -11,7 +11,10 @@
           </BButton>
         </BCol>
         <BCol cols="4">
-          <p>Current Page: {{ currentPage }}</p>
+          <p>
+            Current Page: {{ currentPage }}
+            <span v-if="scriptConfigStore.hasDraft" class="text-warning ms-2">● Unsaved draft</span>
+          </p>
         </BCol>
         <BCol cols="2" style="text-align: left">
           <BButton variant="success" :disabled="atLastDraftPage" @click="incrPage">
@@ -30,7 +33,19 @@
                 Cuts
               </BButton>
             </template>
-            <BButton v-else variant="warning" @click="stopEditing">Stop Editing</BButton>
+            <template v-else>
+              <BButton variant="warning" :disabled="draftStore.isDraftSaving" @click="stopEditing">
+                Stop Editing
+              </BButton>
+              <BButton
+                variant="success"
+                :disabled="!canSave"
+                :title="saveDisabledReason ?? undefined"
+                @click="saveScript"
+              >
+                Save
+              </BButton>
+            </template>
           </BButtonGroup>
         </BCol>
       </BRow>
@@ -150,6 +165,28 @@
         <p v-if="pageError" class="text-danger mb-0" data-testid="page-error">{{ pageError }}</p>
       </BForm>
     </BModal>
+
+    <SaveProgressModal
+      ref="saveModal"
+      :in-progress="draftStore.isDraftSaving"
+      :current-page="draftStore.pageSaveProgress?.page ?? 0"
+      :total-pages="draftStore.pageSaveProgress?.total ?? 0"
+      :error="!draftStore.isDraftSaving ? draftStore.lastCollabError : null"
+    />
+
+    <BModal ref="stopEditingModal" title="Stop Editing" hide-footer>
+      <p>This draft has unsaved changes.</p>
+      <p v-if="otherEditorUsernames.length > 0" class="text-warning">
+        {{ otherEditorUsernames.join(', ') }}
+        {{ otherEditorUsernames.length > 1 ? 'are' : 'is' }} also editing — discarding will clear
+        their unsaved work too, not just yours.
+      </p>
+      <div class="d-flex justify-content-end gap-2">
+        <BButton variant="secondary" @click="stopEditingModal?.hide()">Keep Editing</BButton>
+        <BButton variant="warning" @click="keepDraftAndStop">Keep Draft</BButton>
+        <BButton variant="danger" @click="discardAndStop">Discard</BButton>
+      </div>
+    </BModal>
   </BContainer>
 
   <BContainer v-else class="mx-0 px-0 script-editor-container" fluid>
@@ -173,19 +210,23 @@ import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useDraftPages } from '@/composables/useDraftPages';
 import { useDraftWriter } from '@/composables/useDraftWriter';
+import { useAutoSave } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
+import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
+import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
+import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
  * editor joins the shared draft, browses and edits it with line/text changes writing
- * straight through `useDraftWriter` (Phase 3 Step 3); everyone else reads saved pages
- * over REST exactly as the classic editor's viewer does. Save, discard, bulk edit and
- * cuts are not yet implemented (Steps 4-5). The classic `ScriptEditor.vue` is untouched
- * and is what renders when the setting is off.
+ * straight through `useDraftWriter` (Phase 3 Step 3), and saves/stops/discards it
+ * (Step 4). Everyone else reads saved pages over REST exactly as the classic editor's
+ * viewer does. Bulk edit and cuts are not yet implemented. The classic
+ * `ScriptEditor.vue` is untouched and is what renders when the setting is off.
  */
 
 const showStore = useShowStore();
@@ -206,6 +247,8 @@ const changingPage = ref(false);
 const pageInputNo = ref(1);
 const pageError = ref<string | null>(null);
 const goToPageModal = ref<InstanceType<typeof BModal>>();
+const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
+const stopEditingModal = ref<InstanceType<typeof BModal>>();
 // True from a successful `stopEditing()` send until the server confirms we are no
 // longer an editor. STOP_SCRIPT_EDIT's own ROOM_CLOSED (for the last editor) arrives
 // before its GET_SCRIPT_CONFIG_STATUS broadcast, so without this flag `joinFailed`
@@ -232,6 +275,42 @@ const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
 
 const draftReady = computed(() => isEditor.value && draftStore.isDraftSynced);
 const canEditDraft = computed(() => isEditor.value && draftReady.value);
+
+// D1: the client-side half of "incomplete lines abort the whole save" — mirrors the
+// server's exact validation rules so Save can disable itself with a reason before the
+// round trip even happens, rather than letting the server reject it. `script_mode` is
+// FULL for the value 1 (see ShowScriptType in models/show.py); anything else is treated
+// as compact, matching the existing `scriptMode === 1` convention used elsewhere.
+const isCompactMode = computed(() => systemStore.currentShow?.script_mode !== 1);
+const firstInvalidLine = computed(() =>
+  draftReady.value
+    ? firstInvalidDraftLine(
+        snapshotPagesToScriptLines(draftStore.pageSnapshots),
+        isCompactMode.value
+      )
+    : null
+);
+
+// D8 (revised): the store's own canSaveDraft already covers dirty-or-has-a-kept-draft
+// and not-already-saving; this adds the two things only this component knows about —
+// a locally open line editor, and D1's whole-snapshot validity.
+const canSave = computed(
+  () => draftStore.canSaveDraft && editingLines.value.size === 0 && firstInvalidLine.value === null
+);
+const saveDisabledReason = computed<string | null>(() => {
+  if (canSave.value) return null;
+  if (editingLines.value.size > 0) return 'Finish editing the open line(s) before saving';
+  if (firstInvalidLine.value) {
+    return `Page ${firstInvalidLine.value.page}: ${firstInvalidLine.value.error}`;
+  }
+  return null; // nothing to save, or already saving — no specific reason to show
+});
+
+const otherEditorUsernames = computed(() =>
+  scriptConfigStore.editors
+    .filter((e) => e.internal_id !== wsStore.internalUUID)
+    .map((e) => e.username)
+);
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
 // this the user is an editor with no room and no way out but Stop Editing. Suppressed
 // while our own stopEditing() is still awaiting confirmation (see stopRequested).
@@ -366,11 +445,11 @@ function requestEdit(): void {
   }
 }
 
-function stopEditing(): void {
-  // STOP only: the server only demotes, checkpoints and closes the room for a client
-  // that is still in it (LEAVE_SCRIPT_ROOM first would remove us before STOP arrives,
-  // so the server would skip both). ROOM_CLOSED (if we were the last editor) or the
-  // isEditor watcher below then tears down the local draft.
+// STOP only: the server only demotes, checkpoints and closes the room for a client
+// that is still in it (LEAVE_SCRIPT_ROOM first would remove us before STOP arrives,
+// so the server would skip both). ROOM_CLOSED (if we were the last editor) or the
+// isEditor watcher below then tears down the local draft.
+function sendStop(): void {
   if (sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
     stopRequested.value = true;
   } else {
@@ -378,8 +457,62 @@ function stopEditing(): void {
   }
 }
 
+// D9: with nothing unsaved, stop immediately (today's behaviour) — only an actually
+// dirty or previously-kept draft needs the keep-or-discard choice.
+function stopEditing(): void {
+  if (!draftStore.isDraftDirty && !scriptConfigStore.hasDraft) {
+    sendStop();
+    return;
+  }
+  stopEditingModal.value?.show();
+}
+
+function keepDraftAndStop(): void {
+  stopEditingModal.value?.hide();
+  sendStop();
+}
+
+function discardAndStop(): void {
+  stopEditingModal.value?.hide();
+  // Same reason as sendStop(): ROOM_CLOSED can arrive before the GET_SCRIPT_CONFIG_STATUS
+  // broadcast that drops us from `editors`, which would otherwise flash the
+  // "could not open the script draft" alert for that one round trip.
+  stopRequested.value = true;
+  draftStore.discardDraft();
+}
+
 function retryJoin(): void {
   if (!draftStore.isDraftActive) draftStore.joinScriptRoom();
+}
+
+function saveScript(): void {
+  if (!canSave.value) return;
+  saveModal.value?.show();
+  draftStore.saveDraft();
+}
+
+// D10, lighter-touch per Tim's decision: no blocking modal (the draft is already
+// synced/checkpointed server-side, so autosave's own stakes are lower than the classic
+// editor's REST-only edits), and silently skip rather than error when the snapshot
+// currently fails D1's validator — a half-typed line elsewhere in the draft would
+// otherwise fail *every* editor's autosave tick, not just show a local error. A real
+// manual Save still runs the full round trip and surfaces a real SAVE_ERROR on failure.
+function autosaveTick(): void {
+  if (!canSave.value) return;
+  draftStore.saveDraft();
+}
+
+const autoSave = useAutoSave(autosaveTick);
+
+function setupAutoSave(): void {
+  const settings = userStore.userSettings as {
+    enable_script_auto_save?: boolean;
+    script_auto_save_interval?: number;
+  };
+  autoSave.restart(
+    canEditDraft.value && !!settings.enable_script_auto_save,
+    settings.script_auto_save_interval ?? 5
+  );
 }
 
 function calculateNavbarHeight(): void {
@@ -429,6 +562,12 @@ watch([draftReady, maxPage], () => {
   }
 });
 
+watch(canEditDraft, () => setupAutoSave());
+watch(
+  () => userStore.userSettings,
+  () => setupAutoSave()
+);
+
 watch(currentPage, (val) => {
   localStorage.setItem('scriptEditPage', val.toString());
 });
@@ -457,6 +596,7 @@ onMounted(async () => {
   // so isEditor is already true here by the time this component re-mounts. No
   // client-side change was needed to pick that up.
   if (isEditor.value) retryJoin();
+  setupAutoSave();
 });
 
 onBeforeUnmount(() => {

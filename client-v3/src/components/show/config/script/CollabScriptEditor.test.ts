@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
-import { defineComponent, h } from 'vue';
+import { defineComponent, h, nextTick } from 'vue';
 import * as Y from 'yjs';
 import CollabScriptEditor from './CollabScriptEditor.vue';
 import { useScriptDraftStore } from '@/stores/scriptDraft';
@@ -11,6 +11,7 @@ import { useScriptStore } from '@/stores/script';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
 import { useWebSocketStore } from '@/stores/websocket';
+import { useUserStore } from '@/stores/user';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { useDraftWriter } from '@/composables/useDraftWriter';
 import type { SnapshotLine } from '@/js/yjs/yjsSnapshot';
@@ -60,6 +61,25 @@ function passthrough(tag: string) {
     },
   });
 }
+// BModal's content is rendered unconditionally (there is no real show/hide here), but
+// production code calls `.show()`/`.hide()` on its template ref — a plain passthrough
+// has no such methods, and since BModal isn't exposed via `defineExpose`, the `methods`
+// option (always part of an Options API public instance) is the simplest way to give it
+// some, as harmless no-ops.
+const ModalStub = defineComponent({
+  inheritAttrs: true,
+  methods: {
+    show() {
+      // no-op: content already renders unconditionally in this stub
+    },
+    hide() {
+      // no-op: content already renders unconditionally in this stub
+    },
+  },
+  render() {
+    return h('div', this.$slots.default?.());
+  },
+});
 const bootstrapStubs = {
   BContainer: passthrough('div'),
   BRow: passthrough('div'),
@@ -67,12 +87,13 @@ const bootstrapStubs = {
   BButton: passthrough('button'),
   BButtonGroup: passthrough('div'),
   BSpinner: passthrough('span'),
-  BModal: passthrough('div'),
+  BModal: ModalStub,
   BForm: passthrough('form'),
   BFormGroup: passthrough('div'),
   BFormInput: passthrough('span'),
   BDropdown: passthrough('div'),
   BDropdownItem: passthrough('button'),
+  BProgress: passthrough('div'),
 };
 
 function snap(uid: string, id: number | null = null): SnapshotLine {
@@ -626,6 +647,311 @@ describe('CollabScriptEditor', () => {
       await flushPromises();
 
       expect((w.vm as unknown as { editingLines: Set<string> }).editingLines.size).toBe(0);
+    });
+  });
+
+  describe('save, stop & discard (Step 4)', () => {
+    function vm(w: VueWrapper) {
+      return w.vm as unknown as {
+        editingLines: Set<string>;
+        autosaveTick: () => void;
+        setupAutoSave: () => void;
+      };
+    }
+
+    it('Save is disabled with nothing to save', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      await flushPromises();
+
+      expect(button(w, 'Save')!.attributes('disabled')).toBeDefined();
+    });
+
+    it('Save enables once the draft is dirty', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+
+      expect(button(w, 'Save')!.attributes('disabled')).toBeUndefined();
+    });
+
+    it('Save stays disabled while a line is open for editing, with a reason', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+      vm(w).editingLines.add('open-line');
+      await flushPromises();
+
+      const save = button(w, 'Save')!;
+      expect(save.attributes('disabled')).toBeDefined();
+      expect(save.attributes('title')).toBe('Finish editing the open line(s) before saving');
+    });
+
+    it('Save stays disabled when the draft contains an invalid line, naming the page', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      // A dialogue line with no parts — invalid; see scriptDraftValidation.ts.
+      syncDraft({ '1': [snap('bad')], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+
+      const save = button(w, 'Save')!;
+      expect(save.attributes('disabled')).toBeDefined();
+      expect(save.attributes('title')).toBe(
+        'Page 1: Dialogue lines must have at least one line part'
+      );
+    });
+
+    it('Save stays disabled with no reason shown while already saving', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      useScriptDraftStore().isDraftSaving = true;
+      await flushPromises();
+
+      const save = button(w, 'Save')!;
+      expect(save.attributes('disabled')).toBeDefined();
+      expect(save.attributes('title')).toBeUndefined();
+    });
+
+    it('clicking Save sends SAVE_SCRIPT_DRAFT and marks the draft as saving', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+
+      await button(w, 'Save')!.trigger('click');
+
+      expect(sentOps()).toContain('SAVE_SCRIPT_DRAFT');
+      expect(useScriptDraftStore().isDraftSaving).toBe(true);
+    });
+
+    it('clicking Save while disabled does nothing', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] }); // not dirty — Save is disabled
+      await flushPromises();
+
+      await button(w, 'Save')!.trigger('click');
+
+      expect(sentOps()).not.toContain('SAVE_SCRIPT_DRAFT');
+    });
+
+    it('Stop Editing sends STOP immediately when the draft has nothing unsaved', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      await flushPromises();
+
+      sendObj.mockClear(); // drop the mount's own JOIN_SCRIPT_ROOM
+      await button(w, 'Stop Editing')!.trigger('click');
+
+      expect(sentOps()).toEqual(['STOP_SCRIPT_EDIT']);
+    });
+
+    it('Stop Editing holds off STOP and offers Keep/Discard when the draft is dirty', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+
+      sendObj.mockClear();
+      await button(w, 'Stop Editing')!.trigger('click');
+
+      expect(sentOps()).toEqual([]);
+      expect(button(w, 'Keep Draft')).toBeDefined();
+      expect(button(w, 'Discard')).toBeDefined();
+    });
+
+    it('Stop Editing also offers Keep/Discard for a resumed kept draft that is not locally dirty', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptConfigStore().hasDraft = true; // D8: a kept draft from an earlier session
+      await flushPromises();
+
+      sendObj.mockClear();
+      await button(w, 'Stop Editing')!.trigger('click');
+
+      expect(sentOps()).toEqual([]);
+    });
+
+    it('Keep Draft sends STOP, preserving the draft server-side', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+      sendObj.mockClear();
+      await button(w, 'Stop Editing')!.trigger('click');
+
+      await button(w, 'Keep Draft')!.trigger('click');
+
+      expect(sentOps()).toEqual(['STOP_SCRIPT_EDIT']);
+      expect((w.vm as unknown as { stopRequested: boolean }).stopRequested).toBe(true);
+    });
+
+    it('Discard sends DISCARD_SCRIPT_DRAFT, not STOP', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+      sendObj.mockClear();
+      await button(w, 'Stop Editing')!.trigger('click');
+
+      await button(w, 'Discard')!.trigger('click');
+
+      expect(sentOps()).toEqual(['DISCARD_SCRIPT_DRAFT']);
+      expect((w.vm as unknown as { stopRequested: boolean }).stopRequested).toBe(true);
+    });
+
+    it('Keep Editing sends nothing and leaves the draft open', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+      sendObj.mockClear();
+      await button(w, 'Stop Editing')!.trigger('click');
+
+      await button(w, 'Keep Editing')!.trigger('click');
+
+      expect(sentOps()).toEqual([]);
+      expect(useScriptDraftStore().isDraftActive).toBe(true);
+    });
+
+    it('warns that other editors will lose their work too, only when they are present', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+      expect(w.text()).not.toContain('also editing');
+
+      useScriptConfigStore().editors = [
+        { internal_id: 'me', username: 'admin' },
+        { internal_id: 'other', username: 'bob' },
+      ];
+      await flushPromises();
+
+      expect(w.text()).toContain('bob');
+      expect(w.text()).toContain('also editing');
+    });
+
+    it('shows an Unsaved draft indicator exactly when the config status says there is one', async () => {
+      const w = await mountEditor();
+      expect(w.text()).not.toContain('Unsaved draft');
+
+      useScriptConfigStore().hasDraft = true;
+      await flushPromises();
+      expect(w.text()).toContain('Unsaved draft');
+
+      useScriptConfigStore().hasDraft = false;
+      await flushPromises();
+      expect(w.text()).not.toContain('Unsaved draft');
+    });
+
+    it('autosaveTick saves when nothing blocks it', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+
+      vm(w).autosaveTick();
+
+      expect(sentOps()).toContain('SAVE_SCRIPT_DRAFT');
+    });
+
+    it('autosaveTick skips silently while a line is open for editing', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+      vm(w).editingLines.add('open-line');
+
+      vm(w).autosaveTick();
+
+      expect(sentOps()).not.toContain('SAVE_SCRIPT_DRAFT');
+    });
+
+    it('autosaveTick skips silently when the draft contains an invalid line', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('bad')], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+
+      vm(w).autosaveTick();
+
+      expect(sentOps()).not.toContain('SAVE_SCRIPT_DRAFT');
+    });
+
+    it('autosaveTick does nothing when there is nothing to save', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] }); // not dirty, no kept draft
+
+      vm(w).autosaveTick();
+
+      expect(sentOps()).not.toContain('SAVE_SCRIPT_DRAFT');
+    });
+
+    it('auto-save fires on the configured interval while enabled, and stops once disabled', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [], '2': [] });
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+
+      vi.useFakeTimers();
+      try {
+        useUserStore().userSettings = {
+          enable_script_auto_save: true,
+          script_auto_save_interval: 1,
+        };
+        await nextTick(); // the userSettings watcher re-arms useAutoSave under fake timers
+
+        vi.advanceTimersByTime(60_000);
+        expect(sentOps()).toContain('SAVE_SCRIPT_DRAFT');
+
+        sendObj.mockClear();
+        useUserStore().userSettings = { enable_script_auto_save: false };
+        await nextTick();
+        vi.advanceTimersByTime(5 * 60_000);
+        expect(sentOps()).not.toContain('SAVE_SCRIPT_DRAFT');
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
