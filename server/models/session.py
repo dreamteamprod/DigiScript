@@ -4,7 +4,7 @@ import datetime
 from functools import partial
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, ForeignKey, String, Table
+from sqlalchemy import Column, Float, ForeignKey, String, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.models import db
@@ -21,8 +21,8 @@ class Session(db.Model):
 
     internal_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     remote_ip: Mapped[str | None] = mapped_column(String(255))
-    last_ping: Mapped[float | None] = mapped_column()
-    last_pong: Mapped[float | None] = mapped_column()
+    last_ping: Mapped[float | None] = mapped_column(Float)
+    last_pong: Mapped[float | None] = mapped_column(Float)
     is_editor: Mapped[bool | None] = mapped_column(default=False, index=True)
     is_cutting: Mapped[bool | None] = mapped_column(default=False, index=True)
     user_id: Mapped[int | None] = mapped_column(
@@ -97,7 +97,7 @@ class Interval(db.Model):
         default=partial(datetime.datetime.now, tz=datetime.timezone.utc)
     )
     end_datetime: Mapped[datetime.datetime | None] = mapped_column(default=None)
-    initial_length: Mapped[float | None] = mapped_column(default=0)
+    initial_length: Mapped[float | None] = mapped_column(Float, default=0)
 
 
 class SessionTag(db.Model):
