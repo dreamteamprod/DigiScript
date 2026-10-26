@@ -1,4 +1,4 @@
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, Locator, Page } from '@playwright/test';
 
 import { BASE_URL } from './env.js';
 
@@ -115,4 +115,33 @@ export async function confirmDialog(page: Page): Promise<void> {
   // Confirmation buttons may be btn-primary, btn-danger, or btn-warning depending on context
   await page.locator('.modal.show .modal-footer button:not(.btn-secondary)').first().click();
   await page.waitForSelector('.modal.show', { state: 'detached', timeout: 5_000 });
+}
+
+/**
+ * Fill in the first currently-open line editor (classic or collaborative — both render
+ * the same Done/Delete row) with an act, scene, optional character and text, leaving it
+ * open (the caller clicks Done). Returns the editor's own locator in case the caller
+ * needs it again (e.g. to add a second line before the first is done).
+ */
+export async function fillOpenLineEditor(
+  page: Page,
+  { act, scene, character, text }: { act: string; scene: string; character?: string; text?: string }
+): Promise<Locator> {
+  await page.waitForSelector('button:has-text("Done")', { timeout: 5_000 });
+  const lineEditor = page
+    .locator('div.row')
+    .filter({ has: page.locator('button:has-text("Done")') })
+    .first();
+  await lineEditor.locator('select').nth(0).selectOption({ label: act });
+  await lineEditor.locator('select').nth(1).selectOption({ label: scene });
+  if (character) {
+    await lineEditor
+      .locator('select')
+      .filter({ hasText: character })
+      .selectOption({ label: character });
+  }
+  if (text) {
+    await page.locator('input[type="text"]:visible').last().fill(text);
+  }
+  return lineEditor;
 }

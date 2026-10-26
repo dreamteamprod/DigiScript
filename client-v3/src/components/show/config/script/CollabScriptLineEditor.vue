@@ -96,6 +96,7 @@ import { required } from '@vuelidate/validators';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { useSystemStore } from '@/stores/system';
 import { useDraftWriter } from '@/composables/useDraftWriter';
+import { computeValidActs, computeValidScenes } from '@/js/scriptLineActScene';
 import { toast } from '@/js/toast';
 import CollabScriptLinePart from './CollabScriptLinePart.vue';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
@@ -137,42 +138,18 @@ function warnIfGone(ok: boolean): void {
   if (!ok) toast.warning('This line was changed or removed by another editor.');
 }
 
-const validActs = computed<Act[]>(() => {
-  let startAct = props.acts.find((a) => a.previous_act == null) ?? null;
-  if (props.previousLine) {
-    startAct = props.acts.find((a) => a.id === props.previousLine!.act_id) ?? startAct;
-  }
-  const result: Act[] = [];
-  let cur = startAct;
-  while (cur) {
-    result.push(cur);
-    if (props.nextLine && props.nextLine.act_id === cur.id) break;
-    cur = cur.next_act == null ? null : (props.acts.find((a) => a.id === cur!.next_act) ?? null);
-  }
-  return result;
-});
+const validActs = computed<Act[]>(() =>
+  computeValidActs(props.acts, props.previousLine, props.nextLine)
+);
 
 const actOptions = computed(() => [
   { value: null, text: 'N/A', disabled: true },
   ...validActs.value.map((a) => ({ value: a.id, text: a.name })),
 ]);
 
-const validScenes = computed<Scene[]>(() => {
-  if (props.line.act_id == null) return [];
-  const actScenes = props.scenes.filter((s) => s.act === props.line.act_id);
-  let startScene = actScenes.find((s) => s.previous_scene == null) ?? null;
-  if (props.previousLine && props.previousLine.act_id === props.line.act_id) {
-    startScene = actScenes.find((s) => s.id === props.previousLine!.scene_id) ?? startScene;
-  }
-  const result: Scene[] = [];
-  let cur = startScene;
-  while (cur) {
-    result.push(cur);
-    if (props.nextLine && props.nextLine.scene_id === cur.id) break;
-    cur = cur.next_scene == null ? null : (actScenes.find((s) => s.id === cur!.next_scene) ?? null);
-  }
-  return result;
-});
+const validScenes = computed<Scene[]>(() =>
+  computeValidScenes(props.scenes, props.line.act_id, props.previousLine, props.nextLine)
+);
 
 const sceneOptions = computed(() => [
   { value: null, text: 'N/A', disabled: true },

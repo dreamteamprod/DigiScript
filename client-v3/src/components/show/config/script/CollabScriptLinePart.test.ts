@@ -1,10 +1,9 @@
-/* eslint-disable vue/one-component-per-file -- small in-file stubs */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { mount, type VueWrapper } from '@vue/test-utils';
-import { defineComponent, h } from 'vue';
 import * as Y from 'yjs';
 import CollabScriptLinePart from './CollabScriptLinePart.vue';
+import { passthrough, SelectStub } from './testStubs';
 import { useUserStore } from '@/stores/user';
 import { useScriptDraftStore } from '@/stores/scriptDraft';
 import { applyTextDiff } from '@/js/yjs/ytextDiff';
@@ -29,36 +28,6 @@ vi.mock('@/js/toast', () => ({
 }));
 
 import { toast } from '@/js/toast';
-
-function passthrough(tag: string) {
-  return defineComponent({
-    inheritAttrs: true,
-    render() {
-      return h(tag, this.$slots.default?.());
-    },
-  });
-}
-
-/** A BFormSelect stand-in that renders a plain <select> and forwards changes as numbers/null. */
-const SelectStub = defineComponent({
-  props: { modelValue: {}, options: { type: Array, default: () => [] } },
-  emits: ['update:modelValue'],
-  render() {
-    return h(
-      'select',
-      {
-        'data-value': String(this.modelValue),
-        onChange: (e: Event) => {
-          const raw = (e.target as HTMLSelectElement).value;
-          this.$emit('update:modelValue', raw === 'null' ? null : Number.parseInt(raw, 10));
-        },
-      },
-      (this.options as { value: unknown; text: string }[]).map((o) =>
-        h('option', { value: String(o.value) }, o.text)
-      )
-    );
-  },
-});
 
 const stubs = {
   BCol: passthrough('div'),

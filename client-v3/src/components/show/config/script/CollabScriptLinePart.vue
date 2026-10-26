@@ -60,7 +60,9 @@
     </BRow>
     <BRow>
       <BCol style="display: inline-flex">
+        <label :for="`line-part-text-${part._uid}`" class="visually-hidden">Line text</label>
         <input
+          :id="`line-part-text-${part._uid}`"
           ref="textInputEl"
           type="text"
           class="form-control"
@@ -97,12 +99,13 @@ import { useDraftWriter } from '@/composables/useDraftWriter';
 import { useYTextField } from '@/composables/useYTextField';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { toast } from '@/js/toast';
+import { buildCombinedCharacterOptions, type CombinedSelectOption } from '@/js/mruSortUtils';
 import {
-  buildMruCharacterOptions,
-  buildMruCharacterGroupOptions,
-  buildCombinedCharacterOptions,
-  type CombinedSelectOption,
-} from '@/js/mruSortUtils';
+  characterSelectOptions,
+  characterGroupSelectOptions,
+  stageDirectionStyleSelectOptions,
+} from '@/js/scriptLinePartOptions';
+import { fieldState, combinedFieldState } from '@/js/vuelidateFieldState';
 import type { DraftScriptLinePart } from '@/js/yjs/draftAdapter';
 import type { StageDirectionStyle } from '@/types/api/script';
 import type { Character, CharacterGroup } from '@/types/api/show';
@@ -170,32 +173,21 @@ const userSettings = computed(
 
 const tmpScript = computed(() => snapshotPagesToScriptLines(draftStore.pageSnapshots));
 
-const characterOptions = computed(() => {
-  if (userSettings.value.character_mru_sort) {
-    const sorted = buildMruCharacterOptions(props.characters, tmpScript.value);
-    if (sorted) return sorted;
-  }
-  return [
-    { value: null, text: 'N/A' },
-    ...props.characters.map((c) => ({ value: c.id, text: c.name })),
-  ];
-});
+const characterOptions = computed(() =>
+  characterSelectOptions(props.characters, tmpScript.value, !!userSettings.value.character_mru_sort)
+);
 
-const characterGroupOptions = computed(() => {
-  if (userSettings.value.character_mru_sort) {
-    const sorted = buildMruCharacterGroupOptions(props.characterGroups, tmpScript.value);
-    if (sorted) return sorted;
-  }
-  return [
-    { value: null, text: 'N/A' },
-    ...props.characterGroups.map((g) => ({ value: g.id, text: g.name })),
-  ];
-});
+const characterGroupOptions = computed(() =>
+  characterGroupSelectOptions(
+    props.characterGroups,
+    tmpScript.value,
+    !!userSettings.value.character_mru_sort
+  )
+);
 
-const stageDirectionStyleOptions = computed<{ value: number | null; text: string }[]>(() => [
-  { value: null, text: 'N/A' },
-  ...(props.stageDirectionStyles ?? []).map((s) => ({ value: s.id, text: s.description })),
-]);
+const stageDirectionStyleOptions = computed(() =>
+  stageDirectionStyleSelectOptions(props.stageDirectionStyles)
+);
 
 const combinedOptions = computed<CombinedSelectOption[]>(() =>
   buildCombinedCharacterOptions(
@@ -258,27 +250,12 @@ const v$ = useVuelidate(
   computed(() => props.part)
 );
 
-const characterState = computed<boolean | null>(() => {
-  const f = v$.value.character_id;
-  return f.$dirty ? !f.$error : null;
-});
-
-const characterGroupState = computed<boolean | null>(() => {
-  const f = v$.value.character_group_id;
-  return f.$dirty ? !f.$error : null;
-});
-
-const lineTextState = computed<boolean | null>(() => {
-  const f = v$.value.line_text;
-  return f.$dirty ? !f.$error : null;
-});
-
-const combinedState = computed<boolean | null>(() => {
-  const cF = v$.value.character_id;
-  const gF = v$.value.character_group_id;
-  if (!cF.$dirty && !gF.$dirty) return null;
-  return !(cF.$error && gF.$error);
-});
+const characterState = computed(() => fieldState(v$.value.character_id));
+const characterGroupState = computed(() => fieldState(v$.value.character_group_id));
+const lineTextState = computed(() => fieldState(v$.value.line_text));
+const combinedState = computed(() =>
+  combinedFieldState(v$.value.character_id, v$.value.character_group_id)
+);
 
 function handleEnterPress(): void {
   v$.value.$touch();

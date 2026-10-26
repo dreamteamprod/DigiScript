@@ -1,9 +1,9 @@
-/* eslint-disable vue/one-component-per-file -- small in-file stubs */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
+import { passthrough, SelectStub } from './testStubs';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { Act, Scene } from '@/types/api/show';
@@ -26,35 +26,6 @@ vi.mock('@/js/toast', () => ({
 }));
 
 import { toast } from '@/js/toast';
-
-function passthrough(tag: string) {
-  return defineComponent({
-    inheritAttrs: true,
-    render() {
-      return h(tag, this.$slots.default?.());
-    },
-  });
-}
-
-const SelectStub = defineComponent({
-  props: { modelValue: {}, options: { type: Array, default: () => [] } },
-  emits: ['update:modelValue'],
-  render() {
-    return h(
-      'select',
-      {
-        class: 'act-scene-select',
-        onChange: (e: Event) => {
-          const raw = (e.target as HTMLSelectElement).value;
-          this.$emit('update:modelValue', raw === 'null' ? null : Number.parseInt(raw, 10));
-        },
-      },
-      (this.options as { value: unknown; text: string }[]).map((o) =>
-        h('option', { value: String(o.value) }, o.text)
-      )
-    );
-  },
-});
 
 const PartStub = defineComponent({
   props: { part: { type: Object, required: true } },
@@ -167,14 +138,14 @@ describe('CollabScriptLineEditor', () => {
     wrapper = mountEditor();
     expect(wrapper.findAll('.part-stub')).toHaveLength(1);
 
-    await wrapper.find('select.act-scene-select').setValue('1');
+    await wrapper.find('select').setValue('1');
     expect(setLineActScene).toHaveBeenCalledWith(1, 'line1', 1, 1);
   });
 
   it('warns when an act/scene change targets a line another editor removed', async () => {
     setLineActScene.mockReturnValue(false);
     wrapper = mountEditor();
-    await wrapper.find('select.act-scene-select').setValue('1');
+    await wrapper.find('select').setValue('1');
     expect(toast.warning).toHaveBeenCalled();
   });
 

@@ -19,6 +19,7 @@ import {
   waitForModal,
   waitForModalClosed,
   confirmModal,
+  fillOpenLineEditor,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
 
@@ -221,19 +222,12 @@ test('a second browser can edit the same script at the same time', async ({ brow
 
 test('adds a dialogue line with act, scene, character and text', async () => {
   await page.click('button:has-text("Add Dialogue")');
-  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
-
-  const lineEditor = page
-    .locator('div.row')
-    .filter({ has: page.locator('button:has-text("Done")') })
-    .first();
-  await lineEditor.locator('select').nth(0).selectOption({ label: 'Act 1' });
-  await lineEditor.locator('select').nth(1).selectOption({ label: 'Scene 1' });
-  await lineEditor
-    .locator('select')
-    .filter({ hasText: 'Hamlet' })
-    .selectOption({ label: 'Hamlet' });
-  await page.locator('input[type="text"]:visible').last().fill('To be or not to be');
+  await fillOpenLineEditor(page, {
+    act: 'Act 1',
+    scene: 'Scene 1',
+    character: 'Hamlet',
+    text: 'To be or not to be',
+  });
 
   await page.locator('button:has-text("Done")').first().click();
   // Add Dialogue chains into another blank dialogue editor after Done, for continuous
@@ -267,13 +261,7 @@ test('inserts a line from a row menu and deletes it again', async () => {
   await row.locator('.script-edit-controls button.dropdown-toggle-split').click();
   await page.click('.dropdown-item:has-text("Insert Stage Direction")');
 
-  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
-  const inserted = page
-    .locator('div.row')
-    .filter({ has: page.locator('button:has-text("Done")') })
-    .first();
-  await inserted.locator('select').nth(0).selectOption({ label: 'Act 1' });
-  await inserted.locator('select').nth(1).selectOption({ label: 'Scene 1' });
+  await fillOpenLineEditor(page, { act: 'Act 1', scene: 'Scene 1' });
 
   // Unscoped, like the classic editor's own equivalent E2E test: `div.row` nests
   // (Bootstrap grid), so the "has a Done button" filter's first match can be an
