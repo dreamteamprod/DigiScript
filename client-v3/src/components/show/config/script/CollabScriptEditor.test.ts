@@ -346,21 +346,26 @@ describe('CollabScriptEditor', () => {
     expect(w.find('.alert-stub').exists()).toBe(false);
   });
 
-  it('requestEdit defensively clears stopRequested, so a stale flag can never suppress a later join failure', async () => {
-    // The isEditor watcher already clears stopRequested whenever isEditor goes
-    // false, which is the only way to reach the Edit button in the first place —
-    // so this can't happen through the UI. requestEdit() resets it anyway, as
-    // belt-and-braces; this test drives that line directly, by forcing the flag
-    // on before Edit is pressed, bypassing the normal (always-already-reset) flow.
+  it('a fresh join clears a stopRequested flag stuck true by a STOP that never registered', async () => {
+    // sendObj returning true only means the frame reached the socket, not that the
+    // server processed it (a drop right after, or the #1427 reconnect grace window
+    // keeping is_editor alive, would leave isEditor never flipping false) — in that
+    // case the isEditor watcher's own reset never fires, and stopRequested would
+    // stay stuck true, silently eating any later real join failure. Force exactly
+    // that stuck state, then prove a fresh join (ours or a resumed one) clears it
+    // regardless, since that earlier stop is moot once a new join starts.
+    becomeEditor();
     vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
     const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
     (w.vm as unknown as { stopRequested: boolean }).stopRequested = true;
 
-    await button(w, 'Edit')!.trigger('click');
-    becomeEditor();
+    useScriptDraftStore().status = 'joining'; // a fresh join starts
     await flushPromises();
-    useScriptDraftStore()._teardown(); // this join is rejected
+    expect((w.vm as unknown as { stopRequested: boolean }).stopRequested).toBe(false);
 
+    useScriptDraftStore()._teardown(); // ...and this one is rejected
     await flushPromises();
     expect(w.find('.alert-stub').exists()).toBe(true);
   });
@@ -403,6 +408,10 @@ describe('CollabScriptEditor', () => {
 
     const { toast } = await import('@/js/toast');
     expect(toast.error).toHaveBeenCalledWith('Cannot stop editing: not connected to the server');
+    // A mutant that sets stopRequested unconditionally (not just on a successful
+    // send) would pass every other test in this file — nothing else exercises the
+    // failed-send branch's effect on the flag.
+    expect((w.vm as unknown as { stopRequested: boolean }).stopRequested).toBe(false);
   });
 
   it('leaves the room when the component unmounts', async () => {

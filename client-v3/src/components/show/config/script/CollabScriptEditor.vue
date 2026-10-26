@@ -249,10 +249,6 @@ async function goToPage(): Promise<void> {
 }
 
 function requestEdit(): void {
-  // A fresh edit request supersedes any stop still awaiting confirmation (there is
-  // no realistic way to reach this while stopRequested is true — Edit isn't shown
-  // while isEditor is — but a stale flag must never suppress this join's own alert).
-  stopRequested.value = false;
   if (!sendObj({ OP: 'REQUEST_SCRIPT_EDIT', DATA: { collab: true } })) {
     toast.error('Cannot edit script: not connected to the server');
   }
@@ -290,6 +286,19 @@ watch(isEditor, async (now, was) => {
     await loadViewerPage(currentPage.value);
   }
 });
+
+// Belt-and-braces: if a STOP frame is sent but never actually registers server-side
+// (e.g. the socket drops right after, or the #1427 reconnect grace window keeps
+// is_editor alive across it), isEditor never flips false and the watcher above never
+// resets stopRequested — it would stay stuck true, silently eating any later real
+// join failure. Any fresh join (ours or a resumed one) means that earlier stop, if it
+// was ever in flight, is moot, so clear the flag whenever one starts.
+watch(
+  () => draftStore.status,
+  (status) => {
+    if (status === 'joining') stopRequested.value = false;
+  }
+);
 
 // Pages are never removed, but the stored page (or a page from before a rejoin) may be
 // past the last one that exists.
