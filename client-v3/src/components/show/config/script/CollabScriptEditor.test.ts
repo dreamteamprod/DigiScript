@@ -80,6 +80,14 @@ const ModalStub = defineComponent({
     return h('div', this.$slots.default?.());
   },
 });
+// BFormSelect's `options` is a component prop, not a native <select> DOM property — a
+// bare passthrough tries to assign it as one and warns on every non-trivial value.
+const SelectStub = defineComponent({
+  props: { options: { type: Array, default: () => [] }, disabled: Boolean },
+  render() {
+    return h('select');
+  },
+});
 const bootstrapStubs = {
   BContainer: passthrough('div'),
   BRow: passthrough('div'),
@@ -91,6 +99,7 @@ const bootstrapStubs = {
   BForm: passthrough('form'),
   BFormGroup: passthrough('div'),
   BFormInput: passthrough('span'),
+  BFormSelect: SelectStub,
   BDropdown: passthrough('div'),
   BDropdownItem: passthrough('button'),
   BProgress: passthrough('div'),
@@ -952,6 +961,197 @@ describe('CollabScriptEditor', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('bulk edit (Step 4)', () => {
+    async function mountSyncedEditor(): Promise<VueWrapper> {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      seedRealPage(1);
+      seedRealPage(2);
+      useScriptDraftStore().status = 'synced';
+      await flushPromises();
+      return w;
+    }
+
+    function vm(w: VueWrapper) {
+      return w.vm as unknown as {
+        bulkEditMode: boolean;
+        bulkEditStart: { page: number; lineUid: string } | null;
+        bulkEditEnd: { page: number; lineUid: string } | null;
+        enterBulkEditMode: () => void;
+        exitBulkEditMode: () => void;
+        onSetBulkStart: (index: number) => void;
+        onSetBulkEnd: (index: number) => void;
+        onBulkApply: (payload: {
+          actId: number | null;
+          sceneId: number | null;
+          partIndex: number | null;
+          characterId: number | null;
+          characterGroupId: number | null;
+        }) => void;
+      };
+    }
+
+    const noActScene = { actId: null, sceneId: null };
+    const noCharacter = { partIndex: null, characterId: null, characterGroupId: null };
+
+    it('enterBulkEditMode/exitBulkEditMode toggle mode and clear any selection', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      await flushPromises();
+
+      vm(w).enterBulkEditMode();
+      expect(vm(w).bulkEditMode).toBe(true);
+
+      vm(w).onSetBulkStart(0);
+      expect(vm(w).bulkEditStart).not.toBeNull();
+
+      vm(w).exitBulkEditMode();
+      expect(vm(w).bulkEditMode).toBe(false);
+      expect(vm(w).bulkEditStart).toBeNull();
+      expect(vm(w).bulkEditEnd).toBeNull();
+    });
+
+    it('refuses an end line at or before the start line on the same page', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      await flushPromises();
+      vm(w).enterBulkEditMode();
+
+      vm(w).onSetBulkStart(1);
+      vm(w).onSetBulkEnd(0);
+
+      const { toast } = await import('@/js/toast');
+      expect(toast.error).toHaveBeenCalledWith('End line must come after start line');
+      expect(vm(w).bulkEditEnd).toBeNull();
+    });
+
+    it('accepts an end line after the start line', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      await flushPromises();
+      vm(w).enterBulkEditMode();
+
+      vm(w).onSetBulkStart(0);
+      vm(w).onSetBulkEnd(1);
+
+      expect(vm(w).bulkEditEnd).not.toBeNull();
+    });
+
+    it('applies act/scene to every line in the range, inclusive', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      await flushPromises();
+      vm(w).enterBulkEditMode();
+      vm(w).onSetBulkStart(0);
+      vm(w).onSetBulkEnd(1); // leaves line index 2 out of range
+
+      vm(w).onBulkApply({ actId: 9, sceneId: 8, ...noCharacter });
+      await flushPromises();
+
+      const page1 = useScriptDraftStore().getPageSnapshot(1);
+      expect(page1[0]!.act_id).toBe(9);
+      expect(page1[0]!.scene_id).toBe(8);
+      expect(page1[1]!.act_id).toBe(9);
+      expect(page1[1]!.scene_id).toBe(8);
+      // Out of range — untouched.
+      expect(page1[2]!.act_id).toBe(1);
+      expect(page1[2]!.scene_id).toBe(1);
+    });
+
+    it('assigns a character to the chosen part across the range', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
+      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
+      await flushPromises();
+      vm(w).enterBulkEditMode();
+      vm(w).onSetBulkStart(0);
+      vm(w).onSetBulkEnd(1);
+
+      vm(w).onBulkApply({ ...noActScene, partIndex: 1, characterId: 42, characterGroupId: null });
+      await flushPromises();
+
+      const page1 = useScriptDraftStore().getPageSnapshot(1);
+      expect(page1[0]!.parts[0]?.character_id).toBe(42);
+      expect(page1[1]!.parts[0]?.character_id).toBe(42);
+    });
+
+    it('skips a line that has no part at the chosen index', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      // A spacing line has no parts at all — nothing for partIndex 1 to land on.
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
+      await flushPromises();
+      vm(w).enterBulkEditMode();
+      vm(w).onSetBulkStart(0);
+      vm(w).onSetBulkEnd(1);
+
+      // Should not throw for the partless line, and still reach the dialogue line.
+      vm(w).onBulkApply({ ...noActScene, partIndex: 1, characterId: 7, characterGroupId: null });
+      await flushPromises();
+
+      const page1 = useScriptDraftStore().getPageSnapshot(1);
+      expect(page1[1]!.parts[0]?.character_id).toBe(7);
+    });
+
+    it('spans a page boundary, updating lines on both pages', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      writer.addLine(2, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      await flushPromises();
+      vm(w).enterBulkEditMode();
+      vm(w).onSetBulkStart(0); // page 1
+      await button(w, 'Next Page')!.trigger('click');
+      await flushPromises();
+      vm(w).onSetBulkEnd(0); // page 2
+
+      vm(w).onBulkApply({ actId: 5, sceneId: 6, ...noCharacter });
+      await flushPromises();
+
+      expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(5);
+      expect(useScriptDraftStore().getPageSnapshot(2)[0]!.act_id).toBe(5);
+    });
+
+    it('aborts with a toast and exits bulk mode if the start line was deleted before applying', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid: firstUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      await flushPromises();
+      vm(w).enterBulkEditMode();
+      vm(w).onSetBulkStart(0);
+      vm(w).onSetBulkEnd(1);
+
+      writer.deleteLine(1, firstUid);
+      await flushPromises();
+      vm(w).onBulkApply({ actId: 9, sceneId: 9, ...noCharacter });
+      await flushPromises();
+
+      const { toast } = await import('@/js/toast');
+      expect(toast.error).toHaveBeenCalledWith(
+        'Could not apply the bulk edit — the start or end line no longer exists'
+      );
+      expect(vm(w).bulkEditMode).toBe(false);
+      // The surviving line must not have been touched by a mutant that applies anyway.
+      expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
     });
   });
 });

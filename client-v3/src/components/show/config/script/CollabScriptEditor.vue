@@ -45,6 +45,12 @@
               >
                 Save
               </BButton>
+              <BButton
+                :variant="bulkEditMode ? 'info' : 'outline-info'"
+                @click="bulkEditMode ? exitBulkEditMode() : enterBulkEditMode()"
+              >
+                {{ bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit' }}
+              </BButton>
             </template>
           </BButtonGroup>
         </BCol>
@@ -104,12 +110,17 @@
               :line-part-cuts="[]"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
+              :bulk-edit-mode="bulkEditMode"
+              :is-bulk-start="isBulkStart(line)"
+              :is-bulk-end="isBulkEnd(line)"
               @edit-line="beginEditingLine(line._uid)"
               @insert-dialogue="insertLineAt(index, LINE_TYPES.DIALOGUE)"
               @insert-stage-direction="insertLineAt(index, LINE_TYPES.STAGE_DIRECTION)"
               @insert-cue-line="insertLineAt(index, LINE_TYPES.CUE_LINE)"
               @insert-spacing="insertLineAt(index, LINE_TYPES.SPACING)"
               @delete-line="deleteLine(line._uid)"
+              @set-bulk-start="onSetBulkStart(index)"
+              @set-bulk-end="onSetBulkEnd(index)"
             />
           </template>
         </template>
@@ -174,6 +185,17 @@
       :error="!draftStore.isDraftSaving ? draftStore.lastCollabError : null"
     />
 
+    <BulkEditModal
+      ref="bulkModal"
+      :previous-line-of-start="bulkPreviousLine"
+      :next-line-of-end="bulkNextLine"
+      :acts="showStore.actList"
+      :scenes="showStore.sceneList"
+      :characters="showStore.characterList"
+      :character-groups="showStore.characterGroupList"
+      @apply="onBulkApply"
+    />
+
     <BModal ref="stopEditingModal" title="Stop Editing" hide-footer>
       <p>This draft has unsaved changes.</p>
       <p v-if="otherEditorUsernames.length > 0" class="text-warning">
@@ -214,11 +236,14 @@ import { useAutoSave } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
+import { LOCAL_EDIT_ORIGIN } from '@/js/yjs/draftWriter';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
+import BulkEditModal from './BulkEditModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
+import type { LineUid } from '@/js/yjs/yjsSnapshot';
 
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
@@ -249,6 +274,13 @@ const pageError = ref<string | null>(null);
 const goToPageModal = ref<InstanceType<typeof BModal>>();
 const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
 const stopEditingModal = ref<InstanceType<typeof BModal>>();
+const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
+const bulkEditMode = ref(false);
+// D6: a stable key, not an index — an insert/delete elsewhere in the draft (ours or
+// another editor's) must not silently shift which lines a bulk edit lands on. Resolved
+// back to a position only when the edit is actually applied (see onBulkApply).
+const bulkEditStart = ref<{ page: number; lineUid: LineUid } | null>(null);
+const bulkEditEnd = ref<{ page: number; lineUid: LineUid } | null>(null);
 // True from a successful `stopEditing()` send until the server confirms we are no
 // longer an editor. STOP_SCRIPT_EDIT's own ROOM_CLOSED (for the last editor) arrives
 // before its GET_SCRIPT_CONFIG_STATUS broadcast, so without this flag `joinFailed`
@@ -311,6 +343,40 @@ const otherEditorUsernames = computed(() =>
     .filter((e) => e.internal_id !== wsStore.internalUUID)
     .map((e) => e.username)
 );
+
+// BulkEditModal's act/scene dropdowns use these to work out which acts/scenes are
+// valid to offer without crossing into the surrounding, unselected lines — no
+// page-preload needed (the whole draft doc syncs on join, unlike the classic editor's
+// per-page REST loads), so these are plain reactive reads over the already-synced doc.
+const bulkPreviousLine = computed<DraftScriptLine | null>(() => {
+  if (!bulkEditStart.value) return null;
+  const { page, lineUid } = bulkEditStart.value;
+  const index = draftPages.linesFor(page).findIndex((l) => l._uid === lineUid);
+  return index < 0 ? null : draftPages.previousLineOf(page, index);
+});
+const bulkNextLine = computed<DraftScriptLine | null>(() => {
+  if (!bulkEditEnd.value) return null;
+  const { page, lineUid } = bulkEditEnd.value;
+  const lines = draftPages.linesFor(page);
+  const index = lines.findIndex((l) => l._uid === lineUid);
+  if (index < 0) return null;
+  if (index + 1 < lines.length) return lines[index + 1] ?? null;
+  for (let p = page + 1; p <= draftPages.maxPage.value; p += 1) {
+    const nextPageLines = draftPages.linesFor(p);
+    if (nextPageLines.length > 0) return nextPageLines[0] ?? null;
+  }
+  return null;
+});
+
+function isBulkStart(line: DraftScriptLine): boolean {
+  return (
+    bulkEditStart.value?.page === currentPage.value && bulkEditStart.value?.lineUid === line._uid
+  );
+}
+function isBulkEnd(line: DraftScriptLine): boolean {
+  return bulkEditEnd.value?.page === currentPage.value && bulkEditEnd.value?.lineUid === line._uid;
+}
+
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
 // this the user is an editor with no room and no way out but Stop Editing. Suppressed
 // while our own stopEditing() is still awaiting confirmation (see stopRequested).
@@ -514,6 +580,119 @@ function setupAutoSave(): void {
     settings.script_auto_save_interval ?? 5
   );
 }
+
+function enterBulkEditMode(): void {
+  bulkEditMode.value = true;
+  bulkEditStart.value = null;
+  bulkEditEnd.value = null;
+}
+
+function exitBulkEditMode(): void {
+  bulkEditMode.value = false;
+  bulkEditStart.value = null;
+  bulkEditEnd.value = null;
+}
+
+function onSetBulkStart(index: number): void {
+  const line = draftLines.value[index];
+  if (!line) return;
+  bulkEditStart.value = { page: currentPage.value, lineUid: line._uid };
+  bulkEditEnd.value = null;
+}
+
+function onSetBulkEnd(index: number): void {
+  const line = draftLines.value[index];
+  if (!line) return;
+  if (bulkEditStart.value) {
+    const { page: startPage, lineUid: startUid } = bulkEditStart.value;
+    if (currentPage.value < startPage) {
+      toast.error('End line must come after start line');
+      return;
+    }
+    if (currentPage.value === startPage) {
+      const startIndex = draftLines.value.findIndex((l) => l._uid === startUid);
+      if (startIndex !== -1 && index <= startIndex) {
+        toast.error('End line must come after start line');
+        return;
+      }
+    }
+  }
+  bulkEditEnd.value = { page: currentPage.value, lineUid: line._uid };
+}
+
+// D6: bulk edit resolves its stored {page, lineUid} boundaries back to a position only
+// here, at apply time — an insert/delete elsewhere since the boundaries were picked
+// (ours or another editor's) shifts indices but never the line this was meant to cover.
+// If either boundary line is gone by now, abort rather than guess a new range.
+function onBulkApply(payload: {
+  actId: number | null;
+  sceneId: number | null;
+  partIndex: number | null;
+  characterId: number | null;
+  characterGroupId: number | null;
+}): void {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return;
+  const { page: startPage, lineUid: startUid } = bulkEditStart.value;
+  const { page: endPage, lineUid: endUid } = bulkEditEnd.value;
+
+  const startIndex = draftPages.linesFor(startPage).findIndex((l) => l._uid === startUid);
+  const endIndex = draftPages.linesFor(endPage).findIndex((l) => l._uid === endUid);
+  if (startIndex === -1 || endIndex === -1) {
+    toast.error('Could not apply the bulk edit — the start or end line no longer exists');
+    bulkModal.value?.hide();
+    exitBulkEditMode();
+    return;
+  }
+
+  const doc = draftStore.getDraftYdoc();
+  if (!doc) return; // draftReady guarantees this normally; nothing to write to otherwise
+
+  const applyActScene = payload.actId != null && payload.sceneId != null;
+  const applyCharacter =
+    payload.partIndex != null && (payload.characterId != null || payload.characterGroupId != null);
+  const targetPartIndex = (payload.partIndex ?? 1) - 1;
+
+  // Reentrant: each writer call below opens its own doc.transact() with the same
+  // LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer transaction rather
+  // than committing separately — so the whole bulk edit reaches peers as one update.
+  doc.transact(() => {
+    for (let p = startPage; p <= endPage; p += 1) {
+      const pageLines = draftPages.linesFor(p);
+      const fromIndex = p === startPage ? startIndex : 0;
+      const toIndex = p === endPage ? endIndex : pageLines.length - 1;
+      for (let i = fromIndex; i <= toIndex; i += 1) {
+        const line = pageLines[i];
+        if (!line) continue; // the page shrank since linesFor() was read for the loop bounds
+
+        if (applyActScene) {
+          writer.setLineActScene(p, line._uid, payload.actId, payload.sceneId);
+        }
+        if (applyCharacter) {
+          const sortedParts = [...line.line_parts].sort(
+            (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
+          );
+          const targetPart = sortedParts[targetPartIndex];
+          if (targetPart) {
+            writer.setPartCharacter(
+              p,
+              line._uid,
+              targetPart._uid,
+              payload.characterId,
+              payload.characterGroupId
+            );
+          }
+        }
+      }
+    }
+  }, LOCAL_EDIT_ORIGIN);
+
+  bulkModal.value?.hide();
+  exitBulkEditMode();
+}
+
+watch(bulkEditEnd, (val) => {
+  if (val != null) bulkModal.value?.show();
+});
 
 function calculateNavbarHeight(): void {
   const navbar = document.querySelector('.navbar');
