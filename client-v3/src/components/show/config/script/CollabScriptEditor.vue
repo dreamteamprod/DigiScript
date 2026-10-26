@@ -164,6 +164,12 @@ const changingPage = ref(false);
 const pageInputNo = ref(1);
 const pageError = ref<string | null>(null);
 const goToPageModal = ref<InstanceType<typeof BModal>>();
+// True from a successful `stopEditing()` send until the server confirms we are no
+// longer an editor. STOP_SCRIPT_EDIT's own ROOM_CLOSED (for the last editor) arrives
+// before its GET_SCRIPT_CONFIG_STATUS broadcast, so without this flag `joinFailed`
+// would show the "could not open the script draft" alert — with a Retry that would
+// rejoin the room we just asked to leave — for that one round trip.
+const stopRequested = ref(false);
 
 // We are an editor when the server lists us among the editors. The server commits
 // `is_editor` before it broadcasts GET_SCRIPT_CONFIG_STATUS, so this is also the moment
@@ -177,8 +183,11 @@ const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
 
 const draftReady = computed(() => isEditor.value && draftStore.isDraftSynced);
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
-// this the user is an editor with no room and no way out but Stop Editing.
-const joinFailed = computed(() => loaded.value && isEditor.value && draftStore.status === 'idle');
+// this the user is an editor with no room and no way out but Stop Editing. Suppressed
+// while our own stopEditing() is still awaiting confirmation (see stopRequested).
+const joinFailed = computed(
+  () => loaded.value && isEditor.value && !stopRequested.value && draftStore.status === 'idle'
+);
 const maxPage = draftPages.maxPage;
 const atLastDraftPage = computed(() => draftReady.value && currentPage.value >= maxPage.value);
 
@@ -240,6 +249,10 @@ async function goToPage(): Promise<void> {
 }
 
 function requestEdit(): void {
+  // A fresh edit request supersedes any stop still awaiting confirmation (there is
+  // no realistic way to reach this while stopRequested is true — Edit isn't shown
+  // while isEditor is — but a stale flag must never suppress this join's own alert).
+  stopRequested.value = false;
   if (!sendObj({ OP: 'REQUEST_SCRIPT_EDIT', DATA: { collab: true } })) {
     toast.error('Cannot edit script: not connected to the server');
   }
@@ -250,7 +263,9 @@ function stopEditing(): void {
   // that is still in it (LEAVE_SCRIPT_ROOM first would remove us before STOP arrives,
   // so the server would skip both). ROOM_CLOSED (if we were the last editor) or the
   // isEditor watcher below then tears down the local draft.
-  if (!sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
+  if (sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
+    stopRequested.value = true;
+  } else {
     toast.error('Cannot stop editing: not connected to the server');
   }
 }
@@ -268,6 +283,9 @@ watch(isEditor, async (now, was) => {
   if (now && !was) {
     retryJoin();
   } else if (!now && was) {
+    // The server has confirmed we're no longer an editor (our own stop, or losing
+    // the lock some other way) — stopRequested has done its job, if it was set.
+    stopRequested.value = false;
     draftStore.leaveScriptRoom();
     await loadViewerPage(currentPage.value);
   }

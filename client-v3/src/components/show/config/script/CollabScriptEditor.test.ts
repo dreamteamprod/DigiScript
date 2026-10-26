@@ -339,6 +339,30 @@ describe('CollabScriptEditor', () => {
     await flushPromises();
 
     expect(useScriptDraftStore().isDraftActive).toBe(false);
+    // ROOM_CLOSED (sent before the server's own GET_SCRIPT_CONFIG_STATUS broadcast)
+    // tears the draft down to 'idle' while we are still an editor on paper — without
+    // stopRequested suppressing it, that's exactly joinFailed's shape, and Retry would
+    // rejoin the room we just asked to leave.
+    expect(w.find('.alert-stub').exists()).toBe(false);
+  });
+
+  it('requestEdit defensively clears stopRequested, so a stale flag can never suppress a later join failure', async () => {
+    // The isEditor watcher already clears stopRequested whenever isEditor goes
+    // false, which is the only way to reach the Edit button in the first place —
+    // so this can't happen through the UI. requestEdit() resets it anyway, as
+    // belt-and-braces; this test drives that line directly, by forcing the flag
+    // on before Edit is pressed, bypassing the normal (always-already-reset) flow.
+    vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+    const w = await mountEditor();
+    (w.vm as unknown as { stopRequested: boolean }).stopRequested = true;
+
+    await button(w, 'Edit')!.trigger('click');
+    becomeEditor();
+    await flushPromises();
+    useScriptDraftStore()._teardown(); // this join is rejected
+
+    await flushPromises();
+    expect(w.find('.alert-stub').exists()).toBe(true);
   });
 
   it('Stop Editing with another editor still present: losing editor status tears the draft down', async () => {
