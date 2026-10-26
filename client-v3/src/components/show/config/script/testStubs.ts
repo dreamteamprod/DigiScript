@@ -18,6 +18,10 @@ function renderOption(o: FlatOption) {
   return h('option', { value: String(o.value) }, o.text);
 }
 
+function parseSelectValue(raw: string): number | string {
+  return /^-?\d+$/.test(raw) ? Number.parseInt(raw, 10) : raw;
+}
+
 /**
  * A BFormSelect stand-in that renders a plain <select> (including <optgroup>, for the
  * combined character/group dropdown's grouped options) and forwards changes as
@@ -42,8 +46,7 @@ export const SelectStub = defineComponent({
         'data-value': String(this.modelValue),
         onChange: (e: Event) => {
           const raw = (e.target as HTMLSelectElement).value;
-          const value =
-            raw === 'null' ? null : /^-?\d+$/.test(raw) ? Number.parseInt(raw, 10) : raw;
+          const value = raw === 'null' ? null : parseSelectValue(raw);
           this.$emit('update:modelValue', value);
         },
       },
