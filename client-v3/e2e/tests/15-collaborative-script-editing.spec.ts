@@ -19,6 +19,7 @@ import {
   waitForModal,
   waitForModalClosed,
   confirmModal,
+  fillOpenLineEditor,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
 
@@ -92,6 +93,21 @@ test.afterAll(async () => {
   ) {
     await stopEditing(page).click();
   }
+
+  // Stopping only releases the editor lock — Step 2 deliberately keeps the draft
+  // across Stop Editing (D9), and Step 3's tests are the first in this file to
+  // actually write to it, so a draft now persists to disk once the room closes with
+  // no editors left. `has_unsaved_changes()` sees that persisted draft and blocks the
+  // mode flip regardless of who is or isn't an editor. There is no UI for discarding
+  // it yet (Step 5), so use the admin REST endpoint directly, exactly as the future
+  // "Discard draft" action will.
+  const discardResponse = await page.request.delete(`${UI_BASE}/api/v1/show/script/draft`, {
+    headers: { Authorization: `Bearer ${await token(page)}` },
+  });
+  expect(
+    discardResponse.ok(),
+    `discarding the script draft failed: ${discardResponse.status()} ${await discardResponse.text()}`
+  ).toBe(true);
 
   await expect
     .poll(async () => (await patchSettings(page, { [MODE]: false })).status(), {
@@ -206,6 +222,58 @@ test('a second browser can edit the same script at the same time', async ({ brow
 
   await stopEditing(page2).click();
   await expect(editButton(page2)).toBeVisible({ timeout: 10_000 });
+});
+
+test('adds a dialogue line with act, scene, character and text', async () => {
+  await page.click('button:has-text("Add Dialogue")');
+  await fillOpenLineEditor(page, {
+    act: 'Act 1',
+    scene: 'Scene 1',
+    character: 'Hamlet',
+    text: 'To be or not to be',
+  });
+
+  await page.locator('button:has-text("Done")').first().click();
+  // Add Dialogue chains into another blank dialogue editor after Done, for continuous
+  // typing (matches the classic editor) — delete it rather than fill it in, since this
+  // test only wants the one line.
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await page.locator('button.btn-danger:has-text("Delete")').first().click();
+  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.script-line-row')).toContainText('To be or not to be');
+});
+
+test('typed text survives a reload — it is written to the shared draft, not local state', async () => {
+  const row = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  await row.locator('.script-edit-controls button:has-text("Edit")').click();
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await page.locator('input[type="text"]:visible').last().fill('To be, or not to be, that is it');
+  await page.locator('button:has-text("Done")').first().click();
+  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
+
+  await page.reload();
+  await waitForAppReady(page);
+  await expect(stopEditing(page)).toBeVisible({ timeout: 15_000 });
+
+  await expect(page.locator('.script-line-row')).toContainText('To be, or not to be, that is it');
+});
+
+test('inserts a line from a row menu and deletes it again', async () => {
+  const row = page.locator('.script-line-row').filter({ hasText: 'To be, or not to be' });
+  const rowCountBefore = await page.locator('.script-line-row').count();
+
+  await row.locator('.script-edit-controls button.dropdown-toggle-split').click();
+  await page.click('.dropdown-item:has-text("Insert Stage Direction")');
+
+  await fillOpenLineEditor(page, { act: 'Act 1', scene: 'Scene 1' });
+
+  // Unscoped, like the classic editor's own equivalent E2E test: `div.row` nests
+  // (Bootstrap grid), so the "has a Done button" filter's first match can be an
+  // ancestor row that also wraps the (hidden) Stage Direction Styles tab's own Delete
+  // button, making a *scoped* lookup inside it ambiguous.
+  await page.locator('button.btn-danger:has-text("Delete")').first().click();
+  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.script-line-row')).toHaveCount(rowCountBefore);
 });
 
 test('Stop Editing returns to Edit', async () => {

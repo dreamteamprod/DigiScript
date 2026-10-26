@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
+import * as Y from 'yjs';
 import CollabScriptEditor from './CollabScriptEditor.vue';
 import { useScriptDraftStore } from '@/stores/scriptDraft';
 import { useScriptConfigStore } from '@/stores/scriptConfig';
@@ -10,8 +11,11 @@ import { useScriptStore } from '@/stores/script';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
 import { useWebSocketStore } from '@/stores/websocket';
+import { LINE_TYPES } from '@/constants/lineTypes';
+import { useDraftWriter } from '@/composables/useDraftWriter';
 import type { SnapshotLine } from '@/js/yjs/yjsSnapshot';
 import type { ScriptLine } from '@/types/api/script';
+import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 
 const sendObj = vi.fn((_data: object) => true);
 vi.mock('@/composables/useWebSocket', () => ({
@@ -26,6 +30,16 @@ const ViewerStub = defineComponent({
   props: { line: { type: Object, required: true }, lineIndex: { type: Number, default: 0 } },
   render() {
     return h('div', { class: 'row-stub' }, (this.line as { _uid?: string })._uid ?? 'rest');
+  },
+});
+// The draft-aware line editor is stubbed too — its own behaviour (act/scene writes,
+// add/remove part, validity) is covered by CollabScriptLineEditor.test.ts; here only
+// which line has one open, and what it does when told it's done or deleted, matter.
+const LineEditorStub = defineComponent({
+  props: { line: { type: Object, required: true } },
+  emits: ['doneEditing', 'deleteLine'],
+  render() {
+    return h('div', { class: 'editor-stub' }, (this.line as { _uid?: string })._uid);
   },
 });
 // bootstrap-vue-next components are not registered in unit tests; only the alert needs
@@ -57,6 +71,8 @@ const bootstrapStubs = {
   BForm: passthrough('form'),
   BFormGroup: passthrough('div'),
   BFormInput: passthrough('span'),
+  BDropdown: passthrough('div'),
+  BDropdownItem: passthrough('button'),
 };
 
 function snap(uid: string, id: number | null = null): SnapshotLine {
@@ -124,7 +140,11 @@ describe('CollabScriptEditor', () => {
     wrapper = mount(CollabScriptEditor, {
       global: {
         components: bootstrapStubs,
-        stubs: { ScriptLineViewer: ViewerStub, BAlert: AlertStub },
+        stubs: {
+          ScriptLineViewer: ViewerStub,
+          BAlert: AlertStub,
+          CollabScriptLineEditor: LineEditorStub,
+        },
       },
     });
     await flushPromises();
@@ -140,6 +160,19 @@ describe('CollabScriptEditor', () => {
     draft.status = 'synced';
     draft.pageSnapshots = pages;
   }
+
+  /**
+   * Gives the real joined draft doc an actual (empty) page array, so `useDraftWriter`
+   * calls succeed against it — `syncDraft()` alone only overrides the rendered
+   * `pageSnapshots` cache, not the underlying `Y.Doc` the writer reads and writes.
+   */
+  function seedRealPage(page: number): void {
+    const doc = useScriptDraftStore().getDraftYdoc()!;
+    doc.getMap('pages').set(String(page), new Y.Array<Y.Map<unknown>>());
+  }
+
+  const editorLine = (w: VueWrapper, uid: string) =>
+    w.findAllComponents(LineEditorStub).find((c) => c.props('line')._uid === uid);
 
   it('reads saved pages over REST when not an editor and holds no room', async () => {
     useScriptStore().script = { '1': [restLine(1), restLine(2)] };
@@ -458,5 +491,141 @@ describe('CollabScriptEditor', () => {
     expect(system.isCollabScriptEditing).toBe(false);
     system.settings = { collaborative_script_editing: false } as never;
     expect(system.isCollabScriptEditing).toBe(false);
+  });
+
+  describe('line editing (Step 3)', () => {
+    async function mountSyncedEditor(): Promise<VueWrapper> {
+      becomeEditor();
+      const w = await mountEditor();
+      seedRealPage(1);
+      seedRealPage(2);
+      useScriptDraftStore().status = 'synced';
+      await flushPromises();
+      return w;
+    }
+
+    it('Add Dialogue appends a line inheriting act/scene and character from the previous line, and opens its editor', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.DIALOGUE,
+        actId: 3,
+        sceneId: 7,
+      });
+      const parts = useScriptDraftStore()
+        .getPageSnapshot(1)
+        .find((l) => l._uid === lineUid)!.parts;
+      writer.setPartCharacter(1, lineUid, parts[0]!._uid, 9, null);
+      await flushPromises();
+
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+
+      const editors = w.findAllComponents(LineEditorStub);
+      expect(editors).toHaveLength(1);
+      const newLine = editors[0]!.props('line') as DraftScriptLine;
+      expect(newLine.act_id).toBe(3);
+      expect(newLine.scene_id).toBe(7);
+      expect(newLine.line_type).toBe(LINE_TYPES.DIALOGUE);
+      // The classic editor keeps the same speaker selected by default when chaining
+      // "Add Dialogue" repeatedly — a mutant dropping the seeded `part` on `addLine`
+      // would leave this null (see PR #1479 review round 1).
+      expect(newLine.line_parts[0]?.character_id).toBe(9);
+    });
+
+    it('finishing an auto-added line chains into another blank one', async () => {
+      const w = await mountSyncedEditor();
+
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+      const firstUid = (w.findAllComponents(LineEditorStub)[0]!.props('line') as DraftScriptLine)
+        ._uid;
+
+      editorLine(w, firstUid)!.vm.$emit('doneEditing');
+      await flushPromises();
+
+      // The finished line is no longer open; exactly one new blank line is.
+      expect(editorLine(w, firstUid)).toBeUndefined();
+      expect(w.findAllComponents(LineEditorStub)).toHaveLength(1);
+    });
+
+    it('deleting an open line removes it and does not chain a new one', async () => {
+      const w = await mountSyncedEditor();
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+      const uid = (w.findAllComponents(LineEditorStub)[0]!.props('line') as DraftScriptLine)._uid;
+
+      editorLine(w, uid)!.vm.$emit('deleteLine');
+      await flushPromises();
+
+      expect(w.findAllComponents(LineEditorStub)).toHaveLength(0);
+      expect(w.findAll('.row-stub')).toHaveLength(0);
+    });
+
+    it('insertLineAt adds a line after the clicked one, inheriting its act/scene', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 5, sceneId: 9 });
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 5, sceneId: 9 });
+      await flushPromises();
+      expect(w.findAll('.row-stub')).toHaveLength(2);
+
+      (w.vm as unknown as { insertLineAt: (index: number, lineType: number) => void }).insertLineAt(
+        0,
+        LINE_TYPES.STAGE_DIRECTION
+      );
+      await flushPromises();
+
+      // A third line now exists and is open for editing (not a viewer row).
+      expect(w.findAll('.row-stub')).toHaveLength(2);
+      const editors = w.findAllComponents(LineEditorStub);
+      expect(editors).toHaveLength(1);
+      const inserted = editors[0]!.props('line') as DraftScriptLine;
+      expect(inserted.act_id).toBe(5);
+      expect(inserted.scene_id).toBe(9);
+      expect(inserted.line_type).toBe(LINE_TYPES.STAGE_DIRECTION);
+    });
+
+    it("insertLineAt inherits the anchor dialogue line's character too", async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.DIALOGUE,
+        actId: 1,
+        sceneId: 1,
+      });
+      const parts = useScriptDraftStore()
+        .getPageSnapshot(1)
+        .find((l) => l._uid === lineUid)!.parts;
+      writer.setPartCharacter(1, lineUid, parts[0]!._uid, 4, null);
+      await flushPromises();
+
+      (w.vm as unknown as { insertLineAt: (index: number, lineType: number) => void }).insertLineAt(
+        0,
+        LINE_TYPES.DIALOGUE
+      );
+      await flushPromises();
+
+      const inserted = w.findAllComponents(LineEditorStub)[0]!.props('line') as DraftScriptLine;
+      expect(inserted.line_parts[0]?.character_id).toBe(4);
+    });
+
+    it('does not show Add Dialogue before the draft is synced', async () => {
+      becomeEditor();
+      const w = await mountEditor();
+      expect(button(w, 'Add Dialogue')).toBeUndefined();
+    });
+
+    it('clears open editors when editor status is lost', async () => {
+      const w = await mountSyncedEditor();
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+      expect(w.findAllComponents(LineEditorStub)).toHaveLength(1);
+
+      useScriptConfigStore().editors = [];
+      await flushPromises();
+
+      expect((w.vm as unknown as { editingLines: Set<string> }).editingLines.size).toBe(0);
+    });
   });
 });

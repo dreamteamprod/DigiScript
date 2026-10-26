@@ -6,6 +6,7 @@
           <BFormGroup label-size="sm" label=" ">
             <BFormSelect
               v-model="state.act_id"
+              data-testid="line-act-select"
               :options="actOptions"
               :state="actState"
               @update:model-value="onStateChange"
@@ -16,6 +17,7 @@
           <BFormGroup label-size="sm" label=" ">
             <BFormSelect
               v-model="state.scene_id"
+              data-testid="line-scene-select"
               :options="sceneOptions"
               :state="sceneState"
               @update:model-value="onStateChange"
