@@ -101,9 +101,13 @@ test.afterAll(async () => {
   // mode flip regardless of who is or isn't an editor. There is no UI for discarding
   // it yet (Step 5), so use the admin REST endpoint directly, exactly as the future
   // "Discard draft" action will.
-  await page.request.delete(`${UI_BASE}/api/v1/show/script/draft`, {
+  const discardResponse = await page.request.delete(`${UI_BASE}/api/v1/show/script/draft`, {
     headers: { Authorization: `Bearer ${await token(page)}` },
   });
+  expect(
+    discardResponse.ok(),
+    `discarding the script draft failed: ${discardResponse.status()} ${await discardResponse.text()}`
+  ).toBe(true);
 
   await expect
     .poll(async () => (await patchSettings(page, { [MODE]: false })).status(), {

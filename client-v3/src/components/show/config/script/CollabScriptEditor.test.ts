@@ -504,10 +504,18 @@ describe('CollabScriptEditor', () => {
       return w;
     }
 
-    it('Add Dialogue appends a line inheriting act/scene from the previous line, and opens its editor', async () => {
+    it('Add Dialogue appends a line inheriting act/scene and character from the previous line, and opens its editor', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 3, sceneId: 7 });
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.DIALOGUE,
+        actId: 3,
+        sceneId: 7,
+      });
+      const parts = useScriptDraftStore()
+        .getPageSnapshot(1)
+        .find((l) => l._uid === lineUid)!.parts;
+      writer.setPartCharacter(1, lineUid, parts[0]!._uid, 9, null);
       await flushPromises();
 
       await button(w, 'Add Dialogue')!.trigger('click');
@@ -519,6 +527,10 @@ describe('CollabScriptEditor', () => {
       expect(newLine.act_id).toBe(3);
       expect(newLine.scene_id).toBe(7);
       expect(newLine.line_type).toBe(LINE_TYPES.DIALOGUE);
+      // The classic editor keeps the same speaker selected by default when chaining
+      // "Add Dialogue" repeatedly — a mutant dropping the seeded `part` on `addLine`
+      // would leave this null (see PR #1479 review round 1).
+      expect(newLine.line_parts[0]?.character_id).toBe(9);
     });
 
     it('finishing an auto-added line chains into another blank one', async () => {
@@ -572,6 +584,30 @@ describe('CollabScriptEditor', () => {
       expect(inserted.act_id).toBe(5);
       expect(inserted.scene_id).toBe(9);
       expect(inserted.line_type).toBe(LINE_TYPES.STAGE_DIRECTION);
+    });
+
+    it("insertLineAt inherits the anchor dialogue line's character too", async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.DIALOGUE,
+        actId: 1,
+        sceneId: 1,
+      });
+      const parts = useScriptDraftStore()
+        .getPageSnapshot(1)
+        .find((l) => l._uid === lineUid)!.parts;
+      writer.setPartCharacter(1, lineUid, parts[0]!._uid, 4, null);
+      await flushPromises();
+
+      (w.vm as unknown as { insertLineAt: (index: number, lineType: number) => void }).insertLineAt(
+        0,
+        LINE_TYPES.DIALOGUE
+      );
+      await flushPromises();
+
+      const inserted = w.findAllComponents(LineEditorStub)[0]!.props('line') as DraftScriptLine;
+      expect(inserted.line_parts[0]?.character_id).toBe(4);
     });
 
     it('does not show Add Dialogue before the draft is synced', async () => {

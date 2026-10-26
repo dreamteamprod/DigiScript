@@ -5,6 +5,7 @@
         <BCol cols="6">
           <BFormGroup label-size="sm" label=" ">
             <BFormSelect
+              data-testid="line-act-select"
               :model-value="line.act_id"
               :options="actOptions"
               :state="actState"
@@ -15,6 +16,7 @@
         <BCol cols="6">
           <BFormGroup label-size="sm" label=" ">
             <BFormSelect
+              data-testid="line-scene-select"
               :model-value="line.scene_id"
               :options="sceneOptions"
               :state="sceneState"
@@ -98,6 +100,7 @@ import { useSystemStore } from '@/stores/system';
 import { useDraftWriter } from '@/composables/useDraftWriter';
 import { computeValidActs, computeValidScenes } from '@/js/scriptLineActScene';
 import { toast } from '@/js/toast';
+import { fieldState } from '@/js/vuelidateFieldState';
 import CollabScriptLinePart from './CollabScriptLinePart.vue';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { StageDirectionStyle } from '@/types/api/script';
@@ -166,14 +169,8 @@ const v$ = useVuelidate(
   computed(() => props.line)
 );
 
-const actState = computed<boolean | null>(() => {
-  const f = v$.value.act_id;
-  return f.$dirty ? !f.$error : null;
-});
-const sceneState = computed<boolean | null>(() => {
-  const f = v$.value.scene_id;
-  return f.$dirty ? !f.$error : null;
-});
+const actState = computed(() => fieldState(v$.value.act_id));
+const sceneState = computed(() => fieldState(v$.value.scene_id));
 
 const lineValid = computed(
   () => !v$.value.$error && props.line.act_id != null && props.line.scene_id != null

@@ -19,10 +19,11 @@ const TestField = defineComponent({
     writeText: { type: Function, required: true },
   },
   setup(props) {
-    const { value, inputRef, onInput, onCaretActivity } = useYTextField(
-      () => props.getText() as Y.Text | null,
-      (text: string) => props.writeText(text)
-    );
+    const { value, inputRef, onInput, onCaretActivity, onCompositionStart, onCompositionEnd } =
+      useYTextField(
+        () => props.getText() as Y.Text | null,
+        (text: string) => props.writeText(text)
+      );
     return () =>
       h('input', {
         ref: inputRef,
@@ -31,6 +32,9 @@ const TestField = defineComponent({
         onKeyup: onCaretActivity,
         onClick: onCaretActivity,
         onFocus: onCaretActivity,
+        onSelect: onCaretActivity,
+        onCompositionstart: onCompositionStart,
+        onCompositionend: (e: Event) => onCompositionEnd((e.target as HTMLInputElement).value),
       });
   },
 });
@@ -110,6 +114,47 @@ describe('useYTextField', () => {
     expect(input.selectionStart).toBe(3);
 
     wrapper.unmount();
+  });
+
+  it('does not write intermediate IME composition state, only the committed text', () => {
+    const ytext = makeIntegratedText('hi ');
+    const writeText = (text: string) => applyTextDiff(ytext, text, LOCAL_EDIT_ORIGIN);
+    wrapper = mount(TestField, { props: { getText: () => ytext, writeText } });
+    const input = wrapper.find('input').element as HTMLInputElement;
+
+    input.dispatchEvent(new Event('compositionstart'));
+    input.value = 'hi あ'; // a partial kana composition
+    input.dispatchEvent(new Event('input'));
+
+    // The shared doc must not see the half-composed character.
+    expect(ytext.toString()).toBe('hi ');
+    // But the field still shows it, so a re-render doesn't fight the live IME state.
+    expect(input.value).toBe('hi あ');
+
+    input.value = 'hi あい';
+    input.dispatchEvent(new Event('compositionend'));
+
+    expect(ytext.toString()).toBe('hi あい');
+    expect(input.value).toBe('hi あい');
+  });
+
+  it('does not let a remote edit during composition disrupt the in-progress IME state', async () => {
+    const ytext = makeIntegratedText('hello');
+    const writeText = (text: string) => applyTextDiff(ytext, text, LOCAL_EDIT_ORIGIN);
+    wrapper = mount(TestField, { props: { getText: () => ytext, writeText } });
+    const input = wrapper.find('input').element as HTMLInputElement;
+
+    input.dispatchEvent(new Event('compositionstart'));
+    input.value = 'helloあ';
+    input.dispatchEvent(new Event('input'));
+
+    ytext.doc!.transact(() => {
+      ytext.insert(0, 'XX-');
+    }, 'remote-origin');
+    await wrapper.vm.$nextTick();
+
+    // Still showing the live composition, not the remote edit, until it commits.
+    expect(input.value).toBe('helloあ');
   });
 
   it('switches to a newly observed Y.Text when the target is recreated', () => {

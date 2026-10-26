@@ -72,7 +72,10 @@
           @keyup="textField.onCaretActivity"
           @click="textField.onCaretActivity"
           @focus="textField.onCaretActivity"
+          @select="textField.onCaretActivity"
           @keydown.enter="handleEnterPress"
+          @compositionstart="textField.onCompositionStart"
+          @compositionend="onTextCompositionEnd(($event.target as HTMLInputElement).value)"
         />
         <BButton
           v-if="showAddButton && lineType === LINE_TYPES.DIALOGUE"
@@ -163,6 +166,11 @@ function onTextInput(text: string): void {
   textField.onInput(text);
 }
 
+function onTextCompositionEnd(text: string): void {
+  v$.value.line_text.$touch();
+  textField.onCompositionEnd(text);
+}
+
 const userSettings = computed(
   () =>
     userStore.userSettings as {
@@ -171,7 +179,15 @@ const userSettings = computed(
     }
 );
 
-const tmpScript = computed(() => snapshotPagesToScriptLines(draftStore.pageSnapshots));
+// Gated on the MRU setting, not just unused when it's off: every open part's text
+// field changes on every local *and* remote keystroke (scriptDraft.ts replaces the
+// page snapshot on every Y change), so converting the whole draft here unconditionally
+// would re-run this on every keystroke in every open part, not just the one being typed
+// in. The ternary's false branch never touches pageSnapshots, so the computed doesn't
+// depend on it (and skips the conversion) while MRU sort is off.
+const tmpScript = computed(() =>
+  userSettings.value.character_mru_sort ? snapshotPagesToScriptLines(draftStore.pageSnapshots) : {}
+);
 
 const characterOptions = computed(() =>
   characterSelectOptions(props.characters, tmpScript.value, !!userSettings.value.character_mru_sort)
@@ -239,9 +255,20 @@ const isLineTextRequired = computed(
   () => props.lineParts.length <= 1 || !props.lineParts.some((x) => x.line_text !== '')
 );
 
+// A part has a character or a character group, never both (the writer's
+// `assertNotBoth` enforces this on write, but a remote peer's part could still arrive
+// in that state) — without this, neither field has an active `required` rule once the
+// other is set, so both report no error and `combinedFieldState` reads it as valid.
+function notBothCharacterFields(_value: unknown, part: DraftScriptLinePart): boolean {
+  return !(part.character_id != null && part.character_group_id != null);
+}
+
 const rules = computed(() => ({
-  character_id: isCharacterRequired.value ? { required } : {},
-  character_group_id: isCharacterGroupRequired.value ? { required } : {},
+  character_id: { ...(isCharacterRequired.value ? { required } : {}), notBothCharacterFields },
+  character_group_id: {
+    ...(isCharacterGroupRequired.value ? { required } : {}),
+    notBothCharacterFields,
+  },
   line_text: isLineTextRequired.value ? { required } : {},
 }));
 

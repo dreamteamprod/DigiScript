@@ -269,6 +269,23 @@ function deleteLine(lineUid: string): void {
   editingLines.value.delete(lineUid);
 }
 
+// `addLine` creates the new line's first part in the same transaction (so a peer, or a
+// save, never observes a dialogue/stage-direction line with none) — that means a fresh
+// line already has one part by the time CollabScriptLineEditor mounts, so its own
+// onMounted seeding (guarded on `line_parts.length === 0`) never runs for it. Seed the
+// character here instead, the same lookup addLinePart() does for a part added later.
+function seedFirstPart(
+  lineType: number,
+  anchor: DraftScriptLine | null | undefined
+): { characterId?: number | null; characterGroupId?: number | null } | undefined {
+  if (lineType !== LINE_TYPES.DIALOGUE || !anchor) return undefined;
+  const prevPart = anchor.line_parts[0];
+  if (!prevPart) return undefined;
+  if (prevPart.character_id != null) return { characterId: prevPart.character_id };
+  if (prevPart.character_group_id != null) return { characterGroupId: prevPart.character_group_id };
+  return undefined;
+}
+
 function addNewLine(lineType: number): void {
   const insertIndex = draftLines.value.length;
   const prev = draftPages.previousLineOf(currentPage.value, insertIndex);
@@ -276,6 +293,7 @@ function addNewLine(lineType: number): void {
     lineType,
     actId: prev?.act_id ?? null,
     sceneId: prev?.scene_id ?? null,
+    part: seedFirstPart(lineType, prev),
   });
   editingLines.value.add(lineUid);
   latestAddedLine.value = lineUid;
@@ -288,6 +306,7 @@ function insertLineAt(index: number, lineType: number): void {
     actId: anchor?.act_id ?? null,
     sceneId: anchor?.scene_id ?? null,
     index: index + 1,
+    part: seedFirstPart(lineType, anchor),
   });
   editingLines.value.add(lineUid);
 }

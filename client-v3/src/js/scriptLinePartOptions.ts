@@ -1,20 +1,17 @@
 import {
   buildMruCharacterOptions,
   buildMruCharacterGroupOptions,
+  type NamedItem,
   type SelectOption,
+  type TmpScript,
 } from './mruSortUtils';
 import type { StageDirectionStyle } from '@/types/api/script';
-
-type NamedItem = { id: number; name: string };
-type LinePart = { character_id?: number | null; character_group_id?: number | null };
-type ScriptLineLike = { line_parts?: LinePart[] };
-type TmpScript = Record<string, ScriptLineLike[]>;
 
 /**
  * The character/character-group/stage-direction-style select options for a line part's
  * editor: most-recently-used first when the user has that setting on, else the plain
- * list. Shared by the classic and collaborative line part editors — identical
- * regardless of how the edit is written.
+ * list. Mirrors the equivalent option-building still duplicated inline in the classic
+ * `ScriptLinePart.vue` — keep both in sync if the MRU or option-building rules change.
  */
 export function characterSelectOptions(
   characters: NamedItem[],

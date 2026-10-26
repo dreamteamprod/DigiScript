@@ -132,8 +132,8 @@ export async function fillOpenLineEditor(
     .locator('div.row')
     .filter({ has: page.locator('button:has-text("Done")') })
     .first();
-  await lineEditor.locator('select').nth(0).selectOption({ label: act });
-  await lineEditor.locator('select').nth(1).selectOption({ label: scene });
+  await lineEditor.getByTestId('line-act-select').selectOption({ label: act });
+  await lineEditor.getByTestId('line-scene-select').selectOption({ label: scene });
   if (character) {
     await lineEditor
       .locator('select')

@@ -1,7 +1,7 @@
-type NamedItem = { id: number; name: string };
-type LinePart = { character_id?: number | null; character_group_id?: number | null };
-type ScriptLine = { line_parts?: LinePart[] };
-type TmpScript = Record<string, ScriptLine[]>;
+export type NamedItem = { id: number; name: string };
+export type LinePart = { character_id?: number | null; character_group_id?: number | null };
+export type ScriptLine = { line_parts?: LinePart[] };
+export type TmpScript = Record<string, ScriptLine[]>;
 export type SelectOption = { value: number | null; text: string };
 export type CombinedSelectOption =
   { value: null; text: string } | { label: string; options: { value: string; text: string }[] };

@@ -29,7 +29,7 @@ import { toast } from '@/js/toast';
 
 const PartStub = defineComponent({
   props: { part: { type: Object, required: true } },
-  emits: ['add-line-part', 'remove-line-part', 'try-finish-line'],
+  emits: ['add-line-part', 'remove-line-part', 'try-finish-line', 'stage-direction-style-change'],
   render() {
     return h('div', { class: 'part-stub' }, (this.part as { _uid: string })._uid);
   },
@@ -160,6 +160,23 @@ describe('CollabScriptLineEditor', () => {
     const done = wrapper.findAll('button').find((b) => b.text() === 'Done')!;
     await done.trigger('click');
     expect(wrapper.emitted('doneEditing')).toBeTruthy();
+  });
+
+  it('try-finish-line from a part emits doneEditing only when the line is valid', async () => {
+    wrapper = mountEditor({ line: line({ act_id: null }) });
+    wrapper.findComponent(PartStub).vm.$emit('try-finish-line');
+    expect(wrapper.emitted('doneEditing')).toBeFalsy();
+
+    wrapper.unmount();
+    wrapper = mountEditor();
+    wrapper.findComponent(PartStub).vm.$emit('try-finish-line');
+    expect(wrapper.emitted('doneEditing')).toBeTruthy();
+  });
+
+  it('stage-direction-style-change from a part writes the line field', () => {
+    wrapper = mountEditor();
+    wrapper.findComponent(PartStub).vm.$emit('stage-direction-style-change', 3);
+    expect(setLineField).toHaveBeenCalledWith(1, 'line1', 'stage_direction_style_id', 3);
   });
 
   it('emits deleteLine when Delete is clicked', async () => {

@@ -149,10 +149,23 @@ describe('CollabScriptLinePart', () => {
     expect(toast.warning).toHaveBeenCalled();
   });
 
-  it('emits add-line-part / remove-line-part / try-finish-line', async () => {
-    wrapper = mountPart({ showAddButton: true, showRemoveButton: true });
-    const buttons = wrapper.findAll('button');
-    await buttons[0]?.trigger('click'); // remove is rendered before add in the template
+  it('emits remove-line-part when the remove button is clicked', async () => {
+    wrapper = mountPart({ showRemoveButton: true });
+    // Remove is rendered before add in the template; add isn't shown in this case.
+    await wrapper.find('button').trigger('click');
+
+    expect(wrapper.emitted('remove-line-part')).toBeTruthy();
+  });
+
+  it('emits add-line-part when the add button is clicked', async () => {
+    wrapper = mountPart({ showAddButton: true });
+    await wrapper.find('button').trigger('click');
+
+    expect(wrapper.emitted('add-line-part')).toBeTruthy();
+  });
+
+  it('emits try-finish-line on Enter in the text field', async () => {
+    wrapper = mountPart();
     await wrapper.find('input').trigger('keydown.enter');
 
     expect(wrapper.emitted('try-finish-line')).toBeTruthy();
@@ -190,5 +203,34 @@ describe('CollabScriptLinePart', () => {
     // Bob (id 2) was used, so comes before Alice despite Alice being listed first in props.
     const texts = options.map((o) => o.text());
     expect(texts.indexOf('Bob')).toBeLessThan(texts.indexOf('Alice'));
+  });
+
+  it('sets a character or a group through the combined dropdown', async () => {
+    useUserStore().userSettings = { character_combined_dropdown: true };
+    wrapper = mountPart();
+
+    await wrapper.find('select').setValue('c:2');
+    expect(setPartCharacter).toHaveBeenCalledWith(1, 'line1', 'p1', 2, null);
+
+    await wrapper.find('select').setValue('g:1');
+    expect(setPartCharacter).toHaveBeenCalledWith(1, 'line1', 'p1', null, 1);
+
+    await wrapper.find('select').setValue('null');
+    expect(setPartCharacter).toHaveBeenCalledWith(1, 'line1', 'p1', null, null);
+  });
+
+  it('flags a part with both a character and a character group as invalid, not valid', () => {
+    // A remote peer could still deliver this state even though the local
+    // onCharacterChange handler never writes it — PR #1479 review round 1.
+    wrapper = mountPart({ part: part({ character_id: 1, character_group_id: 1 }) });
+
+    const vm = wrapper.vm as unknown as {
+      characterState: boolean | null;
+      characterGroupState: boolean | null;
+      combinedState: boolean | null;
+    };
+    expect(vm.characterState).toBe(false);
+    expect(vm.characterGroupState).toBe(false);
+    expect(vm.combinedState).toBe(false);
   });
 });
