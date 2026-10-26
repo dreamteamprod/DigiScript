@@ -292,12 +292,19 @@ watch(isEditor, async (now, was) => {
 // is_editor alive across it), isEditor never flips false and the watcher above never
 // resets stopRequested — it would stay stuck true, silently eating any later real
 // join failure. Any fresh join (ours or a resumed one) means that earlier stop, if it
-// was ever in flight, is moot, so clear the flag whenever one starts.
+// was ever in flight, is moot, so clear the flag whenever one starts. flush: 'sync' is
+// required, not cosmetic: _rejoinAfterReconnect() does _teardown() (-> 'idle') then
+// joinScriptRoom() (-> 'joining') synchronously in one tick, and if status was already
+// 'joining' when that happens (STOP clicked mid-join, frame lost, fast reconnect before
+// the join watchdog fires), the net change over the tick is 'joining' -> 'joining' —
+// the default pre-flush watcher would never see an intermediate value and so never
+// fire, leaving the flag stuck exactly as before.
 watch(
   () => draftStore.status,
   (status) => {
     if (status === 'joining') stopRequested.value = false;
-  }
+  },
+  { flush: 'sync' }
 );
 
 // Pages are never removed, but the stored page (or a page from before a rejoin) may be

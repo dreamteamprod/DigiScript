@@ -370,6 +370,30 @@ describe('CollabScriptEditor', () => {
     expect(w.find('.alert-stub').exists()).toBe(true);
   });
 
+  it('clears stopRequested even when a same-tick reconnect nets to no status change', async () => {
+    // _rejoinAfterReconnect() does _teardown() ('idle') then joinScriptRoom()
+    // ('joining') synchronously in one tick. If status was already 'joining' when
+    // that happens (Stop Editing clicked mid-join, the frame lost, a fast reconnect
+    // before the join watchdog fires), the net change over the tick is
+    // 'joining' -> 'joining' — a default pre-flush watcher never sees the
+    // intermediate 'idle' and so never fires, leaving the flag stuck exactly as
+    // before. The watch needs flush: 'sync' to see every assignment, not just the
+    // net result.
+    becomeEditor();
+    vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+    const w = await mountEditor();
+    const draft = useScriptDraftStore();
+    draft.status = 'joining';
+    await flushPromises();
+    (w.vm as unknown as { stopRequested: boolean }).stopRequested = true;
+
+    draft.status = 'idle';
+    draft.status = 'joining'; // same-tick rejoin, as _rejoinAfterReconnect does
+    await flushPromises();
+
+    expect((w.vm as unknown as { stopRequested: boolean }).stopRequested).toBe(false);
+  });
+
   it('Stop Editing with another editor still present: losing editor status tears the draft down', async () => {
     becomeEditor();
     vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
