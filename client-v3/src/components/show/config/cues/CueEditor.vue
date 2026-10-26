@@ -5,6 +5,7 @@
         <BButtonGroup>
           <BButton variant="success" @click="goToPageModal?.show()">Go to Page</BButton>
           <BButton variant="success" @click="jumpToCueModal?.show()">Go to Cue</BButton>
+          <BButton variant="outline-warning" @click="renumberModal?.show()">Renumber Cues</BButton>
         </BButtonGroup>
       </BCol>
       <BCol cols="2" style="text-align: right">
@@ -67,6 +68,7 @@
     </BModal>
 
     <JumpToCueModal ref="jumpToCueModal" @navigate="handleJumpToCue" />
+    <CueRenumberModal ref="renumberModal" />
   </BContainer>
 </template>
 
@@ -78,6 +80,7 @@ import { useShowStore } from '@/stores/show';
 import { useUserStore } from '@/stores/user';
 import ScriptLineCueEditor from '@/components/show/config/cues/ScriptLineCueEditor.vue';
 import JumpToCueModal from '@/components/show/config/cues/JumpToCueModal.vue';
+import CueRenumberModal from '@/components/show/config/cues/CueRenumberModal.vue';
 
 const scriptStore = useScriptStore();
 const showStore = useShowStore();
@@ -89,6 +92,7 @@ const changingPage = ref(false);
 
 const goToPageModal = ref<InstanceType<typeof BModal> | null>(null);
 const jumpToCueModal = ref<InstanceType<typeof JumpToCueModal> | null>(null);
+const renumberModal = ref<InstanceType<typeof CueRenumberModal> | null>(null);
 
 const pageInputNo = ref(1);
 

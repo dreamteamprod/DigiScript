@@ -19,6 +19,10 @@ from controllers.api.constants import (
     ERROR_INVALID_ID,
     ERROR_LINE_ID_MISSING,
     ERROR_PREFIX_MISSING,
+    ERROR_RENUMBER_CUE_NOT_IN_REVISION,
+    ERROR_RENUMBER_INVALID_IDENT,
+    ERROR_RENUMBER_OPERATIONS_EMPTY,
+    ERROR_RENUMBER_OPERATIONS_MISSING,
     ERROR_SHOW_NOT_FOUND,
 )
 from models.cue import Cue, CueAssociation, CueGroup, CueType
@@ -1083,4 +1087,103 @@ class CueGroupController(BaseAPIController):
             session.commit()
             self.set_status(200)
             await self.finish({"message": "Successfully deleted cue group"})
+            await self.application.ws_send_to_all("NOOP", "LOAD_CUES", {})
+
+
+@ApiRoute("show/cues/renumber", ApiVersion.V1)
+class CueRenumberController(BaseAPIController):
+    @requires_show
+    @no_live_session
+    async def post(self):
+        """Bulk-renumber cues in the current revision using sequential integer assignment.
+
+        :raises HTTPError: 400 if operations are missing/invalid, 401 if user lacks WRITE
+            permission on a cue type, 409 if a live session is active.
+        """
+        current_show = self.get_current_show()
+        with self.make_session() as session:
+            show = session.get(Show, current_show["id"])
+            script: Script = session.scalars(
+                select(Script).where(Script.show_id == show.id)
+            ).first()
+            if not script or not script.current_revision:
+                self.set_status(400)
+                await self.finish(
+                    {"message": "Script does not have a current revision"}
+                )
+                return
+            revision: ScriptRevision = session.get(
+                ScriptRevision, script.current_revision
+            )
+
+            data = escape.json_decode(self.request.body)
+            operations = data.get("operations")
+
+            if operations is None:
+                self.set_status(400)
+                await self.finish({"message": ERROR_RENUMBER_OPERATIONS_MISSING})
+                return
+            if not operations:
+                self.set_status(400)
+                await self.finish({"message": ERROR_RENUMBER_OPERATIONS_EMPTY})
+                return
+
+            # Validate all idents upfront before touching any DB state
+            for op in operations:
+                new_ident = op.get("new_ident", "")
+                if (
+                    not isinstance(new_ident, str)
+                    or not new_ident.strip()
+                    or len(new_ident.strip()) > 50
+                ):
+                    self.set_status(400)
+                    await self.finish({"message": ERROR_RENUMBER_INVALID_IDENT})
+                    return
+
+            # Check RBAC write permission for each distinct cue type
+            seen_type_ids: set[int] = set()
+            for op in operations:
+                cue = session.get(Cue, op.get("cue_id"))
+                if cue and cue.cue_type_id not in seen_type_ids:
+                    seen_type_ids.add(cue.cue_type_id)
+                    cue_type = session.get(CueType, cue.cue_type_id)
+                    if cue_type:
+                        self.requires_role(cue_type, Role.WRITE)
+
+            # Apply operations — frontend guarantees one entry per unique cue_id
+            for op in operations:
+                cue_id = op.get("cue_id")
+                new_ident = op["new_ident"].strip()
+
+                cue = session.get(Cue, cue_id)
+                if not cue:
+                    self.set_status(400)
+                    await self.finish({"message": ERROR_CUE_NOT_FOUND})
+                    return
+
+                current_rev_assocs = [
+                    a for a in cue.revision_associations if a.revision_id == revision.id
+                ]
+                if not current_rev_assocs:
+                    self.set_status(400)
+                    await self.finish({"message": ERROR_RENUMBER_CUE_NOT_IN_REVISION})
+                    return
+
+                other_rev_assocs = [
+                    a for a in cue.revision_associations if a.revision_id != revision.id
+                ]
+                if not other_rev_assocs:
+                    # Cue is only used in this revision — update in place
+                    cue.ident = new_ident
+                else:
+                    # Cue is shared with other revisions — fork it
+                    new_cue = Cue(ident=new_ident, cue_type_id=cue.cue_type_id)
+                    session.add(new_cue)
+                    session.flush()
+                    for assoc in current_rev_assocs:
+                        assoc.cue = new_cue
+
+            session.commit()
+            self.set_status(200)
+            await self.finish({"message": "Successfully renumbered cues"})
             await self.application.ws_send_to_all("NOOP", "LOAD_CUES", {})

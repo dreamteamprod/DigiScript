@@ -80,6 +80,76 @@ Clicking a group button opens the **Edit Cue Group** dialog, where you can:
 
 A script line can freely mix individual cues and groups simultaneously. The label preview in the dialog updates live as you make changes.
 
+### Renumbering Cues
+
+The **Renumber Cues** feature resynchronises DigiScript's cue identifiers after you perform a renum/reorder on your MagicQ lighting console. When MagicQ collapses point cues (e.g. 3.1, 3.2) into sequential integers, DigiScript's cue identifiers become stale — this feature updates them to match.
+
+#### When to use it
+
+Use Renumber Cues after performing a renum/reorder on your MagicQ console. Export the **before-renum** cue stack from MagicQ first (see below), then use it to guide the renumber in DigiScript.
+
+#### How it works
+
+MagicQ sorts all cues in the stack numerically and reassigns sequential integers starting at 1. DigiScript replicates this by reading the full cue list from a MagicQ CSV export, so it can correctly place the cues it knows about — even when some console cues are intentionally omitted from the script.
+
+For example, if the console has cues 1, 2, 2.1, 3, 4 but DigiScript only has 1 and 3:
+
+| Console cues | After MagicQ renum | DigiScript before | DigiScript after |
+|---|---|---|---|
+| 1, 2, 2.1, 3, 4 | 1, 2, 3, 4, 5 | 1, 3 | 1, 4 |
+
+DigiScript's "3" becomes "4" because cue 2.1 occupies position 3 in the full sequence — even though 2.1 is not in DigiScript.
+
+#### Exporting the CSV from MagicQ
+
+Before running a renum in MagicQ, export the cue stack window as a CSV:
+
+1. In MagicQ, open the **Cue Stack** window for your show
+2. Press the **Cue Stack** title bar and choose **Export to CSV**
+3. Save the file to your computer
+
+The exported file contains a `Cue id` column with the pre-renum cue numbers — this is the file to upload.
+
+#### Accessing the feature in DigiScript
+
+1. Navigate to **Cues → Cue Configuration**
+2. Click the **Renumber Cues** button in the toolbar
+
+#### Step 1 — Configure
+
+- **MagicQ Cue Stack CSV (before renumber)**: Upload the CSV exported from MagicQ before the renum was run. Once a valid file is loaded, a confirmation line shows how many cues were found.
+- **Cue Types to Renumber**: Check one or more cue types. All checked types are processed together against the same CSV mapping.
+
+The **Next** button is enabled once both a valid CSV has been loaded and at least one cue type is selected.
+
+Click **Next** to preview the changes.
+
+#### Step 2 — Preview
+
+The preview shows two sections:
+
+**Changed Cues** — cues whose identifier will change. The table shows the current identifier and the proposed new identifier. You can edit the proposed new identifier if needed.
+
+**Unmatched Cues** — cues that are skipped by default for one of two reasons:
+
+- The cue's numeric identifier (or prefix) was not found in the uploaded CSV — for example, a cue that no longer exists on the console
+- The cue has no numeric identifier at all (e.g. free-form text like "INTRO")
+
+For text-suffix cues (e.g. "2.1 - Blackout") where the numeric prefix *is* found in the CSV, DigiScript pre-fills the suggested new identifier (e.g. "3 - Blackout") so you can include it with one click.
+
+Tick the **Include** checkbox next to any unmatched cue you want to reassign, and adjust the new identifier if needed.
+
+DigiScript validates that all final identifiers within each cue type are unique and non-empty. The **Confirm Renumber** button remains disabled until validation passes.
+
+Click **Confirm Renumber** to apply the changes, or **Back** to return to the configuration step.
+
+#### What is not changed
+
+- `label_override` on cue groups is preserved
+- Group membership and sort order within groups are unchanged
+- Script positions (which line a cue is on) are unchanged
+- Cues in other script revisions are not affected
+
 ### Cues and Script Revisions
 
 Cues are tied to script revisions - when you add or modify cues, the changes only affect the currently loaded revision. This allows you to maintain different cue configurations for different versions of your script.
