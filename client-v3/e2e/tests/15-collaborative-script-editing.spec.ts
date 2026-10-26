@@ -1,8 +1,7 @@
 /**
- * Collaborative script editing (setting on): open the shared draft and browse it.
- *
- * Currently read-only: editors join and browse the draft; editing is not yet
- * implemented. Runs last on purpose — it flips the server-wide
+ * Collaborative script editing (setting on): join the shared draft, edit it, and
+ * save/stop/discard it (Phase 3). Bulk edit is covered too; cuts are not yet available
+ * in collaborative mode. Runs last on purpose — it flips the server-wide
  * `collaborative_script_editing` setting, which every earlier spec needs OFF, and puts
  * it back in afterAll. A retry's own `beforeAll` restores the DB and config from the
  * spec-start snapshot (see `registerRetryHooks`), but that does not help a *final*
@@ -98,9 +97,10 @@ test.afterAll(async () => {
   // across Stop Editing (D9), and Step 3's tests are the first in this file to
   // actually write to it, so a draft now persists to disk once the room closes with
   // no editors left. `has_unsaved_changes()` sees that persisted draft and blocks the
-  // mode flip regardless of who is or isn't an editor. There is no UI for discarding
-  // it yet (Step 5), so use the admin REST endpoint directly, exactly as the future
-  // "Discard draft" action will.
+  // mode flip regardless of who is or isn't an editor. The Step 4 tests below already
+  // exercise Discard through the UI; this REST call is a belt-and-braces cleanup for
+  // whatever state a *failed* attempt at any test in this file leaves behind, same as
+  // the admin's own Discard would do.
   const discardResponse = await page.request.delete(`${UI_BASE}/api/v1/show/script/draft`, {
     headers: { Authorization: `Bearer ${await token(page)}` },
   });
@@ -274,6 +274,125 @@ test('inserts a line from a row menu and deletes it again', async () => {
   await page.locator('button.btn-danger:has-text("Delete")').first().click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.script-line-row')).toHaveCount(rowCountBefore);
+});
+
+test('Save commits the draft to the DB, not just the shared draft', async () => {
+  const saveButton = page.getByRole('button', { name: 'Save', exact: true });
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  // The SaveProgressModal (shared with the classic editor) is ok-only and stays open
+  // until dismissed — its backdrop would otherwise block every click after this one.
+  await waitForModal(page, 'Saving Script');
+  await expect(page.locator('.modal.show').getByText('Finished saving script.')).toBeVisible({
+    timeout: 15_000,
+  });
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  // The unsaved-draft indicator (Step 4) clears once the server confirms the save.
+  await expect(page.locator('.sticky-header').getByText('Unsaved draft')).not.toBeVisible({
+    timeout: 10_000,
+  });
+
+  // Stop Editing now goes straight back to Edit (nothing unsaved) — and the viewer,
+  // which reads over REST rather than the shared draft, already shows the saved
+  // content, proving Save reached the DB and not just the draft.
+  await stopEditing(page).click();
+  await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.script-line-row')).toContainText('To be, or not to be, that is it');
+
+  await editButton(page).click();
+  await expect(stopEditing(page)).toBeVisible({ timeout: 10_000 });
+  await expect(firstRow(page)).toBeVisible({ timeout: 15_000 });
+});
+
+test('typing again after a save makes Stop Editing offer Keep Draft / Discard', async () => {
+  await page.click('button:has-text("Add Dialogue")');
+  await fillOpenLineEditor(page, {
+    act: 'Act 1',
+    scene: 'Scene 1',
+    character: 'Alice',
+    text: 'A line to keep',
+  });
+  await page.locator('button:has-text("Done")').first().click();
+  // Drop the auto-chained blank editor; only "A line to keep" should remain unsaved.
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await page.locator('button.btn-danger:has-text("Delete")').first().click();
+  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
+
+  await stopEditing(page).click();
+  await waitForModal(page, 'Stop Editing');
+  await page.click('.modal.show button:has-text("Keep Draft")');
+  await waitForModalClosed(page);
+
+  await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
+});
+
+test('re-entering resumes the kept draft, with Save already enabled (D8)', async () => {
+  await editButton(page).click();
+  await expect(stopEditing(page)).toBeVisible({ timeout: 10_000 });
+  await expect(firstRow(page)).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.script-line-row').filter({ hasText: 'A line to keep' })).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // D8: resuming a kept draft must not require a fresh local edit before Save
+  // re-enables — the rejoin's own sync step used to clear isDraftDirty unconditionally,
+  // leaving Save stuck disabled until something was typed again.
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled({
+    timeout: 10_000,
+  });
+});
+
+test('bulk edit applies a character across a range of lines', async () => {
+  await page.click('button:has-text("Bulk Edit")');
+  await expect(page.getByRole('button', { name: 'Start', exact: true }).first()).toBeVisible({
+    timeout: 5_000,
+  });
+
+  await page.getByRole('button', { name: 'Start', exact: true }).first().click();
+  await page.getByRole('button', { name: 'End', exact: true }).last().click();
+  await waitForModal(page, 'Bulk Edit');
+
+  await page.locator('.modal.show #bulk-part-input').selectOption({ label: 'Part 1' });
+  await page.locator('.modal.show #bulk-char-input').selectOption({ label: 'Alice' });
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  // After apply, bulk edit mode exits automatically.
+  await expect(page.getByRole('button', { name: 'Bulk Edit', exact: true })).toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: 'To be, or not to be, that is it' })
+  ).toContainText('Alice');
+});
+
+test('Discard reverts the draft and closes the room for every editor in it', async () => {
+  // ctx2/page2 is still open (idle, Edit button visible) from the earlier two-editor
+  // test — bring it back in as a second editor so Discard's effect on *another*
+  // client, not just the one who clicked it, is actually exercised.
+  if (!ctx2) throw new Error('ctx2 from the earlier two-editor test is not open');
+  const page2 = ctx2.pages()[0]!;
+  await editButton(page2).click();
+  await expect(stopEditing(page2)).toBeVisible({ timeout: 10_000 });
+
+  await stopEditing(page).click();
+  await waitForModal(page, 'Stop Editing');
+  await page.click('.modal.show button:has-text("Discard")');
+  await waitForModalClosed(page);
+
+  await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
+  await expect(editButton(page2)).toBeVisible({ timeout: 10_000 });
+
+  // Reverted to the last save — the kept-not-saved line is gone again.
+  await editButton(page).click();
+  await expect(stopEditing(page)).toBeVisible({ timeout: 10_000 });
+  await expect(firstRow(page)).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.script-line-row').filter({ hasText: 'A line to keep' })).toHaveCount(
+    0
+  );
 });
 
 test('Stop Editing returns to Edit', async () => {

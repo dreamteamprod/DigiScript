@@ -1396,6 +1396,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             if not await self._require_editor_write_access(session, entry):
                 return
         await room_manager.save_room(self)
+        await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
         await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
 
     async def _op_discard_script_draft(self, room_manager, data: dict) -> None:

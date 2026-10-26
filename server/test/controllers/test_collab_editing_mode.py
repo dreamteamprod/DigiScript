@@ -355,6 +355,69 @@ class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
         self.assertEqual([], changed)
         ws.close()
 
+    @gen_test
+    async def test_saving_broadcasts_a_config_status_refresh(self):
+        """A successful save clears `hasDraft` server-side (see `save_room`'s own
+        docstring), but only a `GET_SCRIPT_CONFIG_STATUS` broadcast tells a connected
+        client to actually re-fetch and pick that up — `SCRIPT_SAVED` alone does not
+        carry it. Missing this left the "Unsaved draft" indicator stuck on forever
+        after a real save (caught by the Step 4 E2E suite, not by any earlier test)."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        await self._join_and_sync(ws)
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+        actions = []
+        for _ in range(12):
+            message = json.loads(await ws.read_message())
+            actions.append(message["ACTION"])
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        self.assertIn("GET_SCRIPT_CONFIG_STATUS", actions)
+        ws.close()
+
+    @gen_test
+    async def test_discard_actually_reverts_dirty_content_not_just_the_draft_row(self):
+        """Regression: `discard_room()` deletes the draft file/row, then calls
+        `close_active_room()` — which checkpoints *if the room is still dirty*. The
+        in-memory doc still held the discarded edit and nothing had cleared `_dirty`,
+        so that checkpoint immediately wrote the discarded content straight back to a
+        brand new draft file, undoing the discard it was just asked to do. Caught by
+        the Step 4 E2E suite, not by any earlier test (first real UI wiring to
+        Discard)."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        replica = await self._join_and_sync(ws)
+
+        before = replica.get_state()
+        page = replica.get("pages", type=pycrdt.Map)["1"]
+        line = pycrdt.Map()
+        page.append(line)
+        line["_id"] = line["_uid"] = "discard-me"
+        payload = base64.b64encode(replica.get_update(before)).decode("ascii")
+        await ws.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": payload}})
+        )
+
+        await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
+        # discard_room()'s own ROOM_CLOSED comes first, then _op_discard_script_draft's
+        # GET_SCRIPT_CONFIG_STATUS and GET_SCRIPT_REVISIONS — drain all three so the
+        # rejoin below reads its own REQUEST_SCRIPT_EDIT reply, not a leftover.
+        for _ in range(6):
+            message = json.loads(await ws.read_message())
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNone(session.scalar(select(ScriptDraft)))
+
+        # Rejoining must not resurrect the discarded line.
+        replica2 = await self._join_and_sync(ws)
+        pages2 = replica2.get("pages", type=pycrdt.Map)
+        self.assertEqual(0, len(pages2["1"]))
+        ws.close()
+
 
 class TestModeEnforcementREST(_ModeFixture, DigiScriptTestCase):
     def setUp(self):

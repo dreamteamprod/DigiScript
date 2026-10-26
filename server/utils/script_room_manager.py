@@ -788,6 +788,12 @@ class RoomManager:
             return
 
         if room is not None:
+            # The draft file is gone, but the in-memory doc is still the discarded
+            # content and `_dirty` is still True from before the discard — without
+            # this, close_active_room()'s own "checkpoint if dirty" step would
+            # immediately re-write that same content straight back to a new draft
+            # file, undoing the discard it was just asked to do.
+            room.mark_checkpointed()
             await self.close_active_room()
 
     async def discard_active_room(self):
@@ -804,6 +810,11 @@ class RoomManager:
             revision_id = draft.revision_id if draft else None
         if revision_id is not None:
             await self._delete_draft(revision_id)
+        if self._room is not None:
+            # See discard_room()'s own comment: without this, a dirty room's
+            # checkpoint-on-close would immediately re-write the just-discarded
+            # content back to a new draft file.
+            self._room.mark_checkpointed()
         await self.close_active_room()
 
     async def close_active_room(self):
