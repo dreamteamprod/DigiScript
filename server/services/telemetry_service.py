@@ -1,0 +1,267 @@
+"""Anonymous usage telemetry service.
+
+Builds a small envelope + DigiScript-specific metrics payload and POSTs it to the shared
+``dreamteam-telemetry`` collector on a periodic, jittered schedule. See
+``plans/PHONE_HOME_TELEMETRY_PLAN.md`` for the full design and privacy rationale, and the
+collector repo's ``worker/src/index.ts`` (``validateEnvelope`` / ``validateDigiscriptMetrics``)
+for the exact payload shape this must match — the collector rejects anything that doesn't.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+import platform
+import random
+import uuid
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import func, select
+from tornado.httpclient import AsyncHTTPClient, HTTPClientError
+from tornado.ioloop import IOLoop, PeriodicCallback
+
+from digi_server.logger import get_logger
+from digi_server.settings import get_version
+from models.session import ShowSession
+from models.show import Show
+from models.user import User
+
+
+if TYPE_CHECKING:
+    from digi_server.app_server import DigiScriptServer
+
+
+TELEMETRY_URL = "https://telemetry.digiscript.dreamteamprod.co.uk/v1/ping"
+
+
+class _ErrorCountHandler(logging.Handler):
+    """Counts ERROR-and-above log records emitted since the count was last read."""
+
+    def __init__(self):
+        super().__init__(level=logging.ERROR)
+        self._count = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._count += 1
+
+    def pop_count(self) -> int:
+        """Return the count accumulated since the last call, and reset it to zero."""
+        count = self._count
+        self._count = 0
+        return count
+
+
+class TelemetryService:
+    """Builds and periodically sends the anonymous usage telemetry check-in."""
+
+    DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000  # ~daily
+    MAX_INITIAL_JITTER_MS = (
+        60 * 60 * 1000
+    )  # up to 1 hour, to avoid a startup thundering herd
+    REQUEST_TIMEOUT_SECONDS = 10.0
+    MAX_ATTEMPTS = 3
+    INITIAL_BACKOFF_SECONDS = 5
+
+    def __init__(
+        self, application: "DigiScriptServer", interval_ms: Optional[int] = None
+    ):
+        """
+        Initialize the telemetry service.
+
+        :param application: The DigiScript server application instance.
+        :param interval_ms: Interval between check-ins in milliseconds. Defaults to ~daily.
+        """
+        self._application = application
+        self._interval_ms = interval_ms or self.DEFAULT_INTERVAL_MS
+        self._logger = get_logger(name="telemetry")
+        self._http_client = AsyncHTTPClient()
+        self._periodic_callback: Optional[PeriodicCallback] = None
+        self._error_handler = _ErrorCountHandler()
+
+    async def start(self) -> None:
+        """Attach the error counter and schedule check-ins, starting after a jittered delay."""
+        get_logger().addHandler(self._error_handler)
+
+        jitter_seconds = random.uniform(0, self.MAX_INITIAL_JITTER_MS / 1000)
+        self._logger.info(
+            f"Telemetry service starting; first check-in in {jitter_seconds:.0f}s"
+        )
+        IOLoop.current().call_later(jitter_seconds, self._schedule_first_check_in)
+
+    def _schedule_first_check_in(self) -> None:
+        IOLoop.current().add_callback(self._first_check_in)
+
+    async def _first_check_in(self) -> None:
+        await self.check_in()
+        self._periodic_callback = PeriodicCallback(self.check_in, self._interval_ms)
+        self._periodic_callback.start()
+
+    async def stop(self) -> None:
+        """Stop the telemetry service and cancel scheduled check-ins."""
+        if self._periodic_callback:
+            self._periodic_callback.stop()
+            self._periodic_callback = None
+
+        if self._http_client:
+            self._http_client.close()
+            self._http_client = None
+
+        get_logger().removeHandler(self._error_handler)
+        self._logger.info("Telemetry service stopped")
+
+    async def check_in(self) -> None:
+        """
+        Build the telemetry payload and send it, retrying with backoff on failure.
+
+        Never raises — a failed check-in is logged and retried on the next scheduled cycle,
+        and must never block startup or request handling.
+        """
+        try:
+            payload = await self._build_payload()
+        except Exception:
+            self._logger.exception(
+                "Failed to build telemetry payload; skipping this check-in"
+            )
+            return
+
+        body = json.dumps(payload)
+        backoff_seconds = self.INITIAL_BACKOFF_SECONDS
+
+        for attempt in range(self.MAX_ATTEMPTS):
+            try:
+                await self._http_client.fetch(
+                    TELEMETRY_URL,
+                    method="POST",
+                    body=body,
+                    headers={"Content-Type": "application/json"},
+                    request_timeout=self.REQUEST_TIMEOUT_SECONDS,
+                )
+                await self._application.digi_settings.set(
+                    "telemetry_checkin_count", payload["checkin_count"]
+                )
+                self._logger.debug("Telemetry check-in sent successfully")
+                return
+            except HTTPClientError as e:
+                self._logger.warning(
+                    f"Telemetry check-in failed (HTTP {e.code}), "
+                    f"attempt {attempt + 1}/{self.MAX_ATTEMPTS}"
+                )
+            except Exception as e:
+                self._logger.warning(
+                    f"Telemetry check-in failed ({e}), "
+                    f"attempt {attempt + 1}/{self.MAX_ATTEMPTS}"
+                )
+
+            if attempt < self.MAX_ATTEMPTS - 1:
+                await asyncio.sleep(backoff_seconds)
+                backoff_seconds *= 2
+
+        self._logger.warning(
+            "Telemetry check-in failed after all attempts; will retry next cycle"
+        )
+
+    async def _build_payload(self) -> dict:
+        instance_id = await self._get_or_create_instance_id()
+        first_seen_at = await self._get_or_create_first_seen_at()
+        previous_count = await self._application.digi_settings.get(
+            "telemetry_checkin_count"
+        )
+        checkin_count = previous_count + 1
+
+        days_since_install = max(
+            0,
+            (datetime.now(timezone.utc) - datetime.fromisoformat(first_seen_at)).days,
+        )
+
+        error_count_recent = self._error_handler.pop_count()
+
+        with self._application.get_db().sessionmaker() as session:
+            shows_count = session.execute(
+                select(func.count()).select_from(Show)
+            ).scalar_one()
+            users_count = session.execute(
+                select(func.count()).select_from(User)
+            ).scalar_one()
+            sessions_count = session.execute(
+                select(func.count()).select_from(ShowSession)
+            ).scalar_one()
+            rbac_enabled = self._compute_rbac_enabled(session)
+
+        return {
+            "instance_id": instance_id,
+            "app_version": get_version(),
+            "os_platform": platform.system(),
+            "os_arch": platform.machine(),
+            "deployment_method": (
+                "docker" if os.path.exists("/.dockerenv") else "bare-metal"
+            ),
+            "days_since_install": days_since_install,
+            "checkin_count": checkin_count,
+            "error_count_recent": error_count_recent,
+            "metrics": {
+                "shows_bucket": self._bucket_small(shows_count),
+                "users_bucket": self._bucket_users(users_count),
+                "sessions_bucket": self._bucket_small(sessions_count),
+                "rbac_enabled": rbac_enabled,
+                # The collaborative editor (RoomManager/ScriptDraft) exists, but drafts are
+                # transient — cleaned up on save/discard — so a current-row count would read
+                # near-zero even for heavy users. Needs a persistent "ever used" flag set from
+                # the save path to do this properly; hardcoded until that's built.
+                "collab_editing_used": False,
+            },
+        }
+
+    async def _get_or_create_instance_id(self) -> str:
+        instance_id = await self._application.digi_settings.get("telemetry_instance_id")
+        if not instance_id:
+            instance_id = str(uuid.uuid4())
+            await self._application.digi_settings.set(
+                "telemetry_instance_id", instance_id
+            )
+        return instance_id
+
+    async def _get_or_create_first_seen_at(self) -> str:
+        first_seen_at = await self._application.digi_settings.get(
+            "telemetry_first_seen_at"
+        )
+        if not first_seen_at:
+            first_seen_at = datetime.now(timezone.utc).isoformat()
+            await self._application.digi_settings.set(
+                "telemetry_first_seen_at", first_seen_at
+            )
+        return first_seen_at
+
+    def _compute_rbac_enabled(self, session) -> bool:
+        """Whether this install has ever had an RBAC role assigned beyond the built-in admin."""
+        rbac_tables = [
+            table
+            for name, table in self._application.get_db().Model.metadata.tables.items()
+            if name.startswith("rbac_")
+        ]
+        return any(
+            session.execute(select(func.count()).select_from(table)).scalar_one() > 0
+            for table in rbac_tables
+        )
+
+    @staticmethod
+    def _bucket_small(count: int) -> str:
+        """Bucket a count into '1' / '2-5' / '6+'. A count of 0 is folded into '1'."""
+        if count <= 1:
+            return "1"
+        if count <= 5:
+            return "2-5"
+        return "6+"
+
+    @staticmethod
+    def _bucket_users(count: int) -> str:
+        """Bucket a count into '1' / '2-5' / '6-20' / '21+'. A count of 0 is folded into '1'."""
+        if count <= 1:
+            return "1"
+        if count <= 5:
+            return "2-5"
+        if count <= 20:
+            return "6-20"
+        return "21+"
