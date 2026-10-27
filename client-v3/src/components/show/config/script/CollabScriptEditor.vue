@@ -236,7 +236,6 @@ import { useAutoSave } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
-import { LOCAL_EDIT_ORIGIN } from '@/js/yjs/draftWriter';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
@@ -248,10 +247,11 @@ import type { LineUid } from '@/js/yjs/yjsSnapshot';
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
  * editor joins the shared draft, browses and edits it with line/text changes writing
- * straight through `useDraftWriter` (Phase 3 Step 3), and saves/stops/discards it
- * (Step 4). Everyone else reads saved pages over REST exactly as the classic editor's
- * viewer does. Bulk edit and cuts are not yet implemented. The classic
- * `ScriptEditor.vue` is untouched and is what renders when the setting is off.
+ * straight through `useDraftWriter` (Phase 3 Step 3), saves/stops/discards it and
+ * bulk-edits it (Step 4, see `onBulkApply`). Everyone else reads saved pages over
+ * REST exactly as the classic editor's viewer does. Cuts are not yet implemented.
+ * The classic `ScriptEditor.vue` is untouched and is what renders when the setting
+ * is off.
  */
 
 const showStore = useShowStore();
@@ -540,11 +540,14 @@ function keepDraftAndStop(): void {
 
 function discardAndStop(): void {
   stopEditingModal.value?.hide();
-  // Same reason as sendStop(): ROOM_CLOSED can arrive before the GET_SCRIPT_CONFIG_STATUS
-  // broadcast that drops us from `editors`, which would otherwise flash the
-  // "could not open the script draft" alert for that one round trip.
-  stopRequested.value = true;
-  draftStore.discardDraft();
+  if (draftStore.discardDraft()) {
+    // Same reason as sendStop(): ROOM_CLOSED can arrive before the
+    // GET_SCRIPT_CONFIG_STATUS broadcast that drops us from `editors`, which
+    // would otherwise flash the "could not open the script draft" alert for
+    // that one round trip. Only set once the frame actually sent — setting it
+    // unconditionally would hide that alert even when nothing was sent.
+    stopRequested.value = true;
+  }
 }
 
 function retryJoin(): void {
@@ -553,8 +556,13 @@ function retryJoin(): void {
 
 function saveScript(): void {
   if (!canSave.value) return;
-  saveModal.value?.show();
-  draftStore.saveDraft();
+  // Show the modal only once the save has actually started — saveDraft() can
+  // fail synchronously (socket down) without ever setting isDraftSaving or
+  // lastCollabError, which would otherwise leave the modal showing "Finished
+  // saving script." for a save that never left the browser.
+  if (draftStore.saveDraft()) {
+    saveModal.value?.show();
+  }
 }
 
 // D10, lighter-touch per Tim's decision: no blocking modal (the draft is already
@@ -624,6 +632,31 @@ function onSetBulkEnd(index: number): void {
 // here, at apply time — an insert/delete elsewhere since the boundaries were picked
 // (ours or another editor's) shifts indices but never the line this was meant to cover.
 // If either boundary line is gone by now, abort rather than guess a new range.
+function applyBulkActScene(
+  page: number,
+  line: DraftScriptLine,
+  actId: number,
+  sceneId: number
+): void {
+  writer.setLineActScene(page, line._uid, actId, sceneId);
+}
+
+function applyBulkCharacter(
+  page: number,
+  line: DraftScriptLine,
+  targetPartIndex: number,
+  characterId: number | null,
+  characterGroupId: number | null
+): void {
+  const sortedParts = [...line.line_parts].sort(
+    (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
+  );
+  const targetPart = sortedParts[targetPartIndex];
+  if (targetPart) {
+    writer.setPartCharacter(page, line._uid, targetPart._uid, characterId, characterGroupId);
+  }
+}
+
 function onBulkApply(payload: {
   actId: number | null;
   sceneId: number | null;
@@ -644,18 +677,19 @@ function onBulkApply(payload: {
     return;
   }
 
-  const doc = draftStore.getDraftYdoc();
-  if (!doc) return; // draftReady guarantees this normally; nothing to write to otherwise
-
-  const applyActScene = payload.actId != null && payload.sceneId != null;
+  const actScene =
+    payload.actId != null && payload.sceneId != null
+      ? { actId: payload.actId, sceneId: payload.sceneId }
+      : null;
   const applyCharacter =
     payload.partIndex != null && (payload.characterId != null || payload.characterGroupId != null);
   const targetPartIndex = (payload.partIndex ?? 1) - 1;
 
-  // Reentrant: each writer call below opens its own doc.transact() with the same
-  // LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer transaction rather
-  // than committing separately — so the whole bulk edit reaches peers as one update.
-  doc.transact(() => {
+  // transact() is reentrant: each writer call below opens its own transaction with
+  // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
+  // rather than committing separately — so the whole bulk edit reaches peers as one
+  // update.
+  writer.transact(() => {
     for (let p = startPage; p <= endPage; p += 1) {
       const pageLines = draftPages.linesFor(p);
       const fromIndex = p === startPage ? startIndex : 0;
@@ -664,27 +698,19 @@ function onBulkApply(payload: {
         const line = pageLines[i];
         if (!line) continue; // the page shrank since linesFor() was read for the loop bounds
 
-        if (applyActScene) {
-          writer.setLineActScene(p, line._uid, payload.actId, payload.sceneId);
-        }
+        if (actScene) applyBulkActScene(p, line, actScene.actId, actScene.sceneId);
         if (applyCharacter) {
-          const sortedParts = [...line.line_parts].sort(
-            (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
+          applyBulkCharacter(
+            p,
+            line,
+            targetPartIndex,
+            payload.characterId,
+            payload.characterGroupId
           );
-          const targetPart = sortedParts[targetPartIndex];
-          if (targetPart) {
-            writer.setPartCharacter(
-              p,
-              line._uid,
-              targetPart._uid,
-              payload.characterId,
-              payload.characterGroupId
-            );
-          }
         }
       }
     }
-  }, LOCAL_EDIT_ORIGIN);
+  });
 
   bulkModal.value?.hide();
   exitBulkEditMode();

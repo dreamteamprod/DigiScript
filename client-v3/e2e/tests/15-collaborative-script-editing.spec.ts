@@ -19,6 +19,7 @@ import {
   waitForModalClosed,
   confirmModal,
   fillOpenLineEditor,
+  addDialogueLine,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
 
@@ -225,21 +226,13 @@ test('a second browser can edit the same script at the same time', async ({ brow
 });
 
 test('adds a dialogue line with act, scene, character and text', async () => {
-  await page.click('button:has-text("Add Dialogue")');
-  await fillOpenLineEditor(page, {
+  await addDialogueLine(page, {
     act: 'Act 1',
     scene: 'Scene 1',
     character: 'Hamlet',
     text: 'To be or not to be',
   });
 
-  await page.locator('button:has-text("Done")').first().click();
-  // Add Dialogue chains into another blank dialogue editor after Done, for continuous
-  // typing (matches the classic editor) — delete it rather than fill it in, since this
-  // test only wants the one line.
-  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
-  await page.locator('button.btn-danger:has-text("Delete")').first().click();
-  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.script-line-row')).toContainText('To be or not to be');
 });
 
@@ -308,18 +301,14 @@ test('Save commits the draft to the DB, not just the shared draft', async () => 
 });
 
 test('typing again after a save makes Stop Editing offer Keep Draft / Discard', async () => {
-  await page.click('button:has-text("Add Dialogue")');
-  await fillOpenLineEditor(page, {
+  // Only "A line to keep" should remain unsaved — addDialogueLine() already drops the
+  // auto-chained blank editor Done leaves behind.
+  await addDialogueLine(page, {
     act: 'Act 1',
     scene: 'Scene 1',
     character: 'Alice',
     text: 'A line to keep',
   });
-  await page.locator('button:has-text("Done")').first().click();
-  // Drop the auto-chained blank editor; only "A line to keep" should remain unsaved.
-  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
-  await page.locator('button.btn-danger:has-text("Delete")').first().click();
-  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
 
   await stopEditing(page).click();
   await waitForModal(page, 'Stop Editing');
@@ -371,12 +360,24 @@ test('bulk edit applies a character across a range of lines', async () => {
 
 test('Discard reverts the draft and closes the room for every editor in it', async () => {
   // ctx2/page2 is still open (idle, Edit button visible) from the earlier two-editor
-  // test — bring it back in as a second editor so Discard's effect on *another*
-  // client, not just the one who clicked it, is actually exercised.
+  // test — bring it back in as a second editor with its own real unsaved edit, so
+  // Discard's effect on *another* client's actual work (not just the one who clicked
+  // it) is actually exercised — proving the "will lose their work too" warning true,
+  // not just testing its label text.
   if (!ctx2) throw new Error('ctx2 from the earlier two-editor test is not open');
   const page2 = ctx2.pages()[0]!;
   await editButton(page2).click();
   await expect(stopEditing(page2)).toBeVisible({ timeout: 10_000 });
+  await addDialogueLine(page2, {
+    act: 'Act 1',
+    scene: 'Scene 1',
+    character: 'Hamlet',
+    text: "page2's own unsaved line",
+  });
+  // The shared draft — confirms both clients see it before the discard below.
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: "page2's own unsaved line" })
+  ).toBeVisible({ timeout: 10_000 });
 
   await stopEditing(page).click();
   await waitForModal(page, 'Stop Editing');
@@ -386,13 +387,17 @@ test('Discard reverts the draft and closes the room for every editor in it', asy
   await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
   await expect(editButton(page2)).toBeVisible({ timeout: 10_000 });
 
-  // Reverted to the last save — the kept-not-saved line is gone again.
+  // Reverted to the last save — both the kept-not-saved line from the earlier test
+  // and page2's own freshly-typed, never-saved line are gone, for both clients.
   await editButton(page).click();
   await expect(stopEditing(page)).toBeVisible({ timeout: 10_000 });
   await expect(firstRow(page)).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.script-line-row').filter({ hasText: 'A line to keep' })).toHaveCount(
     0
   );
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: "page2's own unsaved line" })
+  ).toHaveCount(0);
 });
 
 test('Stop Editing returns to Edit', async () => {

@@ -62,6 +62,13 @@ let joinWatchdog: ReturnType<typeof setTimeout> | null = null;
 // Count of local-origin doc updates since the last saveDraft() call, used to decide
 // whether a following scriptSaved is allowed to clear isDraftDirty (see scriptSaved).
 let localEditsSinceSaveRequest = 0;
+// Whether a save *we* sent is still awaiting its SCRIPT_SAVED/SAVE_ERROR response.
+// Deliberately separate from `isDraftSaving`: the save-stall watchdog resets
+// `isDraftSaving` on a timeout purely so the UI (the Save button, Stop Editing)
+// unsticks itself — it does not mean the request stopped being ours, and a late
+// SCRIPT_SAVED for it can still arrive after that reset. Only cleared by
+// scriptSaved()/saveError() actually resolving it, never by the watchdog.
+let ownSaveInFlight = false;
 
 // One shared, stable empty page so components reading a missing page don't get a fresh
 // array (and a needless re-render) on every access.
@@ -259,6 +266,7 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       ydoc?.destroy();
       ydoc = null;
       localEditsSinceSaveRequest = 0;
+      ownSaveInFlight = false;
 
       this.status = 'idle';
       this.isDraftSaving = false;
@@ -336,26 +344,47 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       }
     },
 
-    saveDraft(): void {
-      if (!this.isDraftActive) return;
+    /**
+     * Returns whether the save actually started (the frame was sent), so a
+     * caller only shows a progress UI once there is actually progress to show
+     * — e.g. CollabScriptEditor.vue's saveScript() only opens SaveProgressModal
+     * on `true`, instead of showing "Finished saving script." for a save that
+     * never left the browser.
+     */
+    saveDraft(): boolean {
+      if (!this.isDraftActive) return false;
       // A second request while one is in flight would race two saves of the same doc.
-      if (this.isDraftSaving) return;
+      if (this.isDraftSaving) return false;
       this.isDraftSaving = true;
       this.lastCollabError = null;
       localEditsSinceSaveRequest = 0;
       if (!useWebSocket().sendObj({ OP: 'SAVE_SCRIPT_DRAFT', DATA: {} })) {
         this.isDraftSaving = false;
         toast.error('Cannot save script draft: not connected to the server');
-        return;
+        return false;
       }
+      ownSaveInFlight = true;
       this._armSaveWatchdog();
+      return true;
     },
 
-    discardDraft(): void {
-      if (!this.isDraftActive) return;
+    /**
+     * Always attempts the send, even while `isDraftActive` is false (e.g. a
+     * rejected join, or the room already closed from under us) — the server's
+     * own no-room discard branch still demotes us out of any phantom editor
+     * state in that case, but only if the frame actually reaches it. The only
+     * caller, `discardAndStop()`, is reachable solely from the editor UI, so
+     * there is never a "nothing to discard" case to additionally guard here.
+     * Returns whether the frame was actually sent, so a caller only treats the
+     * discard as having happened once it has — mirrors `sendStop()`'s own
+     * send-then-flag pattern in `CollabScriptEditor.vue`.
+     */
+    discardDraft(): boolean {
       if (!useWebSocket().sendObj({ OP: 'DISCARD_SCRIPT_DRAFT', DATA: {} })) {
         toast.error('Cannot discard script draft: not connected to the server');
+        return false;
       }
+      return true;
     },
 
     // --- WS action handlers, dispatched automatically by useWebSocket's
@@ -420,12 +449,19 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
 
     scriptSaved(data: ScriptSavedMessage): void {
       // SCRIPT_SAVED goes to every client in the room, not just the one that asked for
-      // the save, so this may be another editor's save.
-      const wasOurSave = this.isDraftSaving;
+      // the save, so this may be another editor's save. Uses `ownSaveInFlight`, not
+      // `isDraftSaving`, to tell the two apart: the save-stall watchdog resets
+      // `isDraftSaving` on a timeout purely for the UI (so Save/Stop Editing unstick
+      // themselves), but a save we actually sent can still genuinely complete after
+      // that reset — `isDraftSaving` alone would then misread a *late* reply to our
+      // own save as someone else's, and unconditionally clear isDraftDirty below,
+      // losing track of an edit made during the stall window.
+      const wasOurSave = ownSaveInFlight;
       this.isDraftSaving = false;
       this._clearSaveWatchdog();
       this.draftLastSavedAt = data.last_saved_at;
       this.pageSaveProgress = null;
+      if (wasOurSave) ownSaveInFlight = false;
       // Our own save: only clear dirty if no local edit landed after saveDraft() was
       // sent — the ID-patch YJS_UPDATE that precedes this message is applied with
       // SERVER_ORIGIN and doesn't count, but a genuine edit made while the save was in
@@ -440,6 +476,9 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     },
 
     saveError(data: CollabErrorMessage): void {
+      // SAVE_ERROR, unlike SCRIPT_SAVED, is only ever sent to the client that
+      // requested the save (see `save_room`'s own error handling) — always ours.
+      ownSaveInFlight = false;
       this.isDraftSaving = false;
       this._clearSaveWatchdog();
       this.pageSaveProgress = null;

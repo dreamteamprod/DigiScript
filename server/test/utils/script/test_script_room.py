@@ -305,6 +305,7 @@ class TestRoomManagerCloseRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = room
 
         await manager.close_active_room()
@@ -330,6 +331,7 @@ class TestRoomManagerCloseRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = None
 
         await manager.close_active_room()  # Should not raise
@@ -348,6 +350,7 @@ class TestRoomManagerCloseRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = room
 
         await manager.close_active_room()
@@ -364,6 +367,7 @@ class TestRoomManagerCloseRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = room
 
         assert manager.get_active_room() is room
@@ -378,6 +382,7 @@ class TestRoomManagerCloseRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = None
 
         await manager.close_active_room()  # Should not raise
@@ -396,6 +401,7 @@ class TestRoomManagerCloseRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = room
 
         await manager.close_active_room()
@@ -417,6 +423,7 @@ class TestRoomManagerCloseRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = room
 
         checkpoint_called = []
@@ -979,8 +986,8 @@ class TestRoomManagerGetOrCreateRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = old_room
-        manager._room_lock = asyncio.Lock()
 
         new_doc = pycrdt.Doc()
         new_doc.get("meta", type=pycrdt.Map)
@@ -989,7 +996,7 @@ class TestRoomManagerGetOrCreateRoom:
 
         close_calls = []
 
-        async def mock_close():
+        async def mock_close_locked():
             close_calls.append(manager._room.revision_id if manager._room else None)
             manager._room = None
 
@@ -997,7 +1004,9 @@ class TestRoomManagerGetOrCreateRoom:
             assert revision_id == 2
             return new_doc
 
-        manager.close_active_room = mock_close
+        # get_or_create_room calls the lock-free variant directly (it already
+        # holds _room_lock) — see RoomManager.__init__'s own comment.
+        manager._close_active_room_locked = mock_close_locked
         manager._load_or_build_doc = mock_load_or_build
 
         room = await manager.get_or_create_room(2)
@@ -1015,8 +1024,8 @@ class TestRoomManagerGetOrCreateRoom:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = room
-        manager._room_lock = asyncio.Lock()
         manager.close_active_room = AsyncMock()
         manager._load_or_build_doc = AsyncMock()
 
@@ -1025,6 +1034,72 @@ class TestRoomManagerGetOrCreateRoom:
         assert result is room
         manager.close_active_room.assert_not_called()
         manager._load_or_build_doc.assert_not_called()
+
+
+class TestRoomManagerCheckpointIfDirty:
+    """Direct tests of ``checkpoint_if_dirty``'s own guard (Group F race fix),
+    independent of *how* a caller ends up holding a stale room reference —
+    a discard, a revision switch, or anything else that replaces or clears
+    ``self._room`` out from under a reference taken before the lock was
+    acquired (e.g. ``_run_maintenance``'s own unlocked ``needs_checkpoint``
+    pre-check)."""
+
+    @pytest.mark.asyncio
+    async def test_checkpoints_the_active_room_when_dirty(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        room = _make_room(revision_id=1)
+        room._dirty = True
+        manager._room = room
+        manager._checkpoint_room = AsyncMock()
+
+        checkpointed = await manager.checkpoint_if_dirty(room)
+
+        assert checkpointed is True
+        manager._checkpoint_room.assert_awaited_once_with(room)
+
+    @pytest.mark.asyncio
+    async def test_is_a_no_op_for_a_clean_room(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        room = _make_room(revision_id=1)
+        room._dirty = False
+        manager._room = room
+        manager._checkpoint_room = AsyncMock()
+
+        checkpointed = await manager.checkpoint_if_dirty(room)
+
+        assert checkpointed is False
+        manager._checkpoint_room.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ignores_a_dirty_room_that_is_no_longer_the_active_one(self):
+        """The scenario the identity check exists for: a caller (e.g. a
+        maintenance tick) reads `self._room` before taking the lock, but by
+        the time it actually acquires the lock, that room has been replaced or
+        torn down — checking `room._dirty` alone, without also checking
+        `self._room is room`, would checkpoint a room nobody is using anymore,
+        potentially resurrecting discarded content via a stale reference."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        stale_room = _make_room(revision_id=1)
+        stale_room._dirty = True
+        manager._room = None  # torn down (discarded) or replaced since the read
+        manager._checkpoint_room = AsyncMock()
+
+        checkpointed = await manager.checkpoint_if_dirty(stale_room)
+
+        assert checkpointed is False
+        manager._checkpoint_room.assert_not_awaited()
 
 
 class TestRoomManagerCleanupStaleDrafts(_ScriptTestSetup):
@@ -1272,8 +1347,8 @@ class TestRoomManagerMetrics:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._room = None
-        manager._room_lock = asyncio.Lock()
         app_metrics.register_room_manager(manager)
         manager._load_or_build_doc = AsyncMock(return_value=pycrdt.Doc())
         before = self._rooms()
@@ -1296,6 +1371,7 @@ class TestRoomManagerMetrics:
         manager._application = (
             MagicMock()
         )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
         manager._maintenance_handle = None
         manager._room = _make_room(3)
         app_metrics.register_room_manager(manager)

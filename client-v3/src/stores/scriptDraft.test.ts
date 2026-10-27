@@ -247,6 +247,30 @@ describe('scriptDraft store', () => {
     expect(store.isDraftDirty).toBe(true);
   });
 
+  it('keeps isDraftDirty true even if the stall watchdog fires before a late scriptSaved for our own save arrives', () => {
+    // Regression: scriptSaved() used to read `isDraftSaving` to tell whether this is
+    // our own save — but the watchdog resets `isDraftSaving` on a stall purely for
+    // the UI, independent of whether our save is still genuinely in flight. A late
+    // reply to that same save would then be misread as someone else's, and
+    // unconditionally clear isDraftDirty, hiding an edit made during the stall.
+    vi.useFakeTimers();
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) }); // else the shorter join watchdog tears down first
+    store.saveDraft();
+    vi.advanceTimersByTime(SAVE_STALL_TIMEOUT_MS + 1);
+    expect(store.isDraftSaving).toBe(false); // the save watchdog already fired
+
+    store.getDraftYdoc()?.transact(() => {
+      store.getDraftYdoc()?.getMap('meta').set('typed_more', true);
+    }, 'local-edit');
+    expect(store.isDraftDirty).toBe(true);
+
+    store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' }); // the late reply
+
+    expect(store.isDraftDirty).toBe(true);
+  });
+
   it('clears dirty on another editor\'s save — a collaborator who never pressed save is not "unsaved" forever', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();
@@ -445,11 +469,24 @@ describe('scriptDraft store', () => {
     expect(store.isDraftActive).toBe(false);
   });
 
-  it('saveDraft/discardDraft are no-ops when no draft is active', () => {
+  it('saveDraft is a no-op when no draft is active', () => {
     const store = useScriptDraftStore();
     store.saveDraft();
-    store.discardDraft();
     expect(sendObj).not.toHaveBeenCalled();
+  });
+
+  it('discardDraft still sends when no draft is active — the server demotes a phantom editor either way', () => {
+    // Unlike saveDraft, discardDraft has no isDraftActive guard: its only
+    // caller is reachable solely from the editor UI, and a rejected
+    // join/already-closed room (isDraftActive false, but still "an editor" as
+    // far as the server knows) is exactly the case Discard must be able to
+    // recover from.
+    const store = useScriptDraftStore();
+
+    const sent = store.discardDraft();
+
+    expect(sendObj).toHaveBeenCalledWith({ OP: 'DISCARD_SCRIPT_DRAFT', DATA: {} });
+    expect(sent).toBe(true);
   });
 
   it('does not join before the socket has authenticated (a pre-auth join would land as viewer)', () => {
@@ -479,8 +516,9 @@ describe('scriptDraft store', () => {
     store.joinScriptRoom();
     sendObj.mockReturnValueOnce(false);
 
-    store.saveDraft();
+    const started = store.saveDraft();
 
+    expect(started).toBe(false);
     expect(store.isDraftSaving).toBe(false);
     expect(toast.error).toHaveBeenCalled();
   });
@@ -490,9 +528,10 @@ describe('scriptDraft store', () => {
     store.joinScriptRoom();
     sendObj.mockReturnValueOnce(false);
 
-    store.discardDraft();
+    const sent = store.discardDraft();
 
     expect(toast.error).toHaveBeenCalled();
+    expect(sent).toBe(false);
   });
 
   it('ignores a second saveDraft while one is already in flight', () => {

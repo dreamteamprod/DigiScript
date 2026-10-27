@@ -45,7 +45,7 @@ describe('validateDraftLine', () => {
         line({ line_parts: [part({ character_id: 1, line_text: 'Hi' })] }),
         false
       );
-      expect(result).toEqual({ isValid: true, error: '' });
+      expect(result).toEqual({ isValid: true });
     });
 
     it('accepts a character group instead of a character', () => {
@@ -233,6 +233,15 @@ describe('validateDraftLine', () => {
       );
       expect(result).toEqual({ isValid: false, error: 'Spacing lines cannot have line parts' });
     });
+  });
+
+  it('rejects an unknown line type rather than silently passing it as valid', () => {
+    // line_type is a plain number on the shared API type (not the LineType literal
+    // union), so a corrupt or future line type this validator doesn't recognize must
+    // fail loudly here rather than silently falling through to VALID.
+    const result = validateDraftLine(line({ line_type: 999 }), false);
+
+    expect(result).toEqual({ isValid: false, error: 'Unknown line type: 999' });
   });
 });
 

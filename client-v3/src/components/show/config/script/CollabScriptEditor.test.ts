@@ -185,6 +185,17 @@ describe('CollabScriptEditor', () => {
     useScriptConfigStore().editors = [{ internal_id: 'me', username: 'admin' }];
   }
 
+  /**
+   * becomeEditor() + the isScriptEditor spy (needed for the Save/Stop Editing/Bulk
+   * Edit button group to render at all) + mount — the common starting point shared
+   * by the save/stop/discard and bulk-edit describe blocks below.
+   */
+  async function mountAsEditor(): Promise<VueWrapper> {
+    becomeEditor();
+    vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+    return mountEditor();
+  }
+
   function syncDraft(pages: Record<string, SnapshotLine[]>): void {
     const draft = useScriptDraftStore();
     draft.status = 'synced';
@@ -668,21 +679,24 @@ describe('CollabScriptEditor', () => {
       };
     }
 
+    /** mountAsEditor() plus a synced draft — the common starting point for most tests. */
+    async function mountSyncedDraft(
+      pages: Record<string, SnapshotLine[]> = { '1': [], '2': [] }
+    ): Promise<VueWrapper> {
+      const w = await mountAsEditor();
+      syncDraft(pages);
+      return w;
+    }
+
     it('Save is disabled with nothing to save', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       await flushPromises();
 
       expect(button(w, 'Save')!.attributes('disabled')).toBeDefined();
     });
 
     it('Save enables once the draft is dirty', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
 
@@ -690,10 +704,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('Save stays disabled while a line is open for editing, with a reason', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
       vm(w).editingLines.add('open-line');
@@ -705,11 +716,8 @@ describe('CollabScriptEditor', () => {
     });
 
     it('Save stays disabled when the draft contains an invalid line, naming the page', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
       // A dialogue line with no parts — invalid; see scriptDraftValidation.ts.
-      syncDraft({ '1': [snap('bad')], '2': [] });
+      const w = await mountSyncedDraft({ '1': [snap('bad')], '2': [] });
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
 
@@ -721,10 +729,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('Save stays disabled with no reason shown while already saving', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       useScriptDraftStore().isDraftSaving = true;
       await flushPromises();
@@ -735,10 +740,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('clicking Save sends SAVE_SCRIPT_DRAFT and marks the draft as saving', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
 
@@ -748,11 +750,26 @@ describe('CollabScriptEditor', () => {
       expect(useScriptDraftStore().isDraftSaving).toBe(true);
     });
 
+    it('clicking Save while disconnected does not show the progress modal', async () => {
+      const w = await mountSyncedDraft();
+      useScriptDraftStore().isDraftDirty = true;
+      await flushPromises();
+      // saveDraft() can fail synchronously (socket down) without ever setting
+      // isDraftSaving — the modal must not open for a save that never started.
+      const showSpy = vi.spyOn(
+        (w.vm as unknown as { saveModal: { show: () => void } }).saveModal,
+        'show'
+      );
+      sendObj.mockReturnValueOnce(false);
+
+      await button(w, 'Save')!.trigger('click');
+
+      expect(showSpy).not.toHaveBeenCalled();
+      expect(useScriptDraftStore().isDraftSaving).toBe(false);
+    });
+
     it('clicking Save while disabled does nothing', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] }); // not dirty — Save is disabled
+      const w = await mountSyncedDraft(); // not dirty — Save is disabled
       await flushPromises();
 
       await button(w, 'Save')!.trigger('click');
@@ -761,10 +778,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('Stop Editing sends STOP immediately when the draft has nothing unsaved', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       await flushPromises();
 
       sendObj.mockClear(); // drop the mount's own JOIN_SCRIPT_ROOM
@@ -773,11 +787,16 @@ describe('CollabScriptEditor', () => {
       expect(sentOps()).toEqual(['STOP_SCRIPT_EDIT']);
     });
 
+    it('Stop Editing is disabled while a save is in flight', async () => {
+      const w = await mountSyncedDraft();
+      useScriptDraftStore().isDraftSaving = true;
+      await flushPromises();
+
+      expect(button(w, 'Stop Editing')!.attributes('disabled')).toBeDefined();
+    });
+
     it('Stop Editing holds off STOP and offers Keep/Discard when the draft is dirty', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
 
@@ -790,10 +809,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('Stop Editing also offers Keep/Discard for a resumed kept draft that is not locally dirty', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptConfigStore().hasDraft = true; // D8: a kept draft from an earlier session
       await flushPromises();
 
@@ -804,10 +820,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('Keep Draft sends STOP, preserving the draft server-side', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
       sendObj.mockClear();
@@ -820,10 +833,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('Discard sends DISCARD_SCRIPT_DRAFT, not STOP', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
       sendObj.mockClear();
@@ -835,11 +845,27 @@ describe('CollabScriptEditor', () => {
       expect((w.vm as unknown as { stopRequested: boolean }).stopRequested).toBe(true);
     });
 
+    it('Discard recovers from the idle/join-failed state, where discardDraft has no isDraftActive guard', async () => {
+      const w = await mountAsEditor();
+      // The join was rejected — status falls back to 'idle' (isDraftActive
+      // false) — but the server still reports a kept draft, so we're still a
+      // phantom "editor" with no room. Stop Editing must still offer Discard
+      // as a way out, and Discard must still reach the server from here.
+      useScriptDraftStore().collabError({ error: 'No show loaded' });
+      useScriptConfigStore().hasDraft = true;
+      await flushPromises();
+      expect(useScriptDraftStore().isDraftActive).toBe(false);
+      sendObj.mockClear();
+
+      await button(w, 'Stop Editing')!.trigger('click');
+      await button(w, 'Discard')!.trigger('click');
+
+      expect(sentOps()).toEqual(['DISCARD_SCRIPT_DRAFT']);
+      expect((w.vm as unknown as { stopRequested: boolean }).stopRequested).toBe(true);
+    });
+
     it('Keep Editing sends nothing and leaves the draft open', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
       sendObj.mockClear();
@@ -852,10 +878,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('warns that other editors will lose their work too, only when they are present', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
       expect(w.text()).not.toContain('also editing');
@@ -884,10 +907,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('autosaveTick saves when nothing blocks it', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
 
@@ -897,10 +917,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('autosaveTick skips silently while a line is open for editing', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
       vm(w).editingLines.add('open-line');
@@ -911,10 +928,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('autosaveTick skips silently when the draft contains an invalid line', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [snap('bad')], '2': [] });
+      const w = await mountSyncedDraft({ '1': [snap('bad')], '2': [] });
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
 
@@ -924,10 +938,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('autosaveTick does nothing when there is nothing to save', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] }); // not dirty, no kept draft
+      const w = await mountSyncedDraft(); // not dirty, no kept draft
 
       vm(w).autosaveTick();
 
@@ -935,10 +946,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('auto-save fires on the configured interval while enabled, and stops once disabled', async () => {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
-      syncDraft({ '1': [], '2': [] });
+      const w = await mountSyncedDraft();
       useScriptDraftStore().isDraftDirty = true;
       await flushPromises();
 
@@ -966,9 +974,7 @@ describe('CollabScriptEditor', () => {
 
   describe('bulk edit (Step 4)', () => {
     async function mountSyncedEditor(): Promise<VueWrapper> {
-      becomeEditor();
-      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
-      const w = await mountEditor();
+      const w = await mountAsEditor();
       seedRealPage(1);
       seedRealPage(2);
       useScriptDraftStore().status = 'synced';
@@ -1152,6 +1158,55 @@ describe('CollabScriptEditor', () => {
       expect(vm(w).bulkEditMode).toBe(false);
       // The surviving line must not have been touched by a mutant that applies anyway.
       expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
+    });
+
+    it('onBulkApply is a no-op when nothing is selected', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      await flushPromises();
+
+      vm(w).onBulkApply({ actId: 9, sceneId: 9, ...noCharacter });
+      await flushPromises();
+
+      expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
+    });
+
+    it('still applies to the boundary lines when a line inside the range (not a boundary) is deleted before applying', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid: startUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      const { lineUid: middleUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      const { lineUid: endUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      await flushPromises();
+      vm(w).enterBulkEditMode();
+      vm(w).onSetBulkStart(0);
+      vm(w).onSetBulkEnd(2);
+
+      writer.deleteLine(1, middleUid);
+      await flushPromises();
+      vm(w).onBulkApply({ actId: 9, sceneId: 8, ...noCharacter });
+      await flushPromises();
+
+      const page1 = useScriptDraftStore().getPageSnapshot(1);
+      expect(page1).toHaveLength(2);
+      const byUid = (uid: string) => page1.find((l) => l._uid === uid);
+      expect(byUid(startUid)!.act_id).toBe(9);
+      expect(byUid(startUid)!.scene_id).toBe(8);
+      expect(byUid(endUid)!.act_id).toBe(9);
+      expect(byUid(endUid)!.scene_id).toBe(8);
     });
   });
 });

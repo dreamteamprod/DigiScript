@@ -1,13 +1,20 @@
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { DraftScriptLine, DraftScriptLinePart } from './yjs/draftAdapter';
 
-export interface LineValidationResult {
-  isValid: boolean;
-  /** Why the line failed, for Save's disabled-reason and a SAVE_ERROR-shaped message. Empty when valid. */
-  error: string;
-}
+/**
+ * Discriminated on `isValid` so `{ isValid: true, error: 'something' }` and
+ * `{ isValid: false, error: '' }` are both unrepresentable — a caller can only
+ * read `.error` once `.isValid` has narrowed to `false`.
+ */
+export type LineValidationResult =
+  | { isValid: true }
+  | {
+      isValid: false;
+      /** Why the line failed, for Save's disabled-reason and a SAVE_ERROR-shaped message. */
+      error: string;
+    };
 
-const VALID: LineValidationResult = { isValid: true, error: '' };
+const VALID: LineValidationResult = { isValid: true };
 
 function invalid(error: string): LineValidationResult {
   return { isValid: false, error };
@@ -27,6 +34,31 @@ function hasText(part: DraftScriptLinePart): boolean {
  * Save disables itself for an empty line exactly as it always has, rather than letting
  * the collab draft save one the server would technically accept.
  */
+/** Null when `part`'s text is fine; otherwise the reason it isn't. */
+function dialoguePartTextError(
+  part: DraftScriptLinePart,
+  isOnlyPart: boolean,
+  anyPartHasText: boolean
+): string | null {
+  if (hasText(part)) return null;
+  if (isOnlyPart) return 'Dialogue lines must contain text';
+  if (!anyPartHasText) return 'At least one line part must contain text';
+  return null;
+}
+
+/** Null when `part`'s character/group assignment is fine; otherwise the reason it isn't. */
+function partCharacterError(part: DraftScriptLinePart): string | null {
+  const hasCharacter = part.character_id != null;
+  const hasGroup = part.character_group_id != null;
+  if (!hasCharacter && !hasGroup) {
+    return 'Dialogue line parts must have a character or character group';
+  }
+  if (hasCharacter && hasGroup) {
+    return 'Line parts cannot have both character and character group';
+  }
+  return null;
+}
+
 function validateDialogue(line: DraftScriptLine, isCompactMode: boolean): LineValidationResult {
   const parts = line.line_parts;
   if (parts.length === 0) return invalid('Dialogue lines must have at least one line part');
@@ -36,18 +68,10 @@ function validateDialogue(line: DraftScriptLine, isCompactMode: boolean): LineVa
 
   const anyPartHasText = parts.some(hasText);
   for (const part of parts) {
-    if (!hasText(part)) {
-      if (parts.length === 1) return invalid('Dialogue lines must contain text');
-      if (!anyPartHasText) return invalid('At least one line part must contain text');
-    }
-    const hasCharacter = part.character_id != null;
-    const hasGroup = part.character_group_id != null;
-    if (!hasCharacter && !hasGroup) {
-      return invalid('Dialogue line parts must have a character or character group');
-    }
-    if (hasCharacter && hasGroup) {
-      return invalid('Line parts cannot have both character and character group');
-    }
+    const textError = dialoguePartTextError(part, parts.length === 1, anyPartHasText);
+    if (textError) return invalid(textError);
+    const characterError = partCharacterError(part);
+    if (characterError) return invalid(characterError);
   }
   return VALID;
 }
@@ -95,7 +119,13 @@ export function validateDraftLine(
     case LINE_TYPES.SPACING:
       return validateEmptyLine(line, 'Spacing');
     default:
-      return VALID;
+      // `line_type` is a plain `number` on the shared `ScriptLine`/`DraftScriptLine`
+      // API type (narrowing it to the `LineType` literal union would cascade into
+      // the classic editor, which also uses that type) — so this can't be a real
+      // exhaustiveness check at compile time. It is one at runtime: a corrupt or
+      // future line type this validator doesn't know about must not silently pass
+      // as valid, which falling through to VALID here would do.
+      return invalid(`Unknown line type: ${line.line_type}`);
   }
 }
 

@@ -6,8 +6,10 @@ client on the wrong side of the switch is refused cleanly instead of being allow
 edit and then losing its work at save time.
 """
 
+import asyncio
 import base64
 import json
+from unittest.mock import AsyncMock
 
 import pycrdt
 import tornado.escape
@@ -416,6 +418,81 @@ class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
         replica2 = await self._join_and_sync(ws)
         pages2 = replica2.get("pages", type=pycrdt.Map)
         self.assertEqual(0, len(pages2["1"]))
+        ws.close()
+
+    @gen_test
+    async def test_save_and_discard_do_not_deadlock_when_run_concurrently(self):
+        """Smoke test for the lock itself: `save_room` and `discard_room` now
+        both hold `_room_lock` for their full critical section, so a future
+        change that makes either call the public `close_active_room()` instead
+        of the lock-free `_close_active_room_locked()` (re-entering a lock
+        `asyncio.Lock` doesn't support) would hang forever instead of raising.
+        `asyncio.wait_for` turns that hang into a loud test failure."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        replica = await self._join_and_sync(ws)
+
+        before = replica.get_state()
+        page = replica.get("pages", type=pycrdt.Map)["1"]
+        line = pycrdt.Map()
+        page.append(line)
+        line["_id"] = line["_uid"] = "racing-edit"
+        payload = base64.b64encode(replica.get_update(before)).decode("ascii")
+        await ws.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": payload}})
+        )
+
+        room_manager = self._app.room_manager
+        room = room_manager.get_active_room()
+        assert room is not None
+
+        async def drain(ws_to_drain):
+            for _ in range(8):
+                message = json.loads(await ws_to_drain.read_message())
+                if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                    return
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+        await asyncio.wait_for(
+            asyncio.gather(
+                drain(ws), room_manager.discard_room(AsyncMock(internal_id=None))
+            ),
+            timeout=5,
+        )
+        ws.close()
+
+    @gen_test
+    async def test_discard_with_no_active_room_demotes_the_caller(self):
+        """Regression: REQUEST_SCRIPT_EDIT's own write-access check means a
+        client can only reach DISCARD_SCRIPT_DRAFT at all while the DB still
+        marks it `is_editor` — but that can be stale relative to the room (a
+        rejected join, or a room closed from under it some other way). Before
+        this fix, `discard_room`'s no-room branch deleted the orphaned draft
+        but left the caller's own `is_editor` row untouched, so Discard from
+        this exact state — the client-side fix in CollabScriptEditor.vue's
+        discardAndStop() — would still leave the user stuck as a phantom
+        editor with no way to recover short of a reload."""
+        self._set_mode(True)
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+        response = await self._request_edit(ws, collab=True)
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response["ACTION"])
+
+        with self._app.get_db().sessionmaker() as session:
+            entry = session.get(Session, uuid)
+            self.assertTrue(entry.is_editor)
+
+        # No JOIN_SCRIPT_ROOM was ever sent, so there is no active room for
+        # this client — the exact "editor status granted, room never joined
+        # or already gone" state the no-room branch exists for.
+        await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
+        for _ in range(4):
+            message = json.loads(await ws.read_message())
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        with self._app.get_db().sessionmaker() as session:
+            entry = session.get(Session, uuid)
+            self.assertFalse(entry.is_editor)
         ws.close()
 
 

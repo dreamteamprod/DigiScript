@@ -532,6 +532,15 @@ class RoomManager:
     def __init__(self, application: DigiScriptServer):
         self._application = application
         self._room: ScriptRoom | None = None
+        # Serializes every operation that creates, saves, discards, checkpoints or
+        # closes the active room: get_or_create_room, save_room, discard_room,
+        # discard_active_room, close_active_room/_close_active_room_locked, and
+        # checkpoint_if_dirty. Without this, e.g. a discard's _delete_draft could
+        # race a save's own _delete_draft, or a periodic maintenance checkpoint
+        # could fire mid-discard and write the just-discarded content straight
+        # back to a new draft file. `asyncio.Lock` is not reentrant: any method
+        # that already holds it must call `_close_active_room_locked()` directly,
+        # never the public `close_active_room()`.
         self._room_lock: asyncio.Lock = asyncio.Lock()
         self._maintenance_handle = None
         app_metrics.register_room_manager(self)
@@ -555,8 +564,12 @@ class RoomManager:
 
     async def _run_maintenance(self):
         try:
-            if self._room and self._room.needs_checkpoint:
-                await self._checkpoint_room(self._room)
+            room = self._room
+            # needs_checkpoint is a cheap, unlocked, time-gated pre-check so a
+            # quiet room doesn't take the lock every tick; checkpoint_if_dirty
+            # re-verifies identity and _dirty once it actually has the lock.
+            if room and room.needs_checkpoint:
+                await self.checkpoint_if_dirty(room)
         except Exception:
             get_logger().exception("Error during room maintenance")
         finally:
@@ -571,10 +584,13 @@ class RoomManager:
         If a draft file exists on disk, the Y.Doc is loaded from it.
         Otherwise, the Y.Doc is built from the ScriptLine models.
 
-        Uses a single lock to prevent concurrent JOIN_SCRIPT_ROOM handlers
-        from each creating a separate ScriptRoom (race condition: both see the
-        room absent, both await _load_or_build_doc, the second overwrites
-        _room leaving the first client orphaned).
+        Uses ``_room_lock`` — the same lock ``save_room``/``discard_room``/
+        ``discard_active_room``/``close_active_room`` all take — both to prevent
+        concurrent JOIN_SCRIPT_ROOM handlers from each creating a separate
+        ScriptRoom (race condition: both see the room absent, both await
+        _load_or_build_doc, the second overwrites _room leaving the first client
+        orphaned), and so a revision switch can't interleave with a save/discard
+        of the room it's about to close.
 
         :param revision_id: The script revision ID.
         :returns: The ScriptRoom for this revision.
@@ -588,9 +604,11 @@ class RoomManager:
             if self._room and self._room.revision_id == revision_id:
                 return self._room
 
-            # Close the current room if it belongs to a different revision
+            # Close the current room if it belongs to a different revision. Calls
+            # the lock-free variant — this method already holds `_room_lock`, and
+            # `asyncio.Lock` is not reentrant.
             if self._room is not None:
-                await self.close_active_room()
+                await self._close_active_room_locked()
 
             doc = await self._load_or_build_doc(revision_id)
             room = ScriptRoom(revision_id, doc)
@@ -615,128 +633,139 @@ class RoomManager:
     async def save_room(self, ws: WebSocketHandler):
         """Save the draft for the room that *ws* belongs to.
 
-        Sequence:
-        1. Call ``save_draft()`` which commits to DB and returns the ID-patch bytes
-           and the pages it changed. It also resets ``_dirty`` (inside its lock, so
-           ``hasDraft`` becomes ``False`` without racing an edit).
-        2. Broadcast the ID-patch update to **all** clients (so everyone's
+        Sequence (all under ``_room_lock``, see that attribute's docstring for
+        why — a concurrent discard/close must not interleave with any of this):
+        1. Look up the room (after acquiring the lock — looking it up first
+           would act on a room that discard/close may have just torn down).
+        2. Call ``save_draft()`` which commits to DB and returns the ID-patch bytes
+           and the pages it changed. It also resets ``_dirty`` (inside its own
+           ``ScriptRoom.save_lock``, so ``hasDraft`` becomes ``False`` without
+           racing an edit).
+        3. Broadcast the ID-patch update to **all** clients (so everyone's
            Y.Doc has real DB ids).
-        3. Broadcast ``SCRIPT_SAVED`` to all clients.
-        4. Broadcast ``SCRIPT_PAGE_CHANGED`` for each changed page, so clients
+        4. Broadcast ``SCRIPT_SAVED`` to all clients.
+        5. Broadcast ``SCRIPT_PAGE_CHANGED`` for each changed page, so clients
            caching script pages reload them.
-        5. Delete the draft file + DB record.
-        6. Schedule script compilation.
+        6. Delete the draft file + DB record.
+        Script compilation is scheduled fire-and-forget after the lock is
+        released — it doesn't touch any state the lock protects.
 
         On any error, sends ``SAVE_ERROR`` to the requesting client only.
 
         :param ws: The WebSocket handler that requested the save.
         """
-        room = self.get_room_for_client(ws)
-        if room is None:
-            get_logger().warning("Attempted to save draft for client with no room")
-            return
-
-        with self._application.get_db().sessionmaker() as session:
-            try:
-                id_update, saved_pages = await room.save_draft(session)
-            except Exception as e:
-                get_logger().exception("save_draft failed")
-                try:
-                    await ws.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "SAVE_ERROR",
-                            "DATA": {"error": str(e)},
-                        }
-                    )
-                except Exception:
-                    get_logger().warning(
-                        "Failed to notify client of save error", exc_info=True
-                    )
+        async with self._room_lock:
+            room = self.get_room_for_client(ws)
+            if room is None:
+                get_logger().warning("Attempted to save draft for client with no room")
                 return
 
-        # Broadcast ID-patch update so all clients get real DB ids
-        if id_update:
-            payload = base64.b64encode(id_update).decode("ascii")
+            with self._application.get_db().sessionmaker() as session:
+                try:
+                    id_update, saved_pages = await room.save_draft(session)
+                except Exception as e:
+                    get_logger().exception("save_draft failed")
+                    try:
+                        await ws.write_message(
+                            {
+                                "OP": "NOOP",
+                                "ACTION": "SAVE_ERROR",
+                                "DATA": {"error": str(e)},
+                            }
+                        )
+                    except Exception:
+                        get_logger().warning(
+                            "Failed to notify client of save error", exc_info=True
+                        )
+                    return
+
+            # Broadcast ID-patch update so all clients get real DB ids
+            if id_update:
+                payload = base64.b64encode(id_update).decode("ascii")
+                for client_ws in list(room.clients.keys()):
+                    try:
+                        await client_ws.write_message(
+                            {
+                                "OP": "NOOP",
+                                "ACTION": "YJS_UPDATE",
+                                "DATA": {"payload": payload},
+                            }
+                        )
+                    except Exception:
+                        get_logger().warning(
+                            "Failed to broadcast ID-patch update to client",
+                            exc_info=True,
+                        )
+
+            # Notify all clients of successful save
+            now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
             for client_ws in list(room.clients.keys()):
                 try:
                     await client_ws.write_message(
                         {
                             "OP": "NOOP",
-                            "ACTION": "YJS_UPDATE",
-                            "DATA": {"payload": payload},
+                            "ACTION": "SCRIPT_SAVED",
+                            "DATA": {"last_saved_at": now},
                         }
                     )
                 except Exception:
                     get_logger().warning(
-                        "Failed to broadcast ID-patch update to client", exc_info=True
+                        "Failed to notify client of successful save", exc_info=True
                     )
 
-        # Notify all clients of successful save
-        now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
-        for client_ws in list(room.clients.keys()):
-            try:
-                await client_ws.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "SCRIPT_SAVED",
-                        "DATA": {"last_saved_at": now},
-                    }
-                )
-            except Exception:
-                get_logger().warning(
-                    "Failed to notify client of successful save", exc_info=True
-                )
+            # The classic REST save tells every client which page it touched so any
+            # that cache script pages (cue editor, live view) reload them; a
+            # collaborative save must do the same. Only the pages the save actually
+            # changed are named: each notification makes every client reload its
+            # cached copy of that page over HTTP, so naming every page of a long
+            # script would flood the event loop.
+            for page in saved_pages:
+                try:
+                    await self._application.ws_send_to_all(
+                        "NOOP", "SCRIPT_PAGE_CHANGED", {"page": page}
+                    )
+                except Exception:
+                    get_logger().exception(
+                        f"Failed to broadcast change of page {page} after saving "
+                        f"revision {room.revision_id}"
+                    )
 
-        # The classic REST save tells every client which page it touched so any that
-        # cache script pages (cue editor, live view) reload them; a collaborative save
-        # must do the same. Only the pages the save actually changed are named: each
-        # notification makes every client reload its cached copy of that page over
-        # HTTP, so naming every page of a long script would flood the event loop.
-        for page in saved_pages:
+            # Remove draft file and DB record (no longer needed after DB save). The
+            # ScriptLine changes above already committed, so a failure here does not
+            # undo the save — but it leaves the ScriptDraft row in place, which keeps
+            # the revision reporting as locked (see `_revision_is_locked`). Surface
+            # that to the requester rather than letting it propagate silently.
             try:
-                await self._application.ws_send_to_all(
-                    "NOOP", "SCRIPT_PAGE_CHANGED", {"page": page}
-                )
+                await self._delete_draft(room.revision_id)
             except Exception:
                 get_logger().exception(
-                    f"Failed to broadcast change of page {page} after saving "
+                    f"Failed to delete draft after successful save for "
                     f"revision {room.revision_id}"
                 )
+                try:
+                    await ws.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {
+                                "error": (
+                                    "Save succeeded but draft cleanup failed; the "
+                                    "revision may still show as locked"
+                                )
+                            },
+                        }
+                    )
+                except Exception:
+                    get_logger().warning(
+                        "Failed to notify client of draft cleanup failure",
+                        exc_info=True,
+                    )
 
-        # Remove draft file and DB record (no longer needed after DB save). The
-        # ScriptLine changes above already committed, so a failure here does not
-        # undo the save — but it leaves the ScriptDraft row in place, which keeps
-        # the revision reporting as locked (see `_revision_is_locked`). Surface
-        # that to the requester rather than letting it propagate silently.
-        try:
-            await self._delete_draft(room.revision_id)
-        except Exception:
-            get_logger().exception(
-                f"Failed to delete draft after successful save for "
-                f"revision {room.revision_id}"
-            )
-            try:
-                await ws.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "COLLAB_ERROR",
-                        "DATA": {
-                            "error": (
-                                "Save succeeded but draft cleanup failed; the "
-                                "revision may still show as locked"
-                            )
-                        },
-                    }
-                )
-            except Exception:
-                get_logger().warning(
-                    "Failed to notify client of draft cleanup failure", exc_info=True
-                )
+            revision_id = room.revision_id
 
-        # Schedule script compilation (fire-and-forget)
+        # Schedule script compilation (fire-and-forget), outside the lock.
         IOLoop.current().add_callback(
-            partial(CompiledScript.compile_script, self._application, room.revision_id)
+            partial(CompiledScript.compile_script, self._application, revision_id)
         )
 
     async def discard_room(self, ws: WebSocketHandler):
@@ -751,50 +780,80 @@ class RoomManager:
 
         :param ws: The WebSocket handler that requested the discard.
         """
-        room = self.get_room_for_client(ws)
-        if room is not None:
-            revision_id = room.revision_id
-        else:
-            with self._application.get_db().sessionmaker() as session:
-                draft = session.scalar(select(ScriptDraft))
-            revision_id = draft.revision_id if draft is not None else None
-            if revision_id is None:
-                get_logger().warning(
-                    "discard_room called with no room and no active draft"
+        async with self._room_lock:
+            room = self.get_room_for_client(ws)
+            if room is not None:
+                revision_id = room.revision_id
+            else:
+                with self._application.get_db().sessionmaker() as session:
+                    draft = session.scalar(select(ScriptDraft))
+                revision_id = draft.revision_id if draft is not None else None
+                if revision_id is None:
+                    get_logger().warning(
+                        "discard_room called with no room and no active draft"
+                    )
+                    # Nothing to delete, but REQUEST_SCRIPT_EDIT's own
+                    # write-access check requires the caller to already be
+                    # marked as an editor in the DB to have reached this op at
+                    # all (e.g. the room closed from under them, or a rejected
+                    # join left them stuck) — demote them directly so they
+                    # aren't left as a phantom editor with nothing to show for
+                    # it. close_active_room()'s own demote step only reaches
+                    # clients inside an active room.
+                    self._demote_caller(ws)
+                    return
+                get_logger().info(
+                    f"Discarding draft for revision {revision_id} (no active room)"
                 )
-                return
-            get_logger().info(
-                f"Discarding draft for revision {revision_id} (no active room)"
-            )
 
-        try:
-            await self._delete_draft(revision_id)
-        except Exception:
-            get_logger().exception(
-                f"Failed to discard draft for revision {revision_id}"
-            )
             try:
-                await ws.write_message(
-                    {
-                        "OP": "NOOP",
-                        "ACTION": "COLLAB_ERROR",
-                        "DATA": {"error": "Failed to discard draft"},
-                    }
-                )
+                await self._delete_draft(revision_id)
             except Exception:
-                get_logger().warning(
-                    "Failed to notify client of discard failure", exc_info=True
+                get_logger().exception(
+                    f"Failed to discard draft for revision {revision_id}"
                 )
-            return
+                try:
+                    await ws.write_message(
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "COLLAB_ERROR",
+                            "DATA": {"error": "Failed to discard draft"},
+                        }
+                    )
+                except Exception:
+                    get_logger().warning(
+                        "Failed to notify client of discard failure", exc_info=True
+                    )
+                return
 
-        if room is not None:
-            # The draft file is gone, but the in-memory doc is still the discarded
-            # content and `_dirty` is still True from before the discard — without
-            # this, close_active_room()'s own "checkpoint if dirty" step would
-            # immediately re-write that same content straight back to a new draft
-            # file, undoing the discard it was just asked to do.
-            room.mark_checkpointed()
-            await self.close_active_room()
+            if room is not None:
+                # The draft file is gone, but the in-memory doc is still the
+                # discarded content and `_dirty` is still True from before the
+                # discard — without this, the close step's own "checkpoint if
+                # dirty" would immediately re-write that same content straight
+                # back to a new draft file, undoing the discard just performed.
+                room.mark_checkpointed()
+                await self._close_active_room_locked()
+            else:
+                # See the no-draft-either branch above for why this matters.
+                self._demote_caller(ws)
+
+    def _demote_caller(self, ws: WebSocketHandler) -> None:
+        """Clear *ws*'s own ``is_editor``/``is_cutting`` row directly.
+
+        For the ``discard_room`` no-room paths only — every other place that
+        demotes a client does so as part of iterating ``room.clients``, which
+        this client isn't a member of by definition here.
+        """
+        internal_id = getattr(ws, "internal_id", None)
+        if internal_id is None:
+            return
+        with self._application.get_db().sessionmaker() as session:
+            entry = session.get(Session, internal_id)
+            if entry and (entry.is_editor or entry.is_cutting):
+                entry.is_editor = False
+                entry.is_cutting = False
+                session.commit()
 
     async def discard_active_room(self):
         """Discard the active draft without a WebSocket context (HTTP DELETE endpoint).
@@ -802,27 +861,39 @@ class RoomManager:
         Deletes the draft file and DB record, then closes the room so all
         clients receive ``ROOM_CLOSED`` and revert to the saved script.
         """
-        if self._room is not None:
-            revision_id = self._room.revision_id
-        else:
-            with self._application.get_db().sessionmaker() as session:
-                draft = session.scalar(select(ScriptDraft))
-            revision_id = draft.revision_id if draft else None
-        if revision_id is not None:
-            await self._delete_draft(revision_id)
-        if self._room is not None:
-            # See discard_room()'s own comment: without this, a dirty room's
-            # checkpoint-on-close would immediately re-write the just-discarded
-            # content back to a new draft file.
-            self._room.mark_checkpointed()
-        await self.close_active_room()
+        async with self._room_lock:
+            if self._room is not None:
+                revision_id = self._room.revision_id
+            else:
+                with self._application.get_db().sessionmaker() as session:
+                    draft = session.scalar(select(ScriptDraft))
+                revision_id = draft.revision_id if draft else None
+            if revision_id is not None:
+                await self._delete_draft(revision_id)
+            if self._room is not None:
+                # See discard_room()'s own comment: without this, a dirty room's
+                # checkpoint-on-close would immediately re-write the just-discarded
+                # content back to a new draft file.
+                self._room.mark_checkpointed()
+            await self._close_active_room_locked()
 
     async def close_active_room(self):
         """Checkpoint if dirty, demote every remaining editor/cutter, broadcast
-        ROOM_CLOSED, and tear down the active room.
+        ROOM_CLOSED, and tear down the active room — under ``_room_lock``.
 
-        Safe to call when no room is active (no-op). Also safe if called
-        concurrently — ``_room is None`` check is idempotent.
+        Safe to call when no room is active (no-op). Safe to call concurrently
+        with itself, a save or a discard — they all serialize on the same lock
+        (see that attribute's docstring).
+        """
+        async with self._room_lock:
+            await self._close_active_room_locked()
+
+    async def _close_active_room_locked(self):
+        """``close_active_room()``'s body. Callers that already hold
+        ``_room_lock`` (``get_or_create_room``, ``discard_room``,
+        ``discard_active_room``) must call this directly — ``asyncio.Lock`` is
+        not reentrant, so going through ``close_active_room()`` from inside the
+        lock would deadlock.
 
         Demoting here (not just trusting each client to have already demoted
         itself) matters for ``DISCARD_SCRIPT_DRAFT``: a discard closes the room
@@ -841,16 +912,27 @@ class RoomManager:
         if room._dirty:
             await self._checkpoint_room(room)
 
-        with self._application.get_db().sessionmaker() as session:
-            for ws in list(room.clients.keys()):
-                internal_id = getattr(ws, "internal_id", None)
-                if internal_id is None:
-                    continue
-                entry = session.get(Session, internal_id)
-                if entry and (entry.is_editor or entry.is_cutting):
-                    entry.is_editor = False
-                    entry.is_cutting = False
-            session.commit()
+        try:
+            with self._application.get_db().sessionmaker() as session:
+                for ws in room.clients.keys():
+                    internal_id = getattr(ws, "internal_id", None)
+                    if internal_id is None:
+                        continue
+                    entry = session.get(Session, internal_id)
+                    if entry and (entry.is_editor or entry.is_cutting):
+                        entry.is_editor = False
+                        entry.is_cutting = False
+                session.commit()
+        except Exception:
+            # Must not prevent ROOM_CLOSED/teardown below — a client left marked as
+            # editor with no room or draft left to show for it (see the docstring
+            # above) is bad, but a room stuck in memory forever, never notifying
+            # anyone it closed, is worse (and for a discard, the draft is already
+            # gone by this point, so the caller would get no feedback at all).
+            get_logger().exception(
+                f"Failed to demote remaining editors/cutters while closing room "
+                f"{room.revision_id}"
+            )
 
         message = {"OP": "NOOP", "ACTION": "ROOM_CLOSED", "DATA": {}}
         for ws in list(room.clients.keys()):
@@ -870,6 +952,31 @@ class RoomManager:
         room.stop_observing()
         self._room = None
         get_logger().info(f"Closed active room for revision {room.revision_id}")
+
+    async def checkpoint_if_dirty(self, room: ScriptRoom) -> bool:
+        """Checkpoint *room* under ``_room_lock`` if it is dirty and still the
+        active room.
+
+        The only correct way to checkpoint from outside ``save_room``/
+        ``discard_room``/``close_active_room`` themselves (``_run_maintenance``'s
+        periodic tick, and the pre-close checkpoints in ``_op_stop_script_edit``
+        and the last-editor-left handler) — calling ``_checkpoint_room`` directly
+        from any of those, unlocked, is exactly how a maintenance tick firing
+        mid-discard can resurrect content a discard just deleted (the room is
+        still ``_dirty`` from the discarded edit until the discard's own
+        ``mark_checkpointed()`` runs). Re-checks both ``is`` identity and
+        ``_dirty`` after acquiring the lock, since *room* may have been saved,
+        discarded, or replaced by another operation while this call was waiting.
+
+        :param room: The room to checkpoint, as seen by the caller before it
+            took the lock.
+        :returns: Whether a checkpoint was actually written.
+        """
+        async with self._room_lock:
+            if self._room is room and room._dirty:
+                await self._checkpoint_room(room)
+                return True
+        return False
 
     async def has_unsaved_changes(self) -> bool:
         """Return True if there are unsaved changes for the active revision."""

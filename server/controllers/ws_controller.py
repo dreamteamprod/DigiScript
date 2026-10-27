@@ -1114,8 +1114,10 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             with self.make_session() as session:
                 await room.broadcast_members(session)
             if not room.has_editors:
-                if room._dirty:
-                    await room_manager._checkpoint_room(room)
+                # checkpoint_if_dirty takes the room lock itself (unlike a direct
+                # `if room._dirty: await room_manager._checkpoint_room(room)`,
+                # which would race a concurrent save/discard of this same room).
+                if await room_manager.checkpoint_if_dirty(room):
                     await self.application.ws_send_to_all(
                         "NOOP", "GET_SCRIPT_REVISIONS", {}
                     )

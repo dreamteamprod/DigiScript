@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { LINE_TYPES, type LineType } from '@/constants/lineTypes';
-import { nullToZero, parseDbId, uidOf, type LineUid, type PartUid } from './yjsSnapshot';
+import { nullToZero, uidOf, type LineUid, type PartUid } from './yjsSnapshot';
 import { applyTextDiff } from './ytextDiff';
 
 /**
@@ -22,10 +22,14 @@ import { applyTextDiff } from './ytextDiff';
  * (with a `code`) is reserved for bugs or a broken draft: no open draft, a page that does
  * not exist, or a part given both a character and a group.
  *
- * Each function is at most one Yjs transaction (so one update on the wire), tagged
- * with `LOCAL_EDIT_ORIGIN`. Nothing here holds a Yjs object between calls — they take
- * the `Y.Doc` and look things up fresh, so callers never keep a `Y.Map`/`Y.Text` in
- * reactive state.
+ * Each function is at most one Yjs transaction (so one update on the wire) on its
+ * own, tagged with `LOCAL_EDIT_ORIGIN`. Nothing here holds a Yjs object between
+ * calls — they take the `Y.Doc` and look things up fresh, so callers never keep a
+ * `Y.Map`/`Y.Text` in reactive state. A caller that needs several of these as one
+ * update (e.g. bulk edit, across many lines) uses `useDraftWriter`'s own
+ * `transact()`, which wraps them in a Yjs transaction using the same origin — Yjs
+ * transactions are reentrant, so each writer's own transaction call just joins
+ * that outer one rather than committing separately.
  *
  * The structure written must stay identical to what the server's `build_ydoc` builds
  * and `extract_lines_from_ydoc` reads (see the cross-language fixture test).
