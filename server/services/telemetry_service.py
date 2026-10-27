@@ -26,6 +26,7 @@ from tornado.ioloop import IOLoop, PeriodicCallback
 from digi_server.logger import get_logger
 from digi_server.settings import get_version
 from models.session import ShowSession
+from models.settings import SystemSettings
 from models.show import Show
 from models.user import User
 
@@ -139,9 +140,8 @@ class TelemetryService:
                     headers={"Content-Type": "application/json"},
                     request_timeout=self.REQUEST_TIMEOUT_SECONDS,
                 )
-                await self._application.digi_settings.set(
-                    "telemetry_checkin_count", payload["checkin_count"]
-                )
+                with self._application.get_db().sessionmaker() as session:
+                    self._set_checkin_count(session, payload["checkin_count"])
                 self._logger.debug("Telemetry check-in sent successfully")
                 return
             except HTTPClientError as e:
@@ -164,21 +164,13 @@ class TelemetryService:
         )
 
     async def _build_payload(self) -> dict:
-        instance_id = await self._get_or_create_instance_id()
-        first_seen_at = await self._get_or_create_first_seen_at()
-        previous_count = await self._application.digi_settings.get(
-            "telemetry_checkin_count"
-        )
-        checkin_count = previous_count + 1
-
-        days_since_install = max(
-            0,
-            (datetime.now(timezone.utc) - datetime.fromisoformat(first_seen_at)).days,
-        )
-
         error_count_recent = self._error_handler.pop_count()
 
         with self._application.get_db().sessionmaker() as session:
+            instance_id = self._get_or_create_instance_id(session)
+            first_seen_at = self._get_or_create_first_seen_at(session)
+            checkin_count = self._get_checkin_count(session) + 1
+
             shows_count = session.execute(
                 select(func.count()).select_from(Show)
             ).scalar_one()
@@ -189,6 +181,11 @@ class TelemetryService:
                 select(func.count()).select_from(ShowSession)
             ).scalar_one()
             rbac_enabled = self._compute_rbac_enabled(session)
+
+        days_since_install = max(
+            0,
+            (datetime.now(timezone.utc) - datetime.fromisoformat(first_seen_at)).days,
+        )
 
         return {
             "instance_id": instance_id,
@@ -214,25 +211,50 @@ class TelemetryService:
             },
         }
 
-    async def _get_or_create_instance_id(self) -> str:
-        instance_id = await self._application.digi_settings.get("telemetry_instance_id")
+    @staticmethod
+    def _get_system_setting(session, key: str) -> Optional[str]:
+        row = session.scalars(
+            select(SystemSettings).where(SystemSettings.key == key)
+        ).first()
+        return row.value if row else None
+
+    @staticmethod
+    def _set_system_setting(session, key: str, value: str) -> None:
+        row = session.scalars(
+            select(SystemSettings).where(SystemSettings.key == key)
+        ).first()
+        if row:
+            row.value = value
+        else:
+            session.add(SystemSettings(key=key, value=value))
+        session.commit()
+
+    def _get_or_create_instance_id(self, session) -> str:
+        """Read the persisted anonymous instance UUID, generating it on first use.
+
+        Stored in the DB-backed SystemSettings table (like jwt_secret/cookie_secret), not the
+        file-based Settings system — that system backs the editable digiscript.json, which is
+        the wrong place for internal state nobody should be hand-editing.
+        """
+        instance_id = self._get_system_setting(session, "telemetry_instance_id")
         if not instance_id:
             instance_id = str(uuid.uuid4())
-            await self._application.digi_settings.set(
-                "telemetry_instance_id", instance_id
-            )
+            self._set_system_setting(session, "telemetry_instance_id", instance_id)
         return instance_id
 
-    async def _get_or_create_first_seen_at(self) -> str:
-        first_seen_at = await self._application.digi_settings.get(
-            "telemetry_first_seen_at"
-        )
+    def _get_or_create_first_seen_at(self, session) -> str:
+        first_seen_at = self._get_system_setting(session, "telemetry_first_seen_at")
         if not first_seen_at:
             first_seen_at = datetime.now(timezone.utc).isoformat()
-            await self._application.digi_settings.set(
-                "telemetry_first_seen_at", first_seen_at
-            )
+            self._set_system_setting(session, "telemetry_first_seen_at", first_seen_at)
         return first_seen_at
+
+    def _get_checkin_count(self, session) -> int:
+        value = self._get_system_setting(session, "telemetry_checkin_count")
+        return int(value) if value else 0
+
+    def _set_checkin_count(self, session, count: int) -> None:
+        self._set_system_setting(session, "telemetry_checkin_count", str(count))
 
     def _compute_rbac_enabled(self, session) -> bool:
         """Whether this install has ever had an RBAC role assigned beyond the built-in admin."""

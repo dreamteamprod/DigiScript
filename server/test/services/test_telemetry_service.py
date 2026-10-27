@@ -2,13 +2,23 @@ import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from sqlalchemy import select
 from tornado.httpclient import HTTPClientError
 from tornado.testing import gen_test
 
+from models.settings import SystemSettings
 from models.show import Show, ShowScriptType
 from models.user import User
 from services.telemetry_service import TelemetryService
 from test.conftest import DigiScriptTestCase
+
+
+def _get_system_setting(app, key: str):
+    with app.get_db().sessionmaker() as session:
+        row = session.scalars(
+            select(SystemSettings).where(SystemSettings.key == key)
+        ).first()
+        return row.value if row else None
 
 
 class TestTelemetryServiceBuckets(DigiScriptTestCase):
@@ -38,10 +48,10 @@ class TestTelemetryServiceState(DigiScriptTestCase):
         super().setUp()
         self.service = TelemetryService(application=self._app)
 
-    @gen_test
-    async def test_get_or_create_instance_id_persists_and_reuses(self):
-        first = await self.service._get_or_create_instance_id()
-        second = await self.service._get_or_create_instance_id()
+    def test_get_or_create_instance_id_persists_and_reuses(self):
+        with self._app.get_db().sessionmaker() as session:
+            first = self.service._get_or_create_instance_id(session)
+            second = self.service._get_or_create_instance_id(session)
 
         self.assertEqual(first, second)
         # Must be a valid UUIDv4, matching the collector's validation regex.
@@ -49,11 +59,13 @@ class TestTelemetryServiceState(DigiScriptTestCase):
             first,
             r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
         )
+        # Persisted in the DB-backed SystemSettings table, not the file-based settings.
+        self.assertEqual(first, _get_system_setting(self._app, "telemetry_instance_id"))
 
-    @gen_test
-    async def test_get_or_create_first_seen_at_persists_and_reuses(self):
-        first = await self.service._get_or_create_first_seen_at()
-        second = await self.service._get_or_create_first_seen_at()
+    def test_get_or_create_first_seen_at_persists_and_reuses(self):
+        with self._app.get_db().sessionmaker() as session:
+            first = self.service._get_or_create_first_seen_at(session)
+            second = self.service._get_or_create_first_seen_at(session)
 
         self.assertEqual(first, second)
         # Must round-trip through datetime.fromisoformat, as _build_payload relies on this.
@@ -125,7 +137,9 @@ class TestTelemetryServicePayload(DigiScriptTestCase):
 
     @gen_test
     async def test_build_payload_increments_checkin_count(self):
-        await self._app.digi_settings.set("telemetry_checkin_count", 4)
+        with self._app.get_db().sessionmaker() as session:
+            session.add(SystemSettings(key="telemetry_checkin_count", value="4"))
+            session.commit()
 
         payload = await self.service._build_payload()
 
@@ -160,8 +174,8 @@ class TestTelemetryServiceCheckIn(DigiScriptTestCase):
         request_body = json.loads(mock_fetch.await_args.kwargs["body"])
         self.assertEqual(1, request_body["checkin_count"])
 
-        persisted = await self._app.digi_settings.get("telemetry_checkin_count")
-        self.assertEqual(1, persisted)
+        persisted = _get_system_setting(self._app, "telemetry_checkin_count")
+        self.assertEqual("1", persisted)
 
     @gen_test
     async def test_check_in_never_raises_on_persistent_failure(self):
@@ -176,9 +190,9 @@ class TestTelemetryServiceCheckIn(DigiScriptTestCase):
             # Must not raise, even after exhausting all retry attempts.
             await self.service.check_in()
 
-        # A failed check-in must not advance the persisted counter.
-        persisted = await self._app.digi_settings.get("telemetry_checkin_count")
-        self.assertEqual(0, persisted)
+        # A failed check-in must not create/advance the persisted counter row at all.
+        persisted = _get_system_setting(self._app, "telemetry_checkin_count")
+        self.assertIsNone(persisted)
 
     @gen_test
     async def test_check_in_skips_send_if_payload_build_fails(self):

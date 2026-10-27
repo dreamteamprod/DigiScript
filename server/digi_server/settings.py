@@ -475,33 +475,12 @@ class Settings:
             ),
             category="Telemetry",
         )
-        self.define(
-            "telemetry_instance_id",
-            str,
-            None,
-            False,
-            nullable=True,
-            hide_from_ui=True,
-            category="Telemetry",
-        )
-        self.define(
-            "telemetry_first_seen_at",
-            str,
-            None,
-            False,
-            nullable=True,
-            hide_from_ui=True,
-            category="Telemetry",
-        )
-        self.define(
-            "telemetry_checkin_count",
-            int,
-            0,
-            False,
-            nullable=False,
-            hide_from_ui=True,
-            category="Telemetry",
-        )
+        # telemetry_instance_id, telemetry_first_seen_at, and telemetry_checkin_count are
+        # intentionally NOT defined here. This file-based Settings system backs the editable
+        # digiscript.json a user could hand-edit; that's fine for user-facing preferences like
+        # telemetry_enabled above, but wrong for internal state nobody should be touching. Those
+        # three live in the DB-backed SystemSettings table instead (see services/telemetry_service.py),
+        # the same way jwt_secret and cookie_secret do.
 
     def define(
         self,
