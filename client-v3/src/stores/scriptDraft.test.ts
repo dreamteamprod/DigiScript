@@ -271,6 +271,34 @@ describe('scriptDraft store', () => {
     expect(store.isDraftDirty).toBe(true);
   });
 
+  it('clears ownSaveInFlight when the server rejects a save via COLLAB_ERROR, not just SAVE_ERROR', () => {
+    // Regression: _op_save_script_draft rejects a save via COLLAB_ERROR (not
+    // SAVE_ERROR) for both of its own rejection paths (a live session became
+    // active, or insufficient write access) — collabError() previously never
+    // cleared ownSaveInFlight, so it stayed stuck true until a *different*
+    // editor's later SCRIPT_SAVED was wrongly read as our own, leaving
+    // isDraftDirty stuck true even though our edits were already covered by
+    // that other editor's save (shared Y.Doc).
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+    store.saveDraft();
+
+    store.collabError({ error: 'insufficient permissions' }); // the save's own rejection
+    expect(store.isDraftSaving).toBe(false);
+
+    // A local edit lands after the rejection.
+    store.getDraftYdoc()?.transact(() => {
+      store.getDraftYdoc()?.getMap('meta').set('typed_more', true);
+    }, 'local-edit');
+    expect(store.isDraftDirty).toBe(true);
+
+    // A different editor's save completes — must be read as someone else's, not ours.
+    store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' });
+
+    expect(store.isDraftDirty).toBe(false);
+  });
+
   it('clears dirty on another editor\'s save — a collaborator who never pressed save is not "unsaved" forever', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();

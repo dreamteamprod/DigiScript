@@ -495,6 +495,21 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     collabError(data: CollabErrorMessage): void {
       this.lastCollabError = data.error;
       toast.error(data.error);
+      // A rejected save fails via COLLAB_ERROR, not SAVE_ERROR, for both of
+      // _op_save_script_draft's own rejection paths (a live session became active, or
+      // _require_editor_write_access failed) — resolve it the same way saveError()
+      // does. Without this, ownSaveInFlight would stay stuck true (only
+      // scriptSaved()/saveError() ever clear it) until a later SCRIPT_SAVED for a
+      // *different* editor's save is wrongly read as our own, leaving isDraftDirty
+      // stuck true even though our edits were already included in that save. Scoped
+      // to only run when a save was actually in flight — a COLLAB_ERROR for an
+      // unrelated rejection (e.g. a blocked edit) must not touch any of this.
+      if (ownSaveInFlight) {
+        ownSaveInFlight = false;
+        this.isDraftSaving = false;
+        this._clearSaveWatchdog();
+        this.pageSaveProgress = null;
+      }
       // A COLLAB_ERROR while we're mid-join (active but never synced) means the join
       // itself was rejected (no show, no revision, live session, a Y.Doc build
       // failure) — the server will never send the YJS_SYNC that would otherwise

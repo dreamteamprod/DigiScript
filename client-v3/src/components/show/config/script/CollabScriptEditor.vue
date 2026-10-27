@@ -657,6 +657,29 @@ function applyBulkCharacter(
   }
 }
 
+/** What onBulkApply() applies to a single line, pulled out of its double-nested loop. */
+function applyBulkEditToLine(
+  page: number,
+  line: DraftScriptLine,
+  actScene: { actId: number; sceneId: number } | null,
+  character: {
+    targetPartIndex: number;
+    characterId: number | null;
+    characterGroupId: number | null;
+  } | null
+): void {
+  if (actScene) applyBulkActScene(page, line, actScene.actId, actScene.sceneId);
+  if (character) {
+    applyBulkCharacter(
+      page,
+      line,
+      character.targetPartIndex,
+      character.characterId,
+      character.characterGroupId
+    );
+  }
+}
+
 function onBulkApply(payload: {
   actId: number | null;
   sceneId: number | null;
@@ -689,6 +712,14 @@ function onBulkApply(payload: {
   // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
   // rather than committing separately — so the whole bulk edit reaches peers as one
   // update.
+  const character = applyCharacter
+    ? {
+        targetPartIndex,
+        characterId: payload.characterId,
+        characterGroupId: payload.characterGroupId,
+      }
+    : null;
+
   writer.transact(() => {
     for (let p = startPage; p <= endPage; p += 1) {
       const pageLines = draftPages.linesFor(p);
@@ -697,17 +728,7 @@ function onBulkApply(payload: {
       for (let i = fromIndex; i <= toIndex; i += 1) {
         const line = pageLines[i];
         if (!line) continue; // the page shrank since linesFor() was read for the loop bounds
-
-        if (actScene) applyBulkActScene(p, line, actScene.actId, actScene.sceneId);
-        if (applyCharacter) {
-          applyBulkCharacter(
-            p,
-            line,
-            targetPartIndex,
-            payload.characterId,
-            payload.characterGroupId
-          );
-        }
+        applyBulkEditToLine(p, line, actScene, character);
       }
     }
   });

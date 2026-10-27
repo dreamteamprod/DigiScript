@@ -533,6 +533,39 @@ class TestRoomManagerCloseRoomDemotesEditors(_ScriptTestSetup):
 
         assert manager._room is None
 
+    @gen_test
+    async def test_a_db_failure_while_demoting_does_not_block_room_closed_or_teardown(
+        self,
+    ):
+        """Regression test for the round-1 review fix: the demote block's own
+        try/except must not prevent ROOM_CLOSED from broadcasting or the room from
+        tearing down. For a discard specifically, the draft is already deleted by
+        the time this runs — a client left stuck here on a DB error would get no
+        feedback about the discard at all."""
+        room = _make_room(revision_id=self.revision_id)
+        ws = _make_mock_ws()
+        ws.internal_id = str(uuid.uuid4())
+        room.add_client(ws, "editor")
+
+        manager = RoomManager(self._app)
+        manager._room = room
+
+        failing_session = MagicMock()
+        failing_session.get.side_effect = RuntimeError("db unavailable")
+        failing_sessionmaker_cm = MagicMock()
+        failing_sessionmaker_cm.__enter__ = MagicMock(return_value=failing_session)
+        failing_sessionmaker_cm.__exit__ = MagicMock(return_value=False)
+        failing_db = MagicMock()
+        failing_db.sessionmaker.return_value = failing_sessionmaker_cm
+
+        with patch.object(self._app, "get_db", return_value=failing_db):
+            await manager.close_active_room()  # must not raise
+
+        ws.write_message.assert_called_once()
+        message = ws.write_message.call_args[0][0]
+        self.assertEqual("ROOM_CLOSED", message["ACTION"])
+        self.assertIsNone(manager._room)
+
 
 class TestScriptRoomSaveDraft(_ScriptTestSetup):
     """Tests for ``ScriptRoom.save_draft`` using a real in-memory DB."""
