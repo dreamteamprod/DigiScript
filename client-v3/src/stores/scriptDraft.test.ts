@@ -247,6 +247,58 @@ describe('scriptDraft store', () => {
     expect(store.isDraftDirty).toBe(true);
   });
 
+  it('keeps isDraftDirty true even if the stall watchdog fires before a late scriptSaved for our own save arrives', () => {
+    // Regression: scriptSaved() used to read `isDraftSaving` to tell whether this is
+    // our own save — but the watchdog resets `isDraftSaving` on a stall purely for
+    // the UI, independent of whether our save is still genuinely in flight. A late
+    // reply to that same save would then be misread as someone else's, and
+    // unconditionally clear isDraftDirty, hiding an edit made during the stall.
+    vi.useFakeTimers();
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) }); // else the shorter join watchdog tears down first
+    store.saveDraft();
+    vi.advanceTimersByTime(SAVE_STALL_TIMEOUT_MS + 1);
+    expect(store.isDraftSaving).toBe(false); // the save watchdog already fired
+
+    store.getDraftYdoc()?.transact(() => {
+      store.getDraftYdoc()?.getMap('meta').set('typed_more', true);
+    }, 'local-edit');
+    expect(store.isDraftDirty).toBe(true);
+
+    store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' }); // the late reply
+
+    expect(store.isDraftDirty).toBe(true);
+  });
+
+  it('clears ownSaveInFlight when the server rejects a save via COLLAB_ERROR, not just SAVE_ERROR', () => {
+    // Regression: _op_save_script_draft rejects a save via COLLAB_ERROR (not
+    // SAVE_ERROR) for both of its own rejection paths (a live session became
+    // active, or insufficient write access) — collabError() previously never
+    // cleared ownSaveInFlight, so it stayed stuck true until a *different*
+    // editor's later SCRIPT_SAVED was wrongly read as our own, leaving
+    // isDraftDirty stuck true even though our edits were already covered by
+    // that other editor's save (shared Y.Doc).
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+    store.saveDraft();
+
+    store.collabError({ error: 'insufficient permissions' }); // the save's own rejection
+    expect(store.isDraftSaving).toBe(false);
+
+    // A local edit lands after the rejection.
+    store.getDraftYdoc()?.transact(() => {
+      store.getDraftYdoc()?.getMap('meta').set('typed_more', true);
+    }, 'local-edit');
+    expect(store.isDraftDirty).toBe(true);
+
+    // A different editor's save completes — must be read as someone else's, not ours.
+    store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' });
+
+    expect(store.isDraftDirty).toBe(false);
+  });
+
   it('clears dirty on another editor\'s save — a collaborator who never pressed save is not "unsaved" forever', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();
@@ -445,11 +497,24 @@ describe('scriptDraft store', () => {
     expect(store.isDraftActive).toBe(false);
   });
 
-  it('saveDraft/discardDraft are no-ops when no draft is active', () => {
+  it('saveDraft is a no-op when no draft is active', () => {
     const store = useScriptDraftStore();
     store.saveDraft();
-    store.discardDraft();
     expect(sendObj).not.toHaveBeenCalled();
+  });
+
+  it('discardDraft still sends when no draft is active — the server demotes a phantom editor either way', () => {
+    // Unlike saveDraft, discardDraft has no isDraftActive guard: its only
+    // caller is reachable solely from the editor UI, and a rejected
+    // join/already-closed room (isDraftActive false, but still "an editor" as
+    // far as the server knows) is exactly the case Discard must be able to
+    // recover from.
+    const store = useScriptDraftStore();
+
+    const sent = store.discardDraft();
+
+    expect(sendObj).toHaveBeenCalledWith({ OP: 'DISCARD_SCRIPT_DRAFT', DATA: {} });
+    expect(sent).toBe(true);
   });
 
   it('does not join before the socket has authenticated (a pre-auth join would land as viewer)', () => {
@@ -479,8 +544,9 @@ describe('scriptDraft store', () => {
     store.joinScriptRoom();
     sendObj.mockReturnValueOnce(false);
 
-    store.saveDraft();
+    const started = store.saveDraft();
 
+    expect(started).toBe(false);
     expect(store.isDraftSaving).toBe(false);
     expect(toast.error).toHaveBeenCalled();
   });
@@ -490,9 +556,10 @@ describe('scriptDraft store', () => {
     store.joinScriptRoom();
     sendObj.mockReturnValueOnce(false);
 
-    store.discardDraft();
+    const sent = store.discardDraft();
 
     expect(toast.error).toHaveBeenCalled();
+    expect(sent).toBe(false);
   });
 
   it('ignores a second saveDraft while one is already in flight', () => {
@@ -603,6 +670,50 @@ describe('scriptDraft store', () => {
     expect(store.getDraftYdoc()?.getMap('meta').get('early')).toBe(1);
     expect(store.isDraftSynced).toBe(false);
     expect(store.status).toBe('joining');
+  });
+
+  describe('canSaveDraft', () => {
+    it('is false when neither dirty nor saving a draft exists', () => {
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+      store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+
+      expect(store.canSaveDraft).toBe(false);
+    });
+
+    it('is true once a local edit lands', () => {
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+      store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+
+      store.yjsUpdate({ payload: makeRemoteUpdate((doc) => doc.getMap('meta').set('x', 1)) });
+
+      expect(store.canSaveDraft).toBe(true);
+    });
+
+    it('is false while a save is in flight', () => {
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+      store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+      store.yjsUpdate({ payload: makeRemoteUpdate((doc) => doc.getMap('meta').set('x', 1)) });
+      store.saveDraft();
+
+      expect(store.canSaveDraft).toBe(false);
+    });
+
+    it('stays true after resuming a draft kept from a prior session, even though isDraftDirty resets on sync', () => {
+      // Stop Editing -> Keep Draft -> re-enter: the server already reflects hasDraft
+      // (its own GET_SCRIPT_CONFIG_STATUS precedes JOIN_SCRIPT_ROOM per D3) by the time
+      // yjsSync's step-0 handler clears isDraftDirty, so canSaveDraft must not go false.
+      useScriptConfigStore().hasDraft = true;
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+
+      store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+
+      expect(store.isDraftDirty).toBe(false);
+      expect(store.canSaveDraft).toBe(true);
+    });
   });
 
   describe('reconnect', () => {

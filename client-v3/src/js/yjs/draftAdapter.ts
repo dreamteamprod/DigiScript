@@ -1,5 +1,5 @@
 import type { ScriptLine, ScriptLinePart } from '@/types/api/script';
-import type { SnapshotLine, SnapshotLinePart } from './yjsSnapshot';
+import type { LineUid, PartUid, SnapshotLine, SnapshotLinePart } from './yjsSnapshot';
 
 /**
  * A draft line in the shape the existing script components already consume
@@ -13,11 +13,11 @@ import type { SnapshotLine, SnapshotLinePart } from './yjsSnapshot';
  */
 export type DraftScriptLinePart = ScriptLinePart & {
   readonly _id: string;
-  readonly _uid: string;
+  readonly _uid: PartUid;
 };
 export type DraftScriptLine = Omit<ScriptLine, 'line_parts'> & {
   readonly _id: string;
-  readonly _uid: string;
+  readonly _uid: LineUid;
   line_parts: DraftScriptLinePart[];
 };
 

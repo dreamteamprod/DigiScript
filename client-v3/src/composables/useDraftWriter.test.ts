@@ -86,4 +86,34 @@ describe('useDraftWriter', () => {
 
     expect(writer.getPartText(1, lineUid, partUid!)!.toString()).toBe('abc');
   });
+
+  describe('transact', () => {
+    it('groups several writer calls into one Yjs update, not one per call', () => {
+      const store = useScriptDraftStore();
+      store.joinScriptRoom();
+      const doc = store.getDraftYdoc()!;
+      seedTrailingPage(doc);
+      const writer = useDraftWriter();
+      const { lineUid, partUid } = writer.addLine(1, { lineType: 1, actId: 1, sceneId: 1 });
+      const updates = vi.fn();
+      doc.on('update', updates);
+
+      writer.transact(() => {
+        writer.setLineActScene(1, lineUid, 2, 3);
+        writer.setPartText(1, lineUid, partUid!, 'Hello');
+      });
+
+      expect(updates).toHaveBeenCalledTimes(1);
+      const line = ydocPagesToPlain(doc)['1'][0];
+      expect(line.act_id).toBe(2);
+      expect(line.scene_id).toBe(3);
+      expect(line.parts[0].line_text).toBe('Hello');
+    });
+
+    it('throws when there is no open draft, like every other writer call', () => {
+      const writer = useDraftWriter();
+
+      expect(() => writer.transact(() => {})).toThrow(DraftWriteError);
+    });
+  });
 });
