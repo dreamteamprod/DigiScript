@@ -230,6 +230,13 @@ class TelemetryService:
             )
 
     def _build_payload(self) -> dict:
+        """
+        Build the full check-in payload: the generic envelope plus DigiScript's own metrics.
+
+        :returns: A dict matching the collector's validateEnvelope/validateDigiscriptMetrics
+            shape exactly — envelope fields at the top level, DigiScript-specific fields
+            nested under "metrics".
+        """
         error_count_recent = self._error_handler.pop_count()
 
         with self._application.get_db().sessionmaker() as session:
