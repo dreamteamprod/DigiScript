@@ -261,10 +261,6 @@ class Settings:
                 "editing. Cannot be changed while anyone is editing or cutting the script, "
                 "a collaborative session has people in it, or an unsaved draft exists."
             ),
-            # Hidden until the collaborative editor is wired into the UI: switching it
-            # on now would leave no client able to edit the script. Remove this in the
-            # step that ships the editor.
-            hide_from_ui=True,
             category="General",
         )
         self.define(

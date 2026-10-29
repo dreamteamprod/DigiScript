@@ -1,5 +1,26 @@
 <template>
   <div>
+    <BAlert
+      v-if="systemStore.isCollabScriptEditing && currentRevisionLocked"
+      variant="warning"
+      class="mb-3"
+      :model-value="true"
+    >
+      <div class="d-flex justify-content-between align-items-center">
+        <span>
+          The current revision has an unsaved collaborative draft<template
+            v-if="draftEditorUsernames.length > 0"
+          >
+            &mdash; {{ draftEditorUsernames.join(', ') }}
+            {{ draftEditorUsernames.length > 1 ? 'are' : 'is' }} editing it</template
+          >. Loading, creating and deleting revisions is blocked until it is saved or discarded.
+        </span>
+        <BButton size="sm" variant="danger" :disabled="discardingDraft" @click="discardDraft">
+          Discard Draft
+        </BButton>
+      </div>
+    </BAlert>
+
     <BCard class="mb-3" :class="{ 'collapsed-card': !graphCollapsed }" header-tag="header">
       <template #header>
         <div class="d-flex justify-content-between align-items-center">
@@ -35,6 +56,7 @@
             submittingNewRevision ||
             deletingRevision
           "
+          :title="!canChangeRevisions ? (changeRevisionsDisabledReason ?? undefined) : undefined"
           @click="loadRevision(data.item)"
         >
           Load
@@ -55,10 +77,12 @@
             variant="warning"
             :disabled="
               !canChangeRevisions ||
+              Boolean(data.item.has_draft) ||
               submittingLoadRevision ||
               submittingNewRevision ||
               deletingRevision
             "
+            :title="rowLockedReason(data.item) ?? undefined"
             @click="handleModalCreateFrom(data.item)"
           >
             Edit
@@ -67,10 +91,12 @@
             variant="danger"
             :disabled="
               !canChangeRevisions ||
+              Boolean(data.item.has_draft) ||
               submittingLoadRevision ||
               submittingNewRevision ||
               deletingRevision
             "
+            :title="rowLockedReason(data.item) ?? undefined"
             @click="deleteRevision(data.item)"
           >
             Delete
@@ -88,6 +114,9 @@
                 submittingLoadRevision ||
                 submittingNewRevision ||
                 deletingRevision
+              "
+              :title="
+                !canChangeRevisions ? (changeRevisionsDisabledReason ?? undefined) : undefined
               "
               @click="newRevisionModal?.show()"
             >
@@ -182,6 +211,8 @@ import { useWebSocketStore } from '@/stores/websocket';
 import { useScriptConfigStore } from '@/stores/scriptConfig';
 import { useConfirm } from '@/composables/useConfirm';
 import { useFormValidation } from '@/composables/useFormValidation';
+import { makeURL } from '@/js/utils';
+import { toast } from '@/js/toast';
 import type { ScriptRevision } from '@/types/api/script';
 import RevisionGraph from './RevisionGraph.vue';
 import RevisionDetailModal from './RevisionDetailModal.vue';
@@ -216,6 +247,7 @@ const submittingNewRevision = ref(false);
 const submittingBranch = ref(false);
 const submittingLoadRevision = ref(false);
 const deletingRevision = ref(false);
+const discardingDraft = ref(false);
 
 const newRevisionModal = ref<InstanceType<typeof BModal>>();
 const revisionDetailModal = ref<InstanceType<typeof RevisionDetailModal>>();
@@ -232,12 +264,43 @@ const branchForm = ref({
 const vNew$ = useVuelidate({ description: { required } }, newRevForm);
 const vBranch$ = useVuelidate({ description: { required } }, branchForm);
 
-const canChangeRevisions = computed(
+// `has_draft` on each revision row mirrors the server's own `_revision_is_locked`
+// exactly (a persisted ScriptDraft row, or a non-empty active room, for that
+// revision) — only `showStore.currentRevision` can ever carry one, since a room can
+// only ever be built against the show's current revision.
+const currentRevisionLocked = computed(
   () =>
+    showStore.scriptRevisions.find((r) => r.id === showStore.currentRevision)?.has_draft ?? false
+);
+const draftEditorUsernames = computed(() =>
+  scriptConfigStore.editors.map((e) => e.username).filter((name): name is string => name != null)
+);
+
+// D11: in collab mode, Load/New Revision (both implicitly target the current
+// revision) are blocked exactly when the current revision has an active
+// draft/room, regardless of who holds it — matching `_revision_is_locked`'s own
+// unconditional 409, not an identity check. Legacy mode keeps its existing rule
+// (the current single editor may still act while they hold the lock).
+const canChangeRevisions = computed(() => {
+  if (systemStore.isCollabScriptEditing) return !currentRevisionLocked.value;
+  return (
     !wsStore.internalUUID ||
     scriptConfigStore.editStatus.currentEditor == null ||
     scriptConfigStore.editStatus.currentEditor === wsStore.internalUUID
-);
+  );
+});
+
+const changeRevisionsDisabledReason = computed<string | null>(() => {
+  if (canChangeRevisions.value) return null;
+  return systemStore.isCollabScriptEditing
+    ? 'The current revision has an unsaved collaborative draft'
+    : 'Another user is currently editing the script';
+});
+
+function rowLockedReason(item: ScriptRevision): string | null {
+  if (item.has_draft) return 'This revision has an unsaved collaborative draft';
+  return changeRevisionsDisabledReason.value;
+}
 
 function resetNewRevForm(): void {
   newRevForm.value = { description: '' };
@@ -292,6 +355,38 @@ async function deleteRevision(item: ScriptRevision): Promise<void> {
     log.error('Error deleting revision:', e);
   } finally {
     deletingRevision.value = false;
+  }
+}
+
+// D9-consistent warning (same phrasing as the in-editor Discard in CollabScriptEditor.vue):
+// discard is room-wide, so it names who else is editing, not just a plain confirm.
+async function discardDraft(): Promise<void> {
+  if (discardingDraft.value) return;
+  let msg = 'This will discard the unsaved collaborative draft. This cannot be undone.';
+  if (draftEditorUsernames.value.length > 0) {
+    const names = draftEditorUsernames.value.join(', ');
+    const verb = draftEditorUsernames.value.length > 1 ? 'are' : 'is';
+    msg += ` ${names} ${verb} also editing — discarding will clear their unsaved work too, not just yours.`;
+  }
+  const ok = await confirm(msg, {
+    title: 'Discard Draft',
+    okVariant: 'danger',
+    okTitle: 'Discard',
+  });
+  if (!ok) return;
+  discardingDraft.value = true;
+  try {
+    const response = await fetch(makeURL('/api/v1/show/script/draft'), { method: 'DELETE' });
+    if (response.ok) {
+      toast.success('Draft discarded');
+    } else {
+      toast.error('Unable to discard draft');
+    }
+  } catch (e) {
+    log.error('Error discarding draft:', e);
+    toast.error('Unable to discard draft');
+  } finally {
+    discardingDraft.value = false;
   }
 }
 
