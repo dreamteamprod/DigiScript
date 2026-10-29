@@ -31,6 +31,9 @@ The **Settings** tab allows you to configure system-wide settings that apply acr
 
 ![](../images/config_system/settings_tab.png)
 
+The **Telemetry** category controls anonymous usage reporting — see
+[Anonymous Usage Telemetry](./telemetry.md) for exactly what's collected and how to opt out.
+
 These settings control global application behavior and defaults. Settings configured here apply system-wide unless overridden at the user or show level.
 
 ### Users and RBAC

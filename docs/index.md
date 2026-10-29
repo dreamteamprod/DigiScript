@@ -15,3 +15,4 @@ necessary environments needed for Python and NodeJS. You can find more about thi
 * [Script Configuration](./pages/script_config.md)
 * [Cue Configuration](./pages/cue_config.md)
 * [Running a Live Show](./pages/live_show.md)
+* [Anonymous Usage Telemetry](./pages/telemetry.md)

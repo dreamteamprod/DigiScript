@@ -470,8 +470,9 @@ class Settings:
                 "Periodically sends anonymous, aggregate usage statistics (version, OS, "
                 "rough install size, feature adoption) to the DigiScript project to help "
                 "guide development. Contains no show content, user data, or other "
-                "identifying information. Can also be disabled via the DIGISCRIPT_TELEMETRY "
-                "environment variable."
+                "identifying information. If the DIGISCRIPT_TELEMETRY environment variable "
+                "disables telemetry, it takes priority over this toggle even while this "
+                "shows as enabled."
             ),
             category="Telemetry",
         )

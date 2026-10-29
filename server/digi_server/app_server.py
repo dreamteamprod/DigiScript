@@ -710,12 +710,14 @@ class DigiScriptServer(PrometheusMixIn, Application):
             await self.version_checker.stop()
             self.version_checker = None
 
+    # Accepted opt-out spellings for DIGISCRIPT_TELEMETRY, beyond the canonical "0".
+    _TELEMETRY_DISABLE_VALUES = ("0", "false", "no", "off", "disabled", "n")
+
     async def start_telemetry_service(self) -> None:
         """Start the anonymous telemetry service, unless disabled by env var or settings."""
-        if os.environ.get("DIGISCRIPT_TELEMETRY", "").strip().lower() in (
-            "0",
-            "false",
-            "no",
+        if (
+            os.environ.get("DIGISCRIPT_TELEMETRY", "").strip().lower()
+            in self._TELEMETRY_DISABLE_VALUES
         ):
             get_logger().info("Telemetry disabled via DIGISCRIPT_TELEMETRY env var")
             return
@@ -728,12 +730,14 @@ class DigiScriptServer(PrometheusMixIn, Application):
         if not self.telemetry_service:
             self.telemetry_service = TelemetryService(application=self)
 
-        await self.telemetry_service.start()
+        # start() is synchronous and idempotent (a no-op if already started) — see
+        # TelemetryService.start() for why it doesn't need to be async.
+        self.telemetry_service.start()
 
     async def stop_telemetry_service(self) -> None:
         """Stop the telemetry service if it's running."""
         if self.telemetry_service:
-            await self.telemetry_service.stop()
+            self.telemetry_service.stop()
             self.telemetry_service = None
 
     def toggle_telemetry(self) -> None:
@@ -750,7 +754,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
             IOLoop.current().add_callback(self._toggle_telemetry)
 
     async def _toggle_telemetry(self) -> None:
-        """Internal async implementation of toggle_telemetry."""
         # The DIGISCRIPT_TELEMETRY env var is still an override even when the setting changes;
         # start_telemetry_service() re-checks it, so a start here is a no-op if the env var
         # disables it.

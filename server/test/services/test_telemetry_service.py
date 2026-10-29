@@ -6,9 +6,11 @@ from sqlalchemy import select
 from tornado.httpclient import HTTPClientError
 from tornado.testing import gen_test
 
+from models.cue import CueType
 from models.settings import SystemSettings
 from models.show import Show, ShowScriptType
 from models.user import User
+from rbac.role import Role
 from services.telemetry_service import TelemetryService
 from test.conftest import DigiScriptTestCase
 
@@ -81,9 +83,8 @@ class TestTelemetryServicePayload(DigiScriptTestCase):
         super().setUp()
         self.service = TelemetryService(application=self._app)
 
-    @gen_test
-    async def test_build_payload_shape_on_fresh_install(self):
-        payload = await self.service._build_payload()
+    def test_build_payload_shape_on_fresh_install(self):
+        payload = self.service._build_payload()
 
         # Envelope fields
         for key in (
@@ -121,8 +122,7 @@ class TestTelemetryServicePayload(DigiScriptTestCase):
         self.assertEqual("1", metrics["sessions_bucket"])
         self.assertFalse(metrics["rbac_enabled"])
 
-    @gen_test
-    async def test_build_payload_reflects_show_and_user_counts(self):
+    def test_build_payload_reflects_show_and_user_counts(self):
         with self._app.get_db().sessionmaker() as session:
             for i in range(7):
                 session.add(Show(name=f"Show {i}", script_mode=ShowScriptType.FULL))
@@ -130,30 +130,58 @@ class TestTelemetryServicePayload(DigiScriptTestCase):
                 session.add(User(username=f"user{i}", password="hash"))
             session.commit()
 
-        payload = await self.service._build_payload()
+        payload = self.service._build_payload()
 
         self.assertEqual("6+", payload["metrics"]["shows_bucket"])
         self.assertEqual("2-5", payload["metrics"]["users_bucket"])
 
-    @gen_test
-    async def test_build_payload_increments_checkin_count(self):
+    def test_build_payload_increments_checkin_count(self):
         with self._app.get_db().sessionmaker() as session:
             session.add(SystemSettings(key="telemetry_checkin_count", value="4"))
             session.commit()
 
-        payload = await self.service._build_payload()
+        payload = self.service._build_payload()
 
         self.assertEqual(5, payload["checkin_count"])
 
-    @gen_test
-    async def test_error_count_resets_after_being_read(self):
+    def test_error_count_resets_after_being_read(self):
         self.service._error_handler._count = 3
 
-        payload = await self.service._build_payload()
+        payload = self.service._build_payload()
         self.assertEqual(3, payload["error_count_recent"])
 
-        second_payload = await self.service._build_payload()
+        second_payload = self.service._build_payload()
         self.assertEqual(0, second_payload["error_count_recent"])
+
+    def test_rbac_enabled_false_for_single_user_auto_grant(self):
+        """A lone creator's auto-granted role (e.g. from creating a cue type) must not
+        read as "RBAC enabled" — that would make the metric true for nearly every install."""
+        with self._app.get_db().sessionmaker() as session:
+            user = User(username="solo-admin", password="hash")
+            session.add(user)
+            session.commit()
+            cue_type = CueType(prefix="LX", description="Lighting", colour="#ffffff")
+            session.add(cue_type)
+            session.commit()
+            self._app.rbac.give_role(user, cue_type, Role.READ | Role.WRITE)
+
+        payload = self.service._build_payload()
+        self.assertFalse(payload["metrics"]["rbac_enabled"])
+
+    def test_rbac_enabled_true_for_multiple_distinct_users(self):
+        with self._app.get_db().sessionmaker() as session:
+            user_a = User(username="user-a", password="hash")
+            user_b = User(username="user-b", password="hash")
+            session.add_all([user_a, user_b])
+            session.commit()
+            cue_type = CueType(prefix="SND", description="Sound", colour="#000000")
+            session.add(cue_type)
+            session.commit()
+            self._app.rbac.give_role(user_a, cue_type, Role.READ)
+            self._app.rbac.give_role(user_b, cue_type, Role.READ)
+
+        payload = self.service._build_payload()
+        self.assertTrue(payload["metrics"]["rbac_enabled"])
 
 
 class TestTelemetryServiceCheckIn(DigiScriptTestCase):
@@ -200,13 +228,83 @@ class TestTelemetryServiceCheckIn(DigiScriptTestCase):
             patch.object(
                 self.service,
                 "_build_payload",
-                AsyncMock(side_effect=RuntimeError("boom")),
+                MagicMock(side_effect=RuntimeError("boom")),
             ),
             patch.object(self.service._http_client, "fetch", AsyncMock()) as mock_fetch,
         ):
             await self.service.check_in()
 
         mock_fetch.assert_not_awaited()
+
+    @gen_test
+    async def test_check_in_does_not_retry_a_local_persistence_failure(self):
+        """A failure writing checkin_count after a successful POST is a local problem, not
+        a network one — it must not be treated as a failed send and retried."""
+        with (
+            patch.object(
+                self.service._http_client, "fetch", AsyncMock(return_value=MagicMock())
+            ) as mock_fetch,
+            patch.object(
+                self.service,
+                "_set_checkin_count",
+                MagicMock(side_effect=RuntimeError("db is locked")),
+            ),
+        ):
+            # Must not raise, and must not retry the already-successful POST.
+            await self.service.check_in()
+
+        mock_fetch.assert_awaited_once()
+
+
+class TestTelemetryServiceLifecycle(DigiScriptTestCase):
+    """Unit tests for TelemetryService.start/stop's scheduling and guard behaviour"""
+
+    def setUp(self):
+        super().setUp()
+        self.service = TelemetryService(application=self._app)
+
+    def tearDown(self):
+        self.service.stop()
+        super().tearDown()
+
+    def test_start_is_idempotent(self):
+        self.service.start()
+        first_handle = self.service._startup_timeout_handle
+
+        self.service.start()
+
+        # A second start() must not schedule a second, independent startup chain.
+        self.assertIs(first_handle, self.service._startup_timeout_handle)
+
+    def test_stop_cancels_pending_startup_chain(self):
+        self.service.start()
+        self.assertIsNotNone(self.service._startup_timeout_handle)
+
+        self.service.stop()
+
+        self.assertIsNone(self.service._startup_timeout_handle)
+
+    @gen_test
+    async def test_stop_during_jitter_window_prevents_first_check_in(self):
+        with patch.object(self.service, "check_in", AsyncMock()) as mock_check_in:
+            self.service.start()
+            self.service.stop()
+
+            # Drive the scheduled callback manually, simulating the jitter timer firing
+            # after stop() — this is the exact race the fix guards against.
+            self.service._schedule_first_check_in()
+            await self.service._first_check_in()
+
+        mock_check_in.assert_not_awaited()
+        self.assertIsNone(self.service._periodic_callback)
+
+    def test_http_client_uses_force_instance(self):
+        """Must not share VersionChecker's cached AsyncHTTPClient instance — stop() closes
+        this client, which would otherwise break VersionChecker's client too."""
+        from utils.version_checker import VersionChecker  # noqa: PLC0415
+
+        version_checker_client = VersionChecker(application=self._app)._http_client
+        self.assertIsNot(self.service._http_client, version_checker_client)
 
 
 class TestTelemetryServiceStartup(DigiScriptTestCase):
@@ -219,6 +317,16 @@ class TestTelemetryServiceStartup(DigiScriptTestCase):
             await self._app.start_telemetry_service()
 
         self.assertIsNone(self._app.telemetry_service)
+
+    @gen_test
+    async def test_env_var_broadened_spellings_also_disable(self):
+        for value in ("off", "disabled", "n", "FALSE"):
+            self._app.telemetry_service = None
+            await self._app.digi_settings.set("telemetry_enabled", True)
+            with patch.dict(os.environ, {"DIGISCRIPT_TELEMETRY": value}):
+                await self._app.start_telemetry_service()
+
+            self.assertIsNone(self._app.telemetry_service, f"value={value!r}")
 
     @gen_test
     async def test_setting_disabled_prevents_start(self):
@@ -236,3 +344,35 @@ class TestTelemetryServiceStartup(DigiScriptTestCase):
 
         await self._app.stop_telemetry_service()
         self.assertIsNone(self._app.telemetry_service)
+
+    @gen_test
+    async def test_start_telemetry_service_is_safe_to_call_twice(self):
+        """Covers the "started twice" scenario toggle_telemetry's dispatch-via-IOLoop could
+        otherwise produce under a rapid enable/disable/enable sequence."""
+        await self._app.digi_settings.set("telemetry_enabled", True)
+        await self._app.start_telemetry_service()
+        first_service = self._app.telemetry_service
+
+        await self._app.start_telemetry_service()
+
+        self.assertIs(first_service, self._app.telemetry_service)
+        await self._app.stop_telemetry_service()
+
+    @gen_test
+    async def test_toggle_telemetry_sync_wrapper_dispatches_via_ioloop(self):
+        """toggle_telemetry() itself is a sync callback (it's a SettingsObject callback_fn,
+        called synchronously) that must correctly hand off to the async _toggle_telemetry."""
+        import asyncio  # noqa: PLC0415
+
+        await self._app.digi_settings.set("telemetry_enabled", False)
+        self._app.telemetry_service = None
+
+        await self._app.digi_settings.set("telemetry_enabled", True)
+        self._app.toggle_telemetry()
+
+        # toggle_telemetry() only schedules _toggle_telemetry via IOLoop.add_callback; give
+        # it a real tick to actually run before asserting on its effect.
+        await asyncio.sleep(0.05)
+
+        self.assertIsNotNone(self._app.telemetry_service)
+        await self._app.stop_telemetry_service()
