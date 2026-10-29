@@ -110,6 +110,12 @@ class TelemetryService:
         self._started = True
         self._stopped = False
 
+        # stop() closes and nulls this; rebuild it so a stop()-then-start() (e.g. toggling
+        # the setting off then back on) actually sends check-ins again instead of silently
+        # failing every attempt against a None client.
+        if self._http_client is None:
+            self._http_client = AsyncHTTPClient(force_instance=True)
+
         get_logger().addHandler(self._error_handler)
 
         jitter_seconds = random.uniform(0, self.MAX_INITIAL_JITTER_MS / 1000)
@@ -184,6 +190,16 @@ class TelemetryService:
         sent = False
 
         for attempt in range(self.MAX_ATTEMPTS):
+            # A concurrent stop() (e.g. the retry's own asyncio.sleep below yielding to an
+            # IOLoop callback that disables telemetry) nulls _http_client. Without this
+            # check, the next attempt's .fetch() on None raises AttributeError, which the
+            # broad except below would catch and misreport as an ordinary send failure.
+            if self._stopped or self._http_client is None:
+                self._logger.debug(
+                    "Telemetry service stopped mid check-in; aborting remaining retries"
+                )
+                return
+
             try:
                 await self._http_client.fetch(
                     TELEMETRY_URL,
@@ -350,38 +366,41 @@ class TelemetryService:
         """
         self._set_system_setting(session, "telemetry_checkin_count", str(count))
 
+    RBAC_DELIBERATE_USE_KEY = "telemetry_rbac_deliberately_used"
+
     def _compute_rbac_enabled(self, session) -> bool:
         """
-        Whether RBAC is being used to manage more than one person's access.
+        Whether an admin has ever deliberately granted an RBAC role via the dedicated RBAC
+        management endpoint, as opposed to the automatic self-grant every cue-type creator
+        gets (controllers/api/v1/show/cues.py's give_role call).
 
-        Counts distinct users who currently hold at least one *active* role — not just "any
-        row exists": creating a cue type auto-grants the creator a role on it
-        (controllers/api/v1/show/cues.py's give_role call), so nearly every real install has
-        at least one row from day one regardless of whether anyone ever deliberately
-        administers RBAC. That auto-grant always targets the creator alone, so more than one
-        distinct user with an active role is a much stronger signal that someone is actually
-        using RBAC to manage other people's access, rather than just the inherent grant every
-        creator gets. "Active" also matters on its own: RBACDatabase.revoke_role clears a
-        row's permission bitmask but doesn't delete the row, so a row with rbac_permissions
-        now at zero must not count as "holds a role" either. Assumes the actor side of every
-        RBAC mapping is User (true for every mapping registered in _configure_rbac today) — a
-        table without a user_id column is skipped rather than raising.
+        Backed by a persisted flag (see mark_rbac_deliberately_used) rather than querying the
+        rbac_* tables directly. A row-counting heuristic can't actually distinguish genuine
+        RBAC administration from two unrelated people each independently creating their own
+        cue type: each gets auto-granted a role on their own creation, which produces more
+        than one distinct user with an active role despite zero deliberate administration —
+        no row-level signal can tell those two situations apart, since neither the RBAC
+        tables nor the resources they reference record how a grant was made. The flag sidesteps
+        this entirely by being set only from RBACRolesGrantHandler, the sole @require_admin
+        -gated role-grant code path in the app.
 
         :param session: Open SQLAlchemy session.
-        :returns: True if more than one distinct user holds an active RBAC role.
+        :returns: True if an admin has ever used the RBAC grant endpoint.
         """
-        rbac_tables = [
-            table
-            for name, table in self._application.get_db().Model.metadata.tables.items()
-            if name.startswith("rbac_") and "user_id" in table.columns
-        ]
-        user_ids = set()
-        for table in rbac_tables:
-            rows = session.execute(
-                select(table.c.user_id, table.c.rbac_permissions)
-            ).all()
-            user_ids.update(user_id for user_id, permissions in rows if permissions)
-        return len(user_ids) > 1
+        return self._get_system_setting(session, self.RBAC_DELIBERATE_USE_KEY) == "1"
+
+    @staticmethod
+    def mark_rbac_deliberately_used(session) -> None:
+        """
+        Record that an admin has deliberately granted an RBAC role via the dedicated RBAC
+        management endpoint. Call this only from that code path (RBACRolesGrantHandler) —
+        never from an auto-grant call site, or it defeats the whole point of the flag.
+
+        :param session: Open SQLAlchemy session.
+        """
+        TelemetryService._set_system_setting(
+            session, TelemetryService.RBAC_DELIBERATE_USE_KEY, "1"
+        )
 
     @staticmethod
     def _bucket_small(count: int) -> str:

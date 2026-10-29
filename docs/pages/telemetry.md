@@ -19,7 +19,7 @@ same moment) sends:
   stack trace, or file path).
 - **Bucketed** counts of shows, users, and sessions (e.g. `"1"`, `"2-5"`, `"6+"`) — never exact
   numbers.
-- Whether **RBAC** is being used to manage more than one person's access, and whether the
+- Whether an admin has ever deliberately granted an **RBAC** role to someone, and whether the
   **collaborative script editor** has been used — both as plain `true`/`false`.
 
 ### What is never sent

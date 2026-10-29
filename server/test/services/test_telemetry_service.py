@@ -50,6 +50,10 @@ class TestTelemetryServiceState(DigiScriptTestCase):
         super().setUp()
         self.service = TelemetryService(application=self._app)
 
+    def tearDown(self):
+        self.service.stop()
+        super().tearDown()
+
     def test_get_or_create_instance_id_persists_and_reuses(self):
         with self._app.get_db().sessionmaker() as session:
             first = self.service._get_or_create_instance_id(session)
@@ -82,6 +86,10 @@ class TestTelemetryServicePayload(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         self.service = TelemetryService(application=self._app)
+
+    def tearDown(self):
+        self.service.stop()
+        super().tearDown()
 
     def test_build_payload_shape_on_fresh_install(self):
         payload = self.service._build_payload()
@@ -153,54 +161,34 @@ class TestTelemetryServicePayload(DigiScriptTestCase):
         second_payload = self.service._build_payload()
         self.assertEqual(0, second_payload["error_count_recent"])
 
-    def test_rbac_enabled_false_for_single_user_auto_grant(self):
-        """A lone creator's auto-granted role (e.g. from creating a cue type) must not
-        read as "RBAC enabled" — that would make the metric true for nearly every install."""
-        with self._app.get_db().sessionmaker() as session:
-            user = User(username="solo-admin", password="hash")
-            session.add(user)
-            session.commit()
-            cue_type = CueType(prefix="LX", description="Lighting", colour="#ffffff")
-            session.add(cue_type)
-            session.commit()
-            self._app.rbac.give_role(user, cue_type, Role.READ | Role.WRITE)
-
-        payload = self.service._build_payload()
-        self.assertFalse(payload["metrics"]["rbac_enabled"])
-
-    def test_rbac_enabled_true_for_multiple_distinct_users(self):
+    def test_rbac_enabled_false_without_deliberate_grant(self):
+        """Auto-grants from cue-type creation — even from two independent users, which a
+        row-counting heuristic can't distinguish from real RBAC administration, since
+        neither the RBAC tables nor the resources they reference record how a grant was
+        made — must not make this read True. Only the dedicated grant endpoint should."""
         with self._app.get_db().sessionmaker() as session:
             user_a = User(username="user-a", password="hash")
             user_b = User(username="user-b", password="hash")
             session.add_all([user_a, user_b])
             session.commit()
-            cue_type = CueType(prefix="SND", description="Sound", colour="#000000")
-            session.add(cue_type)
+            cue_type_a = CueType(prefix="LX", description="Lighting", colour="#ffffff")
+            cue_type_b = CueType(prefix="SND", description="Sound", colour="#000000")
+            session.add_all([cue_type_a, cue_type_b])
             session.commit()
-            self._app.rbac.give_role(user_a, cue_type, Role.READ)
-            self._app.rbac.give_role(user_b, cue_type, Role.READ)
+            # Each user auto-granted a role on their own creation — two distinct users
+            # with active roles, zero deliberate administration.
+            self._app.rbac.give_role(user_a, cue_type_a, Role.READ | Role.WRITE)
+            self._app.rbac.give_role(user_b, cue_type_b, Role.READ | Role.WRITE)
+
+        payload = self.service._build_payload()
+        self.assertFalse(payload["metrics"]["rbac_enabled"])
+
+    def test_rbac_enabled_true_after_deliberate_grant(self):
+        with self._app.get_db().sessionmaker() as session:
+            TelemetryService.mark_rbac_deliberately_used(session)
 
         payload = self.service._build_payload()
         self.assertTrue(payload["metrics"]["rbac_enabled"])
-
-    def test_rbac_enabled_false_when_all_roles_revoked(self):
-        """revoke_role() clears the permission bitmask but doesn't delete the row — a
-        revoked grant must not count as "holds a role", even with multiple such rows."""
-        with self._app.get_db().sessionmaker() as session:
-            user_a = User(username="user-a", password="hash")
-            user_b = User(username="user-b", password="hash")
-            session.add_all([user_a, user_b])
-            session.commit()
-            cue_type = CueType(prefix="SND", description="Sound", colour="#000000")
-            session.add(cue_type)
-            session.commit()
-            self._app.rbac.give_role(user_a, cue_type, Role.READ)
-            self._app.rbac.give_role(user_b, cue_type, Role.READ)
-            self._app.rbac.revoke_role(user_a, cue_type, Role.READ)
-            self._app.rbac.revoke_role(user_b, cue_type, Role.READ)
-
-        payload = self.service._build_payload()
-        self.assertFalse(payload["metrics"]["rbac_enabled"])
 
 
 class TestTelemetryServiceCheckIn(DigiScriptTestCase):
@@ -209,6 +197,10 @@ class TestTelemetryServiceCheckIn(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         self.service = TelemetryService(application=self._app)
+
+    def tearDown(self):
+        self.service.stop()
+        super().tearDown()
 
     @gen_test
     async def test_check_in_success_persists_checkin_count(self):
@@ -274,6 +266,29 @@ class TestTelemetryServiceCheckIn(DigiScriptTestCase):
 
         mock_fetch.assert_awaited_once()
 
+    @gen_test
+    async def test_check_in_aborts_cleanly_if_stopped_mid_retry(self):
+        """A concurrent stop() between retry attempts nulls _http_client; the next attempt
+        must notice and bail out, not call .fetch() on None and log a misleading failure."""
+
+        async def fail_then_stop(*_args, **_kwargs):
+            self.service.stop()
+            raise HTTPClientError(500)
+
+        with (
+            patch.object(
+                self.service._http_client,
+                "fetch",
+                AsyncMock(side_effect=fail_then_stop),
+            ) as mock_fetch,
+            patch("services.telemetry_service.asyncio.sleep", AsyncMock()),
+        ):
+            await self.service.check_in()
+
+        # Only the one attempt that triggered the stop() — no further attempts against a
+        # now-None client, and no AttributeError.
+        mock_fetch.assert_awaited_once()
+
 
 class TestTelemetryServiceLifecycle(DigiScriptTestCase):
     """Unit tests for TelemetryService.start/stop's scheduling and guard behaviour"""
@@ -309,8 +324,10 @@ class TestTelemetryServiceLifecycle(DigiScriptTestCase):
             self.service.start()
             self.service.stop()
 
-            # Drive the scheduled callback manually, simulating the jitter timer firing
-            # after stop() — this is the exact race the fix guards against.
+            # Sequentially replays what the scheduled callback would do if the jitter
+            # timer fired after stop() — not a true concurrent race (the IOLoop never
+            # actually interleaves these calls here), but it exercises the same
+            # _stopped-checked code path that guards against that race.
             self.service._schedule_first_check_in()
             await self.service._first_check_in()
 
@@ -324,6 +341,23 @@ class TestTelemetryServiceLifecycle(DigiScriptTestCase):
 
         version_checker_client = VersionChecker(application=self._app)._http_client
         self.assertIsNot(self.service._http_client, version_checker_client)
+
+    @gen_test
+    async def test_restart_after_stop_rebuilds_http_client(self):
+        """stop() nulls _http_client; a subsequent start() (e.g. toggling the setting off
+        then back on) must rebuild it, not leave the service silently unable to send."""
+        self.service.start()
+        self.service.stop()
+        self.assertIsNone(self.service._http_client)
+
+        self.service.start()
+
+        self.assertIsNotNone(self.service._http_client)
+        with patch.object(
+            self.service._http_client, "fetch", AsyncMock(return_value=MagicMock())
+        ) as mock_fetch:
+            await self.service.check_in()
+        mock_fetch.assert_awaited_once()
 
 
 class TestTelemetryServiceStartup(DigiScriptTestCase):
@@ -366,8 +400,10 @@ class TestTelemetryServiceStartup(DigiScriptTestCase):
 
     @gen_test
     async def test_start_telemetry_service_is_safe_to_call_twice(self):
-        """Covers the "started twice" scenario toggle_telemetry's dispatch-via-IOLoop could
-        otherwise produce under a rapid enable/disable/enable sequence."""
+        """Directly covers the double-start guard this call site relies on. The scenario
+        that could actually trigger a real double-start in production — a rapid settings
+        toggle via toggle_telemetry()'s IOLoop dispatch — isn't exercised by this test;
+        see test_toggle_telemetry_sync_wrapper_dispatches_via_ioloop for that path."""
         await self._app.digi_settings.set("telemetry_enabled", True)
         await self._app.start_telemetry_service()
         first_service = self._app.telemetry_service
@@ -389,9 +425,12 @@ class TestTelemetryServiceStartup(DigiScriptTestCase):
         await self._app.digi_settings.set("telemetry_enabled", True)
         self._app.toggle_telemetry()
 
-        # toggle_telemetry() only schedules _toggle_telemetry via IOLoop.add_callback; give
-        # it a real tick to actually run before asserting on its effect.
-        await asyncio.sleep(0.05)
+        # toggle_telemetry() only schedules _toggle_telemetry via IOLoop.add_callback; poll
+        # (bounded) rather than sleep a fixed duration, so this isn't flaky under CI load.
+        for _ in range(100):
+            if self._app.telemetry_service is not None:
+                break
+            await asyncio.sleep(0.01)
 
         self.assertIsNotNone(self._app.telemetry_service)
         await self._app.stop_telemetry_service()

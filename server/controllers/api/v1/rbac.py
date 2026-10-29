@@ -6,6 +6,7 @@ from tornado.web import HTTPError
 from models.user import User
 from rbac.role import Role
 from registry.schema import get_registry
+from services.telemetry_service import TelemetryService
 from utils.web.base_controller import BaseAPIController
 from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
@@ -211,6 +212,11 @@ class _RBACRoleChangeHandler(BaseAPIController):
 class RBACRolesGrantHandler(_RBACRoleChangeHandler):
     def _apply_role(self, user, rbac_object, role):
         self.application.rbac.give_role(user, rbac_object, role)
+        # This endpoint is @require_admin-gated — the one place a role grant reflects
+        # deliberate RBAC administration, as opposed to the automatic self-grant a cue
+        # type's creator gets. See TelemetryService._compute_rbac_enabled.
+        with self.application.get_db().sessionmaker() as session:
+            TelemetryService.mark_rbac_deliberately_used(session)
 
 
 @ApiRoute("rbac/user/roles/revoke", ApiVersion.V1)
