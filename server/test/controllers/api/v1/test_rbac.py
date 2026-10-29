@@ -1,9 +1,12 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.script import Script
+from models.settings import SystemSettings
 from models.show import Show, ShowScriptType
 from models.user import User
 from rbac.role import Role
+from services.telemetry_service import TelemetryService
 from test.conftest import DigiScriptTestCase
 
 
@@ -156,3 +159,37 @@ class TestRBACRoleChangeValidation(DigiScriptTestCase):
         token = self._create_and_login_admin()
         resp = self._post("/api/v1/rbac/user/roles/grant", "nope", token)
         self.assertEqual(400, resp.code)
+
+    def test_successful_grant_marks_rbac_deliberately_used_for_telemetry(self):
+        """Exercises the real HTTP endpoint, not just TelemetryService in isolation —
+        closes the gap where only mark_rbac_deliberately_used() itself was unit tested,
+        bypassing RBACRolesGrantHandler's wiring to it entirely."""
+        token = self._create_and_login_admin()
+
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.commit()
+            show_id = show.id
+
+            flag_before = session.scalars(
+                select(SystemSettings).where(
+                    SystemSettings.key == TelemetryService.RBAC_DELIBERATE_USE_KEY
+                )
+            ).first()
+            self.assertIsNone(flag_before)
+
+        resp = self._post(
+            "/api/v1/rbac/user/roles/grant",
+            self._body(object={"id": show_id}, user=1, role=Role.READ.value),
+            token,
+        )
+        self.assertEqual(200, resp.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            flag_after = session.scalars(
+                select(SystemSettings).where(
+                    SystemSettings.key == TelemetryService.RBAC_DELIBERATE_USE_KEY
+                )
+            ).first()
+            self.assertEqual("1", flag_after.value)

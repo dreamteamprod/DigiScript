@@ -384,6 +384,10 @@ class TelemetryService:
         this entirely by being set only from RBACRolesGrantHandler, the sole @require_admin
         -gated role-grant code path in the app.
 
+        Forward-looking only: an install that deliberately administered RBAC before this
+        flag shipped reads False here until the next deliberate grant, since there's no
+        historical signal to backfill it from.
+
         :param session: Open SQLAlchemy session.
         :returns: True if an admin has ever used the RBAC grant endpoint.
         """
