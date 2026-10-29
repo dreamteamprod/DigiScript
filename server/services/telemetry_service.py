@@ -347,18 +347,21 @@ class TelemetryService:
         """
         Whether RBAC is being used to manage more than one person's access.
 
-        Counts *distinct users* granted a role, not just "any row exists": creating a cue type
-        auto-grants the creator a role on it (controllers/api/v1/show/cues.py's give_role
-        call), so nearly every real install has at least one row from day one regardless of
-        whether anyone ever deliberately administers RBAC. That auto-grant always targets the
-        creator alone, so more than one distinct user across the rbac_* tables is a much
-        stronger signal that someone is actually using RBAC to manage other people's access,
-        rather than just the inherent grant every creator gets. Assumes the actor side of every
+        Counts distinct users who currently hold at least one *active* role — not just "any
+        row exists": creating a cue type auto-grants the creator a role on it
+        (controllers/api/v1/show/cues.py's give_role call), so nearly every real install has
+        at least one row from day one regardless of whether anyone ever deliberately
+        administers RBAC. That auto-grant always targets the creator alone, so more than one
+        distinct user with an active role is a much stronger signal that someone is actually
+        using RBAC to manage other people's access, rather than just the inherent grant every
+        creator gets. "Active" also matters on its own: RBACDatabase.revoke_role clears a
+        row's permission bitmask but doesn't delete the row, so a row with rbac_permissions
+        now at zero must not count as "holds a role" either. Assumes the actor side of every
         RBAC mapping is User (true for every mapping registered in _configure_rbac today) — a
         table without a user_id column is skipped rather than raising.
 
         :param session: Open SQLAlchemy session.
-        :returns: True if more than one distinct user holds any RBAC role.
+        :returns: True if more than one distinct user holds an active RBAC role.
         """
         rbac_tables = [
             table
@@ -367,9 +370,10 @@ class TelemetryService:
         ]
         user_ids = set()
         for table in rbac_tables:
-            user_ids.update(
-                session.execute(select(table.c.user_id).distinct()).scalars().all()
-            )
+            rows = session.execute(
+                select(table.c.user_id, table.c.rbac_permissions)
+            ).all()
+            user_ids.update(user_id for user_id, permissions in rows if permissions)
         return len(user_ids) > 1
 
     @staticmethod

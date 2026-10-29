@@ -183,6 +183,25 @@ class TestTelemetryServicePayload(DigiScriptTestCase):
         payload = self.service._build_payload()
         self.assertTrue(payload["metrics"]["rbac_enabled"])
 
+    def test_rbac_enabled_false_when_all_roles_revoked(self):
+        """revoke_role() clears the permission bitmask but doesn't delete the row — a
+        revoked grant must not count as "holds a role", even with multiple such rows."""
+        with self._app.get_db().sessionmaker() as session:
+            user_a = User(username="user-a", password="hash")
+            user_b = User(username="user-b", password="hash")
+            session.add_all([user_a, user_b])
+            session.commit()
+            cue_type = CueType(prefix="SND", description="Sound", colour="#000000")
+            session.add(cue_type)
+            session.commit()
+            self._app.rbac.give_role(user_a, cue_type, Role.READ)
+            self._app.rbac.give_role(user_b, cue_type, Role.READ)
+            self._app.rbac.revoke_role(user_a, cue_type, Role.READ)
+            self._app.rbac.revoke_role(user_b, cue_type, Role.READ)
+
+        payload = self.service._build_payload()
+        self.assertFalse(payload["metrics"]["rbac_enabled"])
+
 
 class TestTelemetryServiceCheckIn(DigiScriptTestCase):
     """Unit tests for TelemetryService.check_in's HTTP behaviour"""
