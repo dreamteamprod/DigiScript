@@ -459,6 +459,23 @@ class Settings:
             ],
             category="Security",
         )
+        self.define(
+            "telemetry_enabled",
+            bool,
+            True,
+            True,
+            callback_fn=self._application.toggle_telemetry,
+            display_name="Enable Anonymous Usage Telemetry",
+            help_text=(
+                "Periodically sends anonymous, aggregate usage statistics (version, OS, "
+                "rough install size, feature adoption) to the DigiScript project to help "
+                "guide development. Contains no show content, user data, or other "
+                "identifying information. If the DIGISCRIPT_TELEMETRY environment variable "
+                "disables telemetry, it takes priority over this toggle even while this "
+                "shows as enabled."
+            ),
+            category="Telemetry",
+        )
 
     def define(
         self,

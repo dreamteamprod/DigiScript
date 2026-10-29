@@ -10,7 +10,7 @@ jobs:
       run: docker build -t digiscript:test .
     - name: Run Docker container in detached mode
       run: |
-        docker run -d --name digiscript -p 8080:8080 digiscript:test
+        docker run -d --name digiscript -p 8080:8080 -e DIGISCRIPT_TELEMETRY=0 digiscript:test
     - name: Wait for container ready
       run: |
         # Wait for up to 30 seconds for the service to start

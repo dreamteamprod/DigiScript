@@ -3,9 +3,11 @@ from collections import defaultdict
 from sqlalchemy import inspect
 from tornado.web import HTTPError
 
+from digi_server.logger import get_logger
 from models.user import User
 from rbac.role import Role
 from registry.schema import get_registry
+from services.telemetry_service import TelemetryService
 from utils.web.base_controller import BaseAPIController
 from utils.web.json_body import get_json_object
 from utils.web.route import ApiRoute, ApiVersion
@@ -211,6 +213,19 @@ class _RBACRoleChangeHandler(BaseAPIController):
 class RBACRolesGrantHandler(_RBACRoleChangeHandler):
     def _apply_role(self, user, rbac_object, role):
         self.application.rbac.give_role(user, rbac_object, role)
+        # This endpoint is @require_admin-gated — the one place a role grant reflects
+        # deliberate RBAC administration, as opposed to the automatic self-grant a cue
+        # type's creator gets. See TelemetryService._compute_rbac_enabled.
+        #
+        # Isolated in its own try/except, matching this project's established pattern for
+        # telemetry writes (see TelemetryService.check_in): a failure here must never turn
+        # an already-successful grant into a reported error for the admin, or skip the WS
+        # GET_CURRENT_RBAC notification that runs after _apply_role() returns.
+        try:
+            with self.application.get_db().sessionmaker() as session:
+                TelemetryService.mark_rbac_deliberately_used(session)
+        except Exception:
+            get_logger().exception("Failed to record deliberate RBAC use for telemetry")
 
 
 @ApiRoute("rbac/user/roles/revoke", ApiVersion.V1)

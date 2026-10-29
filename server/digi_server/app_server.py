@@ -37,6 +37,7 @@ from models.show import Show
 from models.user import User
 from rbac.rbac import RBACController
 from services.login_throttle import LoginThrottle
+from services.telemetry_service import TelemetryService
 from services.user_service import UserService
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
@@ -82,6 +83,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
         self.jwt_service: JWTService = None
         self.room_manager: Optional[RoomManager] = None
         self.version_checker: Optional[VersionChecker] = None
+        self.telemetry_service: Optional[TelemetryService] = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
         if db_path.startswith("sqlite://"):
@@ -514,6 +516,7 @@ class DigiScriptServer(PrometheusMixIn, Application):
     async def configure(self):
         await self._configure_logging()
         await self.start_version_checker()
+        await self.start_telemetry_service()
 
     async def _configure_logging(self):
         get_logger().info("Reconfiguring logging!")
@@ -706,3 +709,56 @@ class DigiScriptServer(PrometheusMixIn, Application):
         if self.version_checker:
             await self.version_checker.stop()
             self.version_checker = None
+
+    # Accepted opt-out spellings for DIGISCRIPT_TELEMETRY, beyond the canonical "0".
+    _TELEMETRY_DISABLE_VALUES = ("0", "false", "no", "off", "disabled", "n")
+
+    async def start_telemetry_service(self) -> None:
+        """Start the anonymous telemetry service, unless disabled by env var or settings."""
+        if (
+            os.environ.get("DIGISCRIPT_TELEMETRY", "").strip().lower()
+            in self._TELEMETRY_DISABLE_VALUES
+        ):
+            get_logger().info("Telemetry disabled via DIGISCRIPT_TELEMETRY env var")
+            return
+
+        telemetry_enabled = await self.digi_settings.get("telemetry_enabled")
+        if not telemetry_enabled:
+            get_logger().info("Telemetry is disabled in settings")
+            return
+
+        if not self.telemetry_service:
+            self.telemetry_service = TelemetryService(application=self)
+
+        # start() is synchronous and idempotent (a no-op if already started) — see
+        # TelemetryService.start() for why it doesn't need to be async.
+        self.telemetry_service.start()
+
+    async def stop_telemetry_service(self) -> None:
+        """Stop the telemetry service if it's running."""
+        if self.telemetry_service:
+            self.telemetry_service.stop()
+            self.telemetry_service = None
+
+    def toggle_telemetry(self) -> None:
+        """
+        Callback for when the telemetry_enabled setting changes.
+
+        Starts or stops the telemetry service based on the current setting value.
+        """
+        if not IOLoop.current():
+            get_logger().error(
+                "Unable to toggle telemetry as there is no current IOLoop"
+            )
+        else:
+            IOLoop.current().add_callback(self._toggle_telemetry)
+
+    async def _toggle_telemetry(self) -> None:
+        # The DIGISCRIPT_TELEMETRY env var is still an override even when the setting changes;
+        # start_telemetry_service() re-checks it, so a start here is a no-op if the env var
+        # disables it.
+        telemetry_enabled = await self.digi_settings.get("telemetry_enabled")
+        if telemetry_enabled:
+            await self.start_telemetry_service()
+        else:
+            await self.stop_telemetry_service()
