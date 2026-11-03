@@ -5,6 +5,10 @@ guide development priorities — which versions are actually in use, roughly how
 to be, and which optional features see real adoption. This is enabled by default, and can be
 turned off at any time.
 
+Telemetry never starts before an admin account exists. The choice is presented right there on the
+first-run "create an admin user" screen, pre-checked to match the default — nothing is ever sent
+before that screen has actually been completed, whichever way you decide.
+
 ### What is sent
 
 Every check-in (roughly once a day, with a random delay so many installs don't all report at the

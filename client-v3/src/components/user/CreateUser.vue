@@ -33,6 +33,18 @@
       <BFormInvalidFeedback>Passwords do not match.</BFormInvalidFeedback>
     </BFormGroup>
 
+    <BFormGroup v-if="isFirstAdmin" label-cols="4">
+      <BFormCheckbox id="telemetry-enabled-input" v-model="state.telemetry_enabled">
+        Send anonymous usage statistics to the DigiScript project
+      </BFormCheckbox>
+      <div class="text-muted small">
+        Helps guide development. No show content, user data, or other identifying information is
+        ever sent.
+        <a href="/help/telemetry" target="_blank" rel="noopener">See what's collected</a>
+        — can be changed later in System Settings.
+      </div>
+    </BFormGroup>
+
     <BButtonGroup>
       <BButton variant="success" :disabled="v$.$invalid" @click.stop.prevent="createUser">
         Save
@@ -67,6 +79,9 @@ const state = ref({
   password: '',
   confirmPassword: '',
   is_admin: props.isFirstAdmin || props.isAdmin,
+  // Matches the server's own default (digi_server/settings.py's telemetry_enabled) — this
+  // only takes effect when isFirstAdmin, see createUser() below.
+  telemetry_enabled: true,
 });
 
 const isUsernameUnique = helpers.withMessage(
@@ -98,6 +113,10 @@ async function createUser(): Promise<void> {
     username: state.value.username,
     password: state.value.password,
     is_admin: state.value.is_admin,
+    // Only meaningful (and only read by the server) on the very first user creation —
+    // omitted otherwise so it can never be mistaken for changing an existing install's
+    // telemetry setting via the regular "add user" form.
+    ...(props.isFirstAdmin ? { telemetry_enabled: state.value.telemetry_enabled } : {}),
   });
 
   emit('created_user');

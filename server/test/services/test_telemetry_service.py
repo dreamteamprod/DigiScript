@@ -363,6 +363,13 @@ class TestTelemetryServiceLifecycle(DigiScriptTestCase):
 class TestTelemetryServiceStartup(DigiScriptTestCase):
     """Unit tests for the DIGISCRIPT_TELEMETRY env var / settings gating in app_server"""
 
+    def setUp(self):
+        super().setUp()
+        # These tests exercise the env-var/telemetry_enabled gating specifically; the
+        # has_admin_user gate (fresh installs never start before first-run setup) has its
+        # own dedicated tests below, so prime it True here rather than in every test.
+        self._app.digi_settings.settings["has_admin_user"].set_value(True, False)
+
     @gen_test
     async def test_env_var_disables_telemetry_regardless_of_setting(self):
         await self._app.digi_settings.set("telemetry_enabled", True)
@@ -431,6 +438,32 @@ class TestTelemetryServiceStartup(DigiScriptTestCase):
             if self._app.telemetry_service is not None:
                 break
             await asyncio.sleep(0.01)
+
+        self.assertIsNotNone(self._app.telemetry_service)
+        await self._app.stop_telemetry_service()
+
+    @gen_test
+    async def test_no_admin_user_prevents_start_even_if_enabled(self):
+        """A fresh install must never start telemetry before the admin has even been
+        created, regardless of what telemetry_enabled's default happens to be."""
+        self._app.digi_settings.settings["has_admin_user"].set_value(False, False)
+        await self._app.digi_settings.set("telemetry_enabled", True)
+
+        await self._app.start_telemetry_service()
+
+        self.assertIsNone(self._app.telemetry_service)
+
+    @gen_test
+    async def test_admin_user_present_allows_start(self):
+        """Once has_admin_user flips True (set by user_admin.create_user on first-run
+        completion), a subsequent start_telemetry_service() call is no longer blocked."""
+        self._app.digi_settings.settings["has_admin_user"].set_value(False, False)
+        await self._app.digi_settings.set("telemetry_enabled", True)
+        await self._app.start_telemetry_service()
+        self.assertIsNone(self._app.telemetry_service)
+
+        self._app.digi_settings.settings["has_admin_user"].set_value(True, False)
+        await self._app.start_telemetry_service()
 
         self.assertIsNotNone(self._app.telemetry_service)
         await self._app.stop_telemetry_service()

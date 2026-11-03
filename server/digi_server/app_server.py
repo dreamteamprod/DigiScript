@@ -722,6 +722,17 @@ class DigiScriptServer(PrometheusMixIn, Application):
             get_logger().info("Telemetry disabled via DIGISCRIPT_TELEMETRY env var")
             return
 
+        has_admin_user = await self.digi_settings.get("has_admin_user")
+        if not has_admin_user:
+            # Fresh install awaiting first-run setup: never start before the admin has
+            # even been created, let alone had a chance to see/choose the telemetry
+            # setting. utils/web/user_admin.py's create_user() is what re-calls this once
+            # that's happened.
+            get_logger().info(
+                "Telemetry not started: no admin user yet (awaiting first-run setup)"
+            )
+            return
+
         telemetry_enabled = await self.digi_settings.get("telemetry_enabled")
         if not telemetry_enabled:
             get_logger().info("Telemetry is disabled in settings")

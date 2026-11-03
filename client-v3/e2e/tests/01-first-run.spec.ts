@@ -40,6 +40,12 @@ test('Save button is disabled until form is valid', async () => {
   await expect(page.locator('button:has-text("Save")')).toBeDisabled();
 });
 
+test('telemetry checkbox is visible and checked by default', async () => {
+  const telemetryCheckbox = page.locator('#telemetry-enabled-input');
+  await expect(telemetryCheckbox).toBeVisible();
+  await expect(telemetryCheckbox).toBeChecked();
+});
+
 test('creates the admin user and transitions to the main UI', async () => {
   await page.fill('#password-input', ADMIN_PASSWORD);
   await page.fill('#confirm-password-input', ADMIN_PASSWORD);

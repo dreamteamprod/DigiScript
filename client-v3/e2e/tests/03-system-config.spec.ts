@@ -345,6 +345,22 @@ test('JWT Token Lifetime dropdown shows human-readable labels', async () => {
   await expect(select.locator('option').filter({ hasText: '1 month' })).toBeAttached();
 });
 
+test('Telemetry category is visible in the settings page', async () => {
+  await expect(page.locator('.card-header:has-text("Telemetry")')).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('Telemetry category can be expanded, reflecting the default saved during first-run', async () => {
+  // Collapsed by default — click the header to expand
+  await page.locator('.card-header:has-text("Telemetry")').click();
+  const telemetryCheckbox = page.locator('#telemetry_enabled-input');
+  await expect(telemetryCheckbox).toBeVisible({ timeout: 5_000 });
+  // 01-first-run.spec.ts left this checked (the default), confirming the first-run
+  // checkbox's value actually reached the saved setting, not just the local form state.
+  await expect(telemetryCheckbox).toBeChecked();
+});
+
 test('can change JWT Token Lifetime and submit successfully', async () => {
   const select = page.locator('#jwt_token_lifetime_hours-input');
   // Change to 6 hours

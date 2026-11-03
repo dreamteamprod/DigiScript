@@ -103,6 +103,19 @@ async def create_user(controller) -> None:
             if is_admin:
                 await controller.application.digi_settings.set("has_admin_user", True)
 
+                if not has_any_users:
+                    # First-run setup: save the admin's telemetry preference (if the form
+                    # submitted one — older clients or direct API callers may not) before
+                    # telemetry is ever allowed to start. start_telemetry_service() itself
+                    # gates on has_admin_user, so nothing could have started before this
+                    # point; this call is what first lets it through that gate.
+                    telemetry_enabled = data.get("telemetry_enabled", None)
+                    if telemetry_enabled is not None:
+                        await controller.application.digi_settings.set(
+                            "telemetry_enabled", bool(telemetry_enabled)
+                        )
+                    await controller.application.start_telemetry_service()
+
             controller.set_status(200)
             await controller.application.ws_send_to_all("NOOP", "GET_USERS", {})
             await controller.finish({"message": "Successfully created user"})

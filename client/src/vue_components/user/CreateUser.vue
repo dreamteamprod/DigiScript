@@ -54,6 +54,17 @@
         Passwords to not match.
       </b-form-invalid-feedback>
     </b-form-group>
+    <b-form-group v-if="isFirstAdmin" :label-cols="true">
+      <b-form-checkbox id="telemetry-enabled-input" v-model="state.telemetry_enabled">
+        Send anonymous usage statistics to the DigiScript project
+      </b-form-checkbox>
+      <div class="text-muted small">
+        Helps guide development. No show content, user data, or other identifying information is
+        ever sent.
+        <a href="/ui-old/help/telemetry" target="_blank" rel="noopener">See what's collected</a>
+        — can be changed later in System Settings.
+      </div>
+    </b-form-group>
     <b-button-group>
       <b-button variant="success" :disabled="isDisabled" @click.stop.prevent="createUser">
         Save
@@ -97,6 +108,11 @@ export default defineComponent({
         password: '',
         confirmPassword: '',
         is_admin: this.isFirstAdmin || this.isAdmin,
+        // Matches the server's own default (digi_server/settings.py's telemetry_enabled).
+        // Always present in state and sent with every create request, but only meaningful
+        // (and only read) by the server on the very first user creation — harmless no-op
+        // otherwise.
+        telemetry_enabled: true,
       },
     };
   },
