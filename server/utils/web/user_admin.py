@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
+from digi_server.logger import get_logger
 from models.user import User
 from registry.named_locks import NamedLockRegistry
 from services.password_service import PasswordService
@@ -119,7 +120,16 @@ async def create_user(controller) -> None:
                         await controller.application.digi_settings.set(
                             "telemetry_enabled", telemetry_enabled
                         )
-                    await controller.application.start_telemetry_service()
+                    # Isolated in its own try/except, matching this project's established
+                    # pattern for telemetry writes (see TelemetryService.check_in and the
+                    # RBAC grant handler): a failure here must never turn an
+                    # already-successful user creation into a reported error.
+                    try:
+                        await controller.application.start_telemetry_service()
+                    except Exception:
+                        get_logger().exception(
+                            "Failed to start telemetry service after first-admin creation"
+                        )
 
             controller.set_status(200)
             await controller.application.ws_send_to_all("NOOP", "GET_USERS", {})
