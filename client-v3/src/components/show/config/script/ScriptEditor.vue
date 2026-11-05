@@ -133,33 +133,13 @@
       </BCol>
     </BRow>
 
-    <!-- Save modal -->
-    <BModal
+    <SaveProgressModal
       ref="saveModal"
-      title="Saving Script"
-      size="md"
-      :no-header-close="savingInProgress"
-      :no-footer="savingInProgress"
-      :ok-disabled="savingInProgress"
-      :no-close-on-backdrop="savingInProgress"
-      :no-close-on-esc="savingInProgress"
-      ok-only
-    >
-      <div>
-        <b v-if="savingInProgress">Saving page {{ curSavePage }} of {{ totalSavePages }}</b>
-        <template v-else>
-          <b v-if="saveError">Could not save script changes.</b>
-          <b v-else>Finished saving script.</b>
-        </template>
-      </div>
-      <BProgress
-        :value="curSavePage"
-        :max="totalSavePages ?? 0"
-        :variant="saveProgressVariant"
-        show-value
-        :animated="savingInProgress"
-      />
-    </BModal>
+      :in-progress="savingInProgress"
+      :current-page="curSavePage"
+      :total-pages="totalSavePages ?? 0"
+      :error="saveError ? 'Could not save script changes.' : null"
+    />
 
     <BulkEditModal
       ref="bulkModal"
@@ -210,10 +190,12 @@ import { useUserStore } from '@/stores/user';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useConfirm } from '@/composables/useConfirm';
+import { useAutoSave } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
 import ScriptLineEditor from './ScriptLineEditor.vue';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import BulkEditModal from './BulkEditModal.vue';
+import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 
 const MRU_LOOK_BACK = 4;
@@ -239,7 +221,6 @@ const curSavePage = ref(0);
 const totalSavePages = ref<number | null>(null);
 const changingPage = ref(false);
 const isAutoSaving = ref(false);
-const autoSaveInterval = ref<ReturnType<typeof setInterval> | null>(null);
 const bulkEditMode = ref(false);
 const bulkEditStart = ref<{ page: number; lineIndex: number } | null>(null);
 const bulkEditEnd = ref<{ page: number; lineIndex: number } | null>(null);
@@ -247,7 +228,7 @@ const previousLineOfStart = ref<ScriptLine | null>(null);
 const nextLineOfEnd = ref<ScriptLine | null>(null);
 const pageInputNo = ref(1);
 
-const saveModal = ref<InstanceType<typeof BModal>>();
+const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
 const goToPageModal = ref<InstanceType<typeof BModal>>();
 const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
 
@@ -260,11 +241,6 @@ const isEditor = computed(
     wsStore.internalUUID === scriptConfigStore.editStatus.currentEditor
 );
 const canEdit = computed(() => isEditor.value);
-
-const saveProgressVariant = computed(() => {
-  if (savingInProgress.value) return 'primary';
-  return saveError.value ? 'danger' : 'success';
-});
 
 const pagesWithOpenEdits = computed(() =>
   [...editingLines.value].map((x) => Number.parseInt(x.split('_')[1], 10))
@@ -594,27 +570,17 @@ async function saveScript(): Promise<void> {
   await scriptStore.getMaxPage();
 }
 
+const autoSave = useAutoSave(autosave);
+
 function setupAutoSave(): void {
   const settings = userStore.userSettings as {
     enable_script_auto_save?: boolean;
     script_auto_save_interval?: number;
   };
-  const intervalMs = Math.max((settings.script_auto_save_interval ?? 5) * 1000 * 60, 60000);
-
-  if (!isEditor.value && autoSaveInterval.value != null) {
-    clearInterval(autoSaveInterval.value);
-    autoSaveInterval.value = null;
-    return;
-  }
-
-  if (isEditor.value) {
-    if (autoSaveInterval.value != null) clearInterval(autoSaveInterval.value);
-    if (settings.enable_script_auto_save) {
-      autoSaveInterval.value = setInterval(autosave, intervalMs);
-    } else {
-      autoSaveInterval.value = null;
-    }
-  }
+  autoSave.restart(
+    isEditor.value && !!settings.enable_script_auto_save,
+    settings.script_auto_save_interval ?? 5
+  );
 }
 
 async function autosave(): Promise<void> {
@@ -810,7 +776,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', calculateNavbarHeight);
-  if (autoSaveInterval.value != null) clearInterval(autoSaveInterval.value);
 });
 </script>
 

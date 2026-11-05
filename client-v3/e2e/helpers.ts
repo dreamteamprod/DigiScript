@@ -145,3 +145,21 @@ export async function fillOpenLineEditor(
   }
   return lineEditor;
 }
+
+/**
+ * Clicks "Add Dialogue", fills the editor it opens, and clears the auto-chained blank
+ * editor Done leaves behind (both the classic and collaborative editors chain into
+ * another blank dialogue line for continuous typing) — leaving just the one line this
+ * call asked for, so a caller does not have to repeat that cleanup itself.
+ */
+export async function addDialogueLine(
+  page: Page,
+  fields: { act: string; scene: string; character?: string; text?: string }
+): Promise<void> {
+  await page.click('button:has-text("Add Dialogue")');
+  await fillOpenLineEditor(page, fields);
+  await page.locator('button:has-text("Done")').first().click();
+  await page.waitForSelector('button:has-text("Done")', { timeout: 5_000 });
+  await page.locator('button.btn-danger:has-text("Delete")').first().click();
+  await page.waitForSelector('button:has-text("Done")', { state: 'hidden', timeout: 5_000 });
+}

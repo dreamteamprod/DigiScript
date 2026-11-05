@@ -11,7 +11,10 @@
           </BButton>
         </BCol>
         <BCol cols="4">
-          <p>Current Page: {{ currentPage }}</p>
+          <p>
+            Current Page: {{ currentPage }}
+            <span v-if="scriptConfigStore.hasDraft" class="text-warning ms-2">● Unsaved draft</span>
+          </p>
         </BCol>
         <BCol cols="2" style="text-align: left">
           <BButton variant="success" :disabled="atLastDraftPage" @click="incrPage">
@@ -30,7 +33,25 @@
                 Cuts
               </BButton>
             </template>
-            <BButton v-else variant="warning" @click="stopEditing">Stop Editing</BButton>
+            <template v-else>
+              <BButton variant="warning" :disabled="draftStore.isDraftSaving" @click="stopEditing">
+                Stop Editing
+              </BButton>
+              <BButton
+                variant="success"
+                :disabled="!canSave"
+                :title="saveDisabledReason ?? undefined"
+                @click="saveScript"
+              >
+                Save
+              </BButton>
+              <BButton
+                :variant="bulkEditMode ? 'info' : 'outline-info'"
+                @click="bulkEditMode ? exitBulkEditMode() : enterBulkEditMode()"
+              >
+                {{ bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit' }}
+              </BButton>
+            </template>
           </BButtonGroup>
         </BCol>
       </BRow>
@@ -89,12 +110,17 @@
               :line-part-cuts="[]"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
+              :bulk-edit-mode="bulkEditMode"
+              :is-bulk-start="isBulkStart(line)"
+              :is-bulk-end="isBulkEnd(line)"
               @edit-line="beginEditingLine(line._uid)"
               @insert-dialogue="insertLineAt(index, LINE_TYPES.DIALOGUE)"
               @insert-stage-direction="insertLineAt(index, LINE_TYPES.STAGE_DIRECTION)"
               @insert-cue-line="insertLineAt(index, LINE_TYPES.CUE_LINE)"
               @insert-spacing="insertLineAt(index, LINE_TYPES.SPACING)"
               @delete-line="deleteLine(line._uid)"
+              @set-bulk-start="onSetBulkStart(index)"
+              @set-bulk-end="onSetBulkEnd(index)"
             />
           </template>
         </template>
@@ -150,6 +176,39 @@
         <p v-if="pageError" class="text-danger mb-0" data-testid="page-error">{{ pageError }}</p>
       </BForm>
     </BModal>
+
+    <SaveProgressModal
+      ref="saveModal"
+      :in-progress="draftStore.isDraftSaving"
+      :current-page="draftStore.pageSaveProgress?.page ?? 0"
+      :total-pages="draftStore.pageSaveProgress?.total ?? 0"
+      :error="!draftStore.isDraftSaving ? draftStore.lastCollabError : null"
+    />
+
+    <BulkEditModal
+      ref="bulkModal"
+      :previous-line-of-start="bulkPreviousLine"
+      :next-line-of-end="bulkNextLine"
+      :acts="showStore.actList"
+      :scenes="showStore.sceneList"
+      :characters="showStore.characterList"
+      :character-groups="showStore.characterGroupList"
+      @apply="onBulkApply"
+    />
+
+    <BModal ref="stopEditingModal" title="Stop Editing" hide-footer>
+      <p>This draft has unsaved changes.</p>
+      <p v-if="otherEditorUsernames.length > 0" class="text-warning">
+        {{ otherEditorUsernames.join(', ') }}
+        {{ otherEditorUsernames.length > 1 ? 'are' : 'is' }} also editing — discarding will clear
+        their unsaved work too, not just yours.
+      </p>
+      <div class="d-flex justify-content-end gap-2">
+        <BButton variant="secondary" @click="stopEditingModal?.hide()">Keep Editing</BButton>
+        <BButton variant="warning" @click="keepDraftAndStop">Keep Draft</BButton>
+        <BButton variant="danger" @click="discardAndStop">Discard</BButton>
+      </div>
+    </BModal>
   </BContainer>
 
   <BContainer v-else class="mx-0 px-0 script-editor-container" fluid>
@@ -173,19 +232,26 @@ import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useDraftPages } from '@/composables/useDraftPages';
 import { useDraftWriter } from '@/composables/useDraftWriter';
+import { useAutoSave } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
+import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
+import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
+import SaveProgressModal from './SaveProgressModal.vue';
+import BulkEditModal from './BulkEditModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
+import type { LineUid } from '@/js/yjs/yjsSnapshot';
 
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
  * editor joins the shared draft, browses and edits it with line/text changes writing
- * straight through `useDraftWriter` (Phase 3 Step 3); everyone else reads saved pages
- * over REST exactly as the classic editor's viewer does. Save, discard, bulk edit and
- * cuts are not yet implemented (Steps 4-5). The classic `ScriptEditor.vue` is untouched
- * and is what renders when the setting is off.
+ * straight through `useDraftWriter` (Phase 3 Step 3), saves/stops/discards it and
+ * bulk-edits it (Step 4, see `onBulkApply`). Everyone else reads saved pages over
+ * REST exactly as the classic editor's viewer does. Cuts are not yet implemented.
+ * The classic `ScriptEditor.vue` is untouched and is what renders when the setting
+ * is off.
  */
 
 const showStore = useShowStore();
@@ -206,6 +272,15 @@ const changingPage = ref(false);
 const pageInputNo = ref(1);
 const pageError = ref<string | null>(null);
 const goToPageModal = ref<InstanceType<typeof BModal>>();
+const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
+const stopEditingModal = ref<InstanceType<typeof BModal>>();
+const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
+const bulkEditMode = ref(false);
+// D6: a stable key, not an index — an insert/delete elsewhere in the draft (ours or
+// another editor's) must not silently shift which lines a bulk edit lands on. Resolved
+// back to a position only when the edit is actually applied (see onBulkApply).
+const bulkEditStart = ref<{ page: number; lineUid: LineUid } | null>(null);
+const bulkEditEnd = ref<{ page: number; lineUid: LineUid } | null>(null);
 // True from a successful `stopEditing()` send until the server confirms we are no
 // longer an editor. STOP_SCRIPT_EDIT's own ROOM_CLOSED (for the last editor) arrives
 // before its GET_SCRIPT_CONFIG_STATUS broadcast, so without this flag `joinFailed`
@@ -232,6 +307,76 @@ const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
 
 const draftReady = computed(() => isEditor.value && draftStore.isDraftSynced);
 const canEditDraft = computed(() => isEditor.value && draftReady.value);
+
+// D1: the client-side half of "incomplete lines abort the whole save" — mirrors the
+// server's exact validation rules so Save can disable itself with a reason before the
+// round trip even happens, rather than letting the server reject it. `script_mode` is
+// FULL for the value 1 (see ShowScriptType in models/show.py); anything else is treated
+// as compact, matching the existing `scriptMode === 1` convention used elsewhere.
+const isCompactMode = computed(() => systemStore.currentShow?.script_mode !== 1);
+const firstInvalidLine = computed(() =>
+  draftReady.value
+    ? firstInvalidDraftLine(
+        snapshotPagesToScriptLines(draftStore.pageSnapshots),
+        isCompactMode.value
+      )
+    : null
+);
+
+// D8 (revised): the store's own canSaveDraft already covers dirty-or-has-a-kept-draft
+// and not-already-saving; this adds the two things only this component knows about —
+// a locally open line editor, and D1's whole-snapshot validity.
+const canSave = computed(
+  () => draftStore.canSaveDraft && editingLines.value.size === 0 && firstInvalidLine.value === null
+);
+const saveDisabledReason = computed<string | null>(() => {
+  if (canSave.value) return null;
+  if (editingLines.value.size > 0) return 'Finish editing the open line(s) before saving';
+  if (firstInvalidLine.value) {
+    return `Page ${firstInvalidLine.value.page}: ${firstInvalidLine.value.error}`;
+  }
+  return null; // nothing to save, or already saving — no specific reason to show
+});
+
+const otherEditorUsernames = computed(() =>
+  scriptConfigStore.editors
+    .filter((e) => e.internal_id !== wsStore.internalUUID)
+    .map((e) => e.username)
+);
+
+// BulkEditModal's act/scene dropdowns use these to work out which acts/scenes are
+// valid to offer without crossing into the surrounding, unselected lines — no
+// page-preload needed (the whole draft doc syncs on join, unlike the classic editor's
+// per-page REST loads), so these are plain reactive reads over the already-synced doc.
+const bulkPreviousLine = computed<DraftScriptLine | null>(() => {
+  if (!bulkEditStart.value) return null;
+  const { page, lineUid } = bulkEditStart.value;
+  const index = draftPages.linesFor(page).findIndex((l) => l._uid === lineUid);
+  return index < 0 ? null : draftPages.previousLineOf(page, index);
+});
+const bulkNextLine = computed<DraftScriptLine | null>(() => {
+  if (!bulkEditEnd.value) return null;
+  const { page, lineUid } = bulkEditEnd.value;
+  const lines = draftPages.linesFor(page);
+  const index = lines.findIndex((l) => l._uid === lineUid);
+  if (index < 0) return null;
+  if (index + 1 < lines.length) return lines[index + 1] ?? null;
+  for (let p = page + 1; p <= draftPages.maxPage.value; p += 1) {
+    const nextPageLines = draftPages.linesFor(p);
+    if (nextPageLines.length > 0) return nextPageLines[0] ?? null;
+  }
+  return null;
+});
+
+function isBulkStart(line: DraftScriptLine): boolean {
+  return (
+    bulkEditStart.value?.page === currentPage.value && bulkEditStart.value?.lineUid === line._uid
+  );
+}
+function isBulkEnd(line: DraftScriptLine): boolean {
+  return bulkEditEnd.value?.page === currentPage.value && bulkEditEnd.value?.lineUid === line._uid;
+}
+
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
 // this the user is an editor with no room and no way out but Stop Editing. Suppressed
 // while our own stopEditing() is still awaiting confirmation (see stopRequested).
@@ -366,11 +511,11 @@ function requestEdit(): void {
   }
 }
 
-function stopEditing(): void {
-  // STOP only: the server only demotes, checkpoints and closes the room for a client
-  // that is still in it (LEAVE_SCRIPT_ROOM first would remove us before STOP arrives,
-  // so the server would skip both). ROOM_CLOSED (if we were the last editor) or the
-  // isEditor watcher below then tears down the local draft.
+// STOP only: the server only demotes, checkpoints and closes the room for a client
+// that is still in it (LEAVE_SCRIPT_ROOM first would remove us before STOP arrives,
+// so the server would skip both). ROOM_CLOSED (if we were the last editor) or the
+// isEditor watcher below then tears down the local draft.
+function sendStop(): void {
   if (sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
     stopRequested.value = true;
   } else {
@@ -378,9 +523,223 @@ function stopEditing(): void {
   }
 }
 
+// D9: with nothing unsaved, stop immediately (today's behaviour) — only an actually
+// dirty or previously-kept draft needs the keep-or-discard choice.
+function stopEditing(): void {
+  if (!draftStore.isDraftDirty && !scriptConfigStore.hasDraft) {
+    sendStop();
+    return;
+  }
+  stopEditingModal.value?.show();
+}
+
+function keepDraftAndStop(): void {
+  stopEditingModal.value?.hide();
+  sendStop();
+}
+
+function discardAndStop(): void {
+  stopEditingModal.value?.hide();
+  if (draftStore.discardDraft()) {
+    // Same reason as sendStop(): ROOM_CLOSED can arrive before the
+    // GET_SCRIPT_CONFIG_STATUS broadcast that drops us from `editors`, which
+    // would otherwise flash the "could not open the script draft" alert for
+    // that one round trip. Only set once the frame actually sent — setting it
+    // unconditionally would hide that alert even when nothing was sent.
+    stopRequested.value = true;
+  }
+}
+
 function retryJoin(): void {
   if (!draftStore.isDraftActive) draftStore.joinScriptRoom();
 }
+
+function saveScript(): void {
+  if (!canSave.value) return;
+  // Show the modal only once the save has actually started — saveDraft() can
+  // fail synchronously (socket down) without ever setting isDraftSaving or
+  // lastCollabError, which would otherwise leave the modal showing "Finished
+  // saving script." for a save that never left the browser.
+  if (draftStore.saveDraft()) {
+    saveModal.value?.show();
+  }
+}
+
+// D10, lighter-touch per Tim's decision: no blocking modal (the draft is already
+// synced/checkpointed server-side, so autosave's own stakes are lower than the classic
+// editor's REST-only edits), and silently skip rather than error when the snapshot
+// currently fails D1's validator — a half-typed line elsewhere in the draft would
+// otherwise fail *every* editor's autosave tick, not just show a local error. A real
+// manual Save still runs the full round trip and surfaces a real SAVE_ERROR on failure.
+function autosaveTick(): void {
+  if (!canSave.value) return;
+  draftStore.saveDraft();
+}
+
+const autoSave = useAutoSave(autosaveTick);
+
+function setupAutoSave(): void {
+  const settings = userStore.userSettings as {
+    enable_script_auto_save?: boolean;
+    script_auto_save_interval?: number;
+  };
+  autoSave.restart(
+    canEditDraft.value && !!settings.enable_script_auto_save,
+    settings.script_auto_save_interval ?? 5
+  );
+}
+
+function enterBulkEditMode(): void {
+  bulkEditMode.value = true;
+  bulkEditStart.value = null;
+  bulkEditEnd.value = null;
+}
+
+function exitBulkEditMode(): void {
+  bulkEditMode.value = false;
+  bulkEditStart.value = null;
+  bulkEditEnd.value = null;
+}
+
+function onSetBulkStart(index: number): void {
+  const line = draftLines.value[index];
+  if (!line) return;
+  bulkEditStart.value = { page: currentPage.value, lineUid: line._uid };
+  bulkEditEnd.value = null;
+}
+
+function onSetBulkEnd(index: number): void {
+  const line = draftLines.value[index];
+  if (!line) return;
+  if (bulkEditStart.value) {
+    const { page: startPage, lineUid: startUid } = bulkEditStart.value;
+    if (currentPage.value < startPage) {
+      toast.error('End line must come after start line');
+      return;
+    }
+    if (currentPage.value === startPage) {
+      const startIndex = draftLines.value.findIndex((l) => l._uid === startUid);
+      if (startIndex !== -1 && index <= startIndex) {
+        toast.error('End line must come after start line');
+        return;
+      }
+    }
+  }
+  bulkEditEnd.value = { page: currentPage.value, lineUid: line._uid };
+}
+
+// D6: bulk edit resolves its stored {page, lineUid} boundaries back to a position only
+// here, at apply time — an insert/delete elsewhere since the boundaries were picked
+// (ours or another editor's) shifts indices but never the line this was meant to cover.
+// If either boundary line is gone by now, abort rather than guess a new range.
+function applyBulkActScene(
+  page: number,
+  line: DraftScriptLine,
+  actId: number,
+  sceneId: number
+): void {
+  writer.setLineActScene(page, line._uid, actId, sceneId);
+}
+
+function applyBulkCharacter(
+  page: number,
+  line: DraftScriptLine,
+  targetPartIndex: number,
+  characterId: number | null,
+  characterGroupId: number | null
+): void {
+  const sortedParts = [...line.line_parts].sort(
+    (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
+  );
+  const targetPart = sortedParts[targetPartIndex];
+  if (targetPart) {
+    writer.setPartCharacter(page, line._uid, targetPart._uid, characterId, characterGroupId);
+  }
+}
+
+/** What onBulkApply() applies to a single line, pulled out of its double-nested loop. */
+function applyBulkEditToLine(
+  page: number,
+  line: DraftScriptLine,
+  actScene: { actId: number; sceneId: number } | null,
+  character: {
+    targetPartIndex: number;
+    characterId: number | null;
+    characterGroupId: number | null;
+  } | null
+): void {
+  if (actScene) applyBulkActScene(page, line, actScene.actId, actScene.sceneId);
+  if (character) {
+    applyBulkCharacter(
+      page,
+      line,
+      character.targetPartIndex,
+      character.characterId,
+      character.characterGroupId
+    );
+  }
+}
+
+function onBulkApply(payload: {
+  actId: number | null;
+  sceneId: number | null;
+  partIndex: number | null;
+  characterId: number | null;
+  characterGroupId: number | null;
+}): void {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return;
+  const { page: startPage, lineUid: startUid } = bulkEditStart.value;
+  const { page: endPage, lineUid: endUid } = bulkEditEnd.value;
+
+  const startIndex = draftPages.linesFor(startPage).findIndex((l) => l._uid === startUid);
+  const endIndex = draftPages.linesFor(endPage).findIndex((l) => l._uid === endUid);
+  if (startIndex === -1 || endIndex === -1) {
+    toast.error('Could not apply the bulk edit — the start or end line no longer exists');
+    bulkModal.value?.hide();
+    exitBulkEditMode();
+    return;
+  }
+
+  const actScene =
+    payload.actId != null && payload.sceneId != null
+      ? { actId: payload.actId, sceneId: payload.sceneId }
+      : null;
+  const applyCharacter =
+    payload.partIndex != null && (payload.characterId != null || payload.characterGroupId != null);
+  const targetPartIndex = (payload.partIndex ?? 1) - 1;
+
+  // transact() is reentrant: each writer call below opens its own transaction with
+  // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
+  // rather than committing separately — so the whole bulk edit reaches peers as one
+  // update.
+  const character = applyCharacter
+    ? {
+        targetPartIndex,
+        characterId: payload.characterId,
+        characterGroupId: payload.characterGroupId,
+      }
+    : null;
+
+  writer.transact(() => {
+    for (let p = startPage; p <= endPage; p += 1) {
+      const pageLines = draftPages.linesFor(p);
+      const fromIndex = p === startPage ? startIndex : 0;
+      const toIndex = p === endPage ? endIndex : pageLines.length - 1;
+      for (let i = fromIndex; i <= toIndex; i += 1) {
+        const line = pageLines[i];
+        if (!line) continue; // the page shrank since linesFor() was read for the loop bounds
+        applyBulkEditToLine(p, line, actScene, character);
+      }
+    }
+  });
+
+  bulkModal.value?.hide();
+  exitBulkEditMode();
+}
+
+watch(bulkEditEnd, (val) => {
+  if (val != null) bulkModal.value?.show();
+});
 
 function calculateNavbarHeight(): void {
   const navbar = document.querySelector('.navbar');
@@ -429,6 +788,12 @@ watch([draftReady, maxPage], () => {
   }
 });
 
+watch(canEditDraft, () => setupAutoSave());
+watch(
+  () => userStore.userSettings,
+  () => setupAutoSave()
+);
+
 watch(currentPage, (val) => {
   localStorage.setItem('scriptEditPage', val.toString());
 });
@@ -457,6 +822,7 @@ onMounted(async () => {
   // so isEditor is already true here by the time this component re-mounts. No
   // client-side change was needed to pick that up.
   if (isEditor.value) retryJoin();
+  setupAutoSave();
 });
 
 onBeforeUnmount(() => {

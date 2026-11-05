@@ -332,8 +332,10 @@ async def close_room_if_editorless(app: DigiScriptServer, room) -> None:
     ):
         return
     try:
-        if room._dirty:
-            await room_manager._checkpoint_room(room)
+        # checkpoint_if_dirty takes the room lock itself (unlike a direct
+        # `if room._dirty: await room_manager._checkpoint_room(room)`, which
+        # would race a concurrent save/discard of this same room).
+        if await room_manager.checkpoint_if_dirty(room):
             await app.ws_send_to_all("NOOP", "GET_SCRIPT_REVISIONS", {})
     except Exception:
         get_logger().exception("Error checkpointing room after last editor left")
