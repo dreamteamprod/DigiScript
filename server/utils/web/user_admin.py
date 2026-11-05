@@ -110,9 +110,14 @@ async def create_user(controller) -> None:
                     # gates on has_admin_user, so nothing could have started before this
                     # point; this call is what first lets it through that gate.
                     telemetry_enabled = data.get("telemetry_enabled", None)
-                    if telemetry_enabled is not None:
+                    # Only a real bool is accepted — bool("false") is True, so silently
+                    # coercing a malformed value (e.g. a hand-written API call sending the
+                    # string "false") would save the opposite of what was asked. Anything
+                    # else is treated the same as the field being absent: fall through to
+                    # whatever telemetry_enabled is already set to (its existing default).
+                    if isinstance(telemetry_enabled, bool):
                         await controller.application.digi_settings.set(
-                            "telemetry_enabled", bool(telemetry_enabled)
+                            "telemetry_enabled", telemetry_enabled
                         )
                     await controller.application.start_telemetry_service()
 

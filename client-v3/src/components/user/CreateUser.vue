@@ -34,7 +34,11 @@
     </BFormGroup>
 
     <BFormGroup v-if="isFirstAdmin" label-cols="4">
-      <BFormCheckbox id="telemetry-enabled-input" v-model="state.telemetry_enabled">
+      <BFormCheckbox
+        id="telemetry-enabled-input"
+        v-model="state.telemetry_enabled"
+        :unchecked-value="false"
+      >
         Send anonymous usage statistics to the DigiScript project
       </BFormCheckbox>
       <div class="text-muted small">

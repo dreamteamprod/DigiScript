@@ -351,14 +351,16 @@ test('Telemetry category is visible in the settings page', async () => {
   });
 });
 
-test('Telemetry category can be expanded, reflecting the default saved during first-run', async () => {
+test('Telemetry category can be expanded, reflecting the choice saved during first-run', async () => {
   // Collapsed by default — click the header to expand
   await page.locator('.card-header:has-text("Telemetry")').click();
   const telemetryCheckbox = page.locator('#telemetry_enabled-input');
   await expect(telemetryCheckbox).toBeVisible({ timeout: 5_000 });
-  // 01-first-run.spec.ts left this checked (the default), confirming the first-run
-  // checkbox's value actually reached the saved setting, not just the local form state.
-  await expect(telemetryCheckbox).toBeChecked();
+  // 01-first-run.spec.ts deliberately unchecked this before submitting — off here proves
+  // the first-run checkbox's value actually reached the saved setting, not just local form
+  // state. Checking for the default (true) wouldn't prove anything, since that's also what
+  // the setting would read even if the save had silently done nothing at all.
+  await expect(telemetryCheckbox).not.toBeChecked();
 });
 
 test('can change JWT Token Lifetime and submit successfully', async () => {

@@ -369,6 +369,17 @@ class TestTelemetryServiceStartup(DigiScriptTestCase):
         # has_admin_user gate (fresh installs never start before first-run setup) has its
         # own dedicated tests below, so prime it True here rather than in every test.
         self._app.digi_settings.settings["has_admin_user"].set_value(True, False)
+        # conftest.py sets DIGISCRIPT_TELEMETRY=0 globally so the rest of the suite can't
+        # accidentally phone home; this class specifically needs telemetry able to start,
+        # so clear it here (restored automatically on tearDown) and let individual tests
+        # still set their own value on top via patch.dict, as several already do.
+        self._env_patcher = patch.dict(os.environ, {}, clear=False)
+        self._env_patcher.start()
+        os.environ.pop("DIGISCRIPT_TELEMETRY", None)
+
+    def tearDown(self):
+        self._env_patcher.stop()
+        super().tearDown()
 
     @gen_test
     async def test_env_var_disables_telemetry_regardless_of_setting(self):

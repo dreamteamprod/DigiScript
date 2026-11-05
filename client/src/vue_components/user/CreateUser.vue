@@ -139,7 +139,13 @@ export default defineComponent({
       if ((this as any).$v.state.$anyError) {
         event.preventDefault();
       } else {
-        await (this as any).CREATE_USER(this.state);
+        // Only meaningful (and only read by the server) on the very first user creation —
+        // omitted otherwise, matching client-v3's CreateUser.vue, so this field can never
+        // be mistaken for changing an existing install's telemetry setting via the regular
+        // "add user" form, even if the server's own has_any_users gate is ever loosened.
+        const { telemetry_enabled, ...rest } = this.state;
+        const payload = this.isFirstAdmin ? this.state : rest;
+        await (this as any).CREATE_USER(payload);
         if (this.isFirstAdmin) {
           await (this as any).USER_LOGIN({
             username: this.state.username,
