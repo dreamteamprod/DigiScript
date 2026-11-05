@@ -245,6 +245,7 @@ import { useWebSocket } from '@/composables/useWebSocket';
 import { useDraftPages } from '@/composables/useDraftPages';
 import { useDraftWriter } from '@/composables/useDraftWriter';
 import { useAutoSave } from '@/composables/useAutoSave';
+import { useConfirm } from '@/composables/useConfirm';
 import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
@@ -278,6 +279,7 @@ const wsStore = useWebSocketStore();
 const { sendObj } = useWebSocket();
 const draftPages = useDraftPages();
 const writer = useDraftWriter();
+const { confirm } = useConfirm();
 
 const loaded = ref(false);
 const currentPage = ref(1);
@@ -326,9 +328,15 @@ const isEditor = computed(
     scriptConfigStore.editors.some((e) => e.internal_id === wsStore.internalUUID)
 );
 const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
-const cutsChanged = computed(
-  () => JSON.stringify(linePartCuts.value) !== JSON.stringify(scriptStore.cuts)
-);
+// A set comparison, not an ordered one: cutLinePart() splice-then-pushes, so toggling
+// an already-saved cut off and back on (without saving in between) reorders the same
+// *set* of ids — an ordered JSON.stringify compare would see that as a change and
+// spuriously enable Save Cuts for a no-op save.
+const cutsChanged = computed(() => {
+  if (linePartCuts.value.length !== scriptStore.cuts.length) return true;
+  const saved = new Set(scriptStore.cuts);
+  return linePartCuts.value.some((id) => !saved.has(id));
+});
 // Proactive client-side disable, mirroring _op_request_script_cuts's own rejection
 // order — the server enforces every one of these regardless, this just avoids a
 // round trip to find out.
@@ -553,8 +561,16 @@ function requestCuts(): void {
   }
 }
 
-function stopCutting(): void {
-  linePartCuts.value = [...scriptStore.cuts];
+// Confirms first when there are unsaved cuts, matching the classic editor's
+// stopEditing() (ScriptEditor.vue) for the equivalent case — stopping without saving
+// would otherwise silently discard them.
+async function stopCutting(): Promise<void> {
+  if (cutsChanged.value) {
+    const ok = await confirm(
+      'Are you sure you want to stop cutting? This will discard your unsaved cuts.'
+    );
+    if (!ok) return;
+  }
   scriptConfigStore.setCutMode(false);
   if (!sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
     toast.error('Cannot stop cutting: not connected to the server');
@@ -563,9 +579,12 @@ function stopCutting(): void {
 
 async function saveCuts(): Promise<void> {
   cuttingSaveInProgress.value = true;
-  await scriptStore.saveCuts(linePartCuts.value);
-  linePartCuts.value = [...scriptStore.cuts];
-  cuttingSaveInProgress.value = false;
+  try {
+    await scriptStore.saveCuts(linePartCuts.value);
+    linePartCuts.value = [...scriptStore.cuts];
+  } finally {
+    cuttingSaveInProgress.value = false;
+  }
 }
 
 function cutLinePart(linePartId: number): void {
@@ -803,6 +822,18 @@ function onBulkApply(payload: {
 watch(bulkEditEnd, (val) => {
   if (val != null) bulkModal.value?.show();
 });
+
+// Covers every way cutMode can go true -> false, not just our own stopCutting()/
+// saveCuts(): a server-side rejection of REQUEST_SCRIPT_CUTS (requestEditFailure()
+// in scriptConfig.ts) also resets cutMode, and any line part clicked during the
+// brief optimistic window before that rejection arrives must not leak into the
+// next cut session.
+watch(
+  () => scriptConfigStore.cutMode,
+  (now, was) => {
+    if (!now && was) linePartCuts.value = [...scriptStore.cuts];
+  }
+);
 
 function calculateNavbarHeight(): void {
   const navbar = document.querySelector('.navbar');

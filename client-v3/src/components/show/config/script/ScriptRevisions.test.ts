@@ -261,6 +261,65 @@ describe('ScriptRevisions', () => {
 
       expect(fetchMock).not.toHaveBeenCalled();
     });
+
+    it('toasts an error when the server rejects the discard', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(new Response('{}', { status: 403 })))
+      );
+      const showStore = useShowStore();
+      showStore.currentRevision = 1;
+      showStore.scriptRevisions = [makeRevision({ id: 1, revision: 1, has_draft: true })];
+      const w = await mountRevisions();
+
+      await button(w, 'Discard Draft')?.trigger('click');
+      await flushPromises();
+
+      expect(toast.error).toHaveBeenCalledWith('Unable to discard draft');
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it('toasts an error when the request itself throws', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.reject(new Error('network down')))
+      );
+      const showStore = useShowStore();
+      showStore.currentRevision = 1;
+      showStore.scriptRevisions = [makeRevision({ id: 1, revision: 1, has_draft: true })];
+      const w = await mountRevisions();
+
+      await button(w, 'Discard Draft')?.trigger('click');
+      await flushPromises();
+
+      expect(toast.error).toHaveBeenCalledWith('Unable to discard draft');
+    });
+
+    it("disables other rows' Edit/Delete too when the current revision (not the row itself) is locked", async () => {
+      const showStore = useShowStore();
+      showStore.currentRevision = 1;
+      showStore.scriptRevisions = [
+        makeRevision({ id: 1, revision: 1, has_draft: true }),
+        makeRevision({ id: 2, revision: 2, has_draft: false }),
+      ];
+      const w = await mountRevisions();
+
+      // Row 2 itself has no draft, but the current revision (row 1) is locked, so
+      // changeRevisionsDisabledReason still disables every row's Edit/Delete.
+      expect(button(w, 'Edit')?.attributes('disabled')).toBeDefined();
+      expect(button(w, 'Delete')?.attributes('disabled')).toBeDefined();
+    });
+
+    it('hides the Discard Draft button, but keeps the banner text, for a non-script-editor', async () => {
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(false);
+      const showStore = useShowStore();
+      showStore.currentRevision = 1;
+      showStore.scriptRevisions = [makeRevision({ id: 1, revision: 1, has_draft: true })];
+      const w = await mountRevisions();
+
+      expect(w.text()).toContain('unsaved collaborative draft');
+      expect(button(w, 'Discard Draft')).toBeUndefined();
+    });
   });
 
   describe('legacy mode (unchanged behaviour)', () => {

@@ -22,6 +22,7 @@ import {
   waitForModal,
   waitForModalClosed,
   confirmModal,
+  confirmDialog,
   fillOpenLineEditor,
   addDialogueLine,
 } from '../helpers.js';
@@ -77,7 +78,9 @@ async function enableCollabEditingViaUI(p: Page): Promise<void> {
     .locator('input[type="checkbox"], .form-check-input')
     .first();
   await expect(toggle).toBeVisible({ timeout: 5_000 });
-  await toggle.click();
+  // Don't assume it's currently off — only click if it needs to change, so a retry
+  // (or any other state the DB snapshot left it in) can't double-toggle it back off.
+  if (!(await toggle.isChecked())) await toggle.click();
   await p.click('button:has-text("Submit")');
   await expect(p.locator('.v-toast__item:has-text("Saved settings")')).toBeVisible({
     timeout: 10_000,
@@ -162,12 +165,28 @@ test('cut mode: toggling a line part requires Save Cuts, exclusive with editing'
   // D11: cutting and editing are mutually exclusive — Edit is not offered while cutting.
   await expect(editButton(page)).not.toBeVisible();
 
-  await firstRow(page).locator('.viewable-line-cut').first().click();
+  const cutLinePart = firstRow(page).locator('.viewable-line-cut').first();
+  await cutLinePart.click();
   await expect(saveCutsButton).toBeEnabled();
   await saveCutsButton.click();
-  await expect(page.locator('.v-toast__item:has-text("Saved script cuts")')).toBeVisible({
+  await expect(page.locator('.v-toast__item:has-text("Saved script cuts")').first()).toBeVisible({
     timeout: 10_000,
   });
+  // The authoritative "this save has actually landed" signal, not just "a toast with
+  // this text is somewhere in the DOM" — Save Cuts only disables once linePartCuts
+  // matches the server's cuts. Needed before un-cutting below: a second toast
+  // assertion could otherwise match the first (still-visible) toast's own element
+  // rather than proving the second save round-tripped.
+  await expect(saveCutsButton).toBeDisabled({ timeout: 10_000 });
+
+  // Un-cut it again before leaving — this test's job is to prove the save round trip
+  // works, not to leave a cut line part behind for later tests/specs to work around.
+  // Stop Cutting below would otherwise confirm() first (cutsChanged still true if this
+  // save hadn't actually settled yet), hanging forever with nothing to answer it.
+  await cutLinePart.click();
+  await expect(saveCutsButton).toBeEnabled();
+  await saveCutsButton.click();
+  await expect(saveCutsButton).toBeDisabled({ timeout: 10_000 });
 
   await page.click('button:has-text("Stop Cutting")');
   await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
@@ -435,7 +454,9 @@ test('bulk edit applies a character across a range of lines', async () => {
   ).toContainText('Alice');
 });
 
-test('Discard reverts the draft and closes the room for every editor in it', async () => {
+test('Discard, triggered from the Revisions page, reverts the draft and closes the room for every editor in it', async ({
+  browser,
+}) => {
   // ctx2/page2 is still open (idle, Edit button visible) from the earlier two-editor
   // test — bring it back in as a second editor with its own real unsaved edit, so
   // Discard's effect on *another* client's actual work (not just the one who clicked
@@ -456,11 +477,28 @@ test('Discard reverts the draft and closes the room for every editor in it', asy
     page.locator('.script-line-row').filter({ hasText: "page2's own unsaved line" })
   ).toBeVisible({ timeout: 10_000 });
 
-  await stopEditing(page).click();
-  await waitForModal(page, 'Stop Editing');
-  await page.click('.modal.show button:has-text("Discard")');
-  await waitForModalClosed(page);
+  // Discard it from the Revisions page's own button, via a third session that was
+  // never an editor — a disposable context, same pattern as the earlier cut/edit
+  // exclusivity test. `page`/`page2` deliberately stay joined editors throughout
+  // (rather than navigating one of them away first) so the server's demote-every-
+  // client-still-in-the-room logic has both of them to clear, exactly like the
+  // earlier (never-exercised) in-editor Discard path did.
+  const ctx3 = await browser.newContext();
+  const page3 = await ctx3.newPage();
+  await loginAsAdmin(page3);
+  await page3.goto(`${UI_BASE}/show-config/script-revisions`);
+  await waitForAppReady(page3);
+  const discardDraftButton = page3.getByRole('button', { name: 'Discard Draft', exact: true });
+  await expect(discardDraftButton).toBeVisible({ timeout: 10_000 });
+  await discardDraftButton.click();
+  await confirmDialog(page3);
+  // The revision unlocks for everyone once the discard completes server-side.
+  await expect(page3.locator('button:has-text("New Revision")')).toBeEnabled({ timeout: 10_000 });
+  await ctx3.close();
 
+  // Both editors are torn down server-side and notified — ROOM_CLOSED (or the
+  // isEditor watcher, once GET_SCRIPT_CONFIG_STATUS drops them from `editors`) flips
+  // each one back to the Edit button, with no action from either of them.
   await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
   await expect(editButton(page2)).toBeVisible({ timeout: 10_000 });
 

@@ -15,7 +15,13 @@
             {{ draftEditorUsernames.length > 1 ? 'are' : 'is' }} editing it</template
           >. Loading, creating and deleting revisions is blocked until it is saved or discarded.
         </span>
-        <BButton size="sm" variant="danger" :disabled="discardingDraft" @click="discardDraft">
+        <BButton
+          v-if="systemStore.isScriptEditor"
+          size="sm"
+          variant="danger"
+          :disabled="discardingDraft"
+          @click="discardDraft"
+        >
           Discard Draft
         </BButton>
       </div>
