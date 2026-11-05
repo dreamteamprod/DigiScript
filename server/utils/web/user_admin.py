@@ -21,6 +21,36 @@ from utils.web.auth_audit import actor, audit
 from utils.web.json_body import get_json_object
 
 
+async def _save_first_run_telemetry_preference(controller, data: dict) -> None:
+    """Save the admin's telemetry preference from first-run setup, and start the service.
+
+    Only meaningful when called for the very first user creation. ``start_telemetry_service()``
+    itself gates on ``has_admin_user``, so nothing could have started before this point; this
+    call is what first lets it through that gate.
+
+    :param controller: The request handler.
+    :param data: The decoded request body.
+    """
+    telemetry_enabled = data.get("telemetry_enabled", None)
+    # Only a real bool is accepted — bool("false") is True, so silently coercing a malformed
+    # value (e.g. a hand-written API call sending the string "false") would save the opposite
+    # of what was asked. Anything else is treated the same as the field being absent: fall
+    # through to whatever telemetry_enabled is already set to (its existing default).
+    if isinstance(telemetry_enabled, bool):
+        await controller.application.digi_settings.set(
+            "telemetry_enabled", telemetry_enabled
+        )
+    # Isolated in its own try/except, matching this project's established pattern for
+    # telemetry writes (see TelemetryService.check_in and the RBAC grant handler): a failure
+    # here must never turn an already-successful user creation into a reported error.
+    try:
+        await controller.application.start_telemetry_service()
+    except Exception:
+        get_logger().exception(
+            "Failed to start telemetry service after first-admin creation"
+        )
+
+
 async def create_user(controller) -> None:
     """Create a user from the request body and write the response.
 
@@ -103,33 +133,8 @@ async def create_user(controller) -> None:
 
             if is_admin:
                 await controller.application.digi_settings.set("has_admin_user", True)
-
                 if not has_any_users:
-                    # First-run setup: save the admin's telemetry preference (if the form
-                    # submitted one — older clients or direct API callers may not) before
-                    # telemetry is ever allowed to start. start_telemetry_service() itself
-                    # gates on has_admin_user, so nothing could have started before this
-                    # point; this call is what first lets it through that gate.
-                    telemetry_enabled = data.get("telemetry_enabled", None)
-                    # Only a real bool is accepted — bool("false") is True, so silently
-                    # coercing a malformed value (e.g. a hand-written API call sending the
-                    # string "false") would save the opposite of what was asked. Anything
-                    # else is treated the same as the field being absent: fall through to
-                    # whatever telemetry_enabled is already set to (its existing default).
-                    if isinstance(telemetry_enabled, bool):
-                        await controller.application.digi_settings.set(
-                            "telemetry_enabled", telemetry_enabled
-                        )
-                    # Isolated in its own try/except, matching this project's established
-                    # pattern for telemetry writes (see TelemetryService.check_in and the
-                    # RBAC grant handler): a failure here must never turn an
-                    # already-successful user creation into a reported error.
-                    try:
-                        await controller.application.start_telemetry_service()
-                    except Exception:
-                        get_logger().exception(
-                            "Failed to start telemetry service after first-admin creation"
-                        )
+                    await _save_first_run_telemetry_preference(controller, data)
 
             controller.set_status(200)
             await controller.application.ws_send_to_all("NOOP", "GET_USERS", {})
