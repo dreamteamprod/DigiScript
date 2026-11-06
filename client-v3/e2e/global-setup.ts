@@ -42,6 +42,9 @@ export default async function globalSetup(): Promise<void> {
       cwd: serverDir,
       detached: true,
       stdio: ['ignore', serverLog, serverLog],
+      // Every E2E run otherwise starts a real TelemetryService that would phone home to the
+      // live collector — CI and local runs alike, since this isn't set anywhere by default.
+      env: { ...process.env, DIGISCRIPT_TELEMETRY: '0' },
     }
   );
 

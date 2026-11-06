@@ -117,7 +117,11 @@
       </div>
     </template>
     <template
-      v-else-if="settings && (settings as Record<string, unknown>).has_admin_user === false"
+      v-else-if="
+        settings &&
+        (settings as Record<string, unknown>).has_admin_user === false &&
+        !route.path.startsWith('/help')
+      "
     >
       <BContainer class="mx-0" fluid>
         <BRow>
@@ -164,7 +168,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import type { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
@@ -181,6 +185,7 @@ import { useWebSocket } from '@/composables/useWebSocket';
 import { makeURL } from '@/js/utils';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 const systemStore = useSystemStore();
 const showStore = useShowStore();

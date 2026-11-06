@@ -13,6 +13,17 @@ from digi_server.logger import add_logging_level
 from models import models
 
 
+# Creating a first admin via the real /api/v1/auth/create or /api/v2/users endpoints now
+# calls start_telemetry_service() directly (see utils/web/user_admin.py), not just the
+# configure() path tests never exercise. Without this, every such test — there are 70+
+# across the suite via DigiScriptTestCase's _create_and_login_admin and similar helpers —
+# would start a real TelemetryService: an AsyncHTTPClient and an _ErrorCountHandler that
+# tearDown never closes/removes (the latter leaks onto get_logger()'s module-level, worker-
+# shared logger), plus a non-zero chance of an actual network POST firing mid-suite. Set
+# once, unconditionally, before any test or app construction happens.
+os.environ["DIGISCRIPT_TELEMETRY"] = "0"
+
+
 # main.py registers the TRACE level for the real app process; tests bootstrap
 # DigiScriptServer directly and never import main.py, so register it here too —
 # otherwise any get_logger().trace(...) call raises AttributeError under test.

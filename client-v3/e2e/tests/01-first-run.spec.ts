@@ -40,9 +40,20 @@ test('Save button is disabled until form is valid', async () => {
   await expect(page.locator('button:has-text("Save")')).toBeDisabled();
 });
 
+test('telemetry checkbox is visible and checked by default', async () => {
+  const telemetryCheckbox = page.locator('#telemetry-enabled-input');
+  await expect(telemetryCheckbox).toBeVisible();
+  await expect(telemetryCheckbox).toBeChecked();
+});
+
 test('creates the admin user and transitions to the main UI', async () => {
   await page.fill('#password-input', ADMIN_PASSWORD);
   await page.fill('#confirm-password-input', ADMIN_PASSWORD);
+  // Unchecked deliberately: System Config's test for this later asserts the setting
+  // reads disabled, which only actually proves the checkbox's value reached the saved
+  // setting if it differs from telemetry_enabled's own default (true) — matching the
+  // default would pass even if the save silently did nothing at all.
+  await page.uncheck('#telemetry-enabled-input');
   await page.click('button:has-text("Save")');
 
   // After creation the settings update via WS and the router view replaces the form
