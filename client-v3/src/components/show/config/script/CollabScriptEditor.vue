@@ -23,12 +23,23 @@
         </BCol>
         <BCol cols="2">
           <BButtonGroup v-if="systemStore.isScriptEditor">
-            <template v-if="!isEditor">
+            <template v-if="scriptConfigStore.cutMode">
+              <BButton variant="warning" @click="stopCutting">Stop Cutting</BButton>
+              <BButton
+                variant="success"
+                :disabled="!cutsChanged || cuttingSaveInProgress"
+                @click="saveCuts"
+              >
+                Save Cuts
+              </BButton>
+            </template>
+            <template v-else-if="!isEditor">
               <BButton variant="warning" :disabled="hasCutters" @click="requestEdit">Edit</BButton>
               <BButton
                 variant="warning"
-                disabled
-                title="Cut mode is not yet available with collaborative editing"
+                :disabled="cutsDisabledReason !== null"
+                :title="cutsDisabledReason ?? undefined"
+                @click="requestCuts"
               >
                 Cuts
               </BButton>
@@ -136,10 +147,11 @@
             :characters="showStore.characterList"
             :character-groups="showStore.characterGroupList"
             :previous-line="viewerPreviousLine(index)"
-            :can-edit="false"
-            :line-part-cuts="[]"
+            :can-edit="scriptConfigStore.cutMode"
+            :line-part-cuts="linePartCuts"
             :stage-direction-styles="scriptStore.stageDirectionStyles"
             :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
+            @cut-line-part="cutLinePart"
           />
         </template>
       </BCol>
@@ -233,6 +245,7 @@ import { useWebSocket } from '@/composables/useWebSocket';
 import { useDraftPages } from '@/composables/useDraftPages';
 import { useDraftWriter } from '@/composables/useDraftWriter';
 import { useAutoSave } from '@/composables/useAutoSave';
+import { useConfirm } from '@/composables/useConfirm';
 import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
@@ -249,7 +262,9 @@ import type { LineUid } from '@/js/yjs/yjsSnapshot';
  * editor joins the shared draft, browses and edits it with line/text changes writing
  * straight through `useDraftWriter` (Phase 3 Step 3), saves/stops/discards it and
  * bulk-edits it (Step 4, see `onBulkApply`). Everyone else reads saved pages over
- * REST exactly as the classic editor's viewer does. Cuts are not yet implemented.
+ * REST exactly as the classic editor's viewer does. Cut mode (Step 5) is REST, like
+ * the classic editor's, entered via `REQUEST_SCRIPT_CUTS` rather than
+ * `REQUEST_SCRIPT_EDIT` — exclusive with draft mode, enforced server-side.
  * The classic `ScriptEditor.vue` is untouched and is what renders when the setting
  * is off.
  */
@@ -264,6 +279,7 @@ const wsStore = useWebSocketStore();
 const { sendObj } = useWebSocket();
 const draftPages = useDraftPages();
 const writer = useDraftWriter();
+const { confirm } = useConfirm();
 
 const loaded = ref(false);
 const currentPage = ref(1);
@@ -276,6 +292,14 @@ const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
 const stopEditingModal = ref<InstanceType<typeof BModal>>();
 const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
 const bulkEditMode = ref(false);
+// Cut mode (D11): REST, exclusive with draft mode, entered via REQUEST_SCRIPT_CUTS
+// rather than REQUEST_SCRIPT_EDIT. scriptConfigStore.cutMode is a local-only flag
+// shared with the classic editor and ScriptLineViewer (which reads it directly to
+// decide whether to render its cut-clickable UI) — not derived from the server's
+// `cutters` list, matching the classic editor's own optimistic set-then-roll-back
+// pattern (requestEditFailure already resets it to false on a rejected request).
+const linePartCuts = ref<number[]>([]);
+const cuttingSaveInProgress = ref(false);
 // D6: a stable key, not an index — an insert/delete elsewhere in the draft (ours or
 // another editor's) must not silently shift which lines a bulk edit lands on. Resolved
 // back to a position only when the edit is actually applied (see onBulkApply).
@@ -304,6 +328,24 @@ const isEditor = computed(
     scriptConfigStore.editors.some((e) => e.internal_id === wsStore.internalUUID)
 );
 const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
+// A set comparison, not an ordered one: cutLinePart() splice-then-pushes, so toggling
+// an already-saved cut off and back on (without saving in between) reorders the same
+// *set* of ids — an ordered JSON.stringify compare would see that as a change and
+// spuriously enable Save Cuts for a no-op save.
+const cutsChanged = computed(() => {
+  if (linePartCuts.value.length !== scriptStore.cuts.length) return true;
+  const saved = new Set(scriptStore.cuts);
+  return linePartCuts.value.some((id) => !saved.has(id));
+});
+// Proactive client-side disable, mirroring _op_request_script_cuts's own rejection
+// order — the server enforces every one of these regardless, this just avoids a
+// round trip to find out.
+const cutsDisabledReason = computed<string | null>(() => {
+  if (hasCutters.value) return 'Someone else is already cutting the script';
+  if (scriptConfigStore.editors.length > 0) return 'Script editing is in progress';
+  if (scriptConfigStore.hasDraft) return 'Cuts are blocked while an unsaved draft exists';
+  return null;
+});
 
 const draftReady = computed(() => isEditor.value && draftStore.isDraftSynced);
 const canEditDraft = computed(() => isEditor.value && draftReady.value);
@@ -509,6 +551,46 @@ function requestEdit(): void {
   if (!sendObj({ OP: 'REQUEST_SCRIPT_EDIT', DATA: { collab: true } })) {
     toast.error('Cannot edit script: not connected to the server');
   }
+}
+
+function requestCuts(): void {
+  scriptConfigStore.setCutMode(true);
+  if (!sendObj({ OP: 'REQUEST_SCRIPT_CUTS', DATA: {} })) {
+    toast.error('Cannot cut script: not connected to the server');
+    scriptConfigStore.setCutMode(false);
+  }
+}
+
+// Confirms first when there are unsaved cuts, matching the classic editor's
+// stopEditing() (ScriptEditor.vue) for the equivalent case — stopping without saving
+// would otherwise silently discard them.
+async function stopCutting(): Promise<void> {
+  if (cutsChanged.value) {
+    const ok = await confirm(
+      'Are you sure you want to stop cutting? This will discard your unsaved cuts.'
+    );
+    if (!ok) return;
+  }
+  scriptConfigStore.setCutMode(false);
+  if (!sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
+    toast.error('Cannot stop cutting: not connected to the server');
+  }
+}
+
+async function saveCuts(): Promise<void> {
+  cuttingSaveInProgress.value = true;
+  try {
+    await scriptStore.saveCuts(linePartCuts.value);
+    linePartCuts.value = [...scriptStore.cuts];
+  } finally {
+    cuttingSaveInProgress.value = false;
+  }
+}
+
+function cutLinePart(linePartId: number): void {
+  const idx = linePartCuts.value.indexOf(linePartId);
+  if (idx === -1) linePartCuts.value.push(linePartId);
+  else linePartCuts.value.splice(idx, 1);
 }
 
 // STOP only: the server only demotes, checkpoints and closes the room for a client
@@ -741,6 +823,18 @@ watch(bulkEditEnd, (val) => {
   if (val != null) bulkModal.value?.show();
 });
 
+// Covers every way cutMode can go true -> false, not just our own stopCutting()/
+// saveCuts(): a server-side rejection of REQUEST_SCRIPT_CUTS (requestEditFailure()
+// in scriptConfig.ts) also resets cutMode, and any line part clicked during the
+// brief optimistic window before that rejection arrives must not leak into the
+// next cut session.
+watch(
+  () => scriptConfigStore.cutMode,
+  (now, was) => {
+    if (!now && was) linePartCuts.value = [...scriptStore.cuts];
+  }
+);
+
 function calculateNavbarHeight(): void {
   const navbar = document.querySelector('.navbar');
   navbarHeight.value = navbar ? (navbar as HTMLElement).offsetHeight : 56;
@@ -809,7 +903,9 @@ onMounted(async () => {
     showStore.getCharacterGroupList(),
     scriptStore.getStageDirectionStyles(),
     scriptConfigStore.getScriptConfigStatus(),
+    scriptStore.getCuts(),
   ]);
+  linePartCuts.value = [...scriptStore.cuts];
 
   const storedPage = Number.parseInt(localStorage.getItem('scriptEditPage') ?? '1', 10);
   currentPage.value = Number.isInteger(storedPage) && storedPage > 0 ? storedPage : 1;

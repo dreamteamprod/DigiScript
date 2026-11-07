@@ -25,6 +25,10 @@ vi.mock('@/composables/useWebSocket', () => ({
 vi.mock('@/js/toast', () => ({
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
+const confirmMock = vi.fn().mockResolvedValue(true);
+vi.mock('@/composables/useConfirm', () => ({
+  useConfirm: () => ({ confirm: confirmMock }),
+}));
 
 // The viewer is stubbed to a bare row so a row's DOM identity can be tracked.
 const ViewerStub = defineComponent({
@@ -157,6 +161,7 @@ describe('CollabScriptEditor', () => {
     }
     vi.spyOn(useScriptStore(), 'getStageDirectionStyles').mockResolvedValue();
     vi.spyOn(useScriptStore(), 'loadScriptPage').mockResolvedValue();
+    vi.spyOn(useScriptStore(), 'getCuts').mockResolvedValue();
     vi.spyOn(useScriptConfigStore(), 'getScriptConfigStatus').mockResolvedValue();
   });
 
@@ -1207,6 +1212,243 @@ describe('CollabScriptEditor', () => {
       expect(byUid(startUid)!.scene_id).toBe(8);
       expect(byUid(endUid)!.act_id).toBe(9);
       expect(byUid(endUid)!.scene_id).toBe(8);
+    });
+  });
+
+  describe('cut mode (Step 5)', () => {
+    function vm(w: VueWrapper) {
+      return w.vm as unknown as {
+        cutLinePart: (linePartId: number) => void;
+        saveCuts: () => Promise<void>;
+      };
+    }
+
+    beforeEach(() => {
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+    });
+
+    it('disables Cuts when someone else is already cutting', async () => {
+      useScriptConfigStore().cutters = [{ internal_id: 'other', username: 'alex' }];
+      const w = await mountEditor();
+
+      expect(button(w, 'Cuts')?.attributes('disabled')).toBeDefined();
+      expect(button(w, 'Cuts')?.attributes('title')).toBe(
+        'Someone else is already cutting the script'
+      );
+    });
+
+    it('disables Cuts while an editor is present', async () => {
+      useScriptConfigStore().editors = [{ internal_id: 'other', username: 'alex' }];
+      const w = await mountEditor();
+
+      expect(button(w, 'Cuts')?.attributes('disabled')).toBeDefined();
+      expect(button(w, 'Cuts')?.attributes('title')).toBe('Script editing is in progress');
+    });
+
+    it('disables Cuts while an unsaved draft exists', async () => {
+      useScriptConfigStore().hasDraft = true;
+      const w = await mountEditor();
+
+      expect(button(w, 'Cuts')?.attributes('disabled')).toBeDefined();
+      expect(button(w, 'Cuts')?.attributes('title')).toBe(
+        'Cuts are blocked while an unsaved draft exists'
+      );
+    });
+
+    it('prioritises the cutter reason over editor/draft reasons when several apply at once', async () => {
+      // Pins cutsDisabledReason's rejection order (cutter -> editor -> draft) — a
+      // regression that reordered the checks would still disable the button but
+      // silently swap which reason is shown.
+      useScriptConfigStore().cutters = [{ internal_id: 'other', username: 'alex' }];
+      useScriptConfigStore().editors = [{ internal_id: 'another', username: 'sam' }];
+      useScriptConfigStore().hasDraft = true;
+      const w = await mountEditor();
+
+      expect(button(w, 'Cuts')?.attributes('title')).toBe(
+        'Someone else is already cutting the script'
+      );
+    });
+
+    it('enables Cuts when nothing is blocking it', async () => {
+      const w = await mountEditor();
+
+      expect(button(w, 'Cuts')?.attributes('disabled')).toBeUndefined();
+      expect(button(w, 'Cuts')?.attributes('title')).toBeUndefined();
+    });
+
+    it('clicking Cuts sends REQUEST_SCRIPT_CUTS and switches to the cutting controls', async () => {
+      const w = await mountEditor();
+
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+
+      expect(sentOps()).toContain('REQUEST_SCRIPT_CUTS');
+      expect(useScriptConfigStore().cutMode).toBe(true);
+      expect(button(w, 'Stop Cutting')).toBeDefined();
+      expect(button(w, 'Save Cuts')).toBeDefined();
+      // Not a plain `button(w, 'Edit')` check: the (always-rendered) Stop Editing
+      // modal's "Keep Editing" button text also contains "Edit" via that helper's
+      // substring fallback.
+      expect(buttons(w).some((b) => b.text().trim() === 'Edit')).toBe(false);
+      expect(buttons(w).some((b) => b.text().trim() === 'Cuts')).toBe(false);
+    });
+
+    it('rolls cutMode back when the send fails (socket down)', async () => {
+      sendObj.mockReturnValueOnce(false);
+      const w = await mountEditor();
+
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+
+      expect(useScriptConfigStore().cutMode).toBe(false);
+      const { toast } = await import('@/js/toast');
+      expect(toast.error).toHaveBeenCalledWith('Cannot cut script: not connected to the server');
+    });
+
+    it('rolls cutMode back, and discards any clicked-during-the-wait cuts, when the server rejects REQUEST_SCRIPT_CUTS', async () => {
+      // The other half of the optimistic set-then-roll-back contract: a *successful*
+      // send that the server later rejects (another editor/cutter won a race) arrives
+      // as requestEditFailure(), not a false return from sendObj.
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      vm(w).cutLinePart(42);
+      await flushPromises();
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeUndefined();
+
+      await useScriptConfigStore().requestEditFailure({ reason: 'Another user is cutting' });
+      await flushPromises();
+
+      expect(useScriptConfigStore().cutMode).toBe(false);
+      expect(button(w, 'Cuts')).toBeDefined();
+      // The click made during the rejected request must not leak into the next
+      // cut session.
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeDefined();
+    });
+
+    it('Save Cuts is disabled until a line part is actually toggled', async () => {
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeDefined();
+
+      vm(w).cutLinePart(42);
+      await flushPromises();
+
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeUndefined();
+    });
+
+    it('Save Cuts sends the toggled line part ids to the server', async () => {
+      const scriptStore = useScriptStore();
+      const saveCuts = vi.spyOn(scriptStore, 'saveCuts').mockResolvedValue();
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      vm(w).cutLinePart(42);
+      await flushPromises();
+
+      await button(w, 'Save Cuts')!.trigger('click');
+      await flushPromises();
+
+      expect(saveCuts).toHaveBeenCalledWith([42]);
+    });
+
+    it('untoggling and retoggling an already-saved cut does not spuriously re-enable Save Cuts', async () => {
+      // cutsChanged must compare as a set, not an ordered array: cutLinePart()
+      // splice-then-pushes, so the same ids come back in a different order.
+      useScriptStore().cuts = [42, 43];
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+
+      vm(w).cutLinePart(42);
+      vm(w).cutLinePart(42);
+      await flushPromises();
+
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeDefined();
+    });
+
+    it('re-enables Save Cuts if the save itself fails, rather than leaving it stuck disabled', async () => {
+      const scriptStore = useScriptStore();
+      vi.spyOn(scriptStore, 'saveCuts').mockRejectedValue(new Error('network error'));
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      vm(w).cutLinePart(42);
+      await flushPromises();
+
+      // Calls saveCuts() directly rather than through the DOM click — the production
+      // code deliberately has no catch (matching the reviewer's own suggested fix,
+      // which is try/finally only), so dispatching via a real click would leave the
+      // rejection unhandled in Vue's native event path.
+      await vm(w)
+        .saveCuts()
+        .catch(() => {});
+      await flushPromises();
+
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeUndefined();
+    });
+
+    it('toggling the same line part twice cancels the cut', async () => {
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+
+      vm(w).cutLinePart(42);
+      vm(w).cutLinePart(42);
+      await flushPromises();
+
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeDefined();
+    });
+
+    it('Stop Cutting leaves cut mode and sends STOP_SCRIPT_EDIT, without confirming when nothing changed', async () => {
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+
+      await button(w, 'Stop Cutting')!.trigger('click');
+      await flushPromises();
+
+      expect(confirmMock).not.toHaveBeenCalled();
+      expect(sentOps()).toContain('STOP_SCRIPT_EDIT');
+      expect(useScriptConfigStore().cutMode).toBe(false);
+      expect(button(w, 'Cuts')).toBeDefined();
+    });
+
+    it('Stop Cutting confirms before discarding unsaved cuts, matching the classic editor', async () => {
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      vm(w).cutLinePart(42);
+      await flushPromises();
+
+      await button(w, 'Stop Cutting')!.trigger('click');
+      await flushPromises();
+
+      expect(confirmMock).toHaveBeenCalledWith(
+        'Are you sure you want to stop cutting? This will discard your unsaved cuts.'
+      );
+      expect(sentOps()).toContain('STOP_SCRIPT_EDIT');
+      expect(useScriptConfigStore().cutMode).toBe(false);
+    });
+
+    it('stays in cut mode if the user declines the confirm', async () => {
+      confirmMock.mockResolvedValueOnce(false);
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      vm(w).cutLinePart(42);
+      await flushPromises();
+
+      await button(w, 'Stop Cutting')!.trigger('click');
+      await flushPromises();
+
+      expect(sentOps()).not.toContain('STOP_SCRIPT_EDIT');
+      expect(useScriptConfigStore().cutMode).toBe(true);
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeUndefined();
     });
   });
 });

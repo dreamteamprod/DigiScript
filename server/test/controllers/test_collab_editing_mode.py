@@ -73,9 +73,9 @@ class TestModeSettingDefinition(DigiScriptTestCase):
         self.assertEqual(bool, setting.val_type)
         self.assertTrue(setting.can_edit)
 
-    def test_is_hidden_from_the_settings_page_until_the_editor_exists(self):
-        """Switching it on now would leave no client able to edit the script."""
-        self.assertTrue(self._app.digi_settings.settings[MODE].hide_from_ui)
+    def test_is_visible_on_the_settings_page_now_the_editor_has_shipped(self):
+        """Was hidden until Phase 3 Step 5; the collaborative editor is now complete."""
+        self.assertFalse(self._app.digi_settings.settings[MODE].hide_from_ui)
 
     def test_get_sync_reads_the_current_value_and_rejects_unknown_keys(self):
         settings = self._app.digi_settings
