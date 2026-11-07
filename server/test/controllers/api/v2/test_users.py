@@ -1,3 +1,6 @@
+import os
+from unittest.mock import patch
+
 from prometheus_client import REGISTRY
 from sqlalchemy import select
 from tornado import escape
@@ -108,6 +111,98 @@ class TestUsersV2Controller(DigiScriptTestCase):
         self.assertEqual(
             "First user must be an admin", escape.json_decode(resp.body)["message"]
         )
+
+    def test_post_first_admin_saves_telemetry_preference_off(self):
+        resp = self.fetch(
+            "/api/v2/users",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "admin",
+                    "password": "adminpass",
+                    "is_admin": True,
+                    "telemetry_enabled": False,
+                }
+            ),
+        )
+        self.assertEqual(200, resp.code)
+        self.assertFalse(
+            self._app.digi_settings.settings["telemetry_enabled"].get_value()
+        )
+        # Never allowed to start before the admin's choice to disable it was saved.
+        self.assertIsNone(self._app.telemetry_service)
+
+    def test_post_first_admin_saves_telemetry_preference_on(self):
+        # conftest.py sets DIGISCRIPT_TELEMETRY=0 globally so the rest of the suite can't
+        # accidentally phone home; this test specifically needs telemetry able to start.
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("DIGISCRIPT_TELEMETRY", None)
+            resp = self.fetch(
+                "/api/v2/users",
+                method="POST",
+                body=escape.json_encode(
+                    {
+                        "username": "admin",
+                        "password": "adminpass",
+                        "is_admin": True,
+                        "telemetry_enabled": True,
+                    }
+                ),
+            )
+            self.assertEqual(200, resp.code)
+            self.assertTrue(
+                self._app.digi_settings.settings["telemetry_enabled"].get_value()
+            )
+            self.assertIsNotNone(self._app.telemetry_service)
+            self._app.telemetry_service.stop()
+
+    def test_post_first_admin_without_telemetry_field_defaults_to_enabled(self):
+        """Older clients and direct API callers may not send telemetry_enabled at all —
+        the default (opt-out) still applies, and the service still starts."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("DIGISCRIPT_TELEMETRY", None)
+            resp = self.fetch(
+                "/api/v2/users",
+                method="POST",
+                body=escape.json_encode(
+                    {"username": "admin", "password": "adminpass", "is_admin": True}
+                ),
+            )
+            self.assertEqual(200, resp.code)
+            self.assertTrue(
+                self._app.digi_settings.settings["telemetry_enabled"].get_value()
+            )
+            self.assertIsNotNone(self._app.telemetry_service)
+            self._app.telemetry_service.stop()
+
+    def test_post_second_admin_telemetry_field_has_no_effect(self):
+        """telemetry_enabled is only meaningful on the very first user creation — once an
+        admin already exists, the field is ignored entirely, not reapplied."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("DIGISCRIPT_TELEMETRY", None)
+            admin_token = self._setup_admin()
+            self.assertIsNotNone(self._app.telemetry_service)
+            self._app.telemetry_service.stop()
+            self._app.telemetry_service = None
+
+        resp = self.fetch(
+            "/api/v2/users",
+            method="POST",
+            body=escape.json_encode(
+                {
+                    "username": "admin2",
+                    "password": "adminpass2",
+                    "is_admin": True,
+                    "telemetry_enabled": False,
+                }
+            ),
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        self.assertEqual(200, resp.code)
+        self.assertTrue(
+            self._app.digi_settings.settings["telemetry_enabled"].get_value()
+        )
+        self.assertIsNone(self._app.telemetry_service)
 
     def test_post_missing_username(self):
         resp = self.fetch(

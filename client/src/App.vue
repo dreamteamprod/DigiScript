@@ -110,7 +110,9 @@
         <b-spinner style="width: 10rem; height: 10rem" variant="info" />
       </div>
     </template>
-    <template v-else-if="SETTINGS && SETTINGS.has_admin_user === false">
+    <template
+      v-else-if="SETTINGS && SETTINGS.has_admin_user === false && !$route.path.startsWith('/help')"
+    >
       <b-container class="mx-0" fluid>
         <b-row>
           <b-col>

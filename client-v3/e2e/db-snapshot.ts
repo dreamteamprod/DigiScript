@@ -62,7 +62,13 @@ export async function restoreSpecStartAndRestartServer(): Promise<void> {
   const server = spawn(
     'python3',
     ['main.py', `--port=${SERVER_PORT}`, `--settings_path=${config}`, '--debug=false'],
-    { cwd: serverDir, detached: true, stdio: 'ignore' }
+    {
+      cwd: serverDir,
+      detached: true,
+      stdio: 'ignore',
+      // Same reasoning as global-setup.ts: never let a retry-restarted test server phone home.
+      env: { ...process.env, DIGISCRIPT_TELEMETRY: '0' },
+    }
   );
   fs.writeFileSync(STATE_FILE, JSON.stringify({ ...state, pid: server.pid! }));
   server.unref();

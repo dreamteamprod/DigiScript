@@ -183,7 +183,11 @@ router.beforeEach(async (to, from, next) => {
   const requiresShowAccess = to.matched.some((record) => record.meta.requiresShowAccess);
 
   if (app.$store.getters.SETTINGS && !app.$store.getters.SETTINGS.has_admin_user) {
-    if (to.path !== '/') {
+    // /help is reachable pre-setup too, so the first-run screen's "See what's collected"
+    // link (opened in a new tab, where has_admin_user is just as false) actually works —
+    // without this, that tab would just show the create-admin screen again.
+    const allowedPreSetup = to.path === '/' || to.path.startsWith('/help');
+    if (!allowedPreSetup) {
       VueToast.$toast.error('Please create an admin user before continuing');
       return next('/');
     }

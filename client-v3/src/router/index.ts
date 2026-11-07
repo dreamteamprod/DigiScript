@@ -163,8 +163,12 @@ async function checkPermissionGuards(
 ): Promise<string | undefined> {
   const settings = systemStore.settings as Record<string, unknown> | null;
   if (settings?.has_admin_user === false) {
-    if (to.path !== '/') toast.error('Please create an admin user before continuing');
-    return to.path === '/' ? undefined : '/';
+    // /help is reachable pre-setup too, so the first-run screen's "See what's collected"
+    // link (opened in a new tab, where has_admin_user is just as false) actually works —
+    // without this, that tab would just show the create-admin screen again.
+    const allowedPreSetup = to.path === '/' || to.path.startsWith('/help');
+    if (!allowedPreSetup) toast.error('Please create an admin user before continuing');
+    return allowedPreSetup ? undefined : '/';
   }
 
   const currentUser = userStore.currentUser;
