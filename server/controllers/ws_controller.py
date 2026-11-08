@@ -255,9 +255,12 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
     def _leave_room(self) -> None:
         """Remove this (closed) handler from the collaborative-editing room.
 
-        If it was the room's last editor, closing the room is deferred to the end
-        of the grace window, so a reloading editor that rejoins in time keeps the
-        room and its viewers never see ``ROOM_CLOSED``.
+        If it was the room's last editor, or this was the last client left in
+        an already-editorless room (Phase 4 Step A: a plain viewer, not just an
+        editor, can now be that last client), closing the room is deferred to
+        the end of the grace window, so a reloading editor (or viewer) that
+        rejoins in time keeps the room and its other viewers never see
+        ``ROOM_CLOSED``.
         """
         room_manager = getattr(self.application, "room_manager", None)
         room = room_manager.get_room_for_client(self) if room_manager else None
@@ -275,7 +278,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
                 get_logger().exception("Error in on_close members broadcast")
 
         IOLoop.current().add_callback(_broadcast_members)
-        if was_editor and not room.has_editors:
+        if (was_editor and not room.has_editors) or room.is_empty:
             schedule_room_close(app, room)
 
     # ------------------------------------------------------------------
@@ -1121,7 +1124,12 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
                     await self.application.ws_send_to_all(
                         "NOOP", "GET_SCRIPT_REVISIONS", {}
                     )
-                await room_manager.close_active_room()
+                # Phase 4 Step A: this caller was just added back to `room.clients`
+                # as a viewer above (they may want to keep watching live), and any
+                # other viewer may still be there too — only tear the room down
+                # once nobody, editor or viewer, is left in it.
+                if room.is_empty:
+                    await room_manager.close_active_room()
 
         await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
 
@@ -1226,6 +1234,21 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             await self.application.ws_send_to_all(
                 "NOOP", "GET_SCRIPT_CONFIG_STATUS", {}
             )
+            # Phase 4 Step A: before this step, only an editor ever joined the
+            # room, and STOP_SCRIPT_EDIT was the only way to stop being one — it
+            # already checkpointed and closed an editorless room directly. Now a
+            # plain viewer can be the one actually leaving (unlike stopping
+            # editing, this removes them from `room.clients` entirely, not just
+            # downgrades their role), so this op needs the same checkpoint/close
+            # responsibility: nothing else closes the room when the last viewer
+            # of an already-editorless room leaves.
+            if not room.has_editors:
+                if await room_manager.checkpoint_if_dirty(room):
+                    await self.application.ws_send_to_all(
+                        "NOOP", "GET_SCRIPT_REVISIONS", {}
+                    )
+                if room.is_empty:
+                    await room_manager.close_active_room()
 
     async def _op_yjs_sync(self, room_manager, data: dict) -> None:
         """Handle ``YJS_SYNC`` (see :meth:`_handle_script_room_op`)."""

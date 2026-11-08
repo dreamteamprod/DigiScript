@@ -587,14 +587,31 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
 
         self._assert_refused(self._patch(**{MODE: True}))
 
-    def test_refused_while_a_room_has_clients(self):
+    def test_refused_while_a_room_has_an_editor(self):
         class _Room:
-            is_empty = False
+            has_editors = True
             _dirty = False
 
         self._app.room_manager._room = _Room()
 
         self._assert_refused(self._patch(**{MODE: True}))
+
+    def test_can_switch_when_the_room_has_only_viewers(self):
+        """A room with no editors has no work to strand — a lone viewer gets
+        dropped back to the classic (REST) read path exactly like a reload would,
+        same as if they'd never joined. Pins the has_editors fix: the old check
+        (room.is_empty) would have wrongly refused this once viewers can join."""
+
+        class _Room:
+            has_editors = False
+            _dirty = False
+
+        self._app.room_manager._room = _Room()
+
+        response = self._patch(**{MODE: True})
+
+        self.assertEqual(200, response.code)
+        self.assertIs(True, self._app.digi_settings.settings[MODE].get_value())
 
     def test_a_non_boolean_value_is_a_400_not_a_500(self):
         for value in ("true", 1, None):

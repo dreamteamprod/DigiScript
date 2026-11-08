@@ -90,7 +90,7 @@
 
     <BRow v-else class="script-row">
       <BCol cols="12">
-        <template v-if="draftReady">
+        <template v-if="usesLiveRender">
           <template v-for="(line, index) in draftLines" :key="line._uid">
             <CollabScriptLineEditor
               v-if="editingLines.has(line._uid)"
@@ -135,7 +135,7 @@
             />
           </template>
         </template>
-        <template v-else-if="!isEditor">
+        <template v-else>
           <ScriptLineViewer
             v-for="(line, index) in viewerLines"
             :key="`page_${currentPage}_line_${index}`"
@@ -261,12 +261,15 @@ import type { LineUid } from '@/js/yjs/yjsSnapshot';
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
  * editor joins the shared draft, browses and edits it with line/text changes writing
  * straight through `useDraftWriter` (Phase 3 Step 3), saves/stops/discards it and
- * bulk-edits it (Step 4, see `onBulkApply`). Everyone else reads saved pages over
- * REST exactly as the classic editor's viewer does. Cut mode (Step 5) is REST, like
- * the classic editor's, entered via `REQUEST_SCRIPT_CUTS` rather than
- * `REQUEST_SCRIPT_EDIT` — exclusive with draft mode, enforced server-side.
- * The classic `ScriptEditor.vue` is untouched and is what renders when the setting
- * is off.
+ * bulk-edits it (Step 4, see `onBulkApply`). Everyone else also joins the room, as a
+ * read-only viewer (Phase 4 Step A) — the server decides the role from `is_editor` at
+ * join time, so a plain viewer sees the *live* draft, not stale saved content. Cut
+ * mode (Step 5) is the one exception: it stays REST, like the classic editor's,
+ * entered via `REQUEST_SCRIPT_CUTS` rather than `REQUEST_SCRIPT_EDIT` — exclusive with
+ * draft mode, enforced server-side — so the REST render path is still used whenever
+ * `cutMode` is on, even though the viewer is also quietly joined to the room in the
+ * background by then. The classic `ScriptEditor.vue` is untouched and is what renders
+ * when the setting is off.
  */
 
 const showStore = useShowStore();
@@ -347,8 +350,14 @@ const cutsDisabledReason = computed<string | null>(() => {
   return null;
 });
 
-const draftReady = computed(() => isEditor.value && draftStore.isDraftSynced);
+// Phase 4 Step A: a plain viewer joins the room too, so draftReady no longer implies
+// isEditor — canEditDraft is the one that still does.
+const draftReady = computed(() => draftStore.isDraftSynced);
 const canEditDraft = computed(() => isEditor.value && draftReady.value);
+// Cuts stay REST always (D11), even once a cutter is also quietly joined to the room
+// as a viewer in the background — the live Y.Doc branch must not win over the REST
+// cutting branch just because the viewer-join made draftReady true.
+const usesLiveRender = computed(() => draftReady.value && !scriptConfigStore.cutMode);
 
 // D1: the client-side half of "incomplete lines abort the whole save" — mirrors the
 // server's exact validation rules so Save can disable itself with a reason before the
@@ -504,7 +513,7 @@ async function loadViewerPage(page: number): Promise<void> {
 }
 
 async function navigateTo(page: number): Promise<void> {
-  if (!draftReady.value) await loadViewerPage(page);
+  if (!usesLiveRender.value) await loadViewerPage(page);
   currentPage.value = page;
 }
 
@@ -632,8 +641,16 @@ function discardAndStop(): void {
   }
 }
 
+// Join if not already in the room; otherwise just ask the server to re-evaluate our
+// role (editor vs viewer) from the current is_editor flag, without tearing down the
+// already-synced Y.Doc — used both for the first join (any role) and for every later
+// isEditor transition while we stay on the page (Phase 4 Step A).
 function retryJoin(): void {
-  if (!draftStore.isDraftActive) draftStore.joinScriptRoom();
+  if (draftStore.isDraftActive) {
+    draftStore.refreshRoomRole();
+  } else {
+    draftStore.joinScriptRoom();
+  }
 }
 
 function saveScript(): void {
@@ -840,18 +857,19 @@ function calculateNavbarHeight(): void {
   navbarHeight.value = navbar ? (navbar as HTMLElement).offsetHeight : 56;
 }
 
-watch(isEditor, async (now, was) => {
-  if (now && !was) {
-    retryJoin();
-  } else if (!now && was) {
+// Phase 4 Step A (Tim's decision): stopping editing downgrades to viewer and keeps
+// watching live, rather than leaving the room and falling back to stale REST — the
+// whole point of Step A is that nobody should see stale content once live viewing
+// exists. The room is only actually left on unmount (see onBeforeUnmount).
+watch(isEditor, (now, was) => {
+  if (!now && was) {
     // The server has confirmed we're no longer an editor (our own stop, or losing
     // the lock some other way) — stopRequested has done its job, if it was set.
     stopRequested.value = false;
     editingLines.value.clear();
     latestAddedLine.value = null;
-    draftStore.leaveScriptRoom();
-    await loadViewerPage(currentPage.value);
   }
+  retryJoin();
 });
 
 // Belt-and-braces: if a STOP frame is sent but never actually registers server-side
@@ -912,12 +930,14 @@ onMounted(async () => {
   await loadViewerPage(currentPage.value);
 
   loaded.value = true;
-  // Covers both a brief reconnect and a full page reload: the server holds
-  // is_editor through a short reconnect grace window (issue #1419, fixed by #1427 —
-  // REFRESH_CLIENT resumes the session row, confirmed once AUTHENTICATE succeeds),
-  // so isEditor is already true here by the time this component re-mounts. No
-  // client-side change was needed to pick that up.
-  if (isEditor.value) retryJoin();
+  // Join unconditionally (Phase 4 Step A) — the server decides editor vs viewer role
+  // from is_editor, so this is how a plain viewer gets live content too, not just an
+  // editor. Covers both a brief reconnect and a full page reload for an editor
+  // specifically: the server holds is_editor through a short reconnect grace window
+  // (issue #1419, fixed by #1427 — REFRESH_CLIENT resumes the session row, confirmed
+  // once AUTHENTICATE succeeds), so isEditor is already true here by the time this
+  // component re-mounts, and retryJoin() rejoins as editor directly.
+  retryJoin();
   setupAutoSave();
 });
 

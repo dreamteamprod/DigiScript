@@ -79,14 +79,14 @@ class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
         body = tornado.escape.json_decode(response.body)
         self.assertIn("collaborative edit in progress", body["message"])
 
-    def test_non_empty_room_blocks_with_409(self):
-        """PATCH /show/script returns 409 when an in-memory room has clients.
+    def test_room_with_an_editor_blocks_with_409(self):
+        """PATCH /show/script returns 409 when an in-memory room has an editor.
 
         This covers the gap where a room exists in memory (clients editing) but
         the 30-second checkpoint hasn't written a ScriptDraft DB record yet.
         """
         mock_room = MagicMock()
-        mock_room.is_empty = False
+        mock_room.has_editors = True
         mock_manager = MagicMock()
         mock_manager.get_active_room.return_value = mock_room
         self._app.room_manager = mock_manager
@@ -99,14 +99,19 @@ class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
         finally:
             del self._app.room_manager
 
-    def test_empty_room_passes_through(self):
-        """PATCH /show/script is not blocked when the in-memory room is empty.
-
-        An empty room (all clients disconnected, pending eviction) should not
-        block the request. The decorator should pass through.
+    def test_room_with_no_editor_passes_through(self):
+        """PATCH /show/script is not blocked when the in-memory room has no
+        editor — including a room with only a viewer in it (Phase 4 Step A: a
+        mere viewer watching the live draft has no active edit to protect
+        against colliding with).
         """
         mock_room = MagicMock()
-        mock_room.is_empty = True
+        mock_room.has_editors = False
+        # A real room with a viewer in it is not empty — set explicitly so this
+        # test actually distinguishes the has_editors fix from the old
+        # `not room.is_empty` check, rather than relying on MagicMock's
+        # unconfigured (truthy) default for is_empty to happen to pass too.
+        mock_room.is_empty = False
         mock_manager = MagicMock()
         mock_manager.get_active_room.return_value = mock_room
         self._app.room_manager = mock_manager

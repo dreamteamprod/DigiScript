@@ -319,7 +319,14 @@ def schedule_room_close(app: DigiScriptServer, room) -> None:
 
 
 async def close_room_if_editorless(app: DigiScriptServer, room) -> None:
-    """Checkpoint (if dirty) and close *room* if it is still active with no editor.
+    """Checkpoint (if dirty) a *room* that is still active with no editor, and
+    close it too if nobody — editor or viewer — is left watching it either.
+
+    Phase 4 Step A: a plain viewer can now be in the room, wanting to keep
+    watching live after the last editor stops editing — so losing the last
+    editor alone is grounds to checkpoint (don't risk losing unsaved work if
+    the server restarts while only viewers remain), but not grounds to tear
+    the room down while anyone is still in it.
 
     :param app: The application.
     :param room: The room that lost its last editor.
@@ -340,7 +347,7 @@ async def close_room_if_editorless(app: DigiScriptServer, room) -> None:
     except Exception:
         get_logger().exception("Error checkpointing room after last editor left")
     finally:
-        if room_manager.get_active_room() is room and not room.has_editors:
+        if room_manager.get_active_room() is room and room.is_empty:
             try:
                 await room_manager.close_active_room()
             except Exception:

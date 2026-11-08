@@ -1371,7 +1371,7 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
     def test_get_revisions_annotates_has_draft_via_room(self):
         """GET /revisions sets has_draft=True for revision whose room is active."""
         mock_room = MagicMock()
-        mock_room.is_empty = False
+        mock_room.has_editors = True
         mock_room.revision_id = self.revision1_id
         mock_manager = MagicMock()
         mock_manager.get_active_room.return_value = mock_room
@@ -1393,7 +1393,7 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
     def test_load_current_revision_with_active_room_returns_409(self):
         """POST /revisions/current returns 409 when current revision has a non-empty room."""
         mock_room = MagicMock()
-        mock_room.is_empty = False
+        mock_room.has_editors = True
         mock_room.revision_id = self.revision1_id
         mock_manager = MagicMock()
         mock_manager.get_active_room.return_value = mock_room
@@ -1412,10 +1412,20 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
         finally:
             del self._app.room_manager
 
-    def test_load_current_revision_with_empty_room_succeeds(self):
-        """POST /revisions/current succeeds when current revision room is empty."""
+    def test_load_current_revision_with_a_viewer_but_no_editor_succeeds(self):
+        """POST /revisions/current succeeds when the current revision's room has
+        no editor — even with a viewer in it (Phase 4 Step A: a mere viewer
+        watching the live draft has nothing a revision load would disrupt).
+
+        revision_id and is_empty are both set explicitly to realistic,
+        non-default values (a room for *this* revision, not empty because a
+        viewer is in it) so this only passes because of has_editors=False —
+        not because an unset MagicMock attribute happened to be falsy/truthy.
+        """
         mock_room = MagicMock()
-        mock_room.is_empty = True
+        mock_room.revision_id = self.revision1_id
+        mock_room.has_editors = False
+        mock_room.is_empty = False
         mock_manager = MagicMock()
         mock_manager.get_active_room.return_value = mock_room
         self._app.room_manager = mock_manager
@@ -1451,7 +1461,7 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
     def test_create_revision_with_active_room_on_parent_returns_409(self):
         """POST /revisions returns 409 when parent revision has a non-empty in-memory room."""
         mock_room = MagicMock()
-        mock_room.is_empty = False
+        mock_room.has_editors = True
         mock_room.revision_id = self.revision1_id
         mock_manager = MagicMock()
         mock_manager.get_active_room.return_value = mock_room
@@ -1489,7 +1499,7 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
     def test_delete_revision_with_active_room_returns_409(self):
         """DELETE /revisions returns 409 when target revision has a non-empty in-memory room."""
         mock_room = MagicMock()
-        mock_room.is_empty = False
+        mock_room.has_editors = True
         mock_room.revision_id = self.revision2_id
         mock_manager = MagicMock()
         mock_manager.get_active_room.return_value = mock_room

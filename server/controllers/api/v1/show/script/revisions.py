@@ -32,7 +32,7 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 
 def _revision_is_locked(session, application, rev_id: int) -> bool:
-    """Return True if a revision has an active draft or a non-empty room.
+    """Return True if a revision has an active draft or an editor in its room.
 
     :param session: Active SQLAlchemy session.
     :param application: Tornado application instance.
@@ -45,7 +45,13 @@ def _revision_is_locked(session, application, rev_id: int) -> bool:
     room_manager = getattr(application, "room_manager", None)
     if room_manager:
         room = room_manager.get_active_room()
-        if room and room.revision_id == rev_id and not room.is_empty:
+        # has_editors, not "not room.is_empty": Phase 4 Step A made a mere
+        # viewer join the room too (to watch the live draft) — nobody is
+        # actually editing, so there's nothing a revision switch would
+        # disrupt. Without this, the Revisions page would show every
+        # revision as locked for as long as anyone merely has the script tab
+        # open, not just while someone is actually editing.
+        if room and room.revision_id == rev_id and room.has_editors:
             return True
     return False
 

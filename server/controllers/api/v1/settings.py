@@ -22,8 +22,11 @@ class SettingsController(BaseAPIController):
 
         Switching modes under someone would strand their work: an open classic edit
         or cut session has nowhere to go in collaborative mode, and a draft (or a
-        collaborative room with anyone in it) has nowhere to go in classic mode.
-        Setting the same value again is always fine.
+        collaborative room with an editor in it) has nowhere to go in classic mode.
+        A room with only viewers in it has no work to strand — a mere viewer gets
+        dropped back to the classic (REST) read path exactly like a reload would,
+        same as before live viewing existed. Setting the same value again is always
+        fine.
 
         :param settings: The application settings.
         :param data: The requested settings changes.
@@ -39,7 +42,11 @@ class SettingsController(BaseAPIController):
         # them and the caller's `settings.set`, so nobody can start editing in the gap.
         unsaved = await room_manager.has_unsaved_changes()
         room = room_manager.get_active_room()
-        if unsaved or (room is not None and not room.is_empty):
+        # has_editors, not "not room.is_empty": cutters never join the room at all
+        # (cutting is a separate Session.is_cutting flag, unrelated to room
+        # membership), so has_editors alone covers every case room emptiness was
+        # meant to guard, once mere viewers can also be in room.clients.
+        if unsaved or (room is not None and room.has_editors):
             return True
 
         with self.make_session() as session:

@@ -220,13 +220,18 @@ describe('CollabScriptEditor', () => {
   const editorLine = (w: VueWrapper, uid: string) =>
     w.findAllComponents(LineEditorStub).find((c) => c.props('line')._uid === uid);
 
-  it('reads saved pages over REST when not an editor and holds no room', async () => {
+  it('reads saved pages over REST while the viewer-join has not yet synced', async () => {
     useScriptStore().script = { '1': [restLine(1), restLine(2)] };
     useSystemStore().rbacRoles = [];
     const w = await mountEditor();
 
     expect(w.findAll('.row-stub')).toHaveLength(2);
-    expect(useScriptDraftStore().isDraftActive).toBe(false);
+    // Phase 4 Step A: a plain viewer also joins the room on mount (to see the live
+    // draft once synced) — holding a room is no longer exclusive to editors. Nothing
+    // in this test simulates the server's sync reply, so it stays on the REST
+    // fallback meanwhile.
+    expect(useScriptDraftStore().isDraftActive).toBe(true);
+    expect(useScriptDraftStore().isDraftSynced).toBe(false);
   });
 
   it('sends the collab flag when Edit is pressed', async () => {
@@ -249,17 +254,27 @@ describe('CollabScriptEditor', () => {
     expect(w.find('.alert-stub').exists()).toBe(false);
   });
 
-  it('joins when the server adds us to the editors after mount, and leaves when removed', async () => {
+  it('is already joined as a viewer before becoming an editor, and refreshes its role (not a fresh join) on every later isEditor transition', async () => {
     const w = await mountEditor();
-    expect(useScriptDraftStore().isDraftActive).toBe(false);
+    expect(useScriptDraftStore().isDraftActive).toBe(true); // joined as viewer on mount
+    expect(sentOps().filter((op) => op === 'JOIN_SCRIPT_ROOM')).toHaveLength(1);
+    const docBefore = useScriptDraftStore().getDraftYdoc();
 
     becomeEditor();
     await flushPromises();
-    expect(useScriptDraftStore().status).toBe('joining');
+    // refreshRoomRole() re-sends JOIN_SCRIPT_ROOM without tearing down the Y.Doc —
+    // the server re-evaluates our role from is_editor, rather than a fresh join.
+    expect(sentOps().filter((op) => op === 'JOIN_SCRIPT_ROOM')).toHaveLength(2);
+    expect(useScriptDraftStore().getDraftYdoc()).toBe(docBefore);
+    expect(useScriptDraftStore().isDraftActive).toBe(true);
 
     useScriptConfigStore().editors = [];
     await flushPromises();
-    expect(useScriptDraftStore().isDraftActive).toBe(false);
+    // Losing editor status downgrades to viewer and keeps watching live — Tim's
+    // decision for Phase 4 Step A — it does not leave the room.
+    expect(sentOps().filter((op) => op === 'JOIN_SCRIPT_ROOM')).toHaveLength(3);
+    expect(useScriptDraftStore().getDraftYdoc()).toBe(docBefore);
+    expect(useScriptDraftStore().isDraftActive).toBe(true);
     expect(w.exists()).toBe(true);
   });
 
@@ -473,25 +488,34 @@ describe('CollabScriptEditor', () => {
     expect((w.vm as unknown as { stopRequested: boolean }).stopRequested).toBe(false);
   });
 
-  it('Stop Editing with another editor still present: losing editor status tears the draft down', async () => {
+  it('Stop Editing with another editor still present: losing editor status downgrades to viewer, keeping the draft active', async () => {
     becomeEditor();
     vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
     const w = await mountEditor();
     syncDraft({ '1': [snap('a')], '2': [] });
     await flushPromises();
+    const docBefore = useScriptDraftStore().getDraftYdoc();
 
     await button(w, 'Stop Editing')!.trigger('click');
     // The server's GET_SCRIPT_CONFIG_STATUS reply no longer lists us.
     useScriptConfigStore().editors = [];
     await flushPromises();
 
-    expect(useScriptDraftStore().isDraftActive).toBe(false);
+    // Phase 4 Step A (Tim's decision): downgrades to viewer and keeps watching
+    // live, rather than leaving the room and falling back to stale REST.
+    expect(useScriptDraftStore().isDraftActive).toBe(true);
+    expect(useScriptDraftStore().isDraftSynced).toBe(true);
+    expect(useScriptDraftStore().getDraftYdoc()).toBe(docBefore); // same doc, not torn down
+    expect(w.findAll('.row-stub').map((r) => r.text())).toEqual(['a']); // still live, not REST
   });
 
   it('requestEdit tells the user when the frame could not be sent', async () => {
-    sendObj.mockReturnValueOnce(false);
     vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
     const w = await mountEditor();
+    // Set up the failure after mount, not before — mounting as a plain viewer
+    // already sends its own JOIN_SCRIPT_ROOM (Phase 4 Step A), which would
+    // otherwise consume this mocked failure instead of the Edit click below.
+    sendObj.mockReturnValueOnce(false);
 
     await button(w, 'Edit')!.trigger('click');
 
@@ -537,6 +561,79 @@ describe('CollabScriptEditor', () => {
     expect(system.isCollabScriptEditing).toBe(false);
     system.settings = { collaborative_script_editing: false } as never;
     expect(system.isCollabScriptEditing).toBe(false);
+  });
+
+  describe('viewer live-viewing (Phase 4 Step A)', () => {
+    it('a plain viewer joins the room on mount and renders the live draft once synced, with no edit controls', async () => {
+      const w = await mountEditor(); // never becomes an editor
+      expect(useScriptDraftStore().isDraftActive).toBe(true);
+      expect(w.findAll('.row-stub')).toHaveLength(0); // REST: no saved lines configured
+
+      syncDraft({ '1': [snap('a'), snap('b')], '2': [] });
+      await flushPromises();
+
+      // Now rendered via the live Y.Doc branch, not REST.
+      expect(w.findAll('.row-stub').map((r) => r.text())).toEqual(['a', 'b']);
+      expect(w.findAllComponents(LineEditorStub)).toHaveLength(0); // read-only: canEditDraft is false
+    });
+
+    it('becoming an editor while already viewing refreshes the room role instead of rejoining fresh', async () => {
+      await mountEditor();
+      const docBefore = useScriptDraftStore().getDraftYdoc();
+      expect(sentOps().filter((op) => op === 'JOIN_SCRIPT_ROOM')).toHaveLength(1);
+
+      becomeEditor();
+      await flushPromises();
+
+      expect(sentOps().filter((op) => op === 'JOIN_SCRIPT_ROOM')).toHaveLength(2);
+      expect(useScriptDraftStore().getDraftYdoc()).toBe(docBefore);
+      expect(useScriptDraftStore().isDraftActive).toBe(true);
+    });
+
+    it('losing editor status downgrades to viewer and keeps rendering the live draft, not REST', async () => {
+      becomeEditor();
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('a')], '2': [] });
+      await flushPromises();
+
+      useScriptConfigStore().editors = [];
+      await flushPromises();
+
+      expect(useScriptDraftStore().isDraftActive).toBe(true);
+      expect(w.findAll('.row-stub').map((r) => r.text())).toEqual(['a']); // still live, not REST
+    });
+
+    it('cut mode still renders via REST, and still reloads REST pages on navigation, even once the background viewer-join has synced', async () => {
+      useScriptStore().script = { '1': [restLine(1)], '2': [restLine(2)] };
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      // The background viewer-join finishes syncing while we're cutting.
+      syncDraft({ '1': [snap('a')], '2': [] });
+      await flushPromises();
+
+      // Still REST (can-edit = cutMode), not the live Y.Doc branch — usesLiveRender
+      // must stay false while cutMode is true, regardless of draftReady.
+      expect(w.findAll('.row-stub').map((r) => r.text())).toEqual(['rest']);
+
+      await button(w, 'Next Page')!.trigger('click');
+      await flushPromises();
+
+      expect(useScriptStore().loadScriptPage).toHaveBeenCalledWith(2);
+    });
+
+    it('a plain viewer also leaves the room on unmount, same as an editor', async () => {
+      const w = await mountEditor();
+      expect(useScriptDraftStore().isDraftActive).toBe(true);
+      sendObj.mockClear();
+
+      w.unmount();
+
+      expect(sentOps()).toContain('LEAVE_SCRIPT_ROOM');
+      expect(useScriptDraftStore().isDraftActive).toBe(false);
+    });
   });
 
   describe('line editing (Step 3)', () => {
@@ -1294,8 +1391,11 @@ describe('CollabScriptEditor', () => {
     });
 
     it('rolls cutMode back when the send fails (socket down)', async () => {
-      sendObj.mockReturnValueOnce(false);
       const w = await mountEditor();
+      // Set up the failure after mount, not before — mounting as a plain viewer
+      // already sends its own JOIN_SCRIPT_ROOM (Phase 4 Step A), which would
+      // otherwise consume this mocked failure instead of the Cuts click below.
+      sendObj.mockReturnValueOnce(false);
 
       await button(w, 'Cuts')!.trigger('click');
       await flushPromises();

@@ -584,6 +584,59 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws.close()
 
     @gen_test
+    async def test_leave_script_room_as_viewer_keeps_room_open_while_an_editor_remains(
+        self,
+    ):
+        """A plain viewer leaving the room (Phase 4 Step A) is a no-op for the
+        room's lifecycle as long as an editor is still in it — unlike the last
+        editor stopping, which still checkpoints."""
+        ws_editor, _ = await self._connect_and_auth(self.admin_id)
+        ws_viewer, _ = await self._connect_and_auth(self.admin_id)
+
+        await ws_editor.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS
+        await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS broadcast
+
+        await ws_editor.write_message(
+            json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}})
+        )
+        await ws_editor.read_message()  # YJS_SYNC
+        await ws_editor.read_message()  # ROOM_MEMBERS
+        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        await ws_viewer.write_message(
+            json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}})
+        )
+        await ws_viewer.read_message()  # YJS_SYNC
+        await ws_editor.read_message()  # ROOM_MEMBERS
+        await ws_viewer.read_message()  # ROOM_MEMBERS
+        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+        await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        room = self._app.room_manager.get_active_room()
+
+        # The viewer leaves — the editor is still there, so no checkpoint and
+        # no close: just a membership update and a config status refresh.
+        await ws_viewer.write_message(
+            json.dumps({"OP": "LEAVE_SCRIPT_ROOM", "DATA": {}})
+        )
+
+        received_actions = set()
+        for _ in range(2):
+            msg = json.loads(await ws_editor.read_message())
+            self.assertEqual("NOOP", msg["OP"])
+            received_actions.add(msg.get("ACTION"))
+        self.assertEqual({"ROOM_MEMBERS", "GET_SCRIPT_CONFIG_STATUS"}, received_actions)
+
+        self.assertIs(room, self._app.room_manager.get_active_room())
+        self.assertTrue(room.has_editors)
+
+        ws_editor.close()
+        ws_viewer.close()
+
+    @gen_test
     async def test_request_edit_upgrades_room_role(self):
         """Admin joins room as viewer, then requests edit — role upgrades to editor."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
@@ -616,7 +669,8 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
     @gen_test
     async def test_stop_edit_downgrades_room_role(self):
-        """Editor sends STOP_SCRIPT_EDIT — role downgrades to viewer."""
+        """Editor sends STOP_SCRIPT_EDIT — role downgrades to viewer, room stays
+        open (Phase 4 Step A: they may still be watching it live)."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode
@@ -634,7 +688,8 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         )
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
 
-        # Stop editing — should downgrade to viewer, then close room (last editor)
+        # Stop editing — downgrades to viewer; the room stays open since this
+        # caller (now a viewer) is still in it.
         await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
 
         # Should receive ROOM_MEMBERS with viewer role
@@ -644,21 +699,17 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         self.assertEqual("ROOM_MEMBERS", response_data["ACTION"])
         self.assertEqual("viewer", response_data["DATA"]["members"][0]["role"])
 
-        # Room closes since this was the last editor
-        room_closed_msg = await ws.read_message()
-        room_closed_data = json.loads(room_closed_msg)
-        self.assertEqual("NOOP", room_closed_data["OP"])
-        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
-
-        # Also receive GET_SCRIPT_CONFIG_STATUS
+        # No ROOM_CLOSED — next message is GET_SCRIPT_CONFIG_STATUS directly.
         config_msg = await ws.read_message()
         self.assertEqual("GET_SCRIPT_CONFIG_STATUS", json.loads(config_msg)["ACTION"])
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
 
         ws.close()
 
     @gen_test
     async def test_stop_edit_triggers_checkpoint_when_last_editor(self):
-        """Last editor stops editing — checkpoint is created."""
+        """Last editor stops editing — checkpoint is created, but the room stays
+        open (Phase 4 Step A) since this caller, now a viewer, is still in it."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode
@@ -678,15 +729,10 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         meta = room.doc.get("meta", type=pycrdt.Map)
         meta["test_dirty"] = "value"
 
-        # Stop editing (last editor) — should trigger checkpoint + room close
+        # Stop editing (last editor) — should checkpoint, but not close the room.
         await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # ROOM_MEMBERS
         await ws.read_message()  # GET_SCRIPT_REVISIONS (broadcast after checkpoint)
-        # Room is closed after checkpoint — client receives ROOM_CLOSED
-        room_closed_msg = await ws.read_message()
-        room_closed_data = json.loads(room_closed_msg)
-        self.assertEqual("NOOP", room_closed_data["OP"])
-        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # Verify a ScriptDraft record was created (checkpoint happened)
@@ -697,8 +743,8 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
             self.assertIsNotNone(draft)
             self.assertIsNotNone(draft.data_path)
 
-        # Verify room was evicted
-        self.assertIsNone(self._app.room_manager.get_active_room())
+        # Room is still open — the caller, now a viewer, is still in it.
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
 
         ws.close()
 
@@ -734,8 +780,10 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws.close()
 
     @gen_test
-    async def test_stop_edit_closes_room_when_last_editor(self):
-        """Last editor sends STOP_SCRIPT_EDIT — room is closed, client gets ROOM_CLOSED."""
+    async def test_stop_edit_closes_room_only_once_the_last_viewer_also_leaves(self):
+        """Last editor stops editing (downgrades, room stays open per Phase 4 Step
+        A — they may still be watching), then actually leaves — only then does
+        the room close."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room
@@ -752,20 +800,25 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         # Verify room exists
         self.assertIsNotNone(self._app.room_manager.get_active_room())
 
-        # Stop editing (last editor)
+        # Stop editing (last editor) — downgrades to viewer, room stays open.
         await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # ROOM_MEMBERS
-
-        # Should receive ROOM_CLOSED with empty DATA
-        room_closed_msg = await ws.read_message()
-        room_closed_data = json.loads(room_closed_msg)
-        self.assertEqual("NOOP", room_closed_data["OP"])
-        self.assertEqual("ROOM_CLOSED", room_closed_data["ACTION"])
-        self.assertEqual({}, room_closed_data["DATA"])
-
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
 
-        # Room should be evicted
+        # Now actually leave (e.g. navigating away) — only now does the room close.
+        # ROOM_MEMBERS and ROOM_CLOSED are both scoped to room.clients, which no
+        # longer includes this connection once it has removed itself — so the
+        # only message *this* client gets from its own leave is the global
+        # GET_SCRIPT_CONFIG_STATUS broadcast (there is nobody else left in the
+        # room to notify of anything).
+        await ws.write_message(json.dumps({"OP": "LEAVE_SCRIPT_ROOM", "DATA": {}}))
+
+        config_msg = await ws.read_message()
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", json.loads(config_msg)["ACTION"])
+
+        # Room should be evicted (closed as a side effect of the leave, since
+        # nobody — editor or viewer — is left in it).
         self.assertIsNone(self._app.room_manager.get_active_room())
 
         ws.close()
@@ -830,8 +883,12 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         ws2.close()
 
     @gen_test
-    async def test_disconnect_closes_room_when_last_editor(self):
-        """Editor disconnects — remaining viewer receives ROOM_CLOSED."""
+    async def test_disconnect_keeps_room_open_for_remaining_viewer_then_closes_once_they_leave_too(
+        self,
+    ):
+        """Editor disconnects — the remaining viewer is NOT kicked out (Phase 4
+        Step A: they may still be watching live); the room only closes once
+        that viewer disconnects too, leaving it truly empty."""
         # Genuine disconnect: finalisation (room teardown) is deferred by the reconnect
         # grace window, so shrink it to 0 to assert the post-window outcome.
         self._app.pending_disconnects.grace_seconds = 0
@@ -868,22 +925,31 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
         # Viewer receives messages in non-deterministic order due to
         # on_close being sync (sends GET_SCRIPT_CONFIG_STATUS immediately)
-        # while room broadcast/close happen via add_callback.
-        # Collect all messages and verify the expected set by ACTION.
+        # while the room's own members broadcast happens via add_callback.
+        # Collect all messages and verify the expected set by ACTION — no
+        # ROOM_CLOSED, since the viewer is still in the room.
         received_actions = set()
-        for _ in range(3):
+        for _ in range(2):
             msg = json.loads(await ws_viewer.read_message())
             self.assertEqual("NOOP", msg["OP"])
             received_actions.add(msg.get("ACTION"))
 
-        self.assertIn("ROOM_MEMBERS", received_actions)
-        self.assertIn("ROOM_CLOSED", received_actions)
-        self.assertIn("GET_SCRIPT_CONFIG_STATUS", received_actions)
+        self.assertEqual({"ROOM_MEMBERS", "GET_SCRIPT_CONFIG_STATUS"}, received_actions)
 
-        # Room should be evicted
-        self.assertIsNone(self._app.room_manager.get_active_room())
+        # Room is still open, with only the viewer left in it.
+        room = self._app.room_manager.get_active_room()
+        self.assertIsNotNone(room)
+        self.assertFalse(room.has_editors)
+        self.assertFalse(room.is_empty)
 
+        # The viewer disconnects too — now the room is truly empty. grace_seconds
+        # is 0 (set above), so the deferred close-check fires on the next tick,
+        # same as the editor's own disconnect above needed no explicit wait
+        # beyond the read_message()s already awaited.
         ws_viewer.close()
+        await asyncio.sleep(0.01)
+
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
     # ------------------------------------------------------------------
     # SAVE_SCRIPT_DRAFT tests
@@ -1002,11 +1068,8 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
     @gen_test
     async def test_stop_edit_clean_room_does_not_checkpoint(self):
-        """Last editor stops editing with a clean room — no checkpoint is written.
-
-        After a save, _dirty is False. STOP_SCRIPT_EDIT should close the room
-        without re-creating the draft file or ScriptDraft DB record.
-        """
+        """Last editor stops editing with a clean room — no checkpoint is written,
+        and the room stays open (Phase 4 Step A: they may still be watching)."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room
@@ -1024,10 +1087,10 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         room = self._app.room_manager.get_active_room()
         self.assertFalse(room._dirty)
 
-        # Stop editing (last editor) with a clean room
+        # Stop editing (last editor) with a clean room — no ROOM_CLOSED, since
+        # this caller (now a viewer) is still in the room.
         await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # ROOM_MEMBERS
-        await ws.read_message()  # ROOM_CLOSED
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # No ScriptDraft record should exist
@@ -1037,17 +1100,18 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
             )
             self.assertIsNone(draft)
 
-        # Room should still be evicted
-        self.assertIsNone(self._app.room_manager.get_active_room())
+        # Room is still open, with the caller still in it as a viewer.
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
 
         ws.close()
 
     @gen_test
     async def test_stop_edit_dirty_room_checkpoints_before_close(self):
-        """Last editor stops editing with a dirty room — checkpoint IS written.
+        """Last editor stops editing with a dirty room — checkpoint IS written,
+        but the room stays open (Phase 4 Step A: they may still be watching).
 
         Any Y.Doc mutation sets _dirty = True. STOP_SCRIPT_EDIT should
-        checkpoint (creating a ScriptDraft) before closing the room.
+        checkpoint (creating a ScriptDraft) regardless.
         """
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
@@ -1068,10 +1132,11 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         meta["dirty_marker"] = "unsaved"
         self.assertTrue(room._dirty)
 
-        # Stop editing (last editor) with a dirty room
+        # Stop editing (last editor) with a dirty room — no ROOM_CLOSED, since
+        # this caller (now a viewer) is still in the room.
         await ws.write_message(json.dumps({"OP": "STOP_SCRIPT_EDIT", "DATA": {}}))
         await ws.read_message()  # ROOM_MEMBERS
-        await ws.read_message()  # ROOM_CLOSED
+        await ws.read_message()  # GET_SCRIPT_REVISIONS (broadcast after checkpoint)
         await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
 
         # A ScriptDraft record should have been created by the checkpoint
@@ -1082,8 +1147,10 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
             self.assertIsNotNone(draft)
             self.assertIsNotNone(draft.data_path)
 
-        # Room should be evicted
-        self.assertIsNone(self._app.room_manager.get_active_room())
+        # Room is still open, with the caller still in it as a viewer.
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
+
+        ws.close()
 
     # ------------------------------------------------------------------
     # Corrupt payload handling (Group F gap: F4)
@@ -1664,6 +1731,24 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
         while handler in self._app.clients:
             if asyncio.get_running_loop().time() > deadline:
                 self.fail("server did not process the websocket close in time")
+            await asyncio.sleep(0.01)
+
+    async def _wait_room_closed(self, timeout=3.0):
+        """Poll until the active room is evicted.
+
+        Phase 4 Step A: the room only closes once *everyone* — editor or
+        viewer — has left it, so a test proving a deferred close actually ran
+        can no longer rely on some still-present viewer receiving
+        ``ROOM_CLOSED`` (nobody still in the room gets notified of anything —
+        there's nobody left to notify). Polling server-side state directly
+        works regardless of who, if anyone, was watching.
+
+        :param timeout: Time limit in seconds.
+        """
+        deadline = asyncio.get_running_loop().time() + timeout
+        while self._app.room_manager.get_active_room() is not None:
+            if asyncio.get_running_loop().time() > deadline:
+                self.fail("room was not closed in time")
             await asyncio.sleep(0.01)
 
     def _start_live_session(self, leader_uuid, user_id):
@@ -2630,13 +2715,13 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
 
     async def _editor_viewer_in_room(self):
         ws_e, uuid_e = await self._connect_and_auth(self.admin_id)
-        ws_v, _ = await self._connect_and_auth(self.admin_id)
+        ws_v, uuid_v = await self._connect_and_auth(self.admin_id)
         await self._become_editor(ws_e, ws_v)
         await self._join_room(ws_e)
         await self._join_room(ws_v)
         room = self._app.room_manager.get_active_room()
         self.assertIsNotNone(room)
-        return ws_e, uuid_e, ws_v, room
+        return ws_e, uuid_e, ws_v, uuid_v, room
 
     @gen_test
     async def test_editor_reload_rejoin_within_grace_keeps_room_open(self):
@@ -2644,7 +2729,7 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
 
         Viewers must not get ROOM_CLOSED and the room is not torn down and rebuilt.
         """
-        ws_e, uuid_e, ws_v, room = await self._editor_viewer_in_room()
+        ws_e, uuid_e, ws_v, uuid_v, room = await self._editor_viewer_in_room()
 
         await self._close_and_wait(ws_e, self._app.get_ws(uuid_e))
         self.assertIs(room, self._app.room_manager.get_active_room())
@@ -2675,7 +2760,13 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
         """
         grace = self.SHORT_GRACE
         self._set_grace(grace)
-        ws_e, uuid_e, ws_v, room = await self._editor_viewer_in_room()
+        ws_e, uuid_e, ws_v, uuid_v, room = await self._editor_viewer_in_room()
+        # Phase 4 Step A: the room only closes once everyone has left it — this
+        # test is about the editor's own grace-timer debounce mechanics, not
+        # about a viewer's presence, so have the viewer leave up front (room.
+        # is_empty must become true once the editor's final departure's grace
+        # window expires, or nothing below would ever actually close).
+        await self._close_and_wait(ws_v, self._app.get_ws(uuid_v))
         calls = []
         real_close = ws_session_lifecycle.close_room_if_editorless
 
@@ -2707,18 +2798,15 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
             )
             self.assertIs(room, self._app.room_manager.get_active_room())
 
-            await self._read_until(ws_v, action="ROOM_CLOSED", timeout=self.TIMER_WAIT)
+            await self._wait_room_closed(timeout=self.TIMER_WAIT)
             self.assertEqual(1, len(calls))
-        self.assertIsNone(self._app.room_manager.get_active_room())
-
-        ws_v.close()
 
     @gen_test
     async def test_logout_downgrades_room_editor_to_viewer(self):
         """An editor in the collaborative room who logs out becomes a viewer
         there, and members are told.
         """
-        ws_e, uuid_e, ws_v, room = await self._editor_viewer_in_room()
+        ws_e, uuid_e, ws_v, uuid_v, room = await self._editor_viewer_in_room()
         handler = self._app.get_ws(uuid_e)
         self.assertEqual("editor", room.clients.get(handler))
 
@@ -2742,30 +2830,44 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
     async def test_editor_reload_without_rejoin_closes_room_after_grace_real_timer(
         self,
     ):
-        """If the reloaded editor never rejoins, the room still closes at expiry.
+        """If the reloaded editor never rejoins, the room still closes at expiry
+        — but only once the viewer has also left (Phase 4 Step A: the room
+        stays open for as long as anyone, editor or viewer, is still in it).
 
         Runs on a real (wall-clock) timer.
         """
         self._set_grace(self.SHORT_GRACE)
-        ws_e, uuid_e, ws_v, room = await self._editor_viewer_in_room()
+        ws_e, uuid_e, ws_v, uuid_v, room = await self._editor_viewer_in_room()
 
         await self._close_and_wait(ws_e, self._app.get_ws(uuid_e))
         ws_e2 = await self._reload(uuid_e, self.admin_id)
         # The editor flag survived, but the page never rejoined the room.
         self.assertTrue(self._session_row(uuid_e)[0])
 
-        await self._read_until(ws_v, action="ROOM_CLOSED", timeout=self.TIMER_WAIT)
-        self.assertIsNone(self._app.room_manager.get_active_room())
+        # The grace window expires with no editor having rejoined — but the
+        # viewer is still there, so the room must still be open.
+        await asyncio.sleep(self.TIMER_WAIT)
+        self.assertIsNotNone(self._app.room_manager.get_active_room())
 
-        ws_v.close()
+        # The viewer leaves too — now the room is truly empty and closes.
+        await self._close_and_wait(ws_v, self._app.get_ws(uuid_v))
+        await self._wait_room_closed(timeout=self.TIMER_WAIT)
+
         ws_e2.close()
 
     @gen_test
     async def test_deferred_room_close_checkpoints_dirty_room(self):
-        """A dirty room closed by the deferred check is checkpointed to a draft."""
-        ws_e, uuid_e, ws_v, room = await self._editor_viewer_in_room()
+        """A dirty room closed by the deferred check is checkpointed to a draft.
+
+        Phase 4 Step A: the room only actually closes once the viewer has also
+        left — have them leave before the editor's own departure too, so it's
+        truly empty by the time the deferred check for the editor's departure
+        fires below.
+        """
+        ws_e, uuid_e, ws_v, uuid_v, room = await self._editor_viewer_in_room()
         room._dirty = True
 
+        await self._close_and_wait(ws_v, self._app.get_ws(uuid_v))
         await self._close_and_wait(ws_e, self._app.get_ws(uuid_e))
         await self._fire(room_close_key(room.revision_id))
 
@@ -2775,8 +2877,6 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
                 select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
             )
             self.assertIsNotNone(draft, "the dirty room was not checkpointed")
-
-        ws_v.close()
 
 
 class TestWSUuidIsNotOwnership(_ReconnectTestBase):

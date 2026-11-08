@@ -253,6 +253,20 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       this._teardown();
     },
 
+    /**
+     * Re-sends JOIN_SCRIPT_ROOM without tearing down the already-synced Y.Doc —
+     * unlike joinScriptRoom(), which no-ops while already active. Phase 4 Step A
+     * lets a plain viewer become an editor (or, on Stop Editing, downgrade back to
+     * a viewer) without ever leaving the room; the server decides role fresh from
+     * the caller's current `is_editor` flag on every JOIN_SCRIPT_ROOM, but only
+     * actually re-evaluates it if we ask again. The resulting full step-0 resync is
+     * a safe no-op merge on a doc that's already converged with the server.
+     */
+    refreshRoomRole(): void {
+      if (!this.isDraftActive) return;
+      provider?.join();
+    },
+
     /** Internal teardown shared by leaveScriptRoom and the server-initiated ROOM_CLOSED. */
     _teardown(): void {
       unsubscribeDoc?.();
