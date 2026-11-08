@@ -119,6 +119,59 @@ test('Go to Page submits and navigates to the requested page', async () => {
   await expect(page.locator('p.mb-0:has-text("Current Page: 1")')).toBeVisible();
 });
 
+// ── Cue Renumber ──────────────────────────────────────────────────────────
+
+test('Renumber Cues button is visible in Cue Configuration tab toolbar', async () => {
+  await page.click(
+    '.nav-link:has-text("Cue Configuration"), button[role="tab"]:has-text("Configuration")'
+  );
+  await expect(page.locator('button:has-text("Renumber Cues")')).toBeVisible();
+});
+
+test('opens Renumber Cues modal at step 1', async () => {
+  await page.click('button:has-text("Renumber Cues")');
+  await waitForModal(page, 'Renumber Cues');
+  // Step 1 shows the CSV dropzone and cue type checkboxes
+  await expect(page.locator('.modal.show .csv-dropzone')).toBeVisible();
+});
+
+test('Next button is disabled until a CSV is uploaded and a cue type is selected', async () => {
+  await expect(page.locator('.modal.show button:has-text("Next")')).toBeDisabled();
+});
+
+test('Next button enables after uploading a CSV and selecting a cue type', async () => {
+  // Upload a minimal MagicQ-style CSV via the hidden file input
+  const csv = 'Status ,Cue id ,Comment\n,1.00 ,first\n,2.00 ,second\n';
+  await page.locator('.modal.show input[type="file"]').setInputFiles({
+    name: 'test.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csv),
+  });
+  await expect(page.locator('.modal.show .csv-dropzone--loaded')).toBeVisible();
+  // Select the first cue type checkbox
+  await page.click('.modal.show input[type="checkbox"]:first-of-type');
+  await expect(page.locator('.modal.show button:has-text("Next")')).toBeEnabled();
+});
+
+test('step 2 shows empty state when no cues are placed', async () => {
+  await page.click('.modal.show button:has-text("Next")');
+  // No cues have been placed in the script at this point in the serial suite
+  await expect(
+    page.locator('.modal.show p.text-muted:has-text("No cues require renumbering")')
+  ).toBeVisible();
+});
+
+test('Back button returns to step 1', async () => {
+  await page.click('.modal.show button:has-text("Back")');
+  // Step 1 is shown again — dropzone is visible
+  await expect(page.locator('.modal.show .csv-dropzone')).toBeVisible();
+});
+
+test('Cancel closes the Renumber Cues modal', async () => {
+  await page.click('.modal.show button:has-text("Cancel")');
+  await waitForModalClosed(page);
+});
+
 // ── Cue Counts ────────────────────────────────────────────────────────────
 
 test('switches to Cue Counts sub-tab', async () => {
