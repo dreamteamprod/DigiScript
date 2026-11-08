@@ -26,28 +26,18 @@ def import_all_controllers():
     get_logger().debug(f"Imported controllers: {list(IMPORTED_CONTROLLERS.keys())}")
 
 
-class RootController(BaseController):
+class LegacyUIRedirectController(BaseController):
+    """Redirects the retired Vue 2 UI's ``/ui-old/`` path to the current UI at ``/``.
+
+    Keeps old bookmarks and kiosk start pages working instead of 404ing.
+    """
+
     def get(self, _path):
-        if is_frozen():
-            full_path = get_resource_path(os.path.join("static", "ui-old", INDEX_HTML))
-        else:
-            file_path = os.path.join(
-                os.path.abspath(os.path.dirname(__file__)), "..", "static", "ui-old"
-            )
-            full_path = os.path.join(file_path, INDEX_HTML)
-        if not os.path.isfile(full_path):
-            raise HTTPError(404)
-        with open(full_path, "r", encoding="utf-8") as file:
-            self.write(file.read())
+        self.redirect("/", permanent=False)
 
 
-class RootControllerV3(BaseController):
-    async def get(self, path):
-        if not path and not self.get_argument("_switch", None):
-            default_ui = await self.application.digi_settings.get("default_ui")
-            if default_ui == "old":
-                self.redirect("/ui-old/")
-                return
+class RootController(BaseController):
+    async def get(self, _path):
         if is_frozen():
             # In PyInstaller mode, use resource path
             full_path = get_resource_path(os.path.join("static", INDEX_HTML))

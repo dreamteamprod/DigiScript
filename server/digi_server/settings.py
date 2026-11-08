@@ -239,16 +239,6 @@ class Settings:
         )
         self.define("debug_mode", bool, False, True, display_name="Enable Debug Mode")
         self.define(
-            "default_ui",
-            str,
-            "new",
-            True,
-            display_name="Default UI Version",
-            help_text="Which UI version users are directed to by default. User preferences override this.",
-            choice_options=["old", "new"],
-            category="General",
-        )
-        self.define(
             COLLAB_EDITING_SETTING,
             bool,
             False,
