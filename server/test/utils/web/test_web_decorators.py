@@ -8,14 +8,12 @@ script modification endpoints when:
 Uses PATCH /api/v1/show/script as the decorated endpoint under test.
 """
 
-from unittest.mock import MagicMock
-
 import tornado.escape
 
 from models.script_draft import ScriptDraft
 from models.user import User
 from test.conftest import DigiScriptTestCase
-from test.helpers.script_fixtures import create_show_script_revision
+from test.helpers.script_fixtures import create_show_script_revision, mock_active_room
 
 
 class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
@@ -85,42 +83,25 @@ class TestNoActiveScriptDraftDecorator(DigiScriptTestCase):
         This covers the gap where a room exists in memory (clients editing) but
         the 30-second checkpoint hasn't written a ScriptDraft DB record yet.
         """
-        mock_room = MagicMock()
-        mock_room.has_editors = True
-        mock_manager = MagicMock()
-        mock_manager.get_active_room.return_value = mock_room
-        self._app.room_manager = mock_manager
-
-        try:
+        with mock_active_room(self._app, has_editors=True):
             response = self._patch_script()
             self.assertEqual(409, response.code)
             body = tornado.escape.json_decode(response.body)
             self.assertIn("collaborative edit in progress", body["message"])
-        finally:
-            del self._app.room_manager
 
     def test_room_with_no_editor_passes_through(self):
         """PATCH /show/script is not blocked when the in-memory room has no
         editor — including a room with only a viewer in it (Phase 4 Step A: a
         mere viewer watching the live draft has no active edit to protect
         against colliding with).
-        """
-        mock_room = MagicMock()
-        mock_room.has_editors = False
-        # A real room with a viewer in it is not empty — set explicitly so this
-        # test actually distinguishes the has_editors fix from the old
-        # `not room.is_empty` check, rather than relying on MagicMock's
-        # unconfigured (truthy) default for is_empty to happen to pass too.
-        mock_room.is_empty = False
-        mock_manager = MagicMock()
-        mock_manager.get_active_room.return_value = mock_room
-        self._app.room_manager = mock_manager
 
-        try:
+        is_empty is set explicitly (a room with a viewer in it is not empty)
+        so this only passes because of has_editors=False — not because an
+        unconfigured MagicMock attribute happened to be truthy/falsy.
+        """
+        with mock_active_room(self._app, has_editors=False, is_empty=False):
             response = self._patch_script()
             self.assertNotEqual(409, response.code)
-        finally:
-            del self._app.room_manager
 
 
 class TestRequireAdminDecorator(DigiScriptTestCase):

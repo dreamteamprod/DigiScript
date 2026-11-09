@@ -1,5 +1,3 @@
-from unittest.mock import MagicMock
-
 import tornado.escape
 from sqlalchemy import select
 
@@ -14,7 +12,7 @@ from models.script_draft import ScriptDraft
 from models.show import Act, Character, Scene, Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
-from test.helpers.script_fixtures import create_show_script_revision
+from test.helpers.script_fixtures import create_show_script_revision, mock_active_room
 
 
 class TestScriptRevisionsController(DigiScriptTestCase):
@@ -1370,15 +1368,9 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
 
     def test_get_revisions_annotates_has_draft_via_room(self):
         """GET /revisions sets has_draft=True for revision whose room is active."""
-        mock_room = MagicMock()
-        mock_room.has_editors = True
-        mock_room.revision_id = self.revision1_id
-        mock_manager = MagicMock()
-        mock_manager.get_active_room.return_value = mock_room
-
-        self._app.room_manager = mock_manager
-
-        try:
+        with mock_active_room(
+            self._app, has_editors=True, revision_id=self.revision1_id
+        ):
             response = self.fetch("/api/v1/show/script/revisions")
             self.assertEqual(200, response.code)
 
@@ -1387,19 +1379,12 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
             rev2 = next(r for r in body["revisions"] if r["id"] == self.revision2_id)
             self.assertTrue(rev1["has_draft"])
             self.assertFalse(rev2["has_draft"])
-        finally:
-            del self._app.room_manager
 
     def test_load_current_revision_with_active_room_returns_409(self):
         """POST /revisions/current returns 409 when current revision has a non-empty room."""
-        mock_room = MagicMock()
-        mock_room.has_editors = True
-        mock_room.revision_id = self.revision1_id
-        mock_manager = MagicMock()
-        mock_manager.get_active_room.return_value = mock_room
-        self._app.room_manager = mock_manager
-
-        try:
+        with mock_active_room(
+            self._app, has_editors=True, revision_id=self.revision1_id
+        ):
             response = self.fetch(
                 "/api/v1/show/script/revisions/current",
                 method="POST",
@@ -1409,8 +1394,6 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
             self.assertEqual(409, response.code)
             body = tornado.escape.json_decode(response.body)
             self.assertIn("collaborative edit session", body["message"])
-        finally:
-            del self._app.room_manager
 
     def test_load_current_revision_with_a_viewer_but_no_editor_succeeds(self):
         """POST /revisions/current succeeds when the current revision's room has
@@ -1422,15 +1405,12 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
         viewer is in it) so this only passes because of has_editors=False —
         not because an unset MagicMock attribute happened to be falsy/truthy.
         """
-        mock_room = MagicMock()
-        mock_room.revision_id = self.revision1_id
-        mock_room.has_editors = False
-        mock_room.is_empty = False
-        mock_manager = MagicMock()
-        mock_manager.get_active_room.return_value = mock_room
-        self._app.room_manager = mock_manager
-
-        try:
+        with mock_active_room(
+            self._app,
+            revision_id=self.revision1_id,
+            has_editors=False,
+            is_empty=False,
+        ):
             response = self.fetch(
                 "/api/v1/show/script/revisions/current",
                 method="POST",
@@ -1438,8 +1418,6 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
                 headers={"Authorization": f"Bearer {self.token}"},
             )
             self.assertEqual(200, response.code)
-        finally:
-            del self._app.room_manager
 
     def test_create_revision_with_db_draft_on_parent_returns_409(self):
         """POST /revisions returns 409 when parent revision has a DB draft record."""
@@ -1460,14 +1438,9 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
 
     def test_create_revision_with_active_room_on_parent_returns_409(self):
         """POST /revisions returns 409 when parent revision has a non-empty in-memory room."""
-        mock_room = MagicMock()
-        mock_room.has_editors = True
-        mock_room.revision_id = self.revision1_id
-        mock_manager = MagicMock()
-        mock_manager.get_active_room.return_value = mock_room
-        self._app.room_manager = mock_manager
-
-        try:
+        with mock_active_room(
+            self._app, has_editors=True, revision_id=self.revision1_id
+        ):
             response = self.fetch(
                 "/api/v1/show/script/revisions",
                 method="POST",
@@ -1477,8 +1450,6 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
             self.assertEqual(409, response.code)
             body = tornado.escape.json_decode(response.body)
             self.assertIn("active room or unsaved draft", body["message"])
-        finally:
-            del self._app.room_manager
 
     def test_delete_revision_with_db_draft_returns_409(self):
         """DELETE /revisions returns 409 when target revision has a DB draft record."""
@@ -1498,14 +1469,9 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
 
     def test_delete_revision_with_active_room_returns_409(self):
         """DELETE /revisions returns 409 when target revision has a non-empty in-memory room."""
-        mock_room = MagicMock()
-        mock_room.has_editors = True
-        mock_room.revision_id = self.revision2_id
-        mock_manager = MagicMock()
-        mock_manager.get_active_room.return_value = mock_room
-        self._app.room_manager = mock_manager
-
-        try:
+        with mock_active_room(
+            self._app, has_editors=True, revision_id=self.revision2_id
+        ):
             response = self.fetch(
                 f"/api/v1/show/script/revisions?rev_id={self.revision2_id}",
                 method="DELETE",
@@ -1514,5 +1480,3 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
             self.assertEqual(409, response.code)
             body = tornado.escape.json_decode(response.body)
             self.assertIn("active room or unsaved draft", body["message"])
-        finally:
-            del self._app.room_manager
