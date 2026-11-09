@@ -534,6 +534,7 @@ class Settings:
     def _load(self, spawn_callbacks=False):
         if os.path.exists(self.settings_path):
             # Read in the settings
+            needs_saving = False
             with open(self.settings_path, "r", encoding="UTF-8") as file_pointer:
                 settings = json.load(file_pointer)
                 for key, value in settings.items():
@@ -542,11 +543,11 @@ class Settings:
                             f"Setting {key} found in settings file is not "
                             f"defined, ignoring!"
                         )
+                        needs_saving = True
                     else:
                         self.settings[key].set_value(value, spawn_callbacks)
 
             # Set any missing settings to their defaults, and save if needed
-            needs_saving = False
             for key, value in self.settings.items():
                 if not value.is_loaded():
                     value.set_to_default()

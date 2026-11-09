@@ -27,13 +27,16 @@ def import_all_controllers():
 
 
 class LegacyUIRedirectController(BaseController):
-    """Redirects the retired Vue 2 UI's ``/ui-old/`` path to the current UI at ``/``.
+    """Redirects the retired Vue 2 UI's ``/ui-old/<path>`` to the equivalent ``/<path>``.
 
-    Keeps old bookmarks and kiosk start pages working instead of 404ing.
+    Keeps old bookmarks and kiosk start pages landing on the same page instead of
+    404ing or bouncing to the home page. The leading ``/``/``\\`` strip prevents the
+    redirect being abused as an open redirect via a protocol-relative target (e.g.
+    ``/ui-old//evil.com`` or a backslash variant that browsers normalise to one).
     """
 
-    def get(self, _path):
-        self.redirect("/", permanent=False)
+    def get(self, path):
+        self.redirect("/" + path.lstrip("/\\"), permanent=False)
 
 
 class RootController(BaseController):
