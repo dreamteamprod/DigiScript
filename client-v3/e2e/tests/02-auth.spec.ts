@@ -84,7 +84,8 @@ test('can log back in after logout', async () => {
 });
 
 test('the retired Vue 2 UI has no switch link and its URLs redirect here', async () => {
-  // The dual-UI nav link and /ui-old/ were removed when the legacy Vue 2 UI was retired.
+  // The "Switch to Classic UI" nav link is gone, and /ui-old/<path> now redirects to
+  // the equivalent /<path> (backend behaviour added in #1498).
   await expect(page.locator('nav').getByText('Switch to Classic UI')).toHaveCount(0);
 
   await page.goto(`${UI_BASE}/ui-old/help`);
