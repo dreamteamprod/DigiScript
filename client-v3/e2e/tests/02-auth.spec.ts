@@ -83,6 +83,15 @@ test('can log back in after logout', async () => {
   await expect(page.locator('nav').getByText(ADMIN_USERNAME)).toBeVisible({ timeout: 15_000 });
 });
 
+test('the retired Vue 2 UI has no switch link and its URLs redirect here', async () => {
+  // The dual-UI nav link and /ui-old/ were removed when the legacy Vue 2 UI was retired.
+  await expect(page.locator('nav').getByText('Switch to Classic UI')).toHaveCount(0);
+
+  await page.goto(`${UI_BASE}/ui-old/help`);
+  await page.waitForURL(`${UI_BASE}/help`);
+  await waitForAppReady(page);
+});
+
 test('each tab keeps its own connection id, and a reload resumes it', async () => {
   // The WebSocket client id lives in sessionStorage: kept by a reload of the same
   // tab (so the server resumes the same client), not shared with other tabs, and

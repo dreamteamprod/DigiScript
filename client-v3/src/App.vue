@@ -88,7 +88,6 @@
           </BNavItem>
         </BNavbarNav>
         <BNavbarNav class="ms-auto">
-          <BNavItem href="/ui-old/?_switch=1"> Switch to Classic UI </BNavItem>
           <BNavItem to="/help"> Help </BNavItem>
           <BNavItem to="/about"> About </BNavItem>
           <BNavItem v-if="userStore.currentUser == null" to="/login"> Login </BNavItem>
@@ -177,7 +176,6 @@ import { useConfirm } from '@/composables/useConfirm';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import CreateUser from '@/components/user/CreateUser.vue';
 import { useUserStore } from '@/stores/user';
-import type { UserSettings } from '@/types/api/user';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useWebSocketStore } from '@/stores/websocket';
@@ -232,19 +230,10 @@ onBeforeUnmount(() => {
   if (loadTimer) clearTimeout(loadTimer);
 });
 
-async function loadInitialUserData(): Promise<boolean> {
-  if (!userStore.authToken) return true;
+async function loadInitialUserData(): Promise<void> {
+  if (!userStore.authToken) return;
   await userStore.getCurrentUser();
   await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);
-  const switching = new URLSearchParams(window.location.search).has('_switch');
-  if (!switching && (userStore.userSettings as UserSettings).preferred_ui === 'old') {
-    window.location.href = '/ui-old/?_switch=1';
-    return false;
-  }
-  if (switching) {
-    await router.replace(router.currentRoute.value.path);
-  }
-  return true;
 }
 
 async function loadShowDataAndNavigate(): Promise<void> {
@@ -265,11 +254,9 @@ async function awaitWSConnect(): Promise<void> {
     loadTimer = null;
   }
   await systemStore.getRbacRoles();
-  const shouldContinue = await loadInitialUserData();
-  if (shouldContinue) {
-    await loadShowDataAndNavigate();
-    loaded.value = true;
-  }
+  await loadInitialUserData();
+  await loadShowDataAndNavigate();
+  loaded.value = true;
 }
 
 async function retryStartup(): Promise<void> {

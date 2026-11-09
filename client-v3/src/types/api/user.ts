@@ -23,7 +23,6 @@ export interface UserSettings {
   console_log_level: string;
   character_mru_sort: boolean;
   character_combined_dropdown: boolean;
-  preferred_ui: string | null;
   table_page_sizes: Record<string, number> | null;
   default_sd_text_colour: string | null;
   default_sd_background_colour: string | null;
