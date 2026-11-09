@@ -65,6 +65,15 @@ const editButton = (p: Page) =>
 const stopEditing = (p: Page) => p.locator('button:has-text("Stop Editing")');
 const firstRow = (p: Page) => p.locator('.script-line-row').first();
 
+/** Bring ctx2's idle page back in as an editor, for a test that reuses it. */
+async function reenterCtx2AsEditor(ctx: BrowserContext | null): Promise<Page> {
+  if (!ctx) throw new Error('ctx2 from the earlier two-editor test is not open');
+  const page2 = ctx.pages()[0]!;
+  await editButton(page2).click();
+  await expect(stopEditing(page2)).toBeVisible({ timeout: 10_000 });
+  return page2;
+}
+
 /** Turn the setting on via the real Settings page UI (System Config > Settings). */
 async function enableCollabEditingViaUI(p: Page): Promise<void> {
   await p.goto(UI_BASE);
@@ -519,10 +528,7 @@ test('Discard, triggered from the Revisions page, reverts the draft and closes t
   // Discard's effect on *another* client's actual work (not just the one who clicked
   // it) is actually exercised — proving the "will lose their work too" warning true,
   // not just testing its label text.
-  if (!ctx2) throw new Error('ctx2 from the earlier two-editor test is not open');
-  const page2 = ctx2.pages()[0]!;
-  await editButton(page2).click();
-  await expect(stopEditing(page2)).toBeVisible({ timeout: 10_000 });
+  const page2 = await reenterCtx2AsEditor(ctx2);
   await addDialogueLine(page2, {
     act: 'Act 1',
     scene: 'Scene 1',
@@ -575,10 +581,7 @@ test('Discard, triggered from the Revisions page, reverts the draft and closes t
 test('Stop Editing downgrades to viewer and keeps watching live, rather than reverting to stale content (Phase 4 Step A, Tim’s decision)', async () => {
   // ctx2/page2 is idle (Edit button visible) since the earlier Discard test
   // tore its editor status down too. Bring it back in as the one still editing.
-  if (!ctx2) throw new Error('ctx2 from the earlier two-editor test is not open');
-  const page2 = ctx2.pages()[0]!;
-  await editButton(page2).click();
-  await expect(stopEditing(page2)).toBeVisible({ timeout: 10_000 });
+  const page2 = await reenterCtx2AsEditor(ctx2);
 
   // `page` stops editing — per Tim's decision this downgrades to viewer and
   // keeps watching live, rather than leaving the room and falling back to a

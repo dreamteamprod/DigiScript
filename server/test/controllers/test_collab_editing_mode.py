@@ -564,11 +564,12 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
         )
         self.assertIs(False, self._app.digi_settings.settings[MODE].get_value())
 
-    def test_can_switch_when_nobody_is_editing(self):
-        response = self._patch(**{MODE: True})
-
+    def _assert_allowed(self, response):
         self.assertEqual(200, response.code)
         self.assertIs(True, self._app.digi_settings.settings[MODE].get_value())
+
+    def test_can_switch_when_nobody_is_editing(self):
+        self._assert_allowed(self._patch(**{MODE: True}))
 
     def test_refused_while_someone_is_editing(self):
         self._add_session(is_editor=True)
@@ -608,10 +609,7 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
 
         self._app.room_manager._room = _Room()
 
-        response = self._patch(**{MODE: True})
-
-        self.assertEqual(200, response.code)
-        self.assertIs(True, self._app.digi_settings.settings[MODE].get_value())
+        self._assert_allowed(self._patch(**{MODE: True}))
 
     def test_a_non_boolean_value_is_a_400_not_a_500(self):
         for value in ("true", 1, None):
