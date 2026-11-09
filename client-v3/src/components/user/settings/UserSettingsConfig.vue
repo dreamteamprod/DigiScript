@@ -125,15 +125,6 @@
               />
             </BFormGroup>
 
-            <BFormGroup label-cols="4" label="Preferred UI Version" label-for="preferred-ui-input">
-              <BFormSelect
-                id="preferred-ui-input"
-                v-model="state.preferred_ui"
-                name="preferred-ui-input"
-                :options="preferredUiOptions"
-              />
-            </BFormGroup>
-
             <BButtonGroup size="md" style="float: right">
               <BButton type="reset" variant="danger" :disabled="!formDirty">Reset</BButton>
               <BButton type="submit" variant="primary" :disabled="!formDirty || v$.$anyError">
@@ -177,7 +168,6 @@ const defaultState = (): UserSettings => ({
   console_log_level: 'WARN',
   character_mru_sort: false,
   character_combined_dropdown: false,
-  preferred_ui: null,
   show_current_cue_footer: true,
 });
 
@@ -198,12 +188,6 @@ const consoleLogLevelOptions = [
   { value: 'SILENT', text: 'SILENT' },
 ];
 
-const preferredUiOptions = [
-  { value: null, text: 'Use system default' },
-  { value: 'old', text: 'Classic UI' },
-  { value: 'new', text: 'New UI' },
-];
-
 const rules = computed(() => ({
   enable_script_auto_save: {},
   script_auto_save_interval: {
@@ -218,7 +202,6 @@ const rules = computed(() => ({
   console_log_level: { required },
   character_mru_sort: {},
   character_combined_dropdown: {},
-  preferred_ui: {},
   show_current_cue_footer: {},
 }));
 

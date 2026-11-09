@@ -85,6 +85,11 @@ test('current cue footer setting defaults on and persists after being toggled of
   await expect(page.locator('#show-current-cue-footer-input')).toBeChecked({ timeout: 5_000 });
 });
 
+test('Settings tab no longer offers a Preferred UI Version field', async () => {
+  // Removed when the legacy Vue 2 UI was retired — there's only one UI now.
+  await expect(page.locator('#preferred-ui-input')).toHaveCount(0);
+});
+
 // ── Stage Direction Styles ────────────────────────────────────────────────
 
 test('creates a stage direction style for override testing', async () => {
