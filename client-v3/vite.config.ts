@@ -1,32 +1,10 @@
 import path from 'node:path';
-import fs from 'node:fs';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import Components from 'unplugin-vue-components/vite';
 import { BootstrapVueNextResolver } from 'bootstrap-vue-next';
 import Icons from 'unplugin-icons/vite';
 import IconsResolve from 'unplugin-icons/resolver';
-
-// TODO(#1497 PR 3): once client/ is deleted, drop this plugin and set
-// emptyOutDir: true instead — there will no longer be a sibling ui-old/
-// build to protect. Keeping the exception until then: client/ still
-// builds to ../server/static/ui-old/ before this build runs in CI
-// (see build-server.yml), and a plain emptyOutDir would wipe it.
-function cleanV3StaticPlugin(): Plugin {
-  return {
-    name: 'clean-v3-static',
-    buildStart() {
-      const outDir = path.resolve(__dirname, '../server/static');
-      if (fs.existsSync(outDir)) {
-        for (const entry of fs.readdirSync(outDir)) {
-          if (entry !== 'ui-old') {
-            fs.rmSync(path.join(outDir, entry), { recursive: true, force: true });
-          }
-        }
-      }
-    },
-  };
-}
 
 export default defineConfig({
   plugins: [
@@ -39,13 +17,12 @@ export default defineConfig({
       compiler: 'vue3',
       autoInstall: false,
     }),
-    cleanV3StaticPlugin(),
   ],
   base: '/',
   build: {
     outDir: '../server/static/',
     assetsDir: './assets',
-    emptyOutDir: false,
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks(id) {
