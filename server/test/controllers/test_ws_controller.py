@@ -77,6 +77,56 @@ class _WSTestHelpers:
             await ws.read_message()  # WS_AUTH_SUCCESS
         return ws, uuid
 
+    async def _read_until(self, ws, op=None, action=None, timeout=3.0):
+        """Read messages until one matches *op* and/or *action*.
+
+        :param ws: Client websocket connection.
+        :param op: Required ``OP`` value, or None for any.
+        :param action: Required ``ACTION`` value, or None for any.
+        :param timeout: Overall time limit in seconds.
+        :returns: Tuple of (matching message, list of messages skipped over).
+        """
+        skipped = []
+        deadline = asyncio.get_running_loop().time() + timeout
+        while True:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                self.fail(f"Timed out waiting for OP={op} ACTION={action}: {skipped}")
+            try:
+                raw = await asyncio.wait_for(ws.read_message(), remaining)
+            except asyncio.TimeoutError:
+                self.fail(f"Timed out waiting for OP={op} ACTION={action}: {skipped}")
+            self.assertIsNotNone(raw, "websocket closed while waiting for a message")
+            msg = json.loads(raw)
+            if (op is None or msg.get("OP") == op) and (
+                action is None or msg.get("ACTION") == action
+            ):
+                return msg, skipped
+            skipped.append(msg)
+
+    async def _become_editor(self, ws, observer):
+        """Put *ws* into edit mode and consume the resulting broadcasts."""
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await self._read_until(ws, action="GET_SCRIPT_CONFIG_STATUS")
+        await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
+
+    async def _join_room(self, ws):
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await self._read_until(ws, action="YJS_SYNC")
+
+    async def _editor_viewer_in_room(self):
+        """An admin editor connection plus a second admin connection, both in the room."""
+        ws_e, uuid_e = await self._connect_and_auth(self.admin_id)
+        ws_v, uuid_v = await self._connect_and_auth(self.admin_id)
+        await self._become_editor(ws_e, ws_v)
+        await self._join_room(ws_e)
+        await self._join_room(ws_v)
+        room = self._app.room_manager.get_active_room()
+        self.assertIsNotNone(room)
+        return ws_e, uuid_e, ws_v, uuid_v, room
+
 
 class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
     """Test WebSocket controller query patterns via WebSocket connections."""
@@ -590,32 +640,7 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         """A plain viewer leaving the room (Phase 4 Step A) is a no-op for the
         room's lifecycle as long as an editor is still in it — unlike the last
         editor stopping, which still checkpoints."""
-        ws_editor, _ = await self._connect_and_auth(self.admin_id)
-        ws_viewer, _ = await self._connect_and_auth(self.admin_id)
-
-        await ws_editor.write_message(
-            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
-        )
-        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS
-        await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS broadcast
-
-        await ws_editor.write_message(
-            json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}})
-        )
-        await ws_editor.read_message()  # YJS_SYNC
-        await ws_editor.read_message()  # ROOM_MEMBERS
-        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
-
-        await ws_viewer.write_message(
-            json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}})
-        )
-        await ws_viewer.read_message()  # YJS_SYNC
-        await ws_editor.read_message()  # ROOM_MEMBERS
-        await ws_viewer.read_message()  # ROOM_MEMBERS
-        await ws_editor.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
-        await ws_viewer.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
-
-        room = self._app.room_manager.get_active_room()
+        ws_editor, _, ws_viewer, _, room = await self._editor_viewer_in_room()
 
         # The viewer leaves — the editor is still there, so no checkpoint and
         # no close: just a membership update and a config status refresh.
@@ -1598,33 +1623,6 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
             f"no grace-window timer was scheduled under {key}",
         )
 
-    async def _read_until(self, ws, op=None, action=None, timeout=3.0):
-        """Read messages until one matches *op* and/or *action*.
-
-        :param ws: Client websocket connection.
-        :param op: Required ``OP`` value, or None for any.
-        :param action: Required ``ACTION`` value, or None for any.
-        :param timeout: Overall time limit in seconds.
-        :returns: Tuple of (matching message, list of messages skipped over).
-        """
-        skipped = []
-        deadline = asyncio.get_running_loop().time() + timeout
-        while True:
-            remaining = deadline - asyncio.get_running_loop().time()
-            if remaining <= 0:
-                self.fail(f"Timed out waiting for OP={op} ACTION={action}: {skipped}")
-            try:
-                raw = await asyncio.wait_for(ws.read_message(), remaining)
-            except asyncio.TimeoutError:
-                self.fail(f"Timed out waiting for OP={op} ACTION={action}: {skipped}")
-            self.assertIsNotNone(raw, "websocket closed while waiting for a message")
-            msg = json.loads(raw)
-            if (op is None or msg.get("OP") == op) and (
-                action is None or msg.get("ACTION") == action
-            ):
-                return msg, skipped
-            skipped.append(msg)
-
     async def _drain(self, ws, timeout=0.3):
         """Collect every message that arrives on *ws* within *timeout*.
 
@@ -1788,14 +1786,6 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
                 return None
             return bool(row.is_editor), bool(row.is_cutting), row.user_id
 
-    async def _become_editor(self, ws, observer):
-        """Put *ws* into edit mode and consume the resulting broadcasts."""
-        await ws.write_message(
-            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
-        )
-        await self._read_until(ws, action="GET_SCRIPT_CONFIG_STATUS")
-        await self._read_until(observer, action="GET_SCRIPT_CONFIG_STATUS")
-
     async def _editor_and_observer(self):
         """An admin editor connection plus a viewer observer connection."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
@@ -1803,10 +1793,6 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
         await self._become_editor(ws, observer)
         self.assertEqual((True, False, self.admin_id), self._session_row(uuid))
         return ws, uuid, observer
-
-    async def _join_room(self, ws):
-        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
-        await self._read_until(ws, action="YJS_SYNC")
 
     async def _post(self, path, body, token=None):
         headers = {"Authorization": f"Bearer {token}"} if token else {}
@@ -2712,16 +2698,6 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
     # ------------------------------------------------------------------
     # Collaborative editing room across a reload
     # ------------------------------------------------------------------
-
-    async def _editor_viewer_in_room(self):
-        ws_e, uuid_e = await self._connect_and_auth(self.admin_id)
-        ws_v, uuid_v = await self._connect_and_auth(self.admin_id)
-        await self._become_editor(ws_e, ws_v)
-        await self._join_room(ws_e)
-        await self._join_room(ws_v)
-        room = self._app.room_manager.get_active_room()
-        self.assertIsNotNone(room)
-        return ws_e, uuid_e, ws_v, uuid_v, room
 
     @gen_test
     async def test_editor_reload_rejoin_within_grace_keeps_room_open(self):
