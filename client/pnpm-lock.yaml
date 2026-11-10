@@ -259,7 +259,7 @@ importers:
         version: 8.72.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3)
       '@vitejs/plugin-vue2':
         specifier: 2.3.4
-        version: 2.3.4(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1))(vue@2.7.14)
+        version: 2.3.4(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1))(vue@2.7.14)
       '@vitest/ui':
         specifier: ^4.1.12
         version: 4.1.12(vitest@4.1.12)
@@ -291,8 +291,8 @@ importers:
         specifier: ^3.9.10
         version: 3.9.10
       sass:
-        specifier: 1.107.1
-        version: 1.107.1
+        specifier: 1.108.1
+        version: 1.108.1
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -301,10 +301,10 @@ importers:
         version: 8.72.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3)
       vite:
         specifier: ^7.3.7
-        version: 7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1)
+        version: 7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1)
       vitest:
         specifier: ^4.1.12
-        version: 4.1.12(@types/node@26.6.6)(@vitest/ui@4.1.12)(jsdom@27.4.0(supports-color@7.2.0))(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1))
+        version: 4.1.12(@types/node@26.6.6)(@vitest/ui@4.1.12)(jsdom@27.4.0(supports-color@7.2.0))(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1))
 
 packages:
 
@@ -1661,8 +1661,8 @@ packages:
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
 
-  sass@1.107.1:
-    resolution: {integrity: sha512-aJ1/LvxOOb04YhmiBjzZn3jVwdHKol+OVhoMV6fFl02fF9T3i+5Mg9l/CnzqtM+NX5Jn5o3lAbs/ZJivTCLHfQ==}
+  sass@1.108.1:
+    resolution: {integrity: sha512-sIYgSvOPeD9wABwDS/ofNjHASSck+7h3jLkk7wG1NPFL3XeS6vOQjBlAFSmRV09kZr1yt/Tuayt6kKtBbLjHNQ==}
     engines: {node: '>=20.19.0'}
     hasBin: true
 
@@ -2471,9 +2471,9 @@ snapshots:
       '@typescript-eslint/types': 8.72.1
       eslint-visitor-keys: 5.0.1
 
-  '@vitejs/plugin-vue2@2.3.4(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1))(vue@2.7.14)':
+  '@vitejs/plugin-vue2@2.3.4(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1))(vue@2.7.14)':
     dependencies:
-      vite: 7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1)
+      vite: 7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1)
       vue: 2.7.14
 
   '@vitest/expect@4.1.12':
@@ -2485,13 +2485,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.12(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1))':
+  '@vitest/mocker@4.1.12(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1))':
     dependencies:
       '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1)
+      vite: 7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1)
 
   '@vitest/pretty-format@4.1.12':
     dependencies:
@@ -2520,7 +2520,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vitest: 4.1.12(@types/node@26.6.6)(@vitest/ui@4.1.12)(jsdom@27.4.0(supports-color@7.2.0))(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1))
+      vitest: 4.1.12(@types/node@26.6.6)(@vitest/ui@4.1.12)(jsdom@27.4.0(supports-color@7.2.0))(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1))
 
   '@vitest/utils@4.1.12':
     dependencies:
@@ -3235,7 +3235,7 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.63.4
       fsevents: 2.3.3
 
-  sass@1.107.1:
+  sass@1.108.1:
     dependencies:
       chokidar: 5.0.0
       immutable: 5.1.9
@@ -3348,7 +3348,7 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1):
+  vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1):
     dependencies:
       esbuild: 0.28.2
       fdir: 6.5.0(picomatch@4.0.7)
@@ -3360,12 +3360,12 @@ snapshots:
       '@types/node': 26.6.6
       fsevents: 2.3.3
       jiti: 2.7.0
-      sass: 1.107.1
+      sass: 1.108.1
 
-  vitest@4.1.12(@types/node@26.6.6)(@vitest/ui@4.1.12)(jsdom@27.4.0(supports-color@7.2.0))(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1)):
+  vitest@4.1.12(@types/node@26.6.6)(@vitest/ui@4.1.12)(jsdom@27.4.0(supports-color@7.2.0))(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1)):
     dependencies:
       '@vitest/expect': 4.1.12
-      '@vitest/mocker': 4.1.12(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1))
+      '@vitest/mocker': 4.1.12(vite@7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1))
       '@vitest/pretty-format': 4.1.12
       '@vitest/runner': 4.1.12
       '@vitest/snapshot': 4.1.12
@@ -3382,7 +3382,7 @@ snapshots:
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.107.1)
+      vite: 7.3.7(@types/node@26.6.6)(jiti@2.7.0)(sass@1.108.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 26.6.6
