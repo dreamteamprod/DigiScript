@@ -48,12 +48,6 @@ fi
 echo "Updating version to $VERSION..."
 echo
 
-# Update client/package.json
-print_info "Updating client/package.json..."
-cd "$PROJECT_ROOT/client"
-pnpm version "$VERSION" --no-git-tag-version --allow-same-version --no-git-checks > /dev/null
-print_success "client/package.json updated"
-
 # Update client-v3/package.json
 print_info "Updating client-v3/package.json..."
 cd "$PROJECT_ROOT/client-v3"
@@ -78,6 +72,5 @@ echo
 echo -e "${GREEN}Version successfully updated to $VERSION${NC}"
 echo
 echo "Updated files:"
-echo "  - client/package.json"
 echo "  - client-v3/package.json"
 echo "  - server/pyproject.toml"

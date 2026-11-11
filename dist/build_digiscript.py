@@ -32,7 +32,7 @@ def emoji(key, fallback=""):
 # Determine project paths relative to the script location
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
-CLIENT_DIR = os.path.join(ROOT_DIR, "client")
+CLIENT_DIR = os.path.join(ROOT_DIR, "client-v3")
 SERVER_DIR = os.path.join(ROOT_DIR, "server")
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
 
@@ -46,7 +46,7 @@ def build_frontend(force_rebuild=False):
     """Build the Node.js frontend"""
     print(f"{emoji('build')} Building frontend...")
 
-    # The vite.config.js already outputs to server/static, so we just need to
+    # The vite.config.ts already outputs to server/static, so we just need to
     # check if this directory has content and if we need to rebuild
     server_static = os.path.join(SERVER_DIR, "static")
 
@@ -58,16 +58,16 @@ def build_frontend(force_rebuild=False):
     original_dir = os.getcwd()
     os.chdir(CLIENT_DIR)
 
-    npm_command = f"npm{'.cmd' if IS_WINDOWS else ''}"
+    pnpm_command = f"pnpm{'.cmd' if IS_WINDOWS else ''}"
 
     # Install dependencies if needed
     try:
         print(f"{emoji('package')} Installing dependencies...")
-        subprocess.run([npm_command, "ci"], check=True)
+        subprocess.run([pnpm_command, "install", "--frozen-lockfile"], check=True)
 
-        # Build the frontend - this will output directly to server/static based on vite.config.js
+        # Build the frontend - this will output directly to server/static based on vite.config.ts
         print(f"{emoji('working')} Building frontend application...")
-        subprocess.run([npm_command, "run", "build"], check=True)
+        subprocess.run([pnpm_command, "run", "build"], check=True)
 
         print(f"{emoji('success')} Frontend build completed successfully.")
         return True

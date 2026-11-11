@@ -27,9 +27,6 @@ labels:
 - label: "git"
   files:
     - ".gitignore"
-- label: "client"
-  files:
-    - "client/.*"
 - label: "client-v3"
   files:
     - "client-v3/.*"
