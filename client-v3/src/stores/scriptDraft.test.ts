@@ -539,6 +539,22 @@ describe('scriptDraft store', () => {
     expect(toast.error).toHaveBeenCalled();
   });
 
+  it('refreshRoomRole surfaces a toast, but keeps the already-synced doc, if the frame could not be sent', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    const docBefore = store.getDraftYdoc();
+    sendObj.mockReturnValueOnce(false);
+
+    store.refreshRoomRole();
+
+    expect(toast.error).toHaveBeenCalled();
+    // Unlike a failed joinScriptRoom(), this must not tear anything down — the
+    // already-synced doc is still perfectly valid even though the role-refresh
+    // request itself never reached the server.
+    expect(store.isDraftActive).toBe(true);
+    expect(store.getDraftYdoc()).toBe(docBefore);
+  });
+
   it('saveDraft does not stick on "saving" when the frame could not be sent', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();

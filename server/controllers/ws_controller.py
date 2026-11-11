@@ -1124,12 +1124,12 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
                     await self.application.ws_send_to_all(
                         "NOOP", "GET_SCRIPT_REVISIONS", {}
                     )
-                # Phase 4 Step A: this caller was just added back to `room.clients`
-                # as a viewer above (they may want to keep watching live), and any
-                # other viewer may still be there too — only tear the room down
-                # once nobody, editor or viewer, is left in it.
-                if room.is_empty:
-                    await room_manager.close_active_room()
+                # Phase 4 Step A: no close check here — this caller was just
+                # added back to `room.clients` as a viewer above (`add_client`
+                # a few lines up), so `room.is_empty` can never be true at this
+                # point. The room only actually empties out, and gets closed,
+                # when that viewer (or any other) later sends LEAVE_SCRIPT_ROOM
+                # or disconnects — both already handle the close themselves.
 
         await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})
 
@@ -1242,13 +1242,31 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             # downgrades their role), so this op needs the same checkpoint/close
             # responsibility: nothing else closes the room when the last viewer
             # of an already-editorless room leaves.
+            #
+            # Same try/except/finally isolation as close_room_if_editorless
+            # (ws_session_lifecycle.py): a checkpoint failure must not prevent
+            # the close attempt below, and this caller is already removed from
+            # `room.clients` with no grace-window fallback scheduled on this
+            # path — an unhandled exception here would otherwise leave the room
+            # registered as active indefinitely with nobody left in it.
             if not room.has_editors:
-                if await room_manager.checkpoint_if_dirty(room):
-                    await self.application.ws_send_to_all(
-                        "NOOP", "GET_SCRIPT_REVISIONS", {}
+                try:
+                    if await room_manager.checkpoint_if_dirty(room):
+                        await self.application.ws_send_to_all(
+                            "NOOP", "GET_SCRIPT_REVISIONS", {}
+                        )
+                except Exception:
+                    get_logger().exception(
+                        "Error checkpointing room after a viewer left"
                     )
-                if room.is_empty:
-                    await room_manager.close_active_room()
+                finally:
+                    try:
+                        await room_manager.close_room_if_empty(room)
+                    except Exception:
+                        get_logger().exception(
+                            "Error closing active room after a viewer left "
+                            "— room may be left in a stale state"
+                        )
 
     async def _op_yjs_sync(self, room_manager, data: dict) -> None:
         """Handle ``YJS_SYNC`` (see :meth:`_handle_script_room_op`)."""

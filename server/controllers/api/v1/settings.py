@@ -98,6 +98,14 @@ class SettingsController(BaseAPIController):
         # changed, so this keeps check-and-write free of a scheduling point.
         if COLLAB_EDITING_SETTING in data:
             await settings.set(COLLAB_EDITING_SETTING, data[COLLAB_EDITING_SETTING])
+            # The guard above already confirmed no editor is in the room (only a
+            # viewer could be) — but a viewer-only room left open across the switch
+            # would keep every viewer watching a Y.Doc under a mode the client's own
+            # UI no longer renders as collaborative. Close it so they drop back to
+            # whichever read path the new mode actually uses.
+            room_manager = self.application.room_manager
+            if room_manager.get_active_room() is not None:
+                await room_manager.close_active_room()
         for k, v in data.items():
             if k != COLLAB_EDITING_SETTING:
                 await settings.set(k, v)

@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 from models.script import Script, ScriptRevision
 from models.show import Show, ShowScriptType
+from utils.script_room_manager import RoomManager
 
 
 def create_show_script_revision(session, description="Test Rev"):
@@ -45,7 +46,11 @@ def mock_active_room(app, **room_attrs):
     mock_room = MagicMock()
     for name, value in room_attrs.items():
         setattr(mock_room, name, value)
-    mock_manager = MagicMock()
+    # spec=RoomManager so unittest.mock auto-detects its async methods
+    # (close_active_room, discard_active_room, has_unsaved_changes) as
+    # AsyncMock — a plain MagicMock() isn't awaitable and raises TypeError
+    # the moment a caller does `await room_manager.close_active_room()`.
+    mock_manager = MagicMock(spec=RoomManager)
     mock_manager.get_active_room.return_value = mock_room
     app.room_manager = mock_manager
 

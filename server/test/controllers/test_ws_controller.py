@@ -127,6 +127,41 @@ class _WSTestHelpers:
         self.assertIsNotNone(room)
         return ws_e, uuid_e, ws_v, uuid_v, room
 
+    async def _close_and_wait(self, ws, handler, timeout=3.0):
+        """Close *ws* client-side and wait until the server ran *handler*'s on_close.
+
+        Waits on the exact handler object rather than on its uuid, because in
+        the stale-handler race two handlers carry the same uuid.
+
+        :param ws: Client websocket connection to close.
+        :param handler: The server-side handler for *ws*, captured beforehand.
+        :param timeout: Time limit in seconds.
+        """
+        ws.close()
+        deadline = asyncio.get_running_loop().time() + timeout
+        while handler in self._app.clients:
+            if asyncio.get_running_loop().time() > deadline:
+                self.fail("server did not process the websocket close in time")
+            await asyncio.sleep(0.01)
+
+    async def _wait_room_closed(self, timeout=3.0):
+        """Poll until the active room is evicted.
+
+        Phase 4 Step A: the room only closes once *everyone* — editor or
+        viewer — has left it, so a test proving a deferred close actually ran
+        can no longer rely on some still-present viewer receiving
+        ``ROOM_CLOSED`` (nobody still in the room gets notified of anything —
+        there's nobody left to notify). Polling server-side state directly
+        works regardless of who, if anyone, was watching.
+
+        :param timeout: Time limit in seconds.
+        """
+        deadline = asyncio.get_running_loop().time() + timeout
+        while self._app.room_manager.get_active_room() is not None:
+            if asyncio.get_running_loop().time() > deadline:
+                self.fail("room was not closed in time")
+            await asyncio.sleep(0.01)
+
 
 class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
     """Test WebSocket controller query patterns via WebSocket connections."""
@@ -659,6 +694,43 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         self.assertTrue(room.has_editors)
 
         ws_editor.close()
+        ws_viewer.close()
+
+    @gen_test
+    async def test_leave_script_room_isolates_a_checkpoint_failure_from_the_close_attempt(
+        self,
+    ):
+        """A checkpoint_if_dirty failure while the last viewer leaves an
+        editorless, dirty room must not prevent the close attempt that follows
+        it — mirroring close_room_if_editorless's own try/except/finally
+        isolation (ws_session_lifecycle.py)."""
+        ws_editor, uuid_e, ws_viewer, _, room = await self._editor_viewer_in_room()
+        room._dirty = True
+
+        # The editor disconnects cleanly, leaving the room open with just the
+        # viewer in it (already covered elsewhere) — sets up an editorless,
+        # dirty room with exactly one occupant left, so that occupant leaving
+        # next makes the room genuinely empty.
+        await self._close_and_wait(ws_editor, self._app.get_ws(uuid_e))
+        self.assertIs(room, self._app.room_manager.get_active_room())
+        self.assertFalse(room.has_editors)
+
+        with mock.patch.object(
+            self._app.room_manager,
+            "checkpoint_if_dirty",
+            side_effect=RuntimeError("database is locked"),
+        ):
+            with self.assertLogs(get_logger(), level="ERROR") as logs:
+                await ws_viewer.write_message(
+                    json.dumps({"OP": "LEAVE_SCRIPT_ROOM", "DATA": {}})
+                )
+                await self._wait_room_closed()
+
+        checkpoint_errors = [
+            line for line in logs.output if "Error checkpointing room" in line
+        ]
+        self.assertEqual(1, len(checkpoint_errors))
+
         ws_viewer.close()
 
     @gen_test
@@ -1713,41 +1785,6 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
             await ws.write_message(json.dumps({"OP": "NEW_CLIENT", "DATA": {}}))
         await self._barrier(ws, user_id)
         return ws
-
-    async def _close_and_wait(self, ws, handler, timeout=3.0):
-        """Close *ws* client-side and wait until the server ran *handler*'s on_close.
-
-        Waits on the exact handler object rather than on its uuid, because in
-        the stale-handler race two handlers carry the same uuid.
-
-        :param ws: Client websocket connection to close.
-        :param handler: The server-side handler for *ws*, captured beforehand.
-        :param timeout: Time limit in seconds.
-        """
-        ws.close()
-        deadline = asyncio.get_running_loop().time() + timeout
-        while handler in self._app.clients:
-            if asyncio.get_running_loop().time() > deadline:
-                self.fail("server did not process the websocket close in time")
-            await asyncio.sleep(0.01)
-
-    async def _wait_room_closed(self, timeout=3.0):
-        """Poll until the active room is evicted.
-
-        Phase 4 Step A: the room only closes once *everyone* — editor or
-        viewer — has left it, so a test proving a deferred close actually ran
-        can no longer rely on some still-present viewer receiving
-        ``ROOM_CLOSED`` (nobody still in the room gets notified of anything —
-        there's nobody left to notify). Polling server-side state directly
-        works regardless of who, if anyone, was watching.
-
-        :param timeout: Time limit in seconds.
-        """
-        deadline = asyncio.get_running_loop().time() + timeout
-        while self._app.room_manager.get_active_room() is not None:
-            if asyncio.get_running_loop().time() > deadline:
-                self.fail("room was not closed in time")
-            await asyncio.sleep(0.01)
 
     def _start_live_session(self, leader_uuid, user_id):
         """Create a live ShowSession led by *leader_uuid*.
@@ -2853,6 +2890,33 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
                 select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
             )
             self.assertIsNotNone(draft, "the dirty room was not checkpointed")
+
+    @gen_test
+    async def test_deferred_room_close_checkpoints_dirty_room_but_stays_open_for_a_remaining_viewer(
+        self,
+    ):
+        """The last editor disconnecting from a dirty room checkpoints it once
+        the deferred check fires — but unlike the sibling test above, a
+        *different* viewer never leaves, so the room must stay open rather
+        than close: checkpoint-on-losing-the-last-editor and close-on-truly-
+        empty are distinct conditions, and this is the one case (editor gone,
+        viewer still watching) that only exercises the former.
+        """
+        ws_e, uuid_e, ws_v, _, room = await self._editor_viewer_in_room()
+        room._dirty = True
+
+        await self._close_and_wait(ws_e, self._app.get_ws(uuid_e))
+        self.assertIs(room, self._app.room_manager.get_active_room())
+        await self._fire(room_close_key(room.revision_id))
+
+        self.assertIs(room, self._app.room_manager.get_active_room())
+        with self._app.get_db().sessionmaker() as session:
+            draft = session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
+            )
+            self.assertIsNotNone(draft, "the dirty room was not checkpointed")
+
+        ws_v.close()
 
 
 class TestWSUuidIsNotOwnership(_ReconnectTestBase):

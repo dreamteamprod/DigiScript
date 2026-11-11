@@ -577,6 +577,14 @@ describe('CollabScriptEditor', () => {
       expect(w.findAllComponents(LineEditorStub)).toHaveLength(0); // read-only: canEditDraft is false
     });
 
+    it('does not join on mount during a live session, since the server would only reject it with an error toast', async () => {
+      useSystemStore().currentShow = { current_session_id: 5 } as never;
+      await mountEditor();
+
+      expect(sentOps()).not.toContain('JOIN_SCRIPT_ROOM');
+      expect(useScriptDraftStore().isDraftActive).toBe(false);
+    });
+
     it('becoming an editor while already viewing refreshes the room role instead of rejoining fresh', async () => {
       await mountEditor();
       const docBefore = useScriptDraftStore().getDraftYdoc();
@@ -624,6 +632,27 @@ describe('CollabScriptEditor', () => {
       expect(useScriptStore().loadScriptPage).toHaveBeenCalledWith(2);
     });
 
+    it('entering cut mode on a page never REST-fetched while live-viewing backfills it, instead of rendering blank', async () => {
+      vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('a')], '2': [snap('b')] });
+      await flushPromises();
+
+      // Navigate to page 2 while live-viewing (not cutting) — usesLiveRender stays
+      // true, so navigateTo() never backfills the REST cache for page 2.
+      vi.mocked(useScriptStore().loadScriptPage).mockClear();
+      await button(w, 'Next Page')!.trigger('click');
+      await flushPromises();
+      expect(useScriptStore().loadScriptPage).not.toHaveBeenCalled();
+
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+
+      // usesLiveRender flips to false (cutMode true) — the current page must be
+      // backfilled now, or the cut-mode REST render would show an empty page.
+      expect(useScriptStore().loadScriptPage).toHaveBeenCalledWith(2);
+    });
+
     it('a plain viewer also leaves the room on unmount, same as an editor', async () => {
       const w = await mountEditor();
       expect(useScriptDraftStore().isDraftActive).toBe(true);
@@ -633,6 +662,100 @@ describe('CollabScriptEditor', () => {
 
       expect(sentOps()).toContain('LEAVE_SCRIPT_ROOM');
       expect(useScriptDraftStore().isDraftActive).toBe(false);
+    });
+
+    it('recovers from a room close with no action of its own: backfills REST immediately, then retries the join on a backoff', async () => {
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('a')], '2': [] });
+      await flushPromises();
+      vi.mocked(useScriptStore().loadScriptPage).mockClear();
+      sendObj.mockClear();
+
+      vi.useFakeTimers();
+      try {
+        // e.g. an editor elsewhere discarding the draft closes the room for
+        // every viewer in it too, with no action of this viewer's own.
+        useScriptDraftStore().roomClosed();
+        await flushPromises();
+
+        // Backfilled immediately, not just on the eventual retry — otherwise
+        // this viewer would render a blank/stale page in the meantime.
+        expect(useScriptStore().loadScriptPage).toHaveBeenCalledWith(1);
+        expect(sentOps()).not.toContain('JOIN_SCRIPT_ROOM');
+
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(sentOps()).toContain('JOIN_SCRIPT_ROOM');
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(w.exists()).toBe(true);
+    });
+
+    it('backs off with increasing delays and gives up after exhausting the schedule, rather than retrying forever', async () => {
+      // Mirrors the component's own VIEWER_RECOVERY_DELAYS_MS schedule.
+      const delays = [3_000, 5_000, 10_000, 15_000, 30_000];
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('a')], '2': [] });
+      await flushPromises();
+
+      vi.useFakeTimers();
+      try {
+        // Every retry attempt itself fails *immediately* (room never reopens) —
+        // the worst case this backoff exists to guard against: without a cap,
+        // this would retry in a tight loop forever. Rejecting it immediately
+        // (rather than letting it hang) keeps each cycle's own timing exact,
+        // instead of also waiting out the unrelated 15s join-stall watchdog.
+        for (const delay of delays) {
+          useScriptDraftStore().roomClosed();
+          await flushPromises();
+          sendObj.mockClear();
+          await vi.advanceTimersByTimeAsync(delay);
+          expect(sentOps()).toContain('JOIN_SCRIPT_ROOM');
+        }
+
+        // The schedule (5 entries) is now exhausted — the 6th failure gets no
+        // further attempt scheduled at all.
+        useScriptDraftStore().roomClosed();
+        await flushPromises();
+        sendObj.mockClear();
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(sentOps()).not.toContain('JOIN_SCRIPT_ROOM');
+
+        // Succeeding afterwards resets the counter, so a *later* close starts
+        // the schedule over from its shortest delay rather than staying capped.
+        syncDraft({ '1': [snap('a')], '2': [] });
+        await flushPromises();
+        useScriptDraftStore().roomClosed();
+        await flushPromises();
+        sendObj.mockClear();
+        await vi.advanceTimersByTimeAsync(delays[0]!);
+        expect(sentOps()).toContain('JOIN_SCRIPT_ROOM');
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(w.exists()).toBe(true);
+    });
+
+    it('does not attempt viewer recovery while an editor (joinFailed/Retry handles that case instead)', async () => {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [snap('a')], '2': [] });
+      await flushPromises();
+
+      vi.useFakeTimers();
+      try {
+        useScriptDraftStore().roomClosed();
+        await flushPromises();
+        sendObj.mockClear();
+
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(sentOps()).not.toContain('JOIN_SCRIPT_ROOM');
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(w.exists()).toBe(true);
     });
   });
 

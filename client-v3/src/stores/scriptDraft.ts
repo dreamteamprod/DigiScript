@@ -264,7 +264,13 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
      */
     refreshRoomRole(): void {
       if (!this.isDraftActive) return;
-      provider?.join();
+      // Unlike joinScriptRoom() above, a failure here doesn't tear anything down —
+      // the already-synced doc is still perfectly valid, we just failed to ask the
+      // server to re-evaluate our role. Still must not go unnoticed, though: the
+      // caller (e.g. Stop Editing) believes the role change is in flight.
+      if (!provider?.join()) {
+        toast.error('Cannot refresh script room role: not connected to the server');
+      }
     },
 
     /** Internal teardown shared by leaveScriptRoom and the server-initiated ROOM_CLOSED. */

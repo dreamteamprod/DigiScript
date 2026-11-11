@@ -314,6 +314,17 @@ const bulkEditEnd = ref<{ page: number; lineUid: LineUid } | null>(null);
 // would show the "could not open the script draft" alert — with a Retry that would
 // rejoin the room we just asked to leave — for that one round trip.
 const stopRequested = ref(false);
+// A plain viewer's backoff schedule for recovering from a room close with no
+// action of their own — see the draftStore.status watch below.
+const VIEWER_RECOVERY_DELAYS_MS = [3_000, 5_000, 10_000, 15_000, 30_000];
+let viewerRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+let viewerRecoveryAttempt = 0;
+function clearViewerRecoveryTimer(): void {
+  if (viewerRecoveryTimer !== null) {
+    clearTimeout(viewerRecoveryTimer);
+    viewerRecoveryTimer = null;
+  }
+}
 // Lines currently open in a CollabScriptLineEditor, keyed by `_uid` — never by index or
 // position, so another editor's concurrent insert/delete elsewhere on the page can't
 // desync this set the way the classic editor's `page_N_line_I` keys would.
@@ -900,6 +911,41 @@ watch([draftReady, maxPage], () => {
   }
 });
 
+// Entering cut mode (or any other path that flips usesLiveRender false) switches the
+// template to the REST viewerLines branch — but the current page may never have been
+// REST-fetched if it was only ever reached via the live Y.Doc (e.g. navigating pages
+// while live-viewing, not cutting). Backfill it so the page isn't blank.
+watch(usesLiveRender, (isLive, wasLive) => {
+  if (wasLive && !isLive) loadViewerPage(currentPage.value);
+});
+
+// A plain viewer's room can close with no action of their own (e.g. an editor
+// discarding the draft closes it for everyone) — unlike an editor's own failed
+// join, there's no Retry alert for a viewer (joinFailed is scoped to isEditor),
+// so without this a viewer would be stuck on a REST render that may itself be
+// stale/blank for the rest of the visit, even once someone else resumes
+// editing and a new room exists to rejoin. Backs off (capped) rather than
+// retrying forever if nothing ever picks editing back up.
+watch(
+  () => draftStore.status,
+  (status) => {
+    if (status === 'synced') {
+      viewerRecoveryAttempt = 0;
+      return;
+    }
+    if (status !== 'idle' || isEditor.value || stopRequested.value) return;
+    clearViewerRecoveryTimer();
+    loadViewerPage(currentPage.value);
+    if (viewerRecoveryAttempt >= VIEWER_RECOVERY_DELAYS_MS.length) return;
+    const delay = VIEWER_RECOVERY_DELAYS_MS[viewerRecoveryAttempt]!;
+    viewerRecoveryAttempt += 1;
+    viewerRecoveryTimer = setTimeout(() => {
+      viewerRecoveryTimer = null;
+      if (!isEditor.value) retryJoin();
+    }, delay);
+  }
+);
+
 watch(canEditDraft, () => setupAutoSave());
 watch(
   () => userStore.userSettings,
@@ -937,12 +983,18 @@ onMounted(async () => {
   // (issue #1419, fixed by #1427 — REFRESH_CLIENT resumes the session row, confirmed
   // once AUTHENTICATE succeeds), so isEditor is already true here by the time this
   // component re-mounts, and retryJoin() rejoins as editor directly.
-  retryJoin();
+  //
+  // Skipped entirely during a live session: _op_join_script_room rejects every join
+  // (viewer or editor) while one is active, and nobody can be an editor then anyway
+  // — joining would only earn every plain viewer who opens this tab an error toast
+  // for a join nobody asked for and that could never have succeeded.
+  if (!systemStore.currentShow?.current_session_id) retryJoin();
   setupAutoSave();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', calculateNavbarHeight);
+  clearViewerRecoveryTimer();
   // Leaving the tab leaves the room (the editor flag is kept, so coming back rejoins).
   if (draftStore.isDraftActive) draftStore.leaveScriptRoom();
 });

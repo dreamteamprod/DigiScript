@@ -347,14 +347,13 @@ async def close_room_if_editorless(app: DigiScriptServer, room) -> None:
     except Exception:
         get_logger().exception("Error checkpointing room after last editor left")
     finally:
-        if room_manager.get_active_room() is room and room.is_empty:
-            try:
-                await room_manager.close_active_room()
-            except Exception:
-                get_logger().exception(
-                    "Error closing active room after last editor left — "
-                    "room may be left in a stale state"
-                )
+        try:
+            await room_manager.close_room_if_empty(room)
+        except Exception:
+            get_logger().exception(
+                "Error closing active room after last editor left — "
+                "room may be left in a stale state"
+            )
 
 
 def _downgrade_room_editor(app: DigiScriptServer, internal_id: str) -> None:

@@ -1135,6 +1135,68 @@ class TestRoomManagerCheckpointIfDirty:
         manager._checkpoint_room.assert_not_awaited()
 
 
+class TestRoomManagerCloseRoomIfEmpty:
+    """Direct tests of ``close_room_if_empty``'s own guard (Phase 4 Step A
+    review): a caller that checks ``room.is_empty`` and then calls
+    ``close_active_room()`` as two separate, unlocked steps leaves a window
+    for a ``JOIN_SCRIPT_ROOM`` to land in between and add a new client right
+    before the room gets closed out from under them anyway. Re-checks both
+    ``is`` identity and ``is_empty`` after acquiring the lock, same reasoning
+    as ``checkpoint_if_dirty``."""
+
+    @pytest.mark.asyncio
+    async def test_closes_the_active_room_when_empty(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        room = _make_room(revision_id=1)
+        manager._room = room
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_empty(room)
+
+        assert closed is True
+        manager._close_active_room_locked.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_is_a_no_op_when_a_client_is_still_in_it(self):
+        """The exact race this exists for: between a caller's own unlocked
+        `room.is_empty` check and the close, a JOIN_SCRIPT_ROOM added a
+        client — by the time this re-checks under the lock, the room is no
+        longer empty, so it must not be closed out from under that client."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        room = _make_room(revision_id=1)
+        room.add_client(_make_mock_ws(), "viewer")
+        manager._room = room
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_empty(room)
+
+        assert closed is False
+        manager._close_active_room_locked.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ignores_an_empty_room_that_is_no_longer_the_active_one(self):
+        """A caller reads `self._room` before taking the lock, but by the
+        time it acquires the lock that room has been replaced or torn down —
+        checking `room.is_empty` alone, without also checking `self._room is
+        room`, would close whichever room is active now, not the stale one
+        the caller actually meant."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        stale_room = _make_room(revision_id=1)
+        manager._room = None  # replaced or torn down since the read
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_empty(stale_room)
+
+        assert closed is False
+        manager._close_active_room_locked.assert_not_awaited()
+
+
 class TestRoomManagerCleanupStaleDrafts(_ScriptTestSetup):
     """Tests for both branches of ``cleanup_stale_drafts`` (Group F: F5)."""
 

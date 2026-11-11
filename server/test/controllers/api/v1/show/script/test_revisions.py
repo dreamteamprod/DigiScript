@@ -1405,6 +1405,13 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
         viewer is in it) so this only passes because of has_editors=False —
         not because an unset MagicMock attribute happened to be falsy/truthy.
         """
+        # setUp's current_show.set_value() queues a deferred show_changed IOLoop
+        # callback (itself an unconditional close_active_room()) that only runs on
+        # the next request this test drives the loop with — flush it here, against
+        # the real (inactive) room_manager, before mock_active_room installs the
+        # mock this test's own close_active_room assertion below cares about.
+        self.fetch("/api/v1/show/script/revisions")
+
         with mock_active_room(
             self._app,
             revision_id=self.revision1_id,
@@ -1418,6 +1425,35 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
                 headers={"Authorization": f"Bearer {self.token}"},
             )
             self.assertEqual(200, response.code)
+
+            # The room was left open on revision1 — now stale, since the current
+            # revision just became revision2 — so it must be closed; otherwise
+            # every viewer in it keeps watching a Y.Doc for a revision that's no
+            # longer current.
+            self._app.room_manager.close_active_room.assert_awaited_once()
+
+    def test_load_current_revision_closes_room_only_if_it_is_for_the_old_revision(self):
+        """POST /revisions/current leaves the active room alone when it's already
+        for the new revision (e.g. a viewer who already followed the switch via a
+        role-refresh join) — closing it would needlessly kick that viewer too."""
+        # See the sibling test above for why this flushes setUp's deferred
+        # show_changed callback before mock_active_room installs the mock.
+        self.fetch("/api/v1/show/script/revisions")
+
+        with mock_active_room(
+            self._app,
+            revision_id=self.revision2_id,
+            has_editors=False,
+            is_empty=False,
+        ):
+            response = self.fetch(
+                "/api/v1/show/script/revisions/current",
+                method="POST",
+                body=tornado.escape.json_encode({"new_rev_id": self.revision2_id}),
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            self.assertEqual(200, response.code)
+            self._app.room_manager.close_active_room.assert_not_awaited()
 
     def test_create_revision_with_db_draft_on_parent_returns_409(self):
         """POST /revisions returns 409 when parent revision has a DB draft record."""

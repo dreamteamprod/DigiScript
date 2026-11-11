@@ -397,6 +397,17 @@ class ScriptCurrentRevisionController(BaseAPIController):
                 script.current_revision = new_rev.id
                 session.commit()
 
+                # A viewer-only room (no editor — _revision_is_locked above already
+                # confirmed that) left open on the just-replaced revision would keep
+                # every viewer watching a Y.Doc for a revision that's no longer
+                # current. Close it so they drop back to REST and can rejoin fresh
+                # against the new revision.
+                room_manager = getattr(self.application, "room_manager", None)
+                if room_manager:
+                    room = room_manager.get_active_room()
+                    if room and room.revision_id != new_rev.id:
+                        await room_manager.close_active_room()
+
                 # If there isn't a compiled script or there is one but it was last updated
                 # before the revision was updated, then create a compiled script
                 compiled_script: CompiledScript = session.get(

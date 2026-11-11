@@ -978,6 +978,29 @@ class RoomManager:
                 return True
         return False
 
+    async def close_room_if_empty(self, room: ScriptRoom) -> bool:
+        """Close *room* under ``_room_lock`` if it is still active and empty.
+
+        A caller that checks ``room.is_empty`` and then calls
+        ``close_active_room()`` as two separate steps leaves a window between
+        them, unguarded by any lock, for a ``JOIN_SCRIPT_ROOM`` to land (via
+        ``get_or_create_room``'s own unlocked fast path) and add a new client
+        to *room* right before it gets closed out from under them anyway —
+        ``close_active_room()`` itself closes whichever room is active, not
+        conditionally on emptiness. Re-checks both ``is`` identity and
+        ``is_empty`` after acquiring the lock, same reasoning as
+        :meth:`checkpoint_if_dirty`.
+
+        :param room: The room to close, as seen by the caller before it took
+            the lock.
+        :returns: Whether the room was actually closed.
+        """
+        async with self._room_lock:
+            if self._room is room and room.is_empty:
+                await self._close_active_room_locked()
+                return True
+        return False
+
     async def has_unsaved_changes(self) -> bool:
         """Return True if there are unsaved changes for the active revision."""
         if self._room and self._room._dirty:
