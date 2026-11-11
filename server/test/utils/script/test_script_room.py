@@ -1197,6 +1197,67 @@ class TestRoomManagerCloseRoomIfEmpty:
         manager._close_active_room_locked.assert_not_awaited()
 
 
+class TestRoomManagerCloseRoomIfStaleRevision:
+    """Direct tests of ``close_room_if_stale_revision``'s own guard (Phase 4
+    Step A round-2 review): a caller that reads ``room.revision_id`` and then
+    calls ``close_active_room()`` as two separate, unlocked steps can race a
+    concurrent ``JOIN_SCRIPT_ROOM`` building the *new* revision's own room —
+    closing unconditionally would tear down that fresh, correct room instead
+    of the stale one the caller actually meant. Re-checks both ``is`` identity
+    and the revision mismatch after acquiring the lock, same reasoning as
+    ``checkpoint_if_dirty``/``close_room_if_empty``."""
+
+    @pytest.mark.asyncio
+    async def test_closes_the_active_room_when_it_is_for_a_different_revision(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        room = _make_room(revision_id=1)
+        manager._room = room
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_stale_revision(room, 2)
+
+        assert closed is True
+        manager._close_active_room_locked.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_is_a_no_op_when_the_room_is_already_for_the_current_revision(self):
+        """E.g. a viewer's role-refresh join already followed the switch and
+        rejoined against the new revision before this call reached the lock —
+        closing it anyway would needlessly kick that viewer too."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        room = _make_room(revision_id=2)
+        manager._room = room
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_stale_revision(room, 2)
+
+        assert closed is False
+        manager._close_active_room_locked.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ignores_a_stale_room_that_is_no_longer_the_active_one(self):
+        """The exact race this exists for: a JOIN_SCRIPT_ROOM concurrently
+        built a fresh room for the new revision (inside get_or_create_room,
+        holding the lock) before this call reached it — closing whichever
+        room is active now, without also checking `self._room is room`,
+        would tear down that fresh, correct room instead of the stale one."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        stale_room = _make_room(revision_id=1)
+        manager._room = _make_room(revision_id=2)  # the fresh room that replaced it
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_stale_revision(stale_room, 2)
+
+        assert closed is False
+        manager._close_active_room_locked.assert_not_awaited()
+
+
 class TestRoomManagerCleanupStaleDrafts(_ScriptTestSetup):
     """Tests for both branches of ``cleanup_stale_drafts`` (Group F: F5)."""
 

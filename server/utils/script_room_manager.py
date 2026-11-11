@@ -1001,6 +1001,34 @@ class RoomManager:
                 return True
         return False
 
+    async def close_room_if_stale_revision(
+        self, room: ScriptRoom, current_revision_id: int
+    ) -> bool:
+        """Close *room* under ``_room_lock`` if it is still active and no longer
+        for *current_revision_id*.
+
+        Same check-then-act race as :meth:`close_room_if_empty`: a caller that
+        reads ``room.revision_id`` and then calls ``close_active_room()`` as two
+        separate, unlocked steps can race a concurrent ``JOIN_SCRIPT_ROOM``
+        building the *new* revision's room (inside ``get_or_create_room``,
+        holding the lock) — by the time the close reaches the lock, it would
+        close that fresh, correct room instead of the stale one it meant to,
+        kicking every viewer who just joined it into a recovery cycle. Re-checks
+        both ``is`` identity and the revision mismatch after acquiring the lock,
+        same reasoning as :meth:`checkpoint_if_dirty`.
+
+        :param room: The room to close, as seen by the caller before it took
+            the lock.
+        :param current_revision_id: The revision that just became current —
+            *room* is closed only if it's for a different one.
+        :returns: Whether the room was actually closed.
+        """
+        async with self._room_lock:
+            if self._room is room and room.revision_id != current_revision_id:
+                await self._close_active_room_locked()
+                return True
+        return False
+
     async def has_unsaved_changes(self) -> bool:
         """Return True if there are unsaved changes for the active revision."""
         if self._room and self._room._dirty:

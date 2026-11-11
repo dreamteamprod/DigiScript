@@ -692,6 +692,46 @@ describe('CollabScriptEditor', () => {
       expect(w.exists()).toBe(true);
     });
 
+    it('does not retry after a rejected join — collabError already handles that case on its own, without piling on duplicate toasts', async () => {
+      const w = await mountEditor(); // sends JOIN_SCRIPT_ROOM on mount, status 'joining'
+      sendObj.mockClear();
+
+      vi.useFakeTimers();
+      try {
+        useScriptDraftStore().collabError({ error: 'No active revision' });
+        await flushPromises();
+
+        await vi.advanceTimersByTimeAsync(30_000); // past every backoff delay
+        expect(sentOps()).not.toContain('JOIN_SCRIPT_ROOM');
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(w.exists()).toBe(true);
+    });
+
+    it('skips the recovery retry during a live session, same as the mount-join guard', async () => {
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('a')], '2': [] });
+      await flushPromises();
+
+      vi.useFakeTimers();
+      try {
+        useScriptDraftStore().roomClosed();
+        await flushPromises();
+        // A live session starts between the close and the scheduled retry firing.
+        useSystemStore().currentShow = { current_session_id: 5 } as never;
+        sendObj.mockClear();
+
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(sentOps()).not.toContain('JOIN_SCRIPT_ROOM');
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(w.exists()).toBe(true);
+    });
+
     it('backs off with increasing delays and gives up after exhausting the schedule, rather than retrying forever', async () => {
       // Mirrors the component's own VIEWER_RECOVERY_DELAYS_MS schedule.
       const delays = [3_000, 5_000, 10_000, 15_000, 30_000];

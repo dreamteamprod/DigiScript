@@ -674,6 +674,20 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
 
         self.assertEqual(200, response.code)
 
+    def test_resending_the_same_value_does_not_close_an_active_editors_room(self):
+        """The Settings UI always resends every visible setting on every save, so
+        this endpoint sees MODE present (and unchanged) in the body of most PATCHes
+        to it, not just ones that actually toggle it — e.g. saving an unrelated
+        field like debug_mode. The room-close added for a genuine mode switch must
+        not fire here too, or it would force-close an active editor's room as a
+        side effect of an unrelated save."""
+        room = self._install_fake_room(has_editors=True)
+
+        response = self._patch(**{MODE: False, "debug_mode": True})
+
+        self.assertEqual(200, response.code)
+        self.assertIs(room, self._app.room_manager.get_active_room())
+
     def test_other_settings_are_not_blocked_while_editing(self):
         self._add_session(is_editor=True)
 

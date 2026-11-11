@@ -1409,7 +1409,8 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
         # callback (itself an unconditional close_active_room()) that only runs on
         # the next request this test drives the loop with — flush it here, against
         # the real (inactive) room_manager, before mock_active_room installs the
-        # mock this test's own close_active_room assertion below cares about.
+        # mock this test's own close_room_if_stale_revision assertion below cares
+        # about.
         self.fetch("/api/v1/show/script/revisions")
 
         with mock_active_room(
@@ -1430,12 +1431,22 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
             # revision just became revision2 — so it must be closed; otherwise
             # every viewer in it keeps watching a Y.Doc for a revision that's no
             # longer current.
-            self._app.room_manager.close_active_room.assert_awaited_once()
+            self._app.room_manager.close_room_if_stale_revision.assert_awaited_once_with(
+                self._app.room_manager.get_active_room.return_value, self.revision2_id
+            )
 
-    def test_load_current_revision_closes_room_only_if_it_is_for_the_old_revision(self):
-        """POST /revisions/current leaves the active room alone when it's already
-        for the new revision (e.g. a viewer who already followed the switch via a
-        role-refresh join) — closing it would needlessly kick that viewer too."""
+    def test_load_current_revision_delegates_the_close_decision_with_the_correct_revision_id(
+        self,
+    ):
+        """POST /revisions/current always delegates the close-or-not decision to
+        close_room_if_stale_revision (direct unit tests on that method, in
+        test_script_room.py, cover whether it actually closes — e.g. leaving a
+        room alone that's already for the new revision, such as a viewer who
+        already followed the switch via a role-refresh join). This test only
+        confirms the controller passes the right room and target revision id
+        through, using a room that's already for the new revision as a second,
+        distinct starting state from the sibling test above.
+        """
         # See the sibling test above for why this flushes setUp's deferred
         # show_changed callback before mock_active_room installs the mock.
         self.fetch("/api/v1/show/script/revisions")
@@ -1453,7 +1464,9 @@ class TestRevisionLifecycleGuards(DigiScriptTestCase):
                 headers={"Authorization": f"Bearer {self.token}"},
             )
             self.assertEqual(200, response.code)
-            self._app.room_manager.close_active_room.assert_not_awaited()
+            self._app.room_manager.close_room_if_stale_revision.assert_awaited_once_with(
+                self._app.room_manager.get_active_room.return_value, self.revision2_id
+            )
 
     def test_create_revision_with_db_draft_on_parent_returns_409(self):
         """POST /revisions returns 409 when parent revision has a DB draft record."""

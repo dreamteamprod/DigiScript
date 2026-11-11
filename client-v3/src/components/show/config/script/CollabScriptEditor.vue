@@ -926,6 +926,14 @@ watch(usesLiveRender, (isLive, wasLive) => {
 // stale/blank for the rest of the visit, even once someone else resumes
 // editing and a new room exists to rejoin. Backs off (capped) rather than
 // retrying forever if nothing ever picks editing back up.
+//
+// Gated on roomClosedByServer, not just status reaching 'idle': a *rejected*
+// join (blocked edit, missing revision, a live session, a bad Y.Doc) also
+// ends at 'idle', but collabError() already toasts and tears down for that —
+// reacting here too would pile on repeated duplicate toasts over the whole
+// backoff schedule for a join that was never going to succeed differently on
+// a retry. Also skipped during a live session, same as the mount join above:
+// retrying mid-show would reproduce the exact toast noise that fix removed.
 watch(
   () => draftStore.status,
   (status) => {
@@ -934,6 +942,7 @@ watch(
       return;
     }
     if (status !== 'idle' || isEditor.value || stopRequested.value) return;
+    if (!draftStore.roomClosedByServer) return;
     clearViewerRecoveryTimer();
     void loadViewerPage(currentPage.value);
     if (viewerRecoveryAttempt >= VIEWER_RECOVERY_DELAYS_MS.length) return;
@@ -941,7 +950,7 @@ watch(
     viewerRecoveryAttempt += 1;
     viewerRecoveryTimer = setTimeout(() => {
       viewerRecoveryTimer = null;
-      if (!isEditor.value) retryJoin();
+      if (!isEditor.value && !systemStore.currentShow?.current_session_id) retryJoin();
     }, delay);
   }
 );

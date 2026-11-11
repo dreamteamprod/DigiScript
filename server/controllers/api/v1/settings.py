@@ -97,15 +97,26 @@ class SettingsController(BaseAPIController):
         # check, and `settings.set` yields (broadcasting) only after a key that
         # changed, so this keeps check-and-write free of a scheduling point.
         if COLLAB_EDITING_SETTING in data:
+            mode_changed = data[COLLAB_EDITING_SETTING] != settings.get_sync(
+                COLLAB_EDITING_SETTING
+            )
             await settings.set(COLLAB_EDITING_SETTING, data[COLLAB_EDITING_SETTING])
-            # The guard above already confirmed no editor is in the room (only a
-            # viewer could be) — but a viewer-only room left open across the switch
-            # would keep every viewer watching a Y.Doc under a mode the client's own
-            # UI no longer renders as collaborative. Close it so they drop back to
-            # whichever read path the new mode actually uses.
-            room_manager = self.application.room_manager
-            if room_manager.get_active_room() is not None:
-                await room_manager.close_active_room()
+            # Only when the value actually changed: the Settings UI always resends
+            # every visible setting on every save, so COLLAB_EDITING_SETTING is
+            # present (and usually unchanged) in the body of most PATCHes to this
+            # endpoint — closing unconditionally on mere presence would force-close
+            # an active editor's room as a side effect of an unrelated save (e.g.
+            # debug_mode), since the guard above only checks room/editor state on an
+            # actual value change. The guard already confirmed no editor is in the
+            # room when it IS changing (only a viewer could be) — but a viewer-only
+            # room left open across a genuine switch would keep every viewer
+            # watching a Y.Doc under a mode the client's own UI no longer renders as
+            # collaborative, so close it so they drop back to whichever read path
+            # the new mode actually uses.
+            if mode_changed:
+                room_manager = self.application.room_manager
+                if room_manager.get_active_room() is not None:
+                    await room_manager.close_active_room()
         for k, v in data.items():
             if k != COLLAB_EDITING_SETTING:
                 await settings.set(k, v)

@@ -401,12 +401,18 @@ class ScriptCurrentRevisionController(BaseAPIController):
                 # confirmed that) left open on the just-replaced revision would keep
                 # every viewer watching a Y.Doc for a revision that's no longer
                 # current. Close it so they drop back to REST and can rejoin fresh
-                # against the new revision.
+                # against the new revision. close_room_if_stale_revision re-checks
+                # identity and the revision mismatch under the room lock, rather
+                # than checking here and closing separately — closing unlocked
+                # could otherwise race a concurrent JOIN_SCRIPT_ROOM building the
+                # new revision's own room and close that fresh one instead.
                 room_manager = getattr(self.application, "room_manager", None)
                 if room_manager:
                     room = room_manager.get_active_room()
-                    if room and room.revision_id != new_rev.id:
-                        await room_manager.close_active_room()
+                    if room:
+                        await room_manager.close_room_if_stale_revision(
+                            room, new_rev.id
+                        )
 
                 # If there isn't a compiled script or there is one but it was last updated
                 # before the revision was updated, then create a compiled script

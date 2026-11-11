@@ -88,6 +88,12 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     pageSaveProgress: null as SaveProgressMessage | null,
     pageSnapshots: {} as Record<string, readonly SnapshotLine[]>,
     deletedLineIds: [] as number[],
+    // True only from roomClosed() (a server-initiated close while synced — e.g.
+    // another editor discarding the draft) until the next join attempt starts.
+    // Lets a viewer-recovery watcher distinguish that from status merely
+    // reaching 'idle' via a rejected join (collabError already toasts and
+    // tears down for that case on its own) — see CollabScriptEditor.vue.
+    roomClosedByServer: false,
   }),
 
   getters: {
@@ -137,6 +143,11 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
 
     /** Join the active revision's collaborative draft room and start syncing. */
     joinScriptRoom(): void {
+      // Every fresh join attempt consumes whatever past server-close signal there
+      // was — if *this* attempt also ends up rejected, that's a new, distinct
+      // outcome (collabError handles it on its own), not the one roomClosed() set
+      // this flag for.
+      this.roomClosedByServer = false;
       if (ydoc) {
         if (this.isDraftActive) {
           log.warn('scriptDraft: joinScriptRoom called while already active, ignoring');
@@ -464,6 +475,7 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
 
     roomClosed(): void {
       toast.info('Collaborative draft closed');
+      this.roomClosedByServer = true;
       this._teardown();
     },
 
