@@ -916,7 +916,7 @@ watch([draftReady, maxPage], () => {
 // REST-fetched if it was only ever reached via the live Y.Doc (e.g. navigating pages
 // while live-viewing, not cutting). Backfill it so the page isn't blank.
 watch(usesLiveRender, (isLive, wasLive) => {
-  if (wasLive && !isLive) loadViewerPage(currentPage.value);
+  if (wasLive && !isLive) void loadViewerPage(currentPage.value);
 });
 
 // A plain viewer's room can close with no action of their own (e.g. an editor
@@ -935,7 +935,7 @@ watch(
     }
     if (status !== 'idle' || isEditor.value || stopRequested.value) return;
     clearViewerRecoveryTimer();
-    loadViewerPage(currentPage.value);
+    void loadViewerPage(currentPage.value);
     if (viewerRecoveryAttempt >= VIEWER_RECOVERY_DELAYS_MS.length) return;
     const delay = VIEWER_RECOVERY_DELAYS_MS[viewerRecoveryAttempt]!;
     viewerRecoveryAttempt += 1;
