@@ -46,7 +46,7 @@ def build_frontend(force_rebuild=False):
     """Build the Node.js frontend"""
     print(f"{emoji('build')} Building frontend...")
 
-    # The vite.config.js already outputs to server/static, so we just need to
+    # The vite.config.ts already outputs to server/static, so we just need to
     # check if this directory has content and if we need to rebuild
     server_static = os.path.join(SERVER_DIR, "static")
 
