@@ -30,8 +30,8 @@ export default async function globalSetup(): Promise<void> {
     })
   );
 
-  // server/ is a sibling of client-v3/ — process.cwd() is client-v3/ when
-  // invoked via "pnpm run test:e2e" or with working-directory: ./client-v3 in CI
+  // server/ is a sibling of client/ — process.cwd() is client/ when
+  // invoked via "pnpm run test:e2e" or with working-directory: ./client in CI
   const serverDir = path.resolve(process.cwd(), '..', 'server');
 
   const serverLog = fs.openSync(SERVER_LOG_FILE, 'a');

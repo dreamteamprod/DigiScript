@@ -1458,7 +1458,7 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
     (waiting for the exact handler object to leave ``application.clients``)
     rather than relying on a message that ``on_close`` may or may not send.
 
-    Reconnects mimic client-v3's wire order: ``REFRESH_CLIENT`` then
+    Reconnects mimic client's wire order: ``REFRESH_CLIENT`` then
     ``AUTHENTICATE`` then (after ``WS_AUTH_SUCCESS``) ``NEW_CLIENT``.
 
     Grace-window timers are stepped deterministically: the window is long
@@ -1635,7 +1635,7 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
 
         :param old_uuid: The uuid the page had before reloading.
         :param user_id: The user the page is logged in as.
-        :param new_client: Send NEW_CLIENT after auth (client-v3 does; the legacy
+        :param new_client: Send NEW_CLIENT after auth (client does; the legacy
             client only does for a brand-new connection).
         :returns: The new client websocket connection.
         """

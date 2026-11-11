@@ -1,6 +1,6 @@
 """JS Yjs ↔ pycrdt wire-format interop.
 
-The client-v3 unit tests and these server tests each only round-trip against their own
+The client unit tests and these server tests each only round-trip against their own
 Yjs implementation. These tests consume a diff produced by real Yjs
 (``yjs_edit.json``, made on top of the pycrdt-built ``pycrdt_state.json``) and check
 pycrdt applies it and reads the edited values back. See

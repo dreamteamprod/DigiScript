@@ -1,13 +1,13 @@
 """The client's draft writer against the server's real save-side reader.
 
-``client-v3``'s ``draftWriterFixture.test.ts`` applies a realistic sequence of editor
+``client``'s ``draftWriterFixture.test.ts`` applies a realistic sequence of editor
 operations (add / edit / delete / insert lines, add parts, change act/scene, write to
 the trailing page) to the doc the server built, and commits the resulting Yjs update as
 ``writer_ops.json``. Here that update is applied in pycrdt and read back through
 ``extract_lines_from_ydoc`` — the first step of a collaborative save — so a change to
 what the writer emits that the server can't read fails here, not in production.
 
-Regenerate from ``client-v3/`` with
+Regenerate from ``client/`` with
 ``pnpm exec vitest run -u src/js/yjs/draftWriterFixture.test.ts`` after regenerating
 ``pycrdt_state.json`` (see ``test/helpers/yjs_interop_fixture.py``).
 """
