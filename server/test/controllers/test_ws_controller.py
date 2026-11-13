@@ -1635,8 +1635,8 @@ class _ReconnectTestBase(_WSTestHelpers, DigiScriptTestCase):
 
         :param old_uuid: The uuid the page had before reloading.
         :param user_id: The user the page is logged in as.
-        :param new_client: Send NEW_CLIENT after auth (client does; the legacy
-            client only does for a brand-new connection).
+        :param new_client: Send NEW_CLIENT after auth (the current client does;
+            the retired Vue 2 client only did for a brand-new connection).
         :returns: The new client websocket connection.
         """
         ws, _ = await self._refresh_only(old_uuid)
@@ -2181,7 +2181,7 @@ class TestWSReconnectReclaim(_ReconnectTestBase):
 
     @gen_test
     async def test_late_reload_legacy_order_reclaims_leadership(self):
-        """The legacy client never sends NEW_CLIENT on a refresh; reclaim still works."""
+        """The retired Vue 2 client never sent NEW_CLIENT on a refresh; reclaim still works."""
         uuid_l, follower = await self._expired_leader()
         ws_l2 = await self._reload(uuid_l, self.admin_id, new_client=False)
         leader = self._live_session_state()
