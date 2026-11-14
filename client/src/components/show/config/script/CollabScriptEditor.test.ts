@@ -98,6 +98,7 @@ const bootstrapStubs = {
   BCol: passthrough('div'),
   BButton: passthrough('button'),
   BButtonGroup: passthrough('div'),
+  BBadge: passthrough('span'),
   BSpinner: passthrough('span'),
   BModal: ModalStub,
   BForm: passthrough('form'),
@@ -796,6 +797,57 @@ describe('CollabScriptEditor', () => {
       }
 
       expect(w.exists()).toBe(true);
+    });
+  });
+
+  describe('presence panel (Phase 4 Step B)', () => {
+    it('renders everyone in ROOM_MEMBERS, marking self distinctly', async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [
+        { user_id: 1, username: 'admin', role: 'viewer', client_id: 'me' },
+        { user_id: 2, username: 'alex', role: 'editor', client_id: 'other' },
+      ];
+      await flushPromises();
+
+      const row = w.find('.presence-row');
+      expect(row.exists()).toBe(true);
+      expect(row.text()).toContain('admin (you) · viewer');
+      expect(row.text()).toContain('alex · editor');
+    });
+
+    it('shows a background-viewer cutter as cutting, not merely viewing', async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [
+        { user_id: 2, username: 'alex', role: 'viewer', client_id: 'other' },
+      ];
+      useScriptConfigStore().cutters = [{ internal_id: 'other', username: 'alex' }];
+      await flushPromises();
+
+      expect(w.find('.presence-row').text()).toContain('alex · cutting');
+    });
+
+    it('does not render the row at all when the room is empty', async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [];
+      await flushPromises();
+
+      expect(w.find('.presence-row').exists()).toBe(false);
+    });
+
+    it('updates live as ROOM_MEMBERS changes, without remounting', async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [
+        { user_id: 1, username: 'admin', role: 'viewer', client_id: 'me' },
+      ];
+      await flushPromises();
+      expect(w.find('.presence-row').text()).not.toContain('alex');
+
+      useScriptDraftStore().members = [
+        { user_id: 1, username: 'admin', role: 'viewer', client_id: 'me' },
+        { user_id: 2, username: 'alex', role: 'editor', client_id: 'other' },
+      ];
+      await flushPromises();
+      expect(w.find('.presence-row').text()).toContain('alex · editor');
     });
   });
 

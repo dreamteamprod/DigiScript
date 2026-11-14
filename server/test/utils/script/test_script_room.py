@@ -77,6 +77,37 @@ class TestScriptRoomClients:
 
         assert room.clients[ws] == "viewer"
 
+    def test_add_client_replaces_a_stale_entry_for_the_same_internal_id(self):
+        """A reload resumes the same internal_id on a brand-new websocket
+        object — the old one is now dead, but the server only detects that
+        asynchronously (the ping timeout), so without this the stale entry
+        would sit alongside the fresh one until then, double-counting that
+        one tab in ROOM_MEMBERS/the presence panel (Phase 4 Step B)."""
+        room = _make_room()
+        stale_ws = _make_mock_ws()
+        stale_ws.internal_id = "tab-1"
+        room.add_client(stale_ws, "editor")
+
+        fresh_ws = _make_mock_ws()
+        fresh_ws.internal_id = "tab-1"
+        room.add_client(fresh_ws, "viewer")
+
+        assert room.clients == {fresh_ws: "viewer"}
+
+    def test_add_client_does_not_touch_a_different_tabs_entry(self):
+        """Two genuinely separate tabs (distinct internal_id) must coexist —
+        only a matching internal_id is ever treated as stale."""
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws1.internal_id = "tab-1"
+        room.add_client(ws1, "editor")
+
+        ws2 = _make_mock_ws()
+        ws2.internal_id = "tab-2"
+        room.add_client(ws2, "viewer")
+
+        assert room.clients == {ws1: "editor", ws2: "viewer"}
+
     def test_remove_client(self):
         room = _make_room()
         ws = _make_mock_ws()
