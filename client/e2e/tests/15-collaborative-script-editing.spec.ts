@@ -347,6 +347,16 @@ test('a second browser can edit the same script at the same time', async ({ brow
   // same server-owned trailing page stops Next Page at the same page number for both.
   await expect(firstRow(page2)).toHaveText((await firstRow(page).textContent()) ?? '');
 
+  // Phase 4 Step B: both editors see each other in the presence panel. Checks
+  // for the two specific entries that matter, not an exact badge count —
+  // `page`'s own entry survived a reload earlier in this file, which
+  // ScriptRoom.add_client's internal_id de-duplication keeps from leaving a
+  // stale ghost behind, but doesn't promise there's nothing else to count.
+  await expect(page.locator('.presence-row')).toContainText('(you) · editor');
+  await expect(page2.locator('.presence-row')).toContainText('(you) · editor');
+  await expect(page.locator('.presence-row')).toContainText('admin · editor');
+  await expect(page2.locator('.presence-row')).toContainText('admin · editor');
+
   async function lastPageReached(p: Page): Promise<string | null> {
     const next = p.locator('button:has-text("Next Page")');
     for (let i = 0; i < 20 && (await next.isEnabled()); i += 1) {

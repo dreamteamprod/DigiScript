@@ -148,7 +148,30 @@ class ScriptRoom:
         self.last_activity = time.monotonic()
 
     def add_client(self, ws: WebSocketHandler, role: str = "editor"):
-        """Add a WebSocket client to this room."""
+        """Add a WebSocket client to this room.
+
+        First drops any other entry already in ``self.clients`` sharing *ws*'s
+        ``internal_id`` — e.g. the pre-reload connection for the same tab,
+        still present because the server hasn't yet detected the abrupt
+        severance (no graceful close frame) via the websocket ping timeout.
+        ``internal_id`` is stable per *tab* (resumed across a reload via
+        ``REFRESH_CLIENT``) but distinct across genuinely separate tabs, so
+        this never drops a different, still-live connection — only ever a
+        stale one for this exact tab's own prior connection. Without this, a
+        reload would briefly double-count that tab in ``ROOM_MEMBERS``/the
+        presence panel, as both the dead old entry and the fresh new one,
+        until the ping timeout eventually caught up.
+        """
+        internal_id = getattr(ws, "internal_id", None)
+        if internal_id is not None:
+            stale = [
+                other
+                for other in self.clients
+                if other is not ws
+                and getattr(other, "internal_id", None) == internal_id
+            ]
+            for other in stale:
+                self.remove_client(other)
         self.clients[ws] = role
         self.last_activity = time.monotonic()
         get_logger().info(

@@ -66,6 +66,22 @@
           </BButtonGroup>
         </BCol>
       </BRow>
+      <BRow v-if="presenceEntries.length > 0" class="script-row">
+        <BCol class="presence-row">
+          <span class="text-muted me-2">Here now:</span>
+          <BBadge
+            v-for="entry in presenceEntries"
+            :key="entry.key"
+            :variant="
+              entry.role === 'editor' ? 'warning' : entry.role === 'cutting' ? 'info' : 'secondary'
+            "
+            pill
+            class="me-1"
+          >
+            {{ entry.username }}{{ entry.isSelf ? ' (you)' : '' }} · {{ entry.role }}
+          </BBadge>
+        </BCol>
+      </BRow>
       <BRow class="script-row">
         <BCol cols="1">Act</BCol>
         <BCol cols="1">Scene</BCol>
@@ -342,6 +358,29 @@ const isEditor = computed(
     scriptConfigStore.editors.some((e) => e.internal_id === wsStore.internalUUID)
 );
 const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
+
+// Phase 4 Step B: a presence badge row. ROOM_MEMBERS (draftStore.members) already
+// carries everyone in the room with a role of 'editor' or 'viewer' — but a cutter
+// auto-joins as a background viewer too (D11: cuts stay REST-always, the join is
+// just for live sync), so that role alone would show them as merely "viewing",
+// not cutting. Cross-referencing scriptConfigStore.cutters (keyed by the same
+// internal_id/client_id) lets the badge say "cutting" instead, matching what the
+// disable-reason logic above already knows.
+interface PresenceEntry {
+  key: string;
+  username: string;
+  role: 'editor' | 'viewer' | 'cutting';
+  isSelf: boolean;
+}
+const presenceEntries = computed<PresenceEntry[]>(() => {
+  const cutterIds = new Set(scriptConfigStore.cutters.map((c) => c.internal_id));
+  return draftStore.members.map((m, i) => ({
+    key: m.client_id ?? `${m.user_id ?? 'unknown'}-${i}`,
+    username: m.username,
+    role: m.client_id && cutterIds.has(m.client_id) ? 'cutting' : m.role,
+    isSelf: m.client_id !== null && m.client_id === wsStore.internalUUID,
+  }));
+});
 // A set comparison, not an ordered one: cutLinePart() splice-then-pushes, so toggling
 // an already-saved cut off and back on (without saving in between) reorders the same
 // *set* of ids — an ordered JSON.stringify compare would see that as a change and
@@ -1019,5 +1058,11 @@ onBeforeUnmount(() => {
   padding: 10px 0;
   border-bottom: 1px solid #dee2e6;
   background: var(--body-background);
+}
+.presence-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
 }
 </style>
