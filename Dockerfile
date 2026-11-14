@@ -4,12 +4,12 @@ FROM --platform=$BUILDPLATFORM node:24-bookworm AS build
 
 RUN corepack enable
 RUN mkdir -p /server/static
-COPY /client-v3/package.json /client-v3/package.json
-COPY /client-v3/pnpm-lock.yaml /client-v3/pnpm-lock.yaml
-COPY /client-v3/pnpm-workspace.yaml /client-v3/pnpm-workspace.yaml
-WORKDIR /client-v3
+COPY /client/package.json /client/package.json
+COPY /client/pnpm-lock.yaml /client/pnpm-lock.yaml
+COPY /client/pnpm-workspace.yaml /client/pnpm-workspace.yaml
+WORKDIR /client
 RUN pnpm install --frozen-lockfile
-COPY /client-v3 /client-v3
+COPY /client /client
 COPY /docs /docs
 RUN pnpm run build
 

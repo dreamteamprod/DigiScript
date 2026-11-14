@@ -1,5 +1,5 @@
 {
-  "name": "client-v3",
+  "name": "client",
   "version": "0.35.2",
   "description": "DigiScript front end (Vue 3)",
   "author": "DreamTeamProd",

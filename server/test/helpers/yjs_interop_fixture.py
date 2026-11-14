@@ -2,12 +2,12 @@
 
 Each side's unit tests only ever round-trip against themselves, so nothing else
 would catch the two Yjs implementations drifting apart on the wire format. The
-fixtures under ``client-v3/src/js/yjs/__fixtures__/`` are produced by real
+fixtures under ``client/src/js/yjs/__fixtures__/`` are produced by real
 pycrdt (via the production ``build_ydoc``) and real Yjs, are committed, and are
 consumed by tests on the *other* side:
 
 - ``pycrdt_state.json`` — full doc state built by ``build_ydoc``; consumed by
-  client-v3's ``interop.test.ts``.
+  client's ``interop.test.ts``.
 - ``yjs_edit.json`` — a Yjs diff made on top of that exact state; consumed by
   ``test_yjs_interop.py`` (it must be applied to the same base, so both are
   derived from one committed state).
@@ -16,7 +16,7 @@ Regenerate the pycrdt half from ``server/`` with::
 
     python -m test.helpers.yjs_interop_fixture
 
-then the Yjs half from ``client-v3/`` with ``node scripts/generate-yjs-interop-fixture.mjs``.
+then the Yjs half from ``client/`` with ``node scripts/generate-yjs-interop-fixture.mjs``.
 """
 
 import base64
@@ -28,7 +28,7 @@ from utils.script.line_to_ydoc import build_ydoc
 
 FIXTURE_DIR = (
     Path(__file__).resolve().parents[3]
-    / "client-v3"
+    / "client"
     / "src"
     / "js"
     / "yjs"

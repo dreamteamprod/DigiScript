@@ -5,14 +5,14 @@ version: 2
 # cycles. Security updates are not affected: they are opened separately and immediately.
 updates:
   - package-ecosystem: "npm"
-    directory: "/client-v3"
+    directory: "/client"
     schedule:
       interval: "daily"
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     groups:
-      client-v3-npm:
+      client-npm:
         patterns: ["*"]
         update-types: ["minor", "patch"]
     versioning-strategy: increase

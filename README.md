@@ -110,7 +110,7 @@ histogram_quantile(0.99, sum(rate(digiscript_ws_message_bytes_bucket[1d])) by (l
 Build the frontend (output goes to `../server/static/`):
 
 ```shell
-cd client-v3
+cd client
 pnpm install
 pnpm run build
 ```
@@ -127,7 +127,7 @@ python3 main.py
 
 The server will be available at `http://localhost:8080`
 
-The server runs in production mode by default. When developing (for example with the `client-v3` Vite dev server), start it with `python3 main.py --debug` to enable autoreload and accept WebSocket connections from other origins. Never use `--debug` on a deployed server.
+The server runs in production mode by default. When developing (for example with the `client` Vite dev server), start it with `python3 main.py --debug` to enable autoreload and accept WebSocket connections from other origins. Never use `--debug` on a deployed server.
 
 ### First Launch Setup
 

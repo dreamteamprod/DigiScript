@@ -32,7 +32,7 @@ def emoji(key, fallback=""):
 # Determine project paths relative to the script location
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
-CLIENT_DIR = os.path.join(ROOT_DIR, "client-v3")
+CLIENT_DIR = os.path.join(ROOT_DIR, "client")
 SERVER_DIR = os.path.join(ROOT_DIR, "server")
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
 
