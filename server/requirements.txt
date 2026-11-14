@@ -1,4 +1,4 @@
-tornado==6.6
+tornado==6.6.1
 sqlalchemy>=2.1.6,<2.2.0
 python-dateutil==2.9.0.post0
 marshmallow-sqlalchemy>=1.6.0
