@@ -22,8 +22,11 @@ class SettingsController(BaseAPIController):
 
         Switching modes under someone would strand their work: an open classic edit
         or cut session has nowhere to go in collaborative mode, and a draft (or a
-        collaborative room with anyone in it) has nowhere to go in classic mode.
-        Setting the same value again is always fine.
+        collaborative room with an editor in it) has nowhere to go in classic mode.
+        A room with only viewers in it has no work to strand — a mere viewer gets
+        dropped back to the classic (REST) read path exactly like a reload would,
+        same as before live viewing existed. Setting the same value again is always
+        fine.
 
         :param settings: The application settings.
         :param data: The requested settings changes.
@@ -39,7 +42,11 @@ class SettingsController(BaseAPIController):
         # them and the caller's `settings.set`, so nobody can start editing in the gap.
         unsaved = await room_manager.has_unsaved_changes()
         room = room_manager.get_active_room()
-        if unsaved or (room is not None and not room.is_empty):
+        # has_editors, not "not room.is_empty": cutters never join the room at all
+        # (cutting is a separate Session.is_cutting flag, unrelated to room
+        # membership), so has_editors alone covers every case room emptiness was
+        # meant to guard, once mere viewers can also be in room.clients.
+        if unsaved or (room is not None and room.has_editors):
             return True
 
         with self.make_session() as session:
@@ -90,7 +97,26 @@ class SettingsController(BaseAPIController):
         # check, and `settings.set` yields (broadcasting) only after a key that
         # changed, so this keeps check-and-write free of a scheduling point.
         if COLLAB_EDITING_SETTING in data:
+            mode_changed = data[COLLAB_EDITING_SETTING] != settings.get_sync(
+                COLLAB_EDITING_SETTING
+            )
             await settings.set(COLLAB_EDITING_SETTING, data[COLLAB_EDITING_SETTING])
+            # Only when the value actually changed: the Settings UI always resends
+            # every visible setting on every save, so COLLAB_EDITING_SETTING is
+            # present (and usually unchanged) in the body of most PATCHes to this
+            # endpoint — closing unconditionally on mere presence would force-close
+            # an active editor's room as a side effect of an unrelated save (e.g.
+            # debug_mode), since the guard above only checks room/editor state on an
+            # actual value change. The guard already confirmed no editor is in the
+            # room when it IS changing (only a viewer could be) — but a viewer-only
+            # room left open across a genuine switch would keep every viewer
+            # watching a Y.Doc under a mode the client's own UI no longer renders as
+            # collaborative, so close it so they drop back to whichever read path
+            # the new mode actually uses.
+            if mode_changed:
+                room_manager = self.application.room_manager
+                if room_manager.get_active_room() is not None:
+                    await room_manager.close_active_room()
         for k, v in data.items():
             if k != COLLAB_EDITING_SETTING:
                 await settings.set(k, v)

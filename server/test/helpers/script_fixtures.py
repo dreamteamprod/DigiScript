@@ -4,8 +4,12 @@ These helpers reduce duplication across test setUp methods that need
 Show / Script / ScriptRevision scaffolding.
 """
 
+from contextlib import contextmanager
+from unittest.mock import MagicMock
+
 from models.script import Script, ScriptRevision
 from models.show import Show, ShowScriptType
+from utils.script_room_manager import RoomManager
 
 
 def create_show_script_revision(session, description="Test Rev"):
@@ -29,3 +33,28 @@ def create_show_script_revision(session, description="Test Rev"):
     script.current_revision = revision.id
 
     return show, script, revision
+
+
+@contextmanager
+def mock_active_room(app, **room_attrs):
+    """Patch ``app.room_manager`` so ``get_active_room()`` returns a mock room.
+
+    :param app: The application instance (``self._app`` in a test).
+    :param room_attrs: Attributes to set on the mock room, e.g. ``has_editors=True``.
+    :yields: The mock room, in case a test needs to assert against it.
+    """
+    mock_room = MagicMock()
+    for name, value in room_attrs.items():
+        setattr(mock_room, name, value)
+    # spec=RoomManager so unittest.mock auto-detects its async methods
+    # (close_active_room, discard_active_room, has_unsaved_changes) as
+    # AsyncMock — a plain MagicMock() isn't awaitable and raises TypeError
+    # the moment a caller does `await room_manager.close_active_room()`.
+    mock_manager = MagicMock(spec=RoomManager)
+    mock_manager.get_active_room.return_value = mock_room
+    app.room_manager = mock_manager
+
+    try:
+        yield mock_room
+    finally:
+        del app.room_manager

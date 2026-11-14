@@ -32,7 +32,7 @@ from utils.web.web_decorators import no_live_session, requires_show
 
 
 def _revision_is_locked(session, application, rev_id: int) -> bool:
-    """Return True if a revision has an active draft or a non-empty room.
+    """Return True if a revision has an active draft or an editor in its room.
 
     :param session: Active SQLAlchemy session.
     :param application: Tornado application instance.
@@ -45,7 +45,13 @@ def _revision_is_locked(session, application, rev_id: int) -> bool:
     room_manager = getattr(application, "room_manager", None)
     if room_manager:
         room = room_manager.get_active_room()
-        if room and room.revision_id == rev_id and not room.is_empty:
+        # has_editors, not "not room.is_empty": Phase 4 Step A made a mere
+        # viewer join the room too (to watch the live draft) — nobody is
+        # actually editing, so there's nothing a revision switch would
+        # disrupt. Without this, the Revisions page would show every
+        # revision as locked for as long as anyone merely has the script tab
+        # open, not just while someone is actually editing.
+        if room and room.revision_id == rev_id and room.has_editors:
             return True
     return False
 
@@ -390,6 +396,23 @@ class ScriptCurrentRevisionController(BaseAPIController):
 
                 script.current_revision = new_rev.id
                 session.commit()
+
+                # A viewer-only room (no editor — _revision_is_locked above already
+                # confirmed that) left open on the just-replaced revision would keep
+                # every viewer watching a Y.Doc for a revision that's no longer
+                # current. Close it so they drop back to REST and can rejoin fresh
+                # against the new revision. close_room_if_stale_revision re-checks
+                # identity and the revision mismatch under the room lock, rather
+                # than checking here and closing separately — closing unlocked
+                # could otherwise race a concurrent JOIN_SCRIPT_ROOM building the
+                # new revision's own room and close that fresh one instead.
+                room_manager = getattr(self.application, "room_manager", None)
+                if room_manager:
+                    room = room_manager.get_active_room()
+                    if room:
+                        await room_manager.close_room_if_stale_revision(
+                            room, new_rev.id
+                        )
 
                 # If there isn't a compiled script or there is one but it was last updated
                 # before the revision was updated, then create a compiled script

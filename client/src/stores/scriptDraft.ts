@@ -88,6 +88,12 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     pageSaveProgress: null as SaveProgressMessage | null,
     pageSnapshots: {} as Record<string, readonly SnapshotLine[]>,
     deletedLineIds: [] as number[],
+    // True only from roomClosed() (a server-initiated close while synced — e.g.
+    // another editor discarding the draft) until the next join attempt starts.
+    // Lets a viewer-recovery watcher distinguish that from status merely
+    // reaching 'idle' via a rejected join (collabError already toasts and
+    // tears down for that case on its own) — see CollabScriptEditor.vue.
+    roomClosedByServer: false,
   }),
 
   getters: {
@@ -137,6 +143,11 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
 
     /** Join the active revision's collaborative draft room and start syncing. */
     joinScriptRoom(): void {
+      // Every fresh join attempt consumes whatever past server-close signal there
+      // was — if *this* attempt also ends up rejected, that's a new, distinct
+      // outcome (collabError handles it on its own), not the one roomClosed() set
+      // this flag for.
+      this.roomClosedByServer = false;
       if (ydoc) {
         if (this.isDraftActive) {
           log.warn('scriptDraft: joinScriptRoom called while already active, ignoring');
@@ -251,6 +262,26 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     leaveScriptRoom(): void {
       provider?.leave();
       this._teardown();
+    },
+
+    /**
+     * Re-sends JOIN_SCRIPT_ROOM without tearing down the already-synced Y.Doc —
+     * unlike joinScriptRoom(), which no-ops while already active. Phase 4 Step A
+     * lets a plain viewer become an editor (or, on Stop Editing, downgrade back to
+     * a viewer) without ever leaving the room; the server decides role fresh from
+     * the caller's current `is_editor` flag on every JOIN_SCRIPT_ROOM, but only
+     * actually re-evaluates it if we ask again. The resulting full step-0 resync is
+     * a safe no-op merge on a doc that's already converged with the server.
+     */
+    refreshRoomRole(): void {
+      if (!this.isDraftActive) return;
+      // Unlike joinScriptRoom() above, a failure here doesn't tear anything down —
+      // the already-synced doc is still perfectly valid, we just failed to ask the
+      // server to re-evaluate our role. Still must not go unnoticed, though: the
+      // caller (e.g. Stop Editing) believes the role change is in flight.
+      if (!provider?.join()) {
+        toast.error('Cannot refresh script room role: not connected to the server');
+      }
     },
 
     /** Internal teardown shared by leaveScriptRoom and the server-initiated ROOM_CLOSED. */
@@ -444,6 +475,7 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
 
     roomClosed(): void {
       toast.info('Collaborative draft closed');
+      this.roomClosedByServer = true;
       this._teardown();
     },
 

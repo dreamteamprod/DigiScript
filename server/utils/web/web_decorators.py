@@ -108,7 +108,13 @@ def no_active_script_draft(
                     )
                     room_manager = getattr(self.application, "room_manager", None)
                     room = room_manager.get_active_room() if room_manager else None
-                    if active_draft or (room and not room.is_empty):
+                    # has_editors, not "not room.is_empty": Phase 4 Step A made a
+                    # mere viewer join the room too (to watch the live draft),
+                    # which would otherwise make *any* collaborative-mode page
+                    # view block every REST write this guards (cuts included) —
+                    # there's no actual draft/edit in progress to protect against
+                    # colliding with unless someone is actually editing.
+                    if active_draft or (room and room.has_editors):
                         self.set_status(409)
                         self.finish({"message": ERROR_SCRIPT_DRAFT_ACTIVE})
                         return None

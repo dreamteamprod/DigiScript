@@ -38,6 +38,7 @@ const SCRIPT_URL = `${UI_BASE}/show-config/script`;
 let ctx: BrowserContext;
 let page: Page;
 let ctx2: BrowserContext | null = null;
+let ctx4: BrowserContext | null = null;
 
 async function token(p: Page): Promise<string> {
   const t = await p.evaluate(() => localStorage.getItem('digiscript_auth_token'));
@@ -63,6 +64,15 @@ const editButton = (p: Page) =>
   p.locator('.sticky-header').getByRole('button', { name: 'Edit', exact: true });
 const stopEditing = (p: Page) => p.locator('button:has-text("Stop Editing")');
 const firstRow = (p: Page) => p.locator('.script-line-row').first();
+
+/** Bring ctx2's idle page back in as an editor, for a test that reuses it. */
+async function reenterCtx2AsEditor(ctx: BrowserContext | null): Promise<Page> {
+  if (!ctx) throw new Error('ctx2 from the earlier two-editor test is not open');
+  const page2 = ctx.pages()[0]!;
+  await editButton(page2).click();
+  await expect(stopEditing(page2)).toBeVisible({ timeout: 10_000 });
+  return page2;
+}
 
 /** Turn the setting on via the real Settings page UI (System Config > Settings). */
 async function enableCollabEditingViaUI(p: Page): Promise<void> {
@@ -113,6 +123,9 @@ test.afterAll(async () => {
     }
     await ctx2.close();
   }
+  if (ctx4) {
+    await ctx4.close();
+  }
   if (
     await stopEditing(page)
       .isVisible()
@@ -154,6 +167,22 @@ test('the mode setting rejects a non-boolean value', async () => {
 test('shows the collaborative editor, with Cuts available', async () => {
   await expect(editButton(page)).toBeVisible();
   await expect(page.locator('button:has-text("Cuts")')).toBeEnabled();
+});
+
+test('the mode can be changed while only a viewer (no editor) is present', async () => {
+  // `page` has already auto-joined the room as a plain viewer by now (Phase 4
+  // Step A — joining happens on mount, regardless of role) and is not yet an
+  // editor, proving the mode-switch guard's fix: a lone viewer must not block
+  // the toggle, unlike an actual editor (checked below once `page` becomes
+  // one). Flip off and immediately back on, so every later test in this file
+  // still runs with the mode on — and wait for CollabScriptEditor to actually
+  // remount before moving on, since toggling the setting switches components.
+  const off = await patchSettings(page, { [MODE]: false });
+  expect(off.status()).toBe(200);
+
+  const on = await patchSettings(page, { [MODE]: true });
+  expect(on.status()).toBe(200);
+  await expect(page.locator('button:has-text("Go to Page")')).toBeVisible({ timeout: 10_000 });
 });
 
 test('cut mode: toggling a line part requires Save Cuts, exclusive with editing', async () => {
@@ -198,6 +227,31 @@ test('Edit opens the shared draft and its lines appear', async () => {
 
   await expect(stopEditing(page)).toBeVisible({ timeout: 10_000 });
   await expect(firstRow(page)).toBeVisible({ timeout: 15_000 });
+});
+
+test('a non-editing viewer sees the live draft, not stale saved content (Phase 4 Step A)', async ({
+  browser,
+}) => {
+  ctx4 = await browser.newContext();
+  const page4 = await ctx4.newPage();
+  await loginAsAdmin(page4);
+  await openScriptEditor(page4);
+
+  // Never requests edit — stays a plain viewer throughout this and the next test.
+  await expect(editButton(page4)).toBeVisible({ timeout: 10_000 });
+  await expect(firstRow(page4)).toBeVisible({ timeout: 15_000 });
+  // Matches the editor's own (live, synced) content, not a stale REST render —
+  // a fresh/empty join would also show *a* row, so this compares actual text.
+  // page's row is can-edit=true and renders its edit-controls menu inline as
+  // text too (Edit/Insert.../Delete); page4 is a plain viewer and never does.
+  // Diff a clone (not the live row, which later tests still click into) with
+  // that subtree stripped out before comparing.
+  const editorText = await firstRow(page).evaluate((el) => {
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelector('.script-edit-controls')?.remove();
+    return clone.textContent;
+  });
+  await expect(firstRow(page4)).toHaveText(editorText ?? '');
 });
 
 test('Cuts is proactively disabled, with a reason, while someone is editing', async ({
@@ -316,6 +370,18 @@ test('adds a dialogue line with act, scene, character and text', async () => {
   });
 
   await expect(page.locator('.script-line-row')).toContainText('To be or not to be');
+});
+
+test('the non-editing viewer sees the new line live, without a reload', async () => {
+  if (!ctx4) throw new Error('ctx4 from the earlier live-viewing test is not open');
+  const page4 = ctx4.pages()[0]!;
+
+  await expect(
+    page4.locator('.script-line-row').filter({ hasText: 'To be or not to be' })
+  ).toBeVisible({ timeout: 10_000 });
+
+  await ctx4.close();
+  ctx4 = null;
 });
 
 test('typed text survives a reload — it is written to the shared draft, not local state', async () => {
@@ -462,10 +528,7 @@ test('Discard, triggered from the Revisions page, reverts the draft and closes t
   // Discard's effect on *another* client's actual work (not just the one who clicked
   // it) is actually exercised — proving the "will lose their work too" warning true,
   // not just testing its label text.
-  if (!ctx2) throw new Error('ctx2 from the earlier two-editor test is not open');
-  const page2 = ctx2.pages()[0]!;
-  await editButton(page2).click();
-  await expect(stopEditing(page2)).toBeVisible({ timeout: 10_000 });
+  const page2 = await reenterCtx2AsEditor(ctx2);
   await addDialogueLine(page2, {
     act: 'Act 1',
     scene: 'Scene 1',
@@ -513,6 +576,47 @@ test('Discard, triggered from the Revisions page, reverts the draft and closes t
   await expect(
     page.locator('.script-line-row').filter({ hasText: "page2's own unsaved line" })
   ).toHaveCount(0);
+});
+
+test('Stop Editing downgrades to viewer and keeps watching live, rather than reverting to stale content (Phase 4 Step A, Tim’s decision)', async () => {
+  // ctx2/page2 is idle (Edit button visible) since the earlier Discard test
+  // tore its editor status down too. Bring it back in as the one still editing.
+  const page2 = await reenterCtx2AsEditor(ctx2);
+
+  // `page` stops editing — per Tim's decision this downgrades to viewer and
+  // keeps watching live, rather than leaving the room and falling back to a
+  // stale REST render.
+  await stopEditing(page).click();
+  await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
+
+  await addDialogueLine(page2, {
+    act: 'Act 1',
+    scene: 'Scene 1',
+    character: 'Hamlet',
+    text: "page2's live-only line",
+  });
+
+  // `page`, now a mere viewer that never reloaded, sees it with no action of
+  // its own — proving it kept watching live rather than needing a refresh.
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: "page2's live-only line" })
+  ).toBeVisible({ timeout: 10_000 });
+
+  // Clean up page2's own unsaved line so the draft is clean again before the
+  // final test below, which expects Stop Editing to go straight back to Edit
+  // with nothing unsaved (no Keep/Discard modal).
+  await stopEditing(page2).click();
+  await waitForModal(page2, 'Stop Editing');
+  await page2.click('.modal.show button:has-text("Discard")');
+  await waitForModalClosed(page2);
+  await expect(editButton(page2)).toBeVisible({ timeout: 10_000 });
+
+  // Discarding tears the room down for every connected client, including a
+  // mere viewer — `page` falls back to the Edit button too and re-enters,
+  // clean, for the final test below.
+  await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
+  await editButton(page).click();
+  await expect(stopEditing(page)).toBeVisible({ timeout: 10_000 });
 });
 
 test('Stop Editing returns to Edit', async () => {

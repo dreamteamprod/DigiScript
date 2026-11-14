@@ -564,11 +564,38 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
         )
         self.assertIs(False, self._app.digi_settings.settings[MODE].get_value())
 
-    def test_can_switch_when_nobody_is_editing(self):
-        response = self._patch(**{MODE: True})
-
+    def _assert_allowed(self, response):
         self.assertEqual(200, response.code)
         self.assertIs(True, self._app.digi_settings.settings[MODE].get_value())
+
+    def _install_fake_room(self, has_editors: bool):
+        """Install a minimal fake active room, shaped to survive a real
+        close_active_room() call (clients/revision_id/stop_observing) in case
+        the switch allows itself through and closes it.
+
+        setUp's current_show.set_value() queues a deferred show_changed IOLoop
+        callback — itself an unconditional close_active_room() — that only runs
+        on the next request this test drives the loop with. Flush it here,
+        against the real (currently inactive) room_manager, before installing
+        the fake room below: otherwise that same deferred call would close the
+        fake room out from under the guard check this test is actually after.
+        """
+        self.fetch("/api/v1/settings")
+
+        class _Room:
+            pass
+
+        room = _Room()
+        room.has_editors = has_editors
+        room._dirty = False
+        room.revision_id = 1
+        room.clients = {}
+        room.stop_observing = lambda: None
+        self._app.room_manager._room = room
+        return room
+
+    def test_can_switch_when_nobody_is_editing(self):
+        self._assert_allowed(self._patch(**{MODE: True}))
 
     def test_refused_while_someone_is_editing(self):
         self._add_session(is_editor=True)
@@ -587,14 +614,30 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
 
         self._assert_refused(self._patch(**{MODE: True}))
 
-    def test_refused_while_a_room_has_clients(self):
-        class _Room:
-            is_empty = False
-            _dirty = False
-
-        self._app.room_manager._room = _Room()
+    def test_refused_while_a_room_has_an_editor(self):
+        self._install_fake_room(has_editors=True)
 
         self._assert_refused(self._patch(**{MODE: True}))
+
+    def test_can_switch_when_the_room_has_only_viewers(self):
+        """A room with no editors has no work to strand — a lone viewer gets
+        dropped back to the classic (REST) read path exactly like a reload would,
+        same as if they'd never joined. Pins the has_editors fix: the old check
+        (room.is_empty) would have wrongly refused this once viewers can join."""
+        self._install_fake_room(has_editors=False)
+
+        self._assert_allowed(self._patch(**{MODE: True}))
+
+    def test_switching_the_mode_closes_a_lingering_viewer_only_room(self):
+        """A viewer-only room left open across a mode switch (allowed, per the
+        sibling test above) must itself be closed — otherwise every viewer in it
+        keeps watching a Y.Doc under a mode the UI no longer treats as
+        collaborative, until each of them happens to unmount and remount."""
+        self._install_fake_room(has_editors=False)
+
+        self._assert_allowed(self._patch(**{MODE: True}))
+
+        self.assertIsNone(self._app.room_manager.get_active_room())
 
     def test_a_non_boolean_value_is_a_400_not_a_500(self):
         for value in ("true", 1, None):
@@ -630,6 +673,20 @@ class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
         response = self._patch(**{MODE: False})
 
         self.assertEqual(200, response.code)
+
+    def test_resending_the_same_value_does_not_close_an_active_editors_room(self):
+        """The Settings UI always resends every visible setting on every save, so
+        this endpoint sees MODE present (and unchanged) in the body of most PATCHes
+        to it, not just ones that actually toggle it — e.g. saving an unrelated
+        field like debug_mode. The room-close added for a genuine mode switch must
+        not fire here too, or it would force-close an active editor's room as a
+        side effect of an unrelated save."""
+        room = self._install_fake_room(has_editors=True)
+
+        response = self._patch(**{MODE: False, "debug_mode": True})
+
+        self.assertEqual(200, response.code)
+        self.assertIs(room, self._app.room_manager.get_active_room())
 
     def test_other_settings_are_not_blocked_while_editing(self):
         self._add_session(is_editor=True)
