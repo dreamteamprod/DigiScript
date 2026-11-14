@@ -1,117 +1,23 @@
-import Vue from 'vue';
-import Vuex from 'vuex';
-import VueNativeSock from 'vue-native-websocket';
-import { BootstrapVue, IconsPlugin } from 'bootstrap-vue';
-import Vuelidate from 'vuelidate';
-import ToastPlugin from 'vue-toast-notification';
-import Multiselect from 'vue-multiselect';
-import { Splitpanes, Pane } from 'splitpanes';
-import PaginationControls from '@/vue_components/shared/PaginationControls.vue';
-
-import store from '@/store/store';
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import App from './App.vue';
 import router from './router';
 import setupHttpInterceptor from './js/http-interceptor';
-import { getWebSocketURL } from '@/js/utils';
-import { initRemoteLogging } from '@/js/logger';
-import log from 'loglevel';
-
+import { initRemoteLogging } from './js/logger';
 import './assets/styles/dark.scss';
+import 'bootstrap-vue-next/dist/bootstrap-vue-next.css';
 import 'vue-toast-notification/dist/theme-sugar.css';
-import 'vue-multiselect/dist/vue-multiselect.min.css';
-import 'splitpanes/dist/splitpanes.css';
+
+const app = createApp(App);
+
+const pinia = createPinia();
+pinia.use(piniaPluginPersistedstate);
+
+app.use(pinia);
+app.use(router);
 
 setupHttpInterceptor();
 initRemoteLogging();
 
-log.info(`Running in ${import.meta.env.MODE} mode.`);
-
-Vue.use(BootstrapVue);
-Vue.use(IconsPlugin);
-Vue.component('MultiSelect', Multiselect);
-Vue.component('SplitPanes', Splitpanes);
-Vue.component('SplitPane', Pane);
-Vue.component('PaginationControls', PaginationControls);
-
-Vue.use(Vuex);
-Vue.use(Vuelidate as any); // @types/vuelidate bundles its own Vue copy that conflicts with main package
-Vue.use(ToastPlugin, {
-  position: 'top-right',
-});
-
-/**
- * Initialize WebSocket connection
- */
-function initializeWebSocket() {
-  try {
-    const wsUrl = getWebSocketURL();
-    Vue.use(VueNativeSock, wsUrl, {
-      reconnection: true,
-      format: 'json',
-      store,
-      passToStoreHandler(
-        this: any,
-        eventName: string,
-        event: any,
-        next: (eventName: string, event: any) => void
-      ) {
-        // Ignore anything that doesn't start with SOCKET_ as per
-        // https://www.npmjs.com/package/vue-native-websocket
-        if (!eventName.startsWith('SOCKET_')) {
-          return;
-        }
-        // Custom message handling here
-        if (this.format === 'json' && event.data) {
-          const msg = JSON.parse(event.data);
-          // If the message contains an OP key, then this is going to be something we care about
-          if (msg.OP) {
-            // Always call the commit function here, as we care about it
-            if (msg.OP !== 'NOOP') {
-              this.store.commit(eventName.toUpperCase(), msg);
-            }
-            if (msg.ACTION) {
-              // If we have an action, then call the corresponding action too, this means a single
-              // WS message can do two things (commit a mutation, AND perform an action)
-              if (msg.ACTION !== 'NOOP') {
-                this.store.dispatch(
-                  [msg.namespace || '', msg.ACTION].filter((e) => !!e).join('/'),
-                  msg
-                );
-              }
-            }
-            return;
-          }
-        }
-        next(eventName, event);
-      },
-    });
-  } catch (error) {
-    console.error('Failed to initialize WebSocket:', error);
-  }
-}
-
-initializeWebSocket();
-
-Vue.config.productionTip = false;
-Vue.config.devtools = import.meta.env.MODE === 'development';
-
-Vue.filter('capitalize', (value: any) => {
-  if (!value) return '';
-  return value
-    .toString()
-    .split(' ')
-    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-});
-Vue.filter('uppercase', (value: any) => {
-  if (!value) return '';
-  return value.toString().toUpperCase();
-});
-Vue.filter('lowercase', (value: any) => {
-  if (!value) return '';
-  return value.toString().toLowerCase();
-});
-
-// vue-router's ComponentOptions augmentation is shadowed by @types/vuelidate's bundled
-// Vue copy; cast away the conflict until vuelidate is upgraded to vuelidate-next.
-new (Vue as any)({ router, store, render: (h: any) => h(App) }).$mount('#app');
+app.mount('#app');

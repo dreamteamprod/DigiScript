@@ -1,274 +1,259 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col>
-        <b-tabs content-class="mt-3">
-          <b-tab title="Cast List" active>
-            <b-table
+  <BContainer class="mx-0" fluid>
+    <BRow>
+      <BCol>
+        <BTabs content-class="mt-3">
+          <BTab title="Cast List" active>
+            <BTable
               id="cast-table"
-              :items="CAST_LIST"
+              :items="showStore.castList"
               :fields="castFields"
-              :per-page="rowsPerPage"
+              :per-page="perPage"
               :current-page="currentPage"
               show-empty
             >
-              <template #head(btn)="data">
-                <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-cast variant="outline-success">
+              <template #head(btn)>
+                <BButton
+                  v-if="systemStore.isShowEditor"
+                  v-b-modal.new-cast
+                  variant="outline-success"
+                >
                   New Cast Member
-                </b-button>
+                </BButton>
               </template>
               <template #cell(btn)="data">
-                <b-button-group v-if="IS_SHOW_EDITOR">
-                  <b-button
+                <BButtonGroup v-if="systemStore.isShowEditor">
+                  <BButton
                     variant="warning"
                     :disabled="submittingEditCast || deletingCast"
-                    @click="openEditForm(data)"
+                    @click="openEditForm(data.item)"
                   >
                     Edit
-                  </b-button>
-                  <b-button
+                  </BButton>
+                  <BButton
                     variant="danger"
                     :disabled="submittingEditCast || deletingCast"
-                    @click="deleteCastMember(data)"
+                    @click="deleteCastMember(data.item)"
                   >
                     Delete
-                  </b-button>
-                </b-button-group>
+                  </BButton>
+                </BButtonGroup>
               </template>
-            </b-table>
-            <pagination-controls
-              :per-page.sync="rowsPerPage"
-              :current-page.sync="currentPage"
-              :total-rows="CAST_LIST.length"
+            </BTable>
+            <PaginationControls
+              v-model:per-page="perPage"
+              v-model:current-page="currentPage"
+              :total-rows="showStore.castList.length"
               aria-controls="cast-table"
             />
-          </b-tab>
-          <b-tab title="Line Counts">
-            <cast-line-stats />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-    </b-row>
-    <b-modal
+          </BTab>
+          <BTab title="Line Counts">
+            <CastLineStats />
+          </BTab>
+        </BTabs>
+      </BCol>
+    </BRow>
+
+    <BModal
       id="new-cast"
-      ref="new-cast"
+      ref="newCastModal"
       title="Add New Cast Member"
       size="sm"
-      :ok-disabled="$v.newFormState.$invalid || submittingNewCast"
+      :ok-disabled="newV$.newFormState.$invalid || submittingNewCast"
       @show="resetNewForm"
-      @hidden="resetNewForm"
+      @hide="resetNewForm"
       @ok="onSubmitNew"
     >
-      <b-form ref="new-cast-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group
-          id="new-first-name-input-group"
-          label="First Name"
-          label-for="new-first-name-input"
-        >
-          <b-form-input
+      <BForm @submit.stop.prevent="onSubmitNew">
+        <BFormGroup label="First Name" label-for="new-first-name-input" label-cols="4">
+          <BFormInput
             id="new-first-name-input"
-            v-model="$v.newFormState.firstName.$model"
-            name="new-first-name-input"
-            :state="getValidationState('newFormState', 'firstName')"
-            aria-describedby="new-first-name-feedback"
+            v-model="newFormState.firstName"
+            :state="newFieldState('firstName')"
           />
-          <b-form-invalid-feedback id="new-first-name-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
-          id="new-last-name-input-group"
-          label="Last Name"
-          label-for="new-last-name-input"
-        >
-          <b-form-input
+          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="Last Name" label-for="new-last-name-input" label-cols="4">
+          <BFormInput
             id="new-last-name-input"
-            v-model="$v.newFormState.lastName.$model"
-            name="new-last-name-input"
-            :state="getValidationState('newFormState', 'lastName')"
-            aria-describedby="new-last-name-feedback"
+            v-model="newFormState.lastName"
+            :state="newFieldState('lastName')"
           />
-          <b-form-invalid-feedback id="new-last-name-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-      </b-form>
-    </b-modal>
-    <b-modal
+          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+        </BFormGroup>
+      </BForm>
+    </BModal>
+
+    <BModal
       id="edit-cast"
-      ref="edit-cast"
+      ref="editCastModal"
       title="Edit Cast Member"
       size="sm"
-      :ok-disabled="$v.editFormState.$invalid || submittingEditCast"
-      @hidden="resetEditForm"
+      :ok-disabled="editV$.editFormState.$invalid || submittingEditCast"
+      @hide="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form ref="edit-cast-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group
-          id="edit-first-name-input-group"
-          label="First Name"
-          label-for="edit-first-name-input"
-        >
-          <b-form-input
+      <BForm @submit.stop.prevent="onSubmitEdit">
+        <BFormGroup label="First Name" label-for="edit-first-name-input" label-cols="4">
+          <BFormInput
             id="edit-first-name-input"
-            v-model="$v.editFormState.firstName.$model"
-            name="edit-first-name-input"
-            :state="getValidationState('editFormState', 'firstName')"
-            aria-describedby="edit-first-name-feedback"
+            v-model="editFormState.firstName"
+            :state="editFieldState('firstName')"
           />
-          <b-form-invalid-feedback id="edit-first-name-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
-          id="edit-last-name-input-group"
-          label="Last Name"
-          label-for="edit-last-name-input"
-        >
-          <b-form-input
+          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="Last Name" label-for="edit-last-name-input" label-cols="4">
+          <BFormInput
             id="edit-last-name-input"
-            v-model="$v.editFormState.lastName.$model"
-            name="edit-last-name-input"
-            :state="getValidationState('editFormState', 'lastName')"
-            aria-describedby="edit-last-name-feedback"
+            v-model="editFormState.lastName"
+            :state="editFieldState('lastName')"
           />
-          <b-form-invalid-feedback id="edit-last-name-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-      </b-form>
-    </b-modal>
-  </b-container>
+          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+        </BFormGroup>
+      </BForm>
+    </BModal>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { required } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
-import CastLineStats from '@/vue_components/show/config/cast/CastLineStats.vue';
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useVuelidate } from '@vuelidate/core';
+import { required } from '@vuelidate/validators';
+import { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
-import formValidationMixin from '@/mixins/formValidationMixin';
-import paginationMixin from '@/mixins/paginationMixin';
+import { useSystemStore } from '@/stores/system';
+import { useShowStore } from '@/stores/show';
+import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
+import CastLineStats from '@/components/show/config/cast/CastLineStats.vue';
+import type { Cast } from '@/types/api/show';
 
-export default defineComponent({
-  name: 'ConfigCast',
-  components: { CastLineStats },
-  mixins: [formValidationMixin, paginationMixin],
-  data() {
-    return {
-      tableKey: 'config_cast',
-      castFields: ['first_name', 'last_name', { key: 'btn', label: '' }],
-      newFormState: {
-        firstName: '',
-        lastName: '',
-      },
-      editFormState: {
-        id: null as number | null,
-        showID: null as number | null,
-        firstName: '',
-        lastName: '',
-      },
-      submittingNewCast: false,
-      submittingEditCast: false,
-      deletingCast: false,
-    };
-  },
-  validations: {
-    newFormState: {
-      firstName: { required },
-      lastName: { required },
-    },
-    editFormState: {
-      firstName: { required },
-      lastName: { required },
-    },
-  },
-  computed: {
-    ...mapGetters(['CAST_LIST', 'IS_SHOW_EDITOR']),
-  },
-  async mounted(): Promise<void> {
-    await (this as any).GET_CAST_LIST();
-  },
-  methods: {
-    resetNewForm(): void {
-      (this as any).resetForm('newFormState', { firstName: '', lastName: '' });
-      this.submittingNewCast = false;
-    },
-    async onSubmitNew(event: Event): Promise<void> {
-      (this as any).$v.newFormState.$touch();
-      if ((this as any).$v.newFormState.$anyError || this.submittingNewCast) {
-        event.preventDefault();
-        return;
-      }
-      this.submittingNewCast = true;
-      try {
-        await (this as any).ADD_CAST_MEMBER(this.newFormState);
-        (this as any).$bvModal.hide('new-cast');
-        this.resetNewForm();
-      } catch (error) {
-        log.error('Error submitting new cast member:', error);
-        event.preventDefault();
-      } finally {
-        this.submittingNewCast = false;
-      }
-    },
-    openEditForm(castMember: any): void {
-      if (castMember != null) {
-        this.editFormState.id = castMember.item.id;
-        this.editFormState.showID = castMember.item.show_id;
-        this.editFormState.firstName = castMember.item.first_name;
-        this.editFormState.lastName = castMember.item.last_name;
-        (this as any).$bvModal.show('edit-cast');
-      }
-    },
-    resetEditForm(): void {
-      (this as any).resetForm('editFormState', {
-        id: null,
-        showID: null,
-        firstName: '',
-        lastName: '',
-      });
-      this.submittingEditCast = false;
-      this.deletingCast = false;
-    },
-    async onSubmitEdit(event: Event): Promise<void> {
-      (this as any).$v.editFormState.$touch();
-      if ((this as any).$v.editFormState.$anyError || this.submittingEditCast) {
-        event.preventDefault();
-        return;
-      }
-      this.submittingEditCast = true;
-      try {
-        await (this as any).UPDATE_CAST_MEMBER(this.editFormState);
-        (this as any).$bvModal.hide('edit-cast');
-        this.resetEditForm();
-      } catch (error) {
-        log.error('Error submitting edit cast member:', error);
-        event.preventDefault();
-      } finally {
-        this.submittingEditCast = false;
-      }
-    },
-    async deleteCastMember(castMember: any): Promise<void> {
-      if (this.deletingCast) {
-        return;
-      }
-      const msg = `Are you sure you want to delete ${castMember.item.first_name} ${castMember.item.last_name}?`;
-      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
-      if (action === true) {
-        this.deletingCast = true;
-        try {
-          await (this as any).DELETE_CAST_MEMBER(castMember.item.id);
-        } catch (error) {
-          log.error('Error deleting cast member:', error);
-        } finally {
-          this.deletingCast = false;
-        }
-      }
-    },
-    ...mapActions(['GET_CAST_LIST', 'ADD_CAST_MEMBER', 'DELETE_CAST_MEMBER', 'UPDATE_CAST_MEMBER']),
-  },
+const systemStore = useSystemStore();
+const showStore = useShowStore();
+const { confirm } = useConfirm();
+
+const { perPage, currentPage } = usePagination(15, 'config_cast');
+const submittingNewCast = ref(false);
+const submittingEditCast = ref(false);
+const deletingCast = ref(false);
+
+const newCastModal = ref<InstanceType<typeof BModal>>();
+const editCastModal = ref<InstanceType<typeof BModal>>();
+
+const castFields = [
+  { key: 'first_name', label: 'First Name' },
+  { key: 'last_name', label: 'Last Name' },
+  { key: 'btn', label: '' },
+];
+
+interface NewCastForm {
+  firstName: string;
+  lastName: string;
+}
+
+interface EditCastForm {
+  id: number | null;
+  showID: number | null;
+  firstName: string;
+  lastName: string;
+}
+
+const newFormState = ref<NewCastForm>({ firstName: '', lastName: '' });
+const editFormState = ref<EditCastForm>({ id: null, showID: null, firstName: '', lastName: '' });
+
+const newRules = { newFormState: { firstName: { required }, lastName: { required } } };
+const editRules = { editFormState: { firstName: { required }, lastName: { required } } };
+
+const newV$ = useVuelidate(newRules, { newFormState });
+const editV$ = useVuelidate(editRules, { editFormState });
+
+function newFieldState(key: keyof NewCastForm): boolean | null {
+  const field = newV$.value.newFormState[key];
+  if (!field) return null;
+  return field.$dirty ? !field.$error : null;
+}
+
+function editFieldState(key: keyof EditCastForm): boolean | null {
+  const field = editV$.value.editFormState[key];
+  if (!field) return null;
+  return field.$dirty ? !field.$error : null;
+}
+
+function resetNewForm(): void {
+  newFormState.value = { firstName: '', lastName: '' };
+  submittingNewCast.value = false;
+  newV$.value.$reset();
+}
+
+function resetEditForm(): void {
+  editFormState.value = { id: null, showID: null, firstName: '', lastName: '' };
+  submittingEditCast.value = false;
+  deletingCast.value = false;
+  editV$.value.$reset();
+}
+
+function openEditForm(cast: Cast): void {
+  editFormState.value.id = cast.id;
+  editFormState.value.showID = cast.show_id;
+  editFormState.value.firstName = cast.first_name ?? '';
+  editFormState.value.lastName = cast.last_name ?? '';
+  editCastModal.value?.show();
+}
+
+async function onSubmitNew(event: Event): Promise<void> {
+  newV$.value.newFormState.$touch();
+  if (newV$.value.newFormState.$invalid || submittingNewCast.value) {
+    event.preventDefault();
+    return;
+  }
+  submittingNewCast.value = true;
+  try {
+    await showStore.addCastMember(newFormState.value);
+    newCastModal.value?.hide();
+    resetNewForm();
+  } catch (error) {
+    log.error('Error submitting new cast member:', error);
+    event.preventDefault();
+  } finally {
+    submittingNewCast.value = false;
+  }
+}
+
+async function onSubmitEdit(event: Event): Promise<void> {
+  editV$.value.editFormState.$touch();
+  if (editV$.value.editFormState.$invalid || submittingEditCast.value) {
+    event.preventDefault();
+    return;
+  }
+  submittingEditCast.value = true;
+  try {
+    await showStore.updateCastMember(editFormState.value);
+    editCastModal.value?.hide();
+    resetEditForm();
+  } catch (error) {
+    log.error('Error submitting edit cast member:', error);
+    event.preventDefault();
+  } finally {
+    submittingEditCast.value = false;
+  }
+}
+
+async function deleteCastMember(cast: Cast): Promise<void> {
+  if (deletingCast.value) return;
+  const ok = await confirm(`Are you sure you want to delete ${cast.first_name} ${cast.last_name}?`);
+  if (ok) {
+    deletingCast.value = true;
+    try {
+      await showStore.deleteCastMember(cast.id);
+    } catch (error) {
+      log.error('Error deleting cast member:', error);
+    } finally {
+      deletingCast.value = false;
+    }
+  }
+}
+
+onMounted(async () => {
+  await showStore.getCastList();
 });
 </script>
-
-<style scoped></style>

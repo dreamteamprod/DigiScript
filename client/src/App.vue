@@ -1,383 +1,349 @@
 <template>
-  <div id="app">
-    <b-navbar toggleable="lg" type="dark" variant="info" :sticky="true">
-      <b-navbar-brand to="/"> DigiScript </b-navbar-brand>
-      <b-navbar-toggle target="nav-collapse" />
-      <b-collapse id="nav-collapse" is-nav>
-        <b-navbar-nav>
-          <template v-if="$store.state.currentShow != null">
-            <b-nav-item to="/live" :disabled="CURRENT_SHOW_SESSION == null || !WEBSOCKET_HEALTHY">
+  <BApp id="app">
+    <BNavbar toggleable="lg" variant="info" data-bs-theme="dark" class="sticky-top">
+      <BNavbarBrand to="/"> DigiScript </BNavbarBrand>
+      <BNavbarToggle target="nav-collapse" />
+      <BCollapse id="nav-collapse" is-nav>
+        <BNavbarNav>
+          <template v-if="currentShow != null">
+            <BNavItem to="/live" :disabled="currentShowSession == null || !websocketHealthy">
               Live
-            </b-nav-item>
-            <b-nav-item-dropdown v-if="IS_SHOW_EXECUTOR || IS_ADMIN_USER" text="Live Config">
-              <b-dropdown-item-button
+            </BNavItem>
+            <BNavItemDropdown
+              v-if="systemStore.isShowExecutor || systemStore.isAdminUser"
+              text="Live Config"
+            >
+              <BDropdownItemButton
                 :disabled="
-                  CURRENT_SHOW_SESSION != null ||
-                  !WEBSOCKET_HEALTHY ||
+                  currentShowSession != null ||
+                  !websocketHealthy ||
                   stoppingSession ||
                   startingSession
                 "
                 @click.stop.prevent="startShowSession"
               >
                 Start Session
-              </b-dropdown-item-button>
-              <b-dropdown-item-button
+              </BDropdownItemButton>
+              <BDropdownItemButton
                 :disabled="
-                  CURRENT_SHOW_SESSION == null ||
-                  !WEBSOCKET_HEALTHY ||
+                  currentShowSession == null ||
+                  !websocketHealthy ||
                   stoppingSession ||
                   startingSession
                 "
                 @click.stop.prevent="stopShowSession"
               >
                 Stop Session
-              </b-dropdown-item-button>
-              <b-dropdown-item-btn
+              </BDropdownItemButton>
+              <BDropdownItemButton
                 :disabled="
-                  CURRENT_SHOW_SESSION == null ||
-                  !WEBSOCKET_HEALTHY ||
+                  currentShowSession == null ||
+                  !websocketHealthy ||
                   stoppingSession ||
                   startingSession
                 "
                 @click.stop.prevent="reloadClients"
               >
                 Reload Clients
-              </b-dropdown-item-btn>
-              <b-dropdown-item
-                v-b-modal.go-to-page
+              </BDropdownItemButton>
+              <BDropdownItem
                 :disabled="
-                  CURRENT_SHOW_SESSION == null ||
-                  !WEBSOCKET_HEALTHY ||
+                  currentShowSession == null ||
+                  !websocketHealthy ||
                   stoppingSession ||
                   startingSession
                 "
+                @click="goToPageModal?.show()"
               >
                 Jump To Page
-              </b-dropdown-item>
-              <b-dropdown-item-btn
+              </BDropdownItem>
+              <BDropdownItemButton
                 :disabled="
-                  CURRENT_SHOW_SESSION == null ||
-                  !WEBSOCKET_HEALTHY ||
+                  currentShowSession == null ||
+                  !websocketHealthy ||
                   stoppingSession ||
                   startingSession
                 "
-                @click.stop.prevent="SET_STAGE_MANAGER_MODE(!STAGE_MANAGER_MODE)"
+                @click.stop.prevent="showStore.stageManagerMode = !showStore.stageManagerMode"
               >
-                {{ STAGE_MANAGER_MODE ? 'Disable' : 'Enable' }} Stage Manager
-              </b-dropdown-item-btn>
-            </b-nav-item-dropdown>
+                {{ showStore.stageManagerMode ? 'Disable' : 'Enable' }} Stage Manager
+              </BDropdownItemButton>
+            </BNavItemDropdown>
           </template>
-          <b-nav-item
-            v-if="IS_ADMIN_USER"
-            v-show="CURRENT_SHOW_SESSION == null"
+          <BNavItem
+            v-if="systemStore.isAdminUser"
+            v-show="currentShowSession == null"
             to="/config"
-            :disabled="!WEBSOCKET_HEALTHY"
+            :disabled="!websocketHealthy"
           >
             System Config
-          </b-nav-item>
-          <b-nav-item
-            v-if="$store.state.currentShow != null && isAllowedScriptConfig"
-            v-show="CURRENT_SHOW_SESSION == null"
+          </BNavItem>
+          <BNavItem
+            v-if="currentShow != null && systemStore.isAllowedShowConfig"
+            v-show="currentShowSession == null"
             to="/show-config"
-            :disabled="!WEBSOCKET_HEALTHY"
+            :disabled="!websocketHealthy"
           >
             Show Config
-          </b-nav-item>
-        </b-navbar-nav>
-        <b-navbar-nav class="ml-auto">
-          <b-nav-item href="/?_switch=1"> Switch to New UI </b-nav-item>
-          <b-nav-item to="/help"> Help </b-nav-item>
-          <b-nav-item to="/about"> About </b-nav-item>
-          <b-nav-item v-if="CURRENT_USER == null" to="/login"> Login </b-nav-item>
-          <b-nav-item-dropdown v-else>
+          </BNavItem>
+        </BNavbarNav>
+        <BNavbarNav class="ms-auto">
+          <BNavItem to="/help"> Help </BNavItem>
+          <BNavItem to="/about"> About </BNavItem>
+          <BNavItem v-if="userStore.currentUser == null" to="/login"> Login </BNavItem>
+          <BNavItemDropdown v-else>
             <template #button-content>
-              <em>{{ CURRENT_USER.username }}</em>
+              <em>{{ userStore.currentUser.username }}</em>
             </template>
-            <b-dropdown-item to="/me"> Settings </b-dropdown-item>
-            <b-dropdown-item-button @click.stop.prevent="USER_LOGOUT">
-              Sign Out
-            </b-dropdown-item-button>
-          </b-nav-item-dropdown>
-          <b-nav-text id="connection-status" :class="{ healthy: WEBSOCKET_HEALTHY }" right>
-            <template v-if="WEBSOCKET_HEALTHY"> Connected </template>
+            <BDropdownItem to="/me"> Settings </BDropdownItem>
+            <BDropdownItemButton @click.stop.prevent="handleLogout"> Sign Out </BDropdownItemButton>
+          </BNavItemDropdown>
+          <BNavText id="connection-status" :class="{ healthy: websocketHealthy }">
+            <template v-if="websocketHealthy"> Connected </template>
             <template v-else> Disconnected </template>
-          </b-nav-text>
-        </b-navbar-nav>
-      </b-collapse>
-    </b-navbar>
+          </BNavText>
+        </BNavbarNav>
+      </BCollapse>
+    </BNavbar>
+
     <template v-if="!loaded">
-      <div class="text-center center-spinner">
-        <b-spinner style="width: 10rem; height: 10rem" variant="info" />
+      <div v-if="startupError" class="text-center center-spinner">
+        <p class="text-danger">Failed to connect to the server. Please check your connection.</p>
+        <BButton variant="primary" @click="retryStartup">Retry</BButton>
+      </div>
+      <div v-else class="text-center center-spinner">
+        <BSpinner style="width: 10rem; height: 10rem" variant="info" />
       </div>
     </template>
     <template
-      v-else-if="SETTINGS && SETTINGS.has_admin_user === false && !$route.path.startsWith('/help')"
+      v-else-if="
+        settings &&
+        (settings as Record<string, unknown>).has_admin_user === false &&
+        !route.path.startsWith('/help')
+      "
     >
-      <b-container class="mx-0" fluid>
-        <b-row>
-          <b-col>
+      <BContainer class="mx-0" fluid>
+        <BRow>
+          <BCol>
             <h2>Welcome to DigiScript</h2>
             <b>To get started, please create an admin user!</b>
-          </b-col>
-        </b-row>
-        <b-row style="margin-top: 1rem">
-          <b-col cols="6" offset="3">
-            <create-user :is-first-admin="true" />
-          </b-col>
-        </b-row>
-      </b-container>
+          </BCol>
+        </BRow>
+        <BRow class="mt-3">
+          <BCol>
+            <CreateUser :is-first-admin="true" />
+          </BCol>
+        </BRow>
+      </BContainer>
     </template>
-    <router-view v-else />
-    <b-modal
-      id="go-to-page"
-      ref="go-to-page"
+    <RouterView v-else />
+
+    <ConfirmDialog />
+
+    <BModal
+      ref="goToPageModal"
       title="Go to Page"
       size="sm"
-      :hide-header-close="changingPage"
-      :hide-footer="changingPage"
+      :no-header-close="changingPage"
+      :no-footer="changingPage"
       :no-close-on-backdrop="changingPage"
       :no-close-on-esc="changingPage"
-      @ok="goToLivePage"
+      @ok.prevent="goToLivePage"
     >
-      <b-form @submit.stop.prevent="">
-        <b-form-group id="page-input-group" label="Page" label-for="page-input" label-cols="auto">
-          <b-form-input
+      <BForm @submit.stop.prevent="">
+        <BFormGroup id="page-input-group" label="Page" label-for="page-input" label-cols="auto">
+          <BFormInput
             id="page-input"
-            v-model="$v.pageInputFormState.pageNo.$model"
+            v-model.number="pageInputNo"
             name="page-input"
             type="number"
-            :state="validatePageState('pageNo')"
-            aria-describedby="page-feedback"
+            :min="1"
           />
-          <b-form-invalid-feedback id="page-feedback">
-            This is a required field, and must be greater than 0.
-          </b-form-invalid-feedback>
-        </b-form-group>
-      </b-form>
-    </b-modal>
-  </div>
+        </BFormGroup>
+      </BForm>
+    </BModal>
+  </BApp>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { mapGetters, mapActions, mapMutations } from 'vuex';
+<script setup lang="ts">
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import type { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
-import CreateUser from '@/vue_components/user/CreateUser.vue';
+import { toast } from '@/js/toast';
+import { useConfirm } from '@/composables/useConfirm';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import CreateUser from '@/components/user/CreateUser.vue';
+import { useUserStore } from '@/stores/user';
+import { useSystemStore } from '@/stores/system';
+import { useShowStore } from '@/stores/show';
+import { useWebSocketStore } from '@/stores/websocket';
+import { useWebSocket } from '@/composables/useWebSocket';
 import { makeURL } from '@/js/utils';
-import { notNull, notNullAndGreaterThanZero } from '@/js/customValidators';
-import { required, minValue } from 'vuelidate/lib/validators';
 
-export default defineComponent({
-  components: { CreateUser },
-  data() {
-    return {
-      loaded: false,
-      loadTimer: null as ReturnType<typeof setTimeout> | null,
-      stoppingSession: false,
-      startingSession: false,
-      wsStateCheckInterval: null as ReturnType<typeof setInterval> | null,
-      changingPage: false,
-      pageInputFormState: {
-        pageNo: 1,
-      },
-    };
-  },
-  validations: {
-    pageInputFormState: {
-      pageNo: {
-        required,
-        notNull,
-        notNullAndGreaterThanZero,
-        minValue: minValue(1),
-      },
-    },
-  },
-  computed: {
-    isAllowedScriptConfig(): boolean {
-      return (
-        (this as any).IS_ADMIN_USER ||
-        (this as any).IS_SHOW_EDITOR ||
-        (this as any).IS_SHOW_READER ||
-        (this as any).IS_SHOW_EXECUTOR ||
-        (this as any).IS_SCRIPT_READER ||
-        (this as any).IS_SCRIPT_EDITOR ||
-        (this as any).IS_CUE_READER ||
-        (this as any).IS_CUE_EDITOR
-      );
-    },
-    ...mapGetters([
-      'IS_ADMIN_USER',
-      'IS_SHOW_EDITOR',
-      'WEBSOCKET_HEALTHY',
-      'CURRENT_SHOW_SESSION',
-      'SETTINGS',
-      'CURRENT_USER',
-      'RBAC_ROLES',
-      'CURRENT_USER_RBAC',
-      'INTERNAL_UUID',
-      'AUTH_TOKEN',
-      'WEBSOCKET_HAS_PENDING_OPERATIONS',
-      'IS_SHOW_READER',
-      'IS_SHOW_EXECUTOR',
-      'IS_SCRIPT_READER',
-      'IS_SCRIPT_EDITOR',
-      'IS_CUE_READER',
-      'IS_CUE_EDITOR',
-      'STAGE_MANAGER_MODE',
-    ]),
-  },
-  async created(): Promise<void> {
-    if ((this as any).AUTH_TOKEN) {
-      await (this as any).REFRESH_TOKEN();
-      await (this as any).SETUP_TOKEN_REFRESH();
+const router = useRouter();
+const route = useRoute();
+const userStore = useUserStore();
+const systemStore = useSystemStore();
+const showStore = useShowStore();
+const wsStore = useWebSocketStore();
+
+const { websocketHealthy } = storeToRefs(wsStore);
+const { currentShow, settings } = storeToRefs(systemStore);
+
+const { sendObj, connect } = useWebSocket();
+const { confirm } = useConfirm();
+
+// Local state
+const loaded = ref(false);
+const startupError = ref(false);
+const stoppingSession = ref(false);
+const startingSession = ref(false);
+const changingPage = ref(false);
+const goToPageModal = ref<InstanceType<typeof BModal>>();
+
+const currentShowSession = computed(() => showStore.currentSession);
+
+// Jump-to-page form
+const pageInputNo = ref(1);
+
+let loadTimer: ReturnType<typeof setTimeout> | null = null;
+
+onMounted(async () => {
+  try {
+    if (userStore.authToken) {
+      await userStore.refreshToken();
+      await userStore.setupTokenRefresh();
     }
 
-    await (this as any).GET_SETTINGS();
-    await this.awaitWSConnect();
-
-    this.wsStateCheckInterval = setInterval(() => {
-      if ((this as any).WEBSOCKET_HEALTHY && (this as any).WEBSOCKET_HAS_PENDING_OPERATIONS) {
-        (this as any).CHECK_WEBSOCKET_STATE();
-      }
-    }, 500);
-  },
-  beforeDestroy(): void {
-    if (this.wsStateCheckInterval) {
-      clearInterval(this.wsStateCheckInterval);
-    }
-  },
-  methods: {
-    ...mapActions([
-      'GET_SHOW_SESSION_DATA',
-      'GET_CURRENT_USER',
-      'USER_LOGOUT',
-      'GET_RBAC_ROLES',
-      'GET_CURRENT_RBAC',
-      'GET_SETTINGS',
-      'SETUP_TOKEN_REFRESH',
-      'REFRESH_TOKEN',
-      'CHECK_WEBSOCKET_STATE',
-      'GET_USER_SETTINGS',
-    ]),
-    ...mapMutations(['SET_STAGE_MANAGER_MODE']),
-    async awaitWSConnect(): Promise<void> {
-      if ((this as any).WEBSOCKET_HEALTHY) {
-        clearTimeout(this.loadTimer!);
-
-        await Promise.all([
-          (this as any).GET_RBAC_ROLES(),
-          (this as any).WEBSOCKET_HAS_PENDING_OPERATIONS
-            ? (this as any).CHECK_WEBSOCKET_STATE()
-            : Promise.resolve(),
-        ]);
-
-        if ((this as any).AUTH_TOKEN) {
-          await (this as any).GET_CURRENT_USER();
-          await Promise.all([(this as any).GET_CURRENT_RBAC(), (this as any).GET_USER_SETTINGS()]);
-          const switching = new URLSearchParams(window.location.search).has('_switch');
-          if (!switching) {
-            const userPref = (this as any).USER_SETTINGS?.preferred_ui as string | null | undefined;
-            const systemDefault = (this as any).SETTINGS?.default_ui as string | undefined;
-            if (userPref === 'new' || (userPref == null && systemDefault === 'new')) {
-              window.location.href = '/?_switch=1';
-              return;
-            }
-          }
-          if (switching) {
-            await (this as any).$router.replace({ path: (this as any).$route.path });
-          }
-        }
-
-        if ((this as any).SETTINGS.current_show != null) {
-          await (this as any).GET_SHOW_SESSION_DATA();
-          this.loaded = true;
-          if (
-            (this as any).CURRENT_SHOW_SESSION != null &&
-            this.$router.currentRoute.fullPath !== '/live'
-          ) {
-            this.$router.push('/live');
-          }
-        } else {
-          this.loaded = true;
-        }
-      } else {
-        this.loadTimer = setTimeout(this.awaitWSConnect, 150);
-      }
-    },
-    async stopShowSession(): Promise<void> {
-      this.stoppingSession = true;
-      const msg = 'Are you sure you want to stop the show?';
-      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
-      if (action === true) {
-        const response = await fetch(makeURL('/api/v1/show/sessions/stop'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (response.ok) {
-          (this as any).$toast.success('Stopped show session');
-        } else {
-          log.error('Unable to stop show session');
-          (this as any).$toast.error('Unable to stop show session');
-        }
-      }
-      this.stoppingSession = false;
-    },
-    async startShowSession(): Promise<void> {
-      if ((this as any).INTERNAL_UUID == null) {
-        (this as any).$toast.error('Unable to start new show session');
-        return;
-      }
-      this.startingSession = true;
-      const msg = 'Are you sure you want to start a show?';
-      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
-      if (action === true) {
-        const response = await fetch(makeURL('/api/v1/show/sessions/start'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: (this as any).INTERNAL_UUID,
-          }),
-        });
-
-        if (response.ok) {
-          (this as any).$toast.success('Started new show session');
-        } else {
-          log.error('Unable to start new show session');
-          (this as any).$toast.error('Unable to start new show session');
-        }
-      }
-      this.startingSession = false;
-    },
-    async reloadClients(): Promise<void> {
-      if ((this as any).INTERNAL_UUID == null) {
-        (this as any).$toast.error('Unable to start new show session');
-        return;
-      }
-      this.startingSession = true;
-      const msg = 'Are you sure you want to reload all connected clients?';
-      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
-      if (action === true) {
-        (this as any).$socket.sendObj({
-          OP: 'RELOAD_CLIENTS',
-          DATA: {},
-        });
-      }
-    },
-    validatePageState(name: string): boolean | null {
-      const { $dirty, $error } = (this as any).$v.pageInputFormState[name];
-      return $dirty ? !$error : null;
-    },
-    async goToLivePage(): Promise<void> {
-      (this as any).$socket.sendObj({
-        OP: 'LIVE_SHOW_JUMP_TO_PAGE',
-        DATA: {
-          page: Number(this.pageInputFormState.pageNo),
-        },
-      });
-    },
-  },
+    await systemStore.getSettings();
+    connect();
+    await awaitWSConnect();
+  } catch (e) {
+    log.error('Startup error:', e);
+    startupError.value = true;
+  }
 });
+
+onBeforeUnmount(() => {
+  if (loadTimer) clearTimeout(loadTimer);
+});
+
+async function loadInitialUserData(): Promise<void> {
+  if (!userStore.authToken) return;
+  await userStore.getCurrentUser();
+  await Promise.all([userStore.getCurrentRbac(), userStore.getUserSettings()]);
+}
+
+async function loadShowDataAndNavigate(): Promise<void> {
+  if (systemStore.currentShow == null) return;
+  await showStore.getShowSessionData();
+  if (showStore.currentSession != null && router.currentRoute.value.path !== '/live') {
+    await router.push('/live');
+  }
+}
+
+async function awaitWSConnect(): Promise<void> {
+  if (!websocketHealthy.value) {
+    loadTimer = setTimeout(awaitWSConnect, 150);
+    return;
+  }
+  if (loadTimer) {
+    clearTimeout(loadTimer);
+    loadTimer = null;
+  }
+  await systemStore.getRbacRoles();
+  await loadInitialUserData();
+  await loadShowDataAndNavigate();
+  loaded.value = true;
+}
+
+async function retryStartup(): Promise<void> {
+  startupError.value = false;
+  try {
+    if (userStore.authToken) {
+      await userStore.refreshToken();
+      await userStore.setupTokenRefresh();
+    }
+    await systemStore.getSettings();
+    connect();
+    await awaitWSConnect();
+  } catch (e) {
+    log.error('Retry startup error:', e);
+    startupError.value = true;
+  }
+}
+
+async function stopShowSession(): Promise<void> {
+  stoppingSession.value = true;
+  const confirmed = await confirm('Are you sure you want to stop the show?', {
+    title: 'Stop Show',
+    okVariant: 'danger',
+    okTitle: 'Stop Show',
+  });
+  if (confirmed) {
+    const response = await fetch(makeURL('/api/v1/show/sessions/stop'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (response.ok) {
+      toast.success('Stopped show session');
+    } else {
+      log.error('Unable to stop show session');
+      toast.error('Unable to stop show session');
+    }
+  }
+  stoppingSession.value = false;
+}
+
+async function startShowSession(): Promise<void> {
+  if (!wsStore.internalUUID) {
+    toast.error('Unable to start new show session');
+    return;
+  }
+  startingSession.value = true;
+  const confirmed = await confirm('Are you sure you want to start a show?', {
+    title: 'Start Show',
+    okVariant: 'success',
+    okTitle: 'Start Show',
+  });
+  if (confirmed) {
+    const response = await fetch(makeURL('/api/v1/show/sessions/start'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: wsStore.internalUUID }),
+    });
+    if (response.ok) {
+      toast.success('Started new show session');
+    } else {
+      log.error('Unable to start new show session');
+      toast.error('Unable to start new show session');
+    }
+  }
+  startingSession.value = false;
+}
+
+async function reloadClients(): Promise<void> {
+  const confirmed = await confirm('Are you sure you want to reload all connected clients?', {
+    title: 'Reload Clients',
+    okVariant: 'warning',
+    okTitle: 'Reload All',
+  });
+  if (confirmed) {
+    sendObj({ OP: 'RELOAD_CLIENTS', DATA: {} });
+  }
+}
+
+async function handleLogout(): Promise<void> {
+  await userStore.logout();
+}
+
+async function goToLivePage(): Promise<void> {
+  if (!pageInputNo.value || pageInputNo.value < 1) return;
+  sendObj({ OP: 'LIVE_SHOW_JUMP_TO_PAGE', DATA: { page: pageInputNo.value } });
+  goToPageModal.value?.hide();
+}
 </script>
 
 <style scoped>
@@ -387,11 +353,11 @@ export default defineComponent({
   border-radius: 0.25rem;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
-  background-color: #e74c3c;
+  background-color: #a93226;
 }
 
 #connection-status.healthy {
-  background-color: #00bc8c;
+  background-color: #007a5e;
 }
 </style>
 
@@ -400,12 +366,15 @@ export default defineComponent({
   text-align: center;
 }
 
-nav {
-  padding: 30px;
-}
+@media (max-width: 991.98px) {
+  .navbar-nav .nav-item {
+    display: flex;
+    justify-content: center;
+  }
 
-nav a {
-  font-weight: bold;
+  .navbar-nav .nav-link {
+    text-align: center;
+  }
 }
 
 div.center-spinner {

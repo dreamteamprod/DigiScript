@@ -1,151 +1,115 @@
 <template>
   <div class="force-password-change-container">
-    <b-container fluid class="h-100 d-flex align-items-center justify-content-center">
-      <b-row class="w-100 justify-content-center">
-        <b-col cols="12" md="6" lg="4">
-          <b-card class="shadow-lg">
+    <BContainer fluid class="h-100 d-flex align-items-center justify-content-center">
+      <BRow class="w-100 justify-content-center">
+        <BCol cols="12" md="6" lg="4">
+          <BCard class="shadow-lg">
             <template #header>
-              <h4 class="mb-0 text-center">
-                <b-icon icon="shield-lock" class="mr-2" />
-                Password Change Required
-              </h4>
+              <h4 class="mb-0 text-center">Password Change Required</h4>
             </template>
 
-            <b-alert show variant="warning" class="mb-4">
-              <b-icon icon="exclamation-triangle-fill" class="mr-2" />
+            <BAlert :model-value="true" variant="warning" class="mb-4">
               Your password must be changed before you can continue.
-            </b-alert>
+            </BAlert>
 
-            <b-form @submit.prevent="handlePasswordChange">
-              <b-form-group
+            <BForm @submit.prevent="handlePasswordChange">
+              <BFormGroup
                 id="new-password-input-group"
                 label="New Password"
                 label-for="new-password-input"
                 description="8–72 characters"
               >
-                <b-form-input
+                <BFormInput
                   id="new-password-input"
-                  v-model="$v.state.newPassword.$model"
+                  v-model="v$.newPassword.$model"
                   name="new-password-input"
                   type="password"
-                  :state="validateState('newPassword')"
+                  :state="validationState(v$.newPassword)"
                   aria-describedby="new-password-feedback"
                   autocomplete="new-password"
                 />
-                <b-form-invalid-feedback id="new-password-feedback">
+                <BFormInvalidFeedback id="new-password-feedback">
                   This is a required field and must be between 8 and 72 characters.
-                </b-form-invalid-feedback>
-              </b-form-group>
+                </BFormInvalidFeedback>
+              </BFormGroup>
 
-              <b-form-group
+              <BFormGroup
                 id="confirm-password-input-group"
                 label="Confirm New Password"
                 label-for="confirm-password-input"
               >
-                <b-form-input
+                <BFormInput
                   id="confirm-password-input"
-                  v-model="$v.state.confirmPassword.$model"
+                  v-model="v$.confirmPassword.$model"
                   name="confirm-password-input"
                   type="password"
-                  :state="validateState('confirmPassword')"
+                  :state="validationState(v$.confirmPassword)"
                   aria-describedby="confirm-password-feedback"
                   autocomplete="new-password"
                 />
-                <b-form-invalid-feedback id="confirm-password-feedback">
+                <BFormInvalidFeedback id="confirm-password-feedback">
                   Passwords do not match.
-                </b-form-invalid-feedback>
-              </b-form-group>
+                </BFormInvalidFeedback>
+              </BFormGroup>
 
               <div class="d-flex justify-content-between align-items-center mt-4">
-                <b-button variant="outline-secondary" :disabled="loading" @click="handleLogout">
-                  <b-icon icon="box-arrow-left" class="mr-1" />
+                <BButton variant="outline-secondary" :disabled="loading" @click="handleLogout">
                   Logout
-                </b-button>
+                </BButton>
 
-                <b-button type="submit" variant="primary" :disabled="isDisabled || loading">
-                  <b-spinner v-if="loading" small class="mr-1" />
-                  <b-icon v-else icon="check-circle" class="mr-1" />
+                <BButton type="submit" variant="primary" :disabled="v$.$invalid || loading">
+                  <BSpinner v-if="loading" small class="me-1" />
                   Change Password
-                </b-button>
+                </BButton>
               </div>
-            </b-form>
-          </b-card>
-        </b-col>
-      </b-row>
-    </b-container>
+            </BForm>
+          </BCard>
+        </BCol>
+      </BRow>
+    </BContainer>
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { makeURL } from '@/js/utils';
-import passwordValidationMixin from '@/mixins/passwordValidation';
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useVuelidate } from '@vuelidate/core';
+import { required, minLength, sameAs } from '@vuelidate/validators';
+import { maxPasswordByteLength } from '@/js/customValidators';
+import { useUserStore } from '@/stores/user';
+import { useFormValidation } from '@/composables/useFormValidation';
 
-export default defineComponent({
-  name: 'ForcePasswordChangeView',
-  mixins: [passwordValidationMixin],
-  data() {
-    return {
-      state: {
-        newPassword: '',
-        confirmPassword: '',
-      },
-      loading: false,
-    };
-  },
-  validations() {
-    return {
-      state: {
-        newPassword: (this as any).getPasswordValidations(),
-        confirmPassword: (this as any).getConfirmPasswordValidations('newPassword'),
-      },
-    };
-  },
-  computed: {
-    isDisabled(): boolean {
-      return Boolean((this as any).$v.state.$invalid);
-    },
-  },
-  methods: {
-    async handlePasswordChange(): Promise<void> {
-      (this as any).$v.state.$touch();
-      if ((this as any).$v.state.$anyError) {
-        return;
-      }
+const router = useRouter();
+const userStore = useUserStore();
+const { validationState } = useFormValidation();
 
-      this.loading = true;
+const state = ref({ newPassword: '', confirmPassword: '' });
+const loading = ref(false);
 
-      try {
-        const response = await fetch(makeURL('/api/v1/auth/change-password'), {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ new_password: this.state.newPassword }),
-        });
+const rules = computed(() => ({
+  newPassword: { required, minLength: minLength(8), maxPasswordByteLength },
+  confirmPassword: { required, sameAsPassword: sameAs(state.value.newPassword) },
+}));
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.access_token) {
-            await this.$store.commit('SET_AUTH_TOKEN', data.access_token);
-          }
-          await this.$store.dispatch('GET_CURRENT_USER');
-          this.$toast.success('Password changed successfully!');
-          this.$router.push('/');
-        } else {
-          const error = await response.json();
-          this.$toast.error(error.message || 'Failed to change password');
-        }
-      } catch {
-        this.$toast.error('An error occurred while changing password');
-      } finally {
-        this.loading = false;
-      }
-    },
-    async handleLogout(): Promise<void> {
-      await this.$store.dispatch('USER_LOGOUT');
-      this.$router.push('/login');
-    },
-  },
-});
+const v$ = useVuelidate(rules, state);
+
+async function handlePasswordChange(): Promise<void> {
+  v$.value.$touch();
+  if (v$.value.$invalid) return;
+  loading.value = true;
+  try {
+    const success = await userStore.changePassword(state.value.newPassword);
+    if (success) {
+      router.push('/');
+    }
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleLogout(): Promise<void> {
+  await userStore.logout();
+}
 </script>
 
 <style scoped>

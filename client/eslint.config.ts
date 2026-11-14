@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import pluginVue from 'eslint-plugin-vue';
+import vueParser from 'vue-eslint-parser';
 import globals from 'globals';
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
@@ -27,9 +28,6 @@ const tsRules = {
   ...Object.assign({}, ...tseslint.configs.recommended.map((c) => c.rules ?? {})),
   '@typescript-eslint/no-explicit-any': 'off',
   '@typescript-eslint/no-unused-vars': 'off',
-  // Vue 2 Options API patterns that are valid in this codebase
-  '@typescript-eslint/no-this-alias': 'off',
-  '@typescript-eslint/no-unsafe-function-type': 'off', // Function prop types are idiomatic in Vue 2
 };
 
 const sharedGlobals = {
@@ -46,11 +44,10 @@ export default [
       '../server/static/**',
       'junit/**',
       '*.backup',
-      'src/docs/**',
     ],
   },
   js.configs.recommended,
-  ...pluginVue.configs['flat/vue2-recommended'],
+  ...pluginVue.configs['flat/recommended'],
   // TypeScript source files
   {
     files: ['**/*.ts'],
@@ -73,8 +70,7 @@ export default [
       prettier: prettierPlugin,
     },
     languageOptions: {
-      // eslint-plugin-vue ships vue-eslint-parser as its script block parser
-      parser: (pluginVue.processors as any)['.vue'].parser,
+      parser: vueParser,
       parserOptions: {
         parser: tsParser,
         ecmaVersion: 2022,

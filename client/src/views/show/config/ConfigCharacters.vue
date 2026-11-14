@@ -1,397 +1,373 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col>
-        <b-tabs content-class="mt-3">
-          <b-tab title="Characters" active>
-            <b-table
+  <BContainer class="mx-0" fluid>
+    <BRow>
+      <BCol>
+        <BTabs content-class="mt-3">
+          <BTab title="Characters" active>
+            <BTable
               id="character-table"
-              :items="CHARACTER_LIST"
+              :items="showStore.characterList"
               :fields="characterFields"
-              :per-page="rowsPerPage"
+              :per-page="perPage"
               :current-page="currentPage"
               show-empty
             >
-              <template #head(btn)="data">
-                <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-character variant="outline-success">
+              <template #head(btn)>
+                <BButton
+                  v-if="systemStore.isShowEditor"
+                  v-b-modal.new-character
+                  variant="outline-success"
+                >
                   New Character
-                </b-button>
+                </BButton>
               </template>
               <template #cell(cast_member)="data">
                 <template v-if="data.item.cast_member">
                   {{ data.item.cast_member.first_name }} {{ data.item.cast_member.last_name }}
                 </template>
-                <template v-else-if="IS_SHOW_EDITOR">
-                  <b-link @click="openEditForm(data)"> Set Cast Member </b-link>
+                <template v-else-if="systemStore.isShowEditor">
+                  <BLink @click="openEditForm(data.item)">Set Cast Member</BLink>
                 </template>
               </template>
               <template #cell(btn)="data">
-                <b-button-group v-if="IS_SHOW_EDITOR">
-                  <b-button
+                <BButtonGroup v-if="systemStore.isShowEditor">
+                  <BButton
                     variant="warning"
                     :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
-                    @click="openEditForm(data)"
+                    @click="openEditForm(data.item)"
                   >
                     Edit
-                  </b-button>
-                  <b-button
+                  </BButton>
+                  <BButton
                     variant="info"
                     :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
-                    @click="openMergeForm(data)"
+                    @click="openMergeForm(data.item)"
                   >
                     Merge
-                  </b-button>
-                  <b-button
+                  </BButton>
+                  <BButton
                     variant="danger"
                     :disabled="submittingEditCharacter || deletingCharacter || mergingCharacter"
-                    @click="deleteCharacter(data)"
+                    @click="deleteCharacter(data.item)"
                   >
                     Delete
-                  </b-button>
-                </b-button-group>
+                  </BButton>
+                </BButtonGroup>
               </template>
-            </b-table>
-            <pagination-controls
-              :per-page.sync="rowsPerPage"
-              :current-page.sync="currentPage"
-              :total-rows="CHARACTER_LIST.length"
+            </BTable>
+            <PaginationControls
+              v-model:per-page="perPage"
+              v-model:current-page="currentPage"
+              :total-rows="showStore.characterList.length"
               aria-controls="character-table"
             />
-          </b-tab>
-          <b-tab title="Character Groups">
-            <character-groups />
-          </b-tab>
-          <b-tab title="Line Counts">
-            <character-line-stats />
-          </b-tab>
-          <b-tab title="Timeline">
-            <character-timeline />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-    </b-row>
-    <b-modal
-      id="merge-character"
-      ref="merge-character"
-      :title="`Merge ${mergeSourceCharacter ? mergeSourceCharacter.name : 'Character'}`"
+          </BTab>
+          <BTab title="Character Groups">
+            <CharacterGroups />
+          </BTab>
+          <BTab title="Line Counts">
+            <CharacterLineStats />
+          </BTab>
+          <BTab title="Timeline">
+            <CharacterTimeline />
+          </BTab>
+        </BTabs>
+      </BCol>
+    </BRow>
+
+    <BModal
+      id="new-character"
+      ref="newCharacterModal"
+      title="Add New Character"
       size="md"
-      :ok-disabled="!mergeDestinationCharacter || mergingCharacter"
-      @hidden="resetMergeForm"
+      :ok-disabled="newV$.newFormState.$invalid || submittingNewCharacter"
+      @show="resetNewForm"
+      @hide="resetNewForm"
+      @ok="onSubmitNew"
+    >
+      <BForm @submit.stop.prevent="onSubmitNew">
+        <BFormGroup label="Name" label-for="new-name-input" label-cols="4">
+          <BFormInput
+            id="new-name-input"
+            v-model="newFormState.name"
+            :state="newFieldState('name')"
+          />
+          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="Description" label-for="new-description-input" label-cols="4">
+          <BFormInput id="new-description-input" v-model="newFormState.description" />
+        </BFormGroup>
+        <BFormGroup label="Played By" label-for="new-played-by-input" label-cols="4">
+          <BFormSelect
+            id="new-played-by-input"
+            v-model="newFormState.played_by"
+            :options="castOptions"
+          />
+        </BFormGroup>
+      </BForm>
+    </BModal>
+
+    <BModal
+      id="merge-character"
+      ref="mergeCharacterModal"
+      :title="`Merge ${mergeSourceCharacter?.name ?? 'Character'}`"
+      size="md"
+      :ok-disabled="!mergeDestinationObject || mergingCharacter"
+      @hide="resetMergeForm"
       @ok="onSubmitMerge"
     >
       <p>
         Select a destination character. All script lines and group memberships from
-        <strong>{{ mergeSourceCharacter ? mergeSourceCharacter.name : '' }}</strong>
-        will be transferred to the selected character, and it will be deleted.
+        <strong>{{ mergeSourceCharacter?.name }}</strong> will be transferred to the selected
+        character, and <strong>{{ mergeSourceCharacter?.name }}</strong> will be deleted.
       </p>
-      <b-form-group label="Merge into" label-for="merge-destination-input" label-cols="4">
-        <multi-select
+      <BFormGroup label="Merge into" label-for="merge-destination-input" label-cols="4">
+        <VueMultiselect
           id="merge-destination-input"
-          v-model="mergeDestinationCharacter"
+          v-model="mergeDestinationObject"
           :multiple="false"
           :options="mergeDestinationOptions"
           track-by="id"
           label="name"
           placeholder="Select destination character"
         />
-      </b-form-group>
-    </b-modal>
-    <b-modal
-      id="new-character"
-      ref="new-character"
-      title="Add New Character"
-      size="md"
-      :ok-disabled="$v.newFormState.$invalid || submittingNewCharacter"
-      @show="resetNewForm"
-      @hidden="resetNewForm"
-      @ok="onSubmitNew"
-    >
-      <b-form ref="new-character-form" @submit.stop.prevent="onSubmitNew">
-        <b-form-group id="new-name-input-group" label="Name" label-for="new-name-input">
-          <b-form-input
-            id="new-name-input"
-            v-model="$v.newFormState.name.$model"
-            name="new-name-input"
-            :state="getValidationState('newFormState', 'name')"
-            aria-describedby="new-name-feedback"
-          />
-          <b-form-invalid-feedback id="new-name-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
-          id="new-description-input-group"
-          label="Description"
-          label-for="new-description-input"
-        >
-          <b-form-input
-            id="new-description-input"
-            v-model="$v.newFormState.description.$model"
-            name="new-description-input"
-            :state="getValidationState('newFormState', 'description')"
-          />
-        </b-form-group>
-        <b-form-group
-          id="new-played-by-input-group"
-          label="Played By"
-          label-for="new-played-by-input"
-        >
-          <b-form-select
-            id="new-played-by-input"
-            v-model="$v.newFormState.played_by.$model"
-            :options="castOptions"
-            :state="getValidationState('newFormState', 'played_by')"
-          />
-        </b-form-group>
-      </b-form>
-    </b-modal>
-    <b-modal
+      </BFormGroup>
+    </BModal>
+
+    <BModal
       id="edit-character"
-      ref="edit-character"
-      title="Edit Cast Member"
+      ref="editCharacterModal"
+      title="Edit Character"
       size="md"
-      :ok-disabled="$v.editFormState.$invalid || submittingEditCharacter"
-      @hidden="resetEditForm"
+      :ok-disabled="editV$.editFormState.$invalid || submittingEditCharacter"
+      @hide="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form ref="edit-character-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="edit-name-input-group" label="Name" label-for="edit-name-input">
-          <b-form-input
+      <BForm @submit.stop.prevent="onSubmitEdit">
+        <BFormGroup label="Name" label-for="edit-name-input" label-cols="4">
+          <BFormInput
             id="edit-name-input"
-            v-model="$v.editFormState.name.$model"
-            name="edit-name-input"
-            :state="getValidationState('editFormState', 'name')"
-            aria-describedby="edit-name-feedback"
+            v-model="editFormState.name"
+            :state="editFieldState('name')"
           />
-          <b-form-invalid-feedback id="edit-name-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
-          id="edit-description-input-group"
-          label="Description"
-          label-for="edit-description-input"
-        >
-          <b-form-input
-            id="edit-description-input"
-            v-model="$v.editFormState.description.$model"
-            name="edit-description-input"
-            :state="getValidationState('editFormState', 'description')"
-          />
-        </b-form-group>
-        <b-form-group
-          id="edit-played-by-input-group"
-          label="Played By"
-          label-for="edit-played-by-input"
-        >
-          <b-form-select
+          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="Description" label-for="edit-description-input" label-cols="4">
+          <BFormInput id="edit-description-input" v-model="editFormState.description" />
+        </BFormGroup>
+        <BFormGroup label="Played By" label-for="edit-played-by-input" label-cols="4">
+          <BFormSelect
             id="edit-played-by-input"
-            v-model="$v.editFormState.played_by.$model"
+            v-model="editFormState.played_by"
             :options="castOptions"
-            :state="getValidationState('editFormState', 'played_by')"
           />
-        </b-form-group>
-      </b-form>
-    </b-modal>
-  </b-container>
+        </BFormGroup>
+      </BForm>
+    </BModal>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { required } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
-import CharacterLineStats from '@/vue_components/show/config/characters/CharacterLineStats.vue';
-import CharacterTimeline from '@/vue_components/show/config/characters/CharacterTimeline.vue';
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
+import { useVuelidate } from '@vuelidate/core';
+import { required } from '@vuelidate/validators';
+import { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
-import CharacterGroups from '@/vue_components/show/config/characters/CharacterGroups.vue';
-import formValidationMixin from '@/mixins/formValidationMixin';
-import paginationMixin from '@/mixins/paginationMixin';
+import VueMultiselect from 'vue-multiselect';
+import 'vue-multiselect/dist/vue-multiselect.css';
+import { useSystemStore } from '@/stores/system';
+import { useShowStore } from '@/stores/show';
+import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
+import CharacterGroups from '@/components/show/config/characters/CharacterGroups.vue';
+import CharacterLineStats from '@/components/show/config/characters/CharacterLineStats.vue';
+import type { Character } from '@/types/api/show';
 
-export default defineComponent({
-  name: 'ConfigCharacters',
-  components: { CharacterGroups, CharacterLineStats, CharacterTimeline },
-  mixins: [formValidationMixin, paginationMixin],
-  data() {
-    return {
-      tableKey: 'config_characters',
-      characterFields: [
-        'name',
-        'description',
-        { key: 'cast_member', label: 'Played By' },
-        { key: 'btn', label: '' },
-      ],
-      newFormState: {
-        name: '',
-        description: '',
-        played_by: null as number | null,
-      },
-      editFormState: {
-        id: null as number | null,
-        showID: null as number | null,
-        name: '',
-        description: '',
-        played_by: null as number | null,
-      },
-      submittingNewCharacter: false,
-      submittingEditCharacter: false,
-      deletingCharacter: false,
-      mergingCharacter: false,
-      mergeSourceCharacter: null as any,
-      mergeDestinationCharacter: null as any,
-    };
-  },
-  validations: {
-    newFormState: {
-      name: { required },
-      description: {},
-      played_by: {},
-    },
-    editFormState: {
-      name: { required },
-      description: {},
-      played_by: {},
-    },
-  },
-  computed: {
-    ...mapGetters(['CHARACTER_LIST', 'CAST_LIST', 'IS_SHOW_EDITOR']),
-    castOptions(): unknown[] {
-      return [
-        { value: null, text: 'Please select an option', disabled: true },
-        ...(this as any).CAST_LIST.map((castMember: any) => ({
-          value: castMember.id,
-          text: `${castMember.first_name} ${castMember.last_name}`,
-        })),
-      ];
-    },
-    mergeDestinationOptions(): any[] {
-      return (this as any).CHARACTER_LIST.filter(
-        (c: any) =>
-          !(this as any).mergeSourceCharacter || c.id !== (this as any).mergeSourceCharacter.id
-      );
-    },
-  },
-  async mounted(): Promise<void> {
-    await Promise.all([(this as any).GET_CHARACTER_LIST(), (this as any).GET_CAST_LIST()]);
-  },
-  methods: {
-    resetNewForm(): void {
-      (this as any).resetForm('newFormState', { name: '', description: '', played_by: null });
-      this.submittingNewCharacter = false;
-    },
-    async onSubmitNew(event: Event): Promise<void> {
-      (this as any).$v.newFormState.$touch();
-      if ((this as any).$v.newFormState.$anyError || this.submittingNewCharacter) {
-        event.preventDefault();
-        return;
-      }
-      this.submittingNewCharacter = true;
-      try {
-        await (this as any).ADD_CHARACTER(this.newFormState);
-        (this as any).$bvModal.hide('new-character');
-        this.resetNewForm();
-      } catch (error) {
-        log.error('Error submitting new character:', error);
-        event.preventDefault();
-      } finally {
-        this.submittingNewCharacter = false;
-      }
-    },
-    openEditForm(character: any): void {
-      if (character != null) {
-        this.editFormState.id = character.item.id;
-        this.editFormState.showID = character.item.show_id;
-        this.editFormState.name = character.item.name;
-        this.editFormState.description = character.item.description;
-        this.editFormState.played_by = character.item.played_by;
-        (this as any).$bvModal.show('edit-character');
-      }
-    },
-    resetEditForm(): void {
-      (this as any).resetForm('editFormState', {
-        id: null,
-        showID: null,
-        name: '',
-        description: '',
-        played_by: null,
-      });
-      this.submittingEditCharacter = false;
-      this.deletingCharacter = false;
-    },
-    async onSubmitEdit(event: Event): Promise<void> {
-      (this as any).$v.editFormState.$touch();
-      if ((this as any).$v.editFormState.$anyError || this.submittingEditCharacter) {
-        event.preventDefault();
-        return;
-      }
-      this.submittingEditCharacter = true;
-      try {
-        await (this as any).UPDATE_CHARACTER(this.editFormState);
-        (this as any).$bvModal.hide('edit-character');
-        this.resetEditForm();
-      } catch (error) {
-        log.error('Error submitting edit character:', error);
-        event.preventDefault();
-      } finally {
-        this.submittingEditCharacter = false;
-      }
-    },
-    async deleteCharacter(character: any): Promise<void> {
-      if (this.deletingCharacter) {
-        return;
-      }
-      const msg = `Are you sure you want to delete ${character.item.name}?`;
-      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
-      if (action === true) {
-        this.deletingCharacter = true;
-        try {
-          await (this as any).DELETE_CHARACTER(character.item.id);
-        } catch (error) {
-          log.error('Error deleting character:', error);
-        } finally {
-          this.deletingCharacter = false;
-        }
-      }
-    },
-    openMergeForm(character: any): void {
-      this.mergeSourceCharacter = character.item;
-      this.mergeDestinationCharacter = null;
-      (this as any).$bvModal.show('merge-character');
-    },
-    resetMergeForm(): void {
-      this.mergeSourceCharacter = null;
-      this.mergeDestinationCharacter = null;
-      this.mergingCharacter = false;
-    },
-    async onSubmitMerge(event: Event): Promise<void> {
-      if (!this.mergeDestinationCharacter || this.mergingCharacter) {
-        event.preventDefault();
-        return;
-      }
-      this.mergingCharacter = true;
-      try {
-        await (this as any).MERGE_CHARACTER({
-          source_id: this.mergeSourceCharacter.id,
-          destination_id: this.mergeDestinationCharacter.id,
-        });
-        (this as any).$bvModal.hide('merge-character');
-        this.resetMergeForm();
-      } catch (error) {
-        log.error('Error merging character:', error);
-        event.preventDefault();
-      } finally {
-        this.mergingCharacter = false;
-      }
-    },
-    ...mapActions([
-      'GET_CHARACTER_LIST',
-      'GET_CAST_LIST',
-      'ADD_CHARACTER',
-      'UPDATE_CHARACTER',
-      'DELETE_CHARACTER',
-      'MERGE_CHARACTER',
-    ]),
-  },
+const systemStore = useSystemStore();
+const showStore = useShowStore();
+const { confirm } = useConfirm();
+
+const { perPage, currentPage } = usePagination(15, 'config_characters');
+const submittingNewCharacter = ref(false);
+const submittingEditCharacter = ref(false);
+const deletingCharacter = ref(false);
+
+const newCharacterModal = ref<InstanceType<typeof BModal>>();
+const editCharacterModal = ref<InstanceType<typeof BModal>>();
+const mergeCharacterModal = ref<InstanceType<typeof BModal>>();
+
+const mergingCharacter = ref(false);
+const mergeSourceCharacter = ref<Character | null>(null);
+const mergeDestinationObject = ref<Character | null>(null);
+
+const characterFields = [
+  'name',
+  'description',
+  { key: 'cast_member', label: 'Played By' },
+  { key: 'btn', label: '' },
+];
+
+interface NewCharacterForm {
+  name: string;
+  description: string;
+  played_by: number | null;
+}
+
+interface EditCharacterForm {
+  id: number | null;
+  showID: number | null;
+  name: string;
+  description: string;
+  played_by: number | null;
+}
+
+const newFormState = ref<NewCharacterForm>({ name: '', description: '', played_by: null });
+const editFormState = ref<EditCharacterForm>({
+  id: null,
+  showID: null,
+  name: '',
+  description: '',
+  played_by: null,
+});
+
+const newRules = { newFormState: { name: { required } } };
+const editRules = { editFormState: { name: { required } } };
+
+const newV$ = useVuelidate(newRules, { newFormState });
+const editV$ = useVuelidate(editRules, { editFormState });
+
+const mergeDestinationOptions = computed(() =>
+  showStore.characterList.filter(
+    (c) => mergeSourceCharacter.value === null || c.id !== mergeSourceCharacter.value.id
+  )
+);
+
+const castOptions = computed(() => [
+  { value: null, text: 'Please select an option', disabled: true },
+  ...showStore.castList.map((c) => ({
+    value: c.id,
+    text: `${c.first_name} ${c.last_name}`,
+  })),
+]);
+
+function newFieldState(key: keyof NewCharacterForm): boolean | null {
+  const field = newV$.value.newFormState[key];
+  if (!field) return null;
+  return field.$dirty ? !field.$error : null;
+}
+
+function editFieldState(key: keyof EditCharacterForm): boolean | null {
+  const field = editV$.value.editFormState[key];
+  if (!field) return null;
+  return field.$dirty ? !field.$error : null;
+}
+
+function resetNewForm(): void {
+  newFormState.value = { name: '', description: '', played_by: null };
+  submittingNewCharacter.value = false;
+  newV$.value.$reset();
+}
+
+function resetEditForm(): void {
+  editFormState.value = { id: null, showID: null, name: '', description: '', played_by: null };
+  submittingEditCharacter.value = false;
+  deletingCharacter.value = false;
+  editV$.value.$reset();
+}
+
+function openEditForm(character: Character): void {
+  editFormState.value.id = character.id;
+  editFormState.value.showID = character.show_id;
+  editFormState.value.name = character.name ?? '';
+  editFormState.value.description = character.description ?? '';
+  editFormState.value.played_by = character.played_by;
+  editCharacterModal.value?.show();
+}
+
+async function onSubmitNew(event: Event): Promise<void> {
+  newV$.value.newFormState.$touch();
+  if (newV$.value.newFormState.$invalid || submittingNewCharacter.value) {
+    event.preventDefault();
+    return;
+  }
+  submittingNewCharacter.value = true;
+  try {
+    await showStore.addCharacter(newFormState.value);
+    newCharacterModal.value?.hide();
+    resetNewForm();
+  } catch (error) {
+    log.error('Error submitting new character:', error);
+    event.preventDefault();
+  } finally {
+    submittingNewCharacter.value = false;
+  }
+}
+
+async function onSubmitEdit(event: Event): Promise<void> {
+  editV$.value.editFormState.$touch();
+  if (editV$.value.editFormState.$invalid || submittingEditCharacter.value) {
+    event.preventDefault();
+    return;
+  }
+  submittingEditCharacter.value = true;
+  try {
+    await showStore.updateCharacter(editFormState.value);
+    editCharacterModal.value?.hide();
+    resetEditForm();
+  } catch (error) {
+    log.error('Error submitting edit character:', error);
+    event.preventDefault();
+  } finally {
+    submittingEditCharacter.value = false;
+  }
+}
+
+function openMergeForm(character: Character): void {
+  mergeSourceCharacter.value = character;
+  mergeDestinationObject.value = null;
+  mergeCharacterModal.value?.show();
+}
+
+function resetMergeForm(): void {
+  mergeSourceCharacter.value = null;
+  mergeDestinationObject.value = null;
+  mergingCharacter.value = false;
+}
+
+async function onSubmitMerge(event: Event): Promise<void> {
+  if (!mergeDestinationObject.value || mergingCharacter.value) {
+    event.preventDefault();
+    return;
+  }
+  mergingCharacter.value = true;
+  try {
+    await showStore.mergeCharacter(mergeSourceCharacter.value!.id, mergeDestinationObject.value.id);
+    mergeCharacterModal.value?.hide();
+    resetMergeForm();
+  } catch (error) {
+    log.error('Error merging character:', error);
+    event.preventDefault();
+  } finally {
+    mergingCharacter.value = false;
+  }
+}
+
+async function deleteCharacter(character: Character): Promise<void> {
+  if (deletingCharacter.value) return;
+  const ok = await confirm(`Are you sure you want to delete ${character.name}?`);
+  if (ok) {
+    deletingCharacter.value = true;
+    try {
+      await showStore.deleteCharacter(character.id);
+    } catch (error) {
+      log.error('Error deleting character:', error);
+    } finally {
+      deletingCharacter.value = false;
+    }
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([showStore.getCharacterList(), showStore.getCastList()]);
 });
 </script>
-
-<style scoped></style>

@@ -1,444 +1,413 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col>
-        <b-tabs content-class="mt-3">
-          <b-tab title="Cue Types" active>
-            <b-table
+  <BContainer class="mx-0" fluid>
+    <BRow>
+      <BCol>
+        <BTabs content-class="mt-3">
+          <BTab title="Cue Types" active>
+            <BTable
               id="cue-types-table"
-              :items="CUE_TYPES"
+              :items="showStore.cueTypes"
               :fields="cueTypeFields"
-              :per-page="rowsPerPage"
+              :per-page="perPage"
               :current-page="currentPage"
               show-empty
             >
-              <template #head(btn)="data">
-                <b-button v-if="IS_SHOW_EDITOR" v-b-modal.new-cue-type variant="outline-success">
-                  New Cue Type
-                </b-button>
-                <b-button
-                  v-if="IS_SHOW_EDITOR"
-                  variant="outline-info"
-                  class="ml-2"
-                  @click="openImportModal"
-                >
-                  Import Cue Type
-                </b-button>
+              <template #head(btn)>
+                <template v-if="systemStore.isCueEditor">
+                  <BButton v-b-modal.new-cue-type variant="outline-success"> New Cue Type </BButton>
+                  <BButton variant="outline-info" class="ms-2" @click="openImportModal">
+                    Import Cue Type
+                  </BButton>
+                </template>
               </template>
               <template #cell(colour)="data">
-                <p :style="{ color: data.item.colour }">
-                  <b-icon-square-fill />
-                </p>
+                <span
+                  :style="{
+                    background: data.item.colour,
+                    width: '20px',
+                    height: '20px',
+                    display: 'inline-block',
+                    borderRadius: '2px',
+                  }"
+                />
               </template>
               <template #cell(btn)="data">
-                <b-button-group v-if="IS_SHOW_EDITOR">
-                  <b-button
+                <BButtonGroup v-if="systemStore.isCueEditor">
+                  <BButton
                     variant="warning"
                     :disabled="submittingNewCueType || submittingEditCueType || deletingCueType"
-                    @click="openEditCueTypeForm(data)"
+                    @click="openEditForm(data.item)"
                   >
                     Edit
-                  </b-button>
-                  <b-button
+                  </BButton>
+                  <BButton
                     variant="danger"
                     :disabled="submittingNewCueType || submittingEditCueType || deletingCueType"
-                    @click="deleteCueType(data)"
+                    @click="deleteCueType(data.item)"
                   >
                     Delete
-                  </b-button>
-                </b-button-group>
+                  </BButton>
+                </BButtonGroup>
               </template>
-            </b-table>
-            <pagination-controls
-              :per-page.sync="rowsPerPage"
-              :current-page.sync="currentPage"
-              :total-rows="CUE_TYPES.length"
+            </BTable>
+            <PaginationControls
+              v-model:per-page="perPage"
+              v-model:current-page="currentPage"
+              :total-rows="showStore.cueTypes.length"
               aria-controls="cue-types-table"
             />
-          </b-tab>
-          <b-tab title="Cue Configuration">
-            <cue-editor />
-          </b-tab>
-          <b-tab title="Cue Counts">
-            <cue-count-stats />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-    </b-row>
-    <b-modal
+          </BTab>
+          <BTab title="Cue Configuration">
+            <CueEditor />
+          </BTab>
+          <BTab title="Cue Counts">
+            <CueCountStats />
+          </BTab>
+        </BTabs>
+      </BCol>
+    </BRow>
+
+    <BModal
       id="new-cue-type"
-      ref="new-cue-type"
+      ref="newCueTypeModal"
       title="Add Cue Type"
       size="md"
-      :ok-disabled="$v.newCueTypeForm.$invalid || submittingNewCueType"
-      @show="resetNewCueTypeForm"
-      @hidden="resetNewCueTypeForm"
-      @ok="onSubmitNewCueType"
+      :ok-disabled="newV$.newFormState.$invalid || submittingNewCueType"
+      @show="resetNewForm"
+      @hide="resetNewForm"
+      @ok="onSubmitNew"
     >
-      <b-form ref="new-cue-type-form" @submit.stop.prevent="onSubmitNewCueType">
-        <b-form-group id="new-prefix-input-group" label="Prefix" label-for="new-prefix-input">
-          <b-form-input
+      <BForm @submit.stop.prevent="onSubmitNew">
+        <BFormGroup label="Prefix" label-for="new-prefix-input" label-cols="4">
+          <BFormInput
             id="new-prefix-input"
-            v-model="$v.newCueTypeForm.prefix.$model"
-            name="new-prefix-input"
-            :state="validateNewCueTypeState('prefix')"
-            aria-describedby="new-prefix-feedback"
+            v-model="newFormState.prefix"
+            :state="newFieldState('prefix')"
           />
-          <b-form-invalid-feedback id="new-prefix-feedback">
+          <BFormInvalidFeedback>
             This is a required field and must be 5 characters or less.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
-          id="new-description-input-group"
-          label="Description"
-          label-for="new-description-input"
-        >
-          <b-form-input
-            id="new-description-input"
-            v-model="$v.newCueTypeForm.description.$model"
-            name="new-description-input"
-            :state="validateNewCueTypeState('description')"
-            aria-describedby="new-description-feedback"
-          />
-          <b-form-invalid-feedback id="new-description-feedback">
-            This is a required field and must be 100 characters or less.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group id="new-colour-input-group" label="Colour" label-for="new-colour-input">
-          <b-form-input
-            id="new-colour-input"
-            v-model="$v.newCueTypeForm.colour.$model"
-            name="new-colour-input"
-            type="color"
-            :state="validateNewCueTypeState('colour')"
-            aria-describedby="new-colour-feedback"
-          />
-          <b-form-invalid-feedback id="new-colour-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-      </b-form>
-    </b-modal>
-    <b-modal
+          </BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="Description" label-for="new-description-input" label-cols="4">
+          <BFormInput id="new-description-input" v-model="newFormState.description" />
+        </BFormGroup>
+        <BFormGroup label="Colour" label-for="new-colour-input" label-cols="4">
+          <div class="d-flex align-items-center gap-2">
+            <BFormInput
+              id="new-colour-input"
+              v-model="newFormState.colour"
+              type="color"
+              style="width: 60px"
+              :state="newFieldState('colour')"
+            />
+            <span
+              class="ms-2 px-2 py-1 rounded"
+              :style="{ background: newFormState.colour, color: '#fff', fontSize: '0.85em' }"
+            >
+              Preview
+            </span>
+          </div>
+          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+        </BFormGroup>
+      </BForm>
+    </BModal>
+
+    <BModal
       id="edit-cue-type"
-      ref="edit-cue-type"
+      ref="editCueTypeModal"
       title="Edit Cue Type"
       size="md"
-      :ok-disabled="$v.editCueTypeFormState.$invalid || submittingEditCueType"
-      @hidden="resetEditCueTypeForm"
-      @ok="onSubmitEditCueType"
+      :ok-disabled="editV$.editFormState.$invalid || submittingEditCueType"
+      @hide="resetEditForm"
+      @ok="onSubmitEdit"
     >
-      <b-form ref="edit-cue-type-form" @submit.stop.prevent="onSubmitEditCueType">
-        <b-form-group id="edit-prefix-input-group" label="Prefix" label-for="edit-prefix-input">
-          <b-form-input
+      <BForm @submit.stop.prevent="onSubmitEdit">
+        <BFormGroup label="Prefix" label-for="edit-prefix-input" label-cols="4">
+          <BFormInput
             id="edit-prefix-input"
-            v-model="$v.editCueTypeFormState.prefix.$model"
-            name="edit-prefix-input"
-            :state="validateEditCueTypeState('prefix')"
-            aria-describedby="edit-prefix-feedback"
+            v-model="editFormState.prefix"
+            :state="editFieldState('prefix')"
           />
-          <b-form-invalid-feedback id="edit-prefix-feedback">
+          <BFormInvalidFeedback>
             This is a required field and must be 5 characters or less.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group
-          id="edit-description-input-group"
-          label="Description"
-          label-for="edit-description-input"
-        >
-          <b-form-input
-            id="edit-description-input"
-            v-model="$v.editCueTypeFormState.description.$model"
-            name="edit-description-input"
-            :state="validateEditCueTypeState('description')"
-            aria-describedby="edit-description-feedback"
-          />
-          <b-form-invalid-feedback id="edit-description-feedback">
-            This is a required field and must be 100 characters or less.
-          </b-form-invalid-feedback>
-        </b-form-group>
-        <b-form-group id="edit-colour-input-group" label="Colour" label-for="edit-colour-input">
-          <b-form-input
-            id="edit-colour-input"
-            v-model="$v.editCueTypeFormState.colour.$model"
-            name="edit-colour-input"
-            type="color"
-            :state="validateEditCueTypeState('colour')"
-            aria-describedby="edit-colour-feedback"
-          />
-          <b-form-invalid-feedback id="edit-colour-feedback">
-            This is a required field.
-          </b-form-invalid-feedback>
-        </b-form-group>
-      </b-form>
-    </b-modal>
-    <b-modal
+          </BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="Description" label-for="edit-description-input" label-cols="4">
+          <BFormInput id="edit-description-input" v-model="editFormState.description" />
+        </BFormGroup>
+        <BFormGroup label="Colour" label-for="edit-colour-input" label-cols="4">
+          <div class="d-flex align-items-center gap-2">
+            <BFormInput
+              id="edit-colour-input"
+              v-model="editFormState.colour"
+              type="color"
+              style="width: 60px"
+              :state="editFieldState('colour')"
+            />
+            <span
+              class="ms-2 px-2 py-1 rounded"
+              :style="{ background: editFormState.colour, color: '#fff', fontSize: '0.85em' }"
+            >
+              Preview
+            </span>
+          </div>
+          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
+        </BFormGroup>
+      </BForm>
+    </BModal>
+
+    <BModal
       id="import-cue-type-modal"
-      ref="import-cue-type-modal"
+      ref="importCueTypeModal"
       title="Import Cue Type"
       size="xl"
-      hide-footer
-      @hidden="resetImportState"
+      no-footer
+      @hide="resetImportState"
     >
       <div v-if="isLoadingImport" class="text-center">
-        <b-spinner />
+        <BSpinner />
       </div>
-      <div v-else-if="importCueTypeGroups.length === 0">
+      <div v-else-if="importGroups.length === 0">
         <p class="text-muted">No cue types available to import from other shows.</p>
       </div>
       <div v-else>
-        <b-card v-for="show in importCueTypeGroups" :key="show.id" no-body class="mb-2">
-          <b-card-header style="cursor: pointer" @click="toggleImportShow(show.id)">
+        <BCard v-for="show in importGroups" :key="show.id" no-body class="mb-2">
+          <BCardHeader style="cursor: pointer" @click="toggleImportShow(show.id)">
             <div class="d-flex justify-content-between align-items-center">
               <span>{{ show.name }}</span>
-              <b-icon-chevron-down v-if="cueTypeGroupExpanded[show.id]" font-scale="0.8" />
-              <b-icon-chevron-up v-else font-scale="0.8" />
+              <IMdiChevronUp v-if="isExpanded[show.id]" /><IMdiChevronDown v-else />
             </div>
-          </b-card-header>
-          <b-collapse :visible="cueTypeGroupExpanded[show.id]">
-            <b-table :items="show.cue_types" :fields="importCueTypeFields" small>
+          </BCardHeader>
+          <BCollapse :model-value="isExpanded[show.id]">
+            <BTable :items="show.cue_types" :fields="importCueTypeFields" small>
               <template #cell(colour)="data">
-                <p :style="{ color: data.item.colour }">
-                  <b-icon-square-fill />
-                </p>
+                <span
+                  :style="{
+                    background: data.item.colour,
+                    width: '20px',
+                    height: '20px',
+                    display: 'inline-block',
+                    borderRadius: '2px',
+                  }"
+                />
               </template>
               <template #cell(action)="data">
-                <b-button
+                <BButton
                   variant="outline-success"
                   size="sm"
                   :disabled="!!isImporting[data.item.id]"
                   @click="importCueType(data.item)"
                 >
-                  <b-spinner v-if="isImporting[data.item.id]" small />
+                  <BSpinner v-if="isImporting[data.item.id]" small />
                   <span v-else>Import</span>
-                </b-button>
+                </BButton>
               </template>
-            </b-table>
-          </b-collapse>
-        </b-card>
+            </BTable>
+          </BCollapse>
+        </BCard>
       </div>
-    </b-modal>
-  </b-container>
+    </BModal>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { required, maxLength } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useVuelidate } from '@vuelidate/core';
+import { required, maxLength } from '@vuelidate/validators';
+import { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
-import paginationMixin from '@/mixins/paginationMixin';
-import CueEditor from '@/vue_components/show/config/cues/CueEditor.vue';
-import CueCountStats from '@/vue_components/show/config/cues/CueCountStats.vue';
+import { useSystemStore } from '@/stores/system';
+import { useShowStore } from '@/stores/show';
+import { useConfirm } from '@/composables/useConfirm';
+import { usePagination } from '@/composables/usePagination';
+import CueCountStats from '@/components/show/config/cues/CueCountStats.vue';
+import CueEditor from '@/components/show/config/cues/CueEditor.vue';
+import type { CueType } from '@/types/api/cues';
 
-export default defineComponent({
-  name: 'ConfigCues',
-  components: { CueCountStats, CueEditor },
-  mixins: [paginationMixin],
-  data() {
-    return {
-      tableKey: 'config_cues',
-      cueTypeFields: ['prefix', 'description', 'colour', { key: 'btn', label: '' }],
-      newCueTypeForm: {
-        prefix: '',
-        description: '',
-        colour: '#000000',
-      },
-      editCueTypeFormState: {
-        id: null as number | null,
-        prefix: '',
-        description: '',
-        colour: '#000000',
-      },
-      submittingNewCueType: false,
-      submittingEditCueType: false,
-      deletingCueType: false,
-      importCueTypeGroups: [] as any[],
-      cueTypeGroupExpanded: {} as Record<number, boolean>,
-      isLoadingImport: false,
-      isImporting: {} as Record<number, boolean>,
-      importCueTypeFields: [
-        { key: 'prefix', label: 'Prefix' },
-        { key: 'description', label: 'Description' },
-        { key: 'colour', label: 'Colour' },
-        { key: 'action', label: '' },
-      ],
+const systemStore = useSystemStore();
+const showStore = useShowStore();
+const { confirm } = useConfirm();
+
+const { perPage, currentPage } = usePagination(15, 'config_cues');
+const submittingNewCueType = ref(false);
+const submittingEditCueType = ref(false);
+const deletingCueType = ref(false);
+
+const newCueTypeModal = ref<InstanceType<typeof BModal>>();
+const editCueTypeModal = ref<InstanceType<typeof BModal>>();
+const importCueTypeModal = ref<InstanceType<typeof BModal>>();
+
+const cueTypeFields = ['prefix', 'description', 'colour', { key: 'btn', label: '' }];
+const importCueTypeFields = [
+  { key: 'prefix', label: 'Prefix' },
+  { key: 'description', label: 'Description' },
+  { key: 'colour', label: 'Colour' },
+  { key: 'action', label: '' },
+];
+
+interface CueTypeForm {
+  prefix: string;
+  description: string;
+  colour: string;
+}
+
+interface EditCueTypeForm extends CueTypeForm {
+  id: number | null;
+}
+
+const newFormState = ref<CueTypeForm>({ prefix: '', description: '', colour: '#000000' });
+const editFormState = ref<EditCueTypeForm>({
+  id: null,
+  prefix: '',
+  description: '',
+  colour: '#000000',
+});
+
+const newRules = {
+  newFormState: { prefix: { required, maxLength: maxLength(5) }, colour: { required } },
+};
+const editRules = {
+  editFormState: { prefix: { required, maxLength: maxLength(5) }, colour: { required } },
+};
+
+const newV$ = useVuelidate(newRules, { newFormState });
+const editV$ = useVuelidate(editRules, { editFormState });
+
+const importGroups = ref<{ id: number; name: string; cue_types: CueType[] }[]>([]);
+const isExpanded = ref<Record<number, boolean>>({});
+const isImporting = ref<Record<number, boolean>>({});
+const isLoadingImport = ref(false);
+
+function newFieldState(key: keyof CueTypeForm): boolean | null {
+  const field = newV$.value.newFormState[key];
+  if (!field) return null;
+  return field.$dirty ? !field.$error : null;
+}
+
+function editFieldState(key: keyof EditCueTypeForm): boolean | null {
+  const field = editV$.value.editFormState[key];
+  if (!field) return null;
+  return field.$dirty ? !field.$error : null;
+}
+
+function resetNewForm(): void {
+  newFormState.value = { prefix: '', description: '', colour: '#000000' };
+  submittingNewCueType.value = false;
+  newV$.value.$reset();
+}
+
+function resetEditForm(): void {
+  editFormState.value = { id: null, prefix: '', description: '', colour: '#000000' };
+  submittingEditCueType.value = false;
+  editV$.value.$reset();
+}
+
+function openEditForm(cueType: CueType): void {
+  editFormState.value.id = cueType.id;
+  editFormState.value.prefix = cueType.prefix ?? '';
+  editFormState.value.description = cueType.description ?? '';
+  editFormState.value.colour = cueType.colour ?? '#000000';
+  editCueTypeModal.value?.show();
+}
+
+async function onSubmitNew(event: Event): Promise<void> {
+  newV$.value.newFormState.$touch();
+  if (newV$.value.newFormState.$invalid || submittingNewCueType.value) {
+    event.preventDefault();
+    return;
+  }
+  submittingNewCueType.value = true;
+  try {
+    await showStore.addCueType(newFormState.value);
+    newCueTypeModal.value?.hide();
+    resetNewForm();
+  } catch (error) {
+    log.error('Error submitting new cue type:', error);
+    event.preventDefault();
+  } finally {
+    submittingNewCueType.value = false;
+  }
+}
+
+async function onSubmitEdit(event: Event): Promise<void> {
+  editV$.value.editFormState.$touch();
+  if (editV$.value.editFormState.$invalid || submittingEditCueType.value) {
+    event.preventDefault();
+    return;
+  }
+  submittingEditCueType.value = true;
+  try {
+    await showStore.updateCueType(editFormState.value);
+    editCueTypeModal.value?.hide();
+    resetEditForm();
+  } catch (error) {
+    log.error('Error submitting edit cue type:', error);
+    event.preventDefault();
+  } finally {
+    submittingEditCueType.value = false;
+  }
+}
+
+async function deleteCueType(cueType: CueType): Promise<void> {
+  if (deletingCueType.value) return;
+  const ok = await confirm(`Are you sure you want to delete ${cueType.prefix}?`);
+  if (ok) {
+    deletingCueType.value = true;
+    try {
+      await showStore.deleteCueType(cueType.id);
+    } catch (error) {
+      log.error('Error deleting cue type:', error);
+    } finally {
+      deletingCueType.value = false;
+    }
+  }
+}
+
+async function openImportModal(): Promise<void> {
+  importCueTypeModal.value?.show();
+  isLoadingImport.value = true;
+  try {
+    const data = (await showStore.getImportableCueTypes()) as {
+      cue_type_groups: { id: number; name: string; cue_types: CueType[] }[];
     };
-  },
-  validations: {
-    newCueTypeForm: {
-      prefix: {
-        required,
-        maxLength: maxLength(5),
-      },
-      description: {
-        maxLength: maxLength(100),
-      },
-      colour: {
-        required,
-      },
-    },
-    editCueTypeFormState: {
-      prefix: {
-        required,
-        maxLength: maxLength(5),
-      },
-      description: {
-        maxLength: maxLength(100),
-      },
-      colour: {
-        required,
-      },
-    },
-  },
-  computed: {
-    ...mapGetters(['CUE_TYPES', 'IS_SHOW_EDITOR']),
-  },
-  async mounted(): Promise<void> {
-    await (this as any).GET_CUE_TYPES();
-  },
-  methods: {
-    ...mapActions([
-      'GET_CUE_TYPES',
-      'ADD_CUE_TYPE',
-      'DELETE_CUE_TYPE',
-      'UPDATE_CUE_TYPE',
-      'GET_IMPORTABLE_CUE_TYPES',
-    ]),
-    resetNewCueTypeForm(): void {
-      this.newCueTypeForm = {
-        prefix: '',
-        description: '',
-        colour: '#000000',
-      };
-      this.submittingNewCueType = false;
+    importGroups.value = data.cue_type_groups;
+    data.cue_type_groups.forEach((show) => {
+      isExpanded.value[show.id] = true;
+    });
+  } catch (e) {
+    log.error('Error loading importable cue types:', e);
+  } finally {
+    isLoadingImport.value = false;
+  }
+}
 
-      this.$nextTick(() => {
-        (this as any).$v.$reset();
-      });
-    },
-    validateNewCueTypeState(name: string): boolean | null {
-      const { $dirty, $error } = (this as any).$v.newCueTypeForm[name];
-      return $dirty ? !$error : null;
-    },
-    async onSubmitNewCueType(event: Event): Promise<void> {
-      (this as any).$v.newCueTypeForm.$touch();
-      if ((this as any).$v.newCueTypeForm.$anyError || this.submittingNewCueType) {
-        event.preventDefault();
-        return;
-      }
+function toggleImportShow(showId: number): void {
+  isExpanded.value[showId] = !isExpanded.value[showId];
+}
 
-      this.submittingNewCueType = true;
-      try {
-        await (this as any).ADD_CUE_TYPE(this.newCueTypeForm);
-        (this as any).$bvModal.hide('new-cue-type');
-        this.resetNewCueTypeForm();
-      } catch (error) {
-        log.error('Error submitting new cue type:', error);
-        event.preventDefault();
-      } finally {
-        this.submittingNewCueType = false;
-      }
-    },
-    async deleteCueType(cueType: any): Promise<void> {
-      if (this.deletingCueType) {
-        return;
-      }
+async function importCueType(cueType: CueType): Promise<void> {
+  isImporting.value[cueType.id] = true;
+  try {
+    await showStore.addCueType({
+      prefix: cueType.prefix,
+      description: cueType.description,
+      colour: cueType.colour,
+    });
+  } catch (error) {
+    log.error('Error importing cue type:', error);
+  } finally {
+    isImporting.value[cueType.id] = false;
+  }
+}
 
-      const msg = `Are you sure you want to delete ${cueType.item.prefix}?`;
-      const action = await (this as any).$bvModal.msgBoxConfirm(msg, {});
-      if (action === true) {
-        this.deletingCueType = true;
-        try {
-          await (this as any).DELETE_CUE_TYPE(cueType.item.id);
-        } catch (error) {
-          log.error('Error deleting cue type:', error);
-        } finally {
-          this.deletingCueType = false;
-        }
-      }
-    },
-    openEditCueTypeForm(cueType: any): void {
-      if (cueType != null) {
-        this.editCueTypeFormState.id = cueType.item.id;
-        this.editCueTypeFormState.prefix = cueType.item.prefix;
-        this.editCueTypeFormState.description = cueType.item.description;
-        this.editCueTypeFormState.colour = cueType.item.colour;
-        (this as any).$bvModal.show('edit-cue-type');
-      }
-    },
-    resetEditCueTypeForm(): void {
-      this.editCueTypeFormState = {
-        id: null,
-        prefix: '',
-        description: '',
-        colour: '#000000',
-      };
-      this.submittingEditCueType = false;
-      this.deletingCueType = false;
+function resetImportState(): void {
+  importGroups.value = [];
+  isExpanded.value = {};
+  isLoadingImport.value = false;
+  isImporting.value = {};
+}
 
-      this.$nextTick(() => {
-        (this as any).$v.$reset();
-      });
-    },
-    async onSubmitEditCueType(event: Event): Promise<void> {
-      (this as any).$v.editCueTypeFormState.$touch();
-      if ((this as any).$v.editCueTypeFormState.$anyError || this.submittingEditCueType) {
-        event.preventDefault();
-        return;
-      }
-
-      this.submittingEditCueType = true;
-      try {
-        await (this as any).UPDATE_CUE_TYPE(this.editCueTypeFormState);
-        (this as any).$bvModal.hide('edit-cue-type');
-        this.resetEditCueTypeForm();
-      } catch (error) {
-        log.error('Error submitting edit cue type:', error);
-        event.preventDefault();
-      } finally {
-        this.submittingEditCueType = false;
-      }
-    },
-    validateEditCueTypeState(name: string): boolean | null {
-      const { $dirty, $error } = (this as any).$v.editCueTypeFormState[name];
-      return $dirty ? !$error : null;
-    },
-    async openImportModal(): Promise<void> {
-      (this as any).$bvModal.show('import-cue-type-modal');
-      this.isLoadingImport = true;
-      try {
-        const data = await (this as any).GET_IMPORTABLE_CUE_TYPES();
-        this.importCueTypeGroups = data.cue_type_groups;
-        data.cue_type_groups.forEach((show: any) => {
-          this.$set(this.cueTypeGroupExpanded, show.id, true);
-        });
-      } catch (e) {
-        log.error('Error loading importable cue types:', e);
-      } finally {
-        this.isLoadingImport = false;
-      }
-    },
-    toggleImportShow(showId: number): void {
-      this.$set(this.cueTypeGroupExpanded, showId, !this.cueTypeGroupExpanded[showId]);
-    },
-    async importCueType(cueType: any): Promise<void> {
-      this.$set(this.isImporting, cueType.id, true);
-      try {
-        await (this as any).ADD_CUE_TYPE({
-          prefix: cueType.prefix,
-          description: cueType.description,
-          colour: cueType.colour,
-        });
-      } finally {
-        this.$set(this.isImporting, cueType.id, false);
-      }
-    },
-    resetImportState(): void {
-      this.importCueTypeGroups = [];
-      this.cueTypeGroupExpanded = {};
-      this.isLoadingImport = false;
-      this.isImporting = {};
-    },
-  },
+onMounted(async () => {
+  await showStore.getCueTypes();
 });
 </script>

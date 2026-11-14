@@ -8,8 +8,7 @@ hooks
 
 # Client
 client/node_modules
-client-v3/node_modules
-client-v3/e2e
+client/e2e
 
 # Server
 server/conf

@@ -18,7 +18,6 @@ EDITABLE_USER_SETTINGS = frozenset(
         "console_log_level",
         "character_mru_sort",
         "character_combined_dropdown",
-        "preferred_ui",
         "table_page_sizes",
         "default_sd_text_colour",
         "default_sd_background_colour",

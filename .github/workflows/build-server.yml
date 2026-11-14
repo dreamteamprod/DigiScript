@@ -38,23 +38,6 @@ jobs:
           cd client
           pnpm run build
 
-      - name: Setup Node.js (V3)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: 'client-v3/pnpm-lock.yaml'
-
-      - name: Install dependencies (V3)
-        run: |
-          cd client-v3
-          pnpm install --frozen-lockfile
-
-      - name: Build frontend (V3)
-        run: |
-          cd client-v3
-          pnpm run build
-
       - name: Upload frontend build
         uses: actions/upload-artifact@v4
         with:

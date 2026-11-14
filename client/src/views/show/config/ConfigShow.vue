@@ -1,200 +1,194 @@
 <template>
-  <b-container id="show-config" class="mx-0" fluid>
-    <b-row>
-      <b-col cols="12" class="text-right">
-        <b-button
-          v-if="IS_SHOW_EDITOR"
+  <BContainer id="show-config" class="mx-0" fluid>
+    <BRow>
+      <BCol cols="12" class="text-end">
+        <BButton
+          v-if="systemStore.isShowEditor"
           variant="warning"
           :disabled="submittingEditShow"
-          @click="openEditForm()"
+          @click="openEditForm"
         >
           Edit Show
-        </b-button>
-      </b-col>
-    </b-row>
-    <b-row>
-      <b-col>
-        <b-table-simple>
-          <b-tr v-for="key in orderedKeys" :key="key">
-            <b-th>{{ key }}</b-th>
-            <b-td>{{ tableData[key] != null ? tableData[key] : 'N/A' }}</b-td>
-          </b-tr>
-        </b-table-simple>
-      </b-col>
-    </b-row>
-    <b-modal
-      id="edit-show"
-      ref="edit-show"
+        </BButton>
+      </BCol>
+    </BRow>
+    <BRow>
+      <BCol>
+        <BTableSimple class="w-100">
+          <BTbody>
+            <BTr v-for="key in orderedKeys" :key="key">
+              <BTh>{{ key }}</BTh>
+              <BTd>{{ tableData[key] != null ? tableData[key] : 'N/A' }}</BTd>
+            </BTr>
+          </BTbody>
+        </BTableSimple>
+      </BCol>
+    </BRow>
+
+    <BModal
+      ref="editShowModal"
       title="Edit Show"
       size="md"
-      :ok-disabled="$v.editFormState.$invalid || submittingEditShow"
-      @hidden="resetEditForm"
+      :ok-disabled="v$.editFormState.$invalid || submittingEditShow"
+      @hide="resetEditForm"
       @ok="onSubmitEdit"
     >
-      <b-form ref="edit-show-form" @submit.stop.prevent="onSubmitEdit">
-        <b-form-group id="name-input-group" label="Name" label-for="name-input">
-          <b-form-input
-            id="name-input"
-            v-model="$v.editFormState.name.$model"
-            name="name-input"
-            :state="validateEditState('name')"
-            aria-describedby="name-feedback"
-          />
-
-          <b-form-invalid-feedback id="name-feedback">
+      <BForm @submit.stop.prevent="onSubmitEdit">
+        <BFormGroup label="Name" label-for="name-input" label-cols="4">
+          <BFormInput id="name-input" v-model="editFormState.name" :state="fieldState('name')" />
+          <BFormInvalidFeedback>
             This is a required field and must be less than 100 characters.
-          </b-form-invalid-feedback>
-        </b-form-group>
-
-        <b-form-group id="start-input-group" label="Start Date" label-for="start-input">
-          <b-form-input
+          </BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="Start Date" label-for="start-input" label-cols="4">
+          <BFormInput
             id="start-input"
-            v-model="$v.editFormState.start_date.$model"
-            name="start-input"
+            v-model="editFormState.start_date"
             type="date"
-            :state="validateEditState('start_date')"
-            aria-describedby="start-feedback"
+            :state="fieldState('start_date')"
           />
-          <b-form-invalid-feedback id="start-feedback">
+          <BFormInvalidFeedback>
             This is a required field and must be before or the same as the end date.
-          </b-form-invalid-feedback>
-        </b-form-group>
-
-        <b-form-group id="end-input-group" label="End Date" label-for="end-input">
-          <b-form-input
+          </BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="End Date" label-for="end-input" label-cols="4">
+          <BFormInput
             id="end-input"
-            v-model="$v.editFormState.end_date.$model"
-            name="end-input"
+            v-model="editFormState.end_date"
             type="date"
-            :state="validateEditState('end_date')"
-            aria-describedby="end-feedback"
+            :state="fieldState('end_date')"
           />
-          <b-form-invalid-feedback id="end-feedback">
+          <BFormInvalidFeedback>
             This is a required field and must be after or the same as the start date.
-          </b-form-invalid-feedback>
-        </b-form-group>
-
-        <b-form-group id="act-input-group" label="Act" label-for="act-input">
-          <b-form-select
-            id="act-input"
-            v-model="$v.editFormState.first_act_id.$model"
-            :options="actOptions"
-            :state="validateEditState('first_act_id')"
-          />
-        </b-form-group>
-      </b-form>
-    </b-modal>
-  </b-container>
+          </BFormInvalidFeedback>
+        </BFormGroup>
+        <BFormGroup label="Act" label-for="act-input" label-cols="4">
+          <BFormSelect id="act-input" v-model="editFormState.first_act_id" :options="actOptions" />
+        </BFormGroup>
+      </BForm>
+    </BModal>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { required, maxLength } from 'vuelidate/lib/validators';
-import { mapGetters, mapActions } from 'vuex';
-import { titleCase } from '@/js/utils';
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
+import { useVuelidate } from '@vuelidate/core';
+import { required, maxLength, helpers } from '@vuelidate/validators';
+import { BModal } from 'bootstrap-vue-next';
 import log from 'loglevel';
+import { titleCase } from '@/js/utils';
+import { useSystemStore } from '@/stores/system';
+import { useShowStore } from '@/stores/show';
 
-export default defineComponent({
-  name: 'ConfigShow',
-  data() {
-    return {
-      editFormState: {
-        name: null as string | null,
-        start_date: null as string | null,
-        end_date: null as string | null,
-        first_act_id: null as number | null,
-      },
-      submittingEditShow: false,
-    };
+const systemStore = useSystemStore();
+const showStore = useShowStore();
+
+const submittingEditShow = ref(false);
+const editShowModal = ref<InstanceType<typeof BModal>>();
+
+interface EditShowForm {
+  name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  first_act_id: number | null;
+}
+
+const editFormState = ref<EditShowForm>({
+  name: null,
+  start_date: null,
+  end_date: null,
+  first_act_id: null,
+});
+
+const beforeEnd = helpers.withMessage(
+  'Start date must be before or the same as end date',
+  () =>
+    !editFormState.value.start_date ||
+    !editFormState.value.end_date ||
+    new Date(editFormState.value.start_date) <= new Date(editFormState.value.end_date)
+);
+
+const afterStart = helpers.withMessage(
+  'End date must be after or the same as start date',
+  () =>
+    !editFormState.value.start_date ||
+    !editFormState.value.end_date ||
+    new Date(editFormState.value.end_date) >= new Date(editFormState.value.start_date)
+);
+
+const rules = {
+  editFormState: {
+    name: { required, maxLength: maxLength(100) },
+    start_date: { required, beforeEnd },
+    end_date: { required, afterStart },
+    first_act_id: {},
   },
-  computed: {
-    tableData(): Record<string, unknown> {
-      const data: Record<string, unknown> = {};
-      Object.keys((this as any).CURRENT_SHOW).forEach((key) => {
-        data[titleCase(key, '_')] = (this as any).CURRENT_SHOW[key];
-      });
-      return data;
-    },
-    orderedKeys(): string[] {
-      return Object.keys(this.tableData).sort();
-    },
-    actOptions(): unknown[] {
-      return [
-        { value: null, text: 'N/A', disabled: false },
-        ...(this as any).ACT_LIST.map((act: any) => ({ value: act.id, text: act.name })),
-      ];
-    },
-    ...mapGetters(['CURRENT_SHOW', 'ACT_LIST', 'IS_SHOW_EDITOR']),
-  },
-  async mounted(): Promise<void> {
-    await (this as any).GET_SHOW_DETAILS();
-    await (this as any).GET_ACT_LIST();
-  },
-  validations: {
-    editFormState: {
-      name: {
-        required,
-        maxLength: maxLength(100),
-      },
-      start_date: {
-        required,
-        beforeEnd: (value, vm) =>
-          value == null && vm.end_date != null ? false : new Date(value) <= new Date(vm.end_date),
-      },
-      end_date: {
-        required,
-        afterStart: (value, vm) =>
-          value == null && vm.start_date != null
-            ? false
-            : new Date(value) >= new Date(vm.start_date),
-      },
-      first_act_id: {},
-    },
-  },
-  methods: {
-    titleCase,
-    ...mapActions(['GET_SHOW_DETAILS', 'GET_ACT_LIST', 'UPDATE_SHOW']),
-    resetEditForm(): void {
-      this.editFormState = {
-        name: null,
-        start_date: null,
-        end_date: null,
-        first_act_id: null,
-      };
-      this.submittingEditShow = false;
-      this.$nextTick(() => {
-        (this as any).$v.$reset();
-      });
-    },
-    openEditForm(): void {
-      Object.keys(this.editFormState).forEach((key) => {
-        (this as any).editFormState[key] = (this as any).CURRENT_SHOW[key];
-      });
-      (this as any).$bvModal.show('edit-show');
-    },
-    validateEditState(name: string): boolean | null {
-      const { $dirty, $error } = (this as any).$v.editFormState[name];
-      return $dirty ? !$error : null;
-    },
-    async onSubmitEdit(event: Event): Promise<void> {
-      (this as any).$v.editFormState.$touch();
-      if ((this as any).$v.editFormState.$anyError || this.submittingEditShow) {
-        event.preventDefault();
-        return;
-      }
-      this.submittingEditShow = true;
-      try {
-        await (this as any).UPDATE_SHOW(this.editFormState);
-        (this as any).$bvModal.hide('edit-show');
-        this.resetEditForm();
-      } catch (error) {
-        log.error('Error submitting edit show:', error);
-        event.preventDefault();
-      } finally {
-        this.submittingEditShow = false;
-      }
-    },
-  },
+};
+
+const v$ = useVuelidate(rules, { editFormState });
+
+const tableData = computed((): Record<string, unknown> => {
+  const show = systemStore.currentShow;
+  if (!show) return {};
+  const data: Record<string, unknown> = {};
+  for (const key of Object.keys(show)) {
+    data[titleCase(key, '_')] = (show as Record<string, unknown>)[key];
+  }
+  return data;
+});
+
+const orderedKeys = computed(() => Object.keys(tableData.value).sort());
+
+const actOptions = computed(() => [
+  { value: null, text: 'N/A', disabled: false },
+  ...showStore.actList.map((act) => ({ value: act.id, text: act.name })),
+]);
+
+function fieldState(key: keyof EditShowForm): boolean | null {
+  const field = v$.value.editFormState[key];
+  if (!field) return null;
+  return field.$dirty ? !field.$error : null;
+}
+
+function resetEditForm(): void {
+  editFormState.value = { name: null, start_date: null, end_date: null, first_act_id: null };
+  submittingEditShow.value = false;
+  v$.value.$reset();
+}
+
+function openEditForm(): void {
+  const show = systemStore.currentShow;
+  if (show) {
+    editFormState.value.name = show.name;
+    editFormState.value.start_date = show.start_date;
+    editFormState.value.end_date = show.end_date;
+    editFormState.value.first_act_id = show.first_act_id;
+  }
+  editShowModal.value?.show();
+}
+
+async function onSubmitEdit(event: Event): Promise<void> {
+  v$.value.editFormState.$touch();
+  if (v$.value.editFormState.$invalid || submittingEditShow.value) {
+    event.preventDefault();
+    return;
+  }
+  submittingEditShow.value = true;
+  try {
+    await systemStore.updateShow(editFormState.value);
+    editShowModal.value?.hide();
+    resetEditForm();
+  } catch (error) {
+    log.error('Error submitting edit show:', error);
+    event.preventDefault();
+  } finally {
+    submittingEditShow.value = false;
+  }
+}
+
+onMounted(async () => {
+  await systemStore.getShowDetails();
+  await showStore.getActList();
 });
 </script>
 

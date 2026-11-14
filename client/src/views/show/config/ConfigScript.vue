@@ -1,32 +1,24 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col>
-        <b-tabs content-class="mt-3">
-          <b-tab title="Script" active>
-            <script-config />
-          </b-tab>
-          <b-tab title="Stage Direction Styles">
-            <stage-direction-configs />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-    </b-row>
-  </b-container>
+  <BContainer class="mx-0" fluid>
+    <BRow>
+      <BCol>
+        <BTabs content-class="mt-3">
+          <BTab title="Script" active>
+            <CollabScriptEditor v-if="systemStore.isCollabScriptEditing" />
+            <ScriptEditor v-else />
+          </BTab>
+          <BTab title="Stage Direction Styles"><StageDirectionStyles /></BTab>
+        </BTabs>
+      </BCol>
+    </BRow>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import ScriptConfig from '@/vue_components/show/config/script/ScriptEditor.vue';
-import StageDirectionStyles from '@/vue_components/show/config/script/StageDirectionStyles.vue';
+<script setup lang="ts">
+import ScriptEditor from '@/components/show/config/script/ScriptEditor.vue';
+import CollabScriptEditor from '@/components/show/config/script/CollabScriptEditor.vue';
+import { useSystemStore } from '@/stores/system';
+import StageDirectionStyles from '@/components/show/config/script/StageDirectionStyles.vue';
 
-export default defineComponent({
-  name: 'ConfigScript',
-  components: {
-    ScriptConfig,
-    StageDirectionConfigs: StageDirectionStyles,
-  },
-});
+const systemStore = useSystemStore();
 </script>
-
-<style scoped></style>

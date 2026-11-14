@@ -29,7 +29,7 @@ class TestScriptStatusController(DigiScriptTestCase):
         self.assertEqual([], body["editors"])
         self.assertEqual([], body["cutters"])
         self.assertFalse(body["hasDraft"])
-        # Backward-compat fields for the current (pre-collab) client-v3 UI
+        # Backward-compat fields for the current (pre-collab) client UI
         self.assertTrue(body["canRequestEdit"])
         self.assertIsNone(body["currentEditor"])
 

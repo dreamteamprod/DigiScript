@@ -1,8 +1,0 @@
-node_modules/
-package-lock.json
-dist/
-junit/
-coverage/
-*.backup
-components.d.ts
-public/docs

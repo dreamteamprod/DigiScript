@@ -1,6 +1,7 @@
 import log from 'loglevel';
 import { makeURL } from '@/js/utils';
-import store from '@/store/store';
+import { useUserStore } from '@/stores/user';
+import { useSystemStore } from '@/stores/system';
 
 let isInitialized = false;
 
@@ -16,10 +17,6 @@ interface LogEntry {
 const logQueue: LogEntry[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
-/**
- * Buffer a log entry and schedule a debounced flush.
- * Flushes immediately if the queue reaches MAX_QUEUE_SIZE.
- */
 function enqueueLog(level: string, message: string, extra: Record<string, unknown>): void {
   logQueue.push({ level, message, extra });
   if (logQueue.length > MAX_QUEUE_SIZE) logQueue.shift();
@@ -31,10 +28,7 @@ function enqueueLog(level: string, message: string, extra: Record<string, unknow
   flushTimer = setTimeout(flushQueue, FLUSH_INTERVAL_MS);
 }
 
-/**
- * Send all queued log entries to the server as a single batch request.
- * Uses fetch directly to avoid potential infinite loops with HTTP interceptors.
- */
+// Uses fetch directly (not the intercepted version) to avoid infinite logging loops.
 function flushQueue() {
   clearTimeout(flushTimer ?? undefined);
   flushTimer = null;
@@ -42,7 +36,7 @@ function flushQueue() {
 
   // The server only accepts log posts from logged-in users, so entries stay queued
   // (capped in enqueueLog) until a token exists.
-  const token = store.getters.AUTH_TOKEN;
+  const token = useUserStore().authToken;
   if (!token) return;
 
   const batch = logQueue.splice(0);
@@ -59,31 +53,34 @@ function flushQueue() {
   });
 }
 
-/**
- * Initialize remote logging.
- * This hooks into the loglevel library to send logs to the server.
- */
 export function initRemoteLogging(): void {
   if (isInitialized) return;
   isInitialized = true;
 
   const originalFactory = log.methodFactory;
 
-  const levels = { TRACE: 0, DEBUG: 1, INFO: 2, WARN: 3, ERROR: 4, SILENT: 5 };
+  const levels: Record<string, number> = {
+    TRACE: 0,
+    DEBUG: 1,
+    INFO: 2,
+    WARN: 3,
+    ERROR: 4,
+    SILENT: 5,
+  };
 
   log.methodFactory = function (methodName, logLevel, loggerName) {
     const rawMethod = originalFactory(methodName, logLevel, loggerName);
 
     return function (message, ...args) {
-      // Always call the standard log method first
       rawMethod(message, ...args);
 
-      const settings = store.getters.SETTINGS;
-      if (!settings || !settings.client_log_enabled) return;
+      const systemStore = useSystemStore();
+      const settings = systemStore.settings;
+      if (!settings?.client_log_enabled) return;
 
       const currentLevelName = methodName.toUpperCase();
       const currentLevel = levels[currentLevelName] ?? 2;
-      const minLevel = levels[(settings.client_log_level || 'INFO').toUpperCase()] ?? 2;
+      const minLevel = levels[((settings.client_log_level as string) || 'INFO').toUpperCase()] ?? 2;
       if (currentLevel < minLevel) return;
 
       let finalMessage = message;
@@ -106,21 +103,18 @@ export function initRemoteLogging(): void {
     };
   };
 
-  // Re-apply the level to trigger the factory update
   log.setLevel(log.getLevel());
 
-  // Keep browser console level in sync with the user's per-account preference.
-  // The false arg prevents loglevel from persisting this to localStorage.
-  store.watch(
-    (state, getters) => getters.USER_SETTINGS?.console_log_level,
-    (newLevel) => {
-      if (newLevel) log.setLevel(newLevel.toLowerCase(), false);
-    },
-    { immediate: true }
-  );
+  // Sync browser console level with user's per-account preference.
+  // Watched via a simple interval rather than a reactive watcher (Pinia watch requires
+  // component context or explicit setup; this avoids that complexity).
+  setInterval(() => {
+    const userStore = useUserStore();
+    const consoleLevel = (userStore.userSettings as Record<string, unknown>)?.console_log_level as
+      string | undefined;
+    if (consoleLevel) log.setLevel(consoleLevel.toLowerCase() as log.LogLevelDesc, false);
+  }, 5000);
 
-  // Intercept global errors — enqueue directly instead of routing through
-  // log.error() so the factory is never re-entered from here.
   window.addEventListener('error', (event) => {
     enqueueLog('ERROR', `Unhandled Error: ${event.message}`, {
       filename: event.filename,

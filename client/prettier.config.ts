@@ -1,7 +1,6 @@
 import type { Config } from 'prettier';
 
 const config: Config = {
-  // Standard Prettier defaults with Vue community preferences
   printWidth: 100,
   tabWidth: 2,
   useTabs: false,
@@ -14,11 +13,9 @@ const config: Config = {
   arrowParens: 'always',
   endOfLine: 'lf',
 
-  // Vue-specific options
-  vueIndentScriptAndStyle: false, // Don't indent <script> and <style> tags
-  singleAttributePerLine: false, // Allow multiple attributes per line (Vue default)
+  vueIndentScriptAndStyle: false,
+  singleAttributePerLine: false,
 
-  // File-specific overrides
   overrides: [
     {
       files: '*.vue',

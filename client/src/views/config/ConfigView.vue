@@ -1,44 +1,26 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col>
+  <BContainer fluid class="mx-0">
+    <BRow>
+      <BCol>
         <h1>DigiScript Config</h1>
-        <b-tabs content-class="mt-3" lazy>
-          <b-tab title="Shows" active>
-            <config-shows />
-          </b-tab>
-          <b-tab title="System">
-            <config-system />
-          </b-tab>
-          <b-tab title="Settings">
-            <config-settings />
-          </b-tab>
-          <b-tab title="Users">
-            <config-users />
-          </b-tab>
-          <b-tab title="Logs">
-            <config-logs />
-          </b-tab>
-          <b-tab title="Backups">
-            <config-backups />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-    </b-row>
-  </b-container>
+        <BTabs content-class="mt-3" lazy>
+          <BTab active title="Shows"><ConfigShows /></BTab>
+          <BTab title="System"><ConfigSystem /></BTab>
+          <BTab title="Settings"><ConfigSettings /></BTab>
+          <BTab title="Users"><ConfigUsers /></BTab>
+          <BTab title="Logs"><ConfigLogs /></BTab>
+          <BTab title="Backups"><ConfigBackups /></BTab>
+        </BTabs>
+      </BCol>
+    </BRow>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import ConfigSystem from '@/vue_components/config/ConfigSystem.vue';
-import ConfigSettings from '@/vue_components/config/ConfigSettings.vue';
-import ConfigUsers from '@/vue_components/config/ConfigUsers.vue';
-import ConfigShows from '@/vue_components/config/ConfigShows.vue';
-import ConfigLogs from '@/vue_components/config/ConfigLogs.vue';
-import ConfigBackups from '@/vue_components/config/ConfigBackups.vue';
-
-export default defineComponent({
-  name: 'ConfigView',
-  components: { ConfigShows, ConfigUsers, ConfigSettings, ConfigSystem, ConfigLogs, ConfigBackups },
-});
+<script setup lang="ts">
+import ConfigShows from '@/components/config/ConfigShows.vue';
+import ConfigSystem from '@/components/config/ConfigSystem.vue';
+import ConfigSettings from '@/components/config/ConfigSettings.vue';
+import ConfigUsers from '@/components/config/ConfigUsers.vue';
+import ConfigLogs from '@/components/config/ConfigLogs.vue';
+import ConfigBackups from '@/components/config/ConfigBackups.vue';
 </script>

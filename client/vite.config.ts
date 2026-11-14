@@ -1,50 +1,59 @@
 import path from 'node:path';
 import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue2';
+import vue from '@vitejs/plugin-vue';
+import Components from 'unplugin-vue-components/vite';
+import { BootstrapVueNextResolver } from 'bootstrap-vue-next';
+import Icons from 'unplugin-icons/vite';
+import IconsResolve from 'unplugin-icons/resolver';
 
 export default defineConfig({
   plugins: [
     vue(),
+    Components({
+      resolvers: [BootstrapVueNextResolver(), IconsResolve()],
+      dts: true,
+    }),
+    Icons({
+      compiler: 'vue3',
+      autoInstall: false,
+    }),
   ],
-  define: {
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
-  },
-  // Use absolute paths for web server (prevents issues with nested routes)
-  base: '/ui-old/',
+  base: '/',
   build: {
-    outDir: '../server/static/ui-old/',
+    outDir: '../server/static/',
     assetsDir: './assets',
     emptyOutDir: true,
-    minify: 'esbuild',
-    cssMinify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Only chunk node_modules, ignore CommonJS entry points
           if (id.includes('node_modules') && !id.includes('?commonjs-entry')) {
-            // Bootstrap and its dependencies
-            if (id.includes('bootstrap-vue') || id.includes('/bootstrap/')) {
+            if (id.includes('bootstrap-vue-next') || id.includes('/bootstrap/')) {
               return 'bootstrap-vendor';
             }
-            // Core Vue ecosystem
-            if (id.includes('/vue/') || id.includes('vue-router') ||
-                id.includes('/vuex/') || id.includes('vuex-persistedstate')) {
+            if (
+              id.includes('/vue/') ||
+              id.includes('vue-router') ||
+              id.includes('/pinia/') ||
+              id.includes('pinia-plugin-persistedstate')
+            ) {
               return 'vue-vendor';
             }
-            // Utilities (lodash uses specific imports)
-            if (id.includes('/lodash/') || id.includes('loglevel') ||
-                id.includes('deep-object-diff') || id.includes('contrast-color')) {
+            if (
+              id.includes('/lodash/') ||
+              id.includes('loglevel') ||
+              id.includes('deep-object-diff') ||
+              id.includes('contrast-color')
+            ) {
               return 'utils-vendor';
             }
-            // WebSocket
-            if (id.includes('vue-native-websocket')) {
-              return 'websocket-vendor';
-            }
-            // Documentation dependencies
             if (id.includes('marked') || id.includes('dompurify') || id.includes('fuse.js')) {
               return 'docs-vendor';
             }
-            // Everything else from node_modules goes to a general vendor chunk
+            // Only the script editor uses these, so keep them out of the eagerly loaded
+            // catch-all `vendor` chunk.
+            if (id.includes('/yjs/') || id.includes('/lib0/')) {
+              return 'yjs-vendor';
+            }
             return 'vendor';
           }
         },
@@ -53,19 +62,6 @@ export default defineConfig({
         assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
-  },
-  optimizeDeps: {
-    include: [
-      'vue',
-      'vue-router',
-      'vuex',
-      'bootstrap-vue',
-      'jquery',
-      'lodash',
-    ],
-    exclude: [
-      'fuse.js',
-    ],
   },
   resolve: {
     alias: [
@@ -81,6 +77,10 @@ export default defineConfig({
       scss: {
         api: 'modern-compiler',
         loadPaths: [path.resolve(__dirname, 'node_modules')],
+        // Bootstrap 5 and Bootswatch still use legacy Sass @import syntax;
+        // suppress those third-party deprecation warnings.
+        quietDeps: true,
+        silenceDeprecations: ['import', 'global-builtin', 'color-functions'],
       },
     },
     devSourcemap: true,

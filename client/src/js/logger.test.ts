@@ -1,33 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const getters: Record<string, unknown> = {};
+const userState: { authToken: string | null } = { authToken: null };
 
-vi.mock('@/store/store', () => ({ default: { getters, watch: vi.fn() } }));
+vi.mock('@/stores/user', () => ({ useUserStore: () => userState }));
+vi.mock('@/stores/system', () => ({
+  useSystemStore: () => ({ settings: { client_log_enabled: true, client_log_level: 'DEBUG' } }),
+}));
 
 describe('remote logger', () => {
   const fetchMock = vi.fn(() => Promise.resolve(new Response('{}')));
-  let log: typeof import('loglevel').default;
-
-  const sentBatches = () =>
-    fetchMock.mock.calls.map((call) => {
-      const [, init] = call as unknown as [string, RequestInit];
-      return {
-        auth: (init.headers as Record<string, string>).Authorization,
-        messages: (JSON.parse(init.body as string).batch as { message: string }[]).map(
-          (e) => e.message
-        ),
-      };
-    });
 
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.resetModules();
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
-    getters.AUTH_TOKEN = null;
-    getters.SETTINGS = { client_log_enabled: true, client_log_level: 'DEBUG' };
-    await (await import('./logger')).initRemoteLogging();
-    log = (await import('loglevel')).default;
+    userState.authToken = null;
+    const { initRemoteLogging } = await import('./logger');
+    initRemoteLogging();
   });
 
   afterEach(() => {
@@ -35,31 +25,38 @@ describe('remote logger', () => {
     vi.unstubAllGlobals();
   });
 
-  it('does not post while logged out and flushes the held entries after login', async () => {
-    log.error('queued while logged out');
+  it('holds log entries until a token exists, then sends them with it', async () => {
+    const log = (await import('loglevel')).default;
+    log.error('before login');
     await vi.advanceTimersByTimeAsync(2000);
     expect(fetchMock).not.toHaveBeenCalled();
 
-    getters.AUTH_TOKEN = 'tok';
-    log.error('logged in');
+    userState.authToken = 'tok';
+    log.error('after login');
     await vi.advanceTimersByTimeAsync(2000);
 
-    const [batch] = sentBatches();
-    expect(batch.auth).toBe('Bearer tok');
-    expect(batch.messages).toEqual(
-      expect.arrayContaining(['queued while logged out', 'logged in'])
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
+    const messages = JSON.parse(init.body as string).batch.map(
+      (e: { message: string }) => e.message
     );
+    expect(messages).toEqual(expect.arrayContaining(['before login', 'after login']));
   });
 
-  it('caps the logged-out queue at the 50 most recent entries', async () => {
+  it('keeps only the most recent 50 entries while logged out', async () => {
+    const log = (await import('loglevel')).default;
     for (let i = 0; i < 80; i++) log.error(`entry ${i}`);
-    getters.AUTH_TOKEN = 'tok';
+
+    userState.authToken = 'tok';
+    await vi.advanceTimersByTimeAsync(2000);
     log.error('final');
     await vi.advanceTimersByTimeAsync(2000);
 
-    const [batch] = sentBatches();
-    expect(batch.messages.length).toBeLessThanOrEqual(50);
-    expect(batch.messages).not.toContain('entry 0');
-    expect(batch.messages).toContain('final');
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const batch = JSON.parse(init.body as string).batch as { message: string }[];
+    expect(batch.length).toBeLessThanOrEqual(50);
+    expect(batch.map((e) => e.message)).not.toContain('entry 0');
+    expect(batch.map((e) => e.message)).toContain('final');
   });
 });

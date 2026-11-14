@@ -1,7 +1,7 @@
-type NamedItem = { id: number; name: string };
-type LinePart = { character_id?: number | null; character_group_id?: number | null };
-type ScriptLine = { line_parts?: LinePart[] };
-type TmpScript = Record<string, ScriptLine[]>;
+export type NamedItem = { id: number; name: string };
+export type LinePart = { character_id?: number | null; character_group_id?: number | null };
+export type ScriptLine = { line_parts?: LinePart[] };
+export type TmpScript = Record<string, ScriptLine[]>;
 export type SelectOption = { value: number | null; text: string };
 export type CombinedSelectOption =
   { value: null; text: string } | { label: string; options: { value: string; text: string }[] };
@@ -24,10 +24,6 @@ function countOccurrences(
   return counts;
 }
 
-/**
- * Returns character options sorted by frequency across the loaded script pages,
- * or null if no character data is present in tmpScript (caller should use default order).
- */
 export function buildMruCharacterOptions(
   characters: NamedItem[],
   tmpScript: TmpScript
@@ -38,10 +34,6 @@ export function buildMruCharacterOptions(
   return [{ value: null, text: 'N/A' }, ...sorted.map((c) => ({ value: c.id, text: c.name }))];
 }
 
-/**
- * Returns character group options sorted by frequency across the loaded script pages,
- * or null if no group data is present in tmpScript (caller should use default order).
- */
 export function buildMruCharacterGroupOptions(
   characterGroups: NamedItem[],
   tmpScript: TmpScript
@@ -52,12 +44,6 @@ export function buildMruCharacterGroupOptions(
   return [{ value: null, text: 'N/A' }, ...sorted.map((g) => ({ value: g.id, text: g.name }))];
 }
 
-/**
- * Builds a grouped options list for a combined character + character group dropdown.
- * Each section is independently sorted by MRU frequency when useMru is true and
- * frequency data is available; otherwise original order is preserved.
- * Option values use "c:<id>" for characters and "g:<id>" for groups.
- */
 export function buildCombinedCharacterOptions(
   characters: NamedItem[],
   characterGroups: NamedItem[],

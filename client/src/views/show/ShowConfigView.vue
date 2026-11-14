@@ -1,11 +1,11 @@
 <template>
   <div class="show">
-    <h1>{{ $store.state.currentShow['name'] }}</h1>
-    <b-container class="mx-0 show-config-container" fluid>
-      <b-row>
-        <b-col cols="1">
-          <b-button-group vertical class="sticky-nav" :style="{ top: navbarHeight + 'px' }">
-            <b-button
+    <h1>{{ systemStore.currentShow?.name }}</h1>
+    <BContainer fluid class="mx-0 show-config-container">
+      <BRow>
+        <BCol cols="1">
+          <BButtonGroup vertical class="sticky-nav" :style="{ top: navbarHeight + 'px' }">
+            <BButton
               :disabled="!shouldViewShowConfig"
               replace
               :to="{ name: 'show-config' }"
@@ -13,8 +13,8 @@
               exact-active-class="active"
             >
               Show
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldViewShowConfig"
               replace
               :to="{ name: 'show-config-stage' }"
@@ -22,8 +22,8 @@
               active-class="active"
             >
               Staging
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldViewShowConfig"
               replace
               :to="{ name: 'show-config-cast' }"
@@ -31,8 +31,8 @@
               active-class="active"
             >
               Cast
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldViewShowConfig"
               replace
               :to="{ name: 'show-config-characters' }"
@@ -40,8 +40,8 @@
               active-class="active"
             >
               Characters
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldViewShowConfig"
               replace
               :to="{ name: 'show-config-acts-scenes' }"
@@ -49,8 +49,8 @@
               active-class="active"
             >
               Acts & Scenes
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldShowScriptConfig"
               replace
               :to="{ name: 'show-config-script-revisions' }"
@@ -58,8 +58,8 @@
               active-class="active"
             >
               Revisions
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldShowScriptConfig"
               replace
               :to="{ name: 'show-config-script' }"
@@ -67,8 +67,8 @@
               active-class="active"
             >
               Script
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldShowCueConfig"
               replace
               :to="{ name: 'show-config-cues' }"
@@ -76,8 +76,8 @@
               active-class="active"
             >
               Cues
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldViewShowConfig"
               replace
               :to="{ name: 'show-config-mics' }"
@@ -85,8 +85,8 @@
               active-class="active"
             >
               Mics
-            </b-button>
-            <b-button
+            </BButton>
+            <BButton
               :disabled="!shouldShowSessionConfig"
               replace
               :to="{ name: 'show-sessions' }"
@@ -94,105 +94,81 @@
               active-class="active"
             >
               Sessions
-            </b-button>
-          </b-button-group>
-        </b-col>
-        <b-col cols="11">
-          <router-view />
-        </b-col>
-      </b-row>
-    </b-container>
+            </BButton>
+          </BButtonGroup>
+        </BCol>
+        <BCol cols="11">
+          <RouterView />
+        </BCol>
+      </BRow>
+    </BContainer>
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { mapGetters } from 'vuex';
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, onBeforeMount, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
+import { useSystemStore } from '@/stores/system';
+import { toast } from '@/js/toast';
 
-export default defineComponent({
-  name: 'ShowView',
-  data() {
-    return {
-      navbarHeight: 0,
-    };
-  },
-  computed: {
-    ...mapGetters([
-      'IS_SHOW_EDITOR',
-      'IS_SHOW_READER',
-      'IS_CUE_EDITOR',
-      'IS_CUE_READER',
-      'IS_SCRIPT_EDITOR',
-      'IS_SCRIPT_READER',
-      'IS_SHOW_EXECUTOR',
-    ]),
-    shouldViewShowConfig(): boolean {
-      return (this as any).IS_SHOW_EDITOR || (this as any).IS_SHOW_READER;
-    },
-    shouldShowCueConfig(): boolean {
-      return (
-        this.shouldViewShowConfig || (this as any).IS_CUE_EDITOR || (this as any).IS_CUE_READER
-      );
-    },
-    shouldShowScriptConfig(): boolean {
-      return (
-        this.shouldViewShowConfig ||
-        (this as any).IS_SCRIPT_EDITOR ||
-        (this as any).IS_SCRIPT_READER
-      );
-    },
-    shouldShowSessionConfig(): boolean {
-      return this.shouldViewShowConfig || (this as any).IS_SHOW_EXECUTOR;
-    },
-    requiresRedirect(): boolean {
-      return (
-        !this.shouldViewShowConfig &&
-        !this.shouldShowCueConfig &&
-        !this.shouldShowScriptConfig &&
-        !this.shouldShowSessionConfig
-      );
-    },
-  },
-  watch: {
-    requiresRedirect(): void {
-      if (this.requiresRedirect) {
-        (this as any).$toast.warning('Something went wrong viewing show config page');
-        this.$router.replace('/');
-      }
-    },
-  },
-  beforeMount(): void {
-    if (!this.shouldViewShowConfig) {
-      if (this.shouldShowCueConfig) {
-        this.$router.replace({ name: 'show-config-cues' });
-      } else if (this.shouldShowScriptConfig) {
-        this.$router.replace({ name: 'show-config-script' });
-        this.$router.replace({ name: 'show-config-script-revisions' });
-      } else if (this.shouldShowSessionConfig) {
-        this.$router.replace({ name: 'show-sessions' });
-      } else {
-        (this as any).$toast.warning('Something went wrong viewing show config page');
-        this.$router.replace('/');
-      }
+const router = useRouter();
+const systemStore = useSystemStore();
+
+const navbarHeight = ref(0);
+
+const shouldViewShowConfig = computed(() => systemStore.isShowEditor || systemStore.isShowReader);
+const shouldShowCueConfig = computed(
+  () => shouldViewShowConfig.value || systemStore.isCueEditor || systemStore.isCueReader
+);
+const shouldShowScriptConfig = computed(
+  () => shouldViewShowConfig.value || systemStore.isScriptEditor || systemStore.isScriptReader
+);
+const shouldShowSessionConfig = computed(
+  () => shouldViewShowConfig.value || systemStore.isShowExecutor
+);
+const requiresRedirect = computed(
+  () =>
+    !shouldViewShowConfig.value &&
+    !shouldShowCueConfig.value &&
+    !shouldShowScriptConfig.value &&
+    !shouldShowSessionConfig.value
+);
+
+onBeforeMount(() => {
+  if (!shouldViewShowConfig.value) {
+    if (shouldShowCueConfig.value) {
+      router.replace({ name: 'show-config-cues' });
+    } else if (shouldShowScriptConfig.value) {
+      // Fix V2 double-redirect bug — redirect to revisions only
+      router.replace({ name: 'show-config-script-revisions' });
+    } else if (shouldShowSessionConfig.value) {
+      router.replace({ name: 'show-sessions' });
+    } else {
+      toast.warning('Something went wrong viewing show config page');
+      router.replace('/');
     }
-  },
-  mounted(): void {
-    this.calculateNavbarHeight();
-    window.addEventListener('resize', this.calculateNavbarHeight);
-  },
-  beforeDestroy(): void {
-    window.removeEventListener('resize', this.calculateNavbarHeight);
-  },
-  methods: {
-    calculateNavbarHeight(): void {
-      const navbar = document.querySelector('.navbar');
-      if (navbar) {
-        this.navbarHeight = (navbar as HTMLElement).offsetHeight;
-      } else {
-        this.navbarHeight = 56;
-      }
-    },
-  },
+  }
+});
+
+watch(requiresRedirect, (val) => {
+  if (val) {
+    toast.warning('Something went wrong viewing show config page');
+    router.replace('/');
+  }
+});
+
+function calculateNavbarHeight(): void {
+  const navbar = document.querySelector('.navbar');
+  navbarHeight.value = navbar ? (navbar as HTMLElement).offsetHeight : 56;
+}
+
+onMounted(() => {
+  calculateNavbarHeight();
+  window.addEventListener('resize', calculateNavbarHeight);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', calculateNavbarHeight);
 });
 </script>
 
@@ -204,6 +180,6 @@ export default defineComponent({
 .sticky-nav {
   position: sticky;
   padding: 10px 0;
-  background: var(--body-background);
+  background: var(--bs-body-bg);
 }
 </style>

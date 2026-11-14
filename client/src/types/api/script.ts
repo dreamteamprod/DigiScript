@@ -41,7 +41,7 @@ export interface StageDirectionStyle {
   background_colour: string | null;
 }
 
-export type ScriptCut = number;
+export type ScriptCut = number; // NOSONAR
 
 export interface CompiledScript {
   revision_id: number;

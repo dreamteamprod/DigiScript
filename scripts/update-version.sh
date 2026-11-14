@@ -54,12 +54,6 @@ cd "$PROJECT_ROOT/client"
 pnpm version "$VERSION" --no-git-tag-version --allow-same-version --no-git-checks > /dev/null
 print_success "client/package.json updated"
 
-# Update client-v3/package.json
-print_info "Updating client-v3/package.json..."
-cd "$PROJECT_ROOT/client-v3"
-pnpm version "$VERSION" --no-git-tag-version --allow-same-version --no-git-checks > /dev/null
-print_success "client-v3/package.json updated"
-
 # Update server/pyproject.toml
 print_info "Updating server/pyproject.toml..."
 cd "$PROJECT_ROOT/server"
@@ -79,5 +73,4 @@ echo -e "${GREEN}Version successfully updated to $VERSION${NC}"
 echo
 echo "Updated files:"
 echo "  - client/package.json"
-echo "  - client-v3/package.json"
 echo "  - server/pyproject.toml"
