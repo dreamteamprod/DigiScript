@@ -347,11 +347,17 @@ test('a second browser can edit the same script at the same time', async ({ brow
   // same server-owned trailing page stops Next Page at the same page number for both.
   await expect(firstRow(page2)).toHaveText((await firstRow(page).textContent()) ?? '');
 
-  // Phase 4 Step B: both editors see each other in the presence panel. Checks
-  // for the two specific entries that matter, not an exact badge count —
-  // `page`'s own entry survived a reload earlier in this file, which
-  // ScriptRoom.add_client's internal_id de-duplication keeps from leaving a
-  // stale ghost behind, but doesn't promise there's nothing else to count.
+  // Phase 4 Step B: both editors see each other in the presence panel.
+  // `ctx4`'s viewer (opened in the earlier live-viewing test, not closed until
+  // "the non-editing viewer sees the new line live" below) is also still in
+  // the room at this point, so the exact count here is 3, not 2 — asserting
+  // it pins that there is no extra ghost entry left behind by the earlier
+  // `page.reload()` test, which an exact `(you)` count of 1 (not 2) confirms
+  // too: a stale duplicate of page's own entry would also match `(you)`.
+  await expect(page.locator('.presence-row .badge')).toHaveCount(3);
+  await expect(page2.locator('.presence-row .badge')).toHaveCount(3);
+  await expect(page.locator('.presence-row .badge:has-text("(you)")')).toHaveCount(1);
+  await expect(page2.locator('.presence-row .badge:has-text("(you)")')).toHaveCount(1);
   await expect(page.locator('.presence-row')).toContainText('(you) · editor');
   await expect(page2.locator('.presence-row')).toContainText('(you) · editor');
   await expect(page.locator('.presence-row')).toContainText('admin · editor');

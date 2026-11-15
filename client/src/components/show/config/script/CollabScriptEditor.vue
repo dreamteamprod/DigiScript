@@ -364,8 +364,10 @@ const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
 // auto-joins as a background viewer too (D11: cuts stay REST-always, the join is
 // just for live sync), so that role alone would show them as merely "viewing",
 // not cutting. Cross-referencing scriptConfigStore.cutters (keyed by the same
-// internal_id/client_id) lets the badge say "cutting" instead, matching what the
-// disable-reason logic above already knows.
+// internal_id/client_id) lets the badge say "cutting" instead — but only for an
+// actual viewer: an editor who is also cutting (e.g. mid-REQUEST_SCRIPT_CUTS
+// while still holding the edit lock) must keep showing as "editor", since that's
+// the stronger/more specific role and what the rest of this page's state tracks.
 interface PresenceEntry {
   key: string;
   username: string;
@@ -377,7 +379,12 @@ const presenceEntries = computed<PresenceEntry[]>(() => {
   return draftStore.members.map((m, i) => ({
     key: m.client_id ?? `${m.user_id ?? 'unknown'}-${i}`,
     username: m.username,
-    role: m.client_id && cutterIds.has(m.client_id) ? 'cutting' : m.role,
+    role:
+      m.role === 'editor'
+        ? 'editor'
+        : m.client_id && cutterIds.has(m.client_id)
+          ? 'cutting'
+          : m.role,
     isSelf: m.client_id !== null && m.client_id === wsStore.internalUUID,
   }));
 });

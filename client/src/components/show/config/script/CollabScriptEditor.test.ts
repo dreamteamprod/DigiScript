@@ -826,6 +826,31 @@ describe('CollabScriptEditor', () => {
       expect(w.find('.presence-row').text()).toContain('alex · cutting');
     });
 
+    it('shows an editor who is also cutting as editor, not cutting', async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [
+        { user_id: 2, username: 'alex', role: 'editor', client_id: 'other' },
+      ];
+      useScriptConfigStore().cutters = [{ internal_id: 'other', username: 'alex' }];
+      await flushPromises();
+
+      const row = w.find('.presence-row');
+      expect(row.text()).toContain('alex · editor');
+      expect(row.text()).not.toContain('cutting');
+    });
+
+    it('renders a member with no client_id without crashing or marking them self', async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [
+        { user_id: 3, username: 'guest', role: 'viewer', client_id: null },
+      ];
+      await flushPromises();
+
+      const row = w.find('.presence-row');
+      expect(row.text()).toContain('guest · viewer');
+      expect(row.text()).not.toContain('(you)');
+    });
+
     it('does not render the row at all when the room is empty', async () => {
       const w = await mountEditor();
       useScriptDraftStore().members = [];
