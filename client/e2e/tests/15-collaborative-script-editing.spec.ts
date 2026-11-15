@@ -368,7 +368,7 @@ test('a second browser can edit the same script at the same time', async ({ brow
   // not position — Done's auto-chain into another blank line would otherwise make a
   // position-based locator ambiguous once this row is no longer last.
   await page2.click('button:has-text("Add Dialogue")');
-  await fillOpenLineEditor(page2, {
+  const markerEditor = await fillOpenLineEditor(page2, {
     act: 'Act 1',
     scene: 'Scene 1',
     text: 'Step C live-presence marker',
@@ -381,10 +381,37 @@ test('a second browser can edit the same script at the same time', async ({ brow
   });
 
   // Deleting it (not Done, which would chain into another blank line) removes the
-  // row — and with it, the broadcast that kept the badge showing.
-  await page2.locator('button.btn-danger:has-text("Delete")').first().click();
+  // row — and with it, the broadcast that kept the badge showing. Reuses
+  // fillOpenLineEditor()'s own already-resolved locator for the editor, rather than
+  // re-deriving one — the editor's root `div.row` nests further `.row`s of its own
+  // (e.g. around the Done/Delete button group), so a filter re-applied from scratch
+  // risks matching more than one of them. `:visible` is also needed: the inactive
+  // "Stage Direction Styles" sub-tab stays mounted (just hidden), and resolving
+  // fillOpenLineEditor()'s own broad `div.row` match can land on an ancestor that
+  // also contains that tab's own, unrelated "Delete" button.
+  await markerEditor.locator('button.btn-danger:has-text("Delete"):visible').click();
   await expect(
     page.locator('.script-line-row').filter({ hasText: 'Step C live-presence marker' })
+  ).toHaveCount(0);
+
+  // Two different lines, two different editors, open at the same time: page also
+  // opens a new line of its own; page2 (who hasn't opened it) sees the badge on
+  // that distinct row too — proving this isn't just a one-way/single-line check.
+  await page.click('button:has-text("Add Dialogue")');
+  const secondMarkerEditor = await fillOpenLineEditor(page, {
+    act: 'Act 1',
+    scene: 'Scene 1',
+    text: 'Step C second live-presence marker',
+  });
+  const secondMarkerRow = page2
+    .locator('.script-line-row')
+    .filter({ hasText: 'Step C second live-presence marker' });
+  await expect(secondMarkerRow.locator('.remote-editors .badge')).toContainText('admin', {
+    timeout: 10_000,
+  });
+  await secondMarkerEditor.locator('button.btn-danger:has-text("Delete"):visible').click();
+  await expect(
+    page2.locator('.script-line-row').filter({ hasText: 'Step C second live-presence marker' })
   ).toHaveCount(0);
 
   async function lastPageReached(p: Page): Promise<string | null> {
@@ -398,10 +425,10 @@ test('a second browser can edit the same script at the same time', async ({ brow
   expect(await lastPageReached(page2)).toBe(await lastPageReached(page));
 
   await stopEditing(page2).click();
-  // The Step C marker line's add-then-delete above left the shared draft dirty (Yjs
+  // The Step C marker lines' add-then-delete above left the shared draft dirty (Yjs
   // tracks operations, not a net diff against the last save), so Stop Editing now
   // offers a choice instead of completing immediately — Keep Draft, since the draft's
-  // state (sans the marker line) is exactly what later tests in this file still expect
+  // state (sans the marker lines) is exactly what later tests in this file still expect
   // to build on.
   await waitForModal(page2, 'Stop Editing');
   await page2.click('.modal.show button:has-text("Keep Draft")');

@@ -506,7 +506,17 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       if (clientId == null) return false;
       const state: AwarenessState = { clientId, openLineUids };
       const bytes = new TextEncoder().encode(JSON.stringify(state));
-      return provider.sendAwareness(bytes);
+      const sent = provider.sendAwareness(bytes);
+      if (!sent) {
+        // Same silent-drop concern as yjsSync/yjsUpdate above: a socket that is
+        // momentarily not open drops this with no other signal. Unlike those,
+        // nothing here is incorrect without it — just a stale/missing presence
+        // badge until the next broadcast (a later editingLines change, or the
+        // members-watch re-announce on reconnect's own ROOM_MEMBERS) — but it's
+        // still worth a log line rather than none.
+        log.warn('scriptDraft: sendOpenLines failed to send, awareness may be stale');
+      }
+      return sent;
     },
 
     roomMembers(data: RoomMembersMessage): void {

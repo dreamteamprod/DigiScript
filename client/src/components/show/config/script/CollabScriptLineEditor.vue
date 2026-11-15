@@ -1,7 +1,14 @@
 <template>
   <BRow>
     <BCol v-if="remoteEditors && remoteEditors.length > 0" cols="12" class="remote-editors">
-      <BBadge v-for="name in remoteEditors" :key="name" variant="warning" pill class="me-1">
+      <BBadge
+        v-for="name in remoteEditors"
+        :key="name"
+        variant="warning"
+        pill
+        class="me-1"
+        :title="`${name} is editing this line`"
+      >
         {{ name }} ✎
       </BBadge>
     </BCol>

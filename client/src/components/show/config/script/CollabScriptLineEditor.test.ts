@@ -42,6 +42,7 @@ const stubs = {
   BButton: passthrough('button'),
   BButtonGroup: passthrough('div'),
   BAlert: passthrough('div'),
+  BBadge: passthrough('span'),
   BFormSelect: SelectStub,
   CollabScriptLinePart: PartStub,
 };
@@ -236,5 +237,24 @@ describe('CollabScriptLineEditor', () => {
     });
     expect(wrapper.text()).toContain('Cue Lines have no editable content.');
     expect(wrapper.findAll('.part-stub')).toHaveLength(0);
+  });
+
+  describe('remote-editors badge (Phase 4 Step C)', () => {
+    it('does not render the badge row when no one else has this line open', () => {
+      wrapper = mountEditor({ remoteEditors: [] });
+      expect(wrapper.find('.remote-editors').exists()).toBe(false);
+    });
+
+    it('renders a badge per remote editor, with an accessible title', () => {
+      wrapper = mountEditor({ remoteEditors: ['alex', 'blair'] });
+      const row = wrapper.find('.remote-editors');
+      expect(row.exists()).toBe(true);
+      expect(row.text()).toContain('alex');
+      expect(row.text()).toContain('blair');
+      const badges = row.findAll('span');
+      expect(badges.find((b) => b.text().includes('alex'))?.attributes('title')).toBe(
+        'alex is editing this line'
+      );
+    });
   });
 });

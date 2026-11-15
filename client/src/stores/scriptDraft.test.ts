@@ -485,6 +485,26 @@ describe('scriptDraft store', () => {
       expect(store.remoteOpenLines).toEqual({});
     });
 
+    it('yjsAwareness drops a payload whose openLineUids is not an array', () => {
+      const store = useScriptDraftStore();
+
+      store.yjsAwareness({
+        payload: btoa(JSON.stringify({ clientId: 'client-a', openLineUids: 'line-1' })),
+      });
+
+      expect(store.remoteOpenLines).toEqual({});
+    });
+
+    it('yjsAwareness filters out non-string entries from a mixed-type openLineUids array', () => {
+      const store = useScriptDraftStore();
+
+      store.yjsAwareness({
+        payload: btoa(JSON.stringify({ clientId: 'client-a', openLineUids: ['line-1', 42, null] })),
+      });
+
+      expect(store.remoteOpenLines).toEqual({ 'client-a': ['line-1'] });
+    });
+
     it('roomMembers prunes remoteOpenLines entries for members no longer in the room', () => {
       const store = useScriptDraftStore();
       store.yjsAwareness({

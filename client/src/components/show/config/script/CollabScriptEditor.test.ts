@@ -37,7 +37,7 @@ const ViewerStub = defineComponent({
     lineIndex: { type: Number, default: 0 },
     remoteEditors: { type: Array, default: () => [] },
   },
-  emits: ['edit-line'],
+  emits: ['edit-line', 'insert-dialogue'],
   render() {
     return h('div', { class: 'row-stub' }, (this.line as { _uid?: string })._uid ?? 'rest');
   },
@@ -907,6 +907,77 @@ describe('CollabScriptEditor', () => {
       expect(state.openLineUids).toHaveLength(1);
     });
 
+    it('broadcasts the open line uid when an existing line is opened via Edit', async () => {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [snap('line-1')] });
+      await flushPromises();
+      sendObj.mockClear();
+
+      w.findComponent(ViewerStub).vm.$emit('edit-line');
+      await flushPromises();
+
+      const state = decodeAwareness();
+      expect(state.openLineUids).toEqual(['line-1']);
+    });
+
+    it('broadcasts an empty open-line set when an open line is deleted', async () => {
+      // seedRealPage alone (no fake snap() fixture) — the real Y.Doc write it
+      // triggers would otherwise resync pageSnapshots and wipe a fixture line out
+      // from under the test.
+      const w = await mountAsEditor();
+      syncDraft({ '1': [] });
+      seedRealPage(1);
+      await flushPromises();
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+      sendObj.mockClear();
+
+      // deleteLine() clears latestAddedLine first, so this does not chain into
+      // another blank line the way Done would — editingLines ends up truly empty.
+      w.findComponent(LineEditorStub).vm.$emit('deleteLine');
+      await flushPromises();
+
+      const state = decodeAwareness();
+      expect(state.openLineUids).toEqual([]);
+    });
+
+    it('broadcasts the newly inserted line uid when a line is opened via an Insert menu item', async () => {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [] });
+      seedRealPage(1);
+      await flushPromises();
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+      // Closes the first line (now a ViewerStub) and chains into a second, open one.
+      w.findComponent(LineEditorStub).vm.$emit('doneEditing');
+      await flushPromises();
+      sendObj.mockClear();
+
+      w.findComponent(ViewerStub).vm.$emit('insert-dialogue');
+      await flushPromises();
+
+      const state = decodeAwareness();
+      // Two lines now open: the auto-chained one from Done, and the newly
+      // inserted one — proves insertLineAt's own broadcastOpenLines call fires,
+      // on top of (not instead of) what was already open.
+      expect(state.openLineUids).toHaveLength(2);
+    });
+
+    it('broadcasts an empty open-line set when editor status is lost (Stop Editing confirmed)', async () => {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [snap('line-1')] });
+      await flushPromises();
+      w.findComponent(ViewerStub).vm.$emit('edit-line');
+      await flushPromises();
+      sendObj.mockClear();
+
+      useScriptConfigStore().editors = [];
+      await flushPromises();
+
+      const state = decodeAwareness();
+      expect(state.openLineUids).toEqual([]);
+    });
+
     it('broadcasts an empty open-line set once an existing (non-chaining) line is closed', async () => {
       const w = await mountAsEditor();
       syncDraft({ '1': [snap('line-1')] });
@@ -955,6 +1026,38 @@ describe('CollabScriptEditor', () => {
       const line2 = viewers.find((c) => (c.props('line') as { _uid: string })._uid === 'line-2')!;
       expect(line1.props('remoteEditors')).toEqual(['alex']);
       expect(line2.props('remoteEditors')).toEqual([]);
+    });
+
+    it('dedupes two different client_ids sharing the same username on the same line', async () => {
+      // The e2e harness for this exact feature logs both browsers in as "admin", so
+      // two sessions of the same user on one line is the normal setup, not a corner
+      // case — without dedup this would push 'admin' twice, colliding on :key.
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('line-1')] });
+      useScriptDraftStore().members = [
+        { user_id: 1, username: 'admin', role: 'viewer', client_id: 'tab-a' },
+        { user_id: 1, username: 'admin', role: 'viewer', client_id: 'tab-b' },
+      ];
+      useScriptDraftStore().remoteOpenLines = { 'tab-a': ['line-1'], 'tab-b': ['line-1'] };
+      await flushPromises();
+
+      const line1 = w
+        .findAllComponents(ViewerStub)
+        .find((c) => (c.props('line') as { _uid: string })._uid === 'line-1')!;
+      expect(line1.props('remoteEditors')).toEqual(['admin']);
+    });
+
+    it('skips a remoteOpenLines entry for a client_id not (yet) in members, rather than showing "unknown"', async () => {
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('line-1')] });
+      useScriptDraftStore().members = [];
+      useScriptDraftStore().remoteOpenLines = { 'not-a-member': ['line-1'] };
+      await flushPromises();
+
+      const line1 = w
+        .findAllComponents(ViewerStub)
+        .find((c) => (c.props('line') as { _uid: string })._uid === 'line-1')!;
+      expect(line1.props('remoteEditors')).toEqual([]);
     });
   });
 

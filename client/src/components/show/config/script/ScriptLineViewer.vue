@@ -106,11 +106,6 @@
     </template>
 
     <BCol cols="1" align-self="end">
-      <div v-if="remoteEditors && remoteEditors.length > 0" class="remote-editors">
-        <BBadge v-for="name in remoteEditors" :key="name" variant="warning" pill class="me-1">
-          {{ name }} ✎
-        </BBadge>
-      </div>
       <BButtonGroup v-if="bulkEditMode && canEdit && !isCutMode">
         <BButton
           size="sm"
@@ -147,6 +142,24 @@
           >
         </BDropdown>
       </BButtonGroup>
+    </BCol>
+
+    <!-- Full-width (cols="12", pushing the already-filled columns above it onto a
+         wrap within the same Bootstrap row) rather than a narrow fixed-width column
+         or a second `.script-line-row` sibling — the former clipped/wrapped awkwardly
+         for a longer username, and the latter would double-count this row anywhere
+         `.script-line-row` is counted (e.g. the E2E and Vitest row-count assertions). -->
+    <BCol v-if="remoteEditors && remoteEditors.length > 0" cols="12" class="remote-editors">
+      <BBadge
+        v-for="name in remoteEditors"
+        :key="name"
+        variant="warning"
+        pill
+        class="me-1"
+        :title="`${name} is editing this line`"
+      >
+        {{ name }} ✎
+      </BBadge>
     </BCol>
   </BRow>
 </template>
@@ -325,7 +338,7 @@ function cutLinePart(partIndex: number): void {
 .remote-editors {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 2px;
+  margin-top: 0.25rem;
 }
 </style>
