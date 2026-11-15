@@ -124,6 +124,7 @@ Once editing, you get the same **Add Dialogue** dropdown and **Bulk Edit** (set 
 - If auto-save is enabled (User Settings), the draft saves itself periodically as a quiet toast notification rather than the classic editor's blocking "Saving Script" dialog — the collaborative draft is already synced to every other editor and checkpointed server-side, so a missed autosave tick is lower-stakes than classic's REST-only autosave. It silently skips a tick if the draft currently has an invalid line somewhere, rather than showing an error on every editor's screen — it catches up once that line is fixed.
 - An **● Unsaved draft** indicator next to the page number tells everyone, editor or not, that there is unsaved work in progress, even if they aren't editing right now.
 - A **"Here now"** badge row in the sticky header lists everyone currently in the shared draft, including you (marked **(you)**), with their role: **editor**, **viewer**, or **cutting** (a viewer who has joined to cut — see Cut Mode below). It updates live as people join or leave.
+- A small badge appears directly on a line when someone else currently has it open for editing, showing their username — on the line itself even while you also have it open at the same time, not just while you're viewing it. It clears as soon as they close that line (or disconnect).
 
 Cut mode (see below) is unavailable while a draft exists, and vice versa — editing and cutting are mutually exclusive in both modes.
 

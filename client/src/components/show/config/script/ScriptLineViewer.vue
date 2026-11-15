@@ -106,6 +106,11 @@
     </template>
 
     <BCol cols="1" align-self="end">
+      <div v-if="remoteEditors && remoteEditors.length > 0" class="remote-editors">
+        <BBadge v-for="name in remoteEditors" :key="name" variant="warning" pill class="me-1">
+          {{ name }} ✎
+        </BBadge>
+      </div>
       <BButtonGroup v-if="bulkEditMode && canEdit && !isCutMode">
         <BButton
           size="sm"
@@ -173,6 +178,8 @@ const props = defineProps<{
   bulkEditMode?: boolean;
   isBulkStart?: boolean;
   isBulkEnd?: boolean;
+  /** Phase 4 Step C: usernames of other room members with this line open. */
+  remoteEditors?: string[];
 }>();
 
 const emit = defineEmits<{
@@ -314,5 +321,11 @@ function cutLinePart(partIndex: number): void {
   background-color: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
   transition: background-color 0.15s ease;
+}
+.remote-editors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
 }
 </style>

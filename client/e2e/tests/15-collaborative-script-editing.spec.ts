@@ -363,6 +363,30 @@ test('a second browser can edit the same script at the same time', async ({ brow
   await expect(page.locator('.presence-row')).toContainText('admin · editor');
   await expect(page2.locator('.presence-row')).toContainText('admin · editor');
 
+  // Phase 4 Step C: page2 opens a new line for editing; page (who hasn't opened it)
+  // sees a "remote editor" badge on that exact row. Keyed by its own marker text,
+  // not position — Done's auto-chain into another blank line would otherwise make a
+  // position-based locator ambiguous once this row is no longer last.
+  await page2.click('button:has-text("Add Dialogue")');
+  await fillOpenLineEditor(page2, {
+    act: 'Act 1',
+    scene: 'Scene 1',
+    text: 'Step C live-presence marker',
+  });
+  const markerRow = page
+    .locator('.script-line-row')
+    .filter({ hasText: 'Step C live-presence marker' });
+  await expect(markerRow.locator('.remote-editors .badge')).toContainText('admin', {
+    timeout: 10_000,
+  });
+
+  // Deleting it (not Done, which would chain into another blank line) removes the
+  // row — and with it, the broadcast that kept the badge showing.
+  await page2.locator('button.btn-danger:has-text("Delete")').first().click();
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: 'Step C live-presence marker' })
+  ).toHaveCount(0);
+
   async function lastPageReached(p: Page): Promise<string | null> {
     const next = p.locator('button:has-text("Next Page")');
     for (let i = 0; i < 20 && (await next.isEnabled()); i += 1) {
@@ -374,6 +398,14 @@ test('a second browser can edit the same script at the same time', async ({ brow
   expect(await lastPageReached(page2)).toBe(await lastPageReached(page));
 
   await stopEditing(page2).click();
+  // The Step C marker line's add-then-delete above left the shared draft dirty (Yjs
+  // tracks operations, not a net diff against the last save), so Stop Editing now
+  // offers a choice instead of completing immediately — Keep Draft, since the draft's
+  // state (sans the marker line) is exactly what later tests in this file still expect
+  // to build on.
+  await waitForModal(page2, 'Stop Editing');
+  await page2.click('.modal.show button:has-text("Keep Draft")');
+  await waitForModalClosed(page2);
   await expect(editButton(page2)).toBeVisible({ timeout: 10_000 });
 });
 

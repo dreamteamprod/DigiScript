@@ -1,5 +1,10 @@
 <template>
   <BRow>
+    <BCol v-if="remoteEditors && remoteEditors.length > 0" cols="12" class="remote-editors">
+      <BBadge v-for="name in remoteEditors" :key="name" variant="warning" pill class="me-1">
+        {{ name }} ✎
+      </BBadge>
+    </BCol>
     <BCol cols="2">
       <BRow>
         <BCol cols="6">
@@ -125,6 +130,8 @@ const props = defineProps<{
   previousLine: DraftScriptLine | null;
   nextLine: DraftScriptLine | null;
   stageDirectionStyles: StageDirectionStyle[];
+  /** Phase 4 Step C: usernames of other room members also editing this exact line. */
+  remoteEditors?: string[];
 }>();
 
 const emit = defineEmits<{
@@ -220,3 +227,12 @@ onMounted(() => {
   }
 });
 </script>
+
+<style scoped>
+.remote-editors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 0.25rem;
+}
+</style>

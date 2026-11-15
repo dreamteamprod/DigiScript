@@ -120,6 +120,7 @@
               :previous-line="draftPages.previousLineOf(currentPage, index)"
               :next-line="draftLines[index + 1] ?? null"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
+              :remote-editors="remoteEditorsByLineUid[line._uid] ?? []"
               @done-editing="doneEditingLine(line._uid)"
               @delete-line="deleteLine(line._uid)"
             />
@@ -135,6 +136,7 @@
               :previous-line="draftPages.previousLineOf(currentPage, index)"
               :can-edit="canEditDraft"
               :line-part-cuts="[]"
+              :remote-editors="remoteEditorsByLineUid[line._uid] ?? []"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
               :bulk-edit-mode="bulkEditMode"
@@ -388,6 +390,22 @@ const presenceEntries = computed<PresenceEntry[]>(() => {
     isSelf: m.client_id !== null && m.client_id === wsStore.internalUUID,
   }));
 });
+// Phase 4 Step C: inverts draftStore.remoteOpenLines (client_id -> open line uids) into
+// line uid -> usernames, so a line row can look up "who else has this open" by its own
+// _uid. A client_id with no resolvable username (e.g. briefly, during a role/member
+// transition) is skipped rather than shown as "unknown" — the entry self-heals on the
+// next ROOM_MEMBERS or awareness broadcast.
+const remoteEditorsByLineUid = computed<Record<string, string[]>>(() => {
+  const result: Record<string, string[]> = {};
+  for (const [clientId, lineUids] of Object.entries(draftStore.remoteOpenLines)) {
+    const username = draftStore.members.find((m) => m.client_id === clientId)?.username;
+    if (!username) continue;
+    for (const uid of lineUids) {
+      (result[uid] ??= []).push(username);
+    }
+  }
+  return result;
+});
 // A set comparison, not an ordered one: cutLinePart() splice-then-pushes, so toggling
 // an already-saved cut off and back on (without saving in between) reorders the same
 // *set* of ids — an ordered JSON.stringify compare would see that as a change and
@@ -502,12 +520,23 @@ function viewerPreviousLine(index: number): ScriptLine | null {
   return scriptStore.getScriptPage(currentPage.value - 1).at(-1) ?? null;
 }
 
+// Phase 4 Step C: tell everyone else in the room which lines this client currently
+// has open, over the YJS_AWARENESS channel (ephemeral, not part of the Y.Doc itself).
+// Called after every editingLines mutation, and (below) on any ROOM_MEMBERS change so
+// a freshly-joined member learns the current state promptly rather than waiting for
+// someone else's next open/close.
+function broadcastOpenLines(): void {
+  draftStore.sendOpenLines(Array.from(editingLines.value));
+}
+
 function beginEditingLine(lineUid: string): void {
   editingLines.value.add(lineUid);
+  broadcastOpenLines();
 }
 
 function doneEditingLine(lineUid: string): void {
   editingLines.value.delete(lineUid);
+  broadcastOpenLines();
   if (latestAddedLine.value === lineUid) {
     latestAddedLine.value = null;
     addNewLine(LINE_TYPES.DIALOGUE);
@@ -520,6 +549,7 @@ function deleteLine(lineUid: string): void {
   if (latestAddedLine.value === lineUid) latestAddedLine.value = null;
   writer.deleteLine(currentPage.value, lineUid);
   editingLines.value.delete(lineUid);
+  broadcastOpenLines();
 }
 
 // `addLine` creates the new line's first part in the same transaction (so a peer, or a
@@ -549,6 +579,7 @@ function addNewLine(lineType: number): void {
     part: seedFirstPart(lineType, prev),
   });
   editingLines.value.add(lineUid);
+  broadcastOpenLines();
   latestAddedLine.value = lineUid;
 }
 
@@ -562,6 +593,7 @@ function insertLineAt(index: number, lineType: number): void {
     part: seedFirstPart(lineType, anchor),
   });
   editingLines.value.add(lineUid);
+  broadcastOpenLines();
 }
 
 async function loadViewerPage(page: number): Promise<void> {
@@ -924,10 +956,20 @@ watch(isEditor, (now, was) => {
     // the lock some other way) — stopRequested has done its job, if it was set.
     stopRequested.value = false;
     editingLines.value.clear();
+    broadcastOpenLines();
     latestAddedLine.value = null;
   }
   retryJoin();
 });
+
+// Phase 4 Step C: re-announce this client's open lines whenever room membership
+// changes (join, leave, role change) — awareness has no sync-on-join of its own, so
+// without this a freshly-joined viewer would see nobody's open lines until each
+// existing editor happens to open or close one themselves.
+watch(
+  () => draftStore.members,
+  () => broadcastOpenLines()
+);
 
 // Belt-and-braces: if a STOP frame is sent but never actually registers server-side
 // (e.g. the socket drops right after, or the #1427 reconnect grace window keeps

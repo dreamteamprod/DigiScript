@@ -32,7 +32,12 @@ vi.mock('@/composables/useConfirm', () => ({
 
 // The viewer is stubbed to a bare row so a row's DOM identity can be tracked.
 const ViewerStub = defineComponent({
-  props: { line: { type: Object, required: true }, lineIndex: { type: Number, default: 0 } },
+  props: {
+    line: { type: Object, required: true },
+    lineIndex: { type: Number, default: 0 },
+    remoteEditors: { type: Array, default: () => [] },
+  },
+  emits: ['edit-line'],
   render() {
     return h('div', { class: 'row-stub' }, (this.line as { _uid?: string })._uid ?? 'rest');
   },
@@ -41,7 +46,10 @@ const ViewerStub = defineComponent({
 // add/remove part, validity) is covered by CollabScriptLineEditor.test.ts; here only
 // which line has one open, and what it does when told it's done or deleted, matter.
 const LineEditorStub = defineComponent({
-  props: { line: { type: Object, required: true } },
+  props: {
+    line: { type: Object, required: true },
+    remoteEditors: { type: Array, default: () => [] },
+  },
   emits: ['doneEditing', 'deleteLine'],
   render() {
     return h('div', { class: 'editor-stub' }, (this.line as { _uid?: string })._uid);
@@ -873,6 +881,80 @@ describe('CollabScriptEditor', () => {
       ];
       await flushPromises();
       expect(w.find('.presence-row').text()).toContain('alex · editor');
+    });
+  });
+
+  describe('line-level open indicators (Phase 4 Step C)', () => {
+    function decodeAwareness(): { clientId: string; openLineUids: string[] } {
+      const call = sendObj.mock.calls.find((c) => (c[0] as { OP: string }).OP === 'YJS_AWARENESS');
+      expect(call).toBeDefined();
+      const payload = (call![0] as { DATA: { payload: string } }).DATA.payload;
+      return JSON.parse(atob(payload));
+    }
+
+    it('broadcasts YJS_AWARENESS with the open line uid when a line is opened via Add Dialogue', async () => {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [] });
+      seedRealPage(1);
+      await flushPromises();
+      sendObj.mockClear();
+
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+
+      const state = decodeAwareness();
+      expect(state.clientId).toBe('me');
+      expect(state.openLineUids).toHaveLength(1);
+    });
+
+    it('broadcasts an empty open-line set once an existing (non-chaining) line is closed', async () => {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [snap('line-1')] });
+      await flushPromises();
+      w.findComponent(ViewerStub).vm.$emit('edit-line');
+      await flushPromises();
+      sendObj.mockClear();
+
+      w.findComponent(LineEditorStub).vm.$emit('doneEditing');
+      await flushPromises();
+
+      const state = decodeAwareness();
+      expect(state.openLineUids).toEqual([]);
+    });
+
+    it('re-broadcasts open lines whenever room membership changes', async () => {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [] });
+      seedRealPage(1);
+      await flushPromises();
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+      sendObj.mockClear();
+
+      useScriptDraftStore().members = [
+        { user_id: 1, username: 'me', role: 'editor', client_id: 'me' },
+        { user_id: 2, username: 'alex', role: 'viewer', client_id: 'other' },
+      ];
+      await flushPromises();
+
+      const state = decodeAwareness();
+      expect(state.openLineUids).toHaveLength(1);
+    });
+
+    it('passes remoteOpenLines through to the matching line, by _uid', async () => {
+      const w = await mountEditor();
+      syncDraft({ '1': [snap('line-1'), snap('line-2')] });
+      useScriptDraftStore().members = [
+        { user_id: 2, username: 'alex', role: 'viewer', client_id: 'other' },
+      ];
+      useScriptDraftStore().remoteOpenLines = { other: ['line-1'] };
+      await flushPromises();
+
+      const viewers = w.findAllComponents(ViewerStub);
+      const line1 = viewers.find((c) => (c.props('line') as { _uid: string })._uid === 'line-1')!;
+      const line2 = viewers.find((c) => (c.props('line') as { _uid: string })._uid === 'line-2')!;
+      expect(line1.props('remoteEditors')).toEqual(['alex']);
+      expect(line2.props('remoteEditors')).toEqual([]);
     });
   });
 
