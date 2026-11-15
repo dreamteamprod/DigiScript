@@ -40,6 +40,7 @@ from utils.script_room_manager import (
     _write_checkpoint_sync,
 )
 from utils.web import app_metrics
+from utils.web.ws_session_lifecycle import _downgrade_room_editor
 
 
 def _make_mock_ws():
@@ -76,6 +77,30 @@ class TestScriptRoomClients:
         room.add_client(ws, "viewer")
 
         assert room.clients[ws] == "viewer"
+
+    def test_add_client_does_not_evict_another_connection_sharing_an_internal_id(self):
+        """holders() (ws_session_lifecycle.py) documents that the same
+        internal_id can legitimately be held by more than one *live*
+        connection at once — a duplicated browser tab (sessionStorage is
+        copied) or a socket that merely presented someone else's uuid.
+        add_client must never use internal_id equality alone to evict an
+        existing entry; only an actual close (handled by on_close calling
+        remove_client, not add_client) may do that. This is a regression
+        test for a Phase 4 Step B attempt that got this wrong — it added an
+        internal_id dedup to add_client, which silently evicted a second,
+        still-live connection (e.g. the loop in _downgrade_room_editor
+        calling add_client for each of several live editors sharing one
+        internal_id would otherwise strand all but the last)."""
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws1.internal_id = "tab-1"
+        room.add_client(ws1, "editor")
+
+        ws2 = _make_mock_ws()
+        ws2.internal_id = "tab-1"
+        room.add_client(ws2, "viewer")
+
+        assert room.clients == {ws1: "editor", ws2: "viewer"}
 
     def test_remove_client(self):
         room = _make_room()
@@ -145,6 +170,34 @@ class TestScriptRoomClients:
         assert room.has_editors
         # Should still be only one client entry
         assert len(room.clients) == 1
+
+
+class TestDowngradeRoomEditor:
+    """Regression coverage for a Phase 4 Step B attempt that gave add_client an
+    internal_id dedup, on the mistaken theory that a shared internal_id always
+    meant a stale pre-reload connection. holders() documents that two live
+    handlers sharing one internal_id is a real, legitimate case (a duplicated
+    tab), and _downgrade_room_editor's loop — one add_client(ws, "viewer") call
+    per matching editor — relies on add_client never using internal_id alone
+    to decide an entry is stale: with the dedup in place, each call evicted the
+    other matching editor instead of demoting it, so only the last one in
+    iteration order survived in the room at all."""
+
+    def test_downgrade_demotes_every_live_holder_of_the_internal_id(self):
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws1.internal_id = "tab-1"
+        ws2 = _make_mock_ws()
+        ws2.internal_id = "tab-1"
+        room.add_client(ws1, "editor")
+        room.add_client(ws2, "editor")
+
+        app = MagicMock()
+        app.room_manager.get_active_room.return_value = room
+
+        _downgrade_room_editor(app, "tab-1")
+
+        assert room.clients == {ws1: "viewer", ws2: "viewer"}
 
 
 class TestScriptRoomSync:
