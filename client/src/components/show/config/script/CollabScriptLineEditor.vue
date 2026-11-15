@@ -1,17 +1,6 @@
 <template>
   <BRow>
-    <BCol v-if="remoteEditors && remoteEditors.length > 0" cols="12" class="remote-editors">
-      <BBadge
-        v-for="name in remoteEditors"
-        :key="name"
-        variant="warning"
-        pill
-        class="me-1"
-        :title="`${name} is editing this line`"
-      >
-        {{ name }} ✎
-      </BBadge>
-    </BCol>
+    <RemoteEditorsBadge :names="remoteEditors ?? []" />
     <BCol cols="2">
       <BRow>
         <BCol cols="6">
@@ -114,6 +103,7 @@ import { computeValidActs, computeValidScenes } from '@/js/scriptLineActScene';
 import { toast } from '@/js/toast';
 import { fieldState } from '@/js/vuelidateFieldState';
 import CollabScriptLinePart from './CollabScriptLinePart.vue';
+import RemoteEditorsBadge from './RemoteEditorsBadge.vue';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
@@ -234,12 +224,3 @@ onMounted(() => {
   }
 });
 </script>
-
-<style scoped>
-.remote-editors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  margin-bottom: 0.25rem;
-}
-</style>

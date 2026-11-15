@@ -144,23 +144,11 @@
       </BButtonGroup>
     </BCol>
 
-    <!-- Full-width (cols="12", pushing the already-filled columns above it onto a
-         wrap within the same Bootstrap row) rather than a narrow fixed-width column
-         or a second `.script-line-row` sibling — the former clipped/wrapped awkwardly
-         for a longer username, and the latter would double-count this row anywhere
+    <!-- Pushes the already-filled columns above it onto a wrap within the same
+         Bootstrap row (via RemoteEditorsBadge's own cols="12") rather than a second
+         `.script-line-row` sibling, which would double-count this row anywhere
          `.script-line-row` is counted (e.g. the E2E and Vitest row-count assertions). -->
-    <BCol v-if="remoteEditors && remoteEditors.length > 0" cols="12" class="remote-editors">
-      <BBadge
-        v-for="name in remoteEditors"
-        :key="name"
-        variant="warning"
-        pill
-        class="me-1"
-        :title="`${name} is editing this line`"
-      >
-        {{ name }} ✎
-      </BBadge>
-    </BCol>
+    <RemoteEditorsBadge :names="remoteEditors ?? []" />
   </BRow>
 </template>
 
@@ -171,6 +159,7 @@ import { useScriptConfigStore } from '@/stores/scriptConfig';
 import { useUserStore } from '@/stores/user';
 import { useScriptDisplay } from '@/composables/useScriptDisplay';
 import { toast } from '@/js/toast';
+import RemoteEditorsBadge from './RemoteEditorsBadge.vue';
 import type { ScriptLine, StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
 import type { UserSettings } from '@/types/api/user';
@@ -334,11 +323,5 @@ function cutLinePart(partIndex: number): void {
   background-color: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
   transition: background-color 0.15s ease;
-}
-.remote-editors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  margin-top: 0.25rem;
 }
 </style>
