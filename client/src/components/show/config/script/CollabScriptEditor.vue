@@ -404,8 +404,8 @@ const remoteEditorsByLineUid = computed<Record<string, string[]>>(() => {
       // Two different client_ids (e.g. two tabs/sessions of the same user — the e2e
       // harness for this exact feature logs both browsers in as "admin", so this is
       // the normal setup, not a corner case) can both have the same line open: dedupe
-      // by username rather than pushing every occurrence, or :key in the template
-      // below would collide on the repeated name.
+      // by username rather than pushing every occurrence, or RemoteEditorsBadge's
+      // own v-for :key would collide on the repeated name.
       result[uid] ??= [];
       if (!result[uid].includes(username)) result[uid].push(username);
     }

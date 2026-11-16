@@ -14,7 +14,7 @@
  * non-boolean value, refusing a change mid-edit) exercise the REST contract itself,
  * which does not need the UI.
  */
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page, type Locator } from '@playwright/test';
 import {
   UI_BASE,
   loginAsAdmin,
@@ -75,35 +75,40 @@ async function reenterCtx2AsEditor(ctx: BrowserContext | null): Promise<Page> {
 }
 
 /**
- * Phase 4 Step C: `editorPage` opens a new line for editing; `viewerPage` (who
- * hasn't opened it) should see a "remote editor" badge on that exact row — keyed
- * by its own marker text, not position, since Done's auto-chain into another
- * blank line would otherwise make a position-based locator ambiguous once this
- * row is no longer last. Deletes it again afterward to leave no stray content.
+ * Phase 4 Step C: opens a new line for editing on `editorPage` and returns its
+ * resolved editor locator (for `closeMarkerLine` below) — keyed by its own
+ * marker text, not position, since Done's auto-chain into another blank line
+ * would otherwise make a position-based locator ambiguous once this row is no
+ * longer last.
  */
-async function openLineAndCheckRemoteBadge(
-  editorPage: Page,
+async function openMarkerLine(editorPage: Page, markerText: string): Promise<Locator> {
+  await editorPage.click('button:has-text("Add Dialogue")');
+  return fillOpenLineEditor(editorPage, { act: 'Act 1', scene: 'Scene 1', text: markerText });
+}
+
+/** Asserts `viewerPage` (who hasn't opened it) sees a "remote editor" badge on the marker row. */
+async function expectRemoteBadge(viewerPage: Page, markerText: string): Promise<void> {
+  const row = viewerPage.locator('.script-line-row').filter({ hasText: markerText });
+  await expect(row.locator('.remote-editors .badge')).toContainText('admin', { timeout: 10_000 });
+}
+
+/**
+ * Deletes the marker line (not Done, which would chain into another blank
+ * line) — removes the row, and with it, the broadcast that kept the badge
+ * showing. Reuses `openMarkerLine`'s own already-resolved locator for the
+ * editor, rather than re-deriving one — the editor's root `div.row` nests
+ * further `.row`s of its own (e.g. around the Done/Delete button group), so a
+ * filter re-applied from scratch risks matching more than one of them.
+ * `:visible` is also needed: the inactive "Stage Direction Styles" sub-tab
+ * stays mounted (just hidden), and resolving that broad `div.row` match can
+ * land on an ancestor that also contains that tab's own, unrelated "Delete"
+ * button.
+ */
+async function closeMarkerLine(
+  editor: Locator,
   viewerPage: Page,
   markerText: string
 ): Promise<void> {
-  await editorPage.click('button:has-text("Add Dialogue")');
-  const editor = await fillOpenLineEditor(editorPage, {
-    act: 'Act 1',
-    scene: 'Scene 1',
-    text: markerText,
-  });
-  const row = viewerPage.locator('.script-line-row').filter({ hasText: markerText });
-  await expect(row.locator('.remote-editors .badge')).toContainText('admin', { timeout: 10_000 });
-
-  // Deleting it (not Done, which would chain into another blank line) removes the
-  // row — and with it, the broadcast that kept the badge showing. Reuses
-  // fillOpenLineEditor()'s own already-resolved locator for the editor, rather than
-  // re-deriving one — the editor's root `div.row` nests further `.row`s of its own
-  // (e.g. around the Done/Delete button group), so a filter re-applied from scratch
-  // risks matching more than one of them. `:visible` is also needed: the inactive
-  // "Stage Direction Styles" sub-tab stays mounted (just hidden), and resolving
-  // fillOpenLineEditor()'s own broad `div.row` match can land on an ancestor that
-  // also contains that tab's own, unrelated "Delete" button.
   await editor.locator('button.btn-danger:has-text("Delete"):visible').click();
   await expect(viewerPage.locator('.script-line-row').filter({ hasText: markerText })).toHaveCount(
     0
@@ -399,14 +404,17 @@ test('a second browser can edit the same script at the same time', async ({ brow
   await expect(page.locator('.presence-row')).toContainText('admin · editor');
   await expect(page2.locator('.presence-row')).toContainText('admin · editor');
 
-  // Phase 4 Step C: page2 opens a new line; page (who hasn't opened it) sees a
-  // "remote editor" badge on it.
-  await openLineAndCheckRemoteBadge(page2, page, 'Step C live-presence marker');
-
-  // Two different lines, two different editors, open at the same time: page also
-  // opens a new line of its own; page2 (who hasn't opened it) sees the badge on
-  // that distinct row too — proving this isn't just a one-way/single-line check.
-  await openLineAndCheckRemoteBadge(page, page2, 'Step C second live-presence marker');
+  // Phase 4 Step C: both editors open their own new line at the same time — not
+  // sequentially, both stay open together — and each sees the other's "remote
+  // editor" badge on the correct, distinct row while both are still open.
+  const marker1 = 'Step C live-presence marker';
+  const marker2 = 'Step C second live-presence marker';
+  const markerEditor1 = await openMarkerLine(page2, marker1);
+  const markerEditor2 = await openMarkerLine(page, marker2);
+  await expectRemoteBadge(page, marker1);
+  await expectRemoteBadge(page2, marker2);
+  await closeMarkerLine(markerEditor1, page, marker1);
+  await closeMarkerLine(markerEditor2, page2, marker2);
 
   async function lastPageReached(p: Page): Promise<string | null> {
     const next = p.locator('button:has-text("Next Page")');
