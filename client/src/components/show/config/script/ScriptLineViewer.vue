@@ -143,6 +143,12 @@
         </BDropdown>
       </BButtonGroup>
     </BCol>
+
+    <!-- Pushes the already-filled columns above it onto a wrap within the same
+         Bootstrap row (via RemoteEditorsBadge's own cols="12") rather than a second
+         `.script-line-row` sibling, which would double-count this row anywhere
+         `.script-line-row` is counted (e.g. the E2E and Vitest row-count assertions). -->
+    <RemoteEditorsBadge :names="remoteEditors ?? []" />
   </BRow>
 </template>
 
@@ -153,6 +159,7 @@ import { useScriptConfigStore } from '@/stores/scriptConfig';
 import { useUserStore } from '@/stores/user';
 import { useScriptDisplay } from '@/composables/useScriptDisplay';
 import { toast } from '@/js/toast';
+import RemoteEditorsBadge from './RemoteEditorsBadge.vue';
 import type { ScriptLine, StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
 import type { UserSettings } from '@/types/api/user';
@@ -173,6 +180,8 @@ const props = defineProps<{
   bulkEditMode?: boolean;
   isBulkStart?: boolean;
   isBulkEnd?: boolean;
+  /** Phase 4 Step C: usernames of other room members with this line open. */
+  remoteEditors?: string[];
 }>();
 
 const emit = defineEmits<{

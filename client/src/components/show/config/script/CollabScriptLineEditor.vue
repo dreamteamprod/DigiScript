@@ -1,5 +1,6 @@
 <template>
   <BRow>
+    <RemoteEditorsBadge :names="remoteEditors ?? []" />
     <BCol cols="2">
       <BRow>
         <BCol cols="6">
@@ -102,6 +103,7 @@ import { computeValidActs, computeValidScenes } from '@/js/scriptLineActScene';
 import { toast } from '@/js/toast';
 import { fieldState } from '@/js/vuelidateFieldState';
 import CollabScriptLinePart from './CollabScriptLinePart.vue';
+import RemoteEditorsBadge from './RemoteEditorsBadge.vue';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { StageDirectionStyle } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
@@ -125,6 +127,8 @@ const props = defineProps<{
   previousLine: DraftScriptLine | null;
   nextLine: DraftScriptLine | null;
   stageDirectionStyles: StageDirectionStyle[];
+  /** Phase 4 Step C: usernames of other room members also editing this exact line. */
+  remoteEditors?: string[];
 }>();
 
 const emit = defineEmits<{

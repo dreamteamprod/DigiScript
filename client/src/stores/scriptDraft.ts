@@ -14,12 +14,14 @@ import {
 } from '@/js/yjs/ScriptDocProvider';
 import { ydocPageToPlain, ydocDeletedLineIds } from '@/js/yjs/yjsSnapshot';
 import type { SnapshotLine } from '@/js/yjs/yjsSnapshot';
+import { base64ToBytes } from '@/js/yjs/base64';
 import type {
   RoomMember,
   RoomMembersMessage,
   CollabErrorMessage,
   ScriptSavedMessage,
   SaveProgressMessage,
+  AwarenessState,
 } from '@/types/api/scriptDraft';
 
 /**
@@ -85,6 +87,12 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     draftLastSavedAt: null as string | null,
     lastCollabError: null as string | null,
     members: [] as RoomMember[],
+    // Phase 4 Step C: the last-known open-line snapshot each other room member has
+    // broadcast, keyed by their `client_id`. Ephemeral — not synced on join, only kept
+    // current by each member re-broadcasting on their own editingLines changes and on
+    // any ROOM_MEMBERS change (so a fresh joiner learns the current state promptly
+    // rather than waiting for someone else's next edit).
+    remoteOpenLines: {} as Record<string, string[]>,
     pageSaveProgress: null as SaveProgressMessage | null,
     pageSnapshots: {} as Record<string, readonly SnapshotLine[]>,
     deletedLineIds: [] as number[],
@@ -307,6 +315,7 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       this.pageSnapshots = {};
       this.deletedLineIds = [];
       this.members = [];
+      this.remoteOpenLines = {};
       this.pageSaveProgress = null;
     },
 
@@ -463,14 +472,65 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       }
     },
 
-    yjsAwareness(_data: YjsPayloadMessage): void {
-      // Presence isn't rendered yet, so there's nothing to decode. Accepting the action
-      // (rather than leaving it unhandled) avoids "No handler for WS action" log spam
-      // whenever another client is present.
+    /**
+     * Decode an incoming `YJS_AWARENESS` broadcast — another room member's current
+     * open-line snapshot (see `AwarenessState`). Malformed/foreign payloads are
+     * dropped rather than thrown, since this is a best-effort ephemeral channel, not
+     * the Y.Doc itself — losing one awareness update is harmless.
+     */
+    yjsAwareness(data: YjsPayloadMessage): void {
+      try {
+        const json = new TextDecoder().decode(base64ToBytes(data.payload));
+        const state = JSON.parse(json) as Partial<AwarenessState>;
+        if (typeof state.clientId !== 'string' || !Array.isArray(state.openLineUids)) {
+          log.warn('scriptDraft: malformed YJS_AWARENESS payload, dropping');
+          return;
+        }
+        this.remoteOpenLines[state.clientId] = state.openLineUids.filter(
+          (uid): uid is string => typeof uid === 'string'
+        );
+      } catch (e) {
+        log.warn('scriptDraft: failed to decode YJS_AWARENESS payload', e);
+      }
+    },
+
+    /**
+     * Broadcast this client's current set of open lines to every other room member.
+     * Returns whether the send was attempted (no active provider is a silent no-op,
+     * same as the other send-side actions) — callers don't surface a failure here,
+     * since missing this one update self-heals on the next call.
+     */
+    sendOpenLines(openLineUids: string[]): boolean {
+      if (!provider) return false;
+      const clientId = useWebSocketStore().internalUUID;
+      if (clientId == null) return false;
+      const state: AwarenessState = { clientId, openLineUids };
+      const bytes = new TextEncoder().encode(JSON.stringify(state));
+      const sent = provider.sendAwareness(bytes);
+      if (!sent) {
+        // Same silent-drop concern as yjsSync/yjsUpdate above: a socket that is
+        // momentarily not open drops this with no other signal. Unlike those,
+        // nothing here is incorrect without it — just a stale/missing presence
+        // badge until the next broadcast (a later editingLines change, or the
+        // members-watch re-announce on reconnect's own ROOM_MEMBERS) — but it's
+        // still worth a log line rather than none.
+        log.warn('scriptDraft: sendOpenLines failed to send, awareness may be stale');
+      }
+      return sent;
     },
 
     roomMembers(data: RoomMembersMessage): void {
       this.members = data.members;
+      // Prune any remote-open-lines entry for a client_id no longer in the room —
+      // otherwise a departed member's last-known open line would linger forever,
+      // since nothing else ever clears a stale entry (this channel has no
+      // leave/close message of its own).
+      const liveClientIds = new Set(
+        data.members.map((m) => m.client_id).filter((id): id is string => id != null)
+      );
+      for (const clientId of Object.keys(this.remoteOpenLines)) {
+        if (!liveClientIds.has(clientId)) delete this.remoteOpenLines[clientId];
+      }
     },
 
     roomClosed(): void {

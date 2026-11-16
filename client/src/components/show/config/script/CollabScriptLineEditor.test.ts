@@ -1,3 +1,4 @@
+/* eslint-disable vue/one-component-per-file -- small in-file stubs */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { mount, type VueWrapper } from '@vue/test-utils';
@@ -35,6 +36,16 @@ const PartStub = defineComponent({
   },
 });
 
+// The badge's own render logic (per-name rendering, the accessible title) is
+// covered once, directly, in RemoteEditorsBadge.test.ts — here it's stubbed, and
+// only checked that the right `names` reach it.
+const RemoteEditorsBadgeStub = defineComponent({
+  props: { names: { type: Array, default: () => [] } },
+  render() {
+    return h('div', { class: 'remote-editors-stub' }, (this.names as string[]).join(','));
+  },
+});
+
 const stubs = {
   BRow: passthrough('div'),
   BCol: passthrough('div'),
@@ -44,6 +55,7 @@ const stubs = {
   BAlert: passthrough('div'),
   BFormSelect: SelectStub,
   CollabScriptLinePart: PartStub,
+  RemoteEditorsBadge: RemoteEditorsBadgeStub,
 };
 
 function act(id: number, overrides: Partial<Act> = {}): Act {
@@ -236,5 +248,20 @@ describe('CollabScriptLineEditor', () => {
     });
     expect(wrapper.text()).toContain('Cue Lines have no editable content.');
     expect(wrapper.findAll('.part-stub')).toHaveLength(0);
+  });
+
+  describe('remote-editors badge (Phase 4 Step C)', () => {
+    it('passes an empty names array through when no one else has this line open', () => {
+      wrapper = mountEditor({ remoteEditors: [] });
+      expect(wrapper.findComponent(RemoteEditorsBadgeStub).props('names')).toEqual([]);
+    });
+
+    it('passes the given remoteEditors through as names', () => {
+      wrapper = mountEditor({ remoteEditors: ['alex', 'blair'] });
+      expect(wrapper.findComponent(RemoteEditorsBadgeStub).props('names')).toEqual([
+        'alex',
+        'blair',
+      ]);
+    });
   });
 });
