@@ -892,6 +892,20 @@ describe('CollabScriptEditor', () => {
       return JSON.parse(atob(payload));
     }
 
+    /**
+     * mountAsEditor() with an empty draft, then opens one fresh blank line via
+     * Add Dialogue — the common starting point several tests below build on.
+     */
+    async function mountWithOneOpenLine(): Promise<VueWrapper> {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [] });
+      seedRealPage(1);
+      await flushPromises();
+      await button(w, 'Add Dialogue')!.trigger('click');
+      await flushPromises();
+      return w;
+    }
+
     it('broadcasts YJS_AWARENESS with the open line uid when a line is opened via Add Dialogue', async () => {
       const w = await mountAsEditor();
       syncDraft({ '1': [] });
@@ -921,15 +935,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('broadcasts an empty open-line set when an open line is deleted', async () => {
-      // seedRealPage alone (no fake snap() fixture) — the real Y.Doc write it
-      // triggers would otherwise resync pageSnapshots and wipe a fixture line out
-      // from under the test.
-      const w = await mountAsEditor();
-      syncDraft({ '1': [] });
-      seedRealPage(1);
-      await flushPromises();
-      await button(w, 'Add Dialogue')!.trigger('click');
-      await flushPromises();
+      const w = await mountWithOneOpenLine();
       sendObj.mockClear();
 
       // deleteLine() clears latestAddedLine first, so this does not chain into
@@ -942,12 +948,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('broadcasts the newly inserted line uid when a line is opened via an Insert menu item', async () => {
-      const w = await mountAsEditor();
-      syncDraft({ '1': [] });
-      seedRealPage(1);
-      await flushPromises();
-      await button(w, 'Add Dialogue')!.trigger('click');
-      await flushPromises();
+      const w = await mountWithOneOpenLine();
       // Closes the first line (now a ViewerStub) and chains into a second, open one.
       w.findComponent(LineEditorStub).vm.$emit('doneEditing');
       await flushPromises();
@@ -994,12 +995,7 @@ describe('CollabScriptEditor', () => {
     });
 
     it('re-broadcasts open lines whenever room membership changes', async () => {
-      const w = await mountAsEditor();
-      syncDraft({ '1': [] });
-      seedRealPage(1);
-      await flushPromises();
-      await button(w, 'Add Dialogue')!.trigger('click');
-      await flushPromises();
+      const w = await mountWithOneOpenLine();
       sendObj.mockClear();
 
       useScriptDraftStore().members = [
