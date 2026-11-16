@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { mount, type VueWrapper } from '@vue/test-utils';
+import { defineComponent, h } from 'vue';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import { passthrough } from './testStubs';
 import { LINE_TYPES } from '@/constants/lineTypes';
@@ -10,18 +11,27 @@ import type { ScriptLine } from '@/types/api/script';
  * Focused coverage for the `remoteEditors` badge (Phase 4 Step C) only — this
  * component had no test file at all before, and building out full coverage of its
  * pre-existing line-type branches is a larger, separate undertaking than this
- * feature's own scope.
+ * feature's own scope. The badge's own render logic (per-name rendering, the
+ * accessible title) is covered once, directly, in RemoteEditorsBadge.test.ts —
+ * here it's stubbed, and only checked that the right `names` reach it.
  */
+
+const RemoteEditorsBadgeStub = defineComponent({
+  props: { names: { type: Array, default: () => [] } },
+  render() {
+    return h('div', { class: 'remote-editors-stub' }, (this.names as string[]).join(','));
+  },
+});
 
 const stubs = {
   BRow: passthrough('div'),
   BCol: passthrough('div'),
   BButtonGroup: passthrough('div'),
   BButton: passthrough('button'),
-  BBadge: passthrough('span'),
   BDropdown: passthrough('div'),
   BDropdownItem: passthrough('button'),
   BAlert: passthrough('div'),
+  RemoteEditorsBadge: RemoteEditorsBadgeStub,
 };
 
 function dialogueLine(overrides: Partial<ScriptLine> = {}): ScriptLine {
@@ -80,28 +90,17 @@ describe('ScriptLineViewer', () => {
   });
 
   describe('remote-editors badge (Phase 4 Step C)', () => {
-    it('renders nothing when remoteEditors is omitted', () => {
+    it('passes an empty names array through when remoteEditors is omitted', () => {
       wrapper = mountViewer();
-      expect(wrapper.find('.remote-editors').exists()).toBe(false);
+      expect(wrapper.findComponent(RemoteEditorsBadgeStub).props('names')).toEqual([]);
     });
 
-    it('renders nothing when remoteEditors is an empty array', () => {
-      wrapper = mountViewer({ remoteEditors: [] });
-      expect(wrapper.find('.remote-editors').exists()).toBe(false);
-    });
-
-    it('renders a badge per remote editor, with an accessible title', () => {
+    it('passes the given remoteEditors through as names', () => {
       wrapper = mountViewer({ remoteEditors: ['alex', 'blair'] });
-      const row = wrapper.find('.remote-editors');
-      expect(row.exists()).toBe(true);
-      const badges = row.findAll('span');
-      expect(badges).toHaveLength(2);
-      expect(badges.find((b) => b.text().includes('alex'))?.attributes('title')).toBe(
-        'alex is editing this line'
-      );
-      expect(badges.find((b) => b.text().includes('blair'))?.attributes('title')).toBe(
-        'blair is editing this line'
-      );
+      expect(wrapper.findComponent(RemoteEditorsBadgeStub).props('names')).toEqual([
+        'alex',
+        'blair',
+      ]);
     });
 
     it('renders alongside every line type, not just dialogue', () => {
@@ -109,8 +108,7 @@ describe('ScriptLineViewer', () => {
         line: dialogueLine({ line_type: LINE_TYPES.CUE_LINE, line_parts: [] }),
         remoteEditors: ['alex'],
       });
-      expect(wrapper.find('.remote-editors').exists()).toBe(true);
-      expect(wrapper.text()).toContain('alex');
+      expect(wrapper.findComponent(RemoteEditorsBadgeStub).props('names')).toEqual(['alex']);
     });
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable vue/one-component-per-file -- small in-file stubs */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { mount, type VueWrapper } from '@vue/test-utils';
@@ -35,6 +36,16 @@ const PartStub = defineComponent({
   },
 });
 
+// The badge's own render logic (per-name rendering, the accessible title) is
+// covered once, directly, in RemoteEditorsBadge.test.ts — here it's stubbed, and
+// only checked that the right `names` reach it.
+const RemoteEditorsBadgeStub = defineComponent({
+  props: { names: { type: Array, default: () => [] } },
+  render() {
+    return h('div', { class: 'remote-editors-stub' }, (this.names as string[]).join(','));
+  },
+});
+
 const stubs = {
   BRow: passthrough('div'),
   BCol: passthrough('div'),
@@ -42,9 +53,9 @@ const stubs = {
   BButton: passthrough('button'),
   BButtonGroup: passthrough('div'),
   BAlert: passthrough('div'),
-  BBadge: passthrough('span'),
   BFormSelect: SelectStub,
   CollabScriptLinePart: PartStub,
+  RemoteEditorsBadge: RemoteEditorsBadgeStub,
 };
 
 function act(id: number, overrides: Partial<Act> = {}): Act {
@@ -240,21 +251,17 @@ describe('CollabScriptLineEditor', () => {
   });
 
   describe('remote-editors badge (Phase 4 Step C)', () => {
-    it('does not render the badge row when no one else has this line open', () => {
+    it('passes an empty names array through when no one else has this line open', () => {
       wrapper = mountEditor({ remoteEditors: [] });
-      expect(wrapper.find('.remote-editors').exists()).toBe(false);
+      expect(wrapper.findComponent(RemoteEditorsBadgeStub).props('names')).toEqual([]);
     });
 
-    it('renders a badge per remote editor, with an accessible title', () => {
+    it('passes the given remoteEditors through as names', () => {
       wrapper = mountEditor({ remoteEditors: ['alex', 'blair'] });
-      const row = wrapper.find('.remote-editors');
-      expect(row.exists()).toBe(true);
-      expect(row.text()).toContain('alex');
-      expect(row.text()).toContain('blair');
-      const badges = row.findAll('span');
-      expect(badges.find((b) => b.text().includes('alex'))?.attributes('title')).toBe(
-        'alex is editing this line'
-      );
+      expect(wrapper.findComponent(RemoteEditorsBadgeStub).props('names')).toEqual([
+        'alex',
+        'blair',
+      ]);
     });
   });
 });
