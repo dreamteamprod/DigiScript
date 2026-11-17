@@ -1329,22 +1329,22 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
     async def test_yjs_update_that_repairs_a_page_warns_only_the_sender(self):
         """A repaired page is broadcast to everyone (the Y.Doc fix itself), but
         the explanation of *why* goes only to whoever sent the corrupting update
-        — a second, non-offending client must not see it."""
-        ws, _ = await self._connect_and_auth(self.admin_id)
-        await ws.write_message(
-            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
-        )
-        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
-        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
-        await ws.read_message()  # YJS_SYNC
-        await ws.read_message()  # ROOM_MEMBERS
-        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+        — a second, non-offending client must not see it at all, not even as a
+        third message after the two it already expects."""
+        ws = await self._join_collab_room()
 
         observer, _ = await self._connect_and_auth(self.admin_id)
         await observer.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
         await observer.read_message()  # YJS_SYNC
         await observer.read_message()  # ROOM_MEMBERS
+        # Joining also fires ws_send_to_all(GET_SCRIPT_CONFIG_STATUS) (same as
+        # _join_collab_room's own last read for an editor) — to every connected
+        # client, observer included, since that broadcast isn't room-scoped.
+        # Left undrained here, it would be the "extra" message the end of this
+        # test looks for, a false positive unrelated to the warning it's testing.
+        await observer.read_message()  # GET_SCRIPT_CONFIG_STATUS (from own join)
         await ws.read_message()  # ROOM_MEMBERS (observer joining)
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS (observer joining)
 
         room = self._app.room_manager.get_active_room()
 
@@ -1365,14 +1365,19 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         )
 
         # The sender gets the explanation, naming the repaired page.
-        msg, _ = await self._read_until(ws, action="COLLAB_ERROR")
-        self.assertIn("page 1", msg["DATA"]["error"])
+        msg, _ = await self._read_until(ws, action="COLLAB_WARNING")
+        self.assertIn("page 1", msg["DATA"]["warning"])
 
-        # The observer gets the broadcast update (the YJS_UPDATE relay, and the
-        # repair's own follow-up) — but no COLLAB_ERROR about it.
+        # The observer gets exactly the broadcast update (the YJS_UPDATE relay,
+        # and the repair's own follow-up) — no COLLAB_WARNING about it, and
+        # nothing else at all: a bug broadcasting the warning to everyone would
+        # otherwise show up as a *third* message here, which asserting only on
+        # the two expected ones would silently miss.
         for _ in range(2):
             msg, _ = await self._read_until(observer, op="NOOP")
-            self.assertNotEqual("COLLAB_ERROR", msg["ACTION"])
+            self.assertNotEqual("COLLAB_WARNING", msg["ACTION"])
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(observer.read_message(), timeout=0.5)
 
         ws.close()
         observer.close()
@@ -1488,15 +1493,7 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
     @gen_test
     async def test_yjs_sync_step2_that_repairs_a_page_warns_the_sender(self):
         """Same warning as YJS_UPDATE's, on the step=2 path."""
-        ws, _ = await self._connect_and_auth(self.admin_id)
-        await ws.write_message(
-            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
-        )
-        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
-        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
-        await ws.read_message()  # YJS_SYNC
-        await ws.read_message()  # ROOM_MEMBERS
-        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+        ws = await self._join_collab_room()
 
         room = self._app.room_manager.get_active_room()
 
@@ -1517,8 +1514,50 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
             )
         )
 
-        msg, _ = await self._read_until(ws, action="COLLAB_ERROR")
-        self.assertIn("page 3", msg["DATA"]["error"])
+        msg, _ = await self._read_until(ws, action="COLLAB_WARNING")
+        self.assertIn("page 3", msg["DATA"]["warning"])
+
+        ws.close()
+
+    @gen_test
+    async def test_yjs_update_with_a_real_non_highest_page_corruption_warns_the_sender(
+        self,
+    ):
+        """End-to-end with a genuine corrupting update (not a mocked apply_update
+        return) — and specifically a *non-highest* page, the case the per-page
+        generalization this warning depends on exists to cover. A client's own
+        page is never the empty trailing one it never writes to, so corrupting a
+        non-highest page is the realistic case, not an edge case."""
+        ws = await self._join_collab_room()
+        room = self._app.room_manager.get_active_room()
+        pages = room.doc.get("pages", type=pycrdt.Map)
+        pages["1"] = pycrdt.Array()
+        pages["2"] = pycrdt.Array()  # the trailing page — stays untouched
+
+        client = pycrdt.Doc()
+        client.get("pages", type=pycrdt.Map)
+        client.apply_update(room.get_sync_state())
+        before = client.get_state()
+        client.get("pages", type=pycrdt.Map)["1"] = "garbage"
+
+        await ws.write_message(
+            json.dumps(
+                {
+                    "OP": "YJS_UPDATE",
+                    "DATA": {
+                        "payload": base64.b64encode(client.get_update(before)).decode(
+                            "ascii"
+                        )
+                    },
+                }
+            )
+        )
+
+        msg, _ = await self._read_until(ws, action="COLLAB_WARNING")
+        self.assertIn("page 1", msg["DATA"]["warning"])
+        self.assertIsInstance(room.doc.get("pages", type=pycrdt.Map)["1"], pycrdt.Array)
+        # The real trailing page, never touched, is still exactly as it was.
+        self.assertEqual(0, len(room.doc.get("pages", type=pycrdt.Map)["2"]))
 
         ws.close()
 

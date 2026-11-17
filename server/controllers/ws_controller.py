@@ -888,19 +888,22 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         ``ensure_trailing_page``'s repair already fixes the shared Y.Doc for
         everyone via the broadcast update — this is purely about explaining it to
         whoever caused it, who would otherwise just see their content vanish with
-        no indication why. ``COLLAB_ERROR`` only tears the draft down client-side
-        while still mid-join (``scriptDraft.ts``'s ``collabError()``); for an
-        already-synced editor — the only way to reach this at all, since joining
-        sends no YJS_UPDATE/step-2 of its own — it's just an informational toast.
+        no indication why. A dedicated ``COLLAB_WARNING`` action, not
+        ``COLLAB_ERROR``: that action's client handler clears ``ownSaveInFlight``
+        whenever one is in flight (treating it as a save rejection), so reusing it
+        here for an unrelated, informational notice could clear that flag for a
+        save that was never actually rejected, corrupting the next ``SCRIPT_SAVED``
+        into being misread as someone else's.
         """
         if not repaired_pages:
             return
+        plural = "s" if len(repaired_pages) > 1 else ""
         pages = ", ".join(str(p) for p in sorted(repaired_pages))
         await self._reject_script_room_op(
-            "COLLAB_ERROR",
-            "error",
-            f"Your last change left page {pages} corrupted; it has been reset to "
-            "empty and any content there was lost.",
+            "COLLAB_WARNING",
+            "warning",
+            f"Your last change left page{plural} {pages} corrupted; it has been "
+            "reset to empty and any content there was lost.",
         )
 
     async def _require_editor_write_access(self, session, entry) -> bool:

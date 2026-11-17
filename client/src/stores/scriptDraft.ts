@@ -19,6 +19,7 @@ import type {
   RoomMember,
   RoomMembersMessage,
   CollabErrorMessage,
+  CollabWarningMessage,
   ScriptSavedMessage,
   SaveProgressMessage,
   AwarenessState,
@@ -71,9 +72,11 @@ let localEditsSinceSaveRequest = 0;
 // SCRIPT_SAVED for it can still arrive after that reset. Only cleared by
 // scriptSaved()/saveError() actually resolving it, never by the watchdog.
 let ownSaveInFlight = false;
-// Guards against looping a resync request if the server's reply to it also fails to
-// apply (e.g. a persistently malformed payload) — one requestSync() per bad
-// applyUpdate(), not one per retry. Cleared on the next *successful* apply (yjsUpdate
+// Rate-limits requestSync() to once per run of consecutive failed yjsUpdate
+// applies, rather than one per failure — a resync reply that itself fails to
+// apply can't retrigger this (yjsSync's own failure branch returns before ever
+// calling requestSync()), so this only guards against a string of bad updates
+// each firing their own resync. Cleared on the next *successful* apply (yjsUpdate
 // or yjsSync) and on teardown, so a later, unrelated failure can still trigger one.
 let resyncRequestedSinceLastGoodApply = false;
 
@@ -474,14 +477,16 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       if (!provider.applyUpdate(data)) {
         // An undecodable update means our doc may now be missing another editor's
         // change, and a later save would persist that divergence. Ask the server for
-        // a diff since our current state vector to recover — but only once per failure:
-        // if the resync reply (a yjsSync step=2) also fails to apply, looping
-        // requestSync() would just repeat the same error forever.
+        // a diff since our current state vector to recover — but only once per
+        // failure, so a run of consecutive bad updates can't each fire their own
+        // resync. Latched only on an actual send, not merely an attempt: if the
+        // socket is down right now, nothing went out, so the one resync this guard
+        // allows must not be considered used up — the next failure (even once the
+        // connection recovers) should still get its chance to ask.
         this.lastCollabError = 'Failed to apply an update from another editor';
         toast.error('Failed to apply an update from another editor — try rejoining');
         if (!resyncRequestedSinceLastGoodApply) {
-          resyncRequestedSinceLastGoodApply = true;
-          provider.requestSync();
+          resyncRequestedSinceLastGoodApply = provider.requestSync();
         }
         return;
       }
@@ -628,6 +633,19 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       if (this.status === 'joining') {
         this._teardown();
       }
+    },
+
+    /**
+     * Informational only — e.g. the server healing a page our own update corrupted.
+     * Deliberately a separate action from collabError(): that one clears
+     * `ownSaveInFlight` when a save is in flight, treating the message as a save
+     * rejection. Reusing it here, for a notice unrelated to any save, could clear
+     * that flag for a save that was never actually rejected, making the real
+     * SCRIPT_SAVED that follows misread as someone else's and silently drop the
+     * dirty flag over a genuine unsaved edit.
+     */
+    collabWarning(data: CollabWarningMessage): void {
+      toast.warning(data.warning);
     },
   },
 });

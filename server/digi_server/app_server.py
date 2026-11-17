@@ -500,11 +500,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
         await self._configure_logging()
         await self.start_version_checker()
         await self.start_telemetry_service()
-        # Before accepting any connections: a draft file orphaned by a crash (its
-        # DB record is gone, or vice versa) would otherwise sit there forever —
-        # nothing else ever revisits it, since a room only ever reads the draft
-        # for its own revision_id on join.
-        await self.room_manager.cleanup_stale_drafts()
 
     async def _configure_logging(self):
         get_logger().info("Reconfiguring logging!")

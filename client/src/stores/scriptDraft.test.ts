@@ -14,7 +14,7 @@ vi.mock('@/composables/useWebSocket', () => ({
 }));
 
 vi.mock('@/js/toast', () => ({
-  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
+  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
 
 function makeRemoteUpdate(mutate: (doc: Y.Doc) => void): string {
@@ -355,6 +355,23 @@ describe('scriptDraft store', () => {
     expect(sendObj).not.toHaveBeenCalledWith(expect.objectContaining({ OP: 'YJS_SYNC' }));
   });
 
+  it('a resync attempt that fails to send (socket down) does not latch the guard — the next failure still tries', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+
+    sendObj.mockReturnValueOnce(false); // the resync send itself fails
+    store.yjsUpdate({ payload: 'not-valid-base64!!' });
+    sendObj.mockClear();
+
+    store.yjsUpdate({ payload: 'still-not-valid-base64!!' });
+
+    // Unlike the "second consecutive failure" case above, this one must still
+    // try — the first resync never actually went out, so nothing was used up.
+    expect(sendObj).toHaveBeenCalledWith(
+      expect.objectContaining({ OP: 'YJS_SYNC', DATA: expect.objectContaining({ step: 1 }) })
+    );
+  });
+
   it('a resync requested after a failed apply fires again on the next failure, once that resync lands', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();
@@ -639,6 +656,47 @@ describe('scriptDraft store', () => {
     store.collabError({ error: 'insufficient permissions' });
     expect(store.lastCollabError).toBe('insufficient permissions');
     expect(store.isDraftActive).toBe(false);
+  });
+
+  it('collabWarning shows a toast but does not touch save/dirty state', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+    store.saveDraft();
+    expect(store.isDraftSaving).toBe(true);
+
+    store.collabWarning({ warning: 'page 1 was corrupted and reset' });
+
+    expect(toast.warning).toHaveBeenCalledWith('page 1 was corrupted and reset');
+    // Unlike collabError, a save in flight is untouched — this was never a save
+    // rejection.
+    expect(store.isDraftSaving).toBe(true);
+    expect(store.lastCollabError).toBeNull();
+  });
+
+  it("a collabWarning arriving mid-save does not make the following scriptSaved misread as someone else's", () => {
+    // Regression for the bug COLLAB_ERROR-reuse would have caused: a page-repair
+    // notice landing while our own save is in flight must not clear
+    // ownSaveInFlight (only collabError/saveError/scriptSaved may do that), or the
+    // real SCRIPT_SAVED reply for our save would be misread as another editor's
+    // and unconditionally clear isDraftDirty over a genuine unsaved edit.
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+    store.saveDraft();
+
+    store.collabWarning({ warning: 'page 1 was corrupted and reset' });
+
+    // A local edit lands after the warning, before the save's real reply.
+    store.getDraftYdoc()?.transact(() => {
+      store.getDraftYdoc()?.getMap('meta').set('typed_during_save', true);
+    }, 'local-edit');
+    expect(store.isDraftDirty).toBe(true);
+
+    store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' }); // our save's real reply
+
+    // Correctly read as our own save, with a post-send edit — stays dirty.
+    expect(store.isDraftDirty).toBe(true);
   });
 
   it('saveDraft is a no-op when no draft is active', () => {

@@ -14,6 +14,10 @@ export interface CollabErrorMessage {
   error: string;
 }
 
+export interface CollabWarningMessage {
+  warning: string;
+}
+
 export interface ScriptSavedMessage {
   last_saved_at: string;
 }
