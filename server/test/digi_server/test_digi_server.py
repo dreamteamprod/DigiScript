@@ -1,7 +1,7 @@
 import ast
 import asyncio
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import tornado.escape
 from sqlalchemy import func, select
@@ -23,6 +23,25 @@ class TestDigiScriptServer(DigiScriptTestCase):
         """Constructing a DigiScriptServer registers it (once) with app_metrics."""
         registered = [app for app in app_metrics._applications if app is self._app]
         self.assertEqual([self._app], registered)
+
+    @gen_test
+    async def test_configure_cleans_up_stale_drafts_before_accepting_connections(self):
+        """configure() (awaited in main.py before app.listen()) must clean up
+        orphaned draft files/records on every startup — otherwise a draft left
+        behind by a crash (DB record with no file, or vice versa) sits there
+        forever, since nothing else ever revisits a draft outside its own room.
+        """
+        with (
+            patch.object(
+                self._app.room_manager, "cleanup_stale_drafts", new_callable=AsyncMock
+            ) as cleanup,
+            patch.object(self._app, "_configure_logging", new_callable=AsyncMock),
+            patch.object(self._app, "start_version_checker", new_callable=AsyncMock),
+            patch.object(self._app, "start_telemetry_service", new_callable=AsyncMock),
+        ):
+            await self._app.configure()
+
+        cleanup.assert_awaited_once()
 
     def test_debug(self):
         token = self._create_and_login_admin()

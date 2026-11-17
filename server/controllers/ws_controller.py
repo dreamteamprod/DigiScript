@@ -882,6 +882,27 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             {"OP": "NOOP", "ACTION": action, "DATA": {key: reason}}
         )
 
+    async def _warn_of_repaired_pages(self, repaired_pages: list[int]) -> None:
+        """Tell this client (not broadcast) that its own update corrupted a page.
+
+        ``ensure_trailing_page``'s repair already fixes the shared Y.Doc for
+        everyone via the broadcast update — this is purely about explaining it to
+        whoever caused it, who would otherwise just see their content vanish with
+        no indication why. ``COLLAB_ERROR`` only tears the draft down client-side
+        while still mid-join (``scriptDraft.ts``'s ``collabError()``); for an
+        already-synced editor — the only way to reach this at all, since joining
+        sends no YJS_UPDATE/step-2 of its own — it's just an informational toast.
+        """
+        if not repaired_pages:
+            return
+        pages = ", ".join(str(p) for p in sorted(repaired_pages))
+        await self._reject_script_room_op(
+            "COLLAB_ERROR",
+            "error",
+            f"Your last change left page {pages} corrupted; it has been reset to "
+            "empty and any content there was lost.",
+        )
+
     async def _require_editor_write_access(self, session, entry) -> bool:
         """Verify the session is an active editor with WRITE permission.
 
@@ -1329,7 +1350,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
                 f"applying {len(decoded)}B update from {self.request.remote_ip}"
             )
             try:
-                follow_up = await room.apply_update(decoded)
+                follow_up, repaired_pages = await room.apply_update(decoded)
             except Exception:
                 get_logger().exception(
                     f"YJS_SYNC step=2: Failed to apply update for "
@@ -1346,6 +1367,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             await room.broadcast_update(decoded, sender=self)
             if follow_up:
                 await room.broadcast_update(follow_up)
+            await self._warn_of_repaired_pages(repaired_pages)
 
     async def _op_yjs_update(self, room_manager, data: dict) -> None:
         """Handle ``YJS_UPDATE`` (see :meth:`_handle_script_room_op`)."""
@@ -1385,7 +1407,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             f"applying {len(decoded)}B update from {self.request.remote_ip}"
         )
         try:
-            follow_up = await room.apply_update(decoded)
+            follow_up, repaired_pages = await room.apply_update(decoded)
         except Exception:
             get_logger().exception(
                 f"YJS_UPDATE: Failed to apply update for revision "
@@ -1403,6 +1425,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         if follow_up:
             # The server-made trailing page goes to everyone, sender included.
             await room.broadcast_update(follow_up)
+        await self._warn_of_repaired_pages(repaired_pages)
 
     async def _op_yjs_awareness(self, room_manager, data: dict) -> None:
         """Handle ``YJS_AWARENESS`` (see :meth:`_handle_script_room_op`)."""

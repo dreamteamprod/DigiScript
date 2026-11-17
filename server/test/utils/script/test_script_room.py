@@ -19,6 +19,7 @@ from sqlalchemy import select
 from tornado.testing import gen_test
 from tornado.websocket import WebSocketClosedError
 
+from digi_server.logger import get_logger
 from models.script import (
     ScriptLine,
     ScriptLinePart,
@@ -812,6 +813,71 @@ class TestScriptRoomSaveDraft(_ScriptTestSetup):
         self.assertGreater(patched_id, 0)
 
     @gen_test
+    async def test_concurrent_saves_are_serialised_not_interleaved(self):
+        """Two save_draft() calls fired concurrently (e.g. two editors both
+        clicking Save at once) must never interleave: the second must see the
+        first's completed id-patch, not a stale pre-patch state.
+
+        Confirmed by mutation testing (reverted) that this test genuinely
+        exercises the race: swapping save_lock for a fresh, unshared lock
+        reproduces exactly the failure mode the "stale-id" concern in the
+        project's own plan doc describes — extract_lines_from_ydoc's "no
+        ScriptLineRevisionAssociation found" skip (ydoc_to_lines.py) fires,
+        silently dropping the second save's line. With the real save_lock, that
+        never happens: it forces the second call to wait for the first's own
+        id-patch before it even starts extracting. The forced
+        _broadcast_save_progress delay below is required for the mutation to
+        actually reproduce anything — with no connected clients to broadcast
+        to, that call would otherwise return instantly, leaving asyncio no
+        genuine opportunity to interleave the two calls regardless of locking.
+        """
+        doc = _build_empty_doc()
+        uid = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid)
+        room = ScriptRoom(self.revision_id, doc)
+
+        # First save: UUID -> real DB id, establishing a baseline row.
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        # Change the now-existing line, so there is a second, genuine "changed
+        # existing line" rewrite for the next save to do — exactly the id-rewrite
+        # path the interleaving concern is about (every changed-line save creates
+        # a *new* DB row, repoints the revision association to it, and
+        # orphan-deletes the old row once nothing references it any more, per
+        # ydoc_to_lines.py's "changed" branch).
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"][0]["parts"][0]["line_text"] = "edited concurrently"
+
+        # Force a genuine suspension point mid-save (there are no connected
+        # clients in this test, so _broadcast_save_progress would otherwise
+        # return instantly with nothing to actually await) — without this,
+        # asyncio has no real opportunity to interleave the two calls at all,
+        # lock or no lock, and the test would pass for the wrong reason.
+        original_broadcast = room._broadcast_save_progress
+
+        async def _delayed_broadcast(page, total):
+            await original_broadcast(page, total)
+            await asyncio.sleep(0.01)
+
+        room._broadcast_save_progress = _delayed_broadcast
+
+        with (
+            self._app.get_db().sessionmaker() as s1,
+            self._app.get_db().sessionmaker() as s2,
+        ):
+            with self.assertNoLogs(get_logger(), level="WARNING"):
+                await asyncio.gather(room.save_draft(s1), room.save_draft(s2))
+
+        with self._app.get_db().sessionmaker() as session:
+            # Exactly one row survives — the rewrite's orphan-delete of the
+            # pre-edit row completed cleanly, with no stray/duplicate row left
+            # behind by the two saves stepping on each other.
+            lines = session.scalars(select(ScriptLine)).all()
+            self.assertEqual(1, len(lines))
+            self.assertEqual("edited concurrently", lines[0].line_parts[0].line_text)
+
+    @gen_test
     async def test_save_draft_no_new_lines_returns_meta_update(self):
         """Y.Doc built from existing DB lines (unchanged) → save_draft returns meta update bytes."""
         with self._app.get_db().sessionmaker() as session:
@@ -1503,12 +1569,16 @@ class TestRoomManagerLoadOrBuildDocRecovery(_ScriptTestSetup):
         before = client.get_state()
         client.get("pages", type=pycrdt.Map)["1"] = "garbage"
 
-        follow_up = await room.apply_update(client.get_update(before))
+        follow_up, repaired_pages = await room.apply_update(client.get_update(before))
 
         assert follow_up is not None
+        assert repaired_pages == [1]
         assert isinstance(room.doc.get("pages", type=pycrdt.Map)["1"], pycrdt.Array)
         # ...and the healed doc is stable from here on.
-        assert await room.apply_update(client.get_update(client.get_state())) is None
+        assert await room.apply_update(client.get_update(client.get_state())) == (
+            None,
+            [],
+        )
 
     @gen_test
     async def test_a_legacy_draft_gains_a_trailing_page_and_uids_on_load(self):

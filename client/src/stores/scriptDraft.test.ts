@@ -330,14 +330,46 @@ describe('scriptDraft store', () => {
     expect(store.isDraftDirty).toBe(false);
   });
 
-  it('a corrupt YJS_UPDATE surfaces an error and a toast instead of diverging silently', () => {
+  it('a corrupt YJS_UPDATE surfaces an error, a toast, and requests a resync', () => {
     const store = useScriptDraftStore();
     store.joinScriptRoom();
+    sendObj.mockClear();
 
     store.yjsUpdate({ payload: 'not-valid-base64!!' });
 
     expect(store.lastCollabError).not.toBeNull();
     expect(toast.error).toHaveBeenCalled();
+    expect(sendObj).toHaveBeenCalledWith(
+      expect.objectContaining({ OP: 'YJS_SYNC', DATA: expect.objectContaining({ step: 1 }) })
+    );
+  });
+
+  it('a second consecutive corrupt YJS_UPDATE does not request a second resync', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+
+    store.yjsUpdate({ payload: 'not-valid-base64!!' });
+    sendObj.mockClear();
+    store.yjsUpdate({ payload: 'still-not-valid-base64!!' });
+
+    expect(sendObj).not.toHaveBeenCalledWith(expect.objectContaining({ OP: 'YJS_SYNC' }));
+  });
+
+  it('a resync requested after a failed apply fires again on the next failure, once that resync lands', () => {
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+
+    store.yjsUpdate({ payload: 'not-valid-base64!!' });
+    // The resync reply lands as a yjsSync (step=2), resolving the guard.
+    const payload = makeRemoteUpdate((doc) => doc.getMap('meta').set('revision_id', 3));
+    store.yjsSync({ step: 2, payload });
+    sendObj.mockClear();
+
+    store.yjsUpdate({ payload: 'not-valid-base64-again!!' });
+
+    expect(sendObj).toHaveBeenCalledWith(
+      expect.objectContaining({ OP: 'YJS_SYNC', DATA: expect.objectContaining({ step: 1 }) })
+    );
   });
 
   it('a step=2 sync applies, marks synced, but does not reset dirty', () => {

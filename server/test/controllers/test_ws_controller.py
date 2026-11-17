@@ -1124,6 +1124,39 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
         ws.close()
 
+    @gen_test
+    async def test_save_fails_loudly_on_content_under_a_non_page_key(self):
+        """extract_lines_from_ydoc refuses to save (and silently drop) content
+        under a non-page key — this is the real error path, not a mock, end to
+        end through the WS stack to confirm it actually reaches the requester
+        as SAVE_ERROR rather than crashing unhandled or, worse, saving
+        successfully while quietly discarding that content."""
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        room = self._app.room_manager.get_active_room()
+        pages = room.doc.get("pages", type=pycrdt.Map)
+        pages["notes"] = pycrdt.Array()
+        # Non-empty: an empty array under a non-page key is tolerated.
+        pages["notes"].append(pycrdt.Map())
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        response = await ws.read_message()
+        response_data = json.loads(response)
+        self.assertEqual("NOOP", response_data["OP"])
+        self.assertEqual("SAVE_ERROR", response_data["ACTION"])
+        self.assertIn("non-page key", response_data["DATA"]["error"])
+
+        ws.close()
+
     # ------------------------------------------------------------------
     # DISCARD_SCRIPT_DRAFT tests
     # ------------------------------------------------------------------
@@ -1292,6 +1325,58 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
 
         ws.close()
 
+    @gen_test
+    async def test_yjs_update_that_repairs_a_page_warns_only_the_sender(self):
+        """A repaired page is broadcast to everyone (the Y.Doc fix itself), but
+        the explanation of *why* goes only to whoever sent the corrupting update
+        — a second, non-offending client must not see it."""
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        observer, _ = await self._connect_and_auth(self.admin_id)
+        await observer.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await observer.read_message()  # YJS_SYNC
+        await observer.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # ROOM_MEMBERS (observer joining)
+
+        room = self._app.room_manager.get_active_room()
+
+        async def _fake_apply_update(_data):
+            return b"fake-follow-up", [1]
+
+        room.apply_update = _fake_apply_update
+
+        await ws.write_message(
+            json.dumps(
+                {
+                    "OP": "YJS_UPDATE",
+                    "DATA": {
+                        "payload": base64.b64encode(b"irrelevant").decode("ascii")
+                    },
+                }
+            )
+        )
+
+        # The sender gets the explanation, naming the repaired page.
+        msg, _ = await self._read_until(ws, action="COLLAB_ERROR")
+        self.assertIn("page 1", msg["DATA"]["error"])
+
+        # The observer gets the broadcast update (the YJS_UPDATE relay, and the
+        # repair's own follow-up) — but no COLLAB_ERROR about it.
+        for _ in range(2):
+            msg, _ = await self._read_until(observer, op="NOOP")
+            self.assertNotEqual("COLLAB_ERROR", msg["ACTION"])
+
+        ws.close()
+        observer.close()
+
     async def _join_collab_room(self):
         ws, _ = await self._connect_and_auth(self.admin_id)
         await ws.write_message(
@@ -1397,6 +1482,43 @@ class TestWSControllerIntegration(_WSTestHelpers, DigiScriptTestCase):
         self.assertEqual("NOOP", response_data["OP"])
         self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
         self.assertIn("error", response_data["DATA"])
+
+        ws.close()
+
+    @gen_test
+    async def test_yjs_sync_step2_that_repairs_a_page_warns_the_sender(self):
+        """Same warning as YJS_UPDATE's, on the step=2 path."""
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        room = self._app.room_manager.get_active_room()
+
+        async def _fake_apply_update(_data):
+            return b"fake-follow-up", [3]
+
+        room.apply_update = _fake_apply_update
+
+        await ws.write_message(
+            json.dumps(
+                {
+                    "OP": "YJS_SYNC",
+                    "DATA": {
+                        "step": 2,
+                        "payload": base64.b64encode(b"irrelevant").decode("ascii"),
+                    },
+                }
+            )
+        )
+
+        msg, _ = await self._read_until(ws, action="COLLAB_ERROR")
+        self.assertIn("page 3", msg["DATA"]["error"])
 
         ws.close()
 

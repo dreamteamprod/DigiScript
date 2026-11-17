@@ -71,6 +71,11 @@ let localEditsSinceSaveRequest = 0;
 // SCRIPT_SAVED for it can still arrive after that reset. Only cleared by
 // scriptSaved()/saveError() actually resolving it, never by the watchdog.
 let ownSaveInFlight = false;
+// Guards against looping a resync request if the server's reply to it also fails to
+// apply (e.g. a persistently malformed payload) — one requestSync() per bad
+// applyUpdate(), not one per retry. Cleared on the next *successful* apply (yjsUpdate
+// or yjsSync) and on teardown, so a later, unrelated failure can still trigger one.
+let resyncRequestedSinceLastGoodApply = false;
 
 // One shared, stable empty page so components reading a missing page don't get a fresh
 // array (and a needless re-render) on every access.
@@ -306,6 +311,7 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       ydoc = null;
       localEditsSinceSaveRequest = 0;
       ownSaveInFlight = false;
+      resyncRequestedSinceLastGoodApply = false;
 
       this.status = 'idle';
       this.isDraftSaving = false;
@@ -454,6 +460,7 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       }
       this._clearJoinWatchdog();
       this.status = 'synced';
+      resyncRequestedSinceLastGoodApply = false;
       if (data.step === 0) {
         this.isDraftDirty = false;
       }
@@ -466,10 +473,19 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
       }
       if (!provider.applyUpdate(data)) {
         // An undecodable update means our doc may now be missing another editor's
-        // change, and a later save would persist that divergence.
+        // change, and a later save would persist that divergence. Ask the server for
+        // a diff since our current state vector to recover — but only once per failure:
+        // if the resync reply (a yjsSync step=2) also fails to apply, looping
+        // requestSync() would just repeat the same error forever.
         this.lastCollabError = 'Failed to apply an update from another editor';
         toast.error('Failed to apply an update from another editor — try rejoining');
+        if (!resyncRequestedSinceLastGoodApply) {
+          resyncRequestedSinceLastGoodApply = true;
+          provider.requestSync();
+        }
+        return;
       }
+      resyncRequestedSinceLastGoodApply = false;
     },
 
     /**
