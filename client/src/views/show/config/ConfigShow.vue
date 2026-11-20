@@ -137,7 +137,7 @@ const tableData = computed((): Record<string, unknown> => {
   return data;
 });
 
-const orderedKeys = computed(() => Object.keys(tableData.value).sort());
+const orderedKeys = computed(() => Object.keys(tableData.value).sort((a, b) => a.localeCompare(b)));
 
 const actOptions = computed(() => [
   { value: null, text: 'N/A', disabled: false },

@@ -458,7 +458,9 @@ function doneEditingLine(pageIndex: number, lineIndex: number): void {
   const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
   editingLines.value.delete(lineIdent);
   if (latestAddedLine.value === lineIdent) {
-    addNewLine(LINE_TYPES.DIALOGUE);
+    addNewLine(LINE_TYPES.DIALOGUE).catch(() =>
+      toast.error('Unable to add a new line. Please try again.')
+    );
   }
 }
 
