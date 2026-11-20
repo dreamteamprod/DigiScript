@@ -104,7 +104,12 @@ class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
         for op in COLLAB_ONLY_OPS:
             await ws.write_message(json.dumps({"OP": op, "DATA": {}}))
             response = json.loads(await ws.read_message())
-            self.assertEqual("COLLAB_ERROR", response["ACTION"], op)
+            # SAVE_SCRIPT_DRAFT is SAVE_ERROR here too (#1483) — every one of its
+            # rejection paths is, not just the ones inside its own handler.
+            expected_action = (
+                "SAVE_ERROR" if op == "SAVE_SCRIPT_DRAFT" else "COLLAB_ERROR"
+            )
+            self.assertEqual(expected_action, response["ACTION"], op)
             self.assertEqual(ERROR_COLLAB_EDITING_DISABLED, response["DATA"]["error"])
 
         self.assertIsNone(self._app.room_manager.get_active_room())

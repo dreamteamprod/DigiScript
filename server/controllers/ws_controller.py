@@ -894,11 +894,10 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         everyone via the broadcast update — this is purely about explaining it to
         whoever caused it, who would otherwise just see their content vanish with
         no indication why. A dedicated ``COLLAB_WARNING`` action, not
-        ``COLLAB_ERROR``: that action's client handler clears ``ownSaveInFlight``
-        whenever one is in flight (treating it as a save rejection), so reusing it
-        here for an unrelated, informational notice could clear that flag for a
-        save that was never actually rejected, corrupting the next ``SCRIPT_SAVED``
-        into being misread as someone else's.
+        ``COLLAB_ERROR``: the client's ``collabWarning()`` handler for this one
+        does nothing but show a toast, deliberately staying clear of
+        ``ownSaveInFlight``/``isDraftSaving`` so an unrelated, informational
+        notice can never be mistaken for a save's own rejection.
         """
         if not repaired_pages:
             return
@@ -911,26 +910,33 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             "reset to empty and any content there was lost.",
         )
 
-    async def _require_editor_write_access(self, session, entry) -> bool:
+    async def _require_editor_write_access(
+        self, session, entry, *, error_action: str = "COLLAB_ERROR"
+    ) -> bool:
         """Verify the session is an active editor with WRITE permission.
 
         Used by ``SAVE_SCRIPT_DRAFT`` / ``DISCARD_SCRIPT_DRAFT``, which both require
-        the requester to already hold editor status on top of RBAC WRITE. Sends a
-        ``COLLAB_ERROR`` and returns False on failure.
+        the requester to already hold editor status on top of RBAC WRITE. Sends
+        *error_action* and returns False on failure.
 
         :param session: Active SQLAlchemy session.
         :param entry: The requester's Session row, or None.
+        :param error_action: The ACTION to send on failure — ``SAVE_SCRIPT_DRAFT``
+            passes ``"SAVE_ERROR"`` so the client can tell its own save being
+            rejected apart from an unrelated ``COLLAB_ERROR`` arriving while a
+            save happens to be in flight (issue #1483); other callers default to
+            ``COLLAB_ERROR``.
         :returns: True if the requester may proceed.
         """
         if entry is None or not entry.is_editor or self._owned_row(session) is None:
             await self._reject_script_room_op(
-                "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
+                error_action, "error", ERROR_INSUFFICIENT_PERMISSIONS
             )
             return False
         show = await self._get_current_show(session)
         if not self._user_has_script_write_access(session, show):
             await self._reject_script_room_op(
-                "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
+                error_action, "error", ERROR_INSUFFICIENT_PERMISSIONS
             )
             return False
         return True
@@ -956,8 +962,18 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         # LEAVE_SCRIPT_ROOM stays allowed (harmless, and lets a client tidy up after
         # the mode is switched underneath it).
         if ws_op in _COLLAB_ONLY_OPS and not self._is_collab_editing_enabled():
+            # SAVE_SCRIPT_DRAFT gets SAVE_ERROR here too (#1483), not just from its
+            # own handler below: this check runs before that handler ever sees the
+            # message, and nothing here requires the sender to be an editor —
+            # _require_editor_write_access is what actually enforces that, further
+            # down. A client whose own save is still in flight when the mode flips
+            # off (e.g. it was the room's last editor and just left, unblocking the
+            # admin's change) must not have that save's SAVE_ERROR arrive as a
+            # COLLAB_ERROR instead, which collabError() no longer resolves.
             await self._reject_script_room_op(
-                "COLLAB_ERROR", "error", ERROR_COLLAB_EDITING_DISABLED
+                "SAVE_ERROR" if ws_op == "SAVE_SCRIPT_DRAFT" else "COLLAB_ERROR",
+                "error",
+                ERROR_COLLAB_EDITING_DISABLED,
             )
             return
 
@@ -1456,18 +1472,26 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
 
     async def _op_save_script_draft(self, room_manager, data: dict) -> None:
         """Handle ``SAVE_SCRIPT_DRAFT`` (see :meth:`_handle_script_room_op`)."""
+        # Every rejection path for this op uses SAVE_ERROR, not COLLAB_ERROR
+        # (issue #1483) — including _handle_script_room_op's own pre-dispatch
+        # collab-mode-disabled check, which special-cases this op the same way.
+        # Without that, the client couldn't tell "my save was rejected" apart
+        # from an unrelated COLLAB_ERROR arriving while a save it sent is still
+        # in flight; collabError() no longer resolves ownSaveInFlight at all.
         if await self._is_live_session_active():
             await self.write_message(
                 {
                     "OP": "NOOP",
-                    "ACTION": "COLLAB_ERROR",
+                    "ACTION": "SAVE_ERROR",
                     "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
                 }
             )
             return
         with self.make_session() as session:
             entry = session.get(Session, self.__getattribute__("internal_id"))
-            if not await self._require_editor_write_access(session, entry):
+            if not await self._require_editor_write_access(
+                session, entry, error_action="SAVE_ERROR"
+            ):
                 return
         await room_manager.save_room(self)
         await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})

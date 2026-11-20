@@ -271,20 +271,18 @@ describe('scriptDraft store', () => {
     expect(store.isDraftDirty).toBe(true);
   });
 
-  it('clears ownSaveInFlight when the server rejects a save via COLLAB_ERROR, not just SAVE_ERROR', () => {
-    // Regression: _op_save_script_draft rejects a save via COLLAB_ERROR (not
-    // SAVE_ERROR) for both of its own rejection paths (a live session became
-    // active, or insufficient write access) — collabError() previously never
-    // cleared ownSaveInFlight, so it stayed stuck true until a *different*
-    // editor's later SCRIPT_SAVED was wrongly read as our own, leaving
-    // isDraftDirty stuck true even though our edits were already covered by
-    // that other editor's save (shared Y.Doc).
+  it('clears ownSaveInFlight when the server rejects a save via SAVE_ERROR', () => {
+    // _op_save_script_draft rejects a save via SAVE_ERROR for both of its own
+    // rejection paths (a live session became active, or insufficient write
+    // access) — see issue #1483: this is specifically SAVE_ERROR, not
+    // COLLAB_ERROR, precisely so a *different* editor's later SCRIPT_SAVED
+    // isn't wrongly read as our own and incorrectly clears isDraftDirty.
     const store = useScriptDraftStore();
     store.joinScriptRoom();
     store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
     store.saveDraft();
 
-    store.collabError({ error: 'insufficient permissions' }); // the save's own rejection
+    store.saveError({ error: 'insufficient permissions' }); // the save's own rejection
     expect(store.isDraftSaving).toBe(false);
 
     // A local edit lands after the rejection.
@@ -296,6 +294,26 @@ describe('scriptDraft store', () => {
     // A different editor's save completes — must be read as someone else's, not ours.
     store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' });
 
+    expect(store.isDraftDirty).toBe(false);
+  });
+
+  it('collabError never touches ownSaveInFlight, even while a save is in flight (#1483)', () => {
+    // Regression: COLLAB_WARNING/COLLAB_ERROR arriving for an unrelated reason
+    // while our own save is in flight must not be mistaken for that save's
+    // rejection — only SAVE_ERROR (or SCRIPT_SAVED) may resolve it now.
+    const store = useScriptDraftStore();
+    store.joinScriptRoom();
+    store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });
+    store.saveDraft();
+    expect(store.isDraftSaving).toBe(true);
+
+    store.collabError({ error: 'some unrelated rejection' });
+
+    expect(store.isDraftSaving).toBe(true); // untouched
+
+    // Our save's real reply still resolves correctly afterward.
+    store.scriptSaved({ last_saved_at: '2026-01-01T00:00:00Z' });
+    expect(store.isDraftSaving).toBe(false);
     expect(store.isDraftDirty).toBe(false);
   });
 
@@ -668,8 +686,7 @@ describe('scriptDraft store', () => {
     store.collabWarning({ warning: 'page 1 was corrupted and reset' });
 
     expect(toast.warning).toHaveBeenCalledWith('page 1 was corrupted and reset');
-    // Unlike collabError, a save in flight is untouched — this was never a save
-    // rejection.
+    // A save in flight is untouched — this was never a save rejection.
     expect(store.isDraftSaving).toBe(true);
     expect(store.lastCollabError).toBeNull();
   });
@@ -677,9 +694,9 @@ describe('scriptDraft store', () => {
   it("a collabWarning arriving mid-save does not make the following scriptSaved misread as someone else's", () => {
     // Regression for the bug COLLAB_ERROR-reuse would have caused: a page-repair
     // notice landing while our own save is in flight must not clear
-    // ownSaveInFlight (only collabError/saveError/scriptSaved may do that), or the
-    // real SCRIPT_SAVED reply for our save would be misread as another editor's
-    // and unconditionally clear isDraftDirty over a genuine unsaved edit.
+    // ownSaveInFlight (only saveError/scriptSaved may do that), or the real
+    // SCRIPT_SAVED reply for our save would be misread as another editor's and
+    // unconditionally clear isDraftDirty over a genuine unsaved edit.
     const store = useScriptDraftStore();
     store.joinScriptRoom();
     store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });

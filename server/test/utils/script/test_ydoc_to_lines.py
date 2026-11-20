@@ -288,6 +288,21 @@ class _ScriptTestSetup(DigiScriptTestCase):
             self.character_id = character.id
             self.revision_id = revision.id
 
+    def _seed_cue_group(self, session) -> tuple[CueType, Cue, CueGroup]:
+        """Insert a CueType + Cue + CueGroup; return all three (flushed, not committed)."""
+        cue_type = CueType(
+            show_id=self.show_id, prefix="LX", description="Lighting", colour="#fff"
+        )
+        session.add(cue_type)
+        session.flush()
+        cue = Cue(cue_type_id=cue_type.id, ident="Q1")
+        session.add(cue)
+        session.flush()
+        cue_group = CueGroup(cue_type_id=cue_type.id)
+        session.add(cue_group)
+        session.flush()
+        return cue_type, cue, cue_group
+
 
 # ---------------------------------------------------------------------------
 # TestHasLineChanged — DB-backed
@@ -1001,17 +1016,7 @@ class TestSaveScriptPage(_ScriptTestSetup):
             assoc = self._seed_line(session, text="Original")
             old_line_id = assoc.line_id
 
-            cue_type = CueType(
-                show_id=self.show_id, prefix="LX", description="Lighting", colour="#fff"
-            )
-            session.add(cue_type)
-            session.flush()
-            cue = Cue(cue_type_id=cue_type.id, ident="Q1")
-            session.add(cue)
-            session.flush()
-            cue_group = CueGroup(cue_type_id=cue_type.id)
-            session.add(cue_group)
-            session.flush()
+            _cue_type, cue, cue_group = self._seed_cue_group(session)
             cue_group_id = cue_group.id
             ca = CueAssociation(
                 revision_id=self.revision_id,

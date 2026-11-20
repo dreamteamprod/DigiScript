@@ -17,6 +17,7 @@ import { useDraftWriter } from '@/composables/useDraftWriter';
 import type { SnapshotLine } from '@/js/yjs/yjsSnapshot';
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
+import type { BulkEditPayload } from '@/types/bulkEdit';
 
 const sendObj = vi.fn((_data: object) => true);
 vi.mock('@/composables/useWebSocket', () => ({
@@ -1514,18 +1515,9 @@ describe('CollabScriptEditor', () => {
         exitBulkEditMode: () => void;
         onSetBulkStart: (index: number) => void;
         onSetBulkEnd: (index: number) => void;
-        onBulkApply: (payload: {
-          actId: number | null;
-          sceneId: number | null;
-          partIndex: number | null;
-          characterId: number | null;
-          characterGroupId: number | null;
-        }) => void;
+        onBulkApply: (payload: BulkEditPayload) => void;
       };
     }
-
-    const noActScene = { actId: null, sceneId: null };
-    const noCharacter = { partIndex: null, characterId: null, characterGroupId: null };
 
     it('enterBulkEditMode/exitBulkEditMode toggle mode and clear any selection', async () => {
       const w = await mountSyncedEditor();
@@ -1586,7 +1578,7 @@ describe('CollabScriptEditor', () => {
       vm(w).onSetBulkStart(0);
       vm(w).onSetBulkEnd(1); // leaves line index 2 out of range
 
-      vm(w).onBulkApply({ actId: 9, sceneId: 8, ...noCharacter });
+      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
@@ -1609,7 +1601,10 @@ describe('CollabScriptEditor', () => {
       vm(w).onSetBulkStart(0);
       vm(w).onSetBulkEnd(1);
 
-      vm(w).onBulkApply({ ...noActScene, partIndex: 1, characterId: 42, characterGroupId: null });
+      vm(w).onBulkApply({
+        actScene: null,
+        assignee: { partIndex: 1, characterId: 42, characterGroupId: null },
+      });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
@@ -1629,7 +1624,10 @@ describe('CollabScriptEditor', () => {
       vm(w).onSetBulkEnd(1);
 
       // Should not throw for the partless line, and still reach the dialogue line.
-      vm(w).onBulkApply({ ...noActScene, partIndex: 1, characterId: 7, characterGroupId: null });
+      vm(w).onBulkApply({
+        actScene: null,
+        assignee: { partIndex: 1, characterId: 7, characterGroupId: null },
+      });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
@@ -1648,7 +1646,7 @@ describe('CollabScriptEditor', () => {
       await flushPromises();
       vm(w).onSetBulkEnd(0); // page 2
 
-      vm(w).onBulkApply({ actId: 5, sceneId: 6, ...noCharacter });
+      vm(w).onBulkApply({ actScene: { actId: 5, sceneId: 6 }, assignee: null });
       await flushPromises();
 
       expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(5);
@@ -1671,7 +1669,7 @@ describe('CollabScriptEditor', () => {
 
       writer.deleteLine(1, firstUid);
       await flushPromises();
-      vm(w).onBulkApply({ actId: 9, sceneId: 9, ...noCharacter });
+      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
       await flushPromises();
 
       const { toast } = await import('@/js/toast');
@@ -1689,7 +1687,7 @@ describe('CollabScriptEditor', () => {
       writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
       await flushPromises();
 
-      vm(w).onBulkApply({ actId: 9, sceneId: 9, ...noCharacter });
+      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
       await flushPromises();
 
       expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
@@ -1720,7 +1718,7 @@ describe('CollabScriptEditor', () => {
 
       writer.deleteLine(1, middleUid);
       await flushPromises();
-      vm(w).onBulkApply({ actId: 9, sceneId: 8, ...noCharacter });
+      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);

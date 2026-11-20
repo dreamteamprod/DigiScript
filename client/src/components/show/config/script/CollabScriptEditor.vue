@@ -274,6 +274,7 @@ import BulkEditModal from './BulkEditModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { LineUid } from '@/js/yjs/yjsSnapshot';
+import type { BulkEditPayload } from '@/types/bulkEdit';
 
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
@@ -874,13 +875,7 @@ function applyBulkEditToLine(
   }
 }
 
-function onBulkApply(payload: {
-  actId: number | null;
-  sceneId: number | null;
-  partIndex: number | null;
-  characterId: number | null;
-  characterGroupId: number | null;
-}): void {
+function onBulkApply(payload: BulkEditPayload): void {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
   const { page: startPage, lineUid: startUid } = bulkEditStart.value;
   const { page: endPage, lineUid: endUid } = bulkEditEnd.value;
@@ -894,23 +889,17 @@ function onBulkApply(payload: {
     return;
   }
 
-  const actScene =
-    payload.actId != null && payload.sceneId != null
-      ? { actId: payload.actId, sceneId: payload.sceneId }
-      : null;
-  const applyCharacter =
-    payload.partIndex != null && (payload.characterId != null || payload.characterGroupId != null);
-  const targetPartIndex = (payload.partIndex ?? 1) - 1;
+  const actScene = payload.actScene;
 
   // transact() is reentrant: each writer call below opens its own transaction with
   // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
   // rather than committing separately — so the whole bulk edit reaches peers as one
   // update.
-  const character = applyCharacter
+  const character = payload.assignee
     ? {
-        targetPartIndex,
-        characterId: payload.characterId,
-        characterGroupId: payload.characterGroupId,
+        targetPartIndex: payload.assignee.partIndex - 1,
+        characterId: payload.assignee.characterId,
+        characterGroupId: payload.assignee.characterGroupId,
       }
     : null;
 

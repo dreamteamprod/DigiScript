@@ -197,6 +197,8 @@ import ScriptLineViewer from './ScriptLineViewer.vue';
 import BulkEditModal from './BulkEditModal.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
+import type { BulkEditPayload } from '@/types/bulkEdit';
+import { applyBulkPayloadToLine } from '@/js/bulkEditLine';
 
 const MRU_LOOK_BACK = 4;
 
@@ -680,21 +682,10 @@ function endLines_isLast(lines: ScriptLine[], index: number): boolean {
   return index === lines.length - 1;
 }
 
-async function onBulkApply(payload: {
-  actId: number | null;
-  sceneId: number | null;
-  partIndex: number | null;
-  characterId: number | null;
-  characterGroupId: number | null;
-}): Promise<void> {
+async function onBulkApply(payload: BulkEditPayload): Promise<void> {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
   const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
   const { page: endPage, lineIndex: endIndex } = bulkEditEnd.value;
-
-  const applyActScene = payload.actId != null && payload.sceneId != null;
-  const applyCharacter =
-    payload.partIndex != null && (payload.characterId != null || payload.characterGroupId != null);
-  const targetPartIdx = (payload.partIndex ?? 1) - 1;
 
   for (let p = startPage; p <= endPage; p++) {
     await loadPage(p);
@@ -704,28 +695,7 @@ async function onBulkApply(payload: {
     const deletedOnPage = scriptConfigStore.getDeletedLines(p);
     for (let i = fromIdx; i <= toIdx; i++) {
       if (deletedOnPage.includes(i)) continue;
-      const updatedLine = { ...pageLines[i] };
-      if (applyActScene) {
-        updatedLine.act_id = payload.actId!;
-        updatedLine.scene_id = payload.sceneId!;
-      }
-      if (applyCharacter) {
-        const sortedParts = [...updatedLine.line_parts].sort(
-          (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
-        );
-        if (sortedParts.length > targetPartIdx) {
-          updatedLine.line_parts = sortedParts.map((part, idx) =>
-            idx === targetPartIdx
-              ? {
-                  ...part,
-                  character_id: payload.characterId,
-                  character_group_id: payload.characterGroupId,
-                }
-              : part
-          );
-        }
-      }
-      scriptConfigStore.setLine(p, i, updatedLine);
+      scriptConfigStore.setLine(p, i, applyBulkPayloadToLine(pageLines[i]!, payload));
     }
   }
 

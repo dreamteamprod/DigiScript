@@ -608,21 +608,11 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     collabError(data: CollabErrorMessage): void {
       this.lastCollabError = data.error;
       toast.error(data.error);
-      // A rejected save fails via COLLAB_ERROR, not SAVE_ERROR, for both of
-      // _op_save_script_draft's own rejection paths (a live session became active, or
-      // _require_editor_write_access failed) — resolve it the same way saveError()
-      // does. Without this, ownSaveInFlight would stay stuck true (only
-      // scriptSaved()/saveError() ever clear it) until a later SCRIPT_SAVED for a
-      // *different* editor's save is wrongly read as our own, leaving isDraftDirty
-      // stuck true even though our edits were already included in that save. Scoped
-      // to only run when a save was actually in flight — a COLLAB_ERROR for an
-      // unrelated rejection (e.g. a blocked edit) must not touch any of this.
-      if (ownSaveInFlight) {
-        ownSaveInFlight = false;
-        this.isDraftSaving = false;
-        this._clearSaveWatchdog();
-        this.pageSaveProgress = null;
-      }
+      // Save rejections arrive as SAVE_ERROR, never COLLAB_ERROR (#1483) —
+      // ownSaveInFlight/isDraftSaving are resolved solely by scriptSaved() and
+      // saveError(), so this handler never has to guess whether some
+      // unrelated COLLAB_ERROR happened to arrive while a save was in flight.
+      //
       // A COLLAB_ERROR while we're mid-join (active but never synced) means the join
       // itself was rejected (no show, no revision, live session, a Y.Doc build
       // failure) — the server will never send the YJS_SYNC that would otherwise
@@ -636,13 +626,9 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     },
 
     /**
-     * Informational only — e.g. the server healing a page our own update corrupted.
-     * Deliberately a separate action from collabError(): that one clears
-     * `ownSaveInFlight` when a save is in flight, treating the message as a save
-     * rejection. Reusing it here, for a notice unrelated to any save, could clear
-     * that flag for a save that was never actually rejected, making the real
-     * SCRIPT_SAVED that follows misread as someone else's and silently drop the
-     * dirty flag over a genuine unsaved edit.
+     * Informational only — e.g. the server healing a page our own update
+     * corrupted. A separate action from collabError() so a warning can never
+     * be mistaken for a save rejection.
      */
     collabWarning(data: CollabWarningMessage): void {
       toast.warning(data.warning);
