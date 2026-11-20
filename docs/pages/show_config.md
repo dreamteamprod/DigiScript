@@ -32,7 +32,7 @@ The recommended workflow for configuring a new show is:
 
 ### Script Display Modes
 
-DigiScript supports two script display modes that affect how your script appears during editing and live performances. This setting is chosen when creating a new show in the Advanced Options section.
+DigiScript supports two script display modes that affect how your script appears during editing and live performances. This setting is chosen via the **Script Mode** dropdown when creating a new show.
 
 ![](../images/config_show/config_system_new_show_advanced_options.png)
 

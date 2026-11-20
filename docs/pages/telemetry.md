@@ -9,6 +9,8 @@ Telemetry never starts before an admin account exists. The choice is presented r
 first-run "create an admin user" screen, pre-checked to match the default — nothing is ever sent
 before that screen has actually been completed, whichever way you decide.
 
+![](../images/getting_started/first_look.png)
+
 ### What is sent
 
 Every check-in (roughly once a day, with a random delay so many installs don't all report at the
@@ -42,8 +44,10 @@ above.
 
 Two ways to disable telemetry, either of which is sufficient on its own:
 
-- **In the app**: System Config → System → Settings, under the **Telemetry** category, toggle
+- **In the app**: System Config → Settings, under the **Telemetry** category, toggle
   **Enable Anonymous Usage Telemetry** off.
+
+  ![](../images/config_system/settings_telemetry_category.png)
 - **At deployment time**: set the `DIGISCRIPT_TELEMETRY` environment variable to `0`, `false`,
   `no`, `off`, `disabled`, or `n` (case-insensitive) before starting the server. This takes
   priority over the in-app setting — if both are set, telemetry stays off even if the setting

@@ -6,7 +6,8 @@ When DigiScript is first loaded, you will see a page similar to the following:
 
 As you can see, before being able to continue you will first need to create an Administrator user.
 To do this, enter a password (8 to 72 characters) and press `save`, and a new user with the username `admin` will be 
-created.
+created. This screen also offers a pre-checked option to send anonymous usage telemetry — see
+[Anonymous Usage Telemetry](./telemetry.md) for exactly what that means and how to opt out later.
 
 From here, you will need to log in with the new `admin` user that has just been created. Clicking 
 on the `login` button in the top right of the navigation pane will allow you to enter the `admin`

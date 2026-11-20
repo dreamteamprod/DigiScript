@@ -48,23 +48,23 @@ To configure users, a show must first be loaded. Navigate to the **System Config
 
 The users table shows:
 - Username
-- First and Last Name
-- Last Seen timestamp (when the user was last active)
-- Actions (Edit, Delete, RBAC configuration)
+- Created on, Last login and Last seen timestamps
+- User Type (Admin or Standard User)
+- Actions (RBAC, Edit, Reset Password, Delete)
 
 #### Creating Users
 
-Click the **New User** button to add a new user. You'll need to provide:
+Click the **New User** button (or **New Admin** to create an admin account directly) to add a new user. You'll need to provide:
 - Username (must be unique across the entire system)
 - Password (8 to 72 characters)
-- First Name
-- Last Name
 
 Users are created at the system level and are not tied to individual shows. Their access to specific shows and resources is controlled through RBAC configuration.
 
 #### Resetting a User's Password
 
 Admins can reset another user's password from the Users table. DigiScript generates a temporary password made of four random words (for example `word-word-word-word`) and shows it once; the user must choose a new password (8 to 72 characters) the next time they log in.
+
+![](../images/config_user/reset_password_modal.png)
 
 #### Login Protection
 
