@@ -289,7 +289,7 @@ class _ScriptTestSetup(DigiScriptTestCase):
             self.revision_id = revision.id
 
     def _seed_cue_group(self, session) -> tuple[CueType, Cue, CueGroup]:
-        """Insert a CueType + Cue + CueGroup; return all three (not yet flushed-committed)."""
+        """Insert a CueType + Cue + CueGroup; return all three (flushed, not committed)."""
         cue_type = CueType(
             show_id=self.show_id, prefix="LX", description="Lighting", colour="#fff"
         )
