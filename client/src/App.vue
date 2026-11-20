@@ -124,13 +124,13 @@
     >
       <BContainer class="mx-0" fluid>
         <BRow>
-          <BCol>
+          <BCol md="8" offset-md="2" lg="6" offset-lg="3">
             <h2>Welcome to DigiScript</h2>
             <b>To get started, please create an admin user!</b>
           </BCol>
         </BRow>
         <BRow class="mt-3">
-          <BCol>
+          <BCol md="8" offset-md="2" lg="6" offset-lg="3">
             <CreateUser :is-first-admin="true" />
           </BCol>
         </BRow>
