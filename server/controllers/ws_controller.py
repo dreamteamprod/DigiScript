@@ -872,14 +872,43 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         )
 
     async def _reject_script_room_op(self, action: str, key: str, reason: str) -> None:
-        """Send a script-room-op failure message.
+        """Send a one-line ``NOOP`` notice about a script-room op to this client.
 
-        :param action: The ACTION value to send (e.g. ``REQUEST_EDIT_FAILURE``).
-        :param key: The DATA key to carry the reason (``"reason"`` or ``"error"``).
-        :param reason: The human-readable failure reason.
+        Despite the name, not always a failure: ``_warn_of_repaired_pages`` also
+        uses this for an informational ``COLLAB_WARNING``, not a rejection.
+
+        :param action: The ACTION value to send (e.g. ``REQUEST_EDIT_FAILURE``,
+            ``COLLAB_ERROR``, ``COLLAB_WARNING``).
+        :param key: The DATA key to carry *reason* (``"reason"``, ``"error"`` or
+            ``"warning"``).
+        :param reason: The human-readable message.
         """
         await self.write_message(
             {"OP": "NOOP", "ACTION": action, "DATA": {key: reason}}
+        )
+
+    async def _warn_of_repaired_pages(self, repaired_pages: list[int]) -> None:
+        """Tell this client (not broadcast) that its own update corrupted a page.
+
+        ``ensure_trailing_page``'s repair already fixes the shared Y.Doc for
+        everyone via the broadcast update — this is purely about explaining it to
+        whoever caused it, who would otherwise just see their content vanish with
+        no indication why. A dedicated ``COLLAB_WARNING`` action, not
+        ``COLLAB_ERROR``: that action's client handler clears ``ownSaveInFlight``
+        whenever one is in flight (treating it as a save rejection), so reusing it
+        here for an unrelated, informational notice could clear that flag for a
+        save that was never actually rejected, corrupting the next ``SCRIPT_SAVED``
+        into being misread as someone else's.
+        """
+        if not repaired_pages:
+            return
+        plural = "s" if len(repaired_pages) > 1 else ""
+        pages = ", ".join(str(p) for p in sorted(repaired_pages))
+        await self._reject_script_room_op(
+            "COLLAB_WARNING",
+            "warning",
+            f"Your last change left page{plural} {pages} corrupted; it has been "
+            "reset to empty and any content there was lost.",
         )
 
     async def _require_editor_write_access(self, session, entry) -> bool:
@@ -1329,7 +1358,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
                 f"applying {len(decoded)}B update from {self.request.remote_ip}"
             )
             try:
-                follow_up = await room.apply_update(decoded)
+                follow_up, repaired_pages = await room.apply_update(decoded)
             except Exception:
                 get_logger().exception(
                     f"YJS_SYNC step=2: Failed to apply update for "
@@ -1346,6 +1375,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             await room.broadcast_update(decoded, sender=self)
             if follow_up:
                 await room.broadcast_update(follow_up)
+            await self._warn_of_repaired_pages(repaired_pages)
 
     async def _op_yjs_update(self, room_manager, data: dict) -> None:
         """Handle ``YJS_UPDATE`` (see :meth:`_handle_script_room_op`)."""
@@ -1385,7 +1415,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             f"applying {len(decoded)}B update from {self.request.remote_ip}"
         )
         try:
-            follow_up = await room.apply_update(decoded)
+            follow_up, repaired_pages = await room.apply_update(decoded)
         except Exception:
             get_logger().exception(
                 f"YJS_UPDATE: Failed to apply update for revision "
@@ -1403,6 +1433,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         if follow_up:
             # The server-made trailing page goes to everyone, sender included.
             await room.broadcast_update(follow_up)
+        await self._warn_of_repaired_pages(repaired_pages)
 
     async def _op_yjs_awareness(self, room_manager, data: dict) -> None:
         """Handle ``YJS_AWARENESS`` (see :meth:`_handle_script_room_op`)."""

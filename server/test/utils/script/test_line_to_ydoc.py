@@ -449,7 +449,7 @@ class TestEnsureTrailingPage:
     def test_no_op_when_the_last_page_is_already_empty(self):
         doc = build_ydoc([], revision_id=1)
 
-        assert ensure_trailing_page(doc) is None
+        assert ensure_trailing_page(doc) == (None, [])
         assert list(doc.get("pages", type=pycrdt.Map).keys()) == ["1"]
 
     def test_adds_the_next_page_once_the_last_page_has_lines(self):
@@ -458,9 +458,10 @@ class TestEnsureTrailingPage:
         line = pycrdt.Map()
         pages["1"].append(line)
 
-        update = ensure_trailing_page(doc)
+        update, repaired_pages = ensure_trailing_page(doc)
 
         assert update is not None
+        assert repaired_pages == []
         assert sorted(pages.keys()) == ["1", "2"]
         assert len(pages["2"]) == 0
 
@@ -472,12 +473,12 @@ class TestEnsureTrailingPage:
         doc.get("pages", type=pycrdt.Map)["1"].append(pycrdt.Map())
 
         replica.apply_update(doc.get_update(replica.get_state()))
-        update = ensure_trailing_page(doc)
+        update, _ = ensure_trailing_page(doc)
         replica.apply_update(update)
 
         assert sorted(replica.get("pages", type=pycrdt.Map).keys()) == ["1", "2"]
 
-    def test_only_the_highest_numeric_page_decides(self):
+    def test_only_the_highest_numeric_page_decides_whether_to_add_a_new_one(self):
         doc = pycrdt.Doc()
         pages = doc.get("pages", type=pycrdt.Map)
         pages["1"] = pycrdt.Array()
@@ -485,7 +486,7 @@ class TestEnsureTrailingPage:
         pages["2"] = pycrdt.Array()  # empty, and highest → nothing to add
         pages["notes"] = pycrdt.Array()  # non-numeric keys are ignored
 
-        assert ensure_trailing_page(doc) is None
+        assert ensure_trailing_page(doc) == (None, [])
 
     def test_a_non_array_last_page_is_rejected_not_indexed(self):
         """A corrupt draft can hold anything under a page key."""
@@ -494,6 +495,18 @@ class TestEnsureTrailingPage:
         pages["1"] = "not an array"
 
         with pytest.raises(ValueError, match="not a Y.Array"):
+            ensure_trailing_page(doc)
+
+    def test_a_non_array_lower_page_is_also_rejected_not_just_the_last(self):
+        """A lower page's own equivalent corruption must not slip past unnoticed
+        — without this, extract_lines_from_ydoc would be the only thing left to
+        catch it, at save time, with no self-heal (unlike the last page's case)."""
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = "not an array"
+        pages["2"] = pycrdt.Array()
+
+        with pytest.raises(ValueError, match="Page 1 is not a Y.Array"):
             ensure_trailing_page(doc)
 
     def test_reloading_a_draft_without_a_trailing_page_is_stable(self):
@@ -512,7 +525,7 @@ class TestEnsureTrailingPage:
             doc.get("pages", type=pycrdt.Map)
             doc.apply_update(stored)
             ensure_trailing_page(doc)
-            assert ensure_trailing_page(doc) is None  # idempotent within a load
+            assert ensure_trailing_page(doc) == (None, [])  # idempotent within a load
             pages = doc.get("pages", type=pycrdt.Map)
             shapes.append({key: len(pages[key]) for key in sorted(pages.keys())})
 
@@ -542,7 +555,7 @@ class TestNumericPageKeys:
         doc = build_ydoc([], revision_id=1)
         doc.get("pages", type=pycrdt.Map)["notes"] = pycrdt.Array()
 
-        assert ensure_trailing_page(doc) is None
+        assert ensure_trailing_page(doc) == (None, [])
 
 
 class TestRepairAndBackfill:
@@ -551,11 +564,26 @@ class TestRepairAndBackfill:
         pages = doc.get("pages", type=pycrdt.Map)
         pages["1"] = "garbage"
 
-        update = ensure_trailing_page(doc, repair=True)
+        update, repaired_pages = ensure_trailing_page(doc, repair=True)
 
         assert update is not None
+        assert repaired_pages == [1]
         assert isinstance(pages["1"], pycrdt.Array)
-        assert ensure_trailing_page(doc) is None  # now healthy
+        assert ensure_trailing_page(doc) == (None, [])  # now healthy
+
+    def test_repair_also_heals_a_non_array_lower_page(self):
+        doc = pycrdt.Doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = "garbage"
+        pages["2"] = pycrdt.Array()  # the (healthy, empty) trailing page
+
+        update, repaired_pages = ensure_trailing_page(doc, repair=True)
+
+        assert update is not None
+        assert repaired_pages == [1]
+        assert isinstance(pages["1"], pycrdt.Array)
+        assert len(pages["1"]) == 0
+        assert ensure_trailing_page(doc) == (None, [])  # now fully healthy
 
     def test_backfill_gives_old_drafts_a_uid_equal_to_their_id(self):
         doc = build_ydoc(
