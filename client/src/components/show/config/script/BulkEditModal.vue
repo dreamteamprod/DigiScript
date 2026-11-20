@@ -82,6 +82,7 @@ import { ref, computed } from 'vue';
 import type { BModal } from 'bootstrap-vue-next';
 import type { ScriptLine } from '@/types/api/script';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
+import type { BulkEditPayload } from '@/types/bulkEdit';
 import { useUserStore } from '@/stores/user';
 
 const props = defineProps<{
@@ -94,15 +95,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  apply: [
-    payload: {
-      actId: number | null;
-      sceneId: number | null;
-      partIndex: number | null;
-      characterId: number | null;
-      characterGroupId: number | null;
-    },
-  ];
+  apply: [payload: BulkEditPayload];
 }>();
 
 const userStore = useUserStore();
@@ -224,15 +217,19 @@ const characterComplete = computed(
 const canApply = computed(() => actSceneComplete.value || characterComplete.value);
 
 function handleOk(): void {
-  if (canApply.value) {
-    emit('apply', {
-      actId: actSceneComplete.value ? selectedActId.value : null,
-      sceneId: actSceneComplete.value ? selectedSceneId.value : null,
-      partIndex: characterComplete.value ? selectedPartIndex.value : null,
-      characterId: characterComplete.value ? selectedCharacterId.value : null,
-      characterGroupId: characterComplete.value ? selectedCharacterGroupId.value : null,
-    });
-  }
+  if (!canApply.value) return;
+  emit('apply', {
+    actScene: actSceneComplete.value
+      ? { actId: selectedActId.value!, sceneId: selectedSceneId.value! }
+      : null,
+    assignee: characterComplete.value
+      ? {
+          partIndex: selectedPartIndex.value!,
+          characterId: selectedCharacterId.value,
+          characterGroupId: selectedCharacterGroupId.value,
+        }
+      : null,
+  });
 }
 
 function reset(): void {

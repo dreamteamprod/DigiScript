@@ -20,6 +20,7 @@ from tornado.testing import gen_test
 from tornado.websocket import WebSocketClosedError
 
 from digi_server.logger import get_logger
+from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
     ScriptLine,
     ScriptLinePart,
@@ -915,6 +916,72 @@ class TestScriptRoomSaveDraft(_ScriptTestSetup):
         # Returns bytes (meta.last_saved_at update) rather than None
         self.assertIsInstance(update, bytes)
         self.assertGreater(len(update), 0)
+
+    @gen_test
+    async def test_a_cue_on_a_saved_line_survives_a_collab_edit_of_that_line(self):
+        """Issue #1523: a cue attached to a saved line must still be attached
+        (group/sort preserved) once a *collaborative* edit of that line's text
+        is saved — the "changed existing line" path rewrites the DB row the
+        cue points at, migrating CueAssociation along with it. The migration
+        logic itself is already unit-tested directly against
+        _save_script_page (test_ydoc_to_lines.py's test_cue_association_migrated);
+        this instead drives it through the real Y.Doc/save_draft path a
+        collaborative editor's save actually takes — the proof the plan's own
+        Step 4 E2E never ended up covering.
+        """
+        with self._app.get_db().sessionmaker() as session:
+            assoc = self._seed_line(session, text="Original")
+            old_line_id = assoc.line_id
+
+            cue_type = CueType(
+                show_id=self.show_id, prefix="LX", description="Lighting", colour="#fff"
+            )
+            session.add(cue_type)
+            session.flush()
+            cue = Cue(cue_type_id=cue_type.id, ident="Q1")
+            session.add(cue)
+            session.flush()
+            cue_group = CueGroup(cue_type_id=cue_type.id)
+            session.add(cue_group)
+            session.flush()
+            cue_group_id = cue_group.id
+            session.add(
+                CueAssociation(
+                    revision_id=self.revision_id,
+                    line_id=old_line_id,
+                    cue_id=cue.id,
+                    group_id=cue_group_id,
+                    sort_order=3,
+                )
+            )
+            session.commit()
+            cue_id = cue.id
+
+        # Build the Y.Doc from the real DB state (real integer _ids), then make
+        # a genuine collaborative edit to the line's text.
+        with self._app.get_db().sessionmaker() as session:
+            script_data = fetch_script_line_data(session, self.revision_id)
+        doc = build_ydoc(script_data, self.revision_id)
+        room = ScriptRoom(self.revision_id, doc)
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"][0]["parts"][0]["line_text"] = "Changed via collab edit"
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        with self._app.get_db().sessionmaker() as session:
+            new_ca = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision_id,
+                    CueAssociation.cue_id == cue_id,
+                )
+            ).one()
+            self.assertNotEqual(old_line_id, new_ca.line_id)
+            self.assertEqual(cue_group_id, new_ca.group_id)
+            self.assertEqual(3, new_ca.sort_order)
+            self.assertEqual(
+                "Changed via collab edit", new_ca.line.line_parts[0].line_text
+            )
 
     @gen_test
     async def test_save_draft_validation_error_propagates(self):

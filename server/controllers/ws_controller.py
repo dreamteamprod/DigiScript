@@ -911,26 +911,33 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             "reset to empty and any content there was lost.",
         )
 
-    async def _require_editor_write_access(self, session, entry) -> bool:
+    async def _require_editor_write_access(
+        self, session, entry, *, error_action: str = "COLLAB_ERROR"
+    ) -> bool:
         """Verify the session is an active editor with WRITE permission.
 
         Used by ``SAVE_SCRIPT_DRAFT`` / ``DISCARD_SCRIPT_DRAFT``, which both require
-        the requester to already hold editor status on top of RBAC WRITE. Sends a
-        ``COLLAB_ERROR`` and returns False on failure.
+        the requester to already hold editor status on top of RBAC WRITE. Sends
+        *error_action* and returns False on failure.
 
         :param session: Active SQLAlchemy session.
         :param entry: The requester's Session row, or None.
+        :param error_action: The ACTION to send on failure — ``SAVE_SCRIPT_DRAFT``
+            passes ``"SAVE_ERROR"`` so the client can tell its own save being
+            rejected apart from an unrelated ``COLLAB_ERROR`` arriving while a
+            save happens to be in flight (issue #1483); other callers default to
+            ``COLLAB_ERROR``.
         :returns: True if the requester may proceed.
         """
         if entry is None or not entry.is_editor or self._owned_row(session) is None:
             await self._reject_script_room_op(
-                "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
+                error_action, "error", ERROR_INSUFFICIENT_PERMISSIONS
             )
             return False
         show = await self._get_current_show(session)
         if not self._user_has_script_write_access(session, show):
             await self._reject_script_room_op(
-                "COLLAB_ERROR", "error", ERROR_INSUFFICIENT_PERMISSIONS
+                error_action, "error", ERROR_INSUFFICIENT_PERMISSIONS
             )
             return False
         return True
@@ -1456,18 +1463,33 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
 
     async def _op_save_script_draft(self, room_manager, data: dict) -> None:
         """Handle ``SAVE_SCRIPT_DRAFT`` (see :meth:`_handle_script_room_op`)."""
+        # Both of this op's own rejection paths use SAVE_ERROR, not COLLAB_ERROR
+        # (issue #1483): the client can then tell "my save was rejected" apart
+        # from an unrelated COLLAB_ERROR that happens to arrive while a save it
+        # sent is still in flight, rather than guessing from ownSaveInFlight.
+        #
+        # One exception, left as COLLAB_ERROR rather than special-cased here:
+        # _handle_script_room_op's own pre-dispatch check rejects every
+        # _COLLAB_ONLY_OPS member, this one included, with COLLAB_ERROR if
+        # collab editing has been switched off. Verified unreachable while a
+        # save could actually be in flight: reaching this handler at all
+        # requires being the room's editor, and SettingsController's
+        # _collab_mode_change_blocked refuses to turn the setting off while
+        # room.has_editors — the two can never be true at once.
         if await self._is_live_session_active():
             await self.write_message(
                 {
                     "OP": "NOOP",
-                    "ACTION": "COLLAB_ERROR",
+                    "ACTION": "SAVE_ERROR",
                     "DATA": {"error": ERROR_EDIT_BLOCKED_BY_LIVE_SESSION},
                 }
             )
             return
         with self.make_session() as session:
             entry = session.get(Session, self.__getattribute__("internal_id"))
-            if not await self._require_editor_write_access(session, entry):
+            if not await self._require_editor_write_access(
+                session, entry, error_action="SAVE_ERROR"
+            ):
                 return
         await room_manager.save_room(self)
         await self.application.ws_send_to_all("NOOP", "GET_SCRIPT_CONFIG_STATUS", {})

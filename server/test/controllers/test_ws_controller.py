@@ -1670,7 +1670,8 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
 
     @gen_test
     async def test_save_script_draft_blocked_by_live_session(self):
-        """SAVE_SCRIPT_DRAFT is rejected with COLLAB_ERROR while a live session is running."""
+        """SAVE_SCRIPT_DRAFT is rejected with SAVE_ERROR (not COLLAB_ERROR, #1483)
+        while a live session is running."""
         ws, uuid = await self._connect_and_auth(self.admin_id)
 
         # Enter edit mode and join room before activating the live session
@@ -1692,8 +1693,42 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
         response = await ws.read_message()
         response_data = json.loads(response)
         self.assertEqual("NOOP", response_data["OP"])
-        self.assertEqual("COLLAB_ERROR", response_data["ACTION"])
+        self.assertEqual("SAVE_ERROR", response_data["ACTION"])
         self.assertIn("live session", response_data["DATA"]["error"])
+
+        ws.close()
+
+    @gen_test
+    async def test_save_script_draft_rejects_with_save_error_not_collab_error(self):
+        """_require_editor_write_access's rejection (#1483) is SAVE_ERROR for
+        SAVE_SCRIPT_DRAFT specifically — DISCARD_SCRIPT_DRAFT, sharing the same
+        helper, still gets the generic COLLAB_ERROR, confirming the
+        differentiation is per-caller, not a change to the helper's default."""
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+        await ws.write_message(
+            json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": {"collab": True}})
+        )
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        await ws.read_message()  # YJS_SYNC
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from join
+
+        # No longer an editor — the first check in _require_editor_write_access.
+        with self._app.get_db().sessionmaker() as db_session:
+            entry = db_session.get(Session, uuid)
+            entry.is_editor = False
+            db_session.commit()
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+        msg, _ = await self._read_until(ws, op="NOOP")
+        self.assertEqual("SAVE_ERROR", msg["ACTION"])
+        self.assertIn("permission", msg["DATA"]["error"].lower())
+
+        await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
+        msg, _ = await self._read_until(ws, op="NOOP")
+        self.assertEqual("COLLAB_ERROR", msg["ACTION"])
+        self.assertIn("permission", msg["DATA"]["error"].lower())
 
         ws.close()
 
@@ -3233,7 +3268,7 @@ class TestWSUuidIsNotOwnership(_ReconnectTestBase):
         self.assertIn("permission", msg["DATA"]["error"].lower())
 
         await ws_x.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
-        msg, _ = await self._read_until(ws_x, action="COLLAB_ERROR")
+        msg, _ = await self._read_until(ws_x, action="SAVE_ERROR")
         self.assertIn("permission", msg["DATA"]["error"].lower())
 
         self.assertEqual((True, False, self.admin_id), self._session_row(uuid_e))
