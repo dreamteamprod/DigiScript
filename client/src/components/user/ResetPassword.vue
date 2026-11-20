@@ -1,9 +1,8 @@
 <template>
   <div>
     <BAlert v-if="!temporaryPassword" variant="warning" :model-value="true">
-      This will reset <strong>{{ username }}</strong
-      >'s password to a randomly generated temporary password. The user will be forced to change it
-      on their next login.
+      This will reset <strong>{{ username }}</strong>'s password to a randomly generated temporary
+      password. The user will be forced to change it on their next login.
     </BAlert>
 
     <BAlert v-if="temporaryPassword" variant="success" :model-value="true">
