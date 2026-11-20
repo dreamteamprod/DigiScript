@@ -721,55 +721,70 @@ test('a stalled save surfaces an error, not a stuck spinner (#1522)', async ({ b
     });
   });
 
-  await loginAsAdmin(page5);
-  await openScriptEditor(page5);
-  await editButton(page5).click();
-  await expect(stopEditing(page5)).toBeVisible({ timeout: 10_000 });
-  await addDialogueLine(page5, {
-    act: 'Act 1',
-    scene: 'Scene 1',
-    character: 'Alice',
-    text: 'A line for the stalled save',
-  });
+  // The suite is serial and shares DB/room state with every later test — if
+  // anything below throws, page5 must not stay a dirty editor of the shared
+  // room, or every following test fails with confusing, unrelated errors.
+  try {
+    await loginAsAdmin(page5);
+    await openScriptEditor(page5);
+    await editButton(page5).click();
+    await expect(stopEditing(page5)).toBeVisible({ timeout: 10_000 });
+    await addDialogueLine(page5, {
+      act: 'Act 1',
+      scene: 'Scene 1',
+      character: 'Alice',
+      text: 'A line for the stalled save',
+    });
 
-  const saveButton = page5.getByRole('button', { name: 'Save', exact: true });
-  await expect(saveButton).toBeEnabled();
-  // Only now, right before the save whose stall this test is about — real
-  // timers are left alone for everything up to this point (login, navigation,
-  // editing), avoiding any risk of mocked time interfering with those.
-  await page5.clock.install();
-  await saveButton.click();
-  await waitForModal(page5, 'Saving Script');
+    const saveButton = page5.getByRole('button', { name: 'Save', exact: true });
+    await expect(saveButton).toBeEnabled();
+    // Only now, right before the save whose stall this test is about — real
+    // timers are left alone for everything up to this point (login,
+    // navigation, editing), avoiding any risk of mocked time interfering
+    // with those.
+    await page5.clock.install();
+    await saveButton.click();
+    await waitForModal(page5, 'Saving Script');
 
-  await page5.clock.fastForward('00:31'); // past SAVE_STALL_TIMEOUT_MS (30s)
+    await page5.clock.fastForward('00:31'); // past SAVE_STALL_TIMEOUT_MS (30s)
 
-  // The modal itself must not just hang mid-spinner — it flips to the error
-  // state (an OK button appears, no longer the blocking in-progress view).
-  await expect(page5.locator('.modal.show').getByText('timed out')).toBeVisible({
-    timeout: 10_000,
-  });
-  await confirmModal(page5);
-  await waitForModalClosed(page5);
+    // The modal itself must not just hang mid-spinner — it flips to the
+    // error state (an OK button appears, no longer the blocking in-progress
+    // view). The full message, not a loose substring: "timed out" alone
+    // also matches the (shorter, 15s) join-stall wording.
+    await expect(
+      page5.locator('.modal.show').getByText('Saving the script draft timed out')
+    ).toBeVisible({ timeout: 10_000 });
+    await confirmModal(page5);
+    await waitForModalClosed(page5);
 
-  // isDraftDirty correctly stayed true — the save never actually completed. The
-  // Save button re-enabling is proof by itself (canSaveDraft requires it); the
-  // cleanup save immediately below, which only makes sense to attempt and only
-  // succeeds if the store still considers itself dirty, is the second proof.
-  await expect(saveButton).toBeEnabled();
+    // Still a connected editor, not torn down by the stall — the socket
+    // itself was never touched, only the save's own reply was dropped.
+    await expect(stopEditing(page5)).toBeVisible();
 
-  // Clean up: a real save this time, so the draft (and the room) is left
-  // exactly as every other test in this file expects to find it.
-  dropSave = false;
-  await saveButton.click();
-  await expect(page5.locator('.modal.show').getByText('Finished saving script.')).toBeVisible({
-    timeout: 15_000,
-  });
-  await confirmModal(page5);
-  await waitForModalClosed(page5);
+    // isDraftDirty correctly stayed true — the save never actually
+    // completed. The Save button re-enabling is proof by itself
+    // (canSaveDraft requires it); the cleanup save immediately below, which
+    // only makes sense to attempt and only succeeds if the store still
+    // considers itself dirty, is the second proof.
+    await expect(saveButton).toBeEnabled();
 
-  await stopEditing(page5).click();
-  await expect(editButton(page5)).toBeVisible({ timeout: 10_000 });
-  await ctx5.close();
+    // Clean up: a real save this time, so the draft (and the room) is left
+    // exactly as every other test in this file expects to find it.
+    dropSave = false;
+    await saveButton.click();
+    await expect(page5.locator('.modal.show').getByText('Finished saving script.')).toBeVisible({
+      timeout: 15_000,
+    });
+    await confirmModal(page5);
+    await waitForModalClosed(page5);
+
+    await stopEditing(page5).click();
+    await expect(editButton(page5)).toBeVisible({ timeout: 10_000 });
+  } finally {
+    dropSave = false;
+    await ctx5.close();
+  }
 });
 
 test('Stop Editing returns to Edit', async () => {

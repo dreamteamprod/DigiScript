@@ -686,8 +686,7 @@ describe('scriptDraft store', () => {
     store.collabWarning({ warning: 'page 1 was corrupted and reset' });
 
     expect(toast.warning).toHaveBeenCalledWith('page 1 was corrupted and reset');
-    // Unlike collabError, a save in flight is untouched — this was never a save
-    // rejection.
+    // A save in flight is untouched — this was never a save rejection.
     expect(store.isDraftSaving).toBe(true);
     expect(store.lastCollabError).toBeNull();
   });
@@ -695,9 +694,9 @@ describe('scriptDraft store', () => {
   it("a collabWarning arriving mid-save does not make the following scriptSaved misread as someone else's", () => {
     // Regression for the bug COLLAB_ERROR-reuse would have caused: a page-repair
     // notice landing while our own save is in flight must not clear
-    // ownSaveInFlight (only collabError/saveError/scriptSaved may do that), or the
-    // real SCRIPT_SAVED reply for our save would be misread as another editor's
-    // and unconditionally clear isDraftDirty over a genuine unsaved edit.
+    // ownSaveInFlight (only saveError/scriptSaved may do that), or the real
+    // SCRIPT_SAVED reply for our save would be misread as another editor's and
+    // unconditionally clear isDraftDirty over a genuine unsaved edit.
     const store = useScriptDraftStore();
     store.joinScriptRoom();
     store.yjsSync({ step: 0, payload: makeRemoteUpdate(() => {}) });

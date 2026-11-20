@@ -894,11 +894,10 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         everyone via the broadcast update — this is purely about explaining it to
         whoever caused it, who would otherwise just see their content vanish with
         no indication why. A dedicated ``COLLAB_WARNING`` action, not
-        ``COLLAB_ERROR``: that action's client handler clears ``ownSaveInFlight``
-        whenever one is in flight (treating it as a save rejection), so reusing it
-        here for an unrelated, informational notice could clear that flag for a
-        save that was never actually rejected, corrupting the next ``SCRIPT_SAVED``
-        into being misread as someone else's.
+        ``COLLAB_ERROR``: the client's ``collabWarning()`` handler for this one
+        does nothing but show a toast, deliberately staying clear of
+        ``ownSaveInFlight``/``isDraftSaving`` so an unrelated, informational
+        notice can never be mistaken for a save's own rejection.
         """
         if not repaired_pages:
             return
@@ -963,8 +962,18 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         # LEAVE_SCRIPT_ROOM stays allowed (harmless, and lets a client tidy up after
         # the mode is switched underneath it).
         if ws_op in _COLLAB_ONLY_OPS and not self._is_collab_editing_enabled():
+            # SAVE_SCRIPT_DRAFT gets SAVE_ERROR here too (#1483), not just from its
+            # own handler below: this check runs before that handler ever sees the
+            # message, and nothing here requires the sender to be an editor —
+            # _require_editor_write_access is what actually enforces that, further
+            # down. A client whose own save is still in flight when the mode flips
+            # off (e.g. it was the room's last editor and just left, unblocking the
+            # admin's change) must not have that save's SAVE_ERROR arrive as a
+            # COLLAB_ERROR instead, which collabError() no longer resolves.
             await self._reject_script_room_op(
-                "COLLAB_ERROR", "error", ERROR_COLLAB_EDITING_DISABLED
+                "SAVE_ERROR" if ws_op == "SAVE_SCRIPT_DRAFT" else "COLLAB_ERROR",
+                "error",
+                ERROR_COLLAB_EDITING_DISABLED,
             )
             return
 
@@ -1463,19 +1472,12 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
 
     async def _op_save_script_draft(self, room_manager, data: dict) -> None:
         """Handle ``SAVE_SCRIPT_DRAFT`` (see :meth:`_handle_script_room_op`)."""
-        # Both of this op's own rejection paths use SAVE_ERROR, not COLLAB_ERROR
-        # (issue #1483): the client can then tell "my save was rejected" apart
-        # from an unrelated COLLAB_ERROR that happens to arrive while a save it
-        # sent is still in flight, rather than guessing from ownSaveInFlight.
-        #
-        # One exception, left as COLLAB_ERROR rather than special-cased here:
-        # _handle_script_room_op's own pre-dispatch check rejects every
-        # _COLLAB_ONLY_OPS member, this one included, with COLLAB_ERROR if
-        # collab editing has been switched off. Verified unreachable while a
-        # save could actually be in flight: reaching this handler at all
-        # requires being the room's editor, and SettingsController's
-        # _collab_mode_change_blocked refuses to turn the setting off while
-        # room.has_editors — the two can never be true at once.
+        # Every rejection path for this op uses SAVE_ERROR, not COLLAB_ERROR
+        # (issue #1483) — including _handle_script_room_op's own pre-dispatch
+        # collab-mode-disabled check, which special-cases this op the same way.
+        # Without that, the client couldn't tell "my save was rejected" apart
+        # from an unrelated COLLAB_ERROR arriving while a save it sent is still
+        # in flight; collabError() no longer resolves ownSaveInFlight at all.
         if await self._is_live_session_active():
             await self.write_message(
                 {

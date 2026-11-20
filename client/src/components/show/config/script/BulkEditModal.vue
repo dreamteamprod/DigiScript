@@ -218,17 +218,26 @@ const canApply = computed(() => actSceneComplete.value || characterComplete.valu
 
 function handleOk(): void {
   if (!canApply.value) return;
+  let assignee: BulkEditPayload['assignee'] = null;
+  if (characterComplete.value) {
+    assignee =
+      selectedCharacterId.value != null
+        ? {
+            partIndex: selectedPartIndex.value!,
+            characterId: selectedCharacterId.value,
+            characterGroupId: null,
+          }
+        : {
+            partIndex: selectedPartIndex.value!,
+            characterId: null,
+            characterGroupId: selectedCharacterGroupId.value!,
+          };
+  }
   emit('apply', {
     actScene: actSceneComplete.value
       ? { actId: selectedActId.value!, sceneId: selectedSceneId.value! }
       : null,
-    assignee: characterComplete.value
-      ? {
-          partIndex: selectedPartIndex.value!,
-          characterId: selectedCharacterId.value,
-          characterGroupId: selectedCharacterGroupId.value,
-        }
-      : null,
+    assignee,
   });
 }
 

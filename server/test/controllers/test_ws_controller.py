@@ -1721,13 +1721,11 @@ class TestLiveSessionGuards(_WSTestHelpers, DigiScriptTestCase):
             db_session.commit()
 
         await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
-        msg, _ = await self._read_until(ws, op="NOOP")
-        self.assertEqual("SAVE_ERROR", msg["ACTION"])
+        msg, _ = await self._read_until(ws, action="SAVE_ERROR")
         self.assertIn("permission", msg["DATA"]["error"].lower())
 
         await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
-        msg, _ = await self._read_until(ws, op="NOOP")
-        self.assertEqual("COLLAB_ERROR", msg["ACTION"])
+        msg, _ = await self._read_until(ws, action="COLLAB_ERROR")
         self.assertIn("permission", msg["DATA"]["error"].lower())
 
         ws.close()

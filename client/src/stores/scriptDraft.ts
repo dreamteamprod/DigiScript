@@ -608,12 +608,10 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     collabError(data: CollabErrorMessage): void {
       this.lastCollabError = data.error;
       toast.error(data.error);
-      // A rejected save now always fails via SAVE_ERROR, never COLLAB_ERROR
-      // (server issue #1483's fix — both of _op_save_script_draft's own
-      // rejection paths tag themselves SAVE_ERROR specifically so this handler
-      // never has to guess whether some unrelated COLLAB_ERROR happened to
-      // arrive while a save was in flight). So collabError() never touches
-      // ownSaveInFlight/isDraftSaving — saveError() is their sole clearer.
+      // Save rejections arrive as SAVE_ERROR, never COLLAB_ERROR (#1483) —
+      // ownSaveInFlight/isDraftSaving are resolved solely by scriptSaved() and
+      // saveError(), so this handler never has to guess whether some
+      // unrelated COLLAB_ERROR happened to arrive while a save was in flight.
       //
       // A COLLAB_ERROR while we're mid-join (active but never synced) means the join
       // itself was rejected (no show, no revision, live session, a Y.Doc build
@@ -628,11 +626,9 @@ export const useScriptDraftStore = defineStore('scriptDraft', {
     },
 
     /**
-     * Informational only — e.g. the server healing a page our own update corrupted.
-     * Deliberately a separate action from collabError(), which never touches
-     * `ownSaveInFlight` either (#1483) — but kept separate anyway in case a
-     * save rejection is ever folded back into a generic action: a warning must
-     * never risk being mistaken for one.
+     * Informational only — e.g. the server healing a page our own update
+     * corrupted. A separate action from collabError() so a warning can never
+     * be mistaken for a save rejection.
      */
     collabWarning(data: CollabWarningMessage): void {
       toast.warning(data.warning);

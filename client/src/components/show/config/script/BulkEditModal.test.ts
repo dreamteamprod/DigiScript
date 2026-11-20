@@ -52,7 +52,9 @@ function mountModal() {
       selectedPartIndex: number | null;
       selectedCharacterId: number | null;
       selectedCharacterGroupId: number | null;
+      combinedValue: string | null;
       handleOk: () => void;
+      reset: () => void;
     };
   };
 }
@@ -102,6 +104,27 @@ describe('BulkEditModal', () => {
     });
   });
 
+  it('emits assignee with a character group, selected in isolation', () => {
+    const w = mountModal();
+    w.vm.selectedPartIndex = 3;
+    w.vm.selectedCharacterGroupId = 1;
+    w.vm.handleOk();
+
+    const payloads = w.emitted('apply') as [BulkEditPayload][];
+    expect(payloads[0]![0]).toEqual({
+      actScene: null,
+      assignee: { partIndex: 3, characterId: null, characterGroupId: 1 },
+    });
+  });
+
+  it('does not emit at all when nothing is selected', () => {
+    const w = mountModal();
+
+    w.vm.handleOk();
+
+    expect(w.emitted('apply')).toBeUndefined();
+  });
+
   it('does not emit at all when neither section is complete', () => {
     const w = mountModal();
     w.vm.selectedActId = 1; // scene left unset — act/scene incomplete
@@ -118,5 +141,64 @@ describe('BulkEditModal', () => {
     w.vm.handleOk();
 
     expect(w.emitted('apply')).toBeUndefined();
+  });
+
+  describe('combinedValue (the combined character/group dropdown)', () => {
+    it('reading it reflects whichever of character/group is currently selected', () => {
+      const w = mountModal();
+      expect(w.vm.combinedValue).toBeNull();
+
+      w.vm.selectedCharacterId = 1;
+      expect(w.vm.combinedValue).toBe('c:1');
+
+      w.vm.selectedCharacterId = null;
+      w.vm.selectedCharacterGroupId = 1;
+      expect(w.vm.combinedValue).toBe('g:1');
+    });
+
+    it('setting it to a character clears any selected group, and vice versa', () => {
+      const w = mountModal();
+
+      w.vm.combinedValue = 'c:1';
+      expect(w.vm.selectedCharacterId).toBe(1);
+      expect(w.vm.selectedCharacterGroupId).toBeNull();
+
+      w.vm.combinedValue = 'g:1';
+      expect(w.vm.selectedCharacterGroupId).toBe(1);
+      expect(w.vm.selectedCharacterId).toBeNull();
+
+      w.vm.combinedValue = null;
+      expect(w.vm.selectedCharacterId).toBeNull();
+      expect(w.vm.selectedCharacterGroupId).toBeNull();
+    });
+
+    it('handleOk emits correctly when the assignment was made through combinedValue', () => {
+      const w = mountModal();
+      w.vm.selectedPartIndex = 1;
+      w.vm.combinedValue = 'c:1';
+      w.vm.handleOk();
+
+      const payloads = w.emitted('apply') as [BulkEditPayload][];
+      expect(payloads[0]![0]).toEqual({
+        actScene: null,
+        assignee: { partIndex: 1, characterId: 1, characterGroupId: null },
+      });
+    });
+  });
+
+  it('reset() clears every selection', () => {
+    const w = mountModal();
+    w.vm.selectedActId = 1;
+    w.vm.selectedSceneId = 1;
+    w.vm.selectedPartIndex = 1;
+    w.vm.selectedCharacterId = 1;
+
+    w.vm.reset();
+
+    expect(w.vm.selectedActId).toBeNull();
+    expect(w.vm.selectedSceneId).toBeNull();
+    expect(w.vm.selectedPartIndex).toBeNull();
+    expect(w.vm.selectedCharacterId).toBeNull();
+    expect(w.vm.selectedCharacterGroupId).toBeNull();
   });
 });

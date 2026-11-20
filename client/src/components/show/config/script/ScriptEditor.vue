@@ -198,6 +198,7 @@ import BulkEditModal from './BulkEditModal.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 import type { BulkEditPayload } from '@/types/bulkEdit';
+import { applyBulkPayloadToLine } from '@/js/bulkEditLine';
 
 const MRU_LOOK_BACK = 4;
 
@@ -686,10 +687,6 @@ async function onBulkApply(payload: BulkEditPayload): Promise<void> {
   const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
   const { page: endPage, lineIndex: endIndex } = bulkEditEnd.value;
 
-  const actScene = payload.actScene;
-  const assignee = payload.assignee;
-  const targetPartIdx = assignee ? assignee.partIndex - 1 : 0;
-
   for (let p = startPage; p <= endPage; p++) {
     await loadPage(p);
     const pageLines = scriptConfigStore.getTmpPage(p);
@@ -698,28 +695,7 @@ async function onBulkApply(payload: BulkEditPayload): Promise<void> {
     const deletedOnPage = scriptConfigStore.getDeletedLines(p);
     for (let i = fromIdx; i <= toIdx; i++) {
       if (deletedOnPage.includes(i)) continue;
-      const updatedLine = { ...pageLines[i] };
-      if (actScene) {
-        updatedLine.act_id = actScene.actId;
-        updatedLine.scene_id = actScene.sceneId;
-      }
-      if (assignee) {
-        const sortedParts = [...updatedLine.line_parts].sort(
-          (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
-        );
-        if (sortedParts.length > targetPartIdx) {
-          updatedLine.line_parts = sortedParts.map((part, idx) =>
-            idx === targetPartIdx
-              ? {
-                  ...part,
-                  character_id: assignee.characterId,
-                  character_group_id: assignee.characterGroupId,
-                }
-              : part
-          );
-        }
-      }
-      scriptConfigStore.setLine(p, i, updatedLine);
+      scriptConfigStore.setLine(p, i, applyBulkPayloadToLine(pageLines[i]!, payload));
     }
   }
 
