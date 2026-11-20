@@ -96,6 +96,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import log from 'loglevel';
 import { makeURL } from '@/js/utils';
 
 interface LogEntry {
@@ -142,19 +143,19 @@ const levelOptions = [
 watch(source, () => {
   usernameInput.value = '';
   if (liveRefresh.value) restartStream();
-  else fetchLogs();
+  else void fetchLogs();
 });
 
 watch(levelFilter, () => {
   if (liveRefresh.value) restartStream();
-  else fetchLogs();
+  else void fetchLogs();
 });
 
 watch(searchInput, () => {
   clearTimeout(searchDebounceTimer ?? undefined);
   searchDebounceTimer = setTimeout(() => {
     if (liveRefresh.value) restartStream();
-    else fetchLogs();
+    else void fetchLogs();
   }, 400);
 });
 
@@ -162,12 +163,12 @@ watch(usernameInput, () => {
   clearTimeout(usernameDebounceTimer ?? undefined);
   usernameDebounceTimer = setTimeout(() => {
     if (liveRefresh.value) restartStream();
-    else fetchLogs();
+    else void fetchLogs();
   }, 400);
 });
 
 watch(liveRefresh, (val) => {
-  if (val) startStream();
+  if (val) void startStream();
   else stopStream();
 });
 
@@ -277,14 +278,14 @@ async function startStream(): Promise<void> {
 function stopStream(): void {
   if (streamReader) {
     streamAborted = true;
-    streamReader.cancel();
+    streamReader.cancel().catch((err) => log.debug('Log stream cancel failed', err));
     streamReader = null;
   }
 }
 
 function restartStream(): void {
   stopStream();
-  startStream();
+  void startStream();
 }
 
 function formatEntry(entry: LogEntry): string {

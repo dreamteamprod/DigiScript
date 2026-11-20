@@ -23,7 +23,7 @@ const tableData = computed(() => {
   ) as Record<string, unknown>;
 });
 
-const orderedKeys = computed(() => Object.keys(tableData.value).sort());
+const orderedKeys = computed(() => Object.keys(tableData.value).sort((a, b) => a.localeCompare(b)));
 
 onMounted(() => userStore.getCurrentUser());
 </script>

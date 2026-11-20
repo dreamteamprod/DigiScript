@@ -21,6 +21,7 @@ function buildAuthenticatedOptions(
 
 type QueueEntry = {
   resolve: (r: Response) => void;
+  reject: (e: unknown) => void;
   resource: string;
   options: RequestInit & { headers: Record<string, string> };
 };
@@ -31,12 +32,12 @@ export default function setupHttpInterceptor(): void {
 
   function flushQueue(newToken: string | null): void {
     const entries = refreshState.queue.splice(0);
-    entries.forEach(({ resolve, resource, options }) => {
+    entries.forEach(({ resolve, reject, resource, options }) => {
       if (newToken) {
         originalFetch(resource, {
           ...options,
           headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
-        }).then(resolve);
+        }).then(resolve, reject);
       } else {
         resolve(new Response(JSON.stringify({ message: 'Session expired' }), { status: 401 }));
       }
@@ -59,8 +60,8 @@ export default function setupHttpInterceptor(): void {
     }
 
     if (refreshState.isRefreshing) {
-      return new Promise<Response>((resolve) => {
-        refreshState.queue.push({ resolve, resource, options: newOptions });
+      return new Promise<Response>((resolve, reject) => {
+        refreshState.queue.push({ resolve, reject, resource, options: newOptions });
       });
     }
 
