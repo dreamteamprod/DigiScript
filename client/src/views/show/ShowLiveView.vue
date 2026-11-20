@@ -33,8 +33,9 @@
             <BRow v-if="intervalTimerActive">
               <BCol class="d-flex align-items-center justify-content-center">
                 <h1 style="margin-top: 0.5rem">
-                  <span :style="intervalTimerStyle">{{ intervalTimerValues[0] }}</span
-                  >:<span :style="intervalTimerStyle">{{ intervalTimerValues[1] }}</span
+                  <span :style="intervalTimerStyle">{{ intervalTimerValues[0] }}</span>:<span
+                    :style="intervalTimerStyle"
+                    >{{ intervalTimerValues[1] }}</span
                   >:<span :style="intervalTimerStyle">{{ intervalTimerValues[2] }}</span>
                 </h1>
               </BCol>
