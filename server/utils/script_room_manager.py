@@ -455,7 +455,7 @@ class ScriptRoom:
             self.mark_checkpointed()
             return update, saved_pages
 
-    async def apply_update(self, update: bytes) -> bytes | None:
+    async def apply_update(self, update: bytes) -> tuple[bytes | None, list[int]]:
         """Apply a binary update to the Y.Doc.
 
         Acquires ``save_lock`` before mutating the Y.Doc so that concurrent
@@ -467,7 +467,10 @@ class ScriptRoom:
         returned so the caller can broadcast it to *every* client, sender included.
 
         :param update: The binary update from a client.
-        :returns: A server-made follow-up update to broadcast to all clients, or None.
+        :returns: ``(follow_up, repaired_pages)`` — a server-made follow-up update
+            to broadcast to all clients (or None), and any page numbers whose
+            corrupted content this update's own repair just discarded (so the
+            caller can warn specifically whoever sent it).
         :raises Exception: Propagates any Y.Doc update error to the caller.
         """
         async with self.save_lock:
@@ -489,7 +492,7 @@ class ScriptRoom:
                 get_logger().exception(
                     f"Failed to maintain trailing page for revision {self.revision_id}"
                 )
-                return None
+                return None, []
 
     def get_sync_state(self) -> bytes:
         return self.doc.get_update()

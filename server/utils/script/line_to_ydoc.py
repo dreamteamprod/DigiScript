@@ -225,7 +225,9 @@ def numeric_page_keys(pages: pycrdt.Map) -> list[str]:
     ]
 
 
-def ensure_trailing_page(doc: pycrdt.Doc, repair: bool = False) -> bytes | None:
+def ensure_trailing_page(
+    doc: pycrdt.Doc, repair: bool = False
+) -> tuple[bytes | None, list[int]]:
     """Make sure the doc's last page is an empty one, so clients never create pages.
 
     ``pages`` is a Y.Map keyed by page number. If two editors each create the same
@@ -235,44 +237,54 @@ def ensure_trailing_page(doc: pycrdt.Doc, repair: bool = False) -> bytes | None:
     it always keeps an empty page at the end, and clients only insert into pages
     that already exist.
 
-    Only the highest numeric page key is inspected, keeping this cheap enough to
-    run after every applied update. Non-numeric keys are ignored. Pages are never
-    removed, so the doc always *ends* in an empty page; it may also contain earlier
-    empty ones.
+    Every numeric page key is inspected for non-array corruption (not just the
+    last one): a lower page left non-array by the same kind of bad client write
+    would otherwise never self-heal — ``extract_lines_from_ydoc`` rejects it on
+    every future save attempt instead, with no recovery (unlike the last page's
+    own equivalent case below). This is still cheap enough to run after every
+    applied update — a draft has at most a handful of pages. Non-numeric keys are
+    ignored. Pages are never removed, so the doc always *ends* in an empty page;
+    it may also contain earlier empty ones.
 
     :param doc: The Y.Doc to check and, if needed, extend.
-    :param repair: If the last page is not a Y.Array (a client update wrote garbage
-        under a page key), replace it with an empty page instead of raising, so the
-        doc heals and the fix is broadcast. Loading a stored draft leaves this off:
+    :param repair: If a page is not a Y.Array (a client update wrote garbage under
+        a page key), replace it with an empty page instead of raising, so the doc
+        heals and the fix is broadcast. Loading a stored draft leaves this off:
         there a malformed doc is discarded and rebuilt instead.
-    :returns: The update that adds the page (to broadcast to clients), or None if the
-        doc already ended in an empty page.
-    :raises ValueError: If the last page is not a Y.Array and *repair* is False.
+    :returns: ``(update, repaired_pages)`` — ``update`` is the Y.Doc update to
+        broadcast to clients (``None`` if nothing changed), and ``repaired_pages``
+        lists the page numbers whose non-array content was just replaced (always
+        empty unless *repair* is True and corruption was found — the caller can
+        use a non-empty list to warn whoever's update caused it).
+    :raises ValueError: If a page is not a Y.Array and *repair* is False.
     """
     pages = doc.get("pages", type=pycrdt.Map)
-    keys = numeric_page_keys(pages)
-    last = max((int(key) for key in keys), default=0)
-    if keys:
-        last_page = pages[str(last)]
-        if not isinstance(last_page, pycrdt.Array):
-            if not repair:
-                raise ValueError(
-                    f"Page {last} is not a Y.Array; the draft is malformed"
-                )
-            get_logger().warning(
-                f"ensure_trailing_page: replacing non-array page {last} "
-                f"({type(last_page).__name__}) with an empty page; any content a "
-                f"client wrote there is discarded"
-            )
-            state_before = doc.get_state()
-            pages[str(last)] = pycrdt.Array()
-            return doc.get_update(state_before)
-        if len(last_page) == 0:
-            return None
+    numeric = sorted(int(key) for key in numeric_page_keys(pages))
+    last = numeric[-1] if numeric else 0
 
     state_before = doc.get_state()
+    repaired_pages: list[int] = []
+    for page_num in numeric:
+        value = pages[str(page_num)]
+        if not isinstance(value, pycrdt.Array):
+            if not repair:
+                raise ValueError(
+                    f"Page {page_num} is not a Y.Array; the draft is malformed"
+                )
+            get_logger().warning(
+                f"ensure_trailing_page: replacing non-array page {page_num} "
+                f"({type(value).__name__}) with an empty page; any content a "
+                f"client wrote there is discarded"
+            )
+            pages[str(page_num)] = pycrdt.Array()
+            repaired_pages.append(page_num)
+
+    if numeric and len(pages[str(last)]) == 0:
+        update = doc.get_update(state_before) if repaired_pages else None
+        return update, repaired_pages
+
     pages[str(last + 1)] = pycrdt.Array()
-    return doc.get_update(state_before)
+    return doc.get_update(state_before), repaired_pages
 
 
 def backfill_uids(doc: pycrdt.Doc) -> None:
