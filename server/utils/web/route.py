@@ -73,4 +73,4 @@ class ApiRoute(Route):
                 f"Controller class {controller.__name__} is not an "
                 f"instance of BaseAPIController or WebSocketHandler"
             )
-        super().__call__(controller)
+        return super().__call__(controller)

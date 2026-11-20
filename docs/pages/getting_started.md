@@ -5,7 +5,7 @@ When DigiScript is first loaded, you will see a page similar to the following:
 ![](../images/getting_started/first_look.png)
 
 As you can see, before being able to continue you will first need to create an Administrator user.
-To do this, enter a password and press `save`, and a new user with the username `admin` will be 
+To do this, enter a password (8 to 72 characters) and press `save`, and a new user with the username `admin` will be 
 created.
 
 From here, you will need to log in with the new `admin` user that has just been created. Clicking 
@@ -13,6 +13,8 @@ on the `login` button in the top right of the navigation pane will allow you to 
 username and password from the previous step:
 
 ![](../images/getting_started/user_login.png)
+
+> **Note:** Anyone who can reach the server before the first administrator exists can create that account, so complete this step promptly after starting a new installation, especially on a network others can reach.
 
 For more information on how to create users for a show, see [Users and RBAC](./user_config.md).
 

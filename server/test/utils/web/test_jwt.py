@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from unittest import TestCase
+from unittest import TestCase, mock
 
 import pytest
 from jwt import PyJWT
@@ -7,8 +7,9 @@ from sqlalchemy import select
 from tornado.testing import gen_test
 
 from digi_server.settings import SettingsObject
-from models.user import User
+from models.user import RevokedToken, User
 from test.conftest import DigiScriptTestCase
+from test.helpers.auth_fixtures import bump_token_version, craft_token, make_user
 from utils.web.jwt_service import JWTService
 
 
@@ -203,3 +204,115 @@ class TestChoiceLabelsValidation(TestCase):
         setting.set_to_default()
         json_repr = setting.as_json()
         assert json_repr["choice_labels"] is None
+
+
+class TestJWTAccessTokenValidation(DigiScriptTestCase):
+    @gen_test
+    async def test_valid_token_returns_payload(self):
+        user_id = make_user(self._app)
+        payload, reason = await self._app.jwt_service.validate_access_token(
+            craft_token(self._app, user_id)
+        )
+        self.assertIsNone(reason)
+        self.assertEqual(user_id, payload["user_id"])
+
+    @gen_test
+    async def test_stale_token_version_is_rejected(self):
+        user_id = make_user(self._app)
+        token = craft_token(self._app, user_id)
+        bump_token_version(self._app, user_id)
+        payload, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertIsNone(payload)
+        self.assertEqual("version_invalid", reason)
+
+    @gen_test
+    async def test_revoked_token_is_rejected(self):
+        token = craft_token(self._app, make_user(self._app))
+        await self._app.jwt_service.revoke_token(token)
+        _, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertEqual("revoked", reason)
+
+    @gen_test
+    async def test_legacy_auth_time_claim_is_ignored(self):
+        old = int((datetime.now(tz=timezone.utc) - timedelta(days=90)).timestamp())
+        token = craft_token(self._app, make_user(self._app), auth_time=old)
+        payload, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertIsNone(reason)
+        self.assertIsNotNone(payload)
+
+    @gen_test
+    async def test_expired_token_is_rejected(self):
+        token = craft_token(
+            self._app,
+            make_user(self._app),
+            iat=datetime.now(tz=timezone.utc) - timedelta(days=3),
+        )
+        payload, reason = await self._app.jwt_service.validate_access_token(token)
+        self.assertIsNone(payload)
+        self.assertEqual("expired", reason)
+
+    @gen_test
+    async def test_garbage_and_wrongly_signed_tokens_are_invalid(self):
+        user_id = make_user(self._app)
+        forged = PyJWT().encode({"user_id": user_id, "exp": 9999999999}, "other")
+        for token in ("not-a-jwt", forged):
+            payload, reason = await self._app.jwt_service.validate_access_token(token)
+            self.assertIsNone(payload)
+            self.assertEqual("invalid", reason)
+
+    def test_rest_rejects_stale_token_version(self):
+        user_id = make_user(self._app)
+        token = craft_token(self._app, user_id)
+        bump_token_version(self._app, user_id)
+        response = self.fetch(
+            "/api/v1/auth", headers={"Authorization": f"Bearer {token}"}
+        )
+        self.assertEqual(401, response.code)
+
+
+class TestJWTRevocationStorage(DigiScriptTestCase):
+    @gen_test
+    async def test_revocation_survives_service_restart(self):
+        user_id = make_user(self._app)
+        token = craft_token(self._app, user_id)
+        await self._app.jwt_service.revoke_token(token)
+
+        fresh_service = JWTService(application=self._app)
+        self.assertTrue(await fresh_service.is_token_revoked(token))
+        other = craft_token(self._app, user_id, jti="another-jti")
+        self.assertFalse(await fresh_service.is_token_revoked(other))
+
+    @gen_test
+    async def test_expired_revocations_are_pruned_on_revoke(self):
+        user_id = make_user(self._app)
+        now = int(datetime.now(tz=timezone.utc).timestamp())
+        with self._app.get_db().sessionmaker() as session:
+            session.add(RevokedToken(jti="stale", expires_at=now - 10))
+            session.commit()
+
+        await self._app.jwt_service.revoke_token(
+            craft_token(self._app, user_id, jti="live")
+        )
+
+        with self._app.get_db().sessionmaker() as session:
+            jtis = set(session.scalars(select(RevokedToken.jti)).all())
+        self.assertEqual({"live"}, jtis)
+
+    @gen_test
+    async def test_unsigned_token_is_never_persisted_on_revoke(self):
+        forged = PyJWT().encode(
+            {"jti": "forged", "exp": 9999999999999999}, "other", algorithm="HS256"
+        )
+        await self._app.jwt_service.revoke_token(forged)
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual([], session.scalars(select(RevokedToken.jti)).all())
+
+    @gen_test
+    async def test_failed_revocation_load_is_retried_not_treated_as_empty(self):
+        token = craft_token(self._app, make_user(self._app))
+        await self._app.jwt_service.revoke_token(token)
+        service = JWTService(application=self._app)
+        with mock.patch.object(self._app, "get_db", side_effect=RuntimeError("locked")):
+            with self.assertRaises(RuntimeError):
+                await service.is_token_revoked(token)
+        self.assertTrue(await service.is_token_revoked(token))

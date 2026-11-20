@@ -1,77 +1,53 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col v-if="loaded">
-        <b-tabs content-class="mt-3">
-          <b-tab title="Mics" active>
-            <mic-list />
-          </b-tab>
-          <b-tab title="Allocations">
-            <mic-allocations />
-          </b-tab>
-          <b-tab title="Timeline">
-            <mic-timeline :loading="!loaded" />
-          </b-tab>
-          <b-tab title="Density">
-            <scene-density-heatmap :loading="!loaded" />
-          </b-tab>
-          <b-tab title="Availability">
-            <resource-availability :loading="!loaded" />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-      <b-col v-else>
-        <div class="text-center center-spinner">
-          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
-        </div>
-      </b-col>
-    </b-row>
-  </b-container>
+  <BContainer class="mx-0" fluid>
+    <BRow>
+      <BCol v-if="loaded">
+        <BTabs content-class="mt-3">
+          <BTab title="Mics" active>
+            <MicList />
+          </BTab>
+          <BTab title="Allocations">
+            <MicAllocations />
+          </BTab>
+          <BTab title="Timeline">
+            <MicTimeline :loading="!loaded" />
+          </BTab>
+          <BTab title="Density">
+            <SceneDensityHeatmap :loading="!loaded" />
+          </BTab>
+          <BTab title="Availability">
+            <ResourceAvailability :loading="!loaded" />
+          </BTab>
+        </BTabs>
+      </BCol>
+      <BCol v-else class="text-center py-5">
+        <BSpinner style="width: 10rem; height: 10rem" variant="info" />
+      </BCol>
+    </BRow>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { mapActions } from 'vuex';
-import MicList from '@/vue_components/show/config/mics/MicList.vue';
-import MicAllocations from '@/vue_components/show/config/mics/MicAllocations.vue';
-import MicTimeline from '@/vue_components/show/config/mics/MicTimeline.vue';
-import SceneDensityHeatmap from '@/vue_components/show/config/mics/SceneDensityHeatmap.vue';
-import ResourceAvailability from '@/vue_components/show/config/mics/ResourceAvailability.vue';
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useShowStore } from '@/stores/show';
+import MicList from '@/components/show/config/mics/MicList.vue';
+import MicAllocations from '@/components/show/config/mics/MicAllocations.vue';
+import MicTimeline from '@/components/show/config/mics/MicTimeline.vue';
+import SceneDensityHeatmap from '@/components/show/config/mics/SceneDensityHeatmap.vue';
+import ResourceAvailability from '@/components/show/config/mics/ResourceAvailability.vue';
 
-export default defineComponent({
-  name: 'ConfigMics',
-  components: {
-    MicAllocations,
-    MicList,
-    MicTimeline,
-    SceneDensityHeatmap,
-    ResourceAvailability,
-  },
-  data() {
-    return {
-      loaded: false,
-    };
-  },
-  async mounted(): Promise<void> {
-    await Promise.all([
-      (this as any).GET_SCENE_LIST(),
-      (this as any).GET_ACT_LIST(),
-      (this as any).GET_CHARACTER_LIST(),
-      (this as any).GET_CAST_LIST(),
-      (this as any).GET_MICROPHONE_LIST(),
-      (this as any).GET_MIC_ALLOCATIONS(),
-    ]);
-    this.loaded = true;
-  },
-  methods: {
-    ...mapActions([
-      'GET_SCENE_LIST',
-      'GET_ACT_LIST',
-      'GET_CHARACTER_LIST',
-      'GET_CAST_LIST',
-      'GET_MICROPHONE_LIST',
-      'GET_MIC_ALLOCATIONS',
-    ]),
-  },
+const showStore = useShowStore();
+const loaded = ref(false);
+
+onMounted(async () => {
+  await Promise.all([
+    showStore.getSceneList(),
+    showStore.getActList(),
+    showStore.getCharacterList(),
+    showStore.getCastList(),
+    showStore.getMicrophoneList(),
+    showStore.getMicAllocations(),
+  ]);
+  loaded.value = true;
 });
 </script>

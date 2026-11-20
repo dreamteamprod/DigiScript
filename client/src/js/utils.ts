@@ -1,11 +1,24 @@
-import { baseURL as platformBaseURL, makeURL as platformMakeURL } from '@/js/platform';
+// The contrast-color library uses `this` inside its standalone function, which breaks
+// in strict ESM. Inline the standard YIQ formula that the library implements.
+export function contrastColor(bgColor: string): string {
+  const hex = (bgColor ?? '#ffffff').replace('#', '');
+  const r = Number.parseInt(hex.substring(0, 2), 16) || 0;
+  const g = Number.parseInt(hex.substring(2, 4), 16) || 0;
+  const b = Number.parseInt(hex.substring(4, 6), 16) || 0;
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 128 ? '#000000' : '#ffffff';
+}
 
 export function baseURL(): string {
-  return platformBaseURL();
+  return `${window.location.protocol}//${window.location.host}`;
 }
 
 export function makeURL(path: string): string {
-  return platformMakeURL(path);
+  return `${baseURL()}${path}`;
+}
+
+export function getWebSocketURL(): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${protocol}://${window.location.host}/api/v1/ws`;
 }
 
 export function titleCase(str: string, sep = ' '): string {

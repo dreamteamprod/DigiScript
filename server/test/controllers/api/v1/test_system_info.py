@@ -16,11 +16,11 @@ class TestSystemInfoController(DigiScriptTestCase):
         resp = self._fetch_system_info()
         self.assertEqual(401, resp.code)
 
-    def test_non_admin_returns_401(self):
+    def test_non_admin_returns_403(self):
         admin_token = self._create_and_login_admin()
         user_token = self._create_and_login_user(admin_token)
         resp = self._fetch_system_info(token=user_token)
-        self.assertEqual(401, resp.code)
+        self.assertEqual(403, resp.code)
 
     def test_authenticated_returns_200_with_expected_keys(self):
         token = self._create_and_login_admin()

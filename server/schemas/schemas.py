@@ -40,6 +40,9 @@ class SessionSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = Session
         load_instance = True
+        # Include user_id: the admin connected-sessions list shows which user
+        # each client belongs to.
+        include_fk = True
 
 
 @schema

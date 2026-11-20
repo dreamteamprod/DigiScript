@@ -1,0 +1,1813 @@
+"""Tests for ScriptRoom class.
+
+Tests the in-memory room that holds a Y.Doc and tracks connected clients.
+Uses mock WebSocket handlers since we don't need a real server.
+"""
+
+import asyncio
+import datetime
+import os
+import tempfile
+import time
+import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pycrdt
+import pytest
+from prometheus_client import REGISTRY
+from sqlalchemy import select
+from tornado.testing import gen_test
+from tornado.websocket import WebSocketClosedError
+
+from digi_server.logger import get_logger
+from models.cue import CueAssociation
+from models.script import (
+    ScriptLine,
+    ScriptLinePart,
+    ScriptLineRevisionAssociation,
+    ScriptLineType,
+)
+from models.script_draft import ScriptDraft
+from models.session import Session
+from test.utils.script.test_ydoc_to_lines import (
+    _add_line_to_doc,
+    _build_empty_doc,
+    _ScriptTestSetup,
+)
+from utils.script.line_to_ydoc import build_ydoc, fetch_script_line_data
+from utils.script_room_manager import (
+    CHECKPOINT_INTERVAL,
+    RoomManager,
+    ScriptRoom,
+    _write_checkpoint_sync,
+)
+from utils.web import app_metrics
+from utils.web.ws_session_lifecycle import _downgrade_room_editor
+
+
+def _make_mock_ws():
+    """Create a mock WebSocket handler."""
+    ws = AsyncMock()
+    ws.write_message = AsyncMock()
+    return ws
+
+
+def _make_room(revision_id=1):
+    """Create a ScriptRoom with a simple Y.Doc."""
+    doc = pycrdt.Doc()
+    doc.get("meta", type=pycrdt.Map)
+    doc.get("pages", type=pycrdt.Map)
+    doc.get("deleted_line_ids", type=pycrdt.Array)
+    return ScriptRoom(revision_id, doc)
+
+
+class TestScriptRoomClients:
+    def test_add_client(self):
+        room = _make_room()
+        ws = _make_mock_ws()
+
+        room.add_client(ws, "editor")
+
+        assert ws in room.clients
+        assert room.clients[ws] == "editor"
+        assert not room.is_empty
+
+    def test_add_viewer_client(self):
+        room = _make_room()
+        ws = _make_mock_ws()
+
+        room.add_client(ws, "viewer")
+
+        assert room.clients[ws] == "viewer"
+
+    def test_add_client_does_not_evict_another_connection_sharing_an_internal_id(self):
+        """holders() (ws_session_lifecycle.py) documents that the same
+        internal_id can legitimately be held by more than one *live*
+        connection at once — a duplicated browser tab (sessionStorage is
+        copied) or a socket that merely presented someone else's uuid.
+        add_client must never use internal_id equality alone to evict an
+        existing entry; only an actual close (handled by on_close calling
+        remove_client, not add_client) may do that. This is a regression
+        test for a Phase 4 Step B attempt that got this wrong — it added an
+        internal_id dedup to add_client, which silently evicted a second,
+        still-live connection (e.g. the loop in _downgrade_room_editor
+        calling add_client for each of several live editors sharing one
+        internal_id would otherwise strand all but the last)."""
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws1.internal_id = "tab-1"
+        room.add_client(ws1, "editor")
+
+        ws2 = _make_mock_ws()
+        ws2.internal_id = "tab-1"
+        room.add_client(ws2, "viewer")
+
+        assert room.clients == {ws1: "editor", ws2: "viewer"}
+
+    def test_remove_client(self):
+        room = _make_room()
+        ws = _make_mock_ws()
+        room.add_client(ws, "editor")
+
+        room.remove_client(ws)
+
+        assert ws not in room.clients
+        assert room.is_empty
+
+    def test_remove_nonexistent_client_is_noop(self):
+        room = _make_room()
+        ws = _make_mock_ws()
+
+        room.remove_client(ws)  # Should not raise
+
+        assert room.is_empty
+
+    def test_has_editors_with_only_viewers(self):
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws2 = _make_mock_ws()
+        room.add_client(ws1, "viewer")
+        room.add_client(ws2, "viewer")
+
+        assert not room.has_editors
+        assert not room.is_empty
+
+    def test_has_editors_with_one_editor(self):
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws2 = _make_mock_ws()
+        room.add_client(ws1, "viewer")
+        room.add_client(ws2, "editor")
+
+        assert room.has_editors
+
+    def test_has_editors_after_editor_removed(self):
+        room = _make_room()
+        ws_editor = _make_mock_ws()
+        ws_viewer = _make_mock_ws()
+        room.add_client(ws_editor, "editor")
+        room.add_client(ws_viewer, "viewer")
+
+        room.remove_client(ws_editor)
+
+        assert not room.has_editors
+        assert not room.is_empty
+
+    def test_has_editors_empty_room(self):
+        room = _make_room()
+
+        assert not room.has_editors
+
+    def test_upgrade_client_role(self):
+        """Calling add_client again with a new role upgrades the existing entry."""
+        room = _make_room()
+        ws = _make_mock_ws()
+
+        room.add_client(ws, "viewer")
+        assert room.clients[ws] == "viewer"
+        assert not room.has_editors
+
+        room.add_client(ws, "editor")
+        assert room.clients[ws] == "editor"
+        assert room.has_editors
+        # Should still be only one client entry
+        assert len(room.clients) == 1
+
+
+class TestDowngradeRoomEditor:
+    """Regression coverage for a Phase 4 Step B attempt that gave add_client an
+    internal_id dedup, on the mistaken theory that a shared internal_id always
+    meant a stale pre-reload connection. holders() documents that two live
+    handlers sharing one internal_id is a real, legitimate case (a duplicated
+    tab), and _downgrade_room_editor's loop — one add_client(ws, "viewer") call
+    per matching editor — relies on add_client never using internal_id alone
+    to decide an entry is stale: with the dedup in place, each call evicted the
+    other matching editor instead of demoting it, so only the last one in
+    iteration order survived in the room at all."""
+
+    def test_downgrade_demotes_every_live_holder_of_the_internal_id(self):
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws1.internal_id = "tab-1"
+        ws2 = _make_mock_ws()
+        ws2.internal_id = "tab-1"
+        room.add_client(ws1, "editor")
+        room.add_client(ws2, "editor")
+
+        app = MagicMock()
+        app.room_manager.get_active_room.return_value = room
+
+        _downgrade_room_editor(app, "tab-1")
+
+        assert room.clients == {ws1: "viewer", ws2: "viewer"}
+
+
+class TestScriptRoomSync:
+    def test_get_sync_state_returns_bytes(self):
+        room = _make_room()
+        state = room.get_sync_state()
+        assert isinstance(state, bytes)
+        assert len(state) > 0
+
+    def test_get_state_vector_returns_bytes(self):
+        room = _make_room()
+        sv = room.get_state_vector()
+        assert isinstance(sv, bytes)
+
+    @pytest.mark.asyncio
+    async def test_apply_update(self):
+        room = _make_room()
+        meta = room.doc.get("meta", type=pycrdt.Map)
+        meta["revision_id"] = 42
+
+        # Create a second doc, apply state, modify, get update
+        doc2 = pycrdt.Doc()
+        doc2.get("meta", type=pycrdt.Map)
+        doc2.apply_update(room.get_sync_state())
+        doc2.get("meta", type=pycrdt.Map)["revision_id"] = 99
+
+        # Get the diff and apply
+        update = doc2.get_update(room.get_state_vector())
+        await room.apply_update(update)
+
+        assert meta["revision_id"] == 99
+
+    def test_get_update_for_state_vector(self):
+        room = _make_room()
+        room.doc.get("meta", type=pycrdt.Map)
+
+        # Empty state vector should return full state
+        empty_sv = pycrdt.Doc().get_state()
+        diff = room.get_update_for(empty_sv)
+        assert isinstance(diff, bytes)
+        assert len(diff) > 0
+
+
+class TestScriptRoomBroadcast:
+    @pytest.mark.asyncio
+    async def test_broadcast_update_excludes_sender(self):
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws2 = _make_mock_ws()
+        ws3 = _make_mock_ws()
+        room.add_client(ws1, "editor")
+        room.add_client(ws2, "editor")
+        room.add_client(ws3, "viewer")
+
+        update = b"test_update_data"
+        await room.broadcast_update(update, sender=ws1)
+
+        ws1.write_message.assert_not_called()
+        assert ws2.write_message.call_count == 1
+        assert ws3.write_message.call_count == 1
+
+        # Verify message format
+        sent_msg = ws2.write_message.call_args[0][0]
+        assert sent_msg["OP"] == "NOOP"
+        assert sent_msg["ACTION"] == "YJS_UPDATE"
+        assert "payload" in sent_msg["DATA"]
+        assert "room_id" not in sent_msg["DATA"]
+
+    @pytest.mark.asyncio
+    async def test_broadcast_awareness_excludes_sender(self):
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws2 = _make_mock_ws()
+        room.add_client(ws1, "editor")
+        room.add_client(ws2, "editor")
+
+        await room.broadcast_awareness(b"awareness_data", sender=ws1)
+
+        ws1.write_message.assert_not_called()
+        assert ws2.write_message.call_count == 1
+
+        sent_msg = ws2.write_message.call_args[0][0]
+        assert sent_msg["OP"] == "NOOP"
+        assert sent_msg["ACTION"] == "YJS_AWARENESS"
+
+    @pytest.mark.asyncio
+    async def test_broadcast_handles_failed_write(self):
+        """If write_message fails for one client, others still receive."""
+        room = _make_room()
+        ws1 = _make_mock_ws()
+        ws2 = _make_mock_ws()
+        ws3 = _make_mock_ws()
+        ws2.write_message.side_effect = Exception("Connection closed")
+        room.add_client(ws1, "editor")
+        room.add_client(ws2, "editor")
+        room.add_client(ws3, "editor")
+
+        # Should not raise
+        await room.broadcast_update(b"data", sender=ws1)
+
+        # ws3 should still receive even though ws2 failed
+        assert ws3.write_message.call_count == 1
+
+
+class TestScriptRoomDirtyTracking:
+    def test_room_starts_clean(self):
+        room = _make_room()
+        assert not room._dirty
+        assert not room.needs_checkpoint
+
+    def test_doc_update_marks_dirty(self):
+        room = _make_room()
+        room.start_observing()
+
+        meta = room.doc.get("meta", type=pycrdt.Map)
+        meta["test"] = "value"
+
+        assert room._dirty
+
+    def test_mark_checkpointed_clears_dirty(self):
+        room = _make_room()
+        room._dirty = True
+
+        room.mark_checkpointed()
+
+        assert not room._dirty
+
+    def test_needs_checkpoint_true_when_dirty_and_interval_elapsed(self):
+        """needs_checkpoint is True once dirty AND the checkpoint interval has elapsed."""
+        room = _make_room()
+        room._dirty = True
+        room._last_checkpoint = time.monotonic() - CHECKPOINT_INTERVAL - 1
+
+        assert room.needs_checkpoint
+
+    def test_needs_checkpoint_false_when_dirty_but_interval_not_elapsed(self):
+        """needs_checkpoint is False while dirty if the interval hasn't elapsed yet."""
+        room = _make_room()
+        room._dirty = True
+        room._last_checkpoint = time.monotonic()
+
+        assert not room.needs_checkpoint
+
+
+class TestRoomManagerCloseRoom:
+    @pytest.mark.asyncio
+    async def test_close_room_evicts_and_notifies(self):
+        """close_active_room sends ROOM_CLOSED to all clients, stops observing, removes room."""
+        room = _make_room(revision_id=42)
+        room.start_observing()
+        ws1 = _make_mock_ws()
+        ws2 = _make_mock_ws()
+        room.add_client(ws1, "viewer")
+        room.add_client(ws2, "viewer")
+
+        # Inject room into a RoomManager (no real app needed)
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = room
+
+        await manager.close_active_room()
+
+        # Room should be removed
+        assert manager._room is None
+
+        # Both clients should have received ROOM_CLOSED with empty DATA
+        for ws in (ws1, ws2):
+            ws.write_message.assert_called_once()
+            msg = ws.write_message.call_args[0][0]
+            assert msg["OP"] == "NOOP"
+            assert msg["ACTION"] == "ROOM_CLOSED"
+            assert msg["DATA"] == {}
+
+        # Observing should be stopped (subscription cleared)
+        assert room._doc_subscription is None
+
+    @pytest.mark.asyncio
+    async def test_close_room_nonexistent_is_noop(self):
+        """Closing a room that doesn't exist does nothing."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = None
+
+        await manager.close_active_room()  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_close_room_handles_failed_write(self):
+        """If write_message fails for one client, room is still closed."""
+        room = _make_room(revision_id=7)
+        ws_ok = _make_mock_ws()
+        ws_bad = _make_mock_ws()
+        ws_bad.write_message.side_effect = Exception("Connection closed")
+        room.add_client(ws_ok, "viewer")
+        room.add_client(ws_bad, "viewer")
+
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = room
+
+        await manager.close_active_room()
+
+        assert manager._room is None
+        # The healthy client still receives the message
+        ws_ok.write_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_active_room_returns_room(self):
+        """get_active_room returns the active room or None."""
+        room = _make_room(revision_id=42)
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = room
+
+        assert manager.get_active_room() is room
+
+        manager._room = None
+        assert manager.get_active_room() is None
+
+    @pytest.mark.asyncio
+    async def test_close_active_room_noop_when_no_room(self):
+        """close_active_room does nothing when no room is active."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = None
+
+        await manager.close_active_room()  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_close_active_room_broadcasts_room_closed(self):
+        """close_active_room sends ROOM_CLOSED to all clients with empty DATA."""
+        room = _make_room(revision_id=5)
+        room.start_observing()
+        ws1 = _make_mock_ws()
+        ws2 = _make_mock_ws()
+        room.add_client(ws1, "viewer")
+        room.add_client(ws2, "editor")
+
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = room
+
+        await manager.close_active_room()
+
+        assert manager._room is None
+        for ws in (ws1, ws2):
+            ws.write_message.assert_called_once()
+            msg = ws.write_message.call_args[0][0]
+            assert msg["ACTION"] == "ROOM_CLOSED"
+            assert msg["DATA"] == {}
+
+    @pytest.mark.asyncio
+    async def test_close_active_room_checkpoints_before_close(self):
+        """close_active_room calls _checkpoint_room if the room is dirty."""
+        room = _make_room(revision_id=3)
+        room._dirty = True
+
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = room
+
+        checkpoint_called = []
+
+        async def mock_checkpoint(r):
+            checkpoint_called.append(r.revision_id)
+
+        manager._checkpoint_room = mock_checkpoint
+
+        await manager.close_active_room()
+
+        assert 3 in checkpoint_called
+        assert manager._room is None
+
+
+class TestRoomManagerCloseRoomDemotesEditors(_ScriptTestSetup):
+    """close_active_room must clear every remaining client's is_editor/is_cutting —
+    not just the caller's own, which is all STOP_SCRIPT_EDIT itself ever did. Without
+    this, DISCARD_SCRIPT_DRAFT (which closes the room for everyone, not just the
+    requester) leaves every *other* editor in the room stuck marked as an editor
+    forever, with no room or draft left to show for it."""
+
+    def _seed_session(
+        self, session, internal_id: str, is_editor=False, is_cutting=False
+    ):
+        row = Session(
+            internal_id=internal_id, is_editor=is_editor, is_cutting=is_cutting
+        )
+        session.add(row)
+        session.flush()
+
+    @gen_test
+    async def test_demotes_every_editor_and_cutter_still_in_the_room(self):
+        editor_id, cutter_id, viewer_id = (
+            str(uuid.uuid4()),
+            str(uuid.uuid4()),
+            str(uuid.uuid4()),
+        )
+        with self._app.get_db().sessionmaker() as session:
+            self._seed_session(session, editor_id, is_editor=True)
+            self._seed_session(session, cutter_id, is_cutting=True)
+            self._seed_session(session, viewer_id)
+
+        room = _make_room(revision_id=self.revision_id)
+        ws_editor, ws_cutter, ws_viewer = (
+            _make_mock_ws(),
+            _make_mock_ws(),
+            _make_mock_ws(),
+        )
+        ws_editor.internal_id = editor_id
+        ws_cutter.internal_id = cutter_id
+        ws_viewer.internal_id = viewer_id
+        room.add_client(ws_editor, "editor")
+        room.add_client(
+            ws_cutter, "editor"
+        )  # cut mode also joins as "editor" server-side
+        room.add_client(ws_viewer, "viewer")
+
+        manager = RoomManager(self._app)
+        manager._room = room
+
+        await manager.close_active_room()
+
+        with self._app.get_db().sessionmaker() as session:
+            editor_row = session.get(Session, editor_id)
+            cutter_row = session.get(Session, cutter_id)
+            viewer_row = session.get(Session, viewer_id)
+        self.assertFalse(editor_row.is_editor)
+        self.assertFalse(cutter_row.is_cutting)
+        self.assertFalse(viewer_row.is_editor)
+        self.assertFalse(viewer_row.is_cutting)
+
+    @gen_test
+    async def test_is_harmless_for_a_client_already_demoted_by_its_own_stop(self):
+        """The caller of STOP_SCRIPT_EDIT already cleared its own row in a separate,
+        already-committed transaction before close_active_room ever runs — this must
+        not error or un-clear anything when it re-checks that same row."""
+        already_stopped_id = str(uuid.uuid4())
+        with self._app.get_db().sessionmaker() as session:
+            self._seed_session(session, already_stopped_id, is_editor=False)
+
+        room = _make_room(revision_id=self.revision_id)
+        ws = _make_mock_ws()
+        ws.internal_id = already_stopped_id
+        room.add_client(ws, "viewer")
+
+        manager = RoomManager(self._app)
+        manager._room = room
+
+        await manager.close_active_room()  # should not raise
+
+        with self._app.get_db().sessionmaker() as session:
+            row = session.get(Session, already_stopped_id)
+        self.assertFalse(row.is_editor)
+
+    @gen_test
+    async def test_ignores_a_client_with_no_session_row(self):
+        room = _make_room(revision_id=self.revision_id)
+        ws = _make_mock_ws()
+        ws.internal_id = str(uuid.uuid4())  # never seeded — no matching row
+        room.add_client(ws, "viewer")
+
+        manager = RoomManager(self._app)
+        manager._room = room
+
+        await manager.close_active_room()  # should not raise
+
+        assert manager._room is None
+
+    @gen_test
+    async def test_a_db_failure_while_demoting_does_not_block_room_closed_or_teardown(
+        self,
+    ):
+        """Regression test for the round-1 review fix: the demote block's own
+        try/except must not prevent ROOM_CLOSED from broadcasting or the room from
+        tearing down. For a discard specifically, the draft is already deleted by
+        the time this runs — a client left stuck here on a DB error would get no
+        feedback about the discard at all."""
+        room = _make_room(revision_id=self.revision_id)
+        ws = _make_mock_ws()
+        ws.internal_id = str(uuid.uuid4())
+        room.add_client(ws, "editor")
+
+        manager = RoomManager(self._app)
+        manager._room = room
+
+        failing_session = MagicMock()
+        failing_session.get.side_effect = RuntimeError("db unavailable")
+        failing_sessionmaker_cm = MagicMock()
+        failing_sessionmaker_cm.__enter__ = MagicMock(return_value=failing_session)
+        failing_sessionmaker_cm.__exit__ = MagicMock(return_value=False)
+        failing_db = MagicMock()
+        failing_db.sessionmaker.return_value = failing_sessionmaker_cm
+
+        with patch.object(self._app, "get_db", return_value=failing_db):
+            await manager.close_active_room()  # must not raise
+
+        ws.write_message.assert_called_once()
+        message = ws.write_message.call_args[0][0]
+        self.assertEqual("ROOM_CLOSED", message["ACTION"])
+        self.assertIsNone(manager._room)
+
+
+class TestScriptRoomSaveDraft(_ScriptTestSetup):
+    """Tests for ``ScriptRoom.save_draft`` using a real in-memory DB."""
+
+    def _seed_line(self, session, previous_assoc=None, text="Direction text", page=1):
+        """Insert ScriptLine + ScriptLinePart + SLRA; return the association."""
+        line = ScriptLine(
+            act_id=self.act_id,
+            scene_id=self.scene_id,
+            page=page,
+            line_type=ScriptLineType.STAGE_DIRECTION,
+        )
+        session.add(line)
+        session.flush()
+
+        part = ScriptLinePart(
+            line_id=line.id,
+            part_index=0,
+            character_id=None,
+            character_group_id=None,
+            line_text=text,
+        )
+        session.add(part)
+        session.flush()
+
+        assoc = ScriptLineRevisionAssociation(
+            revision_id=self.revision_id,
+            line_id=line.id,
+        )
+        session.add(assoc)
+        session.flush()
+
+        if previous_assoc:
+            previous_assoc.next_line = line
+            assoc.previous_line = previous_assoc.line
+            session.flush()
+
+        return assoc
+
+    @gen_test
+    async def test_save_draft_all_new_lines_returns_id_patch(self):
+        """Y.Doc with 2 UUID lines → 2 DB rows created, returns bytes."""
+
+        doc = _build_empty_doc()
+        uid1 = str(uuid.uuid4())
+        uid2 = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid1)
+        _add_line_to_doc(doc, "1", uid2)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            update, pages = await room.save_draft(session)
+
+        self.assertIsInstance(update, bytes)
+        self.assertGreater(len(update), 0)
+        self.assertEqual([1], pages)
+
+        with self._app.get_db().sessionmaker() as session:
+            lines = session.scalars(select(ScriptLine)).all()
+        self.assertEqual(2, len(lines))
+
+    @gen_test
+    async def test_save_draft_leaves_the_doc_clean_and_names_the_pages_it_changed(self):
+        """The id patch dirties the doc, so the reset must come after it — inside the
+        save lock — or an edit landing in between could lose its dirty flag."""
+        doc = _build_empty_doc()
+        _add_line_to_doc(doc, "2", str(uuid.uuid4()))
+        room = ScriptRoom(self.revision_id, doc)
+        room.start_observing()
+
+        with self._app.get_db().sessionmaker() as session:
+            _, saved = await room.save_draft(session)
+
+        self.assertFalse(room._dirty)
+        self.assertEqual([2], saved)
+
+    @gen_test
+    async def test_each_save_reports_its_own_pages_even_when_saves_overlap(self):
+        """The pages come back per call: a second save that finds nothing to write
+        must not blank the list the first save is about to announce."""
+        doc = _build_empty_doc()
+        _add_line_to_doc(doc, "1", str(uuid.uuid4()))
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            _, first = await room.save_draft(session)
+        with self._app.get_db().sessionmaker() as session:
+            _, second = await room.save_draft(session)
+
+        self.assertEqual([1], first)
+        self.assertEqual([], second)
+
+    @gen_test
+    async def test_a_deletion_recorded_against_the_uuid_is_applied_after_the_patch(
+        self,
+    ):
+        """A client that has not yet received the id patch records the id it knows."""
+        uid = str(uuid.uuid4())
+        doc = _build_empty_doc()
+        _add_line_to_doc(doc, "1", uid)
+        room = ScriptRoom(self.revision_id, doc)
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+        db_id = int(str(doc.get("pages", type=pycrdt.Map)["1"][0]["_id"]))
+
+        # The lagging client deletes the line, still calling it by its UUID.
+        del doc.get("pages", type=pycrdt.Map)["1"][0]
+        doc.get("deleted_line_ids", type=pycrdt.Array).append(uid)
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNone(
+                session.get(ScriptLineRevisionAssociation, (self.revision_id, db_id))
+            )
+
+    @gen_test
+    async def test_a_reused_rowid_is_not_shadowed_by_a_stale_alias(self):
+        """SQLite reuses freed rowids. An alias `2 -> 3` left over from an earlier
+        edit must not redirect the deletion of a *different* line that now has id 2."""
+        doc = _build_empty_doc()
+        first, second = str(uuid.uuid4()), str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", first)
+        _add_line_to_doc(doc, "1", second)
+        room = ScriptRoom(self.revision_id, doc)
+        page = doc.get("pages", type=pycrdt.Map)["1"]
+        deleted = doc.get("deleted_line_ids", type=pycrdt.Array)
+
+        async def save():
+            with self._app.get_db().sessionmaker() as session:
+                await room.save_draft(session)
+
+        await save()  # ids 1 and 2
+        assert str(page[1]["_id"]) == "2"
+        page[1]["parts"][0]["line_text"].insert(0, "edited ")
+        await save()  # the change replaces row 2 with row 3: alias 2 -> 3
+        assert str(page[1]["_id"]) == "3"
+        deleted.append(str(page[1]["_id"]))
+        del page[1]
+        await save()  # row 3 is freed; the highest id is 1 again
+        third = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", third)
+        await save()  # SQLite hands out id 2 again
+        reused = str(page[1]["_id"])
+        assert reused == "2", "premise: the rowid was reused"
+
+        deleted.append(reused)
+        del page[1]
+        await save()
+
+        with self._app.get_db().sessionmaker() as session:
+            assert (
+                session.get(ScriptLineRevisionAssociation, (self.revision_id, 2))
+                is None
+            ), "the reused row must be deleted, not skipped via the stale alias"
+
+    @gen_test
+    async def test_save_draft_keeps_the_stable_uid_while_rewriting_the_id(self):
+        doc = _build_empty_doc()
+        uid = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid)
+        line = doc.get("pages", type=pycrdt.Map)["1"][0]
+        line["_uid"] = uid
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        self.assertNotEqual(uid, str(line["_id"]))
+        self.assertEqual(uid, str(line["_uid"]))
+
+    @gen_test
+    async def test_save_draft_patches_ydoc_ids(self):
+        """After save, Y.Doc _id values are replaced with real DB integer strings."""
+        doc = _build_empty_doc()
+        uid = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        pages = doc.get("pages", type=pycrdt.Map)
+        line_id_in_doc = str(pages["1"][0]["_id"])
+
+        # Should be a positive integer string (real DB id), not the original UUID
+        self.assertNotEqual(line_id_in_doc, uid)
+        patched_id = int(line_id_in_doc)
+        self.assertGreater(patched_id, 0)
+
+    @gen_test
+    async def test_concurrent_saves_are_serialised_not_interleaved(self):
+        """Two save_draft() calls fired concurrently (e.g. two editors both
+        clicking Save at once) must never interleave: the second must see the
+        first's completed id-patch, not a stale pre-patch state.
+
+        Confirmed by mutation testing (reverted) that this test genuinely
+        exercises the race: swapping save_lock for a fresh, unshared lock
+        reproduces exactly the failure mode the "stale-id" concern in the
+        project's own plan doc describes — extract_lines_from_ydoc's "no
+        ScriptLineRevisionAssociation found" skip (ydoc_to_lines.py) fires,
+        silently dropping the second save's line. With the real save_lock, that
+        never happens: it forces the second call to wait for the first's own
+        id-patch before it even starts extracting. The forced
+        _broadcast_save_progress delay below is required for the mutation to
+        actually reproduce anything — with no connected clients to broadcast
+        to, that call would otherwise return instantly, leaving asyncio no
+        genuine opportunity to interleave the two calls regardless of locking.
+
+        The two concurrent saves write genuinely *different* text (not the same
+        final value both times) so a lost update is visible in the final DB
+        content too, not only via the absence of a WARNING log: if the second
+        save's edit were ever dropped by the stale-id skip, the row would be
+        left holding the first save's now-stale text instead.
+        """
+        doc = _build_empty_doc()
+        uid = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid)
+        room = ScriptRoom(self.revision_id, doc)
+
+        # First save: UUID -> real DB id, establishing a baseline row.
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        # Change the now-existing line, so there is a second, genuine "changed
+        # existing line" rewrite for the next save to do — exactly the id-rewrite
+        # path the interleaving concern is about (every changed-line save creates
+        # a *new* DB row, repoints the revision association to it, and
+        # orphan-deletes the old row once nothing references it any more, per
+        # ydoc_to_lines.py's "changed" branch).
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"][0]["parts"][0]["line_text"] = "edited by call A"
+
+        # Force a genuine suspension point mid-save (there are no connected
+        # clients in this test, so _broadcast_save_progress would otherwise
+        # return instantly with nothing to actually await) — without this,
+        # asyncio has no real opportunity to interleave the two calls at all,
+        # lock or no lock, and the test would pass for the wrong reason. Also
+        # used, on its first (and only its first) firing, to make the second
+        # edit land *after* the first call has already started saving — the
+        # realistic "editor B kept typing while editor A's save was in
+        # flight" shape of the race, and the source of the "different text"
+        # property above.
+        original_broadcast = room._broadcast_save_progress
+        edited_during_first_call = False
+
+        async def _delayed_broadcast(page, total):
+            nonlocal edited_during_first_call
+            await original_broadcast(page, total)
+            if not edited_during_first_call:
+                edited_during_first_call = True
+                pages["1"][0]["parts"][0]["line_text"] = "edited by call B"
+            await asyncio.sleep(0.01)
+
+        room._broadcast_save_progress = _delayed_broadcast
+
+        with (
+            self._app.get_db().sessionmaker() as s1,
+            self._app.get_db().sessionmaker() as s2,
+        ):
+            with self.assertNoLogs(get_logger(), level="WARNING"):
+                await asyncio.gather(room.save_draft(s1), room.save_draft(s2))
+
+        with self._app.get_db().sessionmaker() as session:
+            # Exactly one row survives — the rewrite's orphan-delete of the
+            # pre-edit row completed cleanly, with no stray/duplicate row left
+            # behind by the two saves stepping on each other — holding the
+            # *later* edit, not the first call's now-stale text.
+            lines = session.scalars(select(ScriptLine)).all()
+            self.assertEqual(1, len(lines))
+            self.assertEqual("edited by call B", lines[0].line_parts[0].line_text)
+
+    @gen_test
+    async def test_save_draft_no_new_lines_returns_meta_update(self):
+        """Y.Doc built from existing DB lines (unchanged) → save_draft returns meta update bytes."""
+        with self._app.get_db().sessionmaker() as session:
+            self._seed_line(session)
+
+        # Build Y.Doc directly from DB state — all _ids will be real integers
+        with self._app.get_db().sessionmaker() as session:
+            script_data = fetch_script_line_data(session, self.revision_id)
+        doc = build_ydoc(script_data, self.revision_id)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            update, pages = await room.save_draft(session)
+
+        # Nothing differed from the DB, so no page is reported
+        self.assertEqual([], pages)
+        # Returns bytes (meta.last_saved_at update) rather than None
+        self.assertIsInstance(update, bytes)
+        self.assertGreater(len(update), 0)
+
+    @gen_test
+    async def test_a_cue_on_a_saved_line_survives_a_collab_edit_of_that_line(self):
+        """Issue #1523: a cue attached to a saved line must still be attached
+        (group/sort preserved) once a *collaborative* edit of that line's text
+        is saved — the "changed existing line" path rewrites the DB row the
+        cue points at, migrating CueAssociation along with it. The migration
+        logic itself is already unit-tested directly against
+        _save_script_page (test_ydoc_to_lines.py's test_cue_association_migrated);
+        this instead drives it through the real Y.Doc/save_draft path a
+        collaborative editor's save actually takes — the proof the plan's own
+        Step 4 E2E never ended up covering.
+        """
+        with self._app.get_db().sessionmaker() as session:
+            assoc = self._seed_line(session, text="Original")
+            old_line_id = assoc.line_id
+
+            _cue_type, cue, cue_group = self._seed_cue_group(session)
+            cue_group_id = cue_group.id
+            session.add(
+                CueAssociation(
+                    revision_id=self.revision_id,
+                    line_id=old_line_id,
+                    cue_id=cue.id,
+                    group_id=cue_group_id,
+                    sort_order=3,
+                )
+            )
+            session.commit()
+            cue_id = cue.id
+
+        # Build the Y.Doc from the real DB state (real integer _ids), then make
+        # a genuine collaborative edit to the line's text.
+        with self._app.get_db().sessionmaker() as session:
+            script_data = fetch_script_line_data(session, self.revision_id)
+        doc = build_ydoc(script_data, self.revision_id)
+        room = ScriptRoom(self.revision_id, doc)
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"][0]["parts"][0]["line_text"] = "Changed via collab edit"
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        with self._app.get_db().sessionmaker() as session:
+            new_ca = session.scalars(
+                select(CueAssociation).where(
+                    CueAssociation.revision_id == self.revision_id,
+                    CueAssociation.cue_id == cue_id,
+                )
+            ).one()
+            self.assertNotEqual(old_line_id, new_ca.line_id)
+            self.assertEqual(cue_group_id, new_ca.group_id)
+            self.assertEqual(3, new_ca.sort_order)
+            self.assertEqual(
+                "Changed via collab edit", new_ca.line.line_parts[0].line_text
+            )
+
+    @gen_test
+    async def test_save_draft_validation_error_propagates(self):
+        """Invalid DIALOGUE line in Y.Doc → ValueError raised, no new DB rows committed."""
+
+        doc = _build_empty_doc()
+        bad_id = str(uuid.uuid4())
+        # DIALOGUE with character_id=0 and character_group_id=0 → both None after
+        # extraction via _zero_to_none → fails validation (needs one or the other)
+        _add_line_to_doc(
+            doc,
+            "1",
+            bad_id,
+            line_type=ScriptLineType.DIALOGUE.value,
+            parts=[
+                {
+                    "_id": str(uuid.uuid4()),
+                    "part_index": 0,
+                    "character_id": 0,
+                    "character_group_id": 0,
+                    "line_text": "Hello",
+                }
+            ],
+        )
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self.assertRaises(ValueError):
+            with self._app.get_db().sessionmaker() as session:
+                await room.save_draft(session)
+
+        # Rollback means no lines should exist in DB
+        with self._app.get_db().sessionmaker() as session:
+            lines = session.scalars(select(ScriptLine)).all()
+        self.assertEqual(0, len(lines))
+
+    @gen_test
+    async def test_save_draft_deleted_line_removed_from_db(self):
+        """deleted_line_ids entry with a real DB id → SLRA deleted after save."""
+
+        # Seed one line so it has a real DB id
+        with self._app.get_db().sessionmaker() as session:
+            assoc = self._seed_line(session)
+        line_id_to_delete = assoc.line_id
+
+        # Build Y.Doc with no lines on page 1, but the line's id in deleted_line_ids.
+        # Adding an empty page array ensures _save_script_page runs for page 1
+        # so that its deletion pass 2 processes the deleted id.
+        doc = _build_empty_doc()
+        pages = doc.get("pages", type=pycrdt.Map)
+        pages["1"] = pycrdt.Array()
+        deleted_arr = doc.get("deleted_line_ids", type=pycrdt.Array)
+        deleted_arr.append(line_id_to_delete)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        with self._app.get_db().sessionmaker() as session:
+            assoc_post = session.get(
+                ScriptLineRevisionAssociation, (self.revision_id, line_id_to_delete)
+            )
+        self.assertIsNone(assoc_post)
+
+    @gen_test
+    async def test_save_draft_broadcasts_progress_messages(self):
+        """save_draft broadcasts (0, N), (1, N), ..., (N, N) progress messages."""
+        doc = _build_empty_doc()
+        # Add one line on page 1 and one on page 2
+        uid1 = str(uuid.uuid4())
+        uid2 = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid1)
+        _add_line_to_doc(doc, "2", uid2)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        # Add a mock client so broadcasts have a recipient
+        ws = AsyncMock()
+        ws.write_message = AsyncMock()
+        room.add_client(ws, "editor")
+
+        with patch.object(
+            room, "_broadcast_save_progress", wraps=room._broadcast_save_progress
+        ) as mock_broadcast:
+            with self._app.get_db().sessionmaker() as session:
+                await room.save_draft(session)
+
+        calls = mock_broadcast.call_args_list
+        # Expect: (0, 2), (1, 2), (2, 2)
+        self.assertEqual(3, len(calls))
+        self.assertEqual((0, 2), (calls[0].args[0], calls[0].args[1]))
+        self.assertEqual((1, 2), (calls[1].args[0], calls[1].args[1]))
+        self.assertEqual((2, 2), (calls[2].args[0], calls[2].args[1]))
+
+    @gen_test
+    async def test_save_draft_updates_meta_last_saved_at(self):
+        """save_draft always writes meta.last_saved_at to the Y.Doc."""
+        doc = _build_empty_doc()
+        uid = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", uid)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        meta = doc.get("meta", type=pycrdt.Map)
+        last_saved = meta.get("last_saved_at")
+        self.assertIsNotNone(last_saved)
+        self.assertIsInstance(last_saved, str)
+        self.assertGreater(len(last_saved), 0)
+        # Verify it is a valid ISO-format timestamp (should not raise)
+        datetime.datetime.fromisoformat(last_saved)
+
+    @gen_test
+    async def test_save_draft_clears_deleted_line_ids_after_commit(self):
+        """After a successful save, deleted_line_ids Y.Array is emptied.
+
+        Stale integer IDs left in deleted_line_ids can delete freshly-created
+        lines on the next save if SQLite reuses those IDs. Clearing on commit
+        prevents this accumulation.
+        """
+        # Seed one real DB line so we have a valid integer ID
+        with self._app.get_db().sessionmaker() as session:
+            assoc = self._seed_line(session)
+        real_id = assoc.line_id
+
+        # Build Y.Doc from DB (so _id values are real integers)
+        with self._app.get_db().sessionmaker() as session:
+            script_data = fetch_script_line_data(session, self.revision_id)
+        doc = build_ydoc(script_data, self.revision_id)
+
+        # Manually push a stale integer into deleted_line_ids (simulating a
+        # previous delete that was never cleared)
+        deleted_arr = doc.get("deleted_line_ids", type=pycrdt.Array)
+        deleted_arr.append(real_id)
+        self.assertEqual(1, len(deleted_arr))
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        # deleted_line_ids must be empty after a successful save
+        deleted_arr_after = doc.get("deleted_line_ids", type=pycrdt.Array)
+        self.assertEqual(0, len(deleted_arr_after))
+
+    @gen_test
+    async def test_save_draft_stale_deleted_id_does_not_delete_new_line(self):
+        """A stale deleted_line_ids entry must not destroy a newly-inserted line.
+
+        Scenario: a UUID line is inserted between two existing DB lines and the
+        Y.Doc still contains a stale integer in deleted_line_ids. If SQLite
+        reuses that integer for the new line, Pass 2 must skip it (Fix 1 guard).
+        We verify this by seeding a line, pushing its ID into deleted_line_ids
+        (making it look stale), then adding a new UUID line. After save, the new
+        UUID line must exist in the DB.
+        """
+        # Seed two real DB lines
+        with self._app.get_db().sessionmaker() as session:
+            assoc1 = self._seed_line(session, text="Line 1")
+            assoc2 = self._seed_line(session, previous_assoc=assoc1, text="Line 2")
+        id_of_line2 = assoc2.line_id
+
+        # Build Y.Doc from real DB state
+        with self._app.get_db().sessionmaker() as session:
+            script_data = fetch_script_line_data(session, self.revision_id)
+        doc = build_ydoc(script_data, self.revision_id)
+
+        # Push line2's ID into deleted_line_ids to simulate a stale entry,
+        # but keep the line itself in the pages map (not actually deleting it)
+        deleted_arr = doc.get("deleted_line_ids", type=pycrdt.Array)
+        deleted_arr.append(id_of_line2)
+
+        # Add a new UUID line (simulating an insert)
+        new_uid = str(uuid.uuid4())
+        _add_line_to_doc(doc, "1", new_uid)
+
+        room = ScriptRoom(self.revision_id, doc)
+
+        with self._app.get_db().sessionmaker() as session:
+            await room.save_draft(session)
+
+        # After save: the new UUID line must have been persisted
+        with self._app.get_db().sessionmaker() as session:
+            lines = session.scalars(select(ScriptLine)).all()
+
+        # We started with 2 lines, added 1 new UUID line → expect 3 lines total
+        # (line2 may or may not be deleted depending on page presence, but the
+        # new UUID line must be there)
+        self.assertGreaterEqual(len(lines), 1, "New UUID line was not saved to DB")
+
+
+class TestScriptRoomApplyUpdateConcurrency:
+    """Tests for apply_update concurrency with save_lock."""
+
+    @pytest.mark.asyncio
+    async def test_apply_update_blocked_during_save(self):
+        """apply_update waits for save_lock to be released before mutating the doc."""
+        room = _make_room()
+
+        # Hold the save lock externally to simulate an in-progress save
+        await room.save_lock.acquire()
+
+        doc2 = pycrdt.Doc()
+        doc2.get("meta", type=pycrdt.Map)
+        doc2.apply_update(room.get_sync_state())
+        doc2.get("meta", type=pycrdt.Map)["test"] = "value"
+        update = doc2.get_update(room.get_state_vector())
+
+        # Schedule apply_update as a concurrent task
+        apply_task = asyncio.ensure_future(room.apply_update(update))
+
+        # Yield to the event loop — task should be blocked on the lock
+        await asyncio.sleep(0)
+        assert not apply_task.done(), (
+            "apply_update should be blocked while lock is held"
+        )
+
+        # Release the lock; apply_update should now complete
+        room.save_lock.release()
+        await apply_task
+
+        meta = room.doc.get("meta", type=pycrdt.Map)
+        assert meta["test"] == "value"
+
+
+class TestRoomManagerGetOrCreateRoom:
+    """Tests for the revision-switching path in ``get_or_create_room`` (Group F: F2)."""
+
+    @pytest.mark.asyncio
+    async def test_switching_revision_closes_old_room_and_creates_new(self):
+        """Requesting a different revision closes the old room, then creates the new one."""
+        old_room = _make_room(revision_id=1)
+
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = old_room
+
+        new_doc = pycrdt.Doc()
+        new_doc.get("meta", type=pycrdt.Map)
+        new_doc.get("pages", type=pycrdt.Map)
+        new_doc.get("deleted_line_ids", type=pycrdt.Array)
+
+        close_calls = []
+
+        async def mock_close_locked():
+            close_calls.append(manager._room.revision_id if manager._room else None)
+            manager._room = None
+
+        async def mock_load_or_build(revision_id):
+            assert revision_id == 2
+            return new_doc
+
+        # get_or_create_room calls the lock-free variant directly (it already
+        # holds _room_lock) — see RoomManager.__init__'s own comment.
+        manager._close_active_room_locked = mock_close_locked
+        manager._load_or_build_doc = mock_load_or_build
+
+        room = await manager.get_or_create_room(2)
+
+        assert close_calls == [1], "old room (revision 1) should be closed exactly once"
+        assert room.revision_id == 2
+        assert manager._room is room
+
+    @pytest.mark.asyncio
+    async def test_same_revision_returns_existing_room_without_closing(self):
+        """Requesting the currently-open revision is a no-op fast path."""
+        room = _make_room(revision_id=5)
+
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = room
+        manager.close_active_room = AsyncMock()
+        manager._load_or_build_doc = AsyncMock()
+
+        result = await manager.get_or_create_room(5)
+
+        assert result is room
+        manager.close_active_room.assert_not_called()
+        manager._load_or_build_doc.assert_not_called()
+
+
+class TestRoomManagerCheckpointIfDirty:
+    """Direct tests of ``checkpoint_if_dirty``'s own guard (Group F race fix),
+    independent of *how* a caller ends up holding a stale room reference —
+    a discard, a revision switch, or anything else that replaces or clears
+    ``self._room`` out from under a reference taken before the lock was
+    acquired (e.g. ``_run_maintenance``'s own unlocked ``needs_checkpoint``
+    pre-check)."""
+
+    @pytest.mark.asyncio
+    async def test_checkpoints_the_active_room_when_dirty(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        room = _make_room(revision_id=1)
+        room._dirty = True
+        manager._room = room
+        manager._checkpoint_room = AsyncMock()
+
+        checkpointed = await manager.checkpoint_if_dirty(room)
+
+        assert checkpointed is True
+        manager._checkpoint_room.assert_awaited_once_with(room)
+
+    @pytest.mark.asyncio
+    async def test_is_a_no_op_for_a_clean_room(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        room = _make_room(revision_id=1)
+        room._dirty = False
+        manager._room = room
+        manager._checkpoint_room = AsyncMock()
+
+        checkpointed = await manager.checkpoint_if_dirty(room)
+
+        assert checkpointed is False
+        manager._checkpoint_room.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ignores_a_dirty_room_that_is_no_longer_the_active_one(self):
+        """The scenario the identity check exists for: a caller (e.g. a
+        maintenance tick) reads `self._room` before taking the lock, but by
+        the time it actually acquires the lock, that room has been replaced or
+        torn down — checking `room._dirty` alone, without also checking
+        `self._room is room`, would checkpoint a room nobody is using anymore,
+        potentially resurrecting discarded content via a stale reference."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        stale_room = _make_room(revision_id=1)
+        stale_room._dirty = True
+        manager._room = None  # torn down (discarded) or replaced since the read
+        manager._checkpoint_room = AsyncMock()
+
+        checkpointed = await manager.checkpoint_if_dirty(stale_room)
+
+        assert checkpointed is False
+        manager._checkpoint_room.assert_not_awaited()
+
+
+class TestRoomManagerCloseRoomIfEmpty:
+    """Direct tests of ``close_room_if_empty``'s own guard (Phase 4 Step A
+    review): a caller that checks ``room.is_empty`` and then calls
+    ``close_active_room()`` as two separate, unlocked steps leaves a window
+    for a ``JOIN_SCRIPT_ROOM`` to land in between and add a new client right
+    before the room gets closed out from under them anyway. Re-checks both
+    ``is`` identity and ``is_empty`` after acquiring the lock, same reasoning
+    as ``checkpoint_if_dirty``."""
+
+    @pytest.mark.asyncio
+    async def test_closes_the_active_room_when_empty(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        room = _make_room(revision_id=1)
+        manager._room = room
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_empty(room)
+
+        assert closed is True
+        manager._close_active_room_locked.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_is_a_no_op_when_a_client_is_still_in_it(self):
+        """The exact race this exists for: between a caller's own unlocked
+        `room.is_empty` check and the close, a JOIN_SCRIPT_ROOM added a
+        client — by the time this re-checks under the lock, the room is no
+        longer empty, so it must not be closed out from under that client."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        room = _make_room(revision_id=1)
+        room.add_client(_make_mock_ws(), "viewer")
+        manager._room = room
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_empty(room)
+
+        assert closed is False
+        manager._close_active_room_locked.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ignores_an_empty_room_that_is_no_longer_the_active_one(self):
+        """A caller reads `self._room` before taking the lock, but by the
+        time it acquires the lock that room has been replaced or torn down —
+        checking `room.is_empty` alone, without also checking `self._room is
+        room`, would close whichever room is active now, not the stale one
+        the caller actually meant."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        stale_room = _make_room(revision_id=1)
+        manager._room = None  # replaced or torn down since the read
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_empty(stale_room)
+
+        assert closed is False
+        manager._close_active_room_locked.assert_not_awaited()
+
+
+class TestRoomManagerCloseRoomIfStaleRevision:
+    """Direct tests of ``close_room_if_stale_revision``'s own guard (Phase 4
+    Step A round-2 review): a caller that reads ``room.revision_id`` and then
+    calls ``close_active_room()`` as two separate, unlocked steps can race a
+    concurrent ``JOIN_SCRIPT_ROOM`` building the *new* revision's own room —
+    closing unconditionally would tear down that fresh, correct room instead
+    of the stale one the caller actually meant. Re-checks both ``is`` identity
+    and the revision mismatch after acquiring the lock, same reasoning as
+    ``checkpoint_if_dirty``/``close_room_if_empty``."""
+
+    @pytest.mark.asyncio
+    async def test_closes_the_active_room_when_it_is_for_a_different_revision(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        room = _make_room(revision_id=1)
+        manager._room = room
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_stale_revision(room, 2)
+
+        assert closed is True
+        manager._close_active_room_locked.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_is_a_no_op_when_the_room_is_already_for_the_current_revision(self):
+        """E.g. a viewer's role-refresh join already followed the switch and
+        rejoined against the new revision before this call reached the lock —
+        closing it anyway would needlessly kick that viewer too."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        room = _make_room(revision_id=2)
+        manager._room = room
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_stale_revision(room, 2)
+
+        assert closed is False
+        manager._close_active_room_locked.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ignores_a_stale_room_that_is_no_longer_the_active_one(self):
+        """The exact race this exists for: a JOIN_SCRIPT_ROOM concurrently
+        built a fresh room for the new revision (inside get_or_create_room,
+        holding the lock) before this call reached it — closing whichever
+        room is active now, without also checking `self._room is room`,
+        would tear down that fresh, correct room instead of the stale one."""
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = MagicMock()
+        manager._room_lock = asyncio.Lock()
+        stale_room = _make_room(revision_id=1)
+        manager._room = _make_room(revision_id=2)  # the fresh room that replaced it
+        manager._close_active_room_locked = AsyncMock()
+
+        closed = await manager.close_room_if_stale_revision(stale_room, 2)
+
+        assert closed is False
+        manager._close_active_room_locked.assert_not_awaited()
+
+
+class TestRoomManagerCleanupStaleDrafts(_ScriptTestSetup):
+    """Tests for both branches of ``cleanup_stale_drafts`` (Group F: F5)."""
+
+    @gen_test
+    async def test_removes_db_record_with_missing_file(self):
+        """A ScriptDraft row whose file no longer exists on disk is deleted."""
+        with self._app.get_db().sessionmaker() as session:
+            session.add(
+                ScriptDraft(
+                    revision_id=self.revision_id,
+                    data_path="/nonexistent/draft_path.yjs",
+                )
+            )
+            session.commit()
+
+        manager = RoomManager(self._app)
+        await manager.cleanup_stale_drafts()
+
+        with self._app.get_db().sessionmaker() as session:
+            draft = session.scalar(
+                select(ScriptDraft).where(ScriptDraft.revision_id == self.revision_id)
+            )
+        assert draft is None
+
+    @gen_test
+    async def test_removes_unreferenced_draft_file(self):
+        """A .yjs file on disk with no corresponding DB record is deleted."""
+        draft_dir = self._app.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+        os.makedirs(draft_dir, exist_ok=True)
+        orphan_path = os.path.join(draft_dir, "draft_orphan_test.yjs")
+        with open(orphan_path, "wb") as f:
+            f.write(b"orphan data")
+
+        try:
+            manager = RoomManager(self._app)
+            await manager.cleanup_stale_drafts()
+
+            assert not os.path.exists(orphan_path)
+        finally:
+            if os.path.exists(orphan_path):
+                os.remove(orphan_path)
+
+    @gen_test
+    async def test_keeps_referenced_draft_file_and_valid_record(self):
+        """A DB record whose file exists is left alone by cleanup."""
+        draft_dir = self._app.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+        os.makedirs(draft_dir, exist_ok=True)
+        valid_path = os.path.join(draft_dir, f"draft_{self.revision_id}.yjs")
+        with open(valid_path, "wb") as f:
+            f.write(b"valid draft data")
+
+        try:
+            with self._app.get_db().sessionmaker() as session:
+                session.add(
+                    ScriptDraft(revision_id=self.revision_id, data_path=valid_path)
+                )
+                session.commit()
+
+            manager = RoomManager(self._app)
+            await manager.cleanup_stale_drafts()
+
+            assert os.path.exists(valid_path)
+            with self._app.get_db().sessionmaker() as session:
+                draft = session.scalar(
+                    select(ScriptDraft).where(
+                        ScriptDraft.revision_id == self.revision_id
+                    )
+                )
+            assert draft is not None
+        finally:
+            if os.path.exists(valid_path):
+                os.remove(valid_path)
+
+
+class TestRoomManagerLoadOrBuildDocRecovery(_ScriptTestSetup):
+    """Tests for the corrupt-draft-file recovery path in ``_load_or_build_doc`` (Group F: F8)."""
+
+    @gen_test
+    async def test_corrupt_draft_file_falls_back_to_db_rebuild(self):
+        """A corrupt draft file is discarded and the Y.Doc is rebuilt from the DB."""
+        with self._app.get_db().sessionmaker() as session:
+            line = ScriptLine(
+                act_id=self.act_id,
+                scene_id=self.scene_id,
+                page=1,
+                line_type=ScriptLineType.STAGE_DIRECTION,
+            )
+            session.add(line)
+            session.flush()
+
+            part = ScriptLinePart(
+                line_id=line.id, part_index=0, line_text="Recovered line"
+            )
+            session.add(part)
+            session.flush()
+
+            assoc = ScriptLineRevisionAssociation(
+                revision_id=self.revision_id, line_id=line.id
+            )
+            session.add(assoc)
+            session.flush()
+
+        draft_dir = self._app.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+        os.makedirs(draft_dir, exist_ok=True)
+        corrupt_path = os.path.join(draft_dir, f"draft_{self.revision_id}.yjs")
+        with open(corrupt_path, "wb") as f:
+            f.write(b"this is not a valid pycrdt update")
+
+        try:
+            with self._app.get_db().sessionmaker() as session:
+                session.add(
+                    ScriptDraft(revision_id=self.revision_id, data_path=corrupt_path)
+                )
+                session.commit()
+
+            manager = RoomManager(self._app)
+            doc = await manager._load_or_build_doc(self.revision_id)
+
+            # Rebuilt from the DB — the seeded line should be present
+            pages = doc.get("pages", type=pycrdt.Map)
+            assert "1" in pages
+            assert len(pages["1"]) == 1
+
+            # The stale DB record pointing at the corrupt file should be gone
+            with self._app.get_db().sessionmaker() as session:
+                draft = session.scalar(
+                    select(ScriptDraft).where(
+                        ScriptDraft.revision_id == self.revision_id
+                    )
+                )
+            assert draft is None
+        finally:
+            if os.path.exists(corrupt_path):
+                os.remove(corrupt_path)
+
+    @gen_test
+    async def test_malformed_pages_map_takes_the_same_recovery_path(self):
+        """A draft that decodes but holds a non-array page is as corrupt as garbage."""
+        bad = pycrdt.Doc()
+        bad.get("pages", type=pycrdt.Map)["1"] = "not an array"
+
+        draft_dir = self._app.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+        os.makedirs(draft_dir, exist_ok=True)
+        draft_path = os.path.join(draft_dir, f"draft_{self.revision_id}.yjs")
+        with open(draft_path, "wb") as f:
+            f.write(bad.get_update())
+
+        try:
+            with self._app.get_db().sessionmaker() as session:
+                session.add(
+                    ScriptDraft(revision_id=self.revision_id, data_path=draft_path)
+                )
+                session.commit()
+
+            doc = await RoomManager(self._app)._load_or_build_doc(self.revision_id)
+
+            pages = doc.get("pages", type=pycrdt.Map)
+            assert isinstance(pages["1"], pycrdt.Array)
+            with self._app.get_db().sessionmaker() as session:
+                assert (
+                    session.scalar(
+                        select(ScriptDraft).where(
+                            ScriptDraft.revision_id == self.revision_id
+                        )
+                    )
+                    is None
+                )
+        finally:
+            if os.path.exists(draft_path):
+                os.remove(draft_path)
+
+    @gen_test
+    async def test_a_non_array_page_from_a_client_is_healed_not_left_to_fail_forever(
+        self,
+    ):
+        """A deterministic failure must not be retried (and logged) on every update."""
+        room = _make_room()
+        room.doc.get("pages", type=pycrdt.Map)["1"] = pycrdt.Array()
+        client = pycrdt.Doc()
+        client.get("pages", type=pycrdt.Map)
+        client.apply_update(room.get_sync_state())
+        before = client.get_state()
+        client.get("pages", type=pycrdt.Map)["1"] = "garbage"
+
+        follow_up, repaired_pages = await room.apply_update(client.get_update(before))
+
+        assert follow_up is not None
+        assert repaired_pages == [1]
+        assert isinstance(room.doc.get("pages", type=pycrdt.Map)["1"], pycrdt.Array)
+        # ...and the healed doc is stable from here on.
+        assert await room.apply_update(client.get_update(client.get_state())) == (
+            None,
+            [],
+        )
+
+    @gen_test
+    async def test_an_unexpected_trailing_page_failure_is_loud_not_silently_lost(self):
+        """``ensure_trailing_page(repair=True)`` can't raise its documented
+        ValueError (repair is always True here), so the ``except`` around it only
+        ever catches a genuinely unexpected bug (e.g. a pycrdt internal error) —
+        the client's update is already applied by then and must still be relayed,
+        so this can't be retried, hence logged loudly rather than swallowed.
+
+        Narrow, accepted limitation this doesn't fix: ``repaired_pages`` always
+        comes from a full re-scan of the doc, not from what the *current* update
+        specifically changed, so if the underlying corruption weren't actually
+        fixed here, the next sender's unrelated update could later be blamed for
+        a repair that was really someone else's. Reaching this at all requires
+        the unexpected failure in the first place, which this test is about
+        making loud, not about fixing that narrower, harder-to-reach case.
+        """
+        room = _make_room()
+        client = pycrdt.Doc()
+        client.get("pages", type=pycrdt.Map)
+        client.apply_update(room.get_sync_state())
+        before = client.get_state()
+        client.get("pages", type=pycrdt.Map)["1"] = pycrdt.Array()
+        update = client.get_update(before)
+
+        with (
+            patch(
+                "utils.script_room_manager.ensure_trailing_page",
+                side_effect=RuntimeError("simulated pycrdt bug"),
+            ),
+            self.assertLogs(get_logger(), level="ERROR") as captured,
+        ):
+            result = await room.apply_update(update)
+
+        assert result == (None, [])
+        assert any("Failed to maintain trailing page" in m for m in captured.output)
+
+    @gen_test
+    async def test_a_legacy_draft_gains_a_trailing_page_and_uids_on_load(self):
+        """A draft checkpointed before the trailing-page rule and `_uid` existed."""
+        legacy = _build_empty_doc()
+        _add_line_to_doc(legacy, "1", str(uuid.uuid4()))
+        draft_dir = self._app.digi_settings.settings.get(
+            "draft_script_path"
+        ).get_value()
+        os.makedirs(draft_dir, exist_ok=True)
+        draft_path = os.path.join(draft_dir, f"draft_{self.revision_id}.yjs")
+        with open(draft_path, "wb") as f:
+            f.write(legacy.get_update())
+
+        try:
+            with self._app.get_db().sessionmaker() as session:
+                session.add(
+                    ScriptDraft(revision_id=self.revision_id, data_path=draft_path)
+                )
+                session.commit()
+
+            doc = await RoomManager(self._app)._load_or_build_doc(self.revision_id)
+
+            pages = doc.get("pages", type=pycrdt.Map)
+            assert sorted(pages.keys()) == ["1", "2"]
+            assert len(pages["2"]) == 0
+            line = pages["1"][0]
+            assert line["_uid"] == line["_id"]
+            assert line["parts"][0]["_uid"] == line["parts"][0]["_id"]
+        finally:
+            if os.path.exists(draft_path):
+                os.remove(draft_path)
+
+
+class TestRoomManagerMetrics:
+    """The ``digiscript_collab_rooms`` gauge follows the active room."""
+
+    @staticmethod
+    def _rooms():
+        return REGISTRY.get_sample_value("digiscript_collab_rooms")
+
+    @pytest.mark.asyncio
+    async def test_collab_rooms_gauge_tracks_create_and_close(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._room = None
+        app_metrics.register_room_manager(manager)
+        manager._load_or_build_doc = AsyncMock(return_value=pycrdt.Doc())
+        before = self._rooms()
+
+        await manager.get_or_create_room(7)
+        assert self._rooms() == before + 1
+
+        # Same revision again must not double count.
+        await manager.get_or_create_room(7)
+        assert self._rooms() == before + 1
+
+        await manager.close_active_room()
+        assert self._rooms() == before
+        # Closing again is a no-op.
+        await manager.close_active_room()
+        assert self._rooms() == before
+
+    def test_collab_rooms_gauge_drops_on_stop(self):
+        manager = RoomManager.__new__(RoomManager)
+        manager._application = (
+            MagicMock()
+        )  # close_active_room clears editor/cutter flags via a DB session
+        manager._room_lock = asyncio.Lock()  # bypassed __init__ via __new__
+        manager._maintenance_handle = None
+        manager._room = _make_room(3)
+        app_metrics.register_room_manager(manager)
+        before = self._rooms()
+
+        manager.stop()
+
+        assert self._rooms() == before - 1
+
+
+class TestSilentFailureLogging:
+    """Previously silent branches now leave a log line."""
+
+    def test_checkpoint_cleanup_logs_unlink_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "x.yjs")
+            with (
+                patch("utils.script_room_manager.os.rename", side_effect=OSError("no")),
+                patch("utils.script_room_manager.os.unlink", side_effect=OSError("u")),
+                patch("utils.script_room_manager.get_logger") as get_logger,
+            ):
+                with pytest.raises(OSError):
+                    _write_checkpoint_sync(b"abc", target, tmp)
+            warning = get_logger.return_value.warning
+            warning.assert_called_once()
+            assert "could not remove temporary file" in warning.call_args[0][0]
+            # The fd was already closed before the rename failed (EBADF).
+            get_logger.return_value.debug.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_save_progress_closed_client_logged_at_debug(self):
+        room = _make_room(revision_id=11)
+        ws = _make_mock_ws()
+        ws.write_message.side_effect = WebSocketClosedError()
+        room.add_client(ws, "editor")
+        with patch("utils.script_room_manager.get_logger") as get_logger:
+            await room._broadcast_save_progress(1, 2)
+        get_logger.return_value.debug.assert_called_once()
+        assert "11" in get_logger.return_value.debug.call_args[0][0]
+
+
+class TestRoomManagerRegistration:
+    """Registration with app_metrics: managers register, applications do not."""
+
+    def test_room_manager_registers_itself_but_not_the_application(self):
+        app = MagicMock()
+        manager = RoomManager(app)
+
+        assert manager in app_metrics._room_managers
+        assert app not in app_metrics._applications

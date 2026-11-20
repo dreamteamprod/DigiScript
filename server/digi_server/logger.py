@@ -1,7 +1,11 @@
 import logging
+import sys
+import threading
+import weakref
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
+from prometheus_client import Counter
 from tornado.log import LogFormatter
 
 from utils.log_buffer import (
@@ -16,8 +20,181 @@ ALL_LOGGERS = [
     logging.getLogger("tornado.access"),
     logging.getLogger("tornado.application"),
     logging.getLogger("tornado.general"),
+    # Stdlib/third-party loggers whose output would otherwise only reach stderr
+    # (e.g. "Exception in callback ..." from fire-and-forget loop callbacks).
+    logging.getLogger("asyncio"),
+    logging.getLogger("alembic"),
+    logging.getLogger("py.warnings"),
     logger,
 ]
+
+UNHANDLED_ERRORS = Counter(
+    "digiscript_unhandled_errors_total",
+    "Unhandled exceptions caught by the global crash hooks",
+    ["source"],
+)
+UNHANDLED_ERROR_SOURCES = ("sys_excepthook", "asyncio", "thread")
+# Pre-register every label series at 0 so Prometheus increase() sees the very
+# first error for each source.
+for _source in UNHANDLED_ERROR_SOURCES:
+    UNHANDLED_ERRORS.labels(source=_source)
+
+# Guards install/uninstall; the state below is only touched while holding it.
+_hooks_lock = threading.RLock()
+# Previous hooks / warning state, saved at install; empty while not installed.
+_saved_hooks: dict = {}
+# Event loops we attached a handler to, mapped to the handler they had before.
+_saved_loop_handlers: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
+
+def _count_unhandled(source: str) -> None:
+    UNHANDLED_ERRORS.labels(source=source).inc()
+
+
+def _chain(previous, default, *args) -> None:
+    """Call a pre-existing hook, skipping the interpreter default.
+
+    The defaults only print to stderr, which would duplicate the log record.
+    """
+    if previous is None or previous is default:
+        return
+    try:
+        previous(*args)
+    except Exception:  # noqa: BLE001 - a broken foreign hook must not mask the crash
+        logger.exception("Chained exception hook failed")
+
+
+def _sys_excepthook(exc_type, exc_value, exc_tb):
+    previous = _saved_hooks.get("sys")
+    if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
+        (previous or sys.__excepthook__)(exc_type, exc_value, exc_tb)
+        return
+    _count_unhandled("sys_excepthook")
+    try:
+        logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
+    finally:
+        _chain(previous, sys.__excepthook__, exc_type, exc_value, exc_tb)
+
+
+def _threading_excepthook(args):
+    previous = _saved_hooks.get("thread")
+    if issubclass(args.exc_type, SystemExit):
+        _chain(previous, threading.__excepthook__, args)
+        return
+    _count_unhandled("thread")
+    try:
+        thread_name = args.thread.name if args.thread else "<unknown>"
+        logger.error(
+            "Unhandled exception in thread %s",
+            thread_name,
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+        )
+    finally:
+        _chain(previous, threading.__excepthook__, args)
+
+
+def _safe_repr(value) -> str:
+    try:
+        return repr(value)
+    except Exception:  # noqa: BLE001 - arbitrary __repr__ must not break logging
+        return f"<unrepresentable {type(value).__name__}>"
+
+
+def _asyncio_exception_handler(loop, context):
+    exc = context.get("exception")
+    previous = _saved_loop_handlers.get(loop)
+    if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+        if previous is not None:
+            previous(loop, context)
+        else:
+            loop.default_exception_handler(context)
+        return
+    try:
+        message = context.get("message", "Unhandled exception in event loop")
+        extras = "".join(
+            f"\n{key}: {_safe_repr(context[key])}"
+            for key in ("future", "task", "handle", "protocol", "transport")
+            if key in context
+        )
+        if exc is None:
+            # Message-only context (e.g. slow callback): a diagnostic, not a crash.
+            logger.warning("%s%s", message, extras)
+        else:
+            _count_unhandled("asyncio")
+            logger.error(
+                "%s%s",
+                message,
+                extras,
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
+    except Exception:  # noqa: BLE001 - the handler itself must never raise
+        try:
+            loop.default_exception_handler(context)
+        except Exception:  # noqa: BLE001, S110
+            pass
+    if previous is not None:
+        _chain(previous, None, loop, context)
+
+
+def install_exception_hooks(loop=None) -> None:
+    """Route otherwise-invisible crashes into the DigiScript log.
+
+    Installs ``sys.excepthook`` and ``threading.excepthook`` and the given
+    loop's exception handler, and enables ``logging.captureWarnings`` so
+    ``warnings.warn`` reaches the ``py.warnings`` logger. Each unhandled error
+    increments ``digiscript_unhandled_errors_total{source}``. Pre-existing hooks
+    are chained to after logging (interpreter defaults are skipped to avoid
+    duplicate stderr output); ``KeyboardInterrupt`` and ``SystemExit`` keep
+    their default behaviour. Idempotent and thread-safe.
+
+    :param loop: Event loop to attach the exception handler to, or ``None`` to
+        skip the loop handler.
+    """
+    with _hooks_lock:
+        if not _saved_hooks:
+            _saved_hooks["warnings"] = logging._warnings_showwarning is not None
+            if sys.excepthook is not _sys_excepthook:
+                _saved_hooks["sys"] = sys.excepthook
+            else:
+                _saved_hooks["sys"] = sys.__excepthook__
+            if threading.excepthook is not _threading_excepthook:
+                _saved_hooks["thread"] = threading.excepthook
+            else:
+                _saved_hooks["thread"] = threading.__excepthook__
+            sys.excepthook = _sys_excepthook
+            threading.excepthook = _threading_excepthook
+            logging.captureWarnings(True)
+        if loop is not None and loop not in _saved_loop_handlers:
+            current = loop.get_exception_handler()
+            if current is not _asyncio_exception_handler:
+                _saved_loop_handlers[loop] = current
+                loop.set_exception_handler(_asyncio_exception_handler)
+
+
+def uninstall_exception_hooks() -> None:
+    """Undo :func:`install_exception_hooks`.
+
+    Restores ``sys.excepthook``, ``threading.excepthook``, the previous
+    handler of every loop we attached to (unless closed) and the prior
+    ``captureWarnings`` state. Idempotent and thread-safe.
+    """
+    with _hooks_lock:
+        if not _saved_hooks:
+            return
+        # Only restore hooks that are still ours; never clobber a wrapper
+        # installed after us.
+        if sys.excepthook is _sys_excepthook:
+            sys.excepthook = _saved_hooks["sys"]
+        if threading.excepthook is _threading_excepthook:
+            threading.excepthook = _saved_hooks["thread"]
+        logging.captureWarnings(_saved_hooks["warnings"])
+        for loop, previous in _saved_loop_handlers.items():
+            if not loop.is_closed() and (
+                loop.get_exception_handler() is _asyncio_exception_handler
+            ):
+                loop.set_exception_handler(previous)
+        _saved_loop_handlers.clear()
+        _saved_hooks.clear()
 
 
 def get_logger(name: Optional[str] = None):

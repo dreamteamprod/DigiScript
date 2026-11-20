@@ -85,6 +85,15 @@ class User(db.Model):
     sessions: Mapped[List[Session]] = relationship(back_populates="user")
 
 
+class RevokedToken(db.Model):
+    """A revoked JWT, identified by ``jti``, kept until its natural expiry."""
+
+    __tablename__ = "revoked_token"
+
+    jti: Mapped[str] = mapped_column(primary_key=True)
+    expires_at: Mapped[int] = mapped_column(index=True)
+
+
 class UserSettings(db.Model):
     __tablename__ = "user_settings"
 
@@ -98,7 +107,6 @@ class UserSettings(db.Model):
     console_log_level: Mapped[str] = mapped_column(default="WARN")
     character_mru_sort: Mapped[bool] = mapped_column(default=False)
     character_combined_dropdown: Mapped[bool] = mapped_column(default=False)
-    preferred_ui: Mapped[str | None] = mapped_column(default=None)
     table_page_sizes: Mapped[dict | None] = mapped_column(JSON, default=None)
     default_sd_text_colour: Mapped[str | None] = mapped_column(default=None)
     default_sd_background_colour: Mapped[str | None] = mapped_column(default=None)
@@ -108,10 +116,6 @@ class UserSettings(db.Model):
         CheckConstraint(
             "console_log_level IN ('TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'SILENT')",
             name="ck_user_settings_console_log_level",
-        ),
-        CheckConstraint(
-            "preferred_ui IS NULL OR preferred_ui IN ('old', 'new')",
-            name="ck_user_settings_preferred_ui",
         ),
     )
 

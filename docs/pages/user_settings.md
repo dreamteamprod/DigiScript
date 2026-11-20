@@ -105,4 +105,6 @@ API tokens allow external applications to authenticate with DigiScript and perfo
 - **Regenerate**: Creates a new token, invalidating the previous one
 - **Revoke**: Permanently removes the token and prevents it from being used
 
+Tokens are sent unchanged in the `X-API-Key` header. DigiScript stores only a one-way hash of the token. Tokens created by earlier versions of DigiScript keep working and are upgraded to the new storage format automatically the first time they are used.
+
 API tokens should be treated like passwords and kept secure. If you believe a token has been compromised, regenerate or revoke it immediately.

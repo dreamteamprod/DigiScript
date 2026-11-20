@@ -1,0 +1,186 @@
+import { defineStore } from 'pinia';
+import { detailedDiff } from 'deep-object-diff';
+import log from 'loglevel';
+import { makeURL } from '@/js/utils';
+import { toast } from '@/js/toast';
+import type { ScriptLine, PageStatus } from '@/types/api/script';
+
+/**
+ * Computes the page status object (added/updated/deleted/inserted) to send to the PATCH endpoint.
+ *
+ * deepDiff.added fires on a line index whenever *any* nested property is new — including a new
+ * element in line_parts. Only lines with id == null are truly new; lines with an existing id that
+ * have nested additions must be treated as updates instead.
+ */
+export function computePageStatus(
+  actualScriptPage: ScriptLine[],
+  tmpScriptPage: ScriptLine[],
+  deletedLines: number[],
+  insertedLines: number[]
+): PageStatus {
+  // JSON round-trip instead of structuredClone — these arrays come from Pinia reactive state
+  // (Proxy objects) which structuredClone cannot handle in some environments.
+  const augmented: ScriptLine[] = JSON.parse(JSON.stringify(actualScriptPage)); // NOSONAR
+  JSON.parse(JSON.stringify(insertedLines)) // NOSONAR
+    .sort((a: number, b: number) => a - b)
+    .forEach((lineIndex: number) => {
+      augmented.splice(lineIndex, 0, JSON.parse(JSON.stringify(tmpScriptPage[lineIndex]))); // NOSONAR
+    });
+
+  const deepDiff = detailedDiff(augmented, tmpScriptPage);
+  const addedIndices = Object.keys(deepDiff.added).map((x) => Number.parseInt(x, 10));
+  return {
+    added: addedIndices.filter((idx) => tmpScriptPage[idx]?.id == null),
+    updated: [
+      ...Object.keys(deepDiff.updated).map((x) => Number.parseInt(x, 10)),
+      ...addedIndices.filter((idx) => tmpScriptPage[idx]?.id != null),
+    ],
+    deleted: [...deletedLines],
+    inserted: [...insertedLines],
+  };
+}
+
+interface EditStatus {
+  canRequestEdit: boolean;
+  currentEditor: string | null;
+}
+
+export interface ScriptConfigParticipant {
+  internal_id: string;
+  username: string | null;
+}
+
+export const useScriptConfigStore = defineStore('scriptConfig', {
+  state: () => ({
+    tmpScript: {} as Record<string, ScriptLine[]>,
+    deletedLines: {} as Record<string, number[]>,
+    insertedLines: {} as Record<string, number[]>,
+    editStatus: { canRequestEdit: false, currentEditor: null } as EditStatus,
+    cutMode: false,
+    // Collab model fields, kept alongside the old single-editor editStatus above
+    // rather than in the newer scriptDraft store, since GET_SCRIPT_CONFIG_STATUS can
+    // only be handled by one store's action (useWebSocket dispatches by camelCase
+    // name, first match wins, across every instantiated store). scriptDraft.ts
+    // exposes these same values via getters that read from here instead of
+    // duplicating the fetch.
+    editors: [] as ScriptConfigParticipant[],
+    cutters: [] as ScriptConfigParticipant[],
+    hasDraft: false,
+  }),
+
+  getters: {
+    getTmpPage:
+      (state) =>
+      (page: number | string): ScriptLine[] =>
+        state.tmpScript[String(page)] ?? [],
+    getDeletedLines:
+      (state) =>
+      (page: number | string): number[] =>
+        state.deletedLines[String(page)] ?? [],
+    getInsertedLines:
+      (state) =>
+      (page: number | string): number[] =>
+        state.insertedLines[String(page)] ?? [],
+  },
+
+  actions: {
+    addPage(page: number, contents: ScriptLine[]): void {
+      // JSON round-trip instead of structuredClone — reactive Pinia arrays (Proxy objects)
+      // cannot be structuredCloned in some environments.
+      this.tmpScript[String(page)] = JSON.parse(JSON.stringify(contents)); // NOSONAR
+      if (!this.deletedLines[String(page)]) this.deletedLines[String(page)] = [];
+      if (!this.insertedLines[String(page)]) this.insertedLines[String(page)] = [];
+    },
+
+    removePage(page: number): void {
+      delete this.tmpScript[String(page)];
+      delete this.deletedLines[String(page)];
+      delete this.insertedLines[String(page)];
+    },
+
+    addBlankLine(page: number, line: ScriptLine): void {
+      const l = structuredClone(line);
+      l.page = page;
+      this.tmpScript[String(page)].push(l);
+    },
+
+    insertBlankLine(page: number, lineIndex: number, line: ScriptLine): void {
+      const pageStr = String(page);
+      if (this.deletedLines[pageStr]?.includes(lineIndex)) {
+        const l = structuredClone(line);
+        l.page = page;
+        l.id = this.tmpScript[pageStr][lineIndex].id;
+        this.tmpScript[pageStr].splice(lineIndex, 1, l);
+        this.deletedLines[pageStr].splice(this.deletedLines[pageStr].indexOf(lineIndex), 1);
+      } else {
+        const l = structuredClone(line);
+        l.page = page;
+        this.tmpScript[pageStr].splice(lineIndex, 0, l);
+        if (!this.insertedLines[pageStr]) this.insertedLines[pageStr] = [];
+        this.insertedLines[pageStr].push(lineIndex);
+      }
+    },
+
+    setLine(page: number, lineIndex: number, line: ScriptLine): void {
+      this.tmpScript[String(page)][lineIndex] = line;
+    },
+
+    deleteLine(page: number, lineIndex: number): void {
+      const pageStr = String(page);
+      if (this.tmpScript[pageStr][lineIndex].id === null) {
+        this.tmpScript[pageStr].splice(lineIndex, 1);
+      } else {
+        this.deletedLines[pageStr] ??= [];
+        this.deletedLines[pageStr].push(lineIndex);
+      }
+      if (this.insertedLines[pageStr]?.includes(lineIndex)) {
+        this.insertedLines[pageStr].splice(this.insertedLines[pageStr].indexOf(lineIndex), 1);
+      }
+    },
+
+    resetTracking(page: number): void {
+      this.deletedLines[String(page)] = [];
+      this.insertedLines[String(page)] = [];
+    },
+
+    emptyScript(): void {
+      this.tmpScript = {};
+      this.deletedLines = {};
+      this.insertedLines = {};
+    },
+
+    setCutMode(val: boolean): void {
+      this.cutMode = val;
+    },
+
+    setEditStatus(status: EditStatus): void {
+      this.editStatus = status;
+    },
+
+    async getScriptConfigStatus(): Promise<void> {
+      const response = await fetch(makeURL('/api/v1/show/script/config'));
+      if (response.ok) {
+        const data = await response.json();
+        this.editStatus = {
+          canRequestEdit: data.canRequestEdit,
+          currentEditor: data.currentEditor,
+        };
+        this.editors = data.editors ?? [];
+        this.cutters = data.cutters ?? [];
+        this.hasDraft = data.hasDraft ?? false;
+      } else {
+        log.error('Unable to get script config status');
+      }
+    },
+
+    async requestEditFailure(data?: { reason?: string }): Promise<void> {
+      // Also fires for a rejected REQUEST_SCRIPT_CUTS (same ACTION, e.g. a cutter or
+      // editor already in the way, or a live show) — "Unable to edit script" is the
+      // closest one-size-fits-all label. The server sends a reason (mode mismatch, a
+      // live show, a cutter/editor in the way, missing permission); show it.
+      toast.error(data?.reason ? `Unable to edit script: ${data.reason}` : 'Unable to edit script');
+      await this.getScriptConfigStatus();
+      this.cutMode = false;
+    },
+  },
+});

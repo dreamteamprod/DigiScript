@@ -1,9 +1,12 @@
 import tornado.escape
+from sqlalchemy import select
 
 from models.script import Script
+from models.settings import SystemSettings
 from models.show import Show, ShowScriptType
 from models.user import User
 from rbac.role import Role
+from services.telemetry_service import TelemetryService
 from test.conftest import DigiScriptTestCase
 
 
@@ -110,3 +113,83 @@ class TestRBAC(DigiScriptTestCase):
         self.assertIn("objects", response_body)
         # Should find the script we created
         self.assertEqual(1, len(response_body["objects"]))
+
+
+class TestRBACRoleChangeValidation(DigiScriptTestCase):
+    def _body(self, **overrides):
+        body = {"resource": "shows", "object": {"id": 1}, "user": 1, "role": 1}
+        body.update(overrides)
+        return body
+
+    def _post(self, path, body, token):
+        return self.fetch(
+            path,
+            method="POST",
+            body=body if isinstance(body, str) else tornado.escape.json_encode(body),
+            headers={"Authorization": f"Bearer {token}"},
+            raise_error=False,
+        )
+
+    def test_grant_and_revoke_invalid_input_returns_400(self):
+        token = self._create_and_login_admin()
+        bad_bodies = [
+            self._body(role=999999),
+            self._body(role="admin"),
+            self._body(user="abc"),
+            self._body(object="not-a-dict"),
+            self._body(object={"unrelated": 1}),
+            self._body(resource=["shows"]),
+        ]
+        for path in (
+            "/api/v1/rbac/user/roles/grant",
+            "/api/v1/rbac/user/roles/revoke",
+        ):
+            for body in bad_bodies:
+                with self.subTest(path=path, body=body):
+                    self.assertEqual(400, self._post(path, body, token).code)
+
+    def test_grant_missing_field_returns_400(self):
+        token = self._create_and_login_admin()
+        body = self._body()
+        del body["role"]
+        resp = self._post("/api/v1/rbac/user/roles/grant", body, token)
+        self.assertEqual(400, resp.code)
+
+    def test_grant_invalid_json_returns_400(self):
+        token = self._create_and_login_admin()
+        resp = self._post("/api/v1/rbac/user/roles/grant", "nope", token)
+        self.assertEqual(400, resp.code)
+
+    def test_successful_grant_marks_rbac_deliberately_used_for_telemetry(self):
+        """Exercises the real HTTP endpoint, not just TelemetryService in isolation —
+        closes the gap where only mark_rbac_deliberately_used() itself was unit tested,
+        bypassing RBACRolesGrantHandler's wiring to it entirely."""
+        token = self._create_and_login_admin()
+
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.commit()
+            show_id = show.id
+
+            flag_before = session.scalars(
+                select(SystemSettings).where(
+                    SystemSettings.key == TelemetryService.RBAC_DELIBERATE_USE_KEY
+                )
+            ).first()
+            self.assertIsNone(flag_before)
+
+        resp = self._post(
+            "/api/v1/rbac/user/roles/grant",
+            self._body(object={"id": show_id}, user=1, role=Role.READ.value),
+            token,
+        )
+        self.assertEqual(200, resp.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            flag_after = session.scalars(
+                select(SystemSettings).where(
+                    SystemSettings.key == TelemetryService.RBAC_DELIBERATE_USE_KEY
+                )
+            ).first()
+            self.assertEqual("1", flag_after.value)

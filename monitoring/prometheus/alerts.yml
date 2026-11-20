@@ -1,0 +1,50 @@
+groups:
+  - name: digiscript
+    rules:
+      - alert: DigiScriptDown
+        expr: up{job="digiscript"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: DigiScript server is not being scraped successfully
+      - alert: DigiScriptHighLatencyP95
+        expr: histogram_quantile(0.95, sum by (le) (rate(tornado_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 HTTP request latency above 1s for 5m
+      # tornado_prometheus.classify_status_code buckets every status outside
+      # 200-499 as "5xx", including the 101 returned by a WebSocket upgrade. The
+      # server-side fix keeps 101 out of the series; as defence in depth the
+      # WebSocket handler is also excluded here (numerator and denominator) so
+      # normal WS connects/reconnects can never trip this alert.
+      - alert: DigiScriptHigh5xxRate
+        expr: >-
+          sum(rate(tornado_http_requests_total{status="5xx", handler!="WebSocketController"}[5m]))
+          / sum(rate(tornado_http_requests_total{handler!="WebSocketController"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 5% of HTTP requests are returning 5xx
+      # increase() yields nothing for a series that first appears inside the
+      # window, so a first-ever error for a source would be missed if the series
+      # is created lazily. The second branch catches that: a series that is
+      # non-zero now but did not exist 5m ago. (The server also pre-registers the
+      # series at 0, in which case the first branch alone suffices.)
+      - alert: DigiScriptUnhandledErrors
+        expr: >-
+          increase(digiscript_unhandled_errors_total[5m]) > 0
+          or (digiscript_unhandled_errors_total > 0 unless digiscript_unhandled_errors_total offset 5m)
+        labels:
+          severity: warning
+        annotations:
+          summary: Unhandled errors raised in the last 5m
+      - alert: DigiScriptAuthFailureSpike
+        expr: sum(increase(digiscript_auth_events_total{result="failure"}[5m])) > 20
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 20 failed auth events in 5m

@@ -45,6 +45,32 @@ export interface MicConflictResult {
 // Nested dict: { micId: { sceneId: characterId | null } }
 type MicAllocations = Record<string, Record<string, number | null> | null>;
 
+function linkSceneNode(
+  nodeSceneId: number,
+  graphById: Record<number, SceneGraphNode>,
+  previousSceneId: number | null,
+  scenePosition: number,
+  previousActLastSceneId: number | null
+): number | null {
+  let previousSceneInShow: number | null = null;
+  if (previousSceneId) {
+    const prevNode = graphById[previousSceneId];
+    if (prevNode) {
+      prevNode.nextSceneInAct = nodeSceneId;
+      prevNode.nextSceneInShow = nodeSceneId;
+      previousSceneInShow = previousSceneId;
+    }
+  }
+  if (scenePosition === 0 && previousActLastSceneId) {
+    const prevActLastNode = graphById[previousActLastSceneId];
+    if (prevActLastNode) {
+      prevActLastNode.nextSceneInShow = nodeSceneId;
+      previousSceneInShow = previousActLastSceneId;
+    }
+  }
+  return previousSceneInShow;
+}
+
 export function buildSceneGraph(
   scenes: Scene[],
   acts: Act[],
@@ -54,65 +80,42 @@ export function buildSceneGraph(
     return [];
   }
 
-  const sceneById: Record<number, Scene> = {};
-  scenes.forEach((scene) => {
-    sceneById[scene.id] = scene;
-  });
-
-  const actById: Record<number, Act> = {};
-  acts.forEach((act) => {
-    actById[act.id] = act;
-  });
+  const sceneById: Record<number, Scene> = Object.fromEntries(scenes.map((s) => [s.id, s]));
+  const actById: Record<number, Act> = Object.fromEntries(acts.map((a) => [a.id, a]));
 
   const graph: SceneGraphNode[] = [];
-  const graphById: Record<number, SceneGraphNode> = {}; // Lookup object to avoid .find() in loops
+  const graphById: Record<number, SceneGraphNode> = {};
   let globalPosition = 0;
 
-  // Traverse acts in linked list order
   let currentAct: Act | null = actById[currentShow.first_act_id];
   let previousActLastSceneId: number | null = null;
 
   while (currentAct != null) {
     let scenePosition = 0;
     let previousSceneId: number | null = null;
-
-    // Traverse scenes within this act
     let currentScene = currentAct.first_scene ? sceneById[currentAct.first_scene] : null;
 
     while (currentScene != null) {
       const node: SceneGraphNode = {
         sceneId: currentScene.id,
-        actId: currentScene.act!, // scenes within an act always have act set
-        sceneName: currentScene.name!, // name is required when a scene exists
-        actName: currentAct.name!, // same for acts
+        actId: currentScene.act!,
+        sceneName: currentScene.name!,
+        actName: currentAct.name!,
         globalPosition,
         scenePositionInAct: scenePosition,
-        // Within-act adjacency
         previousSceneInAct: previousSceneId,
-        nextSceneInAct: null, // Will be set when we process next scene
-        // Cross-act adjacency
+        nextSceneInAct: null,
         previousSceneInShow: null,
         nextSceneInShow: null,
       };
 
-      // Set next pointer for previous scene
-      if (previousSceneId) {
-        const prevNode = graphById[previousSceneId];
-        if (prevNode) {
-          prevNode.nextSceneInAct = currentScene.id;
-          prevNode.nextSceneInShow = currentScene.id;
-          node.previousSceneInShow = previousSceneId;
-        }
-      }
-
-      // Handle cross-act boundary (last scene of previous act → first scene of this act)
-      if (scenePosition === 0 && previousActLastSceneId) {
-        const prevActLastNode = graphById[previousActLastSceneId];
-        if (prevActLastNode) {
-          prevActLastNode.nextSceneInShow = currentScene.id;
-          node.previousSceneInShow = previousActLastSceneId;
-        }
-      }
+      node.previousSceneInShow = linkSceneNode(
+        node.sceneId,
+        graphById,
+        previousSceneId,
+        scenePosition,
+        previousActLastSceneId
+      );
 
       graph.push(node);
       graphById[currentScene.id] = node;
@@ -123,10 +126,7 @@ export function buildSceneGraph(
       globalPosition++;
     }
 
-    // Remember last scene of this act for cross-act linking
     previousActLastSceneId = previousSceneId;
-
-    // Move to next act
     currentAct = currentAct.next_act ? actById[currentAct.next_act] : null;
   }
 
@@ -137,12 +137,7 @@ export function getAdjacentScenes(sceneId: number, sceneGraph: SceneGraphNode[])
   const node = sceneGraph.find((n) => n.sceneId === sceneId);
 
   if (!node) {
-    return {
-      sameActPrev: null,
-      sameActNext: null,
-      crossActPrev: null,
-      crossActNext: null,
-    };
+    return { sameActPrev: null, sameActNext: null, crossActPrev: null, crossActNext: null };
   }
 
   const prevNode = node.previousSceneInShow
@@ -153,10 +148,8 @@ export function getAdjacentScenes(sceneId: number, sceneGraph: SceneGraphNode[])
     : null;
 
   return {
-    // Same act adjacency
-    sameActPrev: prevNode && prevNode.actId === node.actId ? prevNode.sceneId : null,
-    sameActNext: nextNode && nextNode.actId === node.actId ? nextNode.sceneId : null,
-    // Cross-act adjacency (last scene of act N → first scene of act N+1)
+    sameActPrev: prevNode?.actId === node.actId ? prevNode.sceneId : null,
+    sameActNext: nextNode?.actId === node.actId ? nextNode.sceneId : null,
     crossActPrev: prevNode && prevNode.actId !== node.actId ? prevNode.sceneId : null,
     crossActNext: nextNode && nextNode.actId !== node.actId ? nextNode.sceneId : null,
   };
@@ -169,11 +162,7 @@ export function areScenesInSameAct(
 ): boolean {
   const node1 = sceneGraph.find((n) => n.sceneId === sceneId1);
   const node2 = sceneGraph.find((n) => n.sceneId === sceneId2);
-
-  if (!node1 || !node2) {
-    return false;
-  }
-
+  if (!node1 || !node2) return false;
   return node1.actId === node2.actId;
 }
 
@@ -183,25 +172,15 @@ export function isSameCastMember(
   characters: Character[],
   castList: unknown[]
 ): boolean {
-  if (characterId1 === characterId2) {
-    return true; // Same character, trivially same cast member
-  }
+  if (characterId1 === characterId2) return true;
 
   const char1 = characters.find((c) => c.id === characterId1);
   const char2 = characters.find((c) => c.id === characterId2);
+  if (!char1 || !char2) return false;
 
-  if (!char1 || !char2) {
-    return false;
-  }
-
-  // Check cast_member.id (nested relationship) instead of played_by
   const castId1 = char1.cast_member?.id;
   const castId2 = char2.cast_member?.id;
-
-  // Check if both have cast assignments (use == null to allow 0 as valid ID)
-  if (castId1 == null || castId2 == null) {
-    return false; // Conservative: no cast assignment = different cast members
-  }
+  if (castId1 == null || castId2 == null) return false;
 
   return castId1 === castId2;
 }
@@ -211,8 +190,79 @@ export function getConflictSeverity(
   sceneId2: number,
   sceneGraph: SceneGraphNode[]
 ): 'WARNING' | 'INFO' {
-  const sameAct = areScenesInSameAct(sceneId1, sceneId2, sceneGraph);
-  return sameAct ? 'WARNING' : 'INFO';
+  return areScenesInSameAct(sceneId1, sceneId2, sceneGraph) ? 'WARNING' : 'INFO';
+}
+
+function buildConflictRecord(
+  micId: number,
+  sceneIdNum: number,
+  adjacentSceneId: number,
+  characterId: number,
+  adjacentCharacterId: number,
+  sceneGraph: SceneGraphNode[],
+  characters: Character[]
+): MicConflict {
+  const severity = getConflictSeverity(sceneIdNum, adjacentSceneId, sceneGraph);
+  const currentSceneNode = sceneGraph.find((n) => n.sceneId === sceneIdNum);
+  const adjacentSceneNode = sceneGraph.find((n) => n.sceneId === adjacentSceneId);
+  const char1 = characters.find((c) => c.id === characterId);
+  const char2 = characters.find((c) => c.id === adjacentCharacterId);
+
+  let message = `Quick-change from "${currentSceneNode?.sceneName || 'Unknown'}"`;
+  if (char1 && char2) message += ` (${char1.name} → ${char2.name})`;
+  message +=
+    severity === 'WARNING'
+      ? ' - Tight changeover required'
+      : ' - Interval provides changeover time';
+
+  return {
+    micId,
+    sceneId: sceneIdNum,
+    sceneName: currentSceneNode?.sceneName || 'Unknown',
+    actName: currentSceneNode?.actName || 'Unknown',
+    characterId,
+    characterName: char1?.name || 'Unknown',
+    adjacentSceneId,
+    adjacentSceneName: adjacentSceneNode?.sceneName || 'Unknown',
+    adjacentActName: adjacentSceneNode?.actName || 'Unknown',
+    adjacentCharacterId,
+    adjacentCharacterName: char2?.name || 'Unknown',
+    severity,
+    message,
+  };
+}
+
+function checkAdjacentScene(
+  conflicts: MicConflict[],
+  micId: number,
+  sceneIdNum: number,
+  adjacentSceneId: number,
+  characterId: number,
+  micAllocations: Record<string, number | null>,
+  sceneGraph: SceneGraphNode[],
+  characters: Character[],
+  castList: unknown[]
+): void {
+  const adjacentCharacterId = micAllocations[adjacentSceneId];
+  if (adjacentCharacterId == null || adjacentCharacterId === characterId) return;
+  if (isSameCastMember(characterId, adjacentCharacterId, characters, castList)) return;
+
+  const isDuplicate = conflicts.some(
+    (c) => c.micId === micId && c.sceneId === adjacentSceneId && c.adjacentSceneId === sceneIdNum
+  );
+  if (!isDuplicate) {
+    conflicts.push(
+      buildConflictRecord(
+        micId,
+        sceneIdNum,
+        adjacentSceneId,
+        characterId,
+        adjacentCharacterId,
+        sceneGraph,
+        characters
+      )
+    );
+  }
 }
 
 export function detectMicConflicts(
@@ -224,45 +274,27 @@ export function detectMicConflicts(
   castList: unknown[]
 ): MicConflictResult {
   if (!allocations || !scenes?.length || !acts?.length || !currentShow) {
-    return {
-      conflicts: [],
-      conflictsByScene: {},
-      conflictsByMic: {},
-    };
+    return { conflicts: [], conflictsByScene: {}, conflictsByMic: {} };
   }
 
   const sceneGraph = buildSceneGraph(scenes, acts, currentShow);
-
   if (sceneGraph.length === 0) {
-    return {
-      conflicts: [],
-      conflictsByScene: {},
-      conflictsByMic: {},
-    };
+    return { conflicts: [], conflictsByScene: {}, conflictsByMic: {} };
   }
 
   const conflicts: MicConflict[] = [];
 
-  // For each microphone
   Object.keys(allocations).forEach((micId) => {
     const micAllocations = allocations[micId];
+    if (!micAllocations || typeof micAllocations !== 'object') return;
+    const micIdNum = Number.parseInt(micId, 10);
 
-    if (!micAllocations || typeof micAllocations !== 'object') {
-      return;
-    }
-
-    // For each scene where this mic is allocated
     Object.keys(micAllocations).forEach((sceneId) => {
       const characterId = micAllocations[sceneId];
+      if (characterId == null) return;
 
-      if (characterId == null) {
-        return; // No allocation in this scene
-      }
-
-      const sceneIdNum = parseInt(sceneId, 10);
+      const sceneIdNum = Number.parseInt(sceneId, 10);
       const adjacentScenes = getAdjacentScenes(sceneIdNum, sceneGraph);
-
-      // Check all adjacent scenes (same act + cross act)
       const adjacentSceneIds = [
         adjacentScenes.sameActPrev,
         adjacentScenes.sameActNext,
@@ -271,91 +303,30 @@ export function detectMicConflicts(
       ].filter((id): id is number => id != null);
 
       adjacentSceneIds.forEach((adjacentSceneId) => {
-        const adjacentCharacterId = micAllocations[adjacentSceneId];
-
-        if (adjacentCharacterId == null) {
-          return; // No allocation in adjacent scene
-        }
-
-        if (adjacentCharacterId === characterId) {
-          return; // Same character keeps the mic (no conflict)
-        }
-
-        // Check if same cast member (no conflict if true)
-        if (isSameCastMember(characterId, adjacentCharacterId, characters, castList)) {
-          return; // Same actor keeps mic across characters
-        }
-
-        // We have a conflict! Determine severity
-        const severity = getConflictSeverity(sceneIdNum, adjacentSceneId, sceneGraph);
-
-        const currentSceneNode = sceneGraph.find((n) => n.sceneId === sceneIdNum);
-        const adjacentSceneNode = sceneGraph.find((n) => n.sceneId === adjacentSceneId);
-
-        const char1 = characters.find((c) => c.id === characterId);
-        const char2 = characters.find((c) => c.id === adjacentCharacterId);
-
-        // Build conflict message (shown on the destination scene being changed INTO)
-        let message = `Quick-change from "${currentSceneNode?.sceneName || 'Unknown'}"`;
-        if (char1 && char2) {
-          message += ` (${char1.name} → ${char2.name})`;
-        }
-        if (severity === 'WARNING') {
-          message += ' - Tight changeover required';
-        } else {
-          message += ' - Interval provides changeover time';
-        }
-
-        // Avoid duplicate conflicts (if scene A→B is a conflict, don't also add B→A)
-        const isDuplicate = conflicts.some(
-          (c) =>
-            c.micId === parseInt(micId, 10) &&
-            c.sceneId === adjacentSceneId &&
-            c.adjacentSceneId === sceneIdNum
+        checkAdjacentScene(
+          conflicts,
+          micIdNum,
+          sceneIdNum,
+          adjacentSceneId,
+          characterId,
+          micAllocations,
+          sceneGraph,
+          characters,
+          castList
         );
-
-        if (!isDuplicate) {
-          conflicts.push({
-            micId: parseInt(micId, 10),
-            sceneId: sceneIdNum,
-            sceneName: currentSceneNode?.sceneName || 'Unknown',
-            actName: currentSceneNode?.actName || 'Unknown',
-            characterId,
-            characterName: char1?.name || 'Unknown',
-            adjacentSceneId,
-            adjacentSceneName: adjacentSceneNode?.sceneName || 'Unknown',
-            adjacentActName: adjacentSceneNode?.actName || 'Unknown',
-            adjacentCharacterId,
-            adjacentCharacterName: char2?.name || 'Unknown',
-            severity,
-            message,
-          });
-        }
       });
     });
   });
 
-  // Build indexed lookups
   const conflictsByScene: Record<number, MicConflict[]> = {};
   const conflictsByMic: Record<number, MicConflict[]> = {};
 
   conflicts.forEach((conflict) => {
-    // Index by scene
-    if (!conflictsByScene[conflict.sceneId]) {
-      conflictsByScene[conflict.sceneId] = [];
-    }
+    if (!conflictsByScene[conflict.sceneId]) conflictsByScene[conflict.sceneId] = [];
     conflictsByScene[conflict.sceneId].push(conflict);
-
-    // Index by mic
-    if (!conflictsByMic[conflict.micId]) {
-      conflictsByMic[conflict.micId] = [];
-    }
+    if (!conflictsByMic[conflict.micId]) conflictsByMic[conflict.micId] = [];
     conflictsByMic[conflict.micId].push(conflict);
   });
 
-  return {
-    conflicts,
-    conflictsByScene,
-    conflictsByMic,
-  };
+  return { conflicts, conflictsByScene, conflictsByMic };
 }

@@ -12,7 +12,7 @@ from alembic.config import Config
 from alembic.runtime import migration
 from sqlalchemy import Column, String, delete, select
 from tornado.ioloop import IOLoop
-from tornado.web import Application, StaticFileHandler
+from tornado.web import Application
 from tornado_prometheus import PrometheusMixIn
 
 from controllers import controllers
@@ -30,19 +30,26 @@ from digi_server.settings import Settings
 from models import models
 from models.cue import CueType
 from models.script import CompiledScript, Script
+from models.script_draft import ScriptDraft
 from models.session import Session, ShowSession
 from models.settings import SystemSettings
 from models.show import Show
 from models.user import User
 from rbac.rbac import RBACController
+from services.login_throttle import LoginThrottle
+from services.telemetry_service import TelemetryService
 from services.user_service import UserService
 from utils.database import DigiSQLAlchemy
 from utils.exceptions import DatabaseTypeException, DatabaseUpgradeRequired
-from utils.mdns_service import MDNSAdvertiser
 from utils.module_discovery import get_resource_path, is_frozen
+from utils.script_room_manager import RoomManager
 from utils.version_checker import VersionChecker
+from utils.web import app_metrics
 from utils.web.jwt_service import JWTService
+from utils.web.pending_disconnects import PendingDisconnects
+from utils.web.request_size_metrics import observe_http_request
 from utils.web.route import Route
+from utils.web.security_headers import SecureStaticFileHandler
 
 
 class DigiScriptServer(PrometheusMixIn, Application):
@@ -68,11 +75,15 @@ class DigiScriptServer(PrometheusMixIn, Application):
         models.import_all_models()
 
         self.clients: List[WebSocketController] = []
+        # Reconnect grace window: owns every timer that releases a disconnected WS
+        # client's state, and the window length (issue #1419).
+        self.pending_disconnects: PendingDisconnects = PendingDisconnects()
 
         self._db: DigiSQLAlchemy = models.db
         self.jwt_service: JWTService = None
-        self.mdns_advertiser: Optional[MDNSAdvertiser] = None
+        self.room_manager: Optional[RoomManager] = None
         self.version_checker: Optional[VersionChecker] = None
+        self.telemetry_service: Optional[TelemetryService] = None
 
         db_path: str = self.digi_settings.settings.get("db_path").get_value()
         if db_path.startswith("sqlite://"):
@@ -126,6 +137,9 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
         # Configure the User service
         self.user_service = UserService(self)
+
+        # Brute-force protection for login (per server instance, never global)
+        self.login_throttle = LoginThrottle()
 
         # On startup, perform the following checks/operations with the database:
         with self._db.sessionmaker() as session:
@@ -233,18 +247,58 @@ class DigiScriptServer(PrometheusMixIn, Application):
                             f"Failed to remove compiled script file: {ds_file}"
                         )
 
+            # 4.5. Tidy up draft script files (same pattern as compiled scripts)
+            draft_script_path = self.digi_settings.settings.get(
+                "draft_script_path"
+            ).get_value()
+            os.makedirs(draft_script_path, exist_ok=True)
+
+            removed_drafts = []
+            drafts: List[ScriptDraft] = session.scalars(select(ScriptDraft)).all()
+            for draft in drafts:
+                if not draft.data_path or not os.path.exists(draft.data_path):
+                    get_logger().info(
+                        f"Removing draft record for revision {draft.revision_id} "
+                        f"as data file not found at {draft.data_path}"
+                    )
+                    session.delete(draft)
+                    removed_drafts.append(draft)
+            if removed_drafts:
+                session.commit()
+                get_logger().info(
+                    f"Removed {len(removed_drafts)} stale draft records from the database."
+                )
+
+            for draft_file in glob.glob(f"{draft_script_path}/*.yjs"):
+                found = False
+                for draft in drafts:
+                    if draft in removed_drafts:
+                        continue
+                    if draft.data_path == draft_file:
+                        found = True
+                        break
+                if not found:
+                    get_logger().info(f"Removing unreferenced draft file: {draft_file}")
+                    try:
+                        os.remove(draft_file)
+                    except Exception:
+                        get_logger().exception(
+                            f"Failed to remove draft file: {draft_file}"
+                        )
+
             # 5. Clear out all sessions since we are starting the app up
             get_logger().debug("Emptying out sessions table!")
             session.execute(delete(Session))
             session.commit()
 
+        # Initialize the RoomManager for collaborative editing
+        self.room_manager = RoomManager(self)
+        self.room_manager.start()
+
         # Get static files path - adjust for PyInstaller if needed
         if is_frozen():
             static_files_path = get_resource_path(os.path.join("static", "assets"))
             docs_files_path = get_resource_path(os.path.join("static", "docs"))
-            ui_old_static_files_path = get_resource_path(
-                os.path.join("static", "ui-old", "assets")
-            )
             get_logger().info(f"Using packaged static files path: {static_files_path}")
             get_logger().info(f"Using packaged docs files path: {docs_files_path}")
         else:
@@ -254,43 +308,74 @@ class DigiScriptServer(PrometheusMixIn, Application):
             docs_files_path = os.path.join(
                 os.path.abspath(os.path.dirname(__file__)), "..", "static", "docs"
             )
-            ui_old_static_files_path = os.path.join(
-                os.path.abspath(os.path.dirname(__file__)),
-                "..",
-                "static",
-                "ui-old",
-                "assets",
-            )
             get_logger().info(f"Using relative static files path: {static_files_path}")
             get_logger().info(f"Using relative docs files path: {docs_files_path}")
 
         handlers = Route.routes()
         handlers.append(("/favicon.ico", controllers.StaticController))
         handlers.append(
-            (r"/assets/(.*)", StaticFileHandler, {"path": static_files_path})
+            (r"/assets/(.*)", SecureStaticFileHandler, {"path": static_files_path})
         )
         handlers.append(
-            (
-                r"/ui-old/assets/(.*)",
-                StaticFileHandler,
-                {"path": ui_old_static_files_path},
-            )
+            (r"/docs/(.*)", SecureStaticFileHandler, {"path": docs_files_path})
         )
-        handlers.append((r"/docs/(.*)", StaticFileHandler, {"path": docs_files_path}))
         handlers.append((r"/api/.*", controllers.ApiFallback))
-        handlers.append((r"/ui-old(/?.*)", controllers.RootController))
-        handlers.append((r"/(.*)", controllers.RootControllerV3))
+        handlers.append((r"/ui-old(/?.*)", controllers.LegacyUIRedirectController))
+        handlers.append((r"/(.*)", controllers.RootController))
         super().__init__(
             handlers=handlers,
             debug=debug,
+            # Never return stack traces to clients, even in debug mode.
+            serve_traceback=False,
             db=self._db,
             websocket_ping_interval=5,
             cookie_secret=self._get_cookie_secret(),
             login_url="/login",
         )
+        # Fully constructed: let the metrics read this app's live state at scrape
+        # time (weakly referenced, so no teardown is needed).
+        app_metrics.register_application(self)
+
+    _METRICS_WARN_INTERVAL = 60.0
+    _last_metrics_warning = float("-inf")
+
+    def _observe_metrics(self, handler, access_log):
+        """
+        Record Prometheus metrics for a finished request.
+
+        Each observer runs independently so one failing does not skip the other,
+        and failures never propagate into request handling. A failure is warned
+        about at most once per ``_METRICS_WARN_INTERVAL`` seconds (with the
+        traceback) and logged at DEBUG otherwise, so a persistent regression is
+        visible at INFO without per-request spam.
+
+        Informational (1xx) responses, i.e. the 101 of a WebSocket upgrade, are
+        not fed to ``observe_request``: ``tornado_prometheus`` classifies any
+        status outside 200-499 as ``5xx``, which would count every WebSocket
+        connect as a server error.
+
+        :param handler: The finished request handler.
+        :param access_log: The ``tornado.access`` logger.
+        """
+        observers = [observe_http_request]
+        if handler.get_status() >= 200:
+            observers.insert(0, self.observe_request)
+        for observe in observers:
+            try:
+                observe(handler)
+            except Exception:
+                now = time.monotonic()
+                if now - self._last_metrics_warning >= self._METRICS_WARN_INTERVAL:
+                    self._last_metrics_warning = now
+                    log = access_log.warning
+                else:
+                    log = access_log.debug
+                log("Failed to record HTTP request metrics", exc_info=True)
 
     def log_request(self, handler):
         from tornado.log import access_log  # noqa: PLC0415
+
+        self._observe_metrics(handler, access_log)
 
         if handler.request.path in Route.ignored_logging_routes():
             return
@@ -301,8 +386,10 @@ class DigiScriptServer(PrometheusMixIn, Application):
             username = handler.current_user.get("username")
             user_id = handler.current_user.get("id")
 
+        # Successful/redirect/informational responses (including 304 polling and
+        # 101 websocket upgrades) are noisy, so they only appear at DEBUG.
         if handler.get_status() < 400:
-            log_method = access_log.info
+            log_method = access_log.debug
         elif handler.get_status() < 500:
             log_method = access_log.warning
         else:
@@ -411,8 +498,8 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     async def configure(self):
         await self._configure_logging()
-        await self.start_mdns_advertising()
         await self.start_version_checker()
+        await self.start_telemetry_service()
 
     async def _configure_logging(self):
         get_logger().info("Reconfiguring logging!")
@@ -536,6 +623,24 @@ class DigiScriptServer(PrometheusMixIn, Application):
             await self.digi_settings.set("has_admin_user", has_admin)
 
     async def _show_changed(self):
+        if hasattr(self, "room_manager") and self.room_manager:
+            room = self.room_manager.get_active_room()
+            if room and room._dirty:
+                get_logger().warning(
+                    "Show changed while script draft has unsaved changes "
+                    "— draft will be discarded"
+                )
+                await self.ws_send_to_all(
+                    "NOOP",
+                    "COLLAB_ERROR",
+                    {
+                        "error": (
+                            "Show changed while draft was active; "
+                            "unsaved changes were discarded"
+                        )
+                    },
+                )
+            await self.room_manager.close_active_room()
         await self.ws_send_to_all("NOOP", "SHOW_CHANGED", {})
 
     def get_db(self) -> DigiSQLAlchemy:
@@ -543,20 +648,26 @@ class DigiScriptServer(PrometheusMixIn, Application):
 
     def get_all_ws(self, user_id: int) -> List[WebSocketController]:
         sockets = []
-        for client in self.clients:
+        # Iterate a copy: a failed send calls on_close, which removes the peer.
+        for client in self.clients.copy():
             # Check JWT-based authentication (stored in controller property)
             if hasattr(client, "current_user_id") and client.current_user_id == user_id:
                 sockets.append(client)
         return sockets
 
     def get_ws(self, internal_uuid: str) -> Optional[WebSocketController]:
-        for client in self.clients:
+        # Newest first: while a reload is in flight, the old (stale) handler and
+        # the new handler that resumed its uuid can briefly both be connected, and
+        # the new one is the live page.
+        for client in reversed(self.clients):
             if client.__getattribute__("internal_id") == internal_uuid:
                 return client
         return None
 
     async def ws_send_to_all(self, ws_op: str, ws_action: str, ws_data: dict):
-        for client in self.clients:
+        # Iterate a copy: a failed send calls the peer's on_close, which removes it
+        # from self.clients and would otherwise make this loop skip the next one.
+        for client in self.clients.copy():
             await client.write_message(
                 {"OP": ws_op, "DATA": ws_data, "ACTION": ws_action}
             )
@@ -568,52 +679,6 @@ class DigiScriptServer(PrometheusMixIn, Application):
             await client.write_message(
                 {"OP": ws_op, "DATA": ws_data, "ACTION": ws_action}
             )
-
-    async def start_mdns_advertising(self) -> None:
-        """Start mDNS advertising if enabled in settings."""
-        # Check if mDNS advertising is enabled
-        mdns_enabled = await self.digi_settings.get("mdns_advertising")
-        if not mdns_enabled:
-            get_logger().info("mDNS advertising is disabled in settings")
-            return
-
-        # Initialize and start the advertiser
-        if not self.mdns_advertiser:
-            self.mdns_advertiser = MDNSAdvertiser(port=self._port)
-
-        await self.mdns_advertiser.start()
-
-    async def stop_mdns_advertising(self) -> None:
-        """Stop mDNS advertising if it's running."""
-        if self.mdns_advertiser:
-            await self.mdns_advertiser.stop()
-            self.mdns_advertiser = None
-
-    def toggle_mdns_advertising(self) -> None:
-        """
-        Callback for when mdns_advertising setting changes.
-
-        Starts or stops mDNS advertising based on the current setting value.
-        """
-        if not IOLoop.current():
-            get_logger().error(
-                "Unable to toggle mDNS advertising as there is no current IOLoop"
-            )
-        else:
-            IOLoop.current().add_callback(self._toggle_mdns_advertising)
-
-    async def _toggle_mdns_advertising(self) -> None:
-        """Internal async implementation of toggle_mdns_advertising."""
-        mdns_enabled = await self.digi_settings.get("mdns_advertising")
-
-        if mdns_enabled:
-            # Start advertising
-            if not self.mdns_advertiser:
-                self.mdns_advertiser = MDNSAdvertiser(port=self._port)
-            await self.mdns_advertiser.start()
-        else:
-            # Stop advertising
-            await self.stop_mdns_advertising()
 
     async def start_version_checker(self) -> None:
         """Start the version checker service."""
@@ -627,3 +692,67 @@ class DigiScriptServer(PrometheusMixIn, Application):
         if self.version_checker:
             await self.version_checker.stop()
             self.version_checker = None
+
+    # Accepted opt-out spellings for DIGISCRIPT_TELEMETRY, beyond the canonical "0".
+    _TELEMETRY_DISABLE_VALUES = ("0", "false", "no", "off", "disabled", "n")
+
+    async def start_telemetry_service(self) -> None:
+        """Start the anonymous telemetry service, unless disabled by env var or settings."""
+        if (
+            os.environ.get("DIGISCRIPT_TELEMETRY", "").strip().lower()
+            in self._TELEMETRY_DISABLE_VALUES
+        ):
+            get_logger().info("Telemetry disabled via DIGISCRIPT_TELEMETRY env var")
+            return
+
+        has_admin_user = await self.digi_settings.get("has_admin_user")
+        if not has_admin_user:
+            # Fresh install awaiting first-run setup: never start before the admin has
+            # even been created, let alone had a chance to see/choose the telemetry
+            # setting. utils/web/user_admin.py's create_user() is what re-calls this once
+            # that's happened.
+            get_logger().info(
+                "Telemetry not started: no admin user yet (awaiting first-run setup)"
+            )
+            return
+
+        telemetry_enabled = await self.digi_settings.get("telemetry_enabled")
+        if not telemetry_enabled:
+            get_logger().info("Telemetry is disabled in settings")
+            return
+
+        if not self.telemetry_service:
+            self.telemetry_service = TelemetryService(application=self)
+
+        # start() is synchronous and idempotent (a no-op if already started) — see
+        # TelemetryService.start() for why it doesn't need to be async.
+        self.telemetry_service.start()
+
+    async def stop_telemetry_service(self) -> None:
+        """Stop the telemetry service if it's running."""
+        if self.telemetry_service:
+            self.telemetry_service.stop()
+            self.telemetry_service = None
+
+    def toggle_telemetry(self) -> None:
+        """
+        Callback for when the telemetry_enabled setting changes.
+
+        Starts or stops the telemetry service based on the current setting value.
+        """
+        if not IOLoop.current():
+            get_logger().error(
+                "Unable to toggle telemetry as there is no current IOLoop"
+            )
+        else:
+            IOLoop.current().add_callback(self._toggle_telemetry)
+
+    async def _toggle_telemetry(self) -> None:
+        # The DIGISCRIPT_TELEMETRY env var is still an override even when the setting changes;
+        # start_telemetry_service() re-checks it, so a start here is a no-op if the env var
+        # disables it.
+        telemetry_enabled = await self.digi_settings.get("telemetry_enabled")
+        if telemetry_enabled:
+            await self.start_telemetry_service()
+        else:
+            await self.stop_telemetry_service()

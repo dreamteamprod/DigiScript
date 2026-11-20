@@ -12,10 +12,6 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-
-export default defineComponent({
-  name: 'AboutView',
-});
+<script setup lang="ts">
+// Static content — no store dependencies
 </script>

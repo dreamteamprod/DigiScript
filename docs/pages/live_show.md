@@ -49,13 +49,19 @@ The user who starts the show session becomes the **leader** for that session. Th
 All other connected clients (whether logged in or not) will automatically follow the leader's script position. They see the same script content and position as the leader.
 
 #### Manual Mode
-If the leader's client becomes disconnected, all other clients become "orphaned" and switch to manual mode, where they can control their own script position independently. When a client logged in as the leader user reconnects, it automatically resumes leadership, and all orphaned clients return to follower mode.
+If the leader's page is reloaded, or its connection drops for a moment, it keeps its leadership. The server holds the leader's place for a few seconds, the reconnecting page picks it up again, and followers are not interrupted. This also holds when the leader user has the live view open in more than one tab, browser or device and all of them reload at once (for example after **Jump To Page** or **Reload Clients**): the one that was leading stays the leader. (Each tab has its own connection identity. A tab made with the browser's **Duplicate tab** command starts as a copy of the original, so the two count as one.) Leadership is only kept by a page that is still logged in as the leader user, and logging out normally hands it on. If a different user logs in on the leader's tab, that tab is given a new connection identity and leadership is handed on after the grace period; it never passes to the other user. (If the login had already expired, it is handed on once that page reloads or closes and its grace period ends.)
+
+If the leader's client stays disconnected for longer than that, leadership passes to another connected tab or device logged in as the same user, if there is one. If there isn't, all other clients become "orphaned" and switch to manual mode, where they can control their own script position independently. If the original leader's client then reconnects while nobody else has taken over, it automatically resumes leadership, and all orphaned clients return to follower mode.
 
 ### Current Cue Footer
 
 A "Current Cues" footer bar at the bottom of the script area shows the last cue that has been passed for every cue type, updating automatically as the script scrolls. This gives a quick "where are we" reference without needing to keep the script's cue column in view. Cues are displayed using the same colours and labels as they appear in the script itself.
 
 The footer is shown by default, but it can be turned off independently by each user from the **Settings** tab of the User Settings page (**Show current cue footer in Live view**). The preference is saved to your account and persists across sessions and devices.
+
+### Jumping to a Page
+
+Users with the show **Execute** role (and admins) can move the live show to a specific page: click **Live Config** in the navigation bar, select **Jump To Page** and enter a page number. Every connected client reloads at the new page. You do not need to be the leader to do this, but the page must be a whole number of 1 or more, and requests from users without the Execute role are ignored.
 
 ### Act Intervals
 

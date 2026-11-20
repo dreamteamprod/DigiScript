@@ -1,0 +1,709 @@
+"""Tests for the ``collaborative_script_editing`` mode setting.
+
+The setting switches the whole server between the classic (REST, single-editor)
+script editor and the collaborative (shared draft) one. The server enforces it, so a
+client on the wrong side of the switch is refused cleanly instead of being allowed to
+edit and then losing its work at save time.
+"""
+
+import asyncio
+import base64
+import json
+from unittest.mock import AsyncMock
+
+import pycrdt
+import tornado.escape
+from sqlalchemy import select
+from tornado.testing import gen_test
+
+from controllers.api.constants import (
+    ERROR_COLLAB_EDITING_DISABLED,
+    ERROR_COLLAB_EDITING_ENABLED,
+    ERROR_COLLAB_MODE_CHANGE_BLOCKED,
+    ERROR_EDIT_BLOCKED_BY_EDITOR,
+)
+from models.script_draft import ScriptDraft
+from models.session import Session
+from models.user import User
+from test.conftest import DigiScriptTestCase
+from test.controllers.test_ws_controller import _WSTestHelpers
+from test.helpers.script_fixtures import create_show_script_revision
+
+
+MODE = "collaborative_script_editing"
+
+COLLAB_ONLY_OPS = (
+    "JOIN_SCRIPT_ROOM",
+    "YJS_SYNC",
+    "YJS_UPDATE",
+    "YJS_AWARENESS",
+    "SAVE_SCRIPT_DRAFT",
+    "DISCARD_SCRIPT_DRAFT",
+)
+
+
+class _ModeFixture:
+    """Show + script + admin, with the mode switched via ``_set_mode``."""
+
+    def _create_fixture(self):
+        with self._app.get_db().sessionmaker() as session:
+            admin = User(username="admin", password="hashed", is_admin=True)
+            session.add(admin)
+            session.flush()
+            self.admin_id = admin.id
+            show, _script, revision = create_show_script_revision(session)
+            self.show_id = show.id
+            self.revision_id = revision.id
+            session.commit()
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.admin_id}
+        )
+
+    def _set_mode(self, enabled: bool):
+        self._app.digi_settings.settings[MODE].set_value(enabled)
+
+
+class TestModeSettingDefinition(DigiScriptTestCase):
+    def test_defaults_to_classic_editing_and_is_admin_editable(self):
+        setting = self._app.digi_settings.settings[MODE]
+
+        self.assertIs(False, setting.default)
+        self.assertIs(False, setting.get_value())
+        self.assertEqual(bool, setting.val_type)
+        self.assertTrue(setting.can_edit)
+
+    def test_is_visible_on_the_settings_page_now_the_editor_has_shipped(self):
+        """Was hidden until Phase 3 Step 5; the collaborative editor is now complete."""
+        self.assertFalse(self._app.digi_settings.settings[MODE].hide_from_ui)
+
+    def test_get_sync_reads_the_current_value_and_rejects_unknown_keys(self):
+        settings = self._app.digi_settings
+        self.assertIs(False, settings.get_sync(MODE))
+        settings.settings[MODE].set_value(True)
+        self.assertIs(True, settings.get_sync(MODE))
+        with self.assertRaises(KeyError):
+            settings.get_sync("no_such_setting")
+
+
+class TestModeEnforcementWS(_WSTestHelpers, _ModeFixture, DigiScriptTestCase):
+    def setUp(self):
+        super().setUp()
+        self._create_fixture()
+
+    async def _request_edit(self, ws, **data):
+        await ws.write_message(json.dumps({"OP": "REQUEST_SCRIPT_EDIT", "DATA": data}))
+        return json.loads(await ws.read_message())
+
+    # ---- classic (default) mode ----
+
+    @gen_test
+    async def test_classic_mode_rejects_every_collab_op_and_opens_no_room(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        for op in COLLAB_ONLY_OPS:
+            await ws.write_message(json.dumps({"OP": op, "DATA": {}}))
+            response = json.loads(await ws.read_message())
+            # SAVE_SCRIPT_DRAFT is SAVE_ERROR here too (#1483) — every one of its
+            # rejection paths is, not just the ones inside its own handler.
+            expected_action = (
+                "SAVE_ERROR" if op == "SAVE_SCRIPT_DRAFT" else "COLLAB_ERROR"
+            )
+            self.assertEqual(expected_action, response["ACTION"], op)
+            self.assertEqual(ERROR_COLLAB_EDITING_DISABLED, response["DATA"]["error"])
+
+        self.assertIsNone(self._app.room_manager.get_active_room())
+        ws.close()
+
+    @gen_test
+    async def test_classic_mode_accepts_an_unflagged_edit_request(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        response = await self._request_edit(ws)
+
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response["ACTION"])
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual(
+                1, len(session.scalars(select(Session).where(Session.is_editor)).all())
+            )
+        ws.close()
+
+    @gen_test
+    async def test_classic_mode_refuses_the_collaborative_editors_request(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        response = await self._request_edit(ws, collab=True)
+
+        self.assertEqual("REQUEST_EDIT_FAILURE", response["ACTION"])
+        self.assertEqual(ERROR_COLLAB_EDITING_DISABLED, response["DATA"]["reason"])
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual(
+                0, len(session.scalars(select(Session).where(Session.is_editor)).all())
+            )
+        ws.close()
+
+    @gen_test
+    async def test_classic_mode_is_single_editor_again(self):
+        """Classic REST editing can't reconcile concurrent writers."""
+        with self._app.get_db().sessionmaker() as session:
+            session.add(
+                Session(
+                    internal_id="someone-else", user_id=self.admin_id, is_editor=True
+                )
+            )
+            session.commit()
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        response = await self._request_edit(ws)
+
+        self.assertEqual("REQUEST_EDIT_FAILURE", response["ACTION"])
+        self.assertEqual(ERROR_EDIT_BLOCKED_BY_EDITOR, response["DATA"]["reason"])
+        ws.close()
+
+    @gen_test
+    async def test_classic_mode_lets_the_current_editor_ask_again(self):
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        await self._request_edit(ws)
+
+        response = await self._request_edit(ws)
+
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response["ACTION"])
+        ws.close()
+
+    # ---- collaborative mode ----
+
+    @gen_test
+    async def test_collaborative_mode_refuses_an_unflagged_edit_request(self):
+        """An old-UI client must be stopped before it starts an edit it would lose."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        response = await self._request_edit(ws)
+
+        self.assertEqual("REQUEST_EDIT_FAILURE", response["ACTION"])
+        self.assertEqual(ERROR_COLLAB_EDITING_ENABLED, response["DATA"]["reason"])
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual(
+                0, len(session.scalars(select(Session).where(Session.is_editor)).all())
+            )
+        ws.close()
+
+    @gen_test
+    async def test_collaborative_mode_needs_a_real_boolean_flag(self):
+        """`collab: 1` or `"true"` is truthy but is not the editor announcing itself."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        for flag in (1, "true", None):
+            response = await self._request_edit(ws, collab=flag)
+            self.assertEqual("REQUEST_EDIT_FAILURE", response["ACTION"], flag)
+            self.assertEqual(
+                ERROR_COLLAB_EDITING_ENABLED, response["DATA"]["reason"], flag
+            )
+        ws.close()
+
+    @gen_test
+    async def test_collaborative_mode_accepts_the_flagged_request_from_several_users(
+        self,
+    ):
+        self._set_mode(True)
+        with self._app.get_db().sessionmaker() as session:
+            session.add(
+                Session(
+                    internal_id="someone-else", user_id=self.admin_id, is_editor=True
+                )
+            )
+            session.commit()
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        response = await self._request_edit(ws, collab=True)
+
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response["ACTION"])
+        ws.close()
+
+    # ---- server-owned trailing page ----
+
+    async def _join_and_sync(self, ws):
+        """Enter edit mode, join the room, and return a replica of the synced doc."""
+        await self._request_edit(ws, collab=True)
+        await ws.write_message(json.dumps({"OP": "JOIN_SCRIPT_ROOM", "DATA": {}}))
+        sync = json.loads(await ws.read_message())
+        await ws.read_message()  # ROOM_MEMBERS
+        await ws.read_message()  # GET_SCRIPT_CONFIG_STATUS from the join
+
+        replica = pycrdt.Doc()
+        replica.get("meta", type=pycrdt.Map)
+        replica.get("pages", type=pycrdt.Map)
+        replica.get("deleted_line_ids", type=pycrdt.Array)
+        replica.apply_update(base64.b64decode(sync["DATA"]["payload"]))
+        return replica
+
+    @gen_test
+    async def test_joining_gives_an_empty_script_a_page_to_write_into(self):
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+
+        replica = await self._join_and_sync(ws)
+
+        pages = replica.get("pages", type=pycrdt.Map)
+        self.assertEqual(["1"], list(pages.keys()))
+        self.assertEqual(0, len(pages["1"]))
+        ws.close()
+
+    @gen_test
+    async def test_filling_the_last_page_makes_the_server_add_the_next_one(self):
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        replica = await self._join_and_sync(ws)
+
+        before = replica.get_state()
+        replica.get("pages", type=pycrdt.Map)["1"].append(pycrdt.Map())
+        payload = base64.b64encode(replica.get_update(before)).decode("ascii")
+        await ws.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": payload}})
+        )
+
+        # The sender is excluded from the relay of its own update, so the only thing
+        # it receives is the server-made follow-up — which must reach it too.
+        follow_up = json.loads(await ws.read_message())
+        self.assertEqual("YJS_UPDATE", follow_up["ACTION"])
+        replica.apply_update(base64.b64decode(follow_up["DATA"]["payload"]))
+        pages = replica.get("pages", type=pycrdt.Map)
+        self.assertEqual(["1", "2"], sorted(pages.keys()))
+        self.assertEqual(0, len(pages["2"]))
+        ws.close()
+
+    @gen_test
+    async def test_a_second_editor_also_receives_the_new_trailing_page(self):
+        self._set_mode(True)
+        ws1, _ = await self._connect_and_auth(self.admin_id)
+        replica = await self._join_and_sync(ws1)
+        ws2, _ = await self._connect_and_auth(self.admin_id)
+        replica2 = await self._join_and_sync(ws2)
+        await ws1.read_message()  # ROOM_MEMBERS for the second join
+
+        before = replica.get_state()
+        replica.get("pages", type=pycrdt.Map)["1"].append(pycrdt.Map())
+        payload = base64.b64encode(replica.get_update(before)).decode("ascii")
+        await ws1.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": payload}})
+        )
+
+        for _ in range(2):  # the relayed edit, then the server's follow-up
+            message = json.loads(await ws2.read_message())
+            self.assertEqual("YJS_UPDATE", message["ACTION"])
+            replica2.apply_update(base64.b64decode(message["DATA"]["payload"]))
+        self.assertEqual(
+            ["1", "2"], sorted(replica2.get("pages", type=pycrdt.Map).keys())
+        )
+        ws1.close()
+        ws2.close()
+
+    # ---- page notifications after a save ----
+
+    @gen_test
+    async def test_saving_a_new_line_announces_exactly_its_page(self):
+        """The positive half: a page that changed is announced, the trailing page
+        the server added (nothing written to it) is not."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        replica = await self._join_and_sync(ws)
+
+        before = replica.get_state()
+        page = replica.get("pages", type=pycrdt.Map)["1"]
+        line = pycrdt.Map()
+        page.append(line)
+        line["_id"] = line["_uid"] = "line-uuid"
+        for key in ("act_id", "scene_id", "stage_direction_style_id"):
+            line[key] = 0
+        line["line_type"] = 2  # STAGE_DIRECTION: exactly one non-empty part
+        line["parts"] = pycrdt.Array()
+        part = pycrdt.Map()
+        line["parts"].append(part)
+        part["_id"] = part["_uid"] = "part-uuid"
+        part["part_index"] = 0
+        part["character_id"] = part["character_group_id"] = 0
+        part["line_text"] = pycrdt.Text("Enter stage left")
+        payload = base64.b64encode(replica.get_update(before)).decode("ascii")
+        await ws.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": payload}})
+        )
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+
+        changed = []
+        for _ in range(25):
+            message = json.loads(await ws.read_message())
+            if message["ACTION"] == "SCRIPT_PAGE_CHANGED":
+                changed.append(message["DATA"]["page"])
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        self.assertEqual([1], changed)
+        ws.close()
+
+    @gen_test
+    async def test_saving_names_only_the_pages_it_changed(self):
+        """Nothing was written, so no page is announced: naming every page of a long
+        script would make every client reload every cached page after each save.
+        (`changed_pages` itself is covered against a real DB in test_ydoc_to_lines.)"""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        await self._join_and_sync(ws)
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+        changed = []
+        for _ in range(12):
+            message = json.loads(await ws.read_message())
+            if message["ACTION"] == "SCRIPT_PAGE_CHANGED":
+                changed.append(message["DATA"]["page"])
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        self.assertEqual([], changed)
+        ws.close()
+
+    @gen_test
+    async def test_saving_broadcasts_a_config_status_refresh(self):
+        """A successful save clears `hasDraft` server-side (see `save_room`'s own
+        docstring), but only a `GET_SCRIPT_CONFIG_STATUS` broadcast tells a connected
+        client to actually re-fetch and pick that up — `SCRIPT_SAVED` alone does not
+        carry it. Missing this left the "Unsaved draft" indicator stuck on forever
+        after a real save (caught by the Step 4 E2E suite, not by any earlier test)."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        await self._join_and_sync(ws)
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+        actions = []
+        for _ in range(12):
+            message = json.loads(await ws.read_message())
+            actions.append(message["ACTION"])
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        self.assertIn("GET_SCRIPT_CONFIG_STATUS", actions)
+        ws.close()
+
+    @gen_test
+    async def test_discard_actually_reverts_dirty_content_not_just_the_draft_row(self):
+        """Regression: `discard_room()` deletes the draft file/row, then calls
+        `close_active_room()` — which checkpoints *if the room is still dirty*. The
+        in-memory doc still held the discarded edit and nothing had cleared `_dirty`,
+        so that checkpoint immediately wrote the discarded content straight back to a
+        brand new draft file, undoing the discard it was just asked to do. Caught by
+        the Step 4 E2E suite, not by any earlier test (first real UI wiring to
+        Discard)."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        replica = await self._join_and_sync(ws)
+
+        before = replica.get_state()
+        page = replica.get("pages", type=pycrdt.Map)["1"]
+        line = pycrdt.Map()
+        page.append(line)
+        line["_id"] = line["_uid"] = "discard-me"
+        payload = base64.b64encode(replica.get_update(before)).decode("ascii")
+        await ws.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": payload}})
+        )
+
+        await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
+        # discard_room()'s own ROOM_CLOSED comes first, then _op_discard_script_draft's
+        # GET_SCRIPT_CONFIG_STATUS and GET_SCRIPT_REVISIONS — drain all three so the
+        # rejoin below reads its own REQUEST_SCRIPT_EDIT reply, not a leftover.
+        for _ in range(6):
+            message = json.loads(await ws.read_message())
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNone(session.scalar(select(ScriptDraft)))
+
+        # Rejoining must not resurrect the discarded line.
+        replica2 = await self._join_and_sync(ws)
+        pages2 = replica2.get("pages", type=pycrdt.Map)
+        self.assertEqual(0, len(pages2["1"]))
+        ws.close()
+
+    @gen_test
+    async def test_save_and_discard_do_not_deadlock_when_run_concurrently(self):
+        """Smoke test for the lock itself: `save_room` and `discard_room` now
+        both hold `_room_lock` for their full critical section, so a future
+        change that makes either call the public `close_active_room()` instead
+        of the lock-free `_close_active_room_locked()` (re-entering a lock
+        `asyncio.Lock` doesn't support) would hang forever instead of raising.
+        `asyncio.wait_for` turns that hang into a loud test failure."""
+        self._set_mode(True)
+        ws, _ = await self._connect_and_auth(self.admin_id)
+        replica = await self._join_and_sync(ws)
+
+        before = replica.get_state()
+        page = replica.get("pages", type=pycrdt.Map)["1"]
+        line = pycrdt.Map()
+        page.append(line)
+        line["_id"] = line["_uid"] = "racing-edit"
+        payload = base64.b64encode(replica.get_update(before)).decode("ascii")
+        await ws.write_message(
+            json.dumps({"OP": "YJS_UPDATE", "DATA": {"payload": payload}})
+        )
+
+        room_manager = self._app.room_manager
+        room = room_manager.get_active_room()
+        assert room is not None
+
+        async def drain(ws_to_drain):
+            for _ in range(8):
+                message = json.loads(await ws_to_drain.read_message())
+                if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                    return
+
+        await ws.write_message(json.dumps({"OP": "SAVE_SCRIPT_DRAFT", "DATA": {}}))
+        await asyncio.wait_for(
+            asyncio.gather(
+                drain(ws), room_manager.discard_room(AsyncMock(internal_id=None))
+            ),
+            timeout=5,
+        )
+        ws.close()
+
+    @gen_test
+    async def test_discard_with_no_active_room_demotes_the_caller(self):
+        """Regression: REQUEST_SCRIPT_EDIT's own write-access check means a
+        client can only reach DISCARD_SCRIPT_DRAFT at all while the DB still
+        marks it `is_editor` — but that can be stale relative to the room (a
+        rejected join, or a room closed from under it some other way). Before
+        this fix, `discard_room`'s no-room branch deleted the orphaned draft
+        but left the caller's own `is_editor` row untouched, so Discard from
+        this exact state — the client-side fix in CollabScriptEditor.vue's
+        discardAndStop() — would still leave the user stuck as a phantom
+        editor with no way to recover short of a reload."""
+        self._set_mode(True)
+        ws, uuid = await self._connect_and_auth(self.admin_id)
+        response = await self._request_edit(ws, collab=True)
+        self.assertEqual("GET_SCRIPT_CONFIG_STATUS", response["ACTION"])
+
+        with self._app.get_db().sessionmaker() as session:
+            entry = session.get(Session, uuid)
+            self.assertTrue(entry.is_editor)
+
+        # No JOIN_SCRIPT_ROOM was ever sent, so there is no active room for
+        # this client — the exact "editor status granted, room never joined
+        # or already gone" state the no-room branch exists for.
+        await ws.write_message(json.dumps({"OP": "DISCARD_SCRIPT_DRAFT", "DATA": {}}))
+        for _ in range(4):
+            message = json.loads(await ws.read_message())
+            if message["ACTION"] == "GET_SCRIPT_REVISIONS":
+                break
+
+        with self._app.get_db().sessionmaker() as session:
+            entry = session.get(Session, uuid)
+            self.assertFalse(entry.is_editor)
+        ws.close()
+
+
+class TestModeEnforcementREST(_ModeFixture, DigiScriptTestCase):
+    def setUp(self):
+        super().setUp()
+        self._create_fixture()
+
+    def _write(self, method):
+        return self.fetch(
+            "/api/v1/show/script?page=1",
+            method=method,
+            body=tornado.escape.json_encode(
+                [] if method == "POST" else {"page": [], "status": {}}
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+    def test_classic_mode_does_not_block_rest_script_writes(self):
+        for method in ("POST", "PATCH"):
+            response = self._write(method)
+            self.assertEqual(200, response.code, method)
+
+    def test_collaborative_mode_refuses_rest_script_writes(self):
+        self._set_mode(True)
+
+        for method in ("POST", "PATCH"):
+            response = self._write(method)
+            self.assertEqual(409, response.code, method)
+            self.assertEqual(
+                ERROR_COLLAB_EDITING_ENABLED,
+                tornado.escape.json_decode(response.body)["message"],
+            )
+
+    def test_collaborative_mode_leaves_reading_the_script_alone(self):
+        self._set_mode(True)
+
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+        self.assertNotEqual(409, response.code)
+
+
+class TestModeChangeGuard(_ModeFixture, DigiScriptTestCase):
+    def setUp(self):
+        super().setUp()
+        self._create_fixture()
+
+    def _patch(self, **settings):
+        return self.fetch(
+            "/api/v1/settings",
+            method="PATCH",
+            body=tornado.escape.json_encode(settings),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+
+    def _add_session(self, **flags):
+        with self._app.get_db().sessionmaker() as session:
+            session.add(Session(internal_id="busy", user_id=self.admin_id, **flags))
+            session.commit()
+
+    def _assert_refused(self, response):
+        self.assertEqual(409, response.code)
+        self.assertEqual(
+            ERROR_COLLAB_MODE_CHANGE_BLOCKED,
+            tornado.escape.json_decode(response.body)["message"],
+        )
+        self.assertIs(False, self._app.digi_settings.settings[MODE].get_value())
+
+    def _assert_allowed(self, response):
+        self.assertEqual(200, response.code)
+        self.assertIs(True, self._app.digi_settings.settings[MODE].get_value())
+
+    def _install_fake_room(self, has_editors: bool):
+        """Install a minimal fake active room, shaped to survive a real
+        close_active_room() call (clients/revision_id/stop_observing) in case
+        the switch allows itself through and closes it.
+
+        setUp's current_show.set_value() queues a deferred show_changed IOLoop
+        callback — itself an unconditional close_active_room() — that only runs
+        on the next request this test drives the loop with. Flush it here,
+        against the real (currently inactive) room_manager, before installing
+        the fake room below: otherwise that same deferred call would close the
+        fake room out from under the guard check this test is actually after.
+        """
+        self.fetch("/api/v1/settings")
+
+        class _Room:
+            pass
+
+        room = _Room()
+        room.has_editors = has_editors
+        room._dirty = False
+        room.revision_id = 1
+        room.clients = {}
+        room.stop_observing = lambda: None
+        self._app.room_manager._room = room
+        return room
+
+    def test_can_switch_when_nobody_is_editing(self):
+        self._assert_allowed(self._patch(**{MODE: True}))
+
+    def test_refused_while_someone_is_editing(self):
+        self._add_session(is_editor=True)
+
+        self._assert_refused(self._patch(**{MODE: True}))
+
+    def test_refused_while_someone_is_cutting(self):
+        self._add_session(is_cutting=True)
+
+        self._assert_refused(self._patch(**{MODE: True}))
+
+    def test_refused_while_an_unsaved_draft_exists(self):
+        with self._app.get_db().sessionmaker() as session:
+            session.add(ScriptDraft(revision_id=self.revision_id, data_path="x"))
+            session.commit()
+
+        self._assert_refused(self._patch(**{MODE: True}))
+
+    def test_refused_while_a_room_has_an_editor(self):
+        self._install_fake_room(has_editors=True)
+
+        self._assert_refused(self._patch(**{MODE: True}))
+
+    def test_can_switch_when_the_room_has_only_viewers(self):
+        """A room with no editors has no work to strand — a lone viewer gets
+        dropped back to the classic (REST) read path exactly like a reload would,
+        same as if they'd never joined. Pins the has_editors fix: the old check
+        (room.is_empty) would have wrongly refused this once viewers can join."""
+        self._install_fake_room(has_editors=False)
+
+        self._assert_allowed(self._patch(**{MODE: True}))
+
+    def test_switching_the_mode_closes_a_lingering_viewer_only_room(self):
+        """A viewer-only room left open across a mode switch (allowed, per the
+        sibling test above) must itself be closed — otherwise every viewer in it
+        keeps watching a Y.Doc under a mode the UI no longer treats as
+        collaborative, until each of them happens to unmount and remount."""
+        self._install_fake_room(has_editors=False)
+
+        self._assert_allowed(self._patch(**{MODE: True}))
+
+        self.assertIsNone(self._app.room_manager.get_active_room())
+
+    def test_a_non_boolean_value_is_a_400_not_a_500(self):
+        for value in ("true", 1, None):
+            response = self._patch(**{MODE: value})
+            self.assertEqual(400, response.code, value)
+        self.assertIs(False, self._app.digi_settings.settings[MODE].get_value())
+
+    def test_a_bad_value_anywhere_in_the_batch_applies_nothing(self):
+        """The mode key is written first, so a later bad value must not leave the
+        mode flipped behind a failed request."""
+        response = self._patch(**{MODE: True, "debug_mode": "not a bool"})
+
+        self.assertEqual(400, response.code)
+        self.assertIs(False, self._app.digi_settings.settings[MODE].get_value())
+
+    def test_the_mode_key_is_written_before_the_other_keys(self):
+        order = []
+        original = self._app.digi_settings.set
+
+        async def recording_set(key, value):
+            order.append(key)
+            return await original(key, value)
+
+        self._app.digi_settings.set = recording_set
+        response = self._patch(debug_mode=True, **{MODE: True})
+
+        self.assertEqual(200, response.code)
+        self.assertEqual([MODE, "debug_mode"], order)
+
+    def test_setting_the_same_value_is_always_allowed(self):
+        self._add_session(is_editor=True)
+
+        response = self._patch(**{MODE: False})
+
+        self.assertEqual(200, response.code)
+
+    def test_resending_the_same_value_does_not_close_an_active_editors_room(self):
+        """The Settings UI always resends every visible setting on every save, so
+        this endpoint sees MODE present (and unchanged) in the body of most PATCHes
+        to it, not just ones that actually toggle it — e.g. saving an unrelated
+        field like debug_mode. The room-close added for a genuine mode switch must
+        not fire here too, or it would force-close an active editor's room as a
+        side effect of an unrelated save."""
+        room = self._install_fake_room(has_editors=True)
+
+        response = self._patch(**{MODE: False, "debug_mode": True})
+
+        self.assertEqual(200, response.code)
+        self.assertIs(room, self._app.room_manager.get_active_room())
+
+    def test_other_settings_are_not_blocked_while_editing(self):
+        self._add_session(is_editor=True)
+
+        response = self._patch(debug_mode=True)
+
+        self.assertEqual(200, response.code)
+
+    def test_a_refused_change_applies_none_of_the_batch(self):
+        self._add_session(is_editor=True)
+
+        response = self._patch(**{MODE: True, "debug_mode": True})
+
+        self.assertEqual(409, response.code)
+        self.assertIs(False, self._app.digi_settings.settings["debug_mode"].get_value())

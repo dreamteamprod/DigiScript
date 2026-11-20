@@ -1,101 +1,79 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row style="margin-top: 1rem">
-      <b-col cols="4" offset="4">
+  <BContainer class="mx-0" fluid>
+    <BRow style="margin-top: 1rem">
+      <BCol cols="4" offset="4">
         <h3>Login to DigiScript</h3>
-      </b-col>
-    </b-row>
-    <b-row style="margin-top: 1rem">
-      <b-col cols="4" offset="4">
-        <b-form>
-          <b-form-group id="username-input-group" label="Username" label-for="username-input">
-            <b-form-input
+      </BCol>
+    </BRow>
+    <BRow style="margin-top: 1rem">
+      <BCol cols="4" offset="4">
+        <BForm @submit.prevent="doLogin">
+          <BFormGroup id="username-input-group" label="Username" label-for="username-input">
+            <BFormInput
               id="username-input"
-              v-model="$v.state.username.$model"
+              v-model="v$.username.$model"
               name="username-input"
-              :state="validateState('username')"
+              :state="validationState(v$.username)"
               aria-describedby="username-feedback"
-              @keydown.enter.native="doLogin"
+              @keydown.enter="doLogin"
             />
-            <b-form-invalid-feedback id="username-feedback">
+            <BFormInvalidFeedback id="username-feedback">
               This is a required field.
-            </b-form-invalid-feedback>
-          </b-form-group>
-          <b-form-group id="password-input-group" label="Password" label-for="password-input">
-            <b-form-input
+            </BFormInvalidFeedback>
+          </BFormGroup>
+          <BFormGroup id="password-input-group" label="Password" label-for="password-input">
+            <BFormInput
               id="password-input"
-              v-model="$v.state.password.$model"
+              v-model="v$.password.$model"
               name="password-input"
-              :state="validateState('password')"
+              :state="validationState(v$.password)"
               aria-describedby="password-feedback"
               type="password"
-              @keydown.enter.native="doLogin"
+              @keydown.enter="doLogin"
             />
-            <b-form-invalid-feedback id="password-feedback">
+            <BFormInvalidFeedback id="password-feedback">
               This is a required field.
-            </b-form-invalid-feedback>
-          </b-form-group>
-          <b-button :disabled="isDisabled" @click="doLogin"> Login </b-button>
-        </b-form>
-      </b-col>
-    </b-row>
-    <b-row v-if="showLoginFeedback">
-      <b-col>
+            </BFormInvalidFeedback>
+          </BFormGroup>
+          <BButton :disabled="v$.$invalid" @click="doLogin"> Login </BButton>
+        </BForm>
+      </BCol>
+    </BRow>
+    <BRow v-if="showLoginFeedback">
+      <BCol>
         <b style="color: darkred"> Login unsuccessful. </b>
-      </b-col>
-    </b-row>
-  </b-container>
+      </BCol>
+    </BRow>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { required } from 'vuelidate/lib/validators';
-import { mapActions } from 'vuex';
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useVuelidate } from '@vuelidate/core';
+import { required } from '@vuelidate/validators';
+import { useUserStore } from '@/stores/user';
+import { useFormValidation } from '@/composables/useFormValidation';
 
-export default defineComponent({
-  name: 'LoginView',
-  data() {
-    return {
-      state: {
-        username: '',
-        password: '',
-      },
-      showLoginFeedback: false,
-    };
-  },
-  validations: {
-    state: {
-      username: { required },
-      password: { required },
-    },
-  },
-  computed: {
-    isDisabled(): boolean {
-      return Boolean((this as any).$v.state.$invalid);
-    },
-  },
-  methods: {
-    validateState(name: string): boolean | null {
-      const { $dirty, $error } = (this as any).$v.state[name];
-      return $dirty ? !$error : null;
-    },
-    async doLogin(event: Event): Promise<void> {
-      (this as any).$v.state.$touch();
-      if ((this as any).$v.state.$anyError) {
-        event.preventDefault();
-      } else {
-        this.showLoginFeedback = false;
-        const loginSuccess = await (this as any).USER_LOGIN(this.state);
-        if (loginSuccess) {
-          this.$router.replace('/');
-        } else {
-          this.showLoginFeedback = true;
-        }
-      }
-    },
-    ...mapActions(['USER_LOGIN']),
-  },
-});
+const router = useRouter();
+const userStore = useUserStore();
+const { validationState } = useFormValidation();
+
+const state = ref({ username: '', password: '' });
+const rules = { username: { required }, password: { required } };
+const v$ = useVuelidate(rules, state);
+
+const showLoginFeedback = ref(false);
+
+async function doLogin(): Promise<void> {
+  v$.value.$touch();
+  if (v$.value.$invalid) return;
+  showLoginFeedback.value = false;
+  const success = await userStore.login(state.value.username, state.value.password);
+  if (success) {
+    router.replace('/');
+  } else {
+    showLoginFeedback.value = true;
+  }
+}
 </script>
-
-<style scoped></style>

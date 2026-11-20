@@ -11,6 +11,3 @@ junit/
 
 # Backups
 *.backup
-
-# Generated files
-src/docs/
