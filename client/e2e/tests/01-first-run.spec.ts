@@ -30,6 +30,16 @@ test('shows the first-run admin creation form', async () => {
   await expect(page.locator('text=To get started, please create an admin user!')).toBeVisible();
 });
 
+test('form does not overflow the viewport on a wide screen', async () => {
+  const originalViewport = page.viewportSize();
+  await page.setViewportSize({ width: 2000, height: 1100 });
+  const overflowX = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflowX).toBe(false);
+  if (originalViewport) await page.setViewportSize(originalViewport);
+});
+
 test('username field is pre-filled with "admin" and disabled', async () => {
   const usernameInput = page.locator('#username-input');
   await expect(usernameInput).toHaveValue('admin');
