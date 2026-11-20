@@ -872,11 +872,16 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         )
 
     async def _reject_script_room_op(self, action: str, key: str, reason: str) -> None:
-        """Send a script-room-op failure message.
+        """Send a one-line ``NOOP`` notice about a script-room op to this client.
 
-        :param action: The ACTION value to send (e.g. ``REQUEST_EDIT_FAILURE``).
-        :param key: The DATA key to carry the reason (``"reason"`` or ``"error"``).
-        :param reason: The human-readable failure reason.
+        Despite the name, not always a failure: ``_warn_of_repaired_pages`` also
+        uses this for an informational ``COLLAB_WARNING``, not a rejection.
+
+        :param action: The ACTION value to send (e.g. ``REQUEST_EDIT_FAILURE``,
+            ``COLLAB_ERROR``, ``COLLAB_WARNING``).
+        :param key: The DATA key to carry *reason* (``"reason"``, ``"error"`` or
+            ``"warning"``).
+        :param reason: The human-readable message.
         """
         await self.write_message(
             {"OP": "NOOP", "ACTION": action, "DATA": {key: reason}}

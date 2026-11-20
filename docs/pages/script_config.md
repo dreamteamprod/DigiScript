@@ -125,6 +125,8 @@ Once editing, you get the same **Add Dialogue** dropdown and **Bulk Edit** (set 
 - An **● Unsaved draft** indicator next to the page number tells everyone, editor or not, that there is unsaved work in progress, even if they aren't editing right now.
 - A **"Here now"** badge row in the sticky header lists everyone currently in the shared draft, including you (marked **(you)**), with their role: **editor**, **viewer**, or **cutting** (a viewer who has joined to cut — see Cut Mode below). It updates live as people join or leave.
 - A badge with a user's name appears directly on any line that a connected session currently has open for editing — including your own session in another tab, not just other people's. It appears even on a line you yourself also have open at the same time, and clears as soon as they close that line (or disconnect).
+- If your connection briefly drops a change and your editor notices (e.g. a garbled update from another session), it quietly asks the server for a fresh copy of the draft to recover, rather than needing you to rejoin by hand — you may still see a brief "Failed to apply an update" notice while this happens.
+- If one of your own edits ever leaves a page corrupted (extremely rare — e.g. a connection glitch mid-edit), you'll see a warning naming the affected page: that page has been reset to empty, and whatever content it held is lost. Everyone else only sees the page reset itself, with no warning, since it wasn't their change.
 
 Cut mode (see below) is unavailable while a draft exists, and vice versa — editing and cutting are mutually exclusive in both modes.
 
