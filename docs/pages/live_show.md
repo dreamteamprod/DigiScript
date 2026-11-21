@@ -63,6 +63,8 @@ The footer is shown by default, but it can be turned off independently by each u
 
 Users with the show **Execute** role (and admins) can move the live show to a specific page: click **Live Config** in the navigation bar, select **Jump To Page** and enter a page number. Every connected client reloads at the new page. You do not need to be the leader to do this, but the page must be a whole number of 1 or more, and requests from users without the Execute role are ignored.
 
+![](../images/live_show/live_jump_to_page_modal.png)
+
 ### Act Intervals
 
 If your show has intervals configured between acts, an interval screen will automatically appear between the acts during the live show. The interval will only display if there is script content in both acts surrounding the interval.

@@ -10,6 +10,8 @@ The **Revisions** tab is where you can manage script revisions. The table shows 
 
 **With collaborative editing on**: if the current revision has an unsaved collaborative draft, loading, creating, or deleting revisions is blocked (with a tooltip explaining why) until the draft is saved or discarded. A banner at the top of this page offers a **Discard Draft** button for exactly this case — it warns if anyone is currently editing, since discarding reverts everyone's unsaved work, not just yours.
 
+![](../images/config_show/script_collab_discard_draft_banner.png)
+
 #### Understanding Script Revisions
 
 Script revisions function similar to version control systems like Git - they track the state of your script at different points in time. This allows you to:
@@ -117,18 +119,28 @@ Once you have edit access, you'll see options to **Save** the script, along with
 
 Click **Edit** to join the shared draft as an editor. Unlike classic editing, several people can click **Edit** at the same time and edit different (or the same) lines together — concurrent changes merge automatically rather than overwriting each other. Everyone else viewing the script (not editing) sees the last *saved* content only; they won't see edits live until they join as an editor themselves.
 
+![](../images/config_show/script_collab_editing.png)
+
 Once editing, you get the same **Add Dialogue** dropdown and **Bulk Edit** (set the Act, Scene, Character or Character Group for a range of lines at once — pick a start line and an end line, then fill in the values to apply) as classic editing, plus:
 
 - **Save** writes the shared draft to the database, visible to everyone (including non-editors) once it completes. Save is disabled while any line is still open for editing, or while the draft has a line that fails validation (the reason is shown as a tooltip) — fix or finish that line first.
-- **Stop Editing** leaves the draft. If it has unsaved changes, you're asked to either **Keep Draft** (leave the unsaved draft in place — anyone, including you, can resume editing it later) or **Discard** (revert to the last saved content for everyone currently in the draft, not just you).
+- **Stop Editing** leaves the draft. If it has unsaved changes, a confirmation dialog asks you to choose **Keep Editing** (cancel and stay in the draft), **Keep Draft** (leave the unsaved draft in place — anyone, including you, can resume editing it later), or **Discard** (revert to the last saved content for everyone currently in the draft, not just you).
+
+  ![](../images/config_show/script_collab_stop_editing_modal.png)
 - If auto-save is enabled (User Settings), the draft saves itself periodically as a quiet toast notification rather than the classic editor's blocking "Saving Script" dialog — the collaborative draft is already synced to every other editor and checkpointed server-side, so a missed autosave tick is lower-stakes than classic's REST-only autosave. It silently skips a tick if the draft currently has an invalid line somewhere, rather than showing an error on every editor's screen — it catches up once that line is fixed.
 - An **● Unsaved draft** indicator next to the page number tells everyone, editor or not, that there is unsaved work in progress, even if they aren't editing right now.
-- A **"Here now"** badge row in the sticky header lists everyone currently in the shared draft, including you (marked **(you)**), with their role: **editor**, **viewer**, or **cutting** (a viewer who has joined to cut — see Cut Mode below). It updates live as people join or leave.
+
+  ![](../images/config_show/script_collab_unsaved_draft.png)
+- A **"Here now"** badge row in the sticky header lists everyone currently viewing or editing the script, including you (marked **(you)**), with their role: **editor**, **viewer**, or **cutting** (a viewer who has joined to cut — see Cut Mode below). It updates live as people join or leave.
 - A badge with a user's name appears directly on any line that a connected session currently has open for editing — including your own session in another tab, not just other people's. It appears even on a line you yourself also have open at the same time, and clears as soon as they close that line (or disconnect).
+
+  ![](../images/config_show/script_collab_line_badge.png)
 - If your connection briefly drops a change and your editor notices (e.g. a garbled update from another session), it quietly asks the server for a fresh copy of the draft to recover, rather than needing you to rejoin by hand — you may still see a brief "Failed to apply an update" notice while this happens.
 - If one of your own edits ever leaves a page corrupted (extremely rare — e.g. a connection glitch mid-edit), you'll see a warning naming the affected page: that page has been reset to empty, and whatever content it held is lost. Everyone else only sees the page reset itself, with no warning, since it wasn't their change.
 
 Cut mode (see below) is unavailable while a draft exists, and vice versa — editing and cutting are mutually exclusive in both modes.
+
+![](../images/config_show/script_collab_cut_mode.png)
 
 #### Line Types
 
