@@ -26,7 +26,7 @@
                   {{ data.item.cast_member.first_name }} {{ data.item.cast_member.last_name }}
                 </template>
                 <template v-else-if="systemStore.isShowEditor">
-                  <BButton variant="link" style="padding: 0" @click="openEditForm(data.item)">
+                  <BButton variant="link" class="p-0" @click="openEditForm(data.item)">
                     Set Cast Member
                   </BButton>
                 </template>

@@ -278,7 +278,7 @@ async function startStream(): Promise<void> {
 function stopStream(): void {
   if (streamReader) {
     streamAborted = true;
-    streamReader.cancel().catch((err) => log.debug('Log stream cancel failed', err));
+    streamReader.cancel().catch((err) => log.warn('Log stream cancel failed', err));
     streamReader = null;
   }
 }

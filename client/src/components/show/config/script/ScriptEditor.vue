@@ -180,6 +180,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import log from 'loglevel';
 import type { BModal } from 'bootstrap-vue-next';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { useShowStore } from '@/stores/show';
@@ -458,9 +459,10 @@ function doneEditingLine(pageIndex: number, lineIndex: number): void {
   const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
   editingLines.value.delete(lineIdent);
   if (latestAddedLine.value === lineIdent) {
-    addNewLine(LINE_TYPES.DIALOGUE).catch(() =>
-      toast.error('Unable to add a new line. Please try again.')
-    );
+    addNewLine(LINE_TYPES.DIALOGUE).catch((err) => {
+      log.error('Failed to add new line', err);
+      toast.error('Unable to add a new line. Please try again.');
+    });
   }
 }
 
