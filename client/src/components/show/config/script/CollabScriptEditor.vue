@@ -333,6 +333,34 @@ const bulkEditEnd = ref<{ page: number; lineUid: LineUid } | null>(null);
 // would show the "could not open the script draft" alert — with a Retry that would
 // rejoin the room we just asked to leave — for that one round trip.
 const stopRequested = ref(false);
+// True for a brief grace window after a ROOM_CLOSED we didn't ask for (someone
+// else discarding the draft, or closing it from the stand-alone revisions panel
+// via the REST DELETE endpoint): ROOM_CLOSED reaches every remaining editor
+// before the GET_SCRIPT_CONFIG_STATUS broadcast that demotes them arrives, so
+// without this `joinFailed` would flash the "could not open the script draft"
+// alert, and the room members list (draftStore.members, cleared by the
+// ROOM_CLOSED teardown) would look empty, for that one round trip. Cleared as
+// soon as isEditor actually resolves (below), or — if the editors refresh never
+// arrives or never drops us — after ROOM_CLOSE_GRACE_MS, so a genuinely stuck
+// room still lands on Retry rather than staying silently suppressed forever.
+const roomClosedGrace = ref(false);
+const ROOM_CLOSE_GRACE_MS = 3_000;
+let roomClosedGraceTimer: ReturnType<typeof setTimeout> | null = null;
+function clearRoomClosedGrace(): void {
+  if (roomClosedGraceTimer !== null) {
+    clearTimeout(roomClosedGraceTimer);
+    roomClosedGraceTimer = null;
+  }
+  roomClosedGrace.value = false;
+}
+function armRoomClosedGrace(): void {
+  clearRoomClosedGrace();
+  roomClosedGrace.value = true;
+  roomClosedGraceTimer = setTimeout(() => {
+    roomClosedGraceTimer = null;
+    roomClosedGrace.value = false;
+  }, ROOM_CLOSE_GRACE_MS);
+}
 // A plain viewer's backoff schedule for recovering from a room close with no
 // action of their own — see the draftStore.status watch below.
 const VIEWER_RECOVERY_DELAYS_MS = [3_000, 5_000, 10_000, 15_000, 30_000];
@@ -512,9 +540,16 @@ function isBulkEnd(line: DraftScriptLine): boolean {
 
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
 // this the user is an editor with no room and no way out but Stop Editing. Suppressed
-// while our own stopEditing() is still awaiting confirmation (see stopRequested).
+// while our own stopEditing() is still awaiting confirmation (see stopRequested), and for
+// a brief grace window after any ROOM_CLOSED (see roomClosedGrace) while we wait to find
+// out whether we were demoted along with it.
 const joinFailed = computed(
-  () => loaded.value && isEditor.value && !stopRequested.value && draftStore.status === 'idle'
+  () =>
+    loaded.value &&
+    isEditor.value &&
+    !stopRequested.value &&
+    !roomClosedGrace.value &&
+    draftStore.status === 'idle'
 );
 const maxPage = draftPages.maxPage;
 const atLastDraftPage = computed(() => draftReady.value && currentPage.value >= maxPage.value);
@@ -946,6 +981,9 @@ function calculateNavbarHeight(): void {
 // whole point of Step A is that nobody should see stale content once live viewing
 // exists. The room is only actually left on unmount (see onBeforeUnmount).
 watch(isEditor, (now, was) => {
+  // Either direction means the editors list has caught up with whatever closed our
+  // room — the grace window armed below has done its job, if it was running.
+  clearRoomClosedGrace();
   if (!now && was) {
     // The server has confirmed we're no longer an editor (our own stop, or losing
     // the lock some other way) — stopRequested has done its job, if it was set.
@@ -956,6 +994,17 @@ watch(isEditor, (now, was) => {
   }
   retryJoin();
 });
+
+// Every ROOM_CLOSED — ours or another editor's discard — arrives before the
+// GET_SCRIPT_CONFIG_STATUS broadcast that tells us whether we were demoted along
+// with it (see roomClosedGrace above). Arm the grace window the moment it happens;
+// the isEditor watch above cancels it as soon as that broadcast actually lands.
+watch(
+  () => draftStore.roomClosedByServer,
+  (closed) => {
+    if (closed) armRoomClosedGrace();
+  }
+);
 
 // Phase 4 Step C: re-announce this client's open lines whenever room membership
 // changes (join, leave, role change) — awareness has no sync-on-join of its own, so
@@ -1087,6 +1136,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', calculateNavbarHeight);
   clearViewerRecoveryTimer();
+  clearRoomClosedGrace();
   // Leaving the tab leaves the room (the editor flag is kept, so coming back rejoins).
   if (draftStore.isDraftActive) draftStore.leaveScriptRoom();
 });

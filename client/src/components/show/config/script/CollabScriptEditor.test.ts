@@ -406,10 +406,44 @@ describe('CollabScriptEditor', () => {
     syncDraft({ '1': [snap('a')], '2': [] });
     await flushPromises();
 
-    useScriptDraftStore().roomClosed();
+    vi.useFakeTimers();
+    try {
+      useScriptDraftStore().roomClosed();
+      await flushPromises();
+
+      // The brief post-ROOM_CLOSED grace window (see roomClosedGrace) suppresses the
+      // alert at first, giving the GET_SCRIPT_CONFIG_STATUS broadcast a chance to land
+      // — but nothing here ever drops us from `editors`, so once that window itself
+      // expires this is a genuinely stuck room and must still land on Retry.
+      expect(w.find('.alert-stub').exists()).toBe(false);
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(w.find('.alert-stub').exists()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not flash the stuck-room alert while waiting for the editors refresh that follows a ROOM_CLOSED', async () => {
+    // Mirrors another editor discarding the draft: ROOM_CLOSED reaches every remaining
+    // editor before the GET_SCRIPT_CONFIG_STATUS broadcast that demotes them, which —
+    // without the grace window — would flash "Could not open the script draft" for that
+    // one round trip (reported bug: the alert and the Here Now list both briefly drop
+    // out, then self-heal once the demotion lands).
+    becomeEditor();
+    const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
     await flushPromises();
 
-    expect(w.find('.alert-stub').exists()).toBe(true);
+    useScriptDraftStore().roomClosed();
+    await flushPromises();
+    expect(w.find('.alert-stub').exists()).toBe(false);
+
+    // The broadcast lands: we were demoted along with everyone else in the closed room.
+    useScriptConfigStore().editors = [];
+    await flushPromises();
+
+    expect(w.find('.alert-stub').exists()).toBe(false);
+    expect(w.exists()).toBe(true);
   });
 
   it('Stop Editing sends STOP only — never LEAVE first, which would make the server skip checkpoint/close', async () => {
