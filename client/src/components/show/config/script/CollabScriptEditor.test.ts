@@ -472,11 +472,15 @@ describe('CollabScriptEditor', () => {
   });
 
   it('re-arms a fresh grace window if ROOM_CLOSED fires again before the first one expires', async () => {
-    // The realistic trigger isn't calling roomClosed() twice back to back, but a
-    // fast reconnect: _rejoinAfterReconnect() resets roomClosedByServer to false via
-    // joinScriptRoom(), and if that rejoin itself gets closed again quickly, this
-    // re-arm path (armRoomClosedGrace() clearing the old timer before starting a new
-    // one) is what's exercised.
+    // Belt-and-suspenders, not a reachable real trigger: once ROOM_CLOSED has
+    // landed, _teardown() stops the reconnect watch (its own condition requires
+    // isDraftActive, already false by then), so _rejoinAfterReconnect() can't fire
+    // a second close. In practice the only thing that resets roomClosedByServer to
+    // false is joinScriptRoom(), called via the isEditor watch's own retryJoin() —
+    // which clears the grace window in that same callback — so a second arm always
+    // starts from an already-cleared window, never a still-open one. Covers
+    // armRoomClosedGrace()'s clear-before-arm ordering regardless, in case that
+    // ever stops being true.
     becomeEditor();
     const w = await mountEditor();
     syncDraft({ '1': [snap('a')], '2': [] });
@@ -507,7 +511,7 @@ describe('CollabScriptEditor', () => {
     }
   });
 
-  it('clears the pending grace timer on unmount without throwing', async () => {
+  it('clears the pending grace timer on unmount', async () => {
     const w = await mountAsEditor();
     syncDraft({ '1': [snap('a')], '2': [] });
     await flushPromises();
@@ -519,7 +523,13 @@ describe('CollabScriptEditor', () => {
 
       w.unmount();
 
-      expect(() => vi.advanceTimersByTime(3_000)).not.toThrow();
+      // Checked immediately, before ever advancing time: a pending timer left
+      // running past unmount is exactly what onBeforeUnmount's
+      // clearRoomClosedGrace() call exists to prevent. The callback itself is
+      // harmless to fire late (a bare ref write on an unmounted component), so
+      // asserting that firing it doesn't throw would pass even with the cleanup
+      // deleted — this doesn't.
+      expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.useRealTimers();
     }
