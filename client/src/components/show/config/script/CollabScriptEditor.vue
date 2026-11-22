@@ -328,11 +328,48 @@ const cuttingSaveInProgress = ref(false);
 const bulkEditStart = ref<{ page: number; lineUid: LineUid } | null>(null);
 const bulkEditEnd = ref<{ page: number; lineUid: LineUid } | null>(null);
 // True from a successful `stopEditing()` send until the server confirms we are no
-// longer an editor. STOP_SCRIPT_EDIT's own ROOM_CLOSED (for the last editor) arrives
-// before its GET_SCRIPT_CONFIG_STATUS broadcast, so without this flag `joinFailed`
-// would show the "could not open the script draft" alert — with a Retry that would
-// rejoin the room we just asked to leave — for that one round trip.
+// longer an editor. STOP_SCRIPT_EDIT itself never closes the room — the caller is
+// re-added to it as a viewer (Phase 4 Step A) — but an unrelated ROOM_CLOSED (e.g.
+// another editor discarding) can still race it, arriving before the
+// GET_SCRIPT_CONFIG_STATUS broadcast that reflects our own stop's already-committed
+// demotion lands. Without this flag, that gap would show the "could not open the
+// script draft" alert — with a Retry that would rejoin the room we just asked to
+// leave — for that one round trip.
 const stopRequested = ref(false);
+// True for a brief grace window after any ROOM_CLOSED — our own (though
+// stopRequested above already covers that case on its own) or another editor's,
+// whether from a discard or from closing the draft via the REST DELETE endpoint.
+// The server always commits any resulting demotion before sending ROOM_CLOSED; the
+// GET_SCRIPT_CONFIG_STATUS broadcast that usually follows it only triggers the
+// client's refetch of that already-committed state, it doesn't demote anyone
+// itself — and not every room-closing path sends one (e.g. toggling collaborative
+// editing off closes the room on its own WS_SETTINGS_CHANGED alone, and a show
+// change closes it unconditionally — even with a still-dirty editor in it — on
+// SHOW_CHANGED alone, which reloads the page outright so it doesn't matter here),
+// but most paths that can still leave an editor in the room do. Without this
+// window, `joinFailed` would flash the "could not open the script draft" alert for
+// that gap. Cleared as soon as isEditor actually resolves (below), or — if the
+// editors refresh never arrives or never drops us — after ROOM_CLOSE_GRACE_MS, so a
+// genuinely stuck room still lands on Retry rather than staying silently suppressed
+// forever.
+const roomClosedGrace = ref(false);
+const ROOM_CLOSE_GRACE_MS = 3_000;
+let roomClosedGraceTimer: ReturnType<typeof setTimeout> | null = null;
+function clearRoomClosedGrace(): void {
+  if (roomClosedGraceTimer !== null) {
+    clearTimeout(roomClosedGraceTimer);
+    roomClosedGraceTimer = null;
+  }
+  roomClosedGrace.value = false;
+}
+function armRoomClosedGrace(): void {
+  clearRoomClosedGrace();
+  roomClosedGrace.value = true;
+  roomClosedGraceTimer = setTimeout(() => {
+    roomClosedGraceTimer = null;
+    roomClosedGrace.value = false;
+  }, ROOM_CLOSE_GRACE_MS);
+}
 // A plain viewer's backoff schedule for recovering from a room close with no
 // action of their own — see the draftStore.status watch below.
 const VIEWER_RECOVERY_DELAYS_MS = [3_000, 5_000, 10_000, 15_000, 30_000];
@@ -512,9 +549,15 @@ function isBulkEnd(line: DraftScriptLine): boolean {
 
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
 // this the user is an editor with no room and no way out but Stop Editing. Suppressed
-// while our own stopEditing() is still awaiting confirmation (see stopRequested).
+// while our own stopEditing() is still awaiting confirmation (see stopRequested), and
+// for a brief grace window after any ROOM_CLOSED (see roomClosedGrace above).
 const joinFailed = computed(
-  () => loaded.value && isEditor.value && !stopRequested.value && draftStore.status === 'idle'
+  () =>
+    loaded.value &&
+    isEditor.value &&
+    !stopRequested.value &&
+    !roomClosedGrace.value &&
+    draftStore.status === 'idle'
 );
 const maxPage = draftPages.maxPage;
 const atLastDraftPage = computed(() => draftReady.value && currentPage.value >= maxPage.value);
@@ -698,10 +741,12 @@ function cutLinePart(linePartId: number): void {
   else linePartCuts.value.splice(idx, 1);
 }
 
-// STOP only: the server only demotes, checkpoints and closes the room for a client
-// that is still in it (LEAVE_SCRIPT_ROOM first would remove us before STOP arrives,
-// so the server would skip both). ROOM_CLOSED (if we were the last editor) or the
-// isEditor watcher below then tears down the local draft.
+// STOP only: the server demotes, and checkpoints if now dirty with no editors left
+// (LEAVE_SCRIPT_ROOM first would remove us before STOP arrives, so the server would
+// skip both) — but re-adds the caller to the room as a viewer either way, never
+// sending ROOM_CLOSED itself (see stopRequested above). The isEditor watcher below
+// tears down the local draft once the resulting GET_SCRIPT_CONFIG_STATUS refresh
+// lands.
 function sendStop(): void {
   if (sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
     stopRequested.value = true;
@@ -729,10 +774,11 @@ function discardAndStop(): void {
   stopEditingModal.value?.hide();
   if (draftStore.discardDraft()) {
     // Same reason as sendStop(): ROOM_CLOSED can arrive before the
-    // GET_SCRIPT_CONFIG_STATUS broadcast that drops us from `editors`, which
-    // would otherwise flash the "could not open the script draft" alert for
-    // that one round trip. Only set once the frame actually sent — setting it
-    // unconditionally would hide that alert even when nothing was sent.
+    // GET_SCRIPT_CONFIG_STATUS broadcast that reflects our already-committed
+    // demotion from `editors`, which would otherwise flash the "could not open
+    // the script draft" alert for that one round trip. Only set once the frame
+    // actually sent — setting it unconditionally would hide that alert even
+    // when nothing was sent.
     stopRequested.value = true;
   }
 }
@@ -946,6 +992,9 @@ function calculateNavbarHeight(): void {
 // whole point of Step A is that nobody should see stale content once live viewing
 // exists. The room is only actually left on unmount (see onBeforeUnmount).
 watch(isEditor, (now, was) => {
+  // Either direction means the editors list has caught up with whatever closed our
+  // room — the grace window armed below has done its job, if it was running.
+  clearRoomClosedGrace();
   if (!now && was) {
     // The server has confirmed we're no longer an editor (our own stop, or losing
     // the lock some other way) — stopRequested has done its job, if it was set.
@@ -956,6 +1005,15 @@ watch(isEditor, (now, was) => {
   }
   retryJoin();
 });
+
+// Arms the grace window (see roomClosedGrace above) on every ROOM_CLOSED; the
+// isEditor watch above cancels it as soon as the editors refresh actually lands.
+watch(
+  () => draftStore.roomClosedByServer,
+  (closed) => {
+    if (closed) armRoomClosedGrace();
+  }
+);
 
 // Phase 4 Step C: re-announce this client's open lines whenever room membership
 // changes (join, leave, role change) — awareness has no sync-on-join of its own, so
@@ -1087,6 +1145,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', calculateNavbarHeight);
   clearViewerRecoveryTimer();
+  clearRoomClosedGrace();
   // Leaving the tab leaves the room (the editor flag is kept, so coming back rejoins).
   if (draftStore.isDraftActive) draftStore.leaveScriptRoom();
 });

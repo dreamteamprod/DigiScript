@@ -406,10 +406,133 @@ describe('CollabScriptEditor', () => {
     syncDraft({ '1': [snap('a')], '2': [] });
     await flushPromises();
 
+    vi.useFakeTimers();
+    try {
+      useScriptDraftStore().roomClosed();
+      await flushPromises();
+
+      // The brief post-ROOM_CLOSED grace window (see roomClosedGrace) suppresses the
+      // alert at first, giving the GET_SCRIPT_CONFIG_STATUS broadcast a chance to land
+      // — but nothing here ever drops us from `editors`, so once that window itself
+      // expires this is a genuinely stuck room and must still land on Retry.
+      expect(w.find('.alert-stub').exists()).toBe(false);
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(w.find('.alert-stub').exists()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not flash the stuck-room alert while waiting for the editors refresh that follows a ROOM_CLOSED', async () => {
+    // Mirrors another editor discarding the draft — see roomClosedGrace in
+    // CollabScriptEditor.vue for why ROOM_CLOSED alone briefly looks like a failed join.
+    becomeEditor();
+    const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
+
     useScriptDraftStore().roomClosed();
+    await flushPromises();
+    expect(w.find('.alert-stub').exists()).toBe(false);
+
+    // The broadcast lands: we were demoted along with everyone else in the closed room.
+    useScriptConfigStore().editors = [];
+    await flushPromises();
+
+    expect(w.find('.alert-stub').exists()).toBe(false);
+    expect(w.exists()).toBe(true);
+  });
+
+  it('clears the grace window as soon as isEditor resolves, without waiting out the timer', async () => {
+    // Distinct from the test above: that one only proves the alert stays hidden
+    // immediately after roomClosed(), which would hold even without the isEditor
+    // watch's own clearRoomClosedGrace() call (isEditor already false is enough on
+    // its own). Prove the early-clear itself by flipping isEditor false then true
+    // again, both inside the 3s window, and expecting the alert to show right away
+    // rather than staying suppressed for the rest of it.
+    becomeEditor();
+    const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
+
+    useScriptDraftStore().roomClosed();
+    await flushPromises();
+    expect(w.find('.alert-stub').exists()).toBe(false);
+
+    // Block the isEditor watch's own retryJoin() from actually starting a real
+    // rejoin (which would move status off 'idle' and mask what we're testing).
+    useWebSocketStore().isConnected = false;
+
+    useScriptConfigStore().editors = [];
+    await flushPromises();
+    useScriptConfigStore().editors = [{ internal_id: 'me', username: 'admin' }];
     await flushPromises();
 
     expect(w.find('.alert-stub').exists()).toBe(true);
+  });
+
+  it('re-arms a fresh grace window if ROOM_CLOSED fires again before the first one expires', async () => {
+    // Belt-and-suspenders, not a reachable real trigger: once ROOM_CLOSED has
+    // landed, _teardown() stops the reconnect watch (its own condition requires
+    // isDraftActive, already false by then), so _rejoinAfterReconnect() can't fire
+    // a second close. In practice the only thing that resets roomClosedByServer to
+    // false is joinScriptRoom(), called via the isEditor watch's own retryJoin() —
+    // which clears the grace window in that same callback — so a second arm always
+    // starts from an already-cleared window, never a still-open one. Covers
+    // armRoomClosedGrace()'s clear-before-arm ordering regardless, in case that
+    // ever stops being true.
+    becomeEditor();
+    const w = await mountEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
+
+    vi.useFakeTimers();
+    try {
+      useScriptDraftStore().roomClosed();
+      await flushPromises();
+      expect(w.find('.alert-stub').exists()).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      useScriptDraftStore().roomClosedByServer = false;
+      await flushPromises();
+      useScriptDraftStore().roomClosedByServer = true; // re-armed at the 2s mark
+      await flushPromises();
+
+      // 3.5s since the *first* arm — past its own deadline, so this would already
+      // be showing if the second arm hadn't reset the timer to a fresh 3s of its own.
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(w.find('.alert-stub').exists()).toBe(false);
+
+      // Past the second arm's own 3s (5s total).
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(w.find('.alert-stub').exists()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the pending grace timer on unmount', async () => {
+    const w = await mountAsEditor();
+    syncDraft({ '1': [snap('a')], '2': [] });
+    await flushPromises();
+
+    vi.useFakeTimers();
+    try {
+      useScriptDraftStore().roomClosed();
+      await flushPromises();
+
+      w.unmount();
+
+      // Checked immediately, before ever advancing time: a pending timer left
+      // running past unmount is exactly what onBeforeUnmount's
+      // clearRoomClosedGrace() call exists to prevent. The callback itself is
+      // harmless to fire late (a bare ref write on an unmounted component), so
+      // asserting that firing it doesn't throw would pass even with the cleanup
+      // deleted — this doesn't.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('Stop Editing sends STOP only — never LEAVE first, which would make the server skip checkpoint/close', async () => {
@@ -438,16 +561,25 @@ describe('CollabScriptEditor', () => {
     syncDraft({ '1': [snap('a')], '2': [] });
     await flushPromises();
 
-    await button(w, 'Stop Editing')!.trigger('click');
-    useScriptDraftStore().roomClosed();
-    await flushPromises();
+    vi.useFakeTimers();
+    try {
+      await button(w, 'Stop Editing')!.trigger('click');
+      useScriptDraftStore().roomClosed();
+      await flushPromises();
 
-    expect(useScriptDraftStore().isDraftActive).toBe(false);
-    // ROOM_CLOSED (sent before the server's own GET_SCRIPT_CONFIG_STATUS broadcast)
-    // tears the draft down to 'idle' while we are still an editor on paper — without
-    // stopRequested suppressing it, that's exactly joinFailed's shape, and Retry would
-    // rejoin the room we just asked to leave.
-    expect(w.find('.alert-stub').exists()).toBe(false);
+      expect(useScriptDraftStore().isDraftActive).toBe(false);
+      // Advance past the grace window (see roomClosedGrace in CollabScriptEditor.vue)
+      // so this assertion is actually pinned on stopRequested, not on the window —
+      // armed by the same ROOM_CLOSED — still being open regardless of it.
+      await vi.advanceTimersByTimeAsync(3_000);
+      // An unrelated ROOM_CLOSED (racing our own stop, see stopRequested) tears the
+      // draft down to 'idle' while we are still an editor on paper — without
+      // stopRequested suppressing it, that's exactly joinFailed's shape, and Retry
+      // would rejoin the room we just asked to leave.
+      expect(w.find('.alert-stub').exists()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a fresh join clears a stopRequested flag stuck true by a STOP that never registered', async () => {
