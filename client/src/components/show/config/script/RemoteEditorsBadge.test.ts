@@ -5,7 +5,6 @@ import { passthrough } from './testStubs';
 
 const stubs = {
   BCol: passthrough('div'),
-  BBadge: passthrough('span'),
 };
 
 describe('RemoteEditorsBadge (Phase 4 Step C)', () => {
@@ -14,20 +13,60 @@ describe('RemoteEditorsBadge (Phase 4 Step C)', () => {
     expect(wrapper.find('.remote-editors').exists()).toBe(false);
   });
 
-  it('renders one badge per name, each with an accessible title', () => {
+  it('renders one avatar per name, each with an accessible title, for the row variant', () => {
     const wrapper = mount(RemoteEditorsBadge, {
       props: { names: ['alex', 'blair'] },
       global: { stubs },
     });
     const row = wrapper.find('.remote-editors');
     expect(row.exists()).toBe(true);
-    const badges = row.findAll('span');
-    expect(badges).toHaveLength(2);
-    expect(badges.find((b) => b.text().includes('alex'))?.attributes('title')).toBe(
-      'alex is editing this line'
-    );
-    expect(badges.find((b) => b.text().includes('blair'))?.attributes('title')).toBe(
-      'blair is editing this line'
+    const avatars = row.findAll('.presence-avatar');
+    expect(avatars).toHaveLength(2);
+    expect(avatars.find((a) => a.attributes('title') === 'alex is editing this line')).toBeTruthy();
+    expect(
+      avatars.find((a) => a.attributes('title') === 'blair is editing this line')
+    ).toBeTruthy();
+  });
+
+  it('shows just the name for a single editor in the row variant', () => {
+    const wrapper = mount(RemoteEditorsBadge, {
+      props: { names: ['alex'] },
+      global: { stubs },
+    });
+    expect(wrapper.find('.remote-editors-label').text()).toBe('alex');
+  });
+
+  it('joins two names with a comma in the row variant', () => {
+    const wrapper = mount(RemoteEditorsBadge, {
+      props: { names: ['alex', 'blair'] },
+      global: { stubs },
+    });
+    expect(wrapper.find('.remote-editors-label').text()).toBe('alex, blair');
+  });
+
+  it('collapses three or more names to "first +N"', () => {
+    const wrapper = mount(RemoteEditorsBadge, {
+      props: { names: ['alex', 'blair', 'casey'] },
+      global: { stubs },
+    });
+    expect(wrapper.find('.remote-editors-label').text()).toBe('alex +2');
+  });
+
+  it('reads as "is also editing this line" for the editor variant with one name', () => {
+    const wrapper = mount(RemoteEditorsBadge, {
+      props: { names: ['alex'], variant: 'editor' },
+      global: { stubs },
+    });
+    expect(wrapper.find('.remote-editors-label').text()).toBe('alex is also editing this line');
+  });
+
+  it('reads as "are also editing this line" for the editor variant with multiple names', () => {
+    const wrapper = mount(RemoteEditorsBadge, {
+      props: { names: ['alex', 'blair'], variant: 'editor' },
+      global: { stubs },
+    });
+    expect(wrapper.find('.remote-editors-label').text()).toBe(
+      'alex, blair are also editing this line'
     );
   });
 });
