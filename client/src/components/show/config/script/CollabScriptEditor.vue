@@ -328,20 +328,26 @@ const cuttingSaveInProgress = ref(false);
 const bulkEditStart = ref<{ page: number; lineUid: LineUid } | null>(null);
 const bulkEditEnd = ref<{ page: number; lineUid: LineUid } | null>(null);
 // True from a successful `stopEditing()` send until the server confirms we are no
-// longer an editor. STOP_SCRIPT_EDIT's own ROOM_CLOSED (for the last editor) arrives
-// before its GET_SCRIPT_CONFIG_STATUS broadcast, so without this flag `joinFailed`
-// would show the "could not open the script draft" alert — with a Retry that would
-// rejoin the room we just asked to leave — for that one round trip.
+// longer an editor. STOP_SCRIPT_EDIT itself never closes the room — the caller is
+// re-added to it as a viewer (Phase 4 Step A) — but an unrelated ROOM_CLOSED (e.g.
+// another editor discarding) can still race it, arriving before our own stop's
+// GET_SCRIPT_CONFIG_STATUS-driven demotion lands. Without this flag, that gap would
+// show the "could not open the script draft" alert — with a Retry that would rejoin
+// the room we just asked to leave — for that one round trip.
 const stopRequested = ref(false);
-// True for a brief grace window after a ROOM_CLOSED we didn't ask for (someone
-// else discarding the draft, or closing it from the stand-alone revisions panel
-// via the REST DELETE endpoint): ROOM_CLOSED reaches every remaining editor
-// before the GET_SCRIPT_CONFIG_STATUS broadcast that demotes them arrives, so
-// without this `joinFailed` would flash the "could not open the script draft"
-// alert for that one round trip. Cleared as soon as isEditor actually resolves
-// (below), or — if the editors refresh never arrives or never drops us — after
-// ROOM_CLOSE_GRACE_MS, so a genuinely stuck room still lands on Retry rather
-// than staying silently suppressed forever.
+// True for a brief grace window after any ROOM_CLOSED — our own (though
+// stopRequested above already covers that case on its own) or another editor's,
+// whether from a discard or from closing the draft via the REST DELETE endpoint.
+// The server always commits any resulting demotion before sending ROOM_CLOSED; the
+// GET_SCRIPT_CONFIG_STATUS broadcast that usually follows it only triggers the
+// client's refetch of that already-committed state, it doesn't demote anyone
+// itself — and not every room-closing path sends one (e.g. toggling collaborative
+// editing off closes the room on its own WS_SETTINGS_CHANGED alone), but every path
+// that can still leave an editor in the room does. Without this window, `joinFailed`
+// would flash the "could not open the script draft" alert for that gap. Cleared as
+// soon as isEditor actually resolves (below), or — if the editors refresh never
+// arrives or never drops us — after ROOM_CLOSE_GRACE_MS, so a genuinely stuck room
+// still lands on Retry rather than staying silently suppressed forever.
 const roomClosedGrace = ref(false);
 const ROOM_CLOSE_GRACE_MS = 3_000;
 let roomClosedGraceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -539,9 +545,8 @@ function isBulkEnd(line: DraftScriptLine): boolean {
 
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
 // this the user is an editor with no room and no way out but Stop Editing. Suppressed
-// while our own stopEditing() is still awaiting confirmation (see stopRequested), and for
-// a brief grace window after any ROOM_CLOSED (see roomClosedGrace) while we wait to find
-// out whether we were demoted along with it.
+// while our own stopEditing() is still awaiting confirmation (see stopRequested), and
+// for a brief grace window after any ROOM_CLOSED (see roomClosedGrace above).
 const joinFailed = computed(
   () =>
     loaded.value &&
@@ -994,10 +999,8 @@ watch(isEditor, (now, was) => {
   retryJoin();
 });
 
-// Every ROOM_CLOSED — ours or another editor's discard — arrives before the
-// GET_SCRIPT_CONFIG_STATUS broadcast that tells us whether we were demoted along
-// with it (see roomClosedGrace above). Arm the grace window the moment it happens;
-// the isEditor watch above cancels it as soon as that broadcast actually lands.
+// Arms the grace window (see roomClosedGrace above) on every ROOM_CLOSED; the
+// isEditor watch above cancels it as soon as the editors refresh actually lands.
 watch(
   () => draftStore.roomClosedByServer,
   (closed) => {
