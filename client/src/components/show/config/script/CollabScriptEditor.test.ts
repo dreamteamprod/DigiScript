@@ -426,9 +426,8 @@ describe('CollabScriptEditor', () => {
   it('does not flash the stuck-room alert while waiting for the editors refresh that follows a ROOM_CLOSED', async () => {
     // Mirrors another editor discarding the draft: ROOM_CLOSED reaches every remaining
     // editor before the GET_SCRIPT_CONFIG_STATUS broadcast that demotes them, which —
-    // without the grace window — would flash "Could not open the script draft" for that
-    // one round trip (reported bug: the alert and the Here Now list both briefly drop
-    // out, then self-heal once the demotion lands).
+    // without the grace window — would flash "Could not open the script draft" for
+    // that one round trip.
     becomeEditor();
     const w = await mountEditor();
     syncDraft({ '1': [snap('a')], '2': [] });

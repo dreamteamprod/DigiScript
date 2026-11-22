@@ -338,11 +338,10 @@ const stopRequested = ref(false);
 // via the REST DELETE endpoint): ROOM_CLOSED reaches every remaining editor
 // before the GET_SCRIPT_CONFIG_STATUS broadcast that demotes them arrives, so
 // without this `joinFailed` would flash the "could not open the script draft"
-// alert, and the room members list (draftStore.members, cleared by the
-// ROOM_CLOSED teardown) would look empty, for that one round trip. Cleared as
-// soon as isEditor actually resolves (below), or — if the editors refresh never
-// arrives or never drops us — after ROOM_CLOSE_GRACE_MS, so a genuinely stuck
-// room still lands on Retry rather than staying silently suppressed forever.
+// alert for that one round trip. Cleared as soon as isEditor actually resolves
+// (below), or — if the editors refresh never arrives or never drops us — after
+// ROOM_CLOSE_GRACE_MS, so a genuinely stuck room still lands on Retry rather
+// than staying silently suppressed forever.
 const roomClosedGrace = ref(false);
 const ROOM_CLOSE_GRACE_MS = 3_000;
 let roomClosedGraceTimer: ReturnType<typeof setTimeout> | null = null;
