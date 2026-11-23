@@ -1874,14 +1874,9 @@ class TestLineTypeValidation(DigiScriptTestCase):
         self.assertIn("must contain text", response_body["message"])
 
 
-class TestPatchLinePartCountChange(DigiScriptTestCase):
-    """Regression tests for page-boundary corruption when line_parts count changes.
-
-    When a line's line_parts array grows, deep-object-diff classifies the line index
-    as both "added" and "updated". Previously, the backend treated this as "added"
-    (creating a new association without removing the old), which left a split
-    doubly-linked list and broke the page boundary.
-    """
+class _ScriptPatchTestSetup(DigiScriptTestCase):
+    """Seed a Show/Script/Revision/Act/Scene/Character/admin User and a ready
+    JWT, for PATCH regression tests against ``/api/v1/show/script``."""
 
     def setUp(self):
         super().setUp()
@@ -1930,7 +1925,7 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-    def _make_line(self, page, line_id, parts, act_id=None, scene_id=None):
+    def _make_line(self, page, line_id, parts=1, act_id=None, scene_id=None, text=None):
         return {
             "id": line_id,
             "act_id": act_id if act_id is not None else self.act_id,
@@ -1944,12 +1939,22 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
                     "part_index": i,
                     "character_id": self.character_id,
                     "character_group_id": None,
-                    "line_text": f"Part {i}",
+                    "line_text": text if text is not None else f"Part {i}",
                 }
                 for i in range(parts)
             ],
             "stage_direction_style_id": None,
         }
+
+
+class TestPatchLinePartCountChange(_ScriptPatchTestSetup):
+    """Regression tests for page-boundary corruption when line_parts count changes.
+
+    When a line's line_parts array grows, deep-object-diff classifies the line index
+    as both "added" and "updated". Previously, the backend treated this as "added"
+    (creating a new association without removing the old), which left a split
+    doubly-linked list and broke the page boundary.
+    """
 
     def test_patch_existing_line_adding_line_part_does_not_corrupt_page(self):
         """PATCH a line with status added (misclassified by deep-object-diff when line_parts
@@ -2129,7 +2134,7 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
             self.assertEqual(1, prev_line.page, "Previous line must be on page 1")
 
 
-class TestPatchAppendNewLineToNonLastPage(DigiScriptTestCase):
+class TestPatchAppendNewLineToNonLastPage(_ScriptPatchTestSetup):
     """Regression tests for the "stuck page" bug (collab mode could never reach
     the real last page of a script).
 
@@ -2146,77 +2151,10 @@ class TestPatchAppendNewLineToNonLastPage(DigiScriptTestCase):
     the break.
     """
 
-    def setUp(self):
-        super().setUp()
-        with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Test"
-            )
-            session.add(revision)
-            session.flush()
-            self.revision_id = revision.id
-            script.current_revision = revision.id
-
-            act = Act(show_id=show.id, name="Act 1")
-            session.add(act)
-            session.flush()
-            self.act_id = act.id
-
-            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
-            session.add(scene)
-            session.flush()
-            self.scene_id = scene.id
-
-            character = Character(show_id=show.id, name="Character A")
-            session.add(character)
-            session.flush()
-            self.character_id = character.id
-
-            admin = User(username="admin", is_admin=True, password="test")
-            session.add(admin)
-            session.flush()
-            self.user_id = admin.id
-
-            session.commit()
-
-        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
-        self.token = self._app.jwt_service.create_access_token(
-            data={"user_id": self.user_id}
-        )
-
-    def _make_line(self, page, line_id, text="Line"):
-        return {
-            "id": line_id,
-            "act_id": self.act_id,
-            "scene_id": self.scene_id,
-            "page": page,
-            "line_type": 1,
-            "line_parts": [
-                {
-                    "id": None,
-                    "line_id": line_id,
-                    "part_index": 0,
-                    "character_id": self.character_id,
-                    "character_group_id": None,
-                    "line_text": text,
-                }
-            ],
-            "stage_direction_style_id": None,
-        }
-
     def test_appending_a_blank_line_to_page_one_preserves_the_link_to_page_two(self):
         # Page 1 has one line, page 2 has one line (this is what makes page 1
         # "not the last page" — the scenario that `addBlankLine` never excludes).
-        post_p1 = [self._make_line(1, None, "Page 1 line")]
+        post_p1 = [self._make_line(1, None, text="Page 1 line")]
         response = self.fetch(
             "/api/v1/show/script?page=1",
             method="POST",
@@ -2225,7 +2163,7 @@ class TestPatchAppendNewLineToNonLastPage(DigiScriptTestCase):
         )
         self.assertEqual(200, response.code)
 
-        post_p2 = [self._make_line(2, None, "Page 2 line")]
+        post_p2 = [self._make_line(2, None, text="Page 2 line")]
         response = self.fetch(
             "/api/v1/show/script?page=2",
             method="POST",
@@ -2252,8 +2190,8 @@ class TestPatchAppendNewLineToNonLastPage(DigiScriptTestCase):
         # on the new (id == None) index, same as `addBlankLine` in scriptConfig.ts.
         patch_p1 = {
             "page": [
-                self._make_line(1, line1_id, "Page 1 line"),
-                self._make_line(1, None, "Appended blank line"),
+                self._make_line(1, line1_id, text="Page 1 line"),
+                self._make_line(1, None, text="Appended blank line"),
             ],
             "status": {"added": [1], "updated": [], "deleted": [], "inserted": []},
         }

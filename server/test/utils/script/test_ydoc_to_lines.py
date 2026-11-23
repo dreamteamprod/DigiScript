@@ -303,6 +303,49 @@ class _ScriptTestSetup(DigiScriptTestCase):
         session.flush()
         return cue_type, cue, cue_group
 
+    def _seed_line(
+        self,
+        session,
+        previous_assoc=None,
+        text="Direction text",
+        character_id=None,
+        line_type=ScriptLineType.STAGE_DIRECTION,
+        page=1,
+    ):
+        """Insert ScriptLine + ScriptLinePart + SLRA; return the association."""
+        line = ScriptLine(
+            act_id=self.act_id,
+            scene_id=self.scene_id,
+            page=page,
+            line_type=line_type,
+        )
+        session.add(line)
+        session.flush()
+
+        part = ScriptLinePart(
+            line_id=line.id,
+            part_index=0,
+            character_id=character_id,
+            character_group_id=None,
+            line_text=text,
+        )
+        session.add(part)
+        session.flush()
+
+        assoc = ScriptLineRevisionAssociation(
+            revision_id=self.revision_id,
+            line_id=line.id,
+        )
+        session.add(assoc)
+        session.flush()
+
+        if previous_assoc:
+            previous_assoc.next_line = line
+            assoc.previous_line = previous_assoc.line
+            session.flush()
+
+        return assoc
+
 
 # ---------------------------------------------------------------------------
 # TestHasLineChanged — DB-backed
@@ -486,49 +529,6 @@ class TestHasLineChanged(_ScriptTestSetup):
 
 class TestSaveScriptPage(_ScriptTestSetup):
     """Tests for ``_save_script_page`` using a real in-memory SQLite DB."""
-
-    def _seed_line(
-        self,
-        session,
-        previous_assoc=None,
-        text="Direction text",
-        character_id=None,
-        line_type=ScriptLineType.STAGE_DIRECTION,
-        page=1,
-    ):
-        """Insert ScriptLine + ScriptLinePart + SLRA; return the association."""
-        line = ScriptLine(
-            act_id=self.act_id,
-            scene_id=self.scene_id,
-            page=page,
-            line_type=line_type,
-        )
-        session.add(line)
-        session.flush()
-
-        part = ScriptLinePart(
-            line_id=line.id,
-            part_index=0,
-            character_id=character_id,
-            character_group_id=None,
-            line_text=text,
-        )
-        session.add(part)
-        session.flush()
-
-        assoc = ScriptLineRevisionAssociation(
-            revision_id=self.revision_id,
-            line_id=line.id,
-        )
-        session.add(assoc)
-        session.flush()
-
-        if previous_assoc:
-            previous_assoc.next_line = line
-            assoc.previous_line = previous_assoc.line
-            session.flush()
-
-        return assoc
 
     def _assoc_to_line_dict(self, assoc):
         """Build a Y.Doc line dict that exactly matches an existing association (no changes)."""
