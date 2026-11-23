@@ -66,6 +66,8 @@
           :state="lineTextState"
           @update:model-value="onStateChange"
           @keydown.enter="handleEnterPress"
+          @keydown.up="$emit('navigate-up')"
+          @keydown.down="$emit('navigate-down')"
         />
         <BButton
           v-if="showAddButton && lineType === LINE_TYPES.DIALOGUE"
@@ -117,6 +119,8 @@ const emit = defineEmits<{
   'add-line-part': [];
   'remove-line-part': [];
   'try-finish-line': [];
+  'navigate-up': [];
+  'navigate-down': [];
   'stage-direction-style-change': [id: number | null];
 }>();
 
@@ -241,7 +245,10 @@ function onStateChange(): void {
   nextTick(() => partInputRef.value?.focus());
 }
 
-function handleEnterPress(): void {
+function handleEnterPress(event: KeyboardEvent): void {
+  // isComposing: an IME (e.g. Japanese/Chinese input) uses Enter to confirm its own
+  // candidate selection — that keystroke must not also finish the line.
+  if (event.isComposing) return;
   v$.value.$touch();
   emit('try-finish-line');
 }

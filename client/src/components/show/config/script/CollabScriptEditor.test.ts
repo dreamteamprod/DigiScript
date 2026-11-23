@@ -38,7 +38,7 @@ const ViewerStub = defineComponent({
     lineIndex: { type: Number, default: 0 },
     remoteEditors: { type: Array, default: () => [] },
   },
-  emits: ['edit-line', 'insert-dialogue'],
+  emits: ['edit-line', 'toggle-select'],
   render() {
     return h('div', { class: 'row-stub' }, (this.line as { _uid?: string })._uid ?? 'rest');
   },
@@ -51,7 +51,14 @@ const LineEditorStub = defineComponent({
     line: { type: Object, required: true },
     remoteEditors: { type: Array, default: () => [] },
   },
-  emits: ['doneEditing', 'deleteLine'],
+  emits: [
+    'doneEditing',
+    'finishAndAddLine',
+    'deleteLine',
+    'navigateUp',
+    'navigateDown',
+    'retypeLine',
+  ],
   render() {
     return h('div', { class: 'editor-stub' }, (this.line as { _uid?: string })._uid);
   },
@@ -1143,8 +1150,9 @@ describe('CollabScriptEditor', () => {
       const w = await mountWithOneOpenLine();
       sendObj.mockClear();
 
-      // deleteLine() clears latestAddedLine first, so this does not chain into
-      // another blank line the way Done would — editingLines ends up truly empty.
+      // Deleting the only open line leaves editingLines truly empty — there is no
+      // auto-chain to another blank line any more (Enter's finishAndAddLine is the
+      // only thing that opens a new line on its own now; see doneEditingLine).
       w.findComponent(LineEditorStub).vm.$emit('deleteLine');
       await flushPromises();
 
@@ -1152,20 +1160,20 @@ describe('CollabScriptEditor', () => {
       expect(state.openLineUids).toEqual([]);
     });
 
-    it('broadcasts the newly inserted line uid when a line is opened via an Insert menu item', async () => {
+    it('broadcasts the newly inserted line uid on top of what was already open, when a line is inserted via the add-line menu', async () => {
       const w = await mountWithOneOpenLine();
-      // Closes the first line (now a ViewerStub) and chains into a second, open one.
-      w.findComponent(LineEditorStub).vm.$emit('doneEditing');
-      await flushPromises();
       sendObj.mockClear();
 
-      w.findComponent(ViewerStub).vm.$emit('insert-dialogue');
+      (w.vm as unknown as { insertLineAt: (index: number, lineType: number) => void }).insertLineAt(
+        0,
+        LINE_TYPES.DIALOGUE
+      );
       await flushPromises();
 
       const state = decodeAwareness();
-      // Two lines now open: the auto-chained one from Done, and the newly
-      // inserted one — proves insertLineAt's own broadcastOpenLines call fires,
-      // on top of (not instead of) what was already open.
+      // Two lines now open: the one from Add Dialogue, and the newly inserted one —
+      // proves insertLineAt's own broadcastOpenLines call fires, on top of (not
+      // instead of) what was already open.
       expect(state.openLineUids).toHaveLength(2);
     });
 
@@ -1318,7 +1326,7 @@ describe('CollabScriptEditor', () => {
       expect(newLine.line_parts[0]?.character_id).toBe(9);
     });
 
-    it('finishing an auto-added line chains into another blank one', async () => {
+    it('plain Done on an auto-added line just closes it — no chaining any more', async () => {
       const w = await mountSyncedEditor();
 
       await button(w, 'Add Dialogue')!.trigger('click');
@@ -1329,8 +1337,31 @@ describe('CollabScriptEditor', () => {
       editorLine(w, firstUid)!.vm.$emit('doneEditing');
       await flushPromises();
 
-      // The finished line is no longer open; exactly one new blank line is.
+      // The finished line is no longer open, and nothing new opened in its place —
+      // chaining is now Enter's job (finishAndAddLine), not Done's (Design E).
       expect(editorLine(w, firstUid)).toBeUndefined();
+      expect(w.findAllComponents(LineEditorStub)).toHaveLength(0);
+    });
+
+    it('Enter (finishAndAddLine) on any open line chains into a new blank one right after it', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.DIALOGUE,
+        actId: 1,
+        sceneId: 1,
+      });
+      await flushPromises();
+      (w.vm as unknown as { beginEditingLine: (lineUid: string) => void }).beginEditingLine(
+        lineUid
+      );
+      await flushPromises();
+
+      editorLine(w, lineUid)!.vm.$emit('finishAndAddLine');
+      await flushPromises();
+
+      // The finished line is no longer open; exactly one new blank line is.
+      expect(editorLine(w, lineUid)).toBeUndefined();
       expect(w.findAllComponents(LineEditorStub)).toHaveLength(1);
     });
 
@@ -1716,7 +1747,7 @@ describe('CollabScriptEditor', () => {
     });
   });
 
-  describe('bulk edit (Step 4)', () => {
+  describe('selection and bulk actions (Step 4, Design E)', () => {
     async function mountSyncedEditor(): Promise<VueWrapper> {
       const w = await mountAsEditor();
       seedRealPage(1);
@@ -1728,77 +1759,136 @@ describe('CollabScriptEditor', () => {
 
     function vm(w: VueWrapper) {
       return w.vm as unknown as {
-        bulkEditMode: boolean;
         bulkEditStart: { page: number; lineUid: string } | null;
         bulkEditEnd: { page: number; lineUid: string } | null;
-        enterBulkEditMode: () => void;
-        exitBulkEditMode: () => void;
-        onSetBulkStart: (index: number) => void;
-        onSetBulkEnd: (index: number) => void;
-        onBulkApply: (payload: BulkEditPayload) => void;
+        selectionCount: number;
+        selectionRangeLabel: string;
+        onToggleSelect: (lineUid: string, index: number) => void;
+        clearSelection: () => void;
+        applyToSelection: (payload: BulkEditPayload) => void;
+        onSetCharacterApply: (assignee: {
+          partIndex: number;
+          characterId: number | null;
+          characterGroupId: number | null;
+        }) => void;
+        onMoveToSceneApply: (payload: { actId: number; sceneId: number }) => void;
+        onDeleteSelection: () => void;
+        navigateTo: (page: number) => Promise<void>;
       };
     }
 
-    it('enterBulkEditMode/exitBulkEditMode toggle mode and clear any selection', async () => {
+    it('a click on an untouched line selects just that one line', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
       await flushPromises();
 
-      vm(w).enterBulkEditMode();
-      expect(vm(w).bulkEditMode).toBe(true);
+      vm(w).onToggleSelect(lineUid, 0);
 
-      vm(w).onSetBulkStart(0);
-      expect(vm(w).bulkEditStart).not.toBeNull();
-
-      vm(w).exitBulkEditMode();
-      expect(vm(w).bulkEditMode).toBe(false);
-      expect(vm(w).bulkEditStart).toBeNull();
-      expect(vm(w).bulkEditEnd).toBeNull();
+      expect(vm(w).selectionCount).toBe(1);
     });
 
-    it('refuses an end line at or before the start line on the same page', async () => {
+    it('a second click extends the range to cover both lines', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      const { lineUid: secondUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
       await flushPromises();
-      vm(w).enterBulkEditMode();
 
-      vm(w).onSetBulkStart(1);
-      vm(w).onSetBulkEnd(0);
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
 
-      const { toast } = await import('@/js/toast');
-      expect(toast.error).toHaveBeenCalledWith('End line must come after start line');
-      expect(vm(w).bulkEditEnd).toBeNull();
+      expect(vm(w).selectionCount).toBe(2);
+      expect(vm(w).selectionRangeLabel).toBe('Lines 1 to 2');
     });
 
-    it('accepts an end line after the start line', async () => {
+    it('a click inside the current range collapses it back to just that line', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      const { lineUid: secondUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
       await flushPromises();
-      vm(w).enterBulkEditMode();
 
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1);
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
+      vm(w).onToggleSelect(firstUid, 0);
 
-      expect(vm(w).bulkEditEnd).not.toBeNull();
+      expect(vm(w).selectionCount).toBe(1);
+    });
+
+    it('clearSelection resets the range', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      await flushPromises();
+      vm(w).onToggleSelect(lineUid, 0);
+
+      vm(w).clearSelection();
+
+      expect(vm(w).selectionCount).toBe(0);
+    });
+
+    it('navigating to another page clears the active selection', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      writer.addLine(2, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      await flushPromises();
+      vm(w).onToggleSelect(lineUid, 0);
+      expect(vm(w).selectionCount).toBe(1);
+
+      await vm(w).navigateTo(2);
+
+      expect(vm(w).selectionCount).toBe(0);
     });
 
     it('applies act/scene to every line in the range, inclusive', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      const { lineUid: secondUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
       writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1); // leaves line index 2 out of range
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1); // leaves line index 2 out of range
 
-      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
+      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
@@ -1814,100 +1904,81 @@ describe('CollabScriptEditor', () => {
     it('assigns a character to the chosen part across the range', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
-      await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1);
-
-      vm(w).onBulkApply({
-        actScene: null,
-        assignee: { partIndex: 1, characterId: 42, characterGroupId: null },
+      const { lineUid: firstUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.DIALOGUE,
+        actId: 1,
+        sceneId: 1,
       });
+      const { lineUid: secondUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.DIALOGUE,
+        actId: 1,
+        sceneId: 1,
+      });
+      await flushPromises();
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
+
+      vm(w).onSetCharacterApply({ partIndex: 1, characterId: 42, characterGroupId: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
       expect(page1[0]!.parts[0]?.character_id).toBe(42);
       expect(page1[1]!.parts[0]?.character_id).toBe(42);
+      // Applying clears the selection, same as the old modal's auto-exit.
+      expect(vm(w).selectionCount).toBe(0);
     });
 
     it('skips a line that has no part at the chosen index', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
       // A spacing line has no parts at all — nothing for partIndex 1 to land on.
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      const { lineUid: secondUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.DIALOGUE,
+        actId: 1,
+        sceneId: 1,
+      });
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1);
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
 
       // Should not throw for the partless line, and still reach the dialogue line.
-      vm(w).onBulkApply({
-        actScene: null,
-        assignee: { partIndex: 1, characterId: 7, characterGroupId: null },
-      });
+      vm(w).onSetCharacterApply({ partIndex: 1, characterId: 7, characterGroupId: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
       expect(page1[1]!.parts[0]?.character_id).toBe(7);
     });
 
-    it('spans a page boundary, updating lines on both pages', async () => {
+    it('onMoveToSceneApply applies act/scene and clears the selection', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(2, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0); // page 1
-      await button(w, 'Next Page')!.trigger('click');
-      await flushPromises();
-      vm(w).onSetBulkEnd(0); // page 2
-
-      vm(w).onBulkApply({ actScene: { actId: 5, sceneId: 6 }, assignee: null });
-      await flushPromises();
-
-      expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(5);
-      expect(useScriptDraftStore().getPageSnapshot(2)[0]!.act_id).toBe(5);
-    });
-
-    it('aborts with a toast and exits bulk mode if the start line was deleted before applying', async () => {
-      const w = await mountSyncedEditor();
-      const writer = useDraftWriter();
-      const { lineUid: firstUid } = writer.addLine(1, {
+      const { lineUid } = writer.addLine(1, {
         lineType: LINE_TYPES.SPACING,
         actId: 1,
         sceneId: 1,
       });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1);
+      vm(w).onToggleSelect(lineUid, 0);
 
-      writer.deleteLine(1, firstUid);
-      await flushPromises();
-      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
+      vm(w).onMoveToSceneApply({ actId: 5, sceneId: 6 });
       await flushPromises();
 
-      const { toast } = await import('@/js/toast');
-      expect(toast.error).toHaveBeenCalledWith(
-        'Could not apply the bulk edit — the start or end line no longer exists'
-      );
-      expect(vm(w).bulkEditMode).toBe(false);
-      // The surviving line must not have been touched by a mutant that applies anyway.
-      expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
+      expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(5);
+      expect(vm(w).selectionCount).toBe(0);
     });
 
-    it('onBulkApply is a no-op when nothing is selected', async () => {
+    it('applyToSelection is a no-op when nothing is selected', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
       writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
       await flushPromises();
 
-      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
+      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
       await flushPromises();
 
       expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
@@ -1932,13 +2003,12 @@ describe('CollabScriptEditor', () => {
         sceneId: 1,
       });
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(2);
+      vm(w).onToggleSelect(startUid, 0);
+      vm(w).onToggleSelect(endUid, 2);
 
       writer.deleteLine(1, middleUid);
       await flushPromises();
-      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
+      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
@@ -1948,6 +2018,32 @@ describe('CollabScriptEditor', () => {
       expect(byUid(startUid)!.scene_id).toBe(8);
       expect(byUid(endUid)!.act_id).toBe(9);
       expect(byUid(endUid)!.scene_id).toBe(8);
+    });
+
+    it('onDeleteSelection deletes every line in the range and clears the selection', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid: firstUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      const { lineUid: secondUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      await flushPromises();
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
+
+      vm(w).onDeleteSelection();
+      await flushPromises();
+
+      const page1 = useScriptDraftStore().getPageSnapshot(1);
+      expect(page1.find((l) => l._uid === firstUid)).toBeUndefined();
+      expect(page1.find((l) => l._uid === secondUid)).toBeUndefined();
+      expect(vm(w).selectionCount).toBe(0);
     });
   });
 

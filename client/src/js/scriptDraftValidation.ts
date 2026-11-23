@@ -2,6 +2,20 @@ import { LINE_TYPES } from '@/constants/lineTypes';
 import type { DraftScriptLine, DraftScriptLinePart } from './yjs/draftAdapter';
 
 /**
+ * The validator below only ever reads these fields, never `_uid`/`_id` — so it works
+ * unmodified over the classic editor's plain `ScriptLine`/`ScriptLinePart` (see
+ * `ScriptEditor.vue`'s `firstInvalidScriptLine`) as well as the collab draft's
+ * `DraftScriptLine`/`DraftScriptLinePart`, which both satisfy this shape structurally.
+ */
+type ValidatableLinePart = Pick<
+  DraftScriptLinePart,
+  'line_text' | 'character_id' | 'character_group_id'
+>;
+type ValidatableLine = Pick<DraftScriptLine, 'act_id' | 'scene_id' | 'line_type'> & {
+  line_parts: ValidatableLinePart[];
+};
+
+/**
  * Discriminated on `isValid` so `{ isValid: true, error: 'something' }` and
  * `{ isValid: false, error: '' }` are both unrepresentable — a caller can only
  * read `.error` once `.isValid` has narrowed to `false`.
@@ -20,7 +34,7 @@ function invalid(error: string): LineValidationResult {
   return { isValid: false, error };
 }
 
-function hasText(part: DraftScriptLinePart): boolean {
+function hasText(part: ValidatableLinePart): boolean {
   return part.line_text != null && part.line_text !== '';
 }
 
@@ -36,7 +50,7 @@ function hasText(part: DraftScriptLinePart): boolean {
  */
 /** Null when `part`'s text is fine; otherwise the reason it isn't. */
 function dialoguePartTextError(
-  part: DraftScriptLinePart,
+  part: ValidatableLinePart,
   isOnlyPart: boolean,
   anyPartHasText: boolean
 ): string | null {
@@ -47,7 +61,7 @@ function dialoguePartTextError(
 }
 
 /** Null when `part`'s character/group assignment is fine; otherwise the reason it isn't. */
-function partCharacterError(part: DraftScriptLinePart): string | null {
+function partCharacterError(part: ValidatableLinePart): string | null {
   const hasCharacter = part.character_id != null;
   const hasGroup = part.character_group_id != null;
   if (!hasCharacter && !hasGroup) {
@@ -59,7 +73,7 @@ function partCharacterError(part: DraftScriptLinePart): string | null {
   return null;
 }
 
-function validateDialogue(line: DraftScriptLine, isCompactMode: boolean): LineValidationResult {
+function validateDialogue(line: ValidatableLine, isCompactMode: boolean): LineValidationResult {
   const parts = line.line_parts;
   if (parts.length === 0) return invalid('Dialogue lines must have at least one line part');
   if (isCompactMode && parts.length > 1) {
@@ -76,7 +90,7 @@ function validateDialogue(line: DraftScriptLine, isCompactMode: boolean): LineVa
   return VALID;
 }
 
-function validateStageDirection(line: DraftScriptLine): LineValidationResult {
+function validateStageDirection(line: ValidatableLine): LineValidationResult {
   const parts = line.line_parts;
   if (parts.length !== 1) return invalid('Stage directions must have exactly 1 line part');
 
@@ -91,7 +105,7 @@ function validateStageDirection(line: DraftScriptLine): LineValidationResult {
   return VALID;
 }
 
-function validateEmptyLine(line: DraftScriptLine, lineTypeName: string): LineValidationResult {
+function validateEmptyLine(line: ValidatableLine, lineTypeName: string): LineValidationResult {
   if (line.line_parts.length > 0) return invalid(`${lineTypeName} lines cannot have line parts`);
   return VALID;
 }
@@ -102,8 +116,8 @@ function validateEmptyLine(line: DraftScriptLine, lineTypeName: string): LineVal
  * columns are nullable), carried over unchanged from the classic editor's own
  * Vuelidate rules so an incomplete line is caught the same way in both editors.
  */
-export function validateDraftLine(
-  line: DraftScriptLine,
+export function validateDraftLine<L extends ValidatableLine>(
+  line: L,
   isCompactMode: boolean
 ): LineValidationResult {
   if (line.act_id == null || line.scene_id == null) {
@@ -129,17 +143,19 @@ export function validateDraftLine(
   }
 }
 
-export interface InvalidDraftLine {
+export interface InvalidDraftLine<L = DraftScriptLine> {
   page: string;
-  line: DraftScriptLine;
+  line: L;
   error: string;
 }
 
-/** The first invalid line across every page of a snapshot record, or null if all are valid. */
-export function firstInvalidDraftLine(
-  pages: Record<string, DraftScriptLine[]>,
+/** The first invalid line across every page of a snapshot record, or null if all are
+ * valid — generic so it works equally over the collab draft's own lines and (via the
+ * `firstInvalidScriptLine` alias) the classic editor's plain `ScriptLine`s. */
+export function firstInvalidDraftLine<L extends ValidatableLine>(
+  pages: Record<string, L[]>,
   isCompactMode: boolean
-): InvalidDraftLine | null {
+): InvalidDraftLine<L> | null {
   for (const page of Object.keys(pages).sort((a, b) => Number(a) - Number(b))) {
     for (const line of pages[page]!) {
       const result = validateDraftLine(line, isCompactMode);
@@ -148,3 +164,7 @@ export function firstInvalidDraftLine(
   }
   return null;
 }
+
+/** Same function, named for the classic (non-collab) editor's own plain `ScriptLine`s
+ * — see `ScriptEditor.vue`'s `firstInvalidLine`. */
+export const firstInvalidScriptLine = firstInvalidDraftLine;

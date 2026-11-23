@@ -5,12 +5,33 @@
       'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
       'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
       'remote-editing-row': (remoteEditors?.length ?? 0) > 0,
+      'line-row-selected': selected,
+      'line-row-editable': canEdit && !isCutMode,
     }"
   >
     <!-- Above the Act/Scene/Line columns, not below them, so it reads as a label on
          top of this row rather than a trailing footnote — see RemoteEditorsBadge's
          own cols="12" note further down for why this doesn't add a second row. -->
     <RemoteEditorsBadge :names="remoteEditors ?? []" />
+
+    <!-- Design E's gutter: a plain line number at rest, replaced by a selection
+         checkbox on hover/focus (always shown under `@media (hover: none)`, for
+         touch). Only rendered as interactive when a selection is actually possible
+         — view-only rendering (live view's own separate viewer) never sets canEdit. -->
+    <BCol cols="1" class="line-gutter">
+      <template v-if="canEdit && !isCutMode">
+        <span class="line-number" aria-hidden="true">{{ lineIndex + 1 }}</span>
+        <BFormCheckbox
+          class="line-select-checkbox"
+          :model-value="selected"
+          :aria-label="`Select line ${lineIndex + 1}`"
+          @update:model-value="$emit('toggle-select')"
+          @click.stop
+        />
+      </template>
+      <span v-else class="line-number">{{ lineIndex + 1 }}</span>
+    </BCol>
+
     <BCol cols="1">
       <p v-if="showActSceneLabel" class="viewable-line">{{ actLabel }}</p>
     </BCol>
@@ -20,7 +41,7 @@
 
     <!-- Dialogue -->
     <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
-      <BCol>
+      <BCol class="line-content" @click="onContentClick">
         <BRow v-if="needsHeadingsAny">
           <BCol
             v-for="(part, index) in line.line_parts"
@@ -68,7 +89,7 @@
 
     <!-- Stage direction -->
     <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
-      <BCol :style="{ textAlign: textAlign }">
+      <BCol class="line-content" :style="{ textAlign: textAlign }" @click="onContentClick">
         <BRow v-if="isTaggedStageDirection && needsHeadingsAny" style="margin-bottom: 1rem">
           <BCol :style="headingStyle">
             <b>{{ taggedStageDirectionHeadingName }}</b>
@@ -94,7 +115,7 @@
 
     <!-- Cue line -->
     <template v-else-if="line.line_type === LINE_TYPES.CUE_LINE">
-      <BCol style="text-align: center">
+      <BCol class="line-content" style="text-align: center" @click="onContentClick">
         <BAlert variant="secondary" :model-value="true">
           <p class="text-muted small" style="margin: 0">Cue Line</p>
         </BAlert>
@@ -103,50 +124,17 @@
 
     <!-- Spacing -->
     <template v-else-if="line.line_type === LINE_TYPES.SPACING">
-      <BCol style="text-align: center">
+      <BCol class="line-content" style="text-align: center" @click="onContentClick">
         <BAlert variant="secondary" :model-value="true">
           <p class="text-muted small" style="margin: 0">Spacing Line</p>
         </BAlert>
       </BCol>
     </template>
 
-    <BCol cols="1" align-self="end">
-      <BButtonGroup v-if="bulkEditMode && canEdit && !isCutMode">
-        <BButton
-          size="sm"
-          :variant="isBulkStart ? 'success' : 'outline-secondary'"
-          @click.stop="$emit('set-bulk-start')"
-        >
-          Start
-        </BButton>
-        <BButton
-          size="sm"
-          :variant="isBulkEnd ? 'success' : 'outline-secondary'"
-          @click.stop="$emit('set-bulk-end')"
-        >
-          End
-        </BButton>
-      </BButtonGroup>
-      <BButtonGroup v-else-if="canEdit && !isCutMode" class="script-edit-controls">
-        <BButton variant="link" style="padding: 0" @click.prevent.stop="$emit('editLine')"
-          >Edit</BButton
-        >
-        <BDropdown end toggle-class="dropdown-toggle-split" variant="link" style="padding: 0">
-          <BDropdownItem @click.prevent.stop="$emit('insertDialogue')"
-            >Insert Dialogue</BDropdownItem
-          >
-          <BDropdownItem @click.prevent.stop="$emit('insertStageDirection')"
-            >Insert Stage Direction</BDropdownItem
-          >
-          <BDropdownItem @click.prevent.stop="$emit('insertCueLine')"
-            >Insert Cue Line</BDropdownItem
-          >
-          <BDropdownItem @click.prevent.stop="$emit('insertSpacing')">Insert Spacing</BDropdownItem>
-          <BDropdownItem variant="danger" @click.prevent.stop="$emit('deleteLine')"
-            >Delete</BDropdownItem
-          >
-        </BDropdown>
-      </BButtonGroup>
+    <BCol v-if="canEdit && !isCutMode" cols="1" align-self="center" class="line-edit-trigger-col">
+      <button type="button" class="line-edit-trigger" @click="$emit('editLine')">
+        Click to edit
+      </button>
     </BCol>
   </BRow>
 </template>
@@ -176,9 +164,8 @@ const props = defineProps<{
   linePartCuts: (number | null)[];
   stageDirectionStyles: StageDirectionStyle[];
   stageDirectionStyleOverrides: StageDirectionStyle[];
-  bulkEditMode?: boolean;
-  isBulkStart?: boolean;
-  isBulkEnd?: boolean;
+  /** Whether this line currently falls within the active selection range. */
+  selected?: boolean;
   /** Phase 4 Step C: usernames of other room members with this line open. */
   remoteEditors?: string[];
 }>();
@@ -186,13 +173,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   editLine: [];
   cutLinePart: [partId: number];
-  insertDialogue: [];
-  insertStageDirection: [];
-  insertCueLine: [];
-  insertSpacing: [];
-  deleteLine: [];
-  'set-bulk-start': [];
-  'set-bulk-end': [];
+  'toggle-select': [];
 }>();
 
 const scriptConfigStore = useScriptConfigStore();
@@ -205,6 +186,10 @@ const textAlign = computed(() =>
 );
 const headingStyle = computed(() => ({ textAlign: textAlign.value }));
 const dialogueStyle = computed(() => ({ textAlign: textAlign.value }));
+
+function onContentClick(): void {
+  if (props.canEdit && !isCutMode.value) emit('editLine');
+}
 
 const showActSceneLabel = computed<boolean>(() => {
   if (!props.previousLine) return true;
@@ -318,10 +303,78 @@ function cutLinePart(partIndex: number): void {
 .cut-line-part {
   text-decoration: line-through;
 }
-.script-line-row:has(.script-edit-controls:hover) {
+.line-row-editable:hover,
+.line-row-editable:focus-within {
   background-color: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
   transition: background-color 0.15s ease;
+}
+.line-row-selected {
+  background-color: rgba(var(--bs-success-rgb), 0.08);
+  box-shadow: inset 3px 0 0 var(--bs-success);
+}
+.line-content {
+  cursor: default;
+}
+.line-row-editable .line-content {
+  cursor: pointer;
+}
+/* The gutter: a plain number at rest, replaced by the checkbox on hover/focus, or
+   always on a touch device (no hover to reveal it on). */
+.line-gutter {
+  position: relative;
+  text-align: center;
+  color: var(--bs-secondary-color);
+}
+.line-number {
+  display: inline-block;
+}
+.line-select-checkbox {
+  display: none;
+}
+.line-row-editable:hover .line-number,
+.line-row-editable:focus-within .line-number {
+  display: none;
+}
+.line-row-editable:hover .line-select-checkbox,
+.line-row-editable:focus-within .line-select-checkbox,
+.line-row-selected .line-select-checkbox {
+  display: inline-block;
+}
+.line-row-selected .line-number {
+  display: none;
+}
+@media (hover: none) {
+  .line-row-editable .line-number {
+    display: none;
+  }
+  .line-row-editable .line-select-checkbox {
+    display: inline-block;
+  }
+}
+/* "Click to edit": a real, always-focusable button so the row is operable from the
+   keyboard, visually revealed only on hover/focus (always shown under `@media
+   (hover: none)`, matching the gutter checkbox's own touch fallback). */
+.line-edit-trigger-col {
+  text-align: right;
+}
+.line-edit-trigger {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--bs-secondary-color);
+  font-size: 0.8125rem;
+  opacity: 0;
+  cursor: pointer;
+}
+.line-row-editable:hover .line-edit-trigger,
+.line-edit-trigger:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .line-edit-trigger {
+    opacity: 1;
+  }
 }
 /* Phase 4 Step C: another room member has this line open — border/tint match the
    orange "editing" avatar badge so the two read as the same status. */

@@ -1,10 +1,14 @@
 <template>
   <BRow
-    class="collab-line-editor-row"
+    class="collab-line-editor-row line-editor-card"
     :class="{ 'remote-editing-row': (remoteEditors?.length ?? 0) > 0 }"
+    @keydown.esc="onEsc"
   >
     <RemoteEditorsBadge :names="remoteEditors ?? []" variant="editor" />
-    <BCol cols="2">
+
+    <!-- See ScriptLineEditor.vue's own comment: only the very first line of an
+         empty draft page falls back to asking for act/scene directly. -->
+    <BCol v-if="!previousLine" cols="2">
       <BRow>
         <BCol cols="6">
           <BFormGroup label-size="sm" label=" ">
@@ -29,69 +33,86 @@
           </BFormGroup>
         </BCol>
       </BRow>
-      <BRow>
-        <BCol style="align-content: center">
+    </BCol>
+
+    <BCol :cols="previousLine ? 12 : 10">
+      <BRow class="align-items-center mb-2">
+        <BCol cols="auto">
+          <LineTypeSegmented
+            :model-value="lineType"
+            :disabled="!isUnsaved"
+            @update:model-value="$emit('retypeLine', $event)"
+          />
+        </BCol>
+      </BRow>
+
+      <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
+        <template v-if="line.line_parts.length > 0">
+          <CollabScriptLinePart
+            v-for="(part, index) in line.line_parts"
+            :key="part._uid"
+            :page="page"
+            :line-uid="line._uid"
+            :part="part"
+            :focus-input="index === 0"
+            :characters="characters"
+            :character-groups="characterGroups"
+            :show-add-button="
+              index === line.line_parts.length - 1 &&
+              lineType === LINE_TYPES.DIALOGUE &&
+              scriptMode === 1
+            "
+            :enable-add-button="line.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
+            :show-remove-button="line.line_parts.length > 1 && lineType === LINE_TYPES.DIALOGUE"
+            :line-type="lineType"
+            :line-parts="line.line_parts"
+            :stage-direction-styles="
+              lineType === LINE_TYPES.STAGE_DIRECTION ? stageDirectionStyles : []
+            "
+            :stage-direction-style-id="line.stage_direction_style_id"
+            @add-line-part="addLinePart"
+            @remove-line-part="removeLinePart(part._uid)"
+            @try-finish-line="tryFinishLine"
+            @navigate-up="$emit('navigateUp')"
+            @navigate-down="$emit('navigateDown')"
+            @stage-direction-style-change="onStageDirectionStyleChange"
+          />
+        </template>
+        <BCol v-else cols="10" style="text-align: right">
+          <BButton v-b-tooltip.hover.top="'Add line part'" @click="addLinePart"
+            ><IMdiPlusBox
+          /></BButton>
+        </BCol>
+      </template>
+      <template v-else>
+        <BCol>
+          <BAlert variant="secondary" :model-value="true">
+            <p class="text-muted small" style="margin: 0">
+              <template v-if="lineType === LINE_TYPES.CUE_LINE"
+                >Cue Lines have no editable content.</template
+              >
+              <template v-else-if="lineType === LINE_TYPES.SPACING"
+                >Spacing Lines have no editable content.</template
+              >
+              <template v-else>This line type is not recognized.</template>
+            </p>
+          </BAlert>
+        </BCol>
+      </template>
+
+      <BRow class="mt-2">
+        <BCol class="text-end">
           <BButtonGroup>
+            <BButton variant="outline-danger" @click.stop.prevent="$emit('deleteLine')"
+              >Delete Line</BButton
+            >
             <BButton variant="success" :disabled="!lineValid" @click="$emit('doneEditing')">
               Done
             </BButton>
-            <BButton variant="danger" @click.stop.prevent="$emit('deleteLine')">Delete</BButton>
           </BButtonGroup>
         </BCol>
       </BRow>
     </BCol>
-
-    <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
-      <template v-if="line.line_parts.length > 0">
-        <CollabScriptLinePart
-          v-for="(part, index) in line.line_parts"
-          :key="part._uid"
-          :page="page"
-          :line-uid="line._uid"
-          :part="part"
-          :focus-input="index === 0"
-          :characters="characters"
-          :character-groups="characterGroups"
-          :show-add-button="
-            index === line.line_parts.length - 1 &&
-            lineType === LINE_TYPES.DIALOGUE &&
-            scriptMode === 1
-          "
-          :enable-add-button="line.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
-          :show-remove-button="line.line_parts.length > 1 && lineType === LINE_TYPES.DIALOGUE"
-          :line-type="lineType"
-          :line-parts="line.line_parts"
-          :stage-direction-styles="
-            lineType === LINE_TYPES.STAGE_DIRECTION ? stageDirectionStyles : []
-          "
-          :stage-direction-style-id="line.stage_direction_style_id"
-          @add-line-part="addLinePart"
-          @remove-line-part="removeLinePart(part._uid)"
-          @try-finish-line="tryFinishLine"
-          @stage-direction-style-change="onStageDirectionStyleChange"
-        />
-      </template>
-      <BCol v-else cols="10" style="text-align: right">
-        <BButton v-b-tooltip.hover.top="'Add line part'" @click="addLinePart"
-          ><IMdiPlusBox
-        /></BButton>
-      </BCol>
-    </template>
-    <template v-else>
-      <BCol>
-        <BAlert variant="secondary" :model-value="true">
-          <p class="text-muted small" style="margin: 0">
-            <template v-if="lineType === LINE_TYPES.CUE_LINE"
-              >Cue Lines have no editable content.</template
-            >
-            <template v-else-if="lineType === LINE_TYPES.SPACING"
-              >Spacing Lines have no editable content.</template
-            >
-            <template v-else>This line type is not recognized.</template>
-          </p>
-        </BAlert>
-      </BCol>
-    </template>
   </BRow>
 </template>
 
@@ -103,9 +124,11 @@ import { LINE_TYPES } from '@/constants/lineTypes';
 import { useSystemStore } from '@/stores/system';
 import { useDraftWriter } from '@/composables/useDraftWriter';
 import { computeValidActs, computeValidScenes } from '@/js/scriptLineActScene';
+import { parseDbId } from '@/js/yjs/yjsSnapshot';
 import { toast } from '@/js/toast';
 import { fieldState } from '@/js/vuelidateFieldState';
 import CollabScriptLinePart from './CollabScriptLinePart.vue';
+import LineTypeSegmented from './LineTypeSegmented.vue';
 import RemoteEditorsBadge from './RemoteEditorsBadge.vue';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { StageDirectionStyle } from '@/types/api/script';
@@ -122,7 +145,6 @@ import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
 const props = defineProps<{
   page: number;
   line: DraftScriptLine;
-  lineType: number;
   acts: Act[];
   scenes: Scene[];
   characters: Character[];
@@ -136,13 +158,23 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   doneEditing: [];
+  finishAndAddLine: [];
   deleteLine: [];
+  navigateUp: [];
+  navigateDown: [];
+  /** LineTypeSegmented changed type on an as-yet-unsaved line — see `isUnsaved`
+   * below and CollabScriptEditor.vue's `retypeLine()`, which is the only thing
+   * allowed to actually act on this (it owns `editingLines`/`latestAddedLine`,
+   * which a type change's delete-and-re-add must also update). */
+  retypeLine: [newType: number];
 }>();
 
 const systemStore = useSystemStore();
 const writer = useDraftWriter();
 
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
+const lineType = computed(() => props.line.line_type);
+const isUnsaved = computed(() => parseDbId(props.line._id) == null);
 
 function warnIfGone(ok: boolean): void {
   if (!ok) toast.warning('This line was changed or removed by another editor.');
@@ -195,7 +227,7 @@ function removeLinePart(partUid: string): void {
 function addLinePart(): void {
   let characterId: number | null = null;
   let characterGroupId: number | null = null;
-  if (props.lineType === LINE_TYPES.DIALOGUE && props.previousLine) {
+  if (lineType.value === LINE_TYPES.DIALOGUE && props.previousLine) {
     const newIdx = props.line.line_parts.length;
     const prevPart = props.previousLine.line_parts[newIdx];
     if (prevPart) {
@@ -214,14 +246,19 @@ function onStageDirectionStyleChange(styleId: number | null): void {
 
 function tryFinishLine(): void {
   v$.value.$touch();
+  if (lineValid.value) emit('finishAndAddLine');
+}
+
+function onEsc(): void {
   if (lineValid.value) emit('doneEditing');
+  else v$.value.$touch();
 }
 
 onMounted(() => {
   v$.value.$touch();
   if (
     props.line.line_parts.length === 0 &&
-    (props.lineType === LINE_TYPES.DIALOGUE || props.lineType === LINE_TYPES.STAGE_DIRECTION)
+    (lineType.value === LINE_TYPES.DIALOGUE || lineType.value === LINE_TYPES.STAGE_DIRECTION)
   ) {
     addLinePart();
   }

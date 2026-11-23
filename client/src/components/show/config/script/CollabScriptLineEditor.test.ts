@@ -174,15 +174,17 @@ describe('CollabScriptLineEditor', () => {
     expect(wrapper.emitted('doneEditing')).toBeTruthy();
   });
 
-  it('try-finish-line from a part emits doneEditing only when the line is valid', async () => {
+  it('try-finish-line from a part emits finishAndAddLine only when the line is valid', async () => {
     wrapper = mountEditor({ line: line({ act_id: null }) });
     wrapper.findComponent(PartStub).vm.$emit('try-finish-line');
-    expect(wrapper.emitted('doneEditing')).toBeFalsy();
+    expect(wrapper.emitted('finishAndAddLine')).toBeFalsy();
 
     wrapper.unmount();
     wrapper = mountEditor();
     wrapper.findComponent(PartStub).vm.$emit('try-finish-line');
-    expect(wrapper.emitted('doneEditing')).toBeTruthy();
+    // Enter (try-finish-line) chains into a new line (Design E) — doneEditing alone
+    // never adds anything; see finishAndAddLine in CollabScriptEditor.vue.
+    expect(wrapper.emitted('finishAndAddLine')).toBeTruthy();
   });
 
   it('stage-direction-style-change from a part writes the line field', () => {
@@ -191,9 +193,9 @@ describe('CollabScriptLineEditor', () => {
     expect(setLineField).toHaveBeenCalledWith(1, 'line1', 'stage_direction_style_id', 3);
   });
 
-  it('emits deleteLine when Delete is clicked', async () => {
+  it('emits deleteLine when Delete Line is clicked', async () => {
     wrapper = mountEditor();
-    const del = wrapper.findAll('button').find((b) => b.text() === 'Delete')!;
+    const del = wrapper.findAll('button').find((b) => b.text() === 'Delete Line')!;
     await del.trigger('click');
     expect(wrapper.emitted('deleteLine')).toBeTruthy();
   });

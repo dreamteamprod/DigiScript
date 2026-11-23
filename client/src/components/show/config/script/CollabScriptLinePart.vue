@@ -74,6 +74,8 @@
           @focus="textField.onCaretActivity"
           @select="textField.onCaretActivity"
           @keydown.enter="handleEnterPress"
+          @keydown.up="$emit('navigate-up')"
+          @keydown.down="$emit('navigate-down')"
           @compositionstart="textField.onCompositionStart"
           @compositionend="onTextCompositionEnd(($event.target as HTMLInputElement).value)"
         />
@@ -140,6 +142,8 @@ const emit = defineEmits<{
   'add-line-part': [];
   'remove-line-part': [];
   'try-finish-line': [];
+  'navigate-up': [];
+  'navigate-down': [];
   'stage-direction-style-change': [id: number | null];
 }>();
 
@@ -284,7 +288,8 @@ const combinedState = computed(() =>
   combinedFieldState(v$.value.character_id, v$.value.character_group_id)
 );
 
-function handleEnterPress(): void {
+function handleEnterPress(event: KeyboardEvent): void {
+  if (event.isComposing) return;
   v$.value.$touch();
   emit('try-finish-line');
 }

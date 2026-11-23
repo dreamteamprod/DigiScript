@@ -1,17 +1,14 @@
 <template>
   <BModal
     ref="modal"
-    title="Bulk Edit Act/Scene"
+    title="Move to Scene"
     size="md"
     ok-title="Apply"
     :ok-disabled="!canApply"
     @ok.prevent="handleOk"
     @hidden="reset"
   >
-    <p class="text-muted small mb-3">
-      Applies the selected act and scene to all lines from the chosen start line to end line
-      (inclusive).
-    </p>
+    <p class="text-muted small mb-3">Moves every selected line into the chosen act and scene.</p>
     <BFormGroup label="Act" label-for="bulk-act-input">
       <BFormSelect
         id="bulk-act-input"

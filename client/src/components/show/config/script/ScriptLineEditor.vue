@@ -1,6 +1,11 @@
 <template>
-  <BRow>
-    <BCol cols="2">
+  <BRow class="line-editor-card" @keydown.esc="onEsc">
+    <!-- No previous line to inherit an act/scene from (the very first line of an
+         empty script/page) — the only case this card still asks for them directly.
+         Every other line already inherited its act/scene from the line it was
+         added next to (see ScriptEditor.vue's addNewLine/insertLineAt); structural
+         moves happen via "Start New Scene Here" / "Move to Scene" instead. -->
+    <BCol v-if="!previousLine" cols="2">
       <BRow>
         <BCol cols="6">
           <BFormGroup label-size="sm" label=" ">
@@ -25,68 +30,85 @@
           </BFormGroup>
         </BCol>
       </BRow>
-      <BRow>
-        <BCol style="align-content: center">
+    </BCol>
+
+    <BCol :cols="previousLine ? 12 : 10">
+      <BRow class="align-items-center mb-2">
+        <BCol cols="auto">
+          <LineTypeSegmented
+            :model-value="state.line_type"
+            :disabled="state.id != null"
+            @update:model-value="onLineTypeChange"
+          />
+        </BCol>
+      </BRow>
+
+      <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
+        <template v-if="state.line_parts.length > 0">
+          <ScriptLinePart
+            v-for="(part, index) in state.line_parts"
+            :key="`line_${lineIndex}_part_${index}`"
+            :model-value="state.line_parts[index]"
+            :focus-input="index === 0"
+            :characters="characters"
+            :character-groups="characterGroups"
+            :show-add-button="
+              index === state.line_parts.length - 1 &&
+              lineType === LINE_TYPES.DIALOGUE &&
+              scriptMode === 1
+            "
+            :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
+            :show-remove-button="state.line_parts.length > 1 && lineType === LINE_TYPES.DIALOGUE"
+            :line-type="lineType"
+            :line-parts="state.line_parts"
+            :stage-direction-styles="
+              lineType === LINE_TYPES.STAGE_DIRECTION ? stageDirectionStyles : []
+            "
+            :stage-direction-style-id="state.stage_direction_style_id"
+            @update:model-value="onPartUpdate(index, $event)"
+            @add-line-part="addLinePart"
+            @remove-line-part="removeLinePart(index)"
+            @try-finish-line="tryFinishLine"
+            @navigate-up="$emit('navigateUp')"
+            @navigate-down="$emit('navigateDown')"
+            @stage-direction-style-change="onStageDirectionStyleChange"
+          />
+        </template>
+        <BCol v-else cols="10" style="text-align: right">
+          <BButton v-b-tooltip.hover.top="'Add line part'" @click="addLinePart"
+            ><IMdiPlusBox
+          /></BButton>
+        </BCol>
+      </template>
+      <template v-else>
+        <BCol>
+          <BAlert variant="secondary" :model-value="true">
+            <p class="text-muted small" style="margin: 0">
+              <template v-if="lineType === LINE_TYPES.CUE_LINE"
+                >Cue Lines have no editable content.</template
+              >
+              <template v-else-if="lineType === LINE_TYPES.SPACING"
+                >Spacing Lines have no editable content.</template
+              >
+              <template v-else>This line type is not recognized.</template>
+            </p>
+          </BAlert>
+        </BCol>
+      </template>
+
+      <BRow class="mt-2">
+        <BCol class="text-end">
           <BButtonGroup>
+            <BButton variant="outline-danger" @click.stop.prevent="$emit('deleteLine')"
+              >Delete Line</BButton
+            >
             <BButton variant="success" :disabled="!lineValid" @click="$emit('doneEditing')">
               Done
             </BButton>
-            <BButton variant="danger" @click.stop.prevent="$emit('deleteLine')">Delete</BButton>
           </BButtonGroup>
         </BCol>
       </BRow>
     </BCol>
-
-    <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
-      <template v-if="state.line_parts.length > 0">
-        <ScriptLinePart
-          v-for="(part, index) in state.line_parts"
-          :key="`line_${lineIndex}_part_${index}`"
-          :model-value="state.line_parts[index]"
-          :focus-input="index === 0"
-          :characters="characters"
-          :character-groups="characterGroups"
-          :show-add-button="
-            index === state.line_parts.length - 1 &&
-            lineType === LINE_TYPES.DIALOGUE &&
-            scriptMode === 1
-          "
-          :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
-          :show-remove-button="state.line_parts.length > 1 && lineType === LINE_TYPES.DIALOGUE"
-          :line-type="lineType"
-          :line-parts="state.line_parts"
-          :stage-direction-styles="
-            lineType === LINE_TYPES.STAGE_DIRECTION ? stageDirectionStyles : []
-          "
-          :stage-direction-style-id="state.stage_direction_style_id"
-          @update:model-value="onPartUpdate(index, $event)"
-          @add-line-part="addLinePart"
-          @remove-line-part="removeLinePart(index)"
-          @try-finish-line="tryFinishLine"
-          @stage-direction-style-change="onStageDirectionStyleChange"
-        />
-      </template>
-      <BCol v-else cols="10" style="text-align: right">
-        <BButton v-b-tooltip.hover.top="'Add line part'" @click="addLinePart"
-          ><IMdiPlusBox
-        /></BButton>
-      </BCol>
-    </template>
-    <template v-else>
-      <BCol>
-        <BAlert variant="secondary" :model-value="true">
-          <p class="text-muted small" style="margin: 0">
-            <template v-if="lineType === LINE_TYPES.CUE_LINE"
-              >Cue Lines have no editable content.</template
-            >
-            <template v-else-if="lineType === LINE_TYPES.SPACING"
-              >Spacing Lines have no editable content.</template
-            >
-            <template v-else>This line type is not recognized.</template>
-          </p>
-        </BAlert>
-      </BCol>
-    </template>
   </BRow>
 </template>
 
@@ -97,7 +119,9 @@ import { required } from '@vuelidate/validators';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
+import { computeValidActs, computeValidScenes } from '@/js/scriptLineActScene';
 import ScriptLinePart from './ScriptLinePart.vue';
+import LineTypeSegmented from './LineTypeSegmented.vue';
 import type {
   ScriptLine,
   ScriptLinePart as ScriptLinePartType,
@@ -114,7 +138,6 @@ const props = defineProps<{
   characterGroups: CharacterGroup[];
   previousLine: ScriptLine | null;
   nextLine: ScriptLine | null;
-  lineType: number;
   stageDirectionStyles: StageDirectionStyle[];
   modelValue: ScriptLine;
 }>();
@@ -122,7 +145,13 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [line: ScriptLine];
   doneEditing: [];
+  /** Enter in the text field: close this line and open a new blank dialogue line
+   * right below it (Design E's keyboard flow) — distinct from plain `doneEditing`
+   * (Done button / Esc), which never adds anything. */
+  finishAndAddLine: [];
   deleteLine: [];
+  navigateUp: [];
+  navigateDown: [];
 }>();
 
 const showStore = useShowStore();
@@ -132,6 +161,12 @@ const systemStore = useSystemStore();
 const state = ref<ScriptLine>(JSON.parse(JSON.stringify(props.modelValue))); // NOSONAR
 
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
+// `lineType` the parent passes is a stable prop (it's what decides which branch of
+// ScriptEditor.vue's own v-if renders this component) but a brand-new, not-yet-saved
+// line can still change its own type locally via LineTypeSegmented — `state.line_type`
+// is the one actually read by this component's own template so that switch is live
+// without the parent having to re-key/remount the editor.
+const lineType = computed(() => state.value.line_type);
 
 const blankLinePart = (): ScriptLinePartType => ({
   id: null,
@@ -142,43 +177,17 @@ const blankLinePart = (): ScriptLinePartType => ({
   line_text: '',
 });
 
-const validActs = computed<Act[]>(() => {
-  let startAct = props.acts.find((a) => a.previous_act == null) ?? null;
-  if (props.previousLine) {
-    startAct = props.acts.find((a) => a.id === props.previousLine!.act_id) ?? startAct;
-  }
-  const result: Act[] = [];
-  let cur = startAct;
-  while (cur) {
-    result.push(cur);
-    if (props.nextLine && props.nextLine.act_id === cur.id) break;
-    cur = cur.next_act == null ? null : (props.acts.find((a) => a.id === cur!.next_act) ?? null);
-  }
-  return result;
-});
-
+const validActs = computed<Act[]>(() =>
+  computeValidActs(props.acts, props.previousLine, props.nextLine)
+);
 const actOptions = computed(() => [
   { value: null, text: 'N/A', disabled: true },
   ...validActs.value.map((a) => ({ value: a.id, text: a.name })),
 ]);
 
-const validScenes = computed<Scene[]>(() => {
-  if (state.value.act_id == null) return [];
-  const actScenes = props.scenes.filter((s) => s.act === state.value.act_id);
-  let startScene = actScenes.find((s) => s.previous_scene == null) ?? null;
-  if (props.previousLine && props.previousLine.act_id === state.value.act_id) {
-    startScene = actScenes.find((s) => s.id === props.previousLine!.scene_id) ?? startScene;
-  }
-  const result: Scene[] = [];
-  let cur = startScene;
-  while (cur) {
-    result.push(cur);
-    if (props.nextLine && props.nextLine.scene_id === cur.id) break;
-    cur = cur.next_scene == null ? null : (actScenes.find((s) => s.id === cur!.next_scene) ?? null);
-  }
-  return result;
-});
-
+const validScenes = computed<Scene[]>(() =>
+  computeValidScenes(props.scenes, state.value.act_id, props.previousLine, props.nextLine)
+);
 const sceneOptions = computed(() => [
   { value: null, text: 'N/A', disabled: true },
   ...validScenes.value.map((s) => ({ value: s.id, text: s.name })),
@@ -224,7 +233,7 @@ function removeLinePart(index: number): void {
 function addLinePart(): void {
   const blank = blankLinePart();
   blank.part_index = state.value.line_parts.length;
-  if (props.lineType === LINE_TYPES.DIALOGUE && props.previousLine) {
+  if (lineType.value === LINE_TYPES.DIALOGUE && props.previousLine) {
     const newIdx = state.value.line_parts.length;
     const prevPart = props.previousLine.line_parts[newIdx];
     if (prevPart) {
@@ -237,6 +246,18 @@ function addLinePart(): void {
   onStateChange();
 }
 
+/** Only ever called on a line that has never been saved (LineTypeSegmented is
+ * disabled otherwise) — rebuilds `line_parts` to match what the new type needs,
+ * the same shape `blankLine()`/`addNewLine()` give a freshly added line of that
+ * type, rather than trying to carry over parts that may no longer make sense. */
+function onLineTypeChange(newType: number): void {
+  state.value.line_type = newType;
+  state.value.line_parts =
+    newType === LINE_TYPES.DIALOGUE || newType === LINE_TYPES.STAGE_DIRECTION ? [] : [];
+  onStateChange();
+  if (newType === LINE_TYPES.DIALOGUE || newType === LINE_TYPES.STAGE_DIRECTION) addLinePart();
+}
+
 function onStageDirectionStyleChange(styleId: number | null): void {
   state.value.stage_direction_style_id = styleId;
   onStateChange();
@@ -244,16 +265,31 @@ function onStageDirectionStyleChange(styleId: number | null): void {
 
 function tryFinishLine(): void {
   v$.value.$touch();
+  if (lineValid.value) emit('finishAndAddLine');
+}
+
+function onEsc(): void {
   if (lineValid.value) emit('doneEditing');
+  else v$.value.$touch();
 }
 
 onMounted(() => {
   v$.value.$touch();
   if (
     state.value.line_parts.length === 0 &&
-    (props.lineType === LINE_TYPES.DIALOGUE || props.lineType === LINE_TYPES.STAGE_DIRECTION)
+    (lineType.value === LINE_TYPES.DIALOGUE || lineType.value === LINE_TYPES.STAGE_DIRECTION)
   ) {
     addLinePart();
   }
 });
 </script>
+
+<style scoped>
+.line-editor-card {
+  padding: 12px;
+  margin: 6px 0;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-success);
+  border-radius: var(--bs-border-radius);
+}
+</style>

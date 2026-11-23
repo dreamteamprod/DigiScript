@@ -42,27 +42,36 @@
               >
                 Stop Editing
               </BButton>
-              <BButton variant="success" :disabled="!canSave && !isAutoSaving" @click="saveScript">
-                Save
-              </BButton>
               <BButton
-                v-if="canEdit && !scriptConfigStore.cutMode"
-                :variant="bulkEditMode ? 'info' : 'outline-info'"
-                @click="bulkEditMode ? exitBulkEditMode() : enterBulkEditMode()"
+                variant="success"
+                :disabled="!canSave && !isAutoSaving"
+                :title="saveDisabledReason ?? undefined"
+                @click="saveScript"
               >
-                {{ bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit' }}
+                Save
               </BButton>
             </template>
           </BButtonGroup>
         </BCol>
       </BRow>
       <BRow class="script-row">
+        <BCol cols="1" />
         <BCol cols="1">Act</BCol>
         <BCol cols="1">Scene</BCol>
         <BCol>Line</BCol>
-        <BCol cols="1" />
       </BRow>
     </div>
+
+    <SelectionBar
+      v-if="selectionCount > 0"
+      :count="selectionCount"
+      :range-label="selectionRangeLabel"
+      @set-character="openSetCharacterDialog"
+      @move-to-scene="openMoveToSceneDialog"
+      @delete="onDeleteSelection"
+      @clear="clearSelection"
+    />
+
     <BRow class="script-row">
       <BCol cols="12">
         <template
@@ -81,11 +90,13 @@
               :model-value="line"
               :previous-line="getPreviousLine(index)"
               :next-line="getNextLine(index)"
-              :line-type="line.line_type"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               @update:model-value="onLineChange(index, $event)"
               @done-editing="doneEditingLine(currentPage, index)"
+              @finish-and-add-line="finishAndAddLine(currentPage, index)"
               @delete-line="deleteLine(currentPage, index)"
+              @navigate-up="navigateUp(currentPage, index)"
+              @navigate-down="navigateDown(currentPage, index)"
             />
             <ScriptLineViewer
               v-else
@@ -101,18 +112,15 @@
               :line-part-cuts="linePartCuts"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
-              :bulk-edit-mode="bulkEditMode"
-              :is-bulk-start="isBulkStart(index)"
-              :is-bulk-end="isBulkEnd(index)"
+              :selected="isLineSelected(index)"
               @edit-line="beginEditingLine(currentPage, index)"
               @cut-line-part="cutLinePart"
-              @insert-dialogue="insertLineAt(currentPage, index, LINE_TYPES.DIALOGUE)"
-              @insert-stage-direction="insertLineAt(currentPage, index, LINE_TYPES.STAGE_DIRECTION)"
-              @insert-cue-line="insertLineAt(currentPage, index, LINE_TYPES.CUE_LINE)"
-              @insert-spacing="insertLineAt(currentPage, index, LINE_TYPES.SPACING)"
-              @delete-line="deleteLine(currentPage, index)"
-              @set-bulk-start="onSetBulkStart(index)"
-              @set-bulk-end="onSetBulkEnd(index)"
+              @toggle-select="onToggleSelect(index)"
+            />
+            <AddLineDivider
+              v-if="canEdit && !scriptConfigStore.cutMode && index < currentPageLines.length - 1"
+              :line-number="index + 1"
+              @add="insertLineAt(currentPage, index, $event)"
             />
           </template>
         </template>
@@ -141,15 +149,21 @@
       :error="saveError ? 'Could not save script changes.' : null"
     />
 
-    <BulkEditModal
-      ref="bulkModal"
+    <SetCharacterOrGroupDialog
+      ref="setCharDialog"
+      :lines="selectionPreviewLines"
+      :characters="showStore.characterList"
+      :character-groups="showStore.characterGroupList"
+      @apply="onSetCharacterApply"
+    />
+
+    <BulkActSceneModal
+      ref="moveToSceneModal"
       :previous-line-of-start="previousLineOfStart"
       :next-line-of-end="nextLineOfEnd"
       :acts="showStore.actList"
       :scenes="showStore.sceneList"
-      :characters="showStore.characterList"
-      :character-groups="showStore.characterGroupList"
-      @apply="onBulkApply"
+      @apply="onMoveToSceneApply"
     />
 
     <!-- Go-to-page modal -->
@@ -193,15 +207,20 @@ import { useWebSocketStore } from '@/stores/websocket';
 import { useConfirm } from '@/composables/useConfirm';
 import { useAutoSave } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
+import { lineTypeLabel } from '@/js/lineTypeLabels';
+import { firstInvalidScriptLine } from '@/js/scriptDraftValidation';
 import ScriptLineEditor from './ScriptLineEditor.vue';
 import ScriptLineViewer from './ScriptLineViewer.vue';
-import BulkEditModal from './BulkEditModal.vue';
+import AddLineDivider from './AddLineDivider.vue';
+import SelectionBar from './SelectionBar.vue';
+import SetCharacterOrGroupDialog, {
+  type SelectedLinePreview,
+} from './SetCharacterOrGroupDialog.vue';
+import BulkActSceneModal from './BulkActSceneModal.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 import type { BulkEditPayload } from '@/types/bulkEdit';
 import { applyBulkPayloadToLine } from '@/js/bulkEditLine';
-
-const MRU_LOOK_BACK = 4;
 
 const showStore = useShowStore();
 const systemStore = useSystemStore();
@@ -216,7 +235,6 @@ const loaded = ref(false);
 const currentPage = ref(1);
 const navbarHeight = ref(56);
 const editingLines = ref(new Set<string>());
-const latestAddedLine = ref<string | null>(null);
 const linePartCuts = ref<number[]>([]);
 const savingInProgress = ref(false);
 const saveError = ref(false);
@@ -224,7 +242,10 @@ const curSavePage = ref(0);
 const totalSavePages = ref<number | null>(null);
 const changingPage = ref(false);
 const isAutoSaving = ref(false);
-const bulkEditMode = ref(false);
+// Selection range (Design E's "tick a line number"), confined to the current page —
+// navigating pages clears it (see decrPage/incrPage/goToPage below). Kept as the same
+// {page, lineIndex} shape the old Bulk Edit used, since Move to Scene's valid-act/
+// scene calculation still needs the line just before/after the range.
 const bulkEditStart = ref<{ page: number; lineIndex: number } | null>(null);
 const bulkEditEnd = ref<{ page: number; lineIndex: number } | null>(null);
 const previousLineOfStart = ref<ScriptLine | null>(null);
@@ -233,7 +254,8 @@ const pageInputNo = ref(1);
 
 const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
 const goToPageModal = ref<InstanceType<typeof BModal>>();
-const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
+const setCharDialog = ref<InstanceType<typeof SetCharacterOrGroupDialog>>();
+const moveToSceneModal = ref<InstanceType<typeof BulkActSceneModal>>();
 
 const currentPageLines = computed(() => scriptConfigStore.getTmpPage(currentPage.value));
 const deletedLines = computed(() => scriptConfigStore.getDeletedLines(currentPage.value));
@@ -264,9 +286,26 @@ const scriptChanges = computed<boolean>(() => {
   });
 });
 
+// Only the loaded pages (scriptConfigStore.tmpScript) are checked — an unloaded page
+// is untouched saved data, already valid when it was last saved.
+const isCompactMode = computed(() => systemStore.currentShow?.script_mode !== 1);
+const firstInvalidLine = computed(() =>
+  scriptConfigStore.cutMode
+    ? null
+    : firstInvalidScriptLine(scriptConfigStore.tmpScript, isCompactMode.value)
+);
+
 const canSave = computed(() => {
   if (scriptConfigStore.cutMode) return scriptChanges.value;
-  return scriptChanges.value && editingLines.value.size === 0;
+  return scriptChanges.value && editingLines.value.size === 0 && firstInvalidLine.value === null;
+});
+const saveDisabledReason = computed<string | null>(() => {
+  if (canSave.value || scriptConfigStore.cutMode) return null;
+  if (editingLines.value.size > 0) return 'Finish editing the open line(s) before saving';
+  if (firstInvalidLine.value) {
+    return `Page ${firstInvalidLine.value.page}: ${firstInvalidLine.value.error}`;
+  }
+  return null;
 });
 
 // Previous/next line helpers (synchronous — adjacent pages preloaded)
@@ -319,7 +358,7 @@ async function stopEditing(): Promise<void> {
   }
   const wasCutMode = scriptConfigStore.cutMode;
   editingLines.value.clear();
-  exitBulkEditMode();
+  clearSelection();
   linePartCuts.value = [...scriptStore.cuts];
   scriptConfigStore.setCutMode(false);
   scriptConfigStore.setEditStatus({
@@ -342,6 +381,7 @@ async function loadPage(page: number): Promise<void> {
 
 async function decrPage(): Promise<void> {
   if (currentPage.value <= 1) return;
+  clearSelection();
   const targetPage = currentPage.value - 1;
   await loadPage(targetPage);
   if (currentPageLines.value.length === 0) {
@@ -355,6 +395,7 @@ async function decrPage(): Promise<void> {
 }
 
 async function incrPage(): Promise<void> {
+  clearSelection();
   currentPage.value++;
   await loadPage(currentPage.value);
   // Preload next page
@@ -362,6 +403,7 @@ async function incrPage(): Promise<void> {
 }
 
 async function goToPageInner(page: number): Promise<void> {
+  const MRU_LOOK_BACK = 4;
   const lookBackStart = Math.max(1, page - MRU_LOOK_BACK);
   for (let p = lookBackStart; p < page; p++) {
     await loadPage(p);
@@ -373,6 +415,7 @@ async function goToPageInner(page: number): Promise<void> {
 
 async function goToPage(): Promise<void> {
   if (!pageInputNo.value || pageInputNo.value < 1) return;
+  clearSelection();
   changingPage.value = true;
   await goToPageInner(pageInputNo.value);
   changingPage.value = false;
@@ -398,7 +441,6 @@ async function addNewLine(lineType: number): Promise<void> {
   const lineIndex = pageLines.length - 1;
   const lineIdent = `page_${currentPage.value}_line_${lineIndex}`;
   editingLines.value.add(lineIdent);
-  latestAddedLine.value = lineIdent;
   const prev = getPreviousLine(lineIndex);
   if (prev) {
     scriptConfigStore.setLine(currentPage.value, lineIndex, {
@@ -456,21 +498,37 @@ function beginEditingLine(pageIndex: number, lineIndex: number): void {
 }
 
 function doneEditingLine(pageIndex: number, lineIndex: number): void {
-  const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
-  editingLines.value.delete(lineIdent);
-  if (latestAddedLine.value === lineIdent) {
-    addNewLine(LINE_TYPES.DIALOGUE).catch((err) => {
-      log.error('Failed to add new line', err);
-      toast.error('Unable to add a new line. Please try again.');
-    });
-  }
+  editingLines.value.delete(`page_${pageIndex}_line_${lineIndex}`);
+}
+
+/** Enter in the text field (Design E's keyboard flow): close this line and open a
+ * fresh blank dialogue line right below it. Distinct from plain `doneEditingLine`
+ * (Done/Esc), which never adds anything — see ScriptLineEditor.vue's own emits. */
+function finishAndAddLine(pageIndex: number, lineIndex: number): void {
+  doneEditingLine(pageIndex, lineIndex);
+  insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE).catch((err) => {
+    log.error('Failed to add new line', err);
+    toast.error('Unable to add a new line. Please try again.');
+  });
+}
+
+function navigateUp(pageIndex: number, lineIndex: number): void {
+  if (lineIndex <= 0) return;
+  doneEditingLine(pageIndex, lineIndex);
+  beginEditingLine(pageIndex, lineIndex - 1);
+}
+
+function navigateDown(pageIndex: number, lineIndex: number): void {
+  const pageLines = scriptConfigStore.getTmpPage(pageIndex);
+  if (lineIndex >= pageLines.length - 1) return;
+  doneEditingLine(pageIndex, lineIndex);
+  beginEditingLine(pageIndex, lineIndex + 1);
 }
 
 function deleteLine(pageIndex: number, lineIndex: number): void {
   const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
-  if (latestAddedLine.value === lineIdent) latestAddedLine.value = null;
   scriptConfigStore.deleteLine(pageIndex, lineIndex);
-  doneEditingLine(pageIndex, lineIndex);
+  editingLines.value.delete(lineIdent);
 
   const shifted = new Set<string>();
   editingLines.value.forEach((ident) => {
@@ -484,15 +542,6 @@ function deleteLine(pageIndex: number, lineIndex: number): void {
     }
   });
   editingLines.value = shifted;
-
-  if (latestAddedLine.value) {
-    const parts = latestAddedLine.value.split('_');
-    const ep = Number.parseInt(parts[1], 10);
-    const ei = Number.parseInt(parts[3], 10);
-    if (ep === pageIndex && ei >= lineIndex) {
-      latestAddedLine.value = `page_${pageIndex}_line_${ei - 1}`;
-    }
-  }
 }
 
 function cutLinePart(linePartId: number): void {
@@ -608,55 +657,75 @@ function calculateNavbarHeight(): void {
   navbarHeight.value = navbar ? (navbar as HTMLElement).offsetHeight : 56;
 }
 
-function enterBulkEditMode(): void {
-  bulkEditMode.value = true;
-  bulkEditStart.value = null;
-  bulkEditEnd.value = null;
-}
+// ── Selection (Design E's checkboxes, replacing the old Bulk Edit mode toggle) ────
 
-function exitBulkEditMode(): void {
-  bulkEditMode.value = false;
+function clearSelection(): void {
   bulkEditStart.value = null;
   bulkEditEnd.value = null;
   previousLineOfStart.value = null;
   nextLineOfEnd.value = null;
 }
 
-function onSetBulkStart(index: number): void {
-  bulkEditStart.value = { page: currentPage.value, lineIndex: index };
-  bulkEditEnd.value = null;
-}
-
-function onSetBulkEnd(index: number): void {
-  if (bulkEditStart.value) {
-    const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
-    if (startPage === currentPage.value && index <= startIndex) {
-      toast.error('End line must come after start line');
-      return;
-    }
-    if (currentPage.value < startPage) {
-      toast.error('End line must come after start line');
-      return;
-    }
+/** A plain click always extends/collapses the range to the clicked line — no
+ * modifier key required, so the whole flow works from the keyboard (Space on a
+ * focused checkbox). Clicking inside the current range collapses it back down to
+ * just that one line, which doubles as the "restart a selection" gesture. */
+function onToggleSelect(index: number): void {
+  if (!bulkEditStart.value || !bulkEditEnd.value) {
+    bulkEditStart.value = { page: currentPage.value, lineIndex: index };
+    bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
+    return;
   }
-  bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
+  const { lineIndex: startIndex } = bulkEditStart.value;
+  const { lineIndex: endIndex } = bulkEditEnd.value;
+  if (index < startIndex) {
+    bulkEditStart.value = { page: currentPage.value, lineIndex: index };
+  } else if (index > endIndex) {
+    bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
+  } else {
+    bulkEditStart.value = { page: currentPage.value, lineIndex: index };
+    bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
+  }
 }
 
-function isBulkStart(index: number): boolean {
-  return (
-    bulkEditStart.value != null &&
-    bulkEditStart.value.page === currentPage.value &&
-    bulkEditStart.value.lineIndex === index
-  );
+function isLineSelected(index: number): boolean {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return false;
+  if (bulkEditStart.value.page !== currentPage.value) return false;
+  return index >= bulkEditStart.value.lineIndex && index <= bulkEditEnd.value.lineIndex;
 }
 
-function isBulkEnd(index: number): boolean {
-  return (
-    bulkEditEnd.value != null &&
-    bulkEditEnd.value.page === currentPage.value &&
-    bulkEditEnd.value.lineIndex === index
-  );
-}
+const selectionCount = computed(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return 0;
+  return bulkEditEnd.value.lineIndex - bulkEditStart.value.lineIndex + 1;
+});
+
+const selectionRangeLabel = computed(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return '';
+  const first = bulkEditStart.value.lineIndex + 1;
+  const last = bulkEditEnd.value.lineIndex + 1;
+  return first === last ? `Line ${first}` : `Lines ${first} to ${last}`;
+});
+
+const selectionPreviewLines = computed<SelectedLinePreview[]>(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return [];
+  const { lineIndex: startIndex } = bulkEditStart.value;
+  const { lineIndex: endIndex } = bulkEditEnd.value;
+  const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
+  const result: SelectedLinePreview[] = [];
+  for (let i = startIndex; i <= endIndex; i++) {
+    const line = pageLines[i];
+    if (!line) continue;
+    result.push({
+      label: `Line ${i + 1}`,
+      lineTypeLabel: lineTypeLabel(line.line_type),
+      parts: line.line_parts.map((p) => ({
+        characterId: p.character_id,
+        characterGroupId: p.character_group_id,
+      })),
+    });
+  }
+  return result;
+});
 
 async function loadBoundaryLines(): Promise<void> {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
@@ -665,7 +734,7 @@ async function loadBoundaryLines(): Promise<void> {
 
   if (startIndex === 0 && startPage > 1) await loadPage(startPage - 1);
   const endPageLines = scriptConfigStore.getTmpPage(endPage);
-  if (endLines_isLast(endPageLines, endIndex)) await loadPage(endPage + 1);
+  if (endIndex === endPageLines.length - 1) await loadPage(endPage + 1);
 
   const startPageLines = scriptConfigStore.getTmpPage(startPage);
   if (startIndex > 0) {
@@ -682,37 +751,71 @@ async function loadBoundaryLines(): Promise<void> {
       : (scriptConfigStore.getTmpPage(endPage + 1)[0] ?? null);
 }
 
-function endLines_isLast(lines: ScriptLine[], index: number): boolean {
-  return index === lines.length - 1;
+async function openSetCharacterDialog(): Promise<void> {
+  setCharDialog.value?.show();
 }
 
-async function onBulkApply(payload: BulkEditPayload): Promise<void> {
+async function openMoveToSceneDialog(): Promise<void> {
+  await loadBoundaryLines();
+  moveToSceneModal.value?.show();
+}
+
+/** Applies a change to every line in the active selection — shared by both the
+ * "Set Character or Group" and "Move to Scene" actions, so each only has to build
+ * its own half of a `BulkEditPayload` (the other half stays null). */
+function applyToSelection(payload: BulkEditPayload): void {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
-  const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
-  const { page: endPage, lineIndex: endIndex } = bulkEditEnd.value;
-
-  for (let p = startPage; p <= endPage; p++) {
-    await loadPage(p);
-    const pageLines = scriptConfigStore.getTmpPage(p);
-    const fromIdx = p === startPage ? startIndex : 0;
-    const toIdx = p === endPage ? endIndex : pageLines.length - 1;
-    const deletedOnPage = scriptConfigStore.getDeletedLines(p);
-    for (let i = fromIdx; i <= toIdx; i++) {
-      if (deletedOnPage.includes(i)) continue;
-      scriptConfigStore.setLine(p, i, applyBulkPayloadToLine(pageLines[i]!, payload));
-    }
+  const { lineIndex: startIndex } = bulkEditStart.value;
+  const { lineIndex: endIndex } = bulkEditEnd.value;
+  const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
+  for (let i = startIndex; i <= endIndex; i++) {
+    if (!pageLines[i]) continue;
+    scriptConfigStore.setLine(currentPage.value, i, applyBulkPayloadToLine(pageLines[i]!, payload));
   }
-
-  bulkModal.value?.hide();
-  exitBulkEditMode();
 }
 
-watch(bulkEditEnd, async (val) => {
-  if (val != null) {
-    await loadBoundaryLines();
-    bulkModal.value?.show();
+function onSetCharacterApply(assignee: {
+  partIndex: number;
+  characterId: number | null;
+  characterGroupId: number | null;
+}): void {
+  // SetCharacterOrGroupDialog only emits once one of the two is set (its own
+  // canApply gate) — this just narrows that into BulkEditPayload['assignee']'s
+  // discriminated union shape.
+  const narrowed: BulkEditPayload['assignee'] =
+    assignee.characterId != null
+      ? { partIndex: assignee.partIndex, characterId: assignee.characterId, characterGroupId: null }
+      : assignee.characterGroupId != null
+        ? {
+            partIndex: assignee.partIndex,
+            characterId: null,
+            characterGroupId: assignee.characterGroupId,
+          }
+        : null;
+  if (!narrowed) return;
+  applyToSelection({ actScene: null, assignee: narrowed });
+  setCharDialog.value?.hide();
+  clearSelection();
+}
+
+function onMoveToSceneApply(payload: { actId: number; sceneId: number }): void {
+  applyToSelection({ actScene: payload, assignee: null });
+  moveToSceneModal.value?.hide();
+  clearSelection();
+}
+
+/** Deletes the whole selection in descending index order — each `deleteLine` call
+ * only shifts indices at or above the one it removed, so working top-down means
+ * every earlier index in the loop is still the right one when its turn comes. */
+function onDeleteSelection(): void {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return;
+  const { lineIndex: startIndex } = bulkEditStart.value;
+  const { lineIndex: endIndex } = bulkEditEnd.value;
+  for (let i = endIndex; i >= startIndex; i--) {
+    deleteLine(currentPage.value, i);
   }
-});
+  clearSelection();
+}
 
 watch(isEditor, () => setupAutoSave());
 watch(
