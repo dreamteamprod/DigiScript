@@ -520,13 +520,29 @@ describe('scriptDraft store', () => {
       expect(decoded).toEqual({ clientId: 'client-a', openLineUids: ['line-1', 'line-2'] });
     });
 
-    it('yjsAwareness decodes an incoming payload into remoteOpenLines, keyed by sender', () => {
+    it('sendOpenLines includes currentPage when given', () => {
       const store = useScriptDraftStore();
-      const payload = btoa(JSON.stringify({ clientId: 'client-b', openLineUids: ['line-3'] }));
+      store.joinScriptRoom();
+      useWebSocketStore().internalUUID = 'client-a';
+
+      store.sendOpenLines(['line-1'], 3);
+
+      const call = sendObj.mock.calls.find((c) => c[0].OP === 'YJS_AWARENESS');
+      const decoded = JSON.parse(atob(call?.[0].DATA.payload as string));
+      expect(decoded).toEqual({ clientId: 'client-a', openLineUids: ['line-1'], currentPage: 3 });
+    });
+
+    it('yjsAwareness decodes an incoming payload into remoteAwareness, keyed by sender', () => {
+      const store = useScriptDraftStore();
+      const payload = btoa(
+        JSON.stringify({ clientId: 'client-b', openLineUids: ['line-3'], currentPage: 2 })
+      );
 
       store.yjsAwareness({ payload });
 
-      expect(store.remoteOpenLines).toEqual({ 'client-b': ['line-3'] });
+      expect(store.remoteAwareness).toEqual({
+        'client-b': { openLineUids: ['line-3'], currentPage: 2 },
+      });
     });
 
     it('yjsAwareness overwrites the previous snapshot for the same sender', () => {
@@ -539,7 +555,37 @@ describe('scriptDraft store', () => {
         payload: btoa(JSON.stringify({ clientId: 'client-b', openLineUids: ['line-4'] })),
       });
 
-      expect(store.remoteOpenLines).toEqual({ 'client-b': ['line-4'] });
+      expect(store.remoteAwareness).toEqual({
+        'client-b': { openLineUids: ['line-4'], currentPage: undefined },
+      });
+    });
+
+    it('yjsAwareness keeps the last-known page when a later update omits it', () => {
+      const store = useScriptDraftStore();
+      store.yjsAwareness({
+        payload: btoa(
+          JSON.stringify({ clientId: 'client-b', openLineUids: ['line-3'], currentPage: 2 })
+        ),
+      });
+
+      store.yjsAwareness({
+        payload: btoa(JSON.stringify({ clientId: 'client-b', openLineUids: ['line-4'] })),
+      });
+
+      expect(store.remoteAwareness['client-b']).toEqual({
+        openLineUids: ['line-4'],
+        currentPage: 2,
+      });
+    });
+
+    it('yjsAwareness ignores a non-positive-integer currentPage', () => {
+      const store = useScriptDraftStore();
+
+      store.yjsAwareness({
+        payload: btoa(JSON.stringify({ clientId: 'client-a', openLineUids: [], currentPage: -1 })),
+      });
+
+      expect(store.remoteAwareness['client-a']?.currentPage).toBeUndefined();
     });
 
     it('yjsAwareness drops a malformed payload without throwing', () => {
@@ -549,7 +595,7 @@ describe('scriptDraft store', () => {
       expect(() =>
         store.yjsAwareness({ payload: btoa(JSON.stringify({ openLineUids: ['x'] })) })
       ).not.toThrow();
-      expect(store.remoteOpenLines).toEqual({});
+      expect(store.remoteAwareness).toEqual({});
     });
 
     it('yjsAwareness drops a payload whose openLineUids is not an array', () => {
@@ -559,7 +605,7 @@ describe('scriptDraft store', () => {
         payload: btoa(JSON.stringify({ clientId: 'client-a', openLineUids: 'line-1' })),
       });
 
-      expect(store.remoteOpenLines).toEqual({});
+      expect(store.remoteAwareness).toEqual({});
     });
 
     it('yjsAwareness filters out non-string entries from a mixed-type openLineUids array', () => {
@@ -569,10 +615,12 @@ describe('scriptDraft store', () => {
         payload: btoa(JSON.stringify({ clientId: 'client-a', openLineUids: ['line-1', 42, null] })),
       });
 
-      expect(store.remoteOpenLines).toEqual({ 'client-a': ['line-1'] });
+      expect(store.remoteAwareness).toEqual({
+        'client-a': { openLineUids: ['line-1'], currentPage: undefined },
+      });
     });
 
-    it('roomMembers prunes remoteOpenLines entries for members no longer in the room', () => {
+    it('roomMembers prunes remoteAwareness entries for members no longer in the room', () => {
       const store = useScriptDraftStore();
       store.yjsAwareness({
         payload: btoa(JSON.stringify({ clientId: 'client-a', openLineUids: ['line-1'] })),
@@ -585,10 +633,12 @@ describe('scriptDraft store', () => {
         members: [{ user_id: 1, username: 'tim', role: 'editor', client_id: 'client-a' }],
       });
 
-      expect(store.remoteOpenLines).toEqual({ 'client-a': ['line-1'] });
+      expect(store.remoteAwareness).toEqual({
+        'client-a': { openLineUids: ['line-1'], currentPage: undefined },
+      });
     });
 
-    it('_teardown clears remoteOpenLines', () => {
+    it('_teardown clears remoteAwareness', () => {
       const store = useScriptDraftStore();
       store.yjsAwareness({
         payload: btoa(JSON.stringify({ clientId: 'client-a', openLineUids: ['line-1'] })),
@@ -596,7 +646,7 @@ describe('scriptDraft store', () => {
 
       store._teardown();
 
-      expect(store.remoteOpenLines).toEqual({});
+      expect(store.remoteAwareness).toEqual({});
     });
   });
 

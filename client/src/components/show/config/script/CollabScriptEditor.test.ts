@@ -116,6 +116,7 @@ const bootstrapStubs = {
   BFormSelect: SelectStub,
   BDropdown: passthrough('div'),
   BDropdownItem: passthrough('button'),
+  BDropdownForm: passthrough('div'),
   BProgress: passthrough('div'),
 };
 
@@ -941,7 +942,11 @@ describe('CollabScriptEditor', () => {
     });
   });
 
-  describe('presence panel (Phase 4 Step B)', () => {
+  describe('presence popover (Phase 4 Step B, extended)', () => {
+    const rows = (w: VueWrapper) => w.findAll('.presence-row-item');
+    const rowFor = (w: VueWrapper, username: string) =>
+      rows(w).find((r) => r.find('.presence-row-name').text().includes(username));
+
     it('renders everyone in ROOM_MEMBERS, marking self distinctly', async () => {
       const w = await mountEditor();
       useScriptDraftStore().members = [
@@ -950,10 +955,13 @@ describe('CollabScriptEditor', () => {
       ];
       await flushPromises();
 
-      const row = w.find('.presence-row');
-      expect(row.exists()).toBe(true);
-      expect(row.text()).toContain('admin (you) · viewer');
-      expect(row.text()).toContain('alex · editor');
+      expect(rows(w)).toHaveLength(2);
+      const self = rowFor(w, 'admin')!;
+      expect(self.text()).toContain('You');
+      expect(self.text()).toContain('viewer');
+      const other = rowFor(w, 'alex')!;
+      expect(other.text()).not.toContain('You');
+      expect(other.text()).toContain('editor');
     });
 
     it('shows a background-viewer cutter as cutting, not merely viewing', async () => {
@@ -964,7 +972,7 @@ describe('CollabScriptEditor', () => {
       useScriptConfigStore().cutters = [{ internal_id: 'other', username: 'alex' }];
       await flushPromises();
 
-      expect(w.find('.presence-row').text()).toContain('alex · cutting');
+      expect(rowFor(w, 'alex')!.text()).toContain('cutting');
     });
 
     it('shows an editor who is also cutting as editor, not cutting', async () => {
@@ -975,8 +983,8 @@ describe('CollabScriptEditor', () => {
       useScriptConfigStore().cutters = [{ internal_id: 'other', username: 'alex' }];
       await flushPromises();
 
-      const row = w.find('.presence-row');
-      expect(row.text()).toContain('alex · editor');
+      const row = rowFor(w, 'alex')!;
+      expect(row.text()).toContain('editor');
       expect(row.text()).not.toContain('cutting');
     });
 
@@ -987,17 +995,17 @@ describe('CollabScriptEditor', () => {
       ];
       await flushPromises();
 
-      const row = w.find('.presence-row');
-      expect(row.text()).toContain('guest · viewer');
-      expect(row.text()).not.toContain('(you)');
+      const row = rowFor(w, 'guest')!;
+      expect(row.text()).toContain('viewer');
+      expect(row.text()).not.toContain('You');
     });
 
-    it('does not render the row at all when the room is empty', async () => {
+    it('does not render the popover at all when the room is empty', async () => {
       const w = await mountEditor();
       useScriptDraftStore().members = [];
       await flushPromises();
 
-      expect(w.find('.presence-row').exists()).toBe(false);
+      expect(rows(w)).toHaveLength(0);
     });
 
     it('updates live as ROOM_MEMBERS changes, without remounting', async () => {
@@ -1006,14 +1014,78 @@ describe('CollabScriptEditor', () => {
         { user_id: 1, username: 'admin', role: 'viewer', client_id: 'me' },
       ];
       await flushPromises();
-      expect(w.find('.presence-row').text()).not.toContain('alex');
+      expect(rowFor(w, 'alex')).toBeUndefined();
 
       useScriptDraftStore().members = [
         { user_id: 1, username: 'admin', role: 'viewer', client_id: 'me' },
         { user_id: 2, username: 'alex', role: 'editor', client_id: 'other' },
       ];
       await flushPromises();
-      expect(w.find('.presence-row').text()).toContain('alex · editor');
+      expect(rowFor(w, 'alex')!.text()).toContain('editor');
+    });
+
+    it("shows self's own page and open-line count", async () => {
+      const w = await mountAsEditor();
+      useScriptDraftStore().members = [
+        { user_id: 1, username: 'admin', role: 'editor', client_id: 'me' },
+      ];
+      syncDraft({ '1': [snap('a')], '2': [] });
+      await flushPromises();
+      await button(w, 'Next Page')!.trigger('click');
+      await flushPromises();
+
+      expect(rowFor(w, 'admin')!.text()).toContain('Page 2');
+    });
+
+    it("shows another member's page from their awareness broadcast, and offers Jump to", async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [
+        { user_id: 2, username: 'alex', role: 'editor', client_id: 'other' },
+      ];
+      useScriptDraftStore().remoteAwareness = {
+        other: { openLineUids: ['line-1'], currentPage: 3 },
+      };
+      await flushPromises();
+
+      const row = rowFor(w, 'alex')!;
+      expect(row.text()).toContain('Page 3');
+      expect(row.text()).toContain('1 line open');
+      expect(row.attributes('disabled')).toBeUndefined();
+    });
+
+    it('disables Jump to for a member with no known page yet', async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [
+        { user_id: 2, username: 'alex', role: 'editor', client_id: 'other' },
+      ];
+      await flushPromises();
+
+      expect(rowFor(w, 'alex')!.attributes('disabled')).toBeDefined();
+    });
+
+    it('jumping to a member on a different page navigates there', async () => {
+      const w = await mountAsEditor();
+      useScriptDraftStore().members = [
+        { user_id: 2, username: 'alex', role: 'editor', client_id: 'other' },
+      ];
+      useScriptDraftStore().remoteAwareness = { other: { openLineUids: [], currentPage: 5 } };
+      syncDraft({ '1': [snap('a')], '5': [snap('b')] });
+      await flushPromises();
+
+      await rowFor(w, 'alex')!.trigger('click');
+      await flushPromises();
+
+      expect(w.text()).toContain('Current Page: 5');
+    });
+
+    it('does not offer Jump to on the self row', async () => {
+      const w = await mountEditor();
+      useScriptDraftStore().members = [
+        { user_id: 1, username: 'admin', role: 'viewer', client_id: 'me' },
+      ];
+      await flushPromises();
+
+      expect(rowFor(w, 'admin')!.find('.presence-jump').exists()).toBe(false);
     });
   });
 
@@ -1141,13 +1213,26 @@ describe('CollabScriptEditor', () => {
       expect(state.openLineUids).toHaveLength(1);
     });
 
-    it('passes remoteOpenLines through to the matching line, by _uid', async () => {
+    it('includes the current page in every awareness broadcast, updated on navigation', async () => {
+      const w = await mountAsEditor();
+      syncDraft({ '1': [snap('a')], '2': [snap('b')] });
+      await flushPromises();
+      sendObj.mockClear();
+
+      await button(w, 'Next Page')!.trigger('click');
+      await flushPromises();
+
+      const state = decodeAwareness() as { currentPage?: number };
+      expect(state.currentPage).toBe(2);
+    });
+
+    it('passes remoteAwareness through to the matching line, by _uid', async () => {
       const w = await mountEditor();
       syncDraft({ '1': [snap('line-1'), snap('line-2')] });
       useScriptDraftStore().members = [
         { user_id: 2, username: 'alex', role: 'viewer', client_id: 'other' },
       ];
-      useScriptDraftStore().remoteOpenLines = { other: ['line-1'] };
+      useScriptDraftStore().remoteAwareness = { other: { openLineUids: ['line-1'] } };
       await flushPromises();
 
       const viewers = w.findAllComponents(ViewerStub);
@@ -1167,7 +1252,10 @@ describe('CollabScriptEditor', () => {
         { user_id: 1, username: 'admin', role: 'viewer', client_id: 'tab-a' },
         { user_id: 1, username: 'admin', role: 'viewer', client_id: 'tab-b' },
       ];
-      useScriptDraftStore().remoteOpenLines = { 'tab-a': ['line-1'], 'tab-b': ['line-1'] };
+      useScriptDraftStore().remoteAwareness = {
+        'tab-a': { openLineUids: ['line-1'] },
+        'tab-b': { openLineUids: ['line-1'] },
+      };
       await flushPromises();
 
       const line1 = w
@@ -1176,11 +1264,11 @@ describe('CollabScriptEditor', () => {
       expect(line1.props('remoteEditors')).toEqual(['admin']);
     });
 
-    it('skips a remoteOpenLines entry for a client_id not (yet) in members, rather than showing "unknown"', async () => {
+    it('skips a remoteAwareness entry for a client_id not (yet) in members, rather than showing "unknown"', async () => {
       const w = await mountEditor();
       syncDraft({ '1': [snap('line-1')] });
       useScriptDraftStore().members = [];
-      useScriptDraftStore().remoteOpenLines = { 'not-a-member': ['line-1'] };
+      useScriptDraftStore().remoteAwareness = { 'not-a-member': { openLineUids: ['line-1'] } };
       await flushPromises();
 
       const line1 = w

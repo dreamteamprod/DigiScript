@@ -10,11 +10,99 @@
             Prev Page
           </BButton>
         </BCol>
-        <BCol cols="4">
-          <p>
+        <BCol cols="4" class="text-center">
+          <p class="mb-2">
             Current Page: {{ currentPage }}
             <span v-if="scriptConfigStore.hasDraft" class="text-warning ms-2">● Unsaved draft</span>
           </p>
+          <BDropdown
+            v-if="presenceEntries.length > 0"
+            variant="outline-secondary"
+            no-caret
+            toggle-class="presence-toggle"
+            menu-class="presence-menu"
+          >
+            <template #button-content>
+              <span class="presence-stack">
+                <PresenceAvatar
+                  v-for="entry in visiblePresenceEntries"
+                  :key="entry.key"
+                  size="sm"
+                  :initials="entry.initials"
+                  :color="entry.color"
+                  :badge="entry.badge"
+                  :title="entry.title"
+                />
+                <span v-if="overflowPresenceCount > 0" class="presence-avatar presence-avatar-sm">
+                  +{{ overflowPresenceCount }}
+                </span>
+              </span>
+              <span>{{ presenceCountLabel }}</span>
+              <IMdiChevronDown />
+            </template>
+
+            <div class="presence-popover-header">
+              <strong>Here now</strong>
+              <span class="presence-people-count">{{ presenceEntries.length }} people</span>
+            </div>
+            <template v-for="entry in presenceEntries" :key="entry.key">
+              <!-- `presence-row-item` (for locating a row) stays on BDropdownForm/
+                   BDropdownItem, but the actual flex layout goes on the inner
+                   `presence-row` div instead: both of those components apply a
+                   slotted `class` to their own outer <li>, not the inner element the
+                   slot content actually renders into, so a layout class placed
+                   directly on them would never reach what it's meant to arrange. -->
+              <BDropdownForm v-if="entry.isSelf" class="presence-row-item" @click.stop>
+                <div class="presence-row">
+                  <PresenceAvatar
+                    :initials="entry.initials"
+                    :color="entry.color"
+                    :badge="entry.badge"
+                    :title="entry.title"
+                  />
+                  <span class="presence-row-body">
+                    <span class="presence-row-name">
+                      {{ entry.username }}
+                      <BBadge pill variant="secondary" class="presence-you-pill">You</BBadge>
+                    </span>
+                    <span class="presence-row-sub">{{ entry.subText }}</span>
+                  </span>
+                  <span class="presence-row-side">
+                    <BBadge pill :variant="entry.roleVariant" class="presence-role-pill">{{
+                      entry.role
+                    }}</BBadge>
+                  </span>
+                </div>
+              </BDropdownForm>
+              <BDropdownItem
+                v-else
+                class="presence-row-item"
+                :disabled="entry.page == null"
+                @click="jumpToMember(entry)"
+              >
+                <div class="presence-row">
+                  <PresenceAvatar
+                    :initials="entry.initials"
+                    :color="entry.color"
+                    :badge="entry.badge"
+                    :title="entry.title"
+                  />
+                  <span class="presence-row-body">
+                    <span class="presence-row-name">{{ entry.username }}</span>
+                    <span class="presence-row-sub">{{ entry.subText }}</span>
+                  </span>
+                  <span class="presence-row-side">
+                    <BBadge pill :variant="entry.roleVariant" class="presence-role-pill">{{
+                      entry.role
+                    }}</BBadge>
+                    <span v-if="entry.page != null" class="presence-jump">
+                      Jump to <IMdiArrowRight />
+                    </span>
+                  </span>
+                </div>
+              </BDropdownItem>
+            </template>
+          </BDropdown>
         </BCol>
         <BCol cols="2" style="text-align: left">
           <BButton variant="success" :disabled="atLastDraftPage" @click="incrPage">
@@ -66,22 +154,6 @@
           </BButtonGroup>
         </BCol>
       </BRow>
-      <BRow v-if="presenceEntries.length > 0" class="script-row">
-        <BCol class="presence-row">
-          <span class="text-muted me-2">Here now:</span>
-          <BBadge
-            v-for="entry in presenceEntries"
-            :key="entry.key"
-            :variant="
-              entry.role === 'editor' ? 'warning' : entry.role === 'cutting' ? 'info' : 'secondary'
-            "
-            pill
-            class="me-1"
-          >
-            {{ entry.username }}{{ entry.isSelf ? ' (you)' : '' }} · {{ entry.role }}
-          </BBadge>
-        </BCol>
-      </BRow>
       <BRow class="script-row">
         <BCol cols="1">Act</BCol>
         <BCol cols="1">Scene</BCol>
@@ -105,11 +177,13 @@
     </BRow>
 
     <BRow v-else class="script-row">
-      <BCol cols="12">
+      <BCol ref="linesContainer" cols="12">
         <template v-if="usesLiveRender">
           <template v-for="(line, index) in draftLines" :key="line._uid">
             <CollabScriptLineEditor
               v-if="editingLines.has(line._uid)"
+              :data-line-uid="line._uid"
+              :class="{ 'jump-highlight': jumpTargetLineUid === line._uid }"
               :page="currentPage"
               :line="line"
               :line-type="line.line_type"
@@ -126,6 +200,8 @@
             />
             <ScriptLineViewer
               v-else
+              :data-line-uid="line._uid"
+              :class="{ 'jump-highlight': jumpTargetLineUid === line._uid }"
               :line-index="index"
               :line="line"
               :page="draftLines"
@@ -249,7 +325,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import type { BModal } from 'bootstrap-vue-next';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { useShowStore } from '@/stores/show';
@@ -271,6 +347,8 @@ import ScriptLineViewer from './ScriptLineViewer.vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
 import BulkEditModal from './BulkEditModal.vue';
+import PresenceAvatar from './PresenceAvatar.vue';
+import { presenceInitials, presenceColor, SELF_AVATAR_COLOR } from '@/js/presenceUtils';
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { LineUid } from '@/js/yjs/yjsSnapshot';
@@ -313,6 +391,12 @@ const goToPageModal = ref<InstanceType<typeof BModal>>();
 const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
 const stopEditingModal = ref<InstanceType<typeof BModal>>();
 const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
+// Presence popover's "Jump to": the container line rows are rendered into, so a
+// jump can find the target line's DOM node to scroll it into view, and the line
+// uid to transiently flash-highlight (see jumpToMember below).
+const linesContainer = ref<{ $el: HTMLElement } | null>(null);
+const jumpTargetLineUid = ref<string | null>(null);
+let jumpHighlightTimer: ReturnType<typeof setTimeout> | null = null;
 const bulkEditMode = ref(false);
 // Cut mode (D11): REST, exclusive with draft mode, entered via REQUEST_SCRIPT_CUTS
 // rather than REQUEST_SCRIPT_EDIT. scriptConfigStore.cutMode is a local-only flag
@@ -410,35 +494,76 @@ const hasCutters = computed(() => scriptConfigStore.cutters.length > 0);
 // the stronger/more specific role and what the rest of this page's state tracks.
 interface PresenceEntry {
   key: string;
+  clientId: string | null;
   username: string;
   role: 'editor' | 'viewer' | 'cutting';
+  roleVariant: 'warning' | 'info' | 'secondary';
   isSelf: boolean;
+  initials: string;
+  color: string;
+  badge: 'editing' | 'cutting' | null;
+  title: string;
+  /** The page this member is on, or null when no awareness broadcast has arrived
+   * yet for them (self is always known, from `currentPage` directly). */
+  page: number | null;
+  openLineCount: number;
+  subText: string;
 }
 const presenceEntries = computed<PresenceEntry[]>(() => {
   const cutterIds = new Set(scriptConfigStore.cutters.map((c) => c.internal_id));
-  return draftStore.members.map((m, i) => ({
-    key: m.client_id ?? `${m.user_id ?? 'unknown'}-${i}`,
-    username: m.username,
-    role:
+  return draftStore.members.map((m, i) => {
+    const isSelf = m.client_id !== null && m.client_id === wsStore.internalUUID;
+    const role: PresenceEntry['role'] =
       m.role === 'editor'
         ? 'editor'
         : m.client_id && cutterIds.has(m.client_id)
           ? 'cutting'
-          : m.role,
-    isSelf: m.client_id !== null && m.client_id === wsStore.internalUUID,
-  }));
+          : m.role;
+    const awareness = m.client_id ? draftStore.remoteAwareness[m.client_id] : undefined;
+    const page = isSelf ? currentPage.value : (awareness?.currentPage ?? null);
+    const openLineCount = isSelf ? editingLines.value.size : (awareness?.openLineUids.length ?? 0);
+    const subTextParts = [page != null ? `Page ${page}` : 'Page unknown'];
+    if (role === 'editor' && openLineCount > 0) {
+      subTextParts.push(`${openLineCount} line${openLineCount > 1 ? 's' : ''} open`);
+    }
+    return {
+      key: m.client_id ?? `${m.user_id ?? 'unknown'}-${i}`,
+      clientId: m.client_id,
+      username: m.username,
+      role,
+      roleVariant: role === 'editor' ? 'warning' : role === 'cutting' ? 'info' : 'secondary',
+      isSelf,
+      initials: presenceInitials(m.username),
+      color: isSelf ? SELF_AVATAR_COLOR : presenceColor(m.username),
+      badge: role === 'editor' ? 'editing' : role === 'cutting' ? 'cutting' : null,
+      title: `${m.username}${isSelf ? ' (you)' : ''}, ${role}`,
+      page,
+      openLineCount,
+      subText: subTextParts.join(' · '),
+    };
+  });
 });
-// Phase 4 Step C: inverts draftStore.remoteOpenLines (client_id -> open line uids) into
+// Avatar-stack preview on the popover's own toggle button — capped so a busy room
+// doesn't blow the header out, with a "+N" overflow chip for the rest.
+const PRESENCE_STACK_LIMIT = 4;
+const visiblePresenceEntries = computed(() => presenceEntries.value.slice(0, PRESENCE_STACK_LIMIT));
+const overflowPresenceCount = computed(() =>
+  Math.max(0, presenceEntries.value.length - PRESENCE_STACK_LIMIT)
+);
+const presenceCountLabel = computed(() =>
+  presenceEntries.value.length <= 1 ? 'Only you' : `${presenceEntries.value.length} here`
+);
+// Phase 4 Step C: inverts draftStore.remoteAwareness (client_id -> open line uids) into
 // line uid -> usernames, so a line row can look up "who else has this open" by its own
 // _uid. A client_id with no resolvable username (e.g. briefly, during a role/member
 // transition) is skipped rather than shown as "unknown" — the entry self-heals on the
 // next ROOM_MEMBERS or awareness broadcast.
 const remoteEditorsByLineUid = computed<Record<string, string[]>>(() => {
   const result: Record<string, string[]> = {};
-  for (const [clientId, lineUids] of Object.entries(draftStore.remoteOpenLines)) {
+  for (const [clientId, awareness] of Object.entries(draftStore.remoteAwareness)) {
     const username = draftStore.members.find((m) => m.client_id === clientId)?.username;
     if (!username) continue;
-    for (const uid of lineUids) {
+    for (const uid of awareness.openLineUids) {
       // Two different client_ids (e.g. two tabs/sessions of the same user — the e2e
       // harness for this exact feature logs both browsers in as "admin", so this is
       // the normal setup, not a corner case) can both have the same line open: dedupe
@@ -570,13 +695,17 @@ function viewerPreviousLine(index: number): ScriptLine | null {
   return scriptStore.getScriptPage(currentPage.value - 1).at(-1) ?? null;
 }
 
-// Phase 4 Step C: tell everyone else in the room which lines this client currently
-// has open, over the YJS_AWARENESS channel (ephemeral, not part of the Y.Doc itself).
-// Called after every editingLines mutation, and (below) on any ROOM_MEMBERS change so
-// a freshly-joined member learns the current state promptly rather than waiting for
-// someone else's next open/close.
+// Phase 4 Step C (extended for presence): tell everyone else in the room which
+// lines this client currently has open, and which page it's on, over the
+// YJS_AWARENESS channel (ephemeral, not part of the Y.Doc itself). Called after
+// every editingLines mutation, on every page navigation (see navigateTo below),
+// and on any ROOM_MEMBERS change so a freshly-joined member learns the current
+// state promptly rather than waiting for someone else's next open/close/navigate.
+// Unconditional on role: a plain viewer's editingLines is always empty, but its
+// page is still worth broadcasting so the presence popover's "Jump to" can find
+// them too, not just editors.
 function broadcastOpenLines(): void {
-  draftStore.sendOpenLines(Array.from(editingLines.value));
+  draftStore.sendOpenLines(Array.from(editingLines.value), currentPage.value);
 }
 
 function beginEditingLine(lineUid: string): void {
@@ -654,6 +783,54 @@ async function loadViewerPage(page: number): Promise<void> {
 async function navigateTo(page: number): Promise<void> {
   if (!usesLiveRender.value) await loadViewerPage(page);
   currentPage.value = page;
+  // Covers every way the page can change — Prev/Next, Go to Page, and jumpToMember
+  // below — in one place, rather than re-announcing it from each caller.
+  broadcastOpenLines();
+}
+
+/**
+ * Finds the first of `clientId`'s currently-open lines that's actually on the page
+ * now loaded — an editor keeps a line open across their own page navigation, so
+ * their open line can be on a different page from the one their awareness last
+ * reported as "current" (that field updates on every navigateTo, their open-line
+ * set does not).
+ */
+function findMemberLineOnCurrentPage(clientId: string | null): string | null {
+  if (!clientId) return null;
+  const uids = draftStore.remoteAwareness[clientId]?.openLineUids ?? [];
+  if (uids.length === 0) return null;
+  const pageLineUids = new Set(draftLines.value.map((l) => l._uid));
+  return uids.find((uid) => pageLineUids.has(uid)) ?? null;
+}
+
+const JUMP_HIGHLIGHT_MS = 2_000;
+
+/**
+ * The presence popover's "Jump to": switch to that member's page if we're not
+ * already on it, then (live render only — a REST/cut-mode viewer only has saved
+ * content to show, there's no open-line editor to scroll to) scroll their open
+ * line into view and flash-highlight it. A page of `null` means no awareness has
+ * arrived for them yet — the popover disables Jump to in that case, but this
+ * still no-ops defensively if called anyway.
+ */
+async function jumpToMember(entry: PresenceEntry): Promise<void> {
+  if (entry.isSelf || entry.page == null) return;
+  if (entry.page !== currentPage.value) {
+    await navigateTo(entry.page);
+  }
+  if (!usesLiveRender.value) return;
+  await nextTick();
+  const lineUid = findMemberLineOnCurrentPage(entry.clientId);
+  if (!lineUid) return;
+  jumpTargetLineUid.value = lineUid;
+  linesContainer.value?.$el
+    .querySelector(`[data-line-uid="${lineUid}"]`)
+    ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (jumpHighlightTimer) clearTimeout(jumpHighlightTimer);
+  jumpHighlightTimer = setTimeout(() => {
+    jumpHighlightTimer = null;
+    jumpTargetLineUid.value = null;
+  }, JUMP_HIGHLIGHT_MS);
 }
 
 function decrPage(): Promise<void> {
@@ -1049,6 +1226,7 @@ watch(
 watch([draftReady, maxPage], () => {
   if (draftReady.value && currentPage.value > maxPage.value) {
     currentPage.value = maxPage.value;
+    broadcastOpenLines();
   }
 });
 
@@ -1146,6 +1324,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', calculateNavbarHeight);
   clearViewerRecoveryTimer();
   clearRoomClosedGrace();
+  if (jumpHighlightTimer) clearTimeout(jumpHighlightTimer);
   // Leaving the tab leaves the room (the editor flag is kept, so coming back rejoins).
   if (draftStore.isDraftActive) draftStore.leaveScriptRoom();
 });
@@ -1159,13 +1338,119 @@ onBeforeUnmount(() => {
   position: sticky;
   z-index: 100;
   padding: 10px 0;
-  border-bottom: 1px solid #dee2e6;
+  /* A `box-shadow`, not `border-bottom`: a border on a `position: sticky` element
+     paints in a way that ignores a descendant's z-index in Chromium (confirmed via
+     `document.elementsFromPoint()` reporting the descendant on top while the
+     border still visibly painted over it) — the presence popover below opens
+     right over this line, so it has to actually be behind it. A `box-shadow`
+     draws the same 1px line without that quirk. */
+  box-shadow: 0 1px 0 0 #dee2e6;
   background: var(--body-background);
 }
+/* The presence popover — avatar-stack toggle button + "Here now" member list. */
+.presence-stack {
+  display: inline-flex;
+  margin-right: 8px;
+}
+.presence-stack > * + * {
+  margin-left: -8px;
+}
+/* Matches the design's own dark popover chrome exactly (#303030/#444), not
+   Bootstrap's light-theme dropdown-menu defaults (var(--bs-border-color) etc,
+   which read as a near-white line against this dark background — that's what
+   looked like a stray "white line" cutting through the popover). */
+.presence-popover-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #444;
+}
+.presence-popover-header .presence-people-count {
+  color: #adb5bd;
+  font-size: 13px;
+}
+/* The actual row layout. Deliberately NOT a class on BDropdownForm/BDropdownItem
+   themselves — both apply a slotted `class` to their own outer <li>, not the
+   inner element the slot content renders into (see the template comment above),
+   so this has to be an element inside the slot instead. */
 .presence-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  text-align: left;
+}
+.presence-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.presence-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+.presence-row-sub {
+  color: #adb5bd;
+  font-size: 13px;
+  line-height: 19px;
+}
+/* The right-hand column: role pill, and (for anyone but self) "Jump to" below it —
+   matches the design's two-column row rather than crowding everything onto the
+   left under the name. */
+.presence-row-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.presence-you-pill,
+.presence-role-pill {
+  font-size: 12px;
+}
+.presence-jump {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #54b98f;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+</style>
+
+<style>
+/* Unscoped: BDropdown's own toggle button and menu render outside this
+   component's template, so a scoped selector on the toggle button's own class
+   (passed via toggle-class/menu-class) would never match it. */
+.presence-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.presence-menu {
+  width: 380px;
+  padding: 0;
+  background: #303030;
+  border: 1px solid #444;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  /* Without `!important` this loses to Bootstrap's own `.dropdown-menu.show` rule
+     (two classes vs. this one) regardless of source order. */
+  z-index: 1060 !important;
+}
+.presence-menu .dropdown-item-text,
+.presence-menu .dropdown-item {
+  padding: 8px 16px;
+  color: #fff;
+}
+.presence-menu .dropdown-item:hover,
+.presence-menu .dropdown-item:focus {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
 }
 </style>

@@ -1,6 +1,9 @@
 <template>
-  <BRow>
-    <RemoteEditorsBadge :names="remoteEditors ?? []" />
+  <BRow
+    class="collab-line-editor-row"
+    :class="{ 'remote-editing-row': (remoteEditors?.length ?? 0) > 0 }"
+  >
+    <RemoteEditorsBadge :names="remoteEditors ?? []" variant="editor" />
     <BCol cols="2">
       <BRow>
         <BCol cols="6">
@@ -224,3 +227,16 @@ onMounted(() => {
   }
 });
 </script>
+
+<style scoped>
+/* Someone else also has this line open while you're editing it — same visual
+   language as ScriptLineViewer's read-only highlight, so the two read as one
+   status rather than two different designs for the same thing. */
+.remote-editing-row {
+  border: 1.5px solid rgba(var(--bs-warning-rgb), 0.65);
+  border-radius: 4px;
+  background-color: rgba(var(--bs-warning-rgb), 0.1);
+  padding: 0.75rem 0.5rem;
+  margin: 0.25rem 0;
+}
+</style>

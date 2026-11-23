@@ -89,7 +89,16 @@ async function openMarkerLine(editorPage: Page, markerText: string): Promise<Loc
 /** Asserts `viewerPage` (who hasn't opened it) sees a "remote editor" badge on the marker row. */
 async function expectRemoteBadge(viewerPage: Page, markerText: string): Promise<void> {
   const row = viewerPage.locator('.script-line-row').filter({ hasText: markerText });
-  await expect(row.locator('.remote-editors .badge')).toContainText('admin', { timeout: 10_000 });
+  await expect(row.locator('.remote-editors')).toContainText('admin', { timeout: 10_000 });
+  await expect(row).toHaveClass(/remote-editing-row/);
+}
+
+/** Opens the "Here now" presence popover and returns its member-row locator. */
+async function openPresencePopover(p: Page): Promise<Locator> {
+  await p.locator('.presence-toggle').click();
+  const rows = p.locator('.presence-row-item');
+  await expect(rows.first()).toBeVisible({ timeout: 10_000 });
+  return rows;
 }
 
 /**
@@ -388,21 +397,44 @@ test('a second browser can edit the same script at the same time', async ({ brow
   // same server-owned trailing page stops Next Page at the same page number for both.
   await expect(firstRow(page2)).toHaveText((await firstRow(page).textContent()) ?? '');
 
-  // Phase 4 Step B: both editors see each other in the presence panel.
+  // Phase 4 Step B: both editors see each other in the presence popover.
   // `ctx4`'s viewer (opened in the earlier live-viewing test, not closed until
   // "the non-editing viewer sees the new line live" below) is also still in
   // the room at this point, so the exact count here is 3, not 2 — asserting
   // it pins that there is no extra ghost entry left behind by the earlier
-  // `page.reload()` test, which an exact `(you)` count of 1 (not 2) confirms
-  // too: a stale duplicate of page's own entry would also match `(you)`.
-  await expect(page.locator('.presence-row .badge')).toHaveCount(3);
-  await expect(page2.locator('.presence-row .badge')).toHaveCount(3);
-  await expect(page.locator('.presence-row .badge:has-text("(you)")')).toHaveCount(1);
-  await expect(page2.locator('.presence-row .badge:has-text("(you)")')).toHaveCount(1);
-  await expect(page.locator('.presence-row')).toContainText('(you) · editor');
-  await expect(page2.locator('.presence-row')).toContainText('(you) · editor');
-  await expect(page.locator('.presence-row')).toContainText('admin · editor');
-  await expect(page2.locator('.presence-row')).toContainText('admin · editor');
+  // `page.reload()` test, which an exact `You`-pill count of 1 (not 2) confirms
+  // too: a stale duplicate of page's own entry would also match it.
+  const popoverRows = await openPresencePopover(page);
+  const popoverRows2 = await openPresencePopover(page2);
+  await expect(popoverRows).toHaveCount(3);
+  await expect(popoverRows2).toHaveCount(3);
+  const selfRow = popoverRows.filter({ hasText: 'You' });
+  const selfRow2 = popoverRows2.filter({ hasText: 'You' });
+  await expect(selfRow).toHaveCount(1);
+  await expect(selfRow2).toHaveCount(1);
+  await expect(selfRow).toContainText('editor');
+  await expect(selfRow2).toContainText('editor');
+  // The other editor's row — unambiguous even though every row here happens to say
+  // "admin" (both browsers log in as the same account): it is the only other row
+  // whose role badge also reads "editor" (ctx4's still-present entry is a viewer).
+  const otherEditorRow = popoverRows.filter({ hasText: 'editor' }).filter({ hasNotText: 'You' });
+  const otherEditorRow2 = popoverRows2.filter({ hasText: 'editor' }).filter({ hasNotText: 'You' });
+  await expect(otherEditorRow).toContainText('admin');
+  await expect(otherEditorRow2).toContainText('admin');
+  // Every non-self row offers "Jump to" once its awareness has arrived.
+  await expect(otherEditorRow).toContainText('Jump to');
+  await page.waitForTimeout(200); // let the dropdown's fade-in transition finish
+  await page.screenshot({ path: '../docs/images/config_show/script_collab_editing.png' });
+
+  // "Jump to" on the other editor's row switches to whatever page they're on.
+  await page2.click('button:has-text("Next Page")');
+  await expect(otherEditorRow).toContainText('Page 2', { timeout: 10_000 });
+  await otherEditorRow.click();
+  await expect(page.locator('p:has-text("Current Page:")')).toContainText('Current Page: 2');
+  await page.click('button:has-text("Prev Page")');
+  await page2.click('button:has-text("Prev Page")');
+  await expect(page.locator('p:has-text("Current Page:")')).toContainText('Current Page: 1');
+  await expect(page2.locator('p:has-text("Current Page:")')).toContainText('Current Page: 1');
 
   // Phase 4 Step C: both editors open their own new line at the same time — not
   // sequentially, both stay open together — and each sees the other's "remote
@@ -412,6 +444,7 @@ test('a second browser can edit the same script at the same time', async ({ brow
   const markerEditor1 = await openMarkerLine(page2, marker1);
   const markerEditor2 = await openMarkerLine(page, marker2);
   await expectRemoteBadge(page, marker1);
+  await page.screenshot({ path: '../docs/images/config_show/script_collab_line_badge.png' });
   await expectRemoteBadge(page2, marker2);
   await closeMarkerLine(markerEditor1, page, marker1);
   await closeMarkerLine(markerEditor2, page2, marker2);

@@ -4,8 +4,13 @@
     :class="{
       'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
       'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
+      'remote-editing-row': (remoteEditors?.length ?? 0) > 0,
     }"
   >
+    <!-- Above the Act/Scene/Line columns, not below them, so it reads as a label on
+         top of this row rather than a trailing footnote — see RemoteEditorsBadge's
+         own cols="12" note further down for why this doesn't add a second row. -->
+    <RemoteEditorsBadge :names="remoteEditors ?? []" />
     <BCol cols="1">
       <p v-if="showActSceneLabel" class="viewable-line">{{ actLabel }}</p>
     </BCol>
@@ -143,12 +148,6 @@
         </BDropdown>
       </BButtonGroup>
     </BCol>
-
-    <!-- Pushes the already-filled columns above it onto a wrap within the same
-         Bootstrap row (via RemoteEditorsBadge's own cols="12") rather than a second
-         `.script-line-row` sibling, which would double-count this row anywhere
-         `.script-line-row` is counted (e.g. the E2E and Vitest row-count assertions). -->
-    <RemoteEditorsBadge :names="remoteEditors ?? []" />
   </BRow>
 </template>
 
@@ -323,5 +322,28 @@ function cutLinePart(partIndex: number): void {
   background-color: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
   transition: background-color 0.15s ease;
+}
+/* Phase 4 Step C: another room member has this line open — border/tint match the
+   orange "editing" avatar badge so the two read as the same status. */
+.remote-editing-row {
+  border: 1.5px solid rgba(var(--bs-warning-rgb), 0.65);
+  border-radius: 4px;
+  background-color: rgba(var(--bs-warning-rgb), 0.1);
+}
+/* "Jump to" from the presence popover (CollabScriptEditor.vue) briefly flags the
+   line it scrolled to, so landing on the right one is obvious even once scrolling
+   has already stopped. */
+.jump-highlight {
+  animation: jump-highlight-flash 2s ease-out;
+}
+@keyframes jump-highlight-flash {
+  0%,
+  40% {
+    background-color: rgba(var(--bs-success-rgb), 0.25);
+    border-radius: 4px;
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 </style>
