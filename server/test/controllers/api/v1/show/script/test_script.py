@@ -2234,3 +2234,91 @@ class TestPatchAppendNewLineToNonLastPage(_ScriptPatchTestSetup):
                 walked.append(current.line_id)
                 current = by_line.get(current.next_line_id)
             self.assertEqual(3, len(walked))
+
+
+class TestPostNewPageAfterEmptyingAMiddlePage(_ScriptPatchTestSetup):
+    """Regression tests for the second entry point to this PR's splice bug:
+    the classic POST "new page" handler had the identical
+    ``previous_lines[-1].next_line_id = line_obj.id`` overwrite, reachable by
+    POSTing a page's content back after every line on it was deleted (rather
+    than PATCHing it with an "added"/"inserted" line) — the same "stuck page"
+    symptom could resurface through this unfixed path.
+    """
+
+    def _post_page(self, page, text):
+        response = self.fetch(
+            f"/api/v1/show/script?page={page}",
+            method="POST",
+            body=tornado.escape.json_encode([self._make_line(page, None, text=text)]),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+        return tornado.escape.json_decode(
+            self.fetch(
+                f"/api/v1/show/script?page={page}",
+                headers={"Authorization": f"Bearer {self.token}"},
+            ).body
+        )["lines"][0]["id"]
+
+    def _empty_page_by_bridging_neighbours(self, session, emptied_line_id):
+        """Delete *emptied_line_id*'s association and bridge its neighbours
+        directly — simulating the state after that page's last line was
+        properly deleted (not what this test is exercising), so the POST
+        handler's own splice logic is what's actually under test."""
+        assoc = session.get(
+            ScriptLineRevisionAssociation, (self.revision_id, emptied_line_id)
+        )
+        prev_assoc, next_assoc = assoc.previous_line, assoc.next_line
+        if prev_assoc is not None:
+            prev_a = session.get(
+                ScriptLineRevisionAssociation, (self.revision_id, prev_assoc.id)
+            )
+            prev_a.next_line_id = next_assoc.id if next_assoc else None
+        if next_assoc is not None:
+            next_a = session.get(
+                ScriptLineRevisionAssociation, (self.revision_id, next_assoc.id)
+            )
+            next_a.previous_line_id = prev_assoc.id if prev_assoc else None
+        session.delete(assoc)
+        session.commit()
+
+    def test_repopulating_an_emptied_middle_page_preserves_the_link_onward(self):
+        line1_id = self._post_page(1, "Page 1 line")
+        line2_id = self._post_page(2, "Page 2 line")
+        line3_id = self._post_page(3, "Page 3 line")
+
+        with self._app.get_db().sessionmaker() as session:
+            self._empty_page_by_bridging_neighbours(session, line2_id)
+
+        new_line2_id = self._post_page(2, "Repopulated page 2 line")
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision_id
+                )
+            ).all()
+            by_line = {a.line_id: a for a in assocs}
+            self.assertEqual(3, len(assocs))  # line1, line3, and the new page-2 line
+
+            self.assertEqual(by_line[line1_id].next_line_id, new_line2_id)
+            self.assertEqual(by_line[new_line2_id].previous_line_id, line1_id)
+            self.assertEqual(
+                by_line[new_line2_id].next_line_id,
+                line3_id,
+                "Re-POSTing a page after it was emptied must not sever the "
+                "link to the next page",
+            )
+            self.assertEqual(by_line[line3_id].previous_line_id, new_line2_id)
+
+    # A dedicated test for the dangling-pointer / 409 branch (previous_lines[-1]
+    # .next_line_id pointing at a line with no association in this revision) was
+    # tried and dropped: the composite self-referential FK on next_line_id
+    # (deferred, but still enforced at commit) already makes that state
+    # impossible to construct through the app's own engine, including for test
+    # setup — which is exactly why it's a defensive branch rather than a
+    # reachable one under normal operation. The identical logic in
+    # create_new_line has a direct test (test_line_helpers.py) that exercises
+    # it pre-commit, where it actually would manifest if it ever did (e.g. via
+    # a migration that disables FK enforcement, as this PR's other findings
+    # already established is possible).
