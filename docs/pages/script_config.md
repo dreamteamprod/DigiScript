@@ -113,7 +113,7 @@ To begin editing, click the **Begin Editing** button. This requests exclusive ed
 
 Your edit access belongs to the browser tab you started editing in: each tab has its own connection identity, so another tab does not share it. (A tab created with the browser's **Duplicate tab** command is the exception: it starts as a copy of the original tab and shares its edit access.) If a different user logs in on a tab, that tab is given a new connection identity: the previous user's edit access never passes to them, and it is released after the usual grace period. Edit access survives a page reload: if you refresh the page, or your connection drops briefly, while editing, you come back still in edit mode, as long as you are still logged in as the same user. Unsaved changes in the script editor are lost on reload, so save before refreshing. If you close the browser, or it loses its connection for good, the lock is released a few seconds later and then other users can begin editing. Logging out normally releases it straight away. If your login had already expired, the lock is instead released once that page reloads or closes and its grace period ends, because an expired login can no longer use the lock.
 
-Once you have edit access, you'll see options to **Save** the script, along with a dropdown button for **Add Dialogue** that provides access to all line types.
+Once you have edit access, you'll see options to **Save** the script, along with a button for **Add Dialogue** (and a dropdown for the other line types) at the end of the page, and a **+ Add Line Here** divider between every pair of existing lines for inserting one in the middle.
 
 ##### Collaborative Editing
 
@@ -121,7 +121,7 @@ Click **Edit** to join the shared draft as an editor. Unlike classic editing, se
 
 ![](../images/config_show/script_collab_editing.png)
 
-Once editing, you get the same **Add Dialogue** dropdown and **Bulk Edit** (set the Act, Scene, Character or Character Group for a range of lines at once — pick a start line and an end line, then fill in the values to apply) as classic editing, plus:
+Once editing, you get the same **Add Dialogue** controls and line selection (tick line numbers to **Set Character or Group** or **Move to Scene** across several lines at once — see [Selecting Several Lines](#selecting-several-lines) below) as classic editing, plus:
 
 - **Save** writes the shared draft to the database, visible to everyone (including non-editors) once it completes. Save is disabled while any line is still open for editing, or while the draft has a line that fails validation (the reason is shown as a tooltip) — fix or finish that line first.
 - **Stop Editing** leaves the draft. If it has unsaved changes, a confirmation dialog asks you to choose **Keep Editing** (cancel and stay in the draft), **Keep Draft** (leave the unsaved draft in place — anyone, including you, can resume editing it later), or **Discard** (revert to the last saved content for everyone currently in the draft, not just you).
@@ -159,11 +159,12 @@ The default line type for character speech. Dialogue lines:
 ![](../images/config_show/script_dialogue_line_editing.png)
 
 To create a dialogue line:
-1. Click **Add Dialogue** (or select it from the dropdown)
-2. Select the **Act** and **Scene** where the line occurs
-3. Choose the **Character** or **Character Group** speaking the line
-4. Enter the line content
-5. Click **Done** to finish editing the line
+1. Click **Add Dialogue** (or pick it from the end-of-page dropdown, or from an **+ Add Line Here** divider between two existing lines)
+2. Choose the **Character** or **Character Group** speaking the line
+3. Enter the line content
+4. Click **Done**, or press **Enter** to finish the line and open a new blank dialogue line right below it
+
+A brand-new line also has a **Dialogue / Direction / Cue / Gap** switch, so you can change your mind about its type before finishing it (an already-saved line keeps its type). The Act and Scene are inherited automatically from the line it was added next to, rather than chosen per line — the only exception is the very first line of an empty script, where Act and Scene selects are shown directly since there is nothing to inherit from. To move existing lines into a different act or scene, select them and use **Move to Scene** — see [Selecting Several Lines](#selecting-several-lines) below.
 
 ##### Stage Direction Lines
 
@@ -208,7 +209,26 @@ Blank lines that add vertical spacing in your script. Spacing lines:
 
 To create a spacing line, select **Add Spacing** from the dropdown menu.
 
-**Important**: After clicking **Done**, DigiScript automatically creates a new empty line. If you don't need this line, click **Delete** before adding your next line. The script cannot be saved while lines are in edit mode.
+#### Editing a Line
+
+The script page looks like the finished script: click anywhere on a line (or its **Click to edit** link, which appears on hover) to open it in place. While editing:
+
+- **Done** finishes the line and closes it — nothing more happens.
+- **Enter** (in the line's text field) finishes the line and opens a new blank dialogue line immediately below it, for typing a scene straight through.
+- **Esc** is the same as Done.
+- **↑** and **↓** move to the previous or next line without losing your place.
+- **Delete Line** removes the line entirely.
+
+The script cannot be saved while any line is still open for editing.
+
+#### Selecting Several Lines
+
+Hover a line's number (or tap it on a touch device) to reveal a checkbox. Ticking it selects that line; ticking another line extends the selection to cover both — ticking a line inside the current selection collapses it back down to just that line. A bar appears above the script showing how many lines are selected, with:
+
+- **Set Character or Group** — reassign the speaker (or character group) across every selected line that has a part at the chosen position, with a preview of what will change before you confirm.
+- **Move to Scene** — move every selected line into a different act and scene.
+- **Delete n Lines** — remove the whole selection.
+- **Clear Selection** — deselect everything without changing anything.
 
 #### Multi-Part Lines
 
