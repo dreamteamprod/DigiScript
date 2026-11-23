@@ -1,4 +1,9 @@
-# DigiScript
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/brand/logo-dark.svg">
+    <img alt="DigiScript" src="docs/images/brand/logo-light.svg" height="64">
+  </picture>
+</p>
 
 **Real-time digital script management for theatrical productions**
 
