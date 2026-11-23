@@ -30,7 +30,7 @@ It is safe to run whether or not a revision was ever affected: pages that are
 already correctly linked produce zero pointer updates and zero orphans.
 """
 
-from typing import Sequence, Union
+from typing import Sequence
 
 from alembic import op
 
@@ -39,9 +39,9 @@ from alembic_config.repair_linked_list_utils import run_max_bridge_repair
 
 # revision identifiers, used by Alembic.
 revision: str = "f341c640b571"
-down_revision: Union[str, None] = "079ddf32e0c3"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "079ddf32e0c3"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

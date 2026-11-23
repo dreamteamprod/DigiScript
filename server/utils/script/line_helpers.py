@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from digi_server.logger import get_logger
 from models.script import (
     ScriptLine,
     ScriptLinePart,
@@ -99,6 +100,27 @@ def create_new_line(
                 )
                 if next_association is not None:
                     next_association.previous_line = line_obj
+                else:
+                    # previous_line.next_line pointed at a line with no
+                    # association in this revision — the chain was already
+                    # broken ahead of this insert point. Raise now, with the
+                    # context to diagnose it, rather than let line_association
+                    # keep a next_line_id that the composite FK on
+                    # (revision_id, next_line_id) will reject as an opaque
+                    # IntegrityError at commit.
+                    get_logger().error(
+                        f"create_new_line: previous_line.next_line="
+                        f"{old_next.id} has no ScriptLineRevisionAssociation "
+                        f"for revision={revision.id} — the chain is already "
+                        f"broken ahead of this insert (previous_line="
+                        f"{previous_line.line_id})"
+                    )
+                    raise ValueError(
+                        f"Cannot insert a new line after line "
+                        f"{previous_line.line_id}: its next line "
+                        f"{old_next.id} has no association in revision "
+                        f"{revision.id}."
+                    )
             session.flush()
 
     for line_part in line["line_parts"]:

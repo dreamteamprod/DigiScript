@@ -59,6 +59,32 @@ class TestCreateNewLine(_ScriptTestSetup):
         self.assertEqual(new_assoc.next_line_id, l2.line_id)
         self.assertEqual(l2.previous_line_id, new_line.id)
 
+    def test_insert_after_a_line_whose_next_has_no_association_raises(self):
+        """previous_line.next_line pointing at a ScriptLine with no association
+        in this revision means the chain is already broken ahead of this
+        insert point — this must raise with context, not silently splice a
+        dangling next_line_id and leave it to an opaque IntegrityError at
+        commit."""
+        with self._app.get_db().sessionmaker() as session:
+            revision = session.get(ScriptRevision, self.revision_id)
+            l1 = self._seed_line(session, page=1, text="L1")
+            l2 = self._seed_line(session, previous_assoc=l1, page=2, text="L2")
+            # Remove l2's association only — l1.next_line (the ScriptLine) and
+            # the FK column still point at it, but it's no longer tracked.
+            session.query(ScriptLineRevisionAssociation).filter_by(
+                revision_id=self.revision_id, line_id=l2.line_id
+            ).delete()
+            session.flush()
+
+            with self.assertRaises(ValueError):
+                create_new_line(
+                    session, revision, _new_line_dict(self, page=1, text="Inserted"), l1
+                )
+            # The test's own setup (deleting l2's association while l1 still
+            # points at it) is itself an inconsistency the outer session
+            # context manager would otherwise try to commit on exit.
+            session.rollback()
+
     def test_insert_chain_remains_fully_walkable(self):
         """A full head-to-tail walk reaches every line after an insert."""
         with self._app.get_db().sessionmaker() as session:
