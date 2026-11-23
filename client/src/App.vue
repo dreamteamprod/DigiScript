@@ -1,7 +1,10 @@
 <template>
   <BApp id="app">
     <BNavbar toggleable="lg" variant="info" data-bs-theme="dark" class="sticky-top">
-      <BNavbarBrand to="/"> DigiScript </BNavbarBrand>
+      <BNavbarBrand to="/" class="d-flex align-items-center gap-2">
+        <img src="/favicon.svg" width="30" height="30" alt="" aria-hidden="true" />
+        DigiScript
+      </BNavbarBrand>
       <BNavbarToggle target="nav-collapse" />
       <BCollapse id="nav-collapse" is-nav>
         <BNavbarNav>
