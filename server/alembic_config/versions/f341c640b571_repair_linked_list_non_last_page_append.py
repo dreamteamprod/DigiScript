@@ -34,17 +34,7 @@ from typing import Sequence, Union
 
 from alembic import op
 
-from alembic_config.repair_linked_list_utils import (
-    apply_pointer_updates,
-    build_global_order,
-    build_page_ordered,
-    collect_pointer_updates,
-    compute_expected_pointers,
-    delete_orphan_associations,
-    fetch_all_revision_ids,
-    fetch_current_pointers,
-    fetch_page_associations,
-)
+from alembic_config.repair_linked_list_utils import run_max_bridge_repair
 
 
 # revision identifiers, used by Alembic.
@@ -54,59 +44,8 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _repair_revision(conn, revision_id):
-    """Repair linked-list pointers for one revision.
-
-    Reuses the max-bridge page walk from 897ae2963f6d: when several
-    associations on a page satisfy the "first line of this page" condition,
-    the highest line_id is the correct one, since every replace creates a
-    ScriptLine with a higher id than the one it replaces.
-
-    :returns: Summary dict with counts of changes applied.
-    """
-    page_ordered = build_page_ordered(fetch_page_associations(conn, revision_id), max)
-    global_order = build_global_order(page_ordered)
-    expected = compute_expected_pointers(global_order)
-    current_by_id = fetch_current_pointers(conn, revision_id)
-    updates = collect_pointer_updates(expected, current_by_id, revision_id)
-    reachable_set = set(global_order)
-    orphan_ids = set(current_by_id.keys()) - reachable_set
-
-    if orphan_ids:
-        delete_orphan_associations(conn, revision_id, orphan_ids)
-    if updates:
-        apply_pointer_updates(conn, updates)
-
-    return {
-        "revision_id": revision_id,
-        "total": len(current_by_id),
-        "pointer_updates": len(updates),
-        "orphans_deleted": len(orphan_ids),
-    }
-
-
 def upgrade() -> None:
-    conn = op.get_bind()
-    print(
-        "Repairing ScriptLineRevisionAssociation linked lists (non-last-page-append pass)…"
-    )
-    revision_ids = fetch_all_revision_ids(conn)
-    total_updates = 0
-    total_orphans = 0
-    for rev_id in revision_ids:
-        result = _repair_revision(conn, rev_id)
-        if result["pointer_updates"] or result["orphans_deleted"]:
-            print(
-                f"  Revision {rev_id}: {result['pointer_updates']} pointer fix(es), "
-                f"{result['orphans_deleted']} orphan(s) deleted "
-                f"(of {result['total']} associations)"
-            )
-        total_updates += result["pointer_updates"]
-        total_orphans += result["orphans_deleted"]
-    print(
-        f"Repair complete: {total_updates} pointer fix(es), "
-        f"{total_orphans} orphan(s) deleted across {len(revision_ids)} revision(s)."
-    )
+    run_max_bridge_repair(op.get_bind(), "non-last-page-append pass")
 
 
 def downgrade() -> None:

@@ -163,3 +163,98 @@ def fetch_all_revision_ids(conn) -> list:
             sa.text("SELECT id FROM script_revisions ORDER BY id")
         ).fetchall()
     ]
+
+
+def delete_orphaned_lines_and_parts(conn, orphan_ids) -> None:
+    """Delete script_line_parts and script_lines rows that no longer have any
+    revision association at all, for a set of ids just orphaned by a repair.
+
+    Parts first (FK child), then the line. A no-op when *orphan_ids* is empty,
+    so callers for whom a given corruption vector never produces true orphans
+    (only wrong pointers on rows that still belong to a real page) can call
+    this unconditionally.
+    """
+    for orphan_id in sorted(orphan_ids):
+        conn.execute(
+            sa.text(
+                "DELETE FROM script_line_parts WHERE line_id = :line_id "
+                "AND NOT EXISTS ("
+                "  SELECT 1 FROM script_line_revision_association "
+                "  WHERE line_id = :line_id"
+                ")"
+            ),
+            {"line_id": orphan_id},
+        )
+    for orphan_id in sorted(orphan_ids):
+        conn.execute(
+            sa.text(
+                "DELETE FROM script_lines WHERE id = :line_id "
+                "AND NOT EXISTS ("
+                "  SELECT 1 FROM script_line_revision_association "
+                "  WHERE line_id = :line_id"
+                ")"
+            ),
+            {"line_id": orphan_id},
+        )
+
+
+def repair_revision_max_bridge(conn, revision_id: int) -> dict:
+    """Repair linked-list pointers and remove orphans for one revision.
+
+    Uses the max-bridge page walk: when several associations on a page both
+    satisfy the "first line of this page" condition, the highest line_id is
+    the correct one — every PATCH/save creates a new ScriptLine with a higher
+    id than the one it replaces, so the newest row is always the live content.
+    Shared by every repair migration from 897ae2963f6d onwards; they differ
+    only in *why* a revision's pointers might be wrong, not in how to rebuild
+    them, since the page-local bridge walk never depends on the broken global
+    chain in the first place.
+
+    :returns: Summary dict with counts of changes applied.
+    """
+    page_ordered = build_page_ordered(fetch_page_associations(conn, revision_id), max)
+    global_order = build_global_order(page_ordered)
+    expected = compute_expected_pointers(global_order)
+    current_by_id = fetch_current_pointers(conn, revision_id)
+    updates = collect_pointer_updates(expected, current_by_id, revision_id)
+    reachable_set = set(global_order)
+    orphan_ids = set(current_by_id.keys()) - reachable_set
+
+    if orphan_ids:
+        delete_orphan_associations(conn, revision_id, orphan_ids)
+    if updates:
+        apply_pointer_updates(conn, updates)
+    if orphan_ids:
+        delete_orphaned_lines_and_parts(conn, orphan_ids)
+
+    return {
+        "revision_id": revision_id,
+        "total": len(current_by_id),
+        "pointer_updates": len(updates),
+        "orphans_deleted": len(orphan_ids),
+    }
+
+
+def run_max_bridge_repair(conn, pass_label: str) -> None:
+    """Run :func:`repair_revision_max_bridge` across every revision, with
+    progress output. The ``upgrade()`` body shared by every max-bridge repair
+    migration; *pass_label* names the pass in the printed output only.
+    """
+    print(f"Repairing ScriptLineRevisionAssociation linked lists ({pass_label})…")
+    revision_ids = fetch_all_revision_ids(conn)
+    total_updates = 0
+    total_orphans = 0
+    for rev_id in revision_ids:
+        result = repair_revision_max_bridge(conn, rev_id)
+        if result["pointer_updates"] or result["orphans_deleted"]:
+            print(
+                f"  Revision {rev_id}: {result['pointer_updates']} pointer fix(es), "
+                f"{result['orphans_deleted']} orphan(s) deleted "
+                f"(of {result['total']} associations)"
+            )
+        total_updates += result["pointer_updates"]
+        total_orphans += result["orphans_deleted"]
+    print(
+        f"Repair complete: {total_updates} pointer fix(es), "
+        f"{total_orphans} orphan(s) deleted across {len(revision_ids)} revision(s)."
+    )
