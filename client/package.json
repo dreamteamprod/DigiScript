@@ -40,7 +40,7 @@
     "@vuelidate/core": "^2.0.3",
     "@vuelidate/validators": "^2.0.4",
     "bootstrap": "^5.3.9",
-    "bootstrap-vue-next": "^1.2.4",
+    "bootstrap-vue-next": "^1.2.5",
     "bootswatch": "^5.3.8",
     "contrast-color": "1.0.1",
     "core-js": "^3.51.0",
