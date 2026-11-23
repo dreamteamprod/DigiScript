@@ -20,6 +20,7 @@
             variant="outline-secondary"
             no-caret
             toggle-class="presence-toggle"
+            menu-class="presence-menu"
           >
             <template #button-content>
               <span class="presence-stack">
@@ -45,24 +46,33 @@
               <span class="text-muted ms-2">{{ presenceEntries.length }} people</span>
             </div>
             <template v-for="entry in presenceEntries" :key="entry.key">
+              <!-- `presence-row-item` (for locating a row) stays on BDropdownForm/
+                   BDropdownItem, but the actual flex layout goes on the inner
+                   `presence-row` div instead: both of those components apply a
+                   slotted `class` to their own outer <li>, not the inner element the
+                   slot content actually renders into, so a layout class placed
+                   directly on them would never reach what it's meant to arrange. -->
               <BDropdownForm v-if="entry.isSelf" class="presence-row-item" @click.stop>
-                <PresenceAvatar
-                  size="md"
-                  :initials="entry.initials"
-                  :color="entry.color"
-                  :badge="entry.badge"
-                  :title="entry.title"
-                />
-                <span class="presence-row-body">
-                  <span class="presence-row-name">
-                    {{ entry.username }}
-                    <BBadge pill variant="secondary" class="ms-1">You</BBadge>
+                <div class="presence-row">
+                  <PresenceAvatar
+                    :initials="entry.initials"
+                    :color="entry.color"
+                    :badge="entry.badge"
+                    :title="entry.title"
+                  />
+                  <span class="presence-row-body">
+                    <span class="presence-row-name">
+                      {{ entry.username }}
+                      <BBadge pill variant="secondary" class="presence-you-pill">You</BBadge>
+                    </span>
+                    <span class="presence-row-sub text-muted">{{ entry.subText }}</span>
                   </span>
-                  <span class="presence-row-sub text-muted">{{ entry.subText }}</span>
-                </span>
-                <BBadge pill :variant="entry.roleVariant" class="presence-row-role">{{
-                  entry.role
-                }}</BBadge>
+                  <span class="presence-row-side">
+                    <BBadge pill :variant="entry.roleVariant" class="presence-role-pill">{{
+                      entry.role
+                    }}</BBadge>
+                  </span>
+                </div>
               </BDropdownForm>
               <BDropdownItem
                 v-else
@@ -70,23 +80,26 @@
                 :disabled="entry.page == null"
                 @click="jumpToMember(entry)"
               >
-                <PresenceAvatar
-                  size="md"
-                  :initials="entry.initials"
-                  :color="entry.color"
-                  :badge="entry.badge"
-                  :title="entry.title"
-                />
-                <span class="presence-row-body">
-                  <span class="presence-row-name">{{ entry.username }}</span>
-                  <span class="presence-row-sub text-muted">{{ entry.subText }}</span>
-                </span>
-                <BBadge pill :variant="entry.roleVariant" class="presence-row-role">{{
-                  entry.role
-                }}</BBadge>
-                <span v-if="entry.page != null" class="presence-jump text-success">
-                  Jump to <IMdiArrowRight />
-                </span>
+                <div class="presence-row">
+                  <PresenceAvatar
+                    :initials="entry.initials"
+                    :color="entry.color"
+                    :badge="entry.badge"
+                    :title="entry.title"
+                  />
+                  <span class="presence-row-body">
+                    <span class="presence-row-name">{{ entry.username }}</span>
+                    <span class="presence-row-sub text-muted">{{ entry.subText }}</span>
+                  </span>
+                  <span class="presence-row-side">
+                    <BBadge pill :variant="entry.roleVariant" class="presence-role-pill">{{
+                      entry.role
+                    }}</BBadge>
+                    <span v-if="entry.page != null" class="presence-jump text-success">
+                      Jump to <IMdiArrowRight />
+                    </span>
+                  </span>
+                </div>
               </BDropdownItem>
             </template>
           </BDropdown>
@@ -1325,7 +1338,13 @@ onBeforeUnmount(() => {
   position: sticky;
   z-index: 100;
   padding: 10px 0;
-  border-bottom: 1px solid #dee2e6;
+  /* A `box-shadow`, not `border-bottom`: a border on a `position: sticky` element
+     paints in a way that ignores a descendant's z-index in Chromium (confirmed via
+     `document.elementsFromPoint()` reporting the descendant on top while the
+     border still visibly painted over it) — the presence popover below opens
+     right over this line, so it has to actually be behind it. A `box-shadow`
+     draws the same 1px line without that quirk. */
+  box-shadow: 0 1px 0 0 #dee2e6;
   background: var(--body-background);
 }
 /* The presence popover — avatar-stack toggle button + "Here now" member list. */
@@ -1339,17 +1358,21 @@ onBeforeUnmount(() => {
 .presence-popover-header {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  padding: 0.5rem 1rem;
+  gap: 6px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
   border-bottom: 1px solid var(--bs-border-color);
 }
-.presence-row-item {
+/* The actual row layout. Deliberately NOT a class on BDropdownForm/BDropdownItem
+   themselves — both apply a slotted `class` to their own outer <li>, not the
+   inner element the slot content renders into (see the template comment above),
+   so this has to be an element inside the slot instead. */
+.presence-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   width: 100%;
-  min-width: 320px;
-  padding: 0.5rem 1rem;
+  padding: 0.25rem 0;
   text-align: left;
 }
 .presence-row-body {
@@ -1357,34 +1380,57 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  line-height: 1.3;
 }
 .presence-row-name {
   font-weight: 700;
+  font-size: 0.875rem;
 }
 .presence-row-sub {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
-.presence-row-role {
-  flex: none;
-}
-.presence-jump {
+/* The right-hand column: role pill, and (for anyone but self) "Jump to" below it —
+   matches the design's two-column row rather than crowding everything onto the
+   left under the name. */
+.presence-row-side {
   flex: none;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 4px;
+}
+.presence-you-pill,
+.presence-role-pill {
+  font-size: 0.75rem;
+}
+.presence-jump {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   font-size: 0.8125rem;
   font-weight: 600;
-  margin-left: 4px;
+  white-space: nowrap;
 }
 </style>
 
 <style>
 /* Unscoped: BDropdown's own toggle button and menu render outside this
    component's template, so a scoped selector on the toggle button's own class
-   (passed via toggle-class) would never match it. */
+   (passed via toggle-class/menu-class) would never match it. */
 .presence-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+.presence-menu {
+  width: 360px;
+  padding: 0;
+  /* Without `!important` this loses to Bootstrap's own `.dropdown-menu.show` rule
+     (two classes vs. this one) regardless of source order. */
+  z-index: 1060 !important;
+}
+.presence-menu .dropdown-item-text,
+.presence-menu .dropdown-item {
+  padding: 0.625rem 0.875rem;
 }
 </style>

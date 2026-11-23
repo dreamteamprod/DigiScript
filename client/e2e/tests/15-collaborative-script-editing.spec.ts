@@ -423,6 +423,8 @@ test('a second browser can edit the same script at the same time', async ({ brow
   await expect(otherEditorRow2).toContainText('admin');
   // Every non-self row offers "Jump to" once its awareness has arrived.
   await expect(otherEditorRow).toContainText('Jump to');
+  await page.waitForTimeout(200); // let the dropdown's fade-in transition finish
+  await page.screenshot({ path: '../docs/images/config_show/script_collab_editing.png' });
 
   // "Jump to" on the other editor's row switches to whatever page they're on.
   await page2.click('button:has-text("Next Page")');
@@ -442,6 +444,7 @@ test('a second browser can edit the same script at the same time', async ({ brow
   const markerEditor1 = await openMarkerLine(page2, marker1);
   const markerEditor2 = await openMarkerLine(page, marker2);
   await expectRemoteBadge(page, marker1);
+  await page.screenshot({ path: '../docs/images/config_show/script_collab_line_badge.png' });
   await expectRemoteBadge(page2, marker2);
   await closeMarkerLine(markerEditor1, page, marker1);
   await closeMarkerLine(markerEditor2, page2, marker2);
