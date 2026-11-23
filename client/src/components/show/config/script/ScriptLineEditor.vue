@@ -33,16 +33,6 @@
     </BCol>
 
     <BCol :cols="previousLine ? 12 : 10">
-      <BRow class="align-items-center mb-2">
-        <BCol cols="auto">
-          <LineTypeSegmented
-            :model-value="state.line_type"
-            :disabled="state.id != null"
-            @update:model-value="onLineTypeChange"
-          />
-        </BCol>
-      </BRow>
-
       <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
         <template v-if="state.line_parts.length > 0">
           <ScriptLinePart
@@ -96,7 +86,14 @@
         </BCol>
       </template>
 
-      <BRow class="mt-2">
+      <BRow class="mt-2 align-items-center">
+        <BCol cols="auto">
+          <LineTypeSegmented
+            :model-value="state.line_type"
+            :disabled="state.id != null"
+            @update:model-value="onLineTypeChange"
+          />
+        </BCol>
         <BCol class="text-end">
           <BButtonGroup>
             <BButton variant="danger" @click.stop.prevent="$emit('deleteLine')"
@@ -288,7 +285,10 @@ onMounted(() => {
 .line-editor-card {
   padding: 12px;
   margin: 6px 0;
-  background: var(--bs-tertiary-bg);
+  /* Darkly doesn't redefine --bs-tertiary-bg (a Bootstrap 5.3 dark-mode variable
+     it predates), so it resolves to Bootstrap's light default — --bs-dark is this
+     theme's own dark surface colour instead, matching the design's card background. */
+  background: var(--bs-dark);
   border: 1px solid var(--bs-success);
   border-radius: var(--bs-border-radius);
 }

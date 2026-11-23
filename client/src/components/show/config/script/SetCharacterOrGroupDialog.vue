@@ -202,14 +202,16 @@ defineExpose({ show: () => modal.value?.show(), hide: () => modal.value?.hide() 
 .set-char-preview {
   padding: 2px 12px;
   background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
+  /* --bs-border-color isn't redefined by Darkly — see ScriptLineEditor.vue's
+     comment — --bs-gray-700 is this theme's own border colour instead. */
+  border: 1px solid var(--bs-gray-700);
   border-radius: var(--bs-border-radius);
 }
 .set-char-preview-row {
   display: flex;
   gap: 10px;
   padding: 6px 0;
-  border-bottom: 1px solid var(--bs-border-color);
+  border-bottom: 1px solid var(--bs-gray-700);
   font-size: 0.875rem;
 }
 .set-char-preview-row:last-child {

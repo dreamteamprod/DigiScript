@@ -36,16 +36,6 @@
     </BCol>
 
     <BCol :cols="previousLine ? 12 : 10">
-      <BRow class="align-items-center mb-2">
-        <BCol cols="auto">
-          <LineTypeSegmented
-            :model-value="lineType"
-            :disabled="!isUnsaved"
-            @update:model-value="$emit('retypeLine', $event)"
-          />
-        </BCol>
-      </BRow>
-
       <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
         <template v-if="line.line_parts.length > 0">
           <CollabScriptLinePart
@@ -100,7 +90,14 @@
         </BCol>
       </template>
 
-      <BRow class="mt-2">
+      <BRow class="mt-2 align-items-center">
+        <BCol cols="auto">
+          <LineTypeSegmented
+            :model-value="lineType"
+            :disabled="!isUnsaved"
+            @update:model-value="$emit('retypeLine', $event)"
+          />
+        </BCol>
         <BCol class="text-end">
           <BButtonGroup>
             <BButton variant="danger" @click.stop.prevent="$emit('deleteLine')"
@@ -266,9 +263,21 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Vue's scoped styles don't cross components — ScriptLineEditor.vue's own
+   .line-editor-card rule (same class, used in this component's template) never
+   reaches here, so this needs its own copy. See that file's comment for why
+   --bs-dark, not --bs-tertiary-bg. */
+.line-editor-card {
+  padding: 12px;
+  margin: 6px 0;
+  background: var(--bs-dark);
+  border: 1px solid var(--bs-success);
+  border-radius: var(--bs-border-radius);
+}
 /* Someone else also has this line open while you're editing it — same visual
    language as ScriptLineViewer's read-only highlight, so the two read as one
-   status rather than two different designs for the same thing. */
+   status rather than two different designs for the same thing. Takes over the
+   card's own border/background for that state. */
 .remote-editing-row {
   border: 1.5px solid rgba(var(--bs-warning-rgb), 0.65);
   border-radius: 4px;

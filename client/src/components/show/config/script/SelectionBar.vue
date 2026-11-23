@@ -42,7 +42,10 @@ defineEmits<{
   gap: 10px;
   padding: 10px 14px;
   margin: 8px 0;
-  background: var(--bs-tertiary-bg);
+  /* Darkly doesn't redefine --bs-tertiary-bg/--bs-border-color (Bootstrap 5.3
+     dark-mode variables it predates) — --bs-dark/--bs-gray-700 are this theme's
+     own dark surface/border colours instead. */
+  background: var(--bs-dark);
   border: 1px solid var(--bs-success);
   border-radius: var(--bs-border-radius);
   flex-wrap: wrap;
@@ -50,7 +53,7 @@ defineEmits<{
 .selection-bar-divider {
   width: 1px;
   height: 22px;
-  background: var(--bs-border-color);
+  background: var(--bs-gray-700);
   margin: 0 2px;
 }
 </style>

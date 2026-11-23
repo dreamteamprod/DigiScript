@@ -117,11 +117,20 @@
               @cut-line-part="cutLinePart"
               @toggle-select="onToggleSelect(index)"
             />
-            <AddLineDivider
+            <BRow
               v-if="canEdit && !scriptConfigStore.cutMode && index < currentPageLines.length - 1"
-              :line-number="index + 1"
-              @add="insertLineAt(currentPage, index, $event)"
-            />
+            >
+              <BCol cols="1" />
+              <BCol cols="1" />
+              <BCol cols="1" />
+              <BCol>
+                <AddLineDivider
+                  :line-number="index + 1"
+                  @add="insertLineAt(currentPage, index, $event)"
+                />
+              </BCol>
+              <BCol cols="1" />
+            </BRow>
           </template>
         </template>
       </BCol>

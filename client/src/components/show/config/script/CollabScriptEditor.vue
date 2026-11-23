@@ -226,11 +226,15 @@
               @edit-line="beginEditingLine(line._uid)"
               @toggle-select="onToggleSelect(line._uid, index)"
             />
-            <AddLineDivider
-              v-if="canEditDraft && index < draftLines.length - 1"
-              :line-number="index + 1"
-              @add="insertLineAt(index, $event)"
-            />
+            <BRow v-if="canEditDraft && index < draftLines.length - 1">
+              <BCol cols="1" />
+              <BCol cols="1" />
+              <BCol cols="1" />
+              <BCol>
+                <AddLineDivider :line-number="index + 1" @add="insertLineAt(index, $event)" />
+              </BCol>
+              <BCol cols="1" />
+            </BRow>
           </template>
         </template>
         <template v-else>
