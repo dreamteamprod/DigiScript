@@ -14,21 +14,21 @@
          own cols="12" note further down for why this doesn't add a second row. -->
     <RemoteEditorsBadge :names="remoteEditors ?? []" />
 
-    <!-- Design E's gutter: a plain line number at rest, replaced by a selection
-         checkbox on hover/focus (always shown under `@media (hover: none)`, for
-         touch). Only rendered as interactive when a selection is actually possible
-         — view-only rendering (live view's own separate viewer) never sets canEdit. -->
+    <!-- Design E's gutter: a selection checkbox, labelled with the line number, when
+         editing is possible — a plain number otherwise. Checkbox and number sit side
+         by side rather than swapping on hover: overlaying the two exactly (tried
+         first) left a stray element intercepting the checkbox's own click target. -->
     <BCol cols="1" class="line-gutter">
-      <template v-if="canEdit && !isCutMode">
-        <span class="line-number" aria-hidden="true">{{ lineIndex + 1 }}</span>
-        <BFormCheckbox
-          class="line-select-checkbox"
-          :model-value="selected"
-          :aria-label="`Select line ${lineIndex + 1}`"
-          @update:model-value="$emit('toggle-select')"
-          @click.stop
-        />
-      </template>
+      <BFormCheckbox
+        v-if="canEdit && !isCutMode"
+        class="line-select-checkbox"
+        :model-value="selected"
+        :aria-label="`Select line ${lineIndex + 1}`"
+        @update:model-value="$emit('toggle-select')"
+        @click.stop
+      >
+        <span class="line-number">{{ lineIndex + 1 }}</span>
+      </BFormCheckbox>
       <span v-else class="line-number">{{ lineIndex + 1 }}</span>
     </BCol>
 
@@ -319,38 +319,17 @@ function cutLinePart(partIndex: number): void {
 .line-row-editable .line-content {
   cursor: pointer;
 }
-/* The gutter: a plain number at rest, replaced by the checkbox on hover/focus, or
-   always on a touch device (no hover to reveal it on). */
 .line-gutter {
-  position: relative;
   text-align: center;
   color: var(--bs-secondary-color);
 }
-.line-number {
-  display: inline-block;
-}
 .line-select-checkbox {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.line-row-editable:hover .line-number,
-.line-row-editable:focus-within .line-number {
-  display: none;
-}
-.line-row-editable:hover .line-select-checkbox,
-.line-row-editable:focus-within .line-select-checkbox,
-.line-row-selected .line-select-checkbox {
-  display: inline-block;
-}
-.line-row-selected .line-number {
-  display: none;
-}
-@media (hover: none) {
-  .line-row-editable .line-number {
-    display: none;
-  }
-  .line-row-editable .line-select-checkbox {
-    display: inline-block;
-  }
+.line-select-checkbox .line-number {
+  margin-left: 0.4em;
 }
 /* "Click to edit": a real, always-focusable button so the row is operable from the
    keyboard, visually revealed only on hover/focus (always shown under `@media

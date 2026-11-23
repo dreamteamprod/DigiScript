@@ -122,6 +122,10 @@ export async function confirmDialog(page: Page): Promise<void> {
  * the same Done/Delete row) with an act, scene, optional character and text, leaving it
  * open (the caller clicks Done). Returns the editor's own locator in case the caller
  * needs it again (e.g. to add a second line before the first is done).
+ *
+ * Design E: the Act/Scene selects only render when this line has no previous line to
+ * inherit them from (the very first line of an empty page/draft) — every later line
+ * inherits them automatically, so `act`/`scene` are silently unused for those.
  */
 export async function fillOpenLineEditor(
   page: Page,
@@ -132,8 +136,11 @@ export async function fillOpenLineEditor(
     .locator('div.row')
     .filter({ has: page.locator('button:has-text("Done")') })
     .first();
-  await lineEditor.getByTestId('line-act-select').selectOption({ label: act });
-  await lineEditor.getByTestId('line-scene-select').selectOption({ label: scene });
+  const actSelect = lineEditor.getByTestId('line-act-select');
+  if ((await actSelect.count()) > 0) {
+    await actSelect.selectOption({ label: act });
+    await lineEditor.getByTestId('line-scene-select').selectOption({ label: scene });
+  }
   if (character) {
     await lineEditor
       .locator('select')
@@ -147,10 +154,9 @@ export async function fillOpenLineEditor(
 }
 
 /**
- * Clicks "Add Dialogue", fills the editor it opens, and clears the auto-chained blank
- * editor Done leaves behind (both the classic and collaborative editors chain into
- * another blank dialogue line for continuous typing) — leaving just the one line this
- * call asked for, so a caller does not have to repeat that cleanup itself.
+ * Clicks "Add Dialogue", fills the editor it opens, and clicks Done — which now (Design
+ * E) just closes the line; only Enter chains into another blank one, and this never
+ * presses it, so there is nothing left open to clean up afterwards.
  */
 export async function addDialogueLine(
   page: Page,
@@ -159,7 +165,5 @@ export async function addDialogueLine(
   await page.click('button:has-text("Add Dialogue")');
   await fillOpenLineEditor(page, fields);
   await page.locator('button:has-text("Done")').first().click();
-  await page.waitForSelector('button:has-text("Done")', { timeout: 5_000 });
-  await page.locator('button.btn-danger:has-text("Delete")').first().click();
   await page.waitForSelector('button:has-text("Done")', { state: 'hidden', timeout: 5_000 });
 }

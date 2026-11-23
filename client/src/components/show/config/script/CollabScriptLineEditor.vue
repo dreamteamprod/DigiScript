@@ -103,7 +103,7 @@
       <BRow class="mt-2">
         <BCol class="text-end">
           <BButtonGroup>
-            <BButton variant="outline-danger" @click.stop.prevent="$emit('deleteLine')"
+            <BButton variant="danger" @click.stop.prevent="$emit('deleteLine')"
               >Delete Line</BButton
             >
             <BButton variant="success" :disabled="!lineValid" @click="$emit('doneEditing')">
