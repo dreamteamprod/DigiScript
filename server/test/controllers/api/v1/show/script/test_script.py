@@ -2127,3 +2127,172 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
                 prev_line, "Page 2 first line must have a previous line"
             )
             self.assertEqual(1, prev_line.page, "Previous line must be on page 1")
+
+
+class TestPatchAppendNewLineToNonLastPage(DigiScriptTestCase):
+    """Regression tests for the "stuck page" bug (collab mode could never reach
+    the real last page of a script).
+
+    A genuinely new line (no id) appended to the end of a page that is NOT the
+    script's last page is classified by the frontend diff as "added", the same
+    status used for a true end-of-script append. ``create_new_line`` used to
+    splice it in one-directionally: it set the new association's previous_line
+    but never its next_line, and never fixed the real next line's previous_line
+    — silently severing the forward chain to every page after it, even though
+    those associations still exist in the table. The classic per-page GET
+    endpoint never notices (it only needs local, per-page ordering), which is
+    why collaborative mode — which walks the whole document as one chain — was
+    the only place this ever surfaced, as an editor that could never page past
+    the break.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+            session.add(show)
+            session.flush()
+            self.show_id = show.id
+
+            script = Script(show_id=show.id)
+            session.add(script)
+            session.flush()
+
+            revision = ScriptRevision(
+                script_id=script.id, revision=1, description="Test"
+            )
+            session.add(revision)
+            session.flush()
+            self.revision_id = revision.id
+            script.current_revision = revision.id
+
+            act = Act(show_id=show.id, name="Act 1")
+            session.add(act)
+            session.flush()
+            self.act_id = act.id
+
+            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+            session.add(scene)
+            session.flush()
+            self.scene_id = scene.id
+
+            character = Character(show_id=show.id, name="Character A")
+            session.add(character)
+            session.flush()
+            self.character_id = character.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def _make_line(self, page, line_id, text="Line"):
+        return {
+            "id": line_id,
+            "act_id": self.act_id,
+            "scene_id": self.scene_id,
+            "page": page,
+            "line_type": 1,
+            "line_parts": [
+                {
+                    "id": None,
+                    "line_id": line_id,
+                    "part_index": 0,
+                    "character_id": self.character_id,
+                    "character_group_id": None,
+                    "line_text": text,
+                }
+            ],
+            "stage_direction_style_id": None,
+        }
+
+    def test_appending_a_blank_line_to_page_one_preserves_the_link_to_page_two(self):
+        # Page 1 has one line, page 2 has one line (this is what makes page 1
+        # "not the last page" — the scenario that `addBlankLine` never excludes).
+        post_p1 = [self._make_line(1, None, "Page 1 line")]
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(post_p1),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        post_p2 = [self._make_line(2, None, "Page 2 line")]
+        response = self.fetch(
+            "/api/v1/show/script?page=2",
+            method="POST",
+            body=tornado.escape.json_encode(post_p2),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        line1_id = tornado.escape.json_decode(
+            self.fetch(
+                "/api/v1/show/script?page=1",
+                headers={"Authorization": f"Bearer {self.token}"},
+            ).body
+        )["lines"][0]["id"]
+        line2_id = tornado.escape.json_decode(
+            self.fetch(
+                "/api/v1/show/script?page=2",
+                headers={"Authorization": f"Bearer {self.token}"},
+            ).body
+        )["lines"][0]["id"]
+
+        # PATCH page 1: the existing line plus one brand-new blank line appended
+        # after it — exactly what the "add line" button sends, with status=added
+        # on the new (id == None) index, same as `addBlankLine` in scriptConfig.ts.
+        patch_p1 = {
+            "page": [
+                self._make_line(1, line1_id, "Page 1 line"),
+                self._make_line(1, None, "Appended blank line"),
+            ],
+            "status": {"added": [1], "updated": [], "deleted": [], "inserted": []},
+        }
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_p1),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision_id
+                )
+            ).all()
+            by_line = {a.line_id: a for a in assocs}
+            self.assertEqual(3, len(assocs))
+
+            appended = next(a for a in assocs if a.line_id not in (line1_id, line2_id))
+
+            # The new line must sit between the two original lines in both
+            # directions — not dead-end, and not skip over line 2.
+            self.assertEqual(appended.previous_line_id, line1_id)
+            self.assertEqual(
+                appended.next_line_id,
+                line2_id,
+                "Appending to a non-last page must not sever the link to the "
+                "next page's first line",
+            )
+            self.assertEqual(by_line[line1_id].next_line_id, appended.line_id)
+            self.assertEqual(by_line[line2_id].previous_line_id, appended.line_id)
+
+            # A full head-to-tail walk must reach every line.
+            head = next(a for a in assocs if a.previous_line_id is None)
+            walked = []
+            current = head
+            while current is not None:
+                walked.append(current.line_id)
+                current = by_line.get(current.next_line_id)
+            self.assertEqual(3, len(walked))

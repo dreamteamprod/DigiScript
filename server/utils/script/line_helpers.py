@@ -84,8 +84,21 @@ def create_new_line(
         session.flush()
 
         if previous_line:
+            # previous_line.next_line may already point to real content (e.g. a
+            # blank line appended to a page that isn't the script's last one) —
+            # preserve it on the new line instead of dropping it, or the forward
+            # chain is permanently severed from everything after it even though
+            # those associations still exist in the table.
+            old_next = previous_line.next_line
             previous_line.next_line = line_obj
             line_association.previous_line = previous_line.line
+            line_association.next_line = old_next
+            if old_next is not None:
+                next_association = session.get(
+                    ScriptLineRevisionAssociation, (revision.id, old_next.id)
+                )
+                if next_association is not None:
+                    next_association.previous_line = line_obj
             session.flush()
 
     for line_part in line["line_parts"]:
