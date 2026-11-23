@@ -43,7 +43,7 @@
 
             <div class="presence-popover-header">
               <strong>Here now</strong>
-              <span class="text-muted ms-2">{{ presenceEntries.length }} people</span>
+              <span class="presence-people-count">{{ presenceEntries.length }} people</span>
             </div>
             <template v-for="entry in presenceEntries" :key="entry.key">
               <!-- `presence-row-item` (for locating a row) stays on BDropdownForm/
@@ -65,7 +65,7 @@
                       {{ entry.username }}
                       <BBadge pill variant="secondary" class="presence-you-pill">You</BBadge>
                     </span>
-                    <span class="presence-row-sub text-muted">{{ entry.subText }}</span>
+                    <span class="presence-row-sub">{{ entry.subText }}</span>
                   </span>
                   <span class="presence-row-side">
                     <BBadge pill :variant="entry.roleVariant" class="presence-role-pill">{{
@@ -89,13 +89,13 @@
                   />
                   <span class="presence-row-body">
                     <span class="presence-row-name">{{ entry.username }}</span>
-                    <span class="presence-row-sub text-muted">{{ entry.subText }}</span>
+                    <span class="presence-row-sub">{{ entry.subText }}</span>
                   </span>
                   <span class="presence-row-side">
                     <BBadge pill :variant="entry.roleVariant" class="presence-role-pill">{{
                       entry.role
                     }}</BBadge>
-                    <span v-if="entry.page != null" class="presence-jump text-success">
+                    <span v-if="entry.page != null" class="presence-jump">
                       Jump to <IMdiArrowRight />
                     </span>
                   </span>
@@ -1355,13 +1355,20 @@ onBeforeUnmount(() => {
 .presence-stack > * + * {
   margin-left: -8px;
 }
+/* Matches the design's own dark popover chrome exactly (#303030/#444), not
+   Bootstrap's light-theme dropdown-menu defaults (var(--bs-border-color) etc,
+   which read as a near-white line against this dark background — that's what
+   looked like a stray "white line" cutting through the popover). */
 .presence-popover-header {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.8125rem;
-  border-bottom: 1px solid var(--bs-border-color);
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #444;
+}
+.presence-popover-header .presence-people-count {
+  color: #adb5bd;
+  font-size: 13px;
 }
 /* The actual row layout. Deliberately NOT a class on BDropdownForm/BDropdownItem
    themselves — both apply a slotted `class` to their own outer <li>, not the
@@ -1370,9 +1377,9 @@ onBeforeUnmount(() => {
 .presence-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 12px;
   width: 100%;
-  padding: 0.25rem 0;
+  min-height: 56px;
   text-align: left;
 }
 .presence-row-body {
@@ -1380,14 +1387,17 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  line-height: 1.3;
 }
 .presence-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
-  font-size: 0.875rem;
 }
 .presence-row-sub {
-  font-size: 0.75rem;
+  color: #adb5bd;
+  font-size: 13px;
+  line-height: 19px;
 }
 /* The right-hand column: role pill, and (for anyone but self) "Jump to" below it —
    matches the design's two-column row rather than crowding everything onto the
@@ -1401,13 +1411,14 @@ onBeforeUnmount(() => {
 }
 .presence-you-pill,
 .presence-role-pill {
-  font-size: 0.75rem;
+  font-size: 12px;
 }
 .presence-jump {
   display: flex;
   align-items: center;
-  gap: 2px;
-  font-size: 0.8125rem;
+  gap: 4px;
+  color: #54b98f;
+  font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1423,14 +1434,23 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 .presence-menu {
-  width: 360px;
+  width: 380px;
   padding: 0;
+  background: #303030;
+  border: 1px solid #444;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   /* Without `!important` this loses to Bootstrap's own `.dropdown-menu.show` rule
      (two classes vs. this one) regardless of source order. */
   z-index: 1060 !important;
 }
 .presence-menu .dropdown-item-text,
 .presence-menu .dropdown-item {
-  padding: 0.625rem 0.875rem;
+  padding: 8px 16px;
+  color: #fff;
+}
+.presence-menu .dropdown-item:hover,
+.presence-menu .dropdown-item:focus {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
 }
 </style>
