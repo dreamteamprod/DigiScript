@@ -311,8 +311,23 @@ class DigiScriptServer(PrometheusMixIn, Application):
             get_logger().info(f"Using relative static files path: {static_files_path}")
             get_logger().info(f"Using relative docs files path: {docs_files_path}")
 
+        if is_frozen():
+            static_root_path = get_resource_path("static")
+        else:
+            static_root_path = os.path.join(
+                os.path.abspath(os.path.dirname(__file__)), "..", "static"
+            )
+
         handlers = Route.routes()
         handlers.append(("/favicon.ico", controllers.StaticController))
+        # Root-level icon files copied from client/public by the Vite build
+        handlers.append(
+            (
+                r"/(favicon\.svg|apple-touch-icon\.png)",
+                SecureStaticFileHandler,
+                {"path": static_root_path},
+            )
+        )
         handlers.append(
             (r"/assets/(.*)", SecureStaticFileHandler, {"path": static_files_path})
         )

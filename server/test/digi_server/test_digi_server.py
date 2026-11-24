@@ -1,5 +1,6 @@
 import ast
 import asyncio
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +17,7 @@ from models.user import User
 from test.conftest import DigiScriptTestCase
 from utils.web import app_metrics
 from utils.web.request_size_metrics import http_request_body_bytes
+from utils.web.security_headers import SecureStaticFileHandler
 
 
 class TestDigiScriptServer(DigiScriptTestCase):
@@ -308,3 +310,29 @@ class TestDigiScriptServer(DigiScriptTestCase):
             self.assertIsNotNone(jwt_secret)
             self.assertIsNotNone(jwt_secret.value)
             self.assertGreater(len(jwt_secret.value), 0)
+
+    def test_root_level_icon_route_precedes_spa_catch_all(self):
+        """favicon.svg and apple-touch-icon.png are routed to the static root via
+        SecureStaticFileHandler, ahead of the SPA catch-all. Checked against the
+        routing table rather than by fetching the files, since client/public is
+        only copied into server/static by the Vite build, which this suite does
+        not run.
+        """
+        rules = self._app.wildcard_router.rules
+        icon_rule = next(
+            rule
+            for rule in rules
+            if rule.matcher.regex.pattern == r"/(favicon\.svg|apple-touch-icon\.png)$"
+        )
+        self.assertIs(icon_rule.target, SecureStaticFileHandler)
+        self.assertEqual(
+            os.path.normpath(icon_rule.target_kwargs["path"]),
+            os.path.normpath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "static")
+            ),
+        )
+
+        catch_all_index = next(
+            i for i, rule in enumerate(rules) if rule.matcher.regex.pattern == r"/(.*)$"
+        )
+        self.assertLess(rules.index(icon_rule), catch_all_index)
