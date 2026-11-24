@@ -303,6 +303,49 @@ class _ScriptTestSetup(DigiScriptTestCase):
         session.flush()
         return cue_type, cue, cue_group
 
+    def _seed_line(
+        self,
+        session,
+        previous_assoc=None,
+        text="Direction text",
+        character_id=None,
+        line_type=ScriptLineType.STAGE_DIRECTION,
+        page=1,
+    ):
+        """Insert ScriptLine + ScriptLinePart + SLRA; return the association."""
+        line = ScriptLine(
+            act_id=self.act_id,
+            scene_id=self.scene_id,
+            page=page,
+            line_type=line_type,
+        )
+        session.add(line)
+        session.flush()
+
+        part = ScriptLinePart(
+            line_id=line.id,
+            part_index=0,
+            character_id=character_id,
+            character_group_id=None,
+            line_text=text,
+        )
+        session.add(part)
+        session.flush()
+
+        assoc = ScriptLineRevisionAssociation(
+            revision_id=self.revision_id,
+            line_id=line.id,
+        )
+        session.add(assoc)
+        session.flush()
+
+        if previous_assoc:
+            previous_assoc.next_line = line
+            assoc.previous_line = previous_assoc.line
+            session.flush()
+
+        return assoc
+
 
 # ---------------------------------------------------------------------------
 # TestHasLineChanged — DB-backed
@@ -487,49 +530,6 @@ class TestHasLineChanged(_ScriptTestSetup):
 class TestSaveScriptPage(_ScriptTestSetup):
     """Tests for ``_save_script_page`` using a real in-memory SQLite DB."""
 
-    def _seed_line(
-        self,
-        session,
-        previous_assoc=None,
-        text="Direction text",
-        character_id=None,
-        line_type=ScriptLineType.STAGE_DIRECTION,
-        page=1,
-    ):
-        """Insert ScriptLine + ScriptLinePart + SLRA; return the association."""
-        line = ScriptLine(
-            act_id=self.act_id,
-            scene_id=self.scene_id,
-            page=page,
-            line_type=line_type,
-        )
-        session.add(line)
-        session.flush()
-
-        part = ScriptLinePart(
-            line_id=line.id,
-            part_index=0,
-            character_id=character_id,
-            character_group_id=None,
-            line_text=text,
-        )
-        session.add(part)
-        session.flush()
-
-        assoc = ScriptLineRevisionAssociation(
-            revision_id=self.revision_id,
-            line_id=line.id,
-        )
-        session.add(assoc)
-        session.flush()
-
-        if previous_assoc:
-            previous_assoc.next_line = line
-            assoc.previous_line = previous_assoc.line
-            session.flush()
-
-        return assoc
-
     def _assoc_to_line_dict(self, assoc):
         """Build a Y.Doc line dict that exactly matches an existing association (no changes)."""
         line = assoc.line
@@ -642,6 +642,38 @@ class TestSaveScriptPage(_ScriptTestSetup):
                 ScriptLineRevisionAssociation, (self.revision_id, new_db_id)
             )
         self.assertEqual(new_assoc.previous_line_id, prev_line_id)
+
+    def test_new_line_appended_to_a_non_last_page_preserves_the_next_page_link(self):
+        """Regression for the "stuck page" bug: the collab equivalent of clicking
+        "add line" at the end of a page that isn't the script's last page must not
+        drop the link to the next page's first line, even though that next page
+        is not part of this page's own save call."""
+        with self._app.get_db().sessionmaker() as session:
+            revision = session.get(ScriptRevision, self.revision_id)
+            show = revision.script.show
+            a1 = self._seed_line(session, text="Page 1 line")
+            a2 = self._seed_line(session, previous_assoc=a1, text="Page 2 line")
+            next_line_id = a2.line_id
+
+            new_id = str(uuid.uuid4())
+            page_data = [
+                self._assoc_to_line_dict(a1),
+                self._make_stage_direction_dict(new_id, text="Appended"),
+            ]
+            _, id_map, _ = _save_script_page(
+                revision, 1, page_data, [], session, show, None
+            )
+            new_db_id = int(id_map[new_id])
+
+            session.refresh(a1)
+            session.refresh(a2)
+            new_assoc = session.get(
+                ScriptLineRevisionAssociation, (self.revision_id, new_db_id)
+            )
+        self.assertEqual(a1.next_line_id, new_db_id)
+        self.assertEqual(new_assoc.previous_line_id, a1.line_id)
+        self.assertEqual(new_assoc.next_line_id, next_line_id)
+        self.assertEqual(a2.previous_line_id, new_db_id)
 
     # ------ Unchanged-line tests ------
 
