@@ -447,9 +447,15 @@ class ScriptController(BaseAPIController):
                             await self.finish({"message": valid_reason})
                             return
 
-                        line_association, line_object = self._create_new_line(
-                            session, revision, line, previous_line
-                        )
+                        try:
+                            line_association, line_object = self._create_new_line(
+                                session, revision, line, previous_line
+                            )
+                        except ValueError as exc:
+                            session.rollback()
+                            self.set_status(409)
+                            await self.finish({"message": str(exc)})
+                            return
                         previous_line = line_association
                     elif index in status["inserted"]:
                         # Validate the line
