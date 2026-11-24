@@ -28,20 +28,9 @@ doubly-linked list and a NULL next_line_id at the page boundary.
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 from alembic import op
 
-from alembic_config.repair_linked_list_utils import (
-    apply_pointer_updates,
-    build_global_order,
-    build_page_ordered,
-    collect_pointer_updates,
-    compute_expected_pointers,
-    delete_orphan_associations,
-    fetch_all_revision_ids,
-    fetch_current_pointers,
-    fetch_page_associations,
-)
+from alembic_config.repair_linked_list_utils import run_max_bridge_repair
 
 
 # revision identifiers, used by Alembic.
@@ -51,91 +40,8 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _page_walk(conn, revision_id):
-    """Walk pages using bridge detection. Returns {page: [line_id, ...]}.
-
-    When multiple lines on the same page both satisfy the bridge condition
-    (the corruption pattern caused by the status["added"] bug), pick
-    max(line_id). The highest line_id is the most recently created row and
-    is therefore the correct saved content.
-    """
-    by_page = fetch_page_associations(conn, revision_id)
-    return build_page_ordered(by_page, max)
-
-
-def _repair_revision(conn, revision_id):
-    """Repair linked-list pointers and remove orphans for one revision.
-
-    :returns: Summary dict with counts of changes applied.
-    """
-    page_ordered = _page_walk(conn, revision_id)
-    global_order = build_global_order(page_ordered)
-    expected = compute_expected_pointers(global_order)
-    current_by_id = fetch_current_pointers(conn, revision_id)
-    updates = collect_pointer_updates(expected, current_by_id, revision_id)
-    reachable_set = set(global_order)
-    orphan_ids = set(current_by_id.keys()) - reachable_set
-
-    if orphan_ids:
-        delete_orphan_associations(conn, revision_id, orphan_ids)
-    if updates:
-        apply_pointer_updates(conn, updates)
-
-    # Remove orphaned script_line_parts and script_lines rows.
-    # A script_line is orphaned when it has no revision associations at all.
-    # Delete parts first (FK child), then the line.
-    if orphan_ids:
-        for orphan_id in sorted(orphan_ids):
-            conn.execute(
-                sa.text(
-                    "DELETE FROM script_line_parts WHERE line_id = :line_id "
-                    "AND NOT EXISTS ("
-                    "  SELECT 1 FROM script_line_revision_association "
-                    "  WHERE line_id = :line_id"
-                    ")"
-                ),
-                {"line_id": orphan_id},
-            )
-        for orphan_id in sorted(orphan_ids):
-            conn.execute(
-                sa.text(
-                    "DELETE FROM script_lines WHERE id = :line_id "
-                    "AND NOT EXISTS ("
-                    "  SELECT 1 FROM script_line_revision_association "
-                    "  WHERE line_id = :line_id"
-                    ")"
-                ),
-                {"line_id": orphan_id},
-            )
-
-    return {
-        "revision_id": revision_id,
-        "total": len(current_by_id),
-        "pointer_updates": len(updates),
-        "orphans_deleted": len(orphan_ids),
-    }
-
-
 def upgrade() -> None:
-    conn = op.get_bind()
-    print("Repairing ScriptLineRevisionAssociation linked lists (max-bridge pass)…")
-    revision_ids = fetch_all_revision_ids(conn)
-    total_updates = 0
-    total_orphans = 0
-    for rev_id in revision_ids:
-        result = _repair_revision(conn, rev_id)
-        if result["pointer_updates"] or result["orphans_deleted"]:
-            print(
-                f"  Revision {rev_id}: {result['pointer_updates']} pointer fix(es), "
-                f"{result['orphans_deleted']} orphan(s) deleted "
-                f"(of {result['total']} associations)"
-            )
-        total_updates += result["pointer_updates"]
-        total_orphans += result["orphans_deleted"]
-    print(
-        f"Repair complete: {total_updates} pointer fix(es), "
-        f"{total_orphans} orphan(s) deleted across {len(revision_ids)} revision(s)."
-    )
+    run_max_bridge_repair(op.get_bind(), "max-bridge pass")
 
 
 def downgrade() -> None:

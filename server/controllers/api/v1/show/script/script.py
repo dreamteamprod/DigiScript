@@ -7,6 +7,7 @@ from tornado import escape
 from tornado.ioloop import IOLoop
 
 from controllers.api.constants import ERROR_SHOW_NOT_FOUND
+from digi_server.logger import get_logger
 from models.cue import CueAssociation
 from models.script import (
     CompiledScript,
@@ -233,8 +234,42 @@ class ScriptController(BaseAPIController):
                                 (revision.id, prev_line.next_line_id),
                             )
 
+                        # previous_lines[-1].next_line_id may already point to
+                        # a real page after this one (e.g. POSTing a fresh page
+                        # back in after every one of its lines was deleted) —
+                        # preserve it on the new line, or the chain to
+                        # everything after this page is silently severed even
+                        # though those associations still exist in the table
+                        # (the same bug create_new_line had, fixed below).
+                        old_next_id = previous_lines[-1].next_line_id
                         previous_lines[-1].next_line_id = line_obj.id
                         line_revision.previous_line_id = previous_lines[-1].line_id
+                        line_revision.next_line_id = old_next_id
+                        if old_next_id is not None:
+                            next_association = session.get(
+                                ScriptLineRevisionAssociation,
+                                (revision.id, old_next_id),
+                            )
+                            if next_association is not None:
+                                next_association.previous_line_id = line_obj.id
+                            else:
+                                get_logger().error(
+                                    f"POST script page: previous line's "
+                                    f"next_line_id={old_next_id} has no "
+                                    f"ScriptLineRevisionAssociation for "
+                                    f"revision={revision.id} — the chain is "
+                                    f"already broken ahead of this insert"
+                                )
+                                session.rollback()
+                                self.set_status(409)
+                                await self.finish(
+                                    {
+                                        "message": "Script revision's line "
+                                        "order is already inconsistent ahead "
+                                        "of this page; cannot safely insert"
+                                    }
+                                )
+                                return
                         session.flush()
 
                     # Set the next and previous line reference
@@ -412,9 +447,15 @@ class ScriptController(BaseAPIController):
                             await self.finish({"message": valid_reason})
                             return
 
-                        line_association, line_object = self._create_new_line(
-                            session, revision, line, previous_line
-                        )
+                        try:
+                            line_association, line_object = self._create_new_line(
+                                session, revision, line, previous_line
+                            )
+                        except ValueError as exc:
+                            session.rollback()
+                            self.set_status(409)
+                            await self.finish({"message": str(exc)})
+                            return
                         previous_line = line_association
                     elif index in status["inserted"]:
                         # Validate the line
