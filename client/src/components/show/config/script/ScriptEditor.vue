@@ -874,10 +874,20 @@ onUnmounted(() => {
   background: var(--body-background);
 }
 .add-end-footer {
-  margin-top: 18px;
+  /* Pinned to the bottom of the viewport regardless of scroll position, like
+     .sticky-header is pinned to the top — Tim asked for this after the first
+     build only showed it once scrolled all the way to the last line. */
+  position: sticky;
+  bottom: 0;
+  z-index: 90;
   padding: 14px 12px;
-  /* --bs-border-color resolves to Bootstrap's light default on this theme — see
-     ScriptLineEditor.vue's own note on --bs-dark for why --bs-gray-700 instead. */
-  border-top: 1px solid var(--bs-gray-700);
+  background: var(--body-background);
+  /* box-shadow, not border-top: CollabScriptEditor.vue's own .sticky-header
+     documents why a border on a sticky element paints over a popover that
+     should sit above it in Chromium — same fix applied here pre-emptively.
+     --bs-border-color (what the old border-top used) also resolves to
+     Bootstrap's light default on this theme — --bs-gray-700 instead, same
+     reasoning as ScriptLineEditor.vue's --bs-dark note. */
+  box-shadow: 0 -1px 0 0 var(--bs-gray-700);
 }
 </style>
