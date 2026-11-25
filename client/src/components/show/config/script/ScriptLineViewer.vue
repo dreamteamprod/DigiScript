@@ -338,8 +338,15 @@ function cutLinePart(partIndex: number): void {
 .cut-line-part {
   text-decoration: line-through;
 }
+/* :focus-within:has(:focus-visible), not plain :focus-within: a mouse click on
+   the checkbox leaves it focused (correct — don't steal focus from what the
+   user just interacted with), but that shouldn't keep painting this row like
+   the mouse is still over it once it's moved on. :focus-visible only matches
+   when the browser itself would show a focus ring — keyboard navigation, not
+   a mouse click — so tabbing to a row still gets this highlight as a focus
+   indicator, a click doesn't leave it stuck. */
 .line-row-editable:hover,
-.line-row-editable:focus-within {
+.line-row-editable:focus-within:has(:focus-visible) {
   background-color: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
   transition: background-color 0.15s ease;
@@ -347,6 +354,22 @@ function cutLinePart(partIndex: number): void {
 .line-row-selected {
   background-color: rgba(var(--bs-success-rgb), 0.08);
   box-shadow: inset 3px 0 0 var(--bs-success);
+}
+/* .stage-direction/.heading-padding's own margin is outside this background's
+   paintable box, so a selected run of lines showed a hairline gap of bare
+   page background cutting through the highlight wherever one occurred.
+   Swapping that margin for the exact same padding here closes the gap — the
+   margin-box stays the same overall size (so nothing else's layout shifts),
+   it's just paintable background from here instead of bare margin. */
+.line-row-selected.stage-direction {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+.line-row-selected.heading-padding {
+  margin-top: 0;
+  padding-top: 0.5rem;
 }
 .line-content {
   cursor: default;
