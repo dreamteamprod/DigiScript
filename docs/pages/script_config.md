@@ -223,7 +223,7 @@ The script cannot be saved while any line is still open for editing.
 
 #### Selecting Several Lines
 
-Hover a line's number (or tap it on a touch device) to reveal a checkbox. Ticking it selects that line; ticking another line extends the selection to cover both — ticking a line inside the current selection collapses it back down to just that line. A bar appears above the script showing how many lines are selected, with:
+Hover a line's number (or tap it on a touch device) to reveal a checkbox. Ticking it selects that line; ticking another line extends the selection to cover both. The selection is always one contiguous block, so while hovering or keyboard-focusing a checkbox, any line whose selected state would flip if you clicked now is outlined to preview the change. Ticking either end of the current selection shrinks it by one from that end, keeping the rest selected; ticking a line in the middle of the selection instead collapses the whole thing down to just that line, since removing a middle line can't keep the rest in one contiguous block either way. A bar appears above the script showing how many lines are selected, with:
 
 - **Set Character or Group** — reassign the speaker (or character group) across every selected line that has a part at the chosen position, with a preview of what will change before you confirm.
 - **Move to Scene** — move every selected line into a different act and scene.

@@ -6,6 +6,7 @@
       'heading-padding': line.line_type === LINE_TYPES.DIALOGUE && needsHeadingsAll,
       'remote-editing-row': (remoteEditors?.length ?? 0) > 0,
       'line-row-selected': selected,
+      'line-row-preview-change': previewed,
       'line-row-editable': canEdit && !isCutMode,
     }"
   >
@@ -36,7 +37,12 @@
            force-correcting the DOM in onToggleClick's nextTick, which runs as a
            microtask after that synchronous revert has already happened — so it's
            always the last write, regardless of what the browser did in between. -->
-      <label v-if="canEdit && !isCutMode" class="line-select-checkbox">
+      <label
+        v-if="canEdit && !isCutMode"
+        class="line-select-checkbox"
+        @mouseenter="$emit('hover-checkbox')"
+        @mouseleave="$emit('unhover-checkbox')"
+      >
         <input
           ref="checkboxEl"
           type="checkbox"
@@ -44,6 +50,8 @@
           :checked="selected"
           :aria-label="`Select line ${lineIndex + 1}`"
           @click.stop="onToggleClick"
+          @focus="$emit('hover-checkbox')"
+          @blur="$emit('unhover-checkbox')"
         />
         <span class="line-number">{{ lineIndex + 1 }}</span>
       </label>
@@ -184,11 +192,17 @@ const props = defineProps<{
   stageDirectionStyleOverrides: StageDirectionStyle[];
   /** Whether this line currently falls within the active selection range. */
   selected?: boolean;
+  /** Whether hovering/focusing a checkbox elsewhere means this line's own
+   * selected state would flip if that checkbox were clicked right now — see
+   * ScriptEditor.vue's isLinePreviewChanging. */
+  previewed?: boolean;
   /** Phase 4 Step C: usernames of other room members with this line open. */
   remoteEditors?: string[];
 }>();
 
 const emit = defineEmits<{
+  'hover-checkbox': [];
+  'unhover-checkbox': [];
   editLine: [];
   cutLinePart: [partId: number];
   'toggle-select': [];
@@ -370,6 +384,16 @@ function cutLinePart(partIndex: number): void {
 .line-row-selected.heading-padding {
   margin-top: 0;
   padding-top: 0.5rem;
+}
+/* Hovering (or Tab-focusing) a checkbox elsewhere previews what ticking it
+   right now would do to the rest of the range — a dashed outline, not a
+   background fill, so it reads as "about to change" rather than "already
+   selected" even on a line that's both (e.g. a shrink preview on the line
+   that would be dropped). outline, not border: doesn't affect layout or
+   this row's size. */
+.line-row-preview-change {
+  outline: 1px dashed var(--bs-success);
+  outline-offset: -1px;
 }
 .line-content {
   cursor: default;

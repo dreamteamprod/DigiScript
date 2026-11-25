@@ -37,8 +37,10 @@ const ViewerStub = defineComponent({
     line: { type: Object, required: true },
     lineIndex: { type: Number, default: 0 },
     remoteEditors: { type: Array, default: () => [] },
+    selected: { type: Boolean, default: false },
+    previewed: { type: Boolean, default: false },
   },
-  emits: ['edit-line', 'toggle-select'],
+  emits: ['edit-line', 'toggle-select', 'hover-checkbox', 'unhover-checkbox'],
   render() {
     return h('div', { class: 'row-stub' }, (this.line as { _uid?: string })._uid ?? 'rest');
   },
@@ -1836,7 +1838,10 @@ describe('CollabScriptEditor', () => {
       expect(vm(w).selectionRangeLabel).toBe('Lines 1 to 2');
     });
 
-    it('a click inside the current range collapses it back to just that line', async () => {
+    it("a click on the range's own start line shrinks it, keeping the rest selected", async () => {
+      // Regression: this used to collapse the whole range down to just the
+      // clicked line, deselecting everything else — Tim found this
+      // surprising when he wanted to drop just one end of a selection.
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
       const { lineUid: firstUid } = writer.addLine(1, {
@@ -1856,6 +1861,69 @@ describe('CollabScriptEditor', () => {
       vm(w).onToggleSelect(firstUid, 0);
 
       expect(vm(w).selectionCount).toBe(1);
+      expect(vm(w).selectionRangeLabel).toBe('Line 2');
+    });
+
+    it('a click on a genuinely interior line still collapses the range to just that line', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid: firstUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid: thirdUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      await flushPromises();
+
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(thirdUid, 2);
+      // Line 2 (index 1) is interior to the 0-2 range — neither boundary. The
+      // uid passed here is never actually used: onToggleSelect re-derives it
+      // from the index via draftLines.
+      vm(w).onToggleSelect('unused', 1);
+
+      expect(vm(w).selectionCount).toBe(1);
+      expect(vm(w).selectionRangeLabel).toBe('Line 2');
+    });
+
+    it('hovering a checkbox previews which lines would change, through the real template wiring', async () => {
+      // Goes through ScriptLineViewer's own hover-checkbox/unhover-checkbox
+      // events and previewed prop (via ViewerStub, which now declares both),
+      // not vm(w) directly — a typo in the template's event or prop name
+      // would still pass a vm()-only test but fail this one.
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      for (let i = 0; i < 4; i++) {
+        writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      }
+      await flushPromises();
+
+      const viewers = w.findAllComponents(ViewerStub);
+      viewers[0]!.vm.$emit('toggle-select');
+      viewers[1]!.vm.$emit('toggle-select');
+      await flushPromises();
+      expect(vm(w).selectionRangeLabel).toBe('Lines 1 to 2');
+
+      // Hovering line 4 (outside the range) previews extending to cover it —
+      // lines 3 and 4 would newly join the selection, lines 1-2 are unaffected.
+      viewers[3]!.vm.$emit('hover-checkbox');
+      await flushPromises();
+      expect(viewers.map((v) => v.props('previewed'))).toEqual([false, false, true, true]);
+
+      viewers[3]!.vm.$emit('unhover-checkbox');
+      await flushPromises();
+      expect(viewers.map((v) => v.props('previewed'))).toEqual([false, false, false, false]);
+
+      // Hovering line 1 (the range's own start) previews shrinking it away —
+      // only that one line would change.
+      viewers[0]!.vm.$emit('hover-checkbox');
+      await flushPromises();
+      expect(viewers.map((v) => v.props('previewed'))).toEqual([true, false, false, false]);
     });
 
     it('clearSelection resets the range', async () => {

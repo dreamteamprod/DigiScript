@@ -223,8 +223,11 @@
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
               :selected="isLineSelected(line._uid)"
+              :previewed="isLinePreviewChanging(line._uid)"
               @edit-line="beginEditingLine(line._uid)"
               @toggle-select="onToggleSelect(line._uid, index)"
+              @hover-checkbox="onHoverCheckbox(index)"
+              @unhover-checkbox="onUnhoverCheckbox(index)"
             />
             <BRow
               v-if="canEditDraft && index < draftLines.length - 1"
@@ -361,6 +364,7 @@ import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
 import { lineTypeLabel } from '@/js/lineTypeLabels';
+import { nextSelectionRange } from '@/js/scriptSelectionModel';
 import { parseDbId } from '@/js/yjs/yjsSnapshot';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
@@ -711,6 +715,32 @@ function isNextLineSelected(index: number): boolean {
   return nextLine != null && isLineSelected(nextLine._uid);
 }
 
+// ── Hover preview — see ScriptEditor.vue's own copy of this for the "why" ──
+
+const hoveredIndex = ref<number | null>(null);
+
+function onHoverCheckbox(index: number): void {
+  hoveredIndex.value = index;
+}
+
+function onUnhoverCheckbox(index: number): void {
+  if (hoveredIndex.value === index) hoveredIndex.value = null;
+}
+
+const previewRange = computed(() => {
+  if (hoveredIndex.value == null) return null;
+  return nextSelectionRange(selectionBounds.value, hoveredIndex.value);
+});
+
+function isLinePreviewChanging(lineUid: LineUid): boolean {
+  if (hoveredIndex.value == null) return false;
+  const index = draftLines.value.findIndex((l) => l._uid === lineUid);
+  if (index === -1) return false;
+  const range = previewRange.value;
+  const inPreview = range != null && index >= range.startIndex && index <= range.endIndex;
+  return inPreview !== isLineSelected(lineUid);
+}
+
 const selectionCount = computed(() => {
   const bounds = selectionBounds.value;
   return bounds ? bounds.endIndex - bounds.startIndex + 1 : 0;
@@ -748,32 +778,22 @@ function clearSelection(): void {
   bulkEditEnd.value = null;
 }
 
-/** A plain click always extends/collapses the range to the clicked line, same
- * contiguous-range model as the classic editor's own `onToggleSelect` — see
- * ScriptEditor.vue for the full rationale (works from the keyboard, no modifier
- * key required). */
+/** A plain click always extends/shrinks/collapses the range to the clicked
+ * line — see nextSelectionRange's own doc comment for exactly what each case
+ * does; the range-transition logic lives there (shared with ScriptEditor.vue
+ * and both editors' own hover-preview computation). `lineUid` is kept as a
+ * parameter even though the body re-derives it from `index` via draftLines,
+ * so the two editors' onToggleSelect keep a matching call shape. */
 function onToggleSelect(lineUid: LineUid, index: number): void {
-  const bounds = selectionBounds.value;
-  if (!bounds) {
-    bulkEditStart.value = { page: currentPage.value, lineUid };
-    bulkEditEnd.value = { page: currentPage.value, lineUid };
+  const next = nextSelectionRange(selectionBounds.value, index);
+  if (!next) {
+    clearSelection();
     return;
   }
-  if (index < bounds.startIndex) {
-    bulkEditStart.value = { page: currentPage.value, lineUid };
-  } else if (index > bounds.endIndex) {
-    bulkEditEnd.value = { page: currentPage.value, lineUid };
-  } else if (bounds.startIndex === bounds.endIndex && index === bounds.startIndex) {
-    // See ScriptEditor.vue's own onToggleSelect comment: re-clicking the sole
-    // selected line's checkbox must actually deselect it, not just re-set the
-    // identical range — otherwise Vue sees no change and never re-writes the
-    // checkbox's native checked state back after the browser already flipped
-    // it on click, leaving it visually unchecked while still selected.
-    clearSelection();
-  } else {
-    bulkEditStart.value = { page: currentPage.value, lineUid };
-    bulkEditEnd.value = { page: currentPage.value, lineUid };
-  }
+  const startUid = draftLines.value[next.startIndex]?._uid ?? lineUid;
+  const endUid = draftLines.value[next.endIndex]?._uid ?? lineUid;
+  bulkEditStart.value = { page: currentPage.value, lineUid: startUid };
+  bulkEditEnd.value = { page: currentPage.value, lineUid: endUid };
 }
 
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
@@ -815,6 +835,10 @@ function broadcastOpenLines(): void {
 function beginEditingLine(lineUid: string): void {
   editingLines.value.add(lineUid);
   broadcastOpenLines();
+  // See ScriptEditor.vue's own beginEditingLine: the hovered checkbox is
+  // about to disappear, and Chrome fires neither blur nor mouseleave for a
+  // removed element, so the dashed preview would otherwise linger.
+  hoveredIndex.value = null;
 }
 
 function doneEditingLine(lineUid: string): void {
@@ -1407,6 +1431,7 @@ watch(
 
 watch(currentPage, (val) => {
   localStorage.setItem('scriptEditPage', val.toString());
+  hoveredIndex.value = null;
 });
 
 onMounted(async () => {

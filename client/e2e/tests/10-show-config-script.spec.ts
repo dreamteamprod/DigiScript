@@ -213,15 +213,13 @@ test('a second tick extends the selection to cover both lines', async () => {
   await expect(page.locator('text=2 lines selected')).toBeVisible({ timeout: 5_000 });
 });
 
-test('clicking a line inside a multi-line range collapses it, deselecting the rest', async () => {
-  // Regression: this used to leave every checkbox in the old range unchecked
-  // while the bar still reported a line selected (a real click on a checkbox
-  // whose resulting `selected` value happens to equal its pre-click value —
-  // true for the clicked line here, since collapsing a range onto itself
-  // doesn't change whether that line is selected — made Chromium revert the
-  // checkbox's native checked DOM property back to its pre-click value as the
-  // last step of handling the click, clobbering whatever Vue had just
-  // rendered). See ScriptLineViewer.vue's onToggleClick.
+test('clicking the range’s own start line shrinks it, keeping the rest selected', async () => {
+  // Regression: this used to collapse the whole range down to just the
+  // clicked line, deselecting everything else — surprising for a UI where
+  // every other checkbox behaves like a normal toggle. Ticking an endpoint
+  // of a multi-line range now drops just that one line and keeps the rest
+  // selected, same as nextSelectionRange's own unit tests
+  // (scriptSelectionModel.test.ts) verify directly.
   const firstLineRow = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
   const secondLineRow = page
     .locator('.script-line-row')
@@ -231,12 +229,12 @@ test('clicking a line inside a multi-line range collapses it, deselecting the re
   await firstLineRow.getByRole('checkbox').click();
 
   await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
-  await expect(firstLineRow.getByRole('checkbox')).toBeChecked();
-  await expect(secondLineRow.getByRole('checkbox')).not.toBeChecked();
+  await expect(firstLineRow.getByRole('checkbox')).not.toBeChecked();
+  await expect(secondLineRow.getByRole('checkbox')).toBeChecked();
 
   // Restore the 2-line range — the next test assumes it's already selected.
-  await secondLineRow.hover();
-  await secondLineRow.getByRole('checkbox').click();
+  await firstLineRow.hover();
+  await firstLineRow.getByRole('checkbox').click();
   await expect(page.locator('text=2 lines selected')).toBeVisible({ timeout: 5_000 });
 });
 

@@ -113,9 +113,12 @@
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
               :selected="isLineSelected(index)"
+              :previewed="isLinePreviewChanging(index)"
               @edit-line="beginEditingLine(currentPage, index)"
               @cut-line-part="cutLinePart"
               @toggle-select="onToggleSelect(index)"
+              @hover-checkbox="onHoverCheckbox(index)"
+              @unhover-checkbox="onUnhoverCheckbox(index)"
             />
             <BRow
               v-if="canEdit && !scriptConfigStore.cutMode && index < currentPageLines.length - 1"
@@ -218,6 +221,7 @@ import { useAutoSave } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
 import { lineTypeLabel } from '@/js/lineTypeLabels';
 import { firstInvalidScriptLine } from '@/js/scriptDraftValidation';
+import { nextSelectionRange, type SelectionRange } from '@/js/scriptSelectionModel';
 import ScriptLineEditor from './ScriptLineEditor.vue';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import AddLineDivider from './AddLineDivider.vue';
@@ -504,6 +508,11 @@ function onLineChange(lineIndex: number, line: ScriptLine): void {
 
 function beginEditingLine(pageIndex: number, lineIndex: number): void {
   editingLines.value.add(`page_${pageIndex}_line_${lineIndex}`);
+  // The checkbox the hover-preview is tracking is about to disappear (this
+  // row turns into an edit card) — Chrome fires neither blur nor mouseleave
+  // for a removed element, so without this the dashed preview could linger
+  // on other rows until the mouse happens to cross another checkbox.
+  hoveredIndex.value = null;
 }
 
 function doneEditingLine(pageIndex: number, lineIndex: number): void {
@@ -675,40 +684,63 @@ function clearSelection(): void {
   nextLineOfEnd.value = null;
 }
 
-/** A plain click always extends/collapses the range to the clicked line — no
- * modifier key required, so the whole flow works from the keyboard (Space on a
- * focused checkbox). Clicking inside the current range collapses it back down to
- * just that one line, which doubles as the "restart a selection" gesture. */
+/** A plain click always extends/shrinks/collapses the range to the clicked
+ * line — no modifier key required, so the whole flow works from the keyboard
+ * (Space on a focused checkbox). See nextSelectionRange's own doc comment for
+ * exactly what each case does; the range-transition logic itself lives there
+ * (shared with the hover preview below, and with CollabScriptEditor.vue) so
+ * there's exactly one place that decides what a tick does. */
 function onToggleSelect(index: number): void {
-  if (!bulkEditStart.value || !bulkEditEnd.value) {
-    bulkEditStart.value = { page: currentPage.value, lineIndex: index };
-    bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
+  const current = bulkEditStart.value && bulkEditEnd.value ? currentSelectionRange.value : null;
+  const next = nextSelectionRange(current, index);
+  if (!next) {
+    clearSelection();
     return;
   }
-  const { lineIndex: startIndex } = bulkEditStart.value;
-  const { lineIndex: endIndex } = bulkEditEnd.value;
-  if (index < startIndex) {
-    bulkEditStart.value = { page: currentPage.value, lineIndex: index };
-  } else if (index > endIndex) {
-    bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
-  } else if (startIndex === endIndex && index === startIndex) {
-    // Re-clicking the sole selected line's own checkbox: deselect it. Without
-    // this branch the range gets set to the exact same {start, end} it
-    // already was, which Vue sees as no change and so never re-writes the
-    // checkbox's native checked DOM property — the browser had already
-    // flipped it on the click, so it's left visually unchecked while the
-    // selection (and the bar) silently stays as it was.
-    clearSelection();
-  } else {
-    bulkEditStart.value = { page: currentPage.value, lineIndex: index };
-    bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
-  }
+  bulkEditStart.value = { page: currentPage.value, lineIndex: next.startIndex };
+  bulkEditEnd.value = { page: currentPage.value, lineIndex: next.endIndex };
 }
 
+const currentSelectionRange = computed<SelectionRange | null>(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return null;
+  if (bulkEditStart.value.page !== currentPage.value) return null;
+  return { startIndex: bulkEditStart.value.lineIndex, endIndex: bulkEditEnd.value.lineIndex };
+});
+
 function isLineSelected(index: number): boolean {
-  if (!bulkEditStart.value || !bulkEditEnd.value) return false;
-  if (bulkEditStart.value.page !== currentPage.value) return false;
-  return index >= bulkEditStart.value.lineIndex && index <= bulkEditEnd.value.lineIndex;
+  const range = currentSelectionRange.value;
+  return range != null && index >= range.startIndex && index <= range.endIndex;
+}
+
+// ── Hover preview (shows which lines would change before the user commits to
+// a click — Tim found the contiguous-range model non-obvious until he'd
+// already clicked) ─────────────────────────────────────────────────────────
+
+const hoveredIndex = ref<number | null>(null);
+
+function onHoverCheckbox(index: number): void {
+  hoveredIndex.value = index;
+}
+
+function onUnhoverCheckbox(index: number): void {
+  if (hoveredIndex.value === index) hoveredIndex.value = null;
+}
+
+const previewRange = computed<SelectionRange | null>(() => {
+  if (hoveredIndex.value == null) return null;
+  return nextSelectionRange(currentSelectionRange.value, hoveredIndex.value);
+});
+
+/** True while hovering shows this line's selected state is about to flip —
+ * whichever direction, added to the range or dropped from it. */
+function isLinePreviewChanging(index: number): boolean {
+  if (hoveredIndex.value == null) return false;
+  const inPreview = previewRange.value != null && isInRange(previewRange.value, index);
+  return inPreview !== isLineSelected(index);
+}
+
+function isInRange(range: SelectionRange, index: number): boolean {
+  return index >= range.startIndex && index <= range.endIndex;
 }
 
 const selectionCount = computed(() => {
@@ -842,6 +874,7 @@ watch(
 
 watch(currentPage, (val) => {
   localStorage.setItem('scriptEditPage', val.toString());
+  hoveredIndex.value = null;
 });
 
 onMounted(async () => {
