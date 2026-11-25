@@ -135,9 +135,7 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
 
         Similar to HTTP request logging format: OP username (ip) elapsed_ms
         """
-        get_logger().debug(
-            f"{ws_op} {user_part} {elapsed_ms:.2f}ms"
-        )
+        get_logger().debug(f"{ws_op} {user_part} {elapsed_ms:.2f}ms")
 
     def update_session(self, user_id=None) -> bool:
         """Create or refresh the Session row for this connection's uuid.
@@ -534,15 +532,6 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         app_metrics.ws_messages_total.labels(
             app_metrics.bounded_op(ws_op, self._KNOWN_OPS)
         ).inc()
-
-        # With redaction on never log the payload: AUTHENTICATE / REFRESH_TOKEN
-        # carry live JWTs.
-        if self.application.digi_settings.get_sync("log_redaction"):
-            get_logger().debug(
-                f"WebSocket message from {user_part}: {ws_op} ({size} bytes)"
-            )
-        else:
-            get_logger().debug(f"WebSocket message from {user_part}: {raw}")
 
         # Connection boundary: an exception escaping on_message ends Tornado's
         # read loop without calling on_close, leaving a handler that no longer
