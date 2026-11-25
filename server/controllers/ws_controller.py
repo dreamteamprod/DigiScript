@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import datetime
 import json
+import time
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, Optional, Union
 from uuid import uuid4
 
@@ -128,6 +129,13 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         if self.current_username:
             return f"{self.current_username} ({self.request.remote_ip})"
         return str(self.request.remote_ip)
+
+    def _log_ws_operation(self, ws_op: str, user_part: str, elapsed_ms: float) -> None:
+        """Log a WebSocket operation with timing information.
+
+        Similar to HTTP request logging format: OP username (ip) elapsed_ms
+        """
+        get_logger().debug(f"{ws_op} {user_part} {elapsed_ms:.2f}ms")
 
     def update_session(self, user_id=None) -> bool:
         """Create or refresh the Session row for this connection's uuid.
@@ -525,20 +533,12 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             app_metrics.bounded_op(ws_op, self._KNOWN_OPS)
         ).inc()
 
-        # With redaction on never log the payload: AUTHENTICATE / REFRESH_TOKEN
-        # carry live JWTs.
-        if self.application.digi_settings.get_sync("log_redaction"):
-            get_logger().debug(
-                f"WebSocket message from {user_part}: {ws_op} ({size} bytes)"
-            )
-        else:
-            get_logger().debug(f"WebSocket message from {user_part}: {raw}")
-
         # Connection boundary: an exception escaping on_message ends Tornado's
         # read loop without calling on_close, leaving a handler that no longer
         # reads frames but still counts as a connected owner. Each op keeps its
         # own state consistent (authentication rolls itself back), so a failed
         # op is logged and the connection carries on.
+        start_time = time.monotonic()
         try:
             if ws_op in ("AUTHENTICATE", "REFRESH_TOKEN"):
                 await self._handle_auth_op(ws_op, message)
@@ -551,6 +551,9 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
                 f"Unhandled error in WS op {ws_op} from client "
                 f"{getattr(self, 'internal_id', '?')} ({self.request.remote_ip})"
             )
+        finally:
+            elapsed_ms = (time.monotonic() - start_time) * 1000.0
+            self._log_ws_operation(ws_op, user_part, elapsed_ms)
 
     async def _handle_auth_op(self, ws_op: str, message: dict) -> None:
         """Handle ``AUTHENTICATE`` / ``REFRESH_TOKEN``.
