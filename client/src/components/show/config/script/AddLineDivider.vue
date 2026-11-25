@@ -80,12 +80,27 @@ defineEmits<{
 </script>
 
 <style scoped>
+/* Resting height is deliberately thin — at a permanent 28px per line pair this
+   ate a lot of vertical space across a whole page of lines for an action most
+   lines never use. Expands back to the full interactive height on hover/focus
+   (and stays expanded on touch, where hover never fires — see the opacity
+   exception below for the same reasoning). */
 .add-line-divider {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 28px;
+  height: 8px;
   padding: 0 12px;
+  transition: height 0.15s ease;
+}
+.add-line-divider:hover,
+.add-line-divider:focus-within {
+  height: 28px;
+}
+@media (hover: none) {
+  .add-line-divider {
+    height: 28px;
+  }
 }
 .add-line-rule {
   flex: 1;

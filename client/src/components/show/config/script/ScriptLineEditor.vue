@@ -301,10 +301,19 @@ onMounted(() => {
   border: 1px solid var(--bs-success);
   border-radius: var(--bs-border-radius);
 }
+/* Enter/Tab/Up/Down only do anything while focus is in the "What they say"
+   field (where those keydown handlers are actually bound) — outside it the
+   same keys just scroll the page or move focus normally, so the hint only
+   makes sense to show then. :has() over a focus/blur-tracked ref: no JS
+   needed, and it can't drift out of sync with where the handlers really are. */
 .keyboard-hint {
+  display: none;
   margin-top: 10px;
   font-size: 0.8125rem;
   color: var(--bs-secondary-color);
+}
+.line-editor-card:has(input[type='text']:focus) .keyboard-hint {
+  display: block;
 }
 .keyboard-hint kbd {
   font-size: 0.75rem;

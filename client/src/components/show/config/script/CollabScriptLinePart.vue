@@ -290,7 +290,13 @@ onMounted(() => {
   v$.value.$touch();
   if (props.focusInput) {
     requestAnimationFrame(() => {
-      nextTick(() => textInputEl.value?.focus());
+      nextTick(() => {
+        textInputEl.value?.focus();
+        // See ScriptLinePart.vue's own comment: Up/Down moving which line is
+        // open can land the new card partly behind the sticky header/footer,
+        // and focus() alone doesn't guarantee the whole card clears them.
+        document.activeElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
     });
   }
 });

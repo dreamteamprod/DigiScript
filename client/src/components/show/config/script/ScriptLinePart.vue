@@ -248,7 +248,16 @@ onMounted(() => {
   v$.value.$touch();
   if (props.focusInput) {
     requestAnimationFrame(() => {
-      nextTick(() => partInputRef.value?.focus());
+      nextTick(() => {
+        partInputRef.value?.focus();
+        // Moving which line is "open" via Up/Down can land the new card
+        // partly behind the sticky header/footer — focus() alone only
+        // guarantees minimal visibility, not that the whole card clears
+        // them. document.activeElement, not the component ref: a ref on a
+        // BVN component may not itself support scrollIntoView, but whatever
+        // it focused always does.
+        document.activeElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
     });
   }
 });
