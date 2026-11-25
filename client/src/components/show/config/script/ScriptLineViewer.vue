@@ -19,16 +19,34 @@
          by side rather than swapping on hover: overlaying the two exactly (tried
          first) left a stray element intercepting the checkbox's own click target. -->
     <BCol cols="1" class="line-gutter">
-      <BFormCheckbox
-        v-if="canEdit && !isCutMode"
-        class="line-select-checkbox"
-        :model-value="selected"
-        :aria-label="`Select line ${lineIndex + 1}`"
-        @update:model-value="$emit('toggle-select')"
-        @click.stop
-      >
+      <!-- A plain native checkbox, not BFormCheckbox: the selection range model
+           means a click's resulting `selected` value for THIS checkbox can be the
+           same before and after (e.g. collapsing a multi-line range down onto the
+           very line that was clicked, or deselecting the only selected line), which
+           left it visually wrong in two different ways before this:
+           - BFormCheckbox's own internal checked state could fail to re-sync from a
+             changed `selected` prop once the user had interacted with it once.
+           - Even with a plain native `:checked` binding plus `@click.prevent`,
+             Chromium still reverted the input's checked DOM property back to its
+             *pre-click* value as part of a prevented click's "canceled activation
+             steps" — which runs synchronously right after Vue's own render, so it
+             clobbers whatever Vue had just (correctly) written, independently of
+             whether preventDefault was called at all.
+           Fixed by not fighting the browser's click handling and instead
+           force-correcting the DOM in onToggleClick's nextTick, which runs as a
+           microtask after that synchronous revert has already happened — so it's
+           always the last write, regardless of what the browser did in between. -->
+      <label v-if="canEdit && !isCutMode" class="line-select-checkbox">
+        <input
+          ref="checkboxEl"
+          type="checkbox"
+          class="form-check-input"
+          :checked="selected"
+          :aria-label="`Select line ${lineIndex + 1}`"
+          @click.stop="onToggleClick"
+        />
         <span class="line-number">{{ lineIndex + 1 }}</span>
-      </BFormCheckbox>
+      </label>
       <span v-else class="line-number">{{ lineIndex + 1 }}</span>
     </BCol>
 
@@ -140,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { useScriptConfigStore } from '@/stores/scriptConfig';
 import { useUserStore } from '@/stores/user';
@@ -175,6 +193,23 @@ const emit = defineEmits<{
   cutLinePart: [partId: number];
   'toggle-select': [];
 }>();
+
+const checkboxEl = ref<HTMLInputElement | null>(null);
+
+/** See the template's own comment on why this, not a plain @click handler:
+ * Chromium reverts a clicked checkbox's native `checked` DOM property back to
+ * its pre-click value as the last step of handling the click (even though we
+ * never actually asked for the native toggle), clobbering whatever Vue had
+ * just rendered from the new `selected` prop. nextTick's callback runs as a
+ * microtask, strictly after that synchronous revert, so re-asserting the
+ * prop's value there is guaranteed to be the last write — regardless of
+ * whatever the browser did to the DOM in between. */
+function onToggleClick(): void {
+  emit('toggle-select');
+  nextTick(() => {
+    if (checkboxEl.value) checkboxEl.value.checked = props.selected;
+  });
+}
 
 const scriptConfigStore = useScriptConfigStore();
 const userStore = useUserStore();

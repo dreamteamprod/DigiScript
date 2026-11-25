@@ -119,6 +119,9 @@
             />
             <BRow
               v-if="canEdit && !scriptConfigStore.cutMode && index < currentPageLines.length - 1"
+              :class="{
+                'add-line-divider-row-selected': isLineSelected(index) || isLineSelected(index + 1),
+              }"
             >
               <BCol cols="1" />
               <BCol cols="1" />
@@ -880,6 +883,16 @@ onUnmounted(() => {
   padding: 10px 0;
   border-bottom: 1px solid #dee2e6;
   background: var(--body-background);
+}
+/* Matches .line-row-selected in ScriptLineViewer.vue exactly (that rule is
+   scoped there and can't be reused directly) — applied to the whole wrapping
+   row, not AddLineDivider's own inner element, so it's flush with the line
+   rows' own left edge instead of starting a few columns in. Without this a
+   selected range's background read as separate highlighted rows with a plain
+   gap between each, rather than one continuous block. */
+.add-line-divider-row-selected {
+  background-color: rgba(var(--bs-success-rgb), 0.08);
+  box-shadow: inset 3px 0 0 var(--bs-success);
 }
 .add-end-footer {
   /* Pinned to the bottom of the viewport regardless of scroll position, like

@@ -213,6 +213,33 @@ test('a second tick extends the selection to cover both lines', async () => {
   await expect(page.locator('text=2 lines selected')).toBeVisible({ timeout: 5_000 });
 });
 
+test('clicking a line inside a multi-line range collapses it, deselecting the rest', async () => {
+  // Regression: this used to leave every checkbox in the old range unchecked
+  // while the bar still reported a line selected (a real click on a checkbox
+  // whose resulting `selected` value happens to equal its pre-click value —
+  // true for the clicked line here, since collapsing a range onto itself
+  // doesn't change whether that line is selected — made Chromium revert the
+  // checkbox's native checked DOM property back to its pre-click value as the
+  // last step of handling the click, clobbering whatever Vue had just
+  // rendered). See ScriptLineViewer.vue's onToggleClick.
+  const firstLineRow = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  const secondLineRow = page
+    .locator('.script-line-row')
+    .filter({ hasText: 'That is the question' });
+
+  await firstLineRow.hover();
+  await firstLineRow.getByRole('checkbox').click();
+
+  await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+  await expect(firstLineRow.getByRole('checkbox')).toBeChecked();
+  await expect(secondLineRow.getByRole('checkbox')).not.toBeChecked();
+
+  // Restore the 2-line range — the next test assumes it's already selected.
+  await secondLineRow.hover();
+  await secondLineRow.getByRole('checkbox').click();
+  await expect(page.locator('text=2 lines selected')).toBeVisible({ timeout: 5_000 });
+});
+
 test('Set Character or Group changes the selected lines’ speaker', async () => {
   await page.click('button:has-text("Set Character or Group")');
   await waitForModal(page, 'Set Character or Group');

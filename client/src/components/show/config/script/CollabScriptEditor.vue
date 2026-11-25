@@ -226,7 +226,13 @@
               @edit-line="beginEditingLine(line._uid)"
               @toggle-select="onToggleSelect(line._uid, index)"
             />
-            <BRow v-if="canEditDraft && index < draftLines.length - 1">
+            <BRow
+              v-if="canEditDraft && index < draftLines.length - 1"
+              :class="{
+                'add-line-divider-row-selected':
+                  isLineSelected(line._uid) || isNextLineSelected(index),
+              }"
+            >
               <BCol cols="1" />
               <BCol cols="1" />
               <BCol cols="1" />
@@ -695,6 +701,14 @@ function isLineSelected(lineUid: LineUid): boolean {
   if (!bounds) return false;
   const index = draftLines.value.findIndex((l) => l._uid === lineUid);
   return index !== -1 && index >= bounds.startIndex && index <= bounds.endIndex;
+}
+
+/** For the add-line-divider row sitting right after `index` — whether the
+ * line below it is selected, so the divider can pick up the same highlight
+ * (see ScriptEditor.vue's add-line-divider-row-selected for why). */
+function isNextLineSelected(index: number): boolean {
+  const nextLine = draftLines.value[index + 1];
+  return nextLine != null && isLineSelected(nextLine._uid);
 }
 
 const selectionCount = computed(() => {
@@ -1473,6 +1487,16 @@ onBeforeUnmount(() => {
      draws the same 1px line without that quirk. */
   box-shadow: 0 1px 0 0 #dee2e6;
   background: var(--body-background);
+}
+/* Matches .line-row-selected in ScriptLineViewer.vue exactly (that rule is
+   scoped there and can't be reused directly) — applied to the whole wrapping
+   row, not AddLineDivider's own inner element, so it's flush with the line
+   rows' own left edge instead of starting a few columns in. Without this a
+   selected range's background read as separate highlighted rows with a plain
+   gap between each, rather than one continuous block. */
+.add-line-divider-row-selected {
+  background-color: rgba(var(--bs-success-rgb), 0.08);
+  box-shadow: inset 3px 0 0 var(--bs-success);
 }
 /* The presence popover — avatar-stack toggle button + "Here now" member list. */
 .presence-stack {
