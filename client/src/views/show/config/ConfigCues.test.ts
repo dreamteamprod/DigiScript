@@ -78,14 +78,18 @@ describe('ConfigCues cue type actions', () => {
     userStore.currentRbac = rbac;
   }
 
+  // The table stub renders only the view's own action slots, so this is exactly the
+  // set of buttons the view offers (modals and other tabs are stubbed out).
+  const ALL_ACTIONS = ['New Cue Type', 'Import Cue Type', 'Edit', 'Delete'];
+
+  function buttonLabels(w: ReturnType<typeof mountView>): string[] {
+    return w.findAll('button').map((b) => b.text().trim());
+  }
+
   it('shows New, Import, Edit and Delete to someone who can edit the show', () => {
     setRbac(2, 2);
-    const w = mountView();
 
-    expect(w.text()).toContain('New Cue Type');
-    expect(w.text()).toContain('Import Cue Type');
-    expect(w.text()).toContain('Edit');
-    expect(w.text()).toContain('Delete');
+    expect(buttonLabels(mountView())).toEqual(ALL_ACTIONS);
   });
 
   it('hides every action from a cue editor who cannot edit the show', () => {
@@ -94,20 +98,14 @@ describe('ConfigCues cue type actions', () => {
     setRbac(1, 2);
     expect(useSystemStore().isCueEditor).toBe(true);
     expect(useSystemStore().isShowEditor).toBe(false);
-    const w = mountView();
 
-    expect(w.text()).not.toContain('New Cue Type');
-    expect(w.text()).not.toContain('Import Cue Type');
-    expect(w.text()).not.toContain('Edit');
-    expect(w.text()).not.toContain('Delete');
+    expect(buttonLabels(mountView())).toEqual([]);
   });
 
   it('shows the actions to an admin', () => {
     setRbac(null, null);
     useUserStore().currentUser = { id: 1, is_admin: true } as never;
-    const w = mountView();
 
-    expect(w.text()).toContain('New Cue Type');
-    expect(w.text()).toContain('Delete');
+    expect(buttonLabels(mountView())).toEqual(ALL_ACTIONS);
   });
 });

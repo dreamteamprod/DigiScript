@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import tornado.escape
 from sqlalchemy import select, text
 
@@ -1148,7 +1150,10 @@ class TestCueGroups(DigiScriptTestCase):
             session.add(assoc2)
 
             cue_type = CueType(
-                show_id=show.id, prefix="LX", description="Lighting", colour="#ff0000"
+                show_id=self.show_id,
+                prefix="LX",
+                description="Lighting",
+                colour="#ff0000",
             )
             session.add(cue_type)
             session.flush()
@@ -1680,54 +1685,58 @@ class TestCueGroups(DigiScriptTestCase):
                 session.commit()
 
 
+def seed_show_with_dialogue_line(session):
+    """Create a show with a current script revision holding one dialogue line.
+
+    :param session: An open database session (not committed by this helper).
+    :returns: A namespace with ``show_id``, ``revision_id`` and ``line_id``.
+    """
+    show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+    session.add(show)
+    session.flush()
+
+    script = Script(show_id=show.id)
+    session.add(script)
+    session.flush()
+
+    revision = ScriptRevision(script_id=script.id, revision=1, description="Initial")
+    session.add(revision)
+    session.flush()
+    script.current_revision = revision.id
+
+    act = Act(show_id=show.id, name="Act 1")
+    session.add(act)
+    session.flush()
+    scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+    session.add(scene)
+    session.flush()
+
+    line = ScriptLine(
+        act_id=act.id, scene_id=scene.id, page=1, line_type=ScriptLineType.DIALOGUE
+    )
+    session.add(line)
+    session.flush()
+    session.add(ScriptLineRevisionAssociation(revision_id=revision.id, line_id=line.id))
+
+    return SimpleNamespace(show_id=show.id, revision_id=revision.id, line_id=line.id)
+
+
 class TestCueLinePositionOrdering(DigiScriptTestCase):
     """Tests that individual cues and cue groups are ordered by line_position."""
 
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Initial"
-            )
-            session.add(revision)
-            session.flush()
-            self.revision_id = revision.id
-            script.current_revision = revision.id
-
-            act = Act(show_id=show.id, name="Act 1")
-            session.add(act)
-            session.flush()
-
-            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
-            session.add(scene)
-            session.flush()
-
-            line = ScriptLine(
-                act_id=act.id,
-                scene_id=scene.id,
-                page=1,
-                line_type=ScriptLineType.DIALOGUE,
-            )
-            session.add(line)
-            session.flush()
-            self.line_id = line.id
-
-            assoc = ScriptLineRevisionAssociation(
-                revision_id=revision.id, line_id=line.id
-            )
-            session.add(assoc)
+            seeded = seed_show_with_dialogue_line(session)
+            self.show_id = seeded.show_id
+            self.revision_id = seeded.revision_id
+            self.line_id = seeded.line_id
 
             cue_type = CueType(
-                show_id=show.id, prefix="LX", description="Lighting", colour="#ff0000"
+                show_id=self.show_id,
+                prefix="LX",
+                description="Lighting",
+                colour="#ff0000",
             )
             session.add(cue_type)
             session.flush()
@@ -1949,43 +1958,13 @@ class TestCuePatchPermissions(DigiScriptTestCase):
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
+            seeded = seed_show_with_dialogue_line(session)
+            self.show_id = seeded.show_id
+            self.line_id = seeded.line_id
+            show_id = seeded.show_id
 
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Initial"
-            )
-            session.add(revision)
-            session.flush()
-            script.current_revision = revision.id
-
-            act = Act(show_id=show.id, name="Act 1")
-            session.add(act)
-            session.flush()
-            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
-            session.add(scene)
-            session.flush()
-
-            line = ScriptLine(
-                act_id=act.id,
-                scene_id=scene.id,
-                page=1,
-                line_type=ScriptLineType.DIALOGUE,
-            )
-            session.add(line)
-            session.flush()
-            self.line_id = line.id
-            session.add(
-                ScriptLineRevisionAssociation(revision_id=revision.id, line_id=line.id)
-            )
-
-            lx = CueType(show_id=show.id, prefix="LX", colour="#ff0000")
-            snd = CueType(show_id=show.id, prefix="SND", colour="#0000ff")
+            lx = CueType(show_id=show_id, prefix="LX", colour="#ff0000")
+            snd = CueType(show_id=show_id, prefix="SND", colour="#0000ff")
             session.add_all([lx, snd])
             session.flush()
             self.lx_id = lx.id
@@ -2000,14 +1979,14 @@ class TestCuePatchPermissions(DigiScriptTestCase):
             session.add_all(
                 [
                     CueAssociation(
-                        revision_id=revision.id,
-                        line_id=line.id,
+                        revision_id=seeded.revision_id,
+                        line_id=self.line_id,
                         cue_id=self.lx_cue_id,
                         line_position=1,
                     ),
                     CueAssociation(
-                        revision_id=revision.id,
-                        line_id=line.id,
+                        revision_id=seeded.revision_id,
+                        line_id=self.line_id,
                         cue_id=self.snd_cue_id,
                         line_position=2,
                     ),
