@@ -688,6 +688,14 @@ function onToggleSelect(index: number): void {
     bulkEditStart.value = { page: currentPage.value, lineIndex: index };
   } else if (index > endIndex) {
     bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
+  } else if (startIndex === endIndex && index === startIndex) {
+    // Re-clicking the sole selected line's own checkbox: deselect it. Without
+    // this branch the range gets set to the exact same {start, end} it
+    // already was, which Vue sees as no change and so never re-writes the
+    // checkbox's native checked DOM property — the browser had already
+    // flipped it on the click, so it's left visually unchecked while the
+    // selection (and the bar) silently stays as it was.
+    clearSelection();
   } else {
     bulkEditStart.value = { page: currentPage.value, lineIndex: index };
     bulkEditEnd.value = { page: currentPage.value, lineIndex: index };

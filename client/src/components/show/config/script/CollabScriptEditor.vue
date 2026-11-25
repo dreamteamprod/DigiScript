@@ -749,6 +749,13 @@ function onToggleSelect(lineUid: LineUid, index: number): void {
     bulkEditStart.value = { page: currentPage.value, lineUid };
   } else if (index > bounds.endIndex) {
     bulkEditEnd.value = { page: currentPage.value, lineUid };
+  } else if (bounds.startIndex === bounds.endIndex && index === bounds.startIndex) {
+    // See ScriptEditor.vue's own onToggleSelect comment: re-clicking the sole
+    // selected line's checkbox must actually deselect it, not just re-set the
+    // identical range — otherwise Vue sees no change and never re-writes the
+    // checkbox's native checked state back after the browser already flipped
+    // it on click, leaving it visually unchecked while still selected.
+    clearSelection();
   } else {
     bulkEditStart.value = { page: currentPage.value, lineUid };
     bulkEditEnd.value = { page: currentPage.value, lineUid };

@@ -1792,6 +1792,28 @@ describe('CollabScriptEditor', () => {
       expect(vm(w).selectionCount).toBe(1);
     });
 
+    it('a second click on the sole selected line deselects it instead of re-selecting it', async () => {
+      // Regression: re-setting bulkEditStart/End to the exact {page, lineUid}
+      // they already held was a no-op Vue never saw as a change, so the
+      // checkbox's native checked state (already flipped by the browser on
+      // click) never got reconciled back — it looked unchecked while the
+      // selection bar still reported the line selected.
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = writer.addLine(1, {
+        lineType: LINE_TYPES.SPACING,
+        actId: 1,
+        sceneId: 1,
+      });
+      await flushPromises();
+
+      vm(w).onToggleSelect(lineUid, 0);
+      expect(vm(w).selectionCount).toBe(1);
+      vm(w).onToggleSelect(lineUid, 0);
+
+      expect(vm(w).selectionCount).toBe(0);
+    });
+
     it('a second click extends the range to cover both lines', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();

@@ -182,6 +182,27 @@ test('ticking a line number starts a selection and shows the selection bar', asy
   await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
 });
 
+test('ticking the sole selected line again deselects it', async () => {
+  // Regression: re-ticking an already-selected line's own checkbox used to
+  // leave it "stuck" selected (bar still showing "1 line selected") while the
+  // checkbox itself rendered unchecked — see ScriptEditor.vue's
+  // onToggleSelect for why re-setting the range to the identical
+  // {page, lineIndex} it already held never reconciled the checkbox's native
+  // checked state back after the browser flipped it on click.
+  const row = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  const checkbox = row.getByRole('checkbox');
+  await row.hover();
+  await checkbox.click();
+
+  await expect(page.locator('text=1 line selected')).not.toBeVisible({ timeout: 5_000 });
+  await expect(checkbox).not.toBeChecked();
+
+  // Restore the selection — the next test assumes it's already active.
+  await row.hover();
+  await checkbox.click();
+  await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+});
+
 test('a second tick extends the selection to cover both lines', async () => {
   const secondLineRow = page
     .locator('.script-line-row')
