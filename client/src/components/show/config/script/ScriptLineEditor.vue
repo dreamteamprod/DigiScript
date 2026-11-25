@@ -42,12 +42,6 @@
             :focus-input="index === 0"
             :characters="characters"
             :character-groups="characterGroups"
-            :show-add-button="
-              index === state.line_parts.length - 1 &&
-              lineType === LINE_TYPES.DIALOGUE &&
-              scriptMode === 1
-            "
-            :enable-add-button="state.line_parts.length < 4 && lineType === LINE_TYPES.DIALOGUE"
             :show-remove-button="state.line_parts.length > 1 && lineType === LINE_TYPES.DIALOGUE"
             :line-type="lineType"
             :line-parts="state.line_parts"
@@ -56,7 +50,6 @@
             "
             :stage-direction-style-id="state.stage_direction_style_id"
             @update:model-value="onPartUpdate(index, $event)"
-            @add-line-part="addLinePart"
             @remove-line-part="removeLinePart(index)"
             @try-finish-line="tryFinishLine"
             @navigate-up="$emit('navigateUp')"
@@ -93,6 +86,15 @@
             :disabled="state.id != null"
             @update:model-value="onLineTypeChange"
           />
+        </BCol>
+        <BCol v-if="lineType === LINE_TYPES.DIALOGUE && scriptMode === 1" cols="auto">
+          <BButton
+            variant="outline-secondary"
+            :disabled="state.line_parts.length >= 4"
+            @click="addLinePart"
+          >
+            Add Speaker <span class="text-muted">{{ state.line_parts.length }} of 4</span>
+          </BButton>
         </BCol>
         <BCol class="text-end">
           <BButtonGroup>

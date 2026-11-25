@@ -40,35 +40,24 @@
 
     <BCol>
       <label :for="`line-part-text-${part._uid}`" class="form-label small">What they say</label>
-      <div style="display: inline-flex; width: 100%">
-        <input
-          :id="`line-part-text-${part._uid}`"
-          ref="textInputEl"
-          type="text"
-          class="form-control"
-          :class="{ 'is-valid': lineTextState === true, 'is-invalid': lineTextState === false }"
-          :value="textField.value.value"
-          @input="onTextInput(($event.target as HTMLInputElement).value)"
-          @keyup="textField.onCaretActivity"
-          @click="textField.onCaretActivity"
-          @focus="textField.onCaretActivity"
-          @select="textField.onCaretActivity"
-          @keydown.enter="handleEnterPress"
-          @keydown.up="$emit('navigate-up')"
-          @keydown.down="$emit('navigate-down')"
-          @compositionstart="textField.onCompositionStart"
-          @compositionend="onTextCompositionEnd(($event.target as HTMLInputElement).value)"
-        />
-        <BButton
-          v-if="showAddButton && lineType === LINE_TYPES.DIALOGUE"
-          v-b-tooltip.hover.top="'Add line part'"
-          :disabled="!enableAddButton"
-          style="margin-left: 0.5em"
-          @click="$emit('add-line-part')"
-        >
-          <IMdiPlusBox />
-        </BButton>
-      </div>
+      <input
+        :id="`line-part-text-${part._uid}`"
+        ref="textInputEl"
+        type="text"
+        class="form-control"
+        :class="{ 'is-valid': lineTextState === true, 'is-invalid': lineTextState === false }"
+        :value="textField.value.value"
+        @input="onTextInput(($event.target as HTMLInputElement).value)"
+        @keyup="textField.onCaretActivity"
+        @click="textField.onCaretActivity"
+        @focus="textField.onCaretActivity"
+        @select="textField.onCaretActivity"
+        @keydown.enter="handleEnterPress"
+        @keydown.up="$emit('navigate-up')"
+        @keydown.down="$emit('navigate-down')"
+        @compositionstart="textField.onCompositionStart"
+        @compositionend="onTextCompositionEnd(($event.target as HTMLInputElement).value)"
+      />
     </BCol>
 
     <BCol
@@ -132,8 +121,6 @@ const props = defineProps<{
   focusInput: boolean;
   characters: Character[];
   characterGroups: CharacterGroup[];
-  showAddButton: boolean;
-  enableAddButton: boolean;
   showRemoveButton: boolean;
   lineType: number;
   lineParts: DraftScriptLinePart[];
@@ -142,7 +129,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'add-line-part': [];
   'remove-line-part': [];
   'try-finish-line': [];
   'navigate-up': [];

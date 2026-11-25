@@ -6,6 +6,7 @@ import { defineComponent, h } from 'vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import { passthrough, SelectStub } from './testStubs';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { useSystemStore } from '@/stores/system';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { Act, Scene } from '@/types/api/show';
 
@@ -30,7 +31,7 @@ import { toast } from '@/js/toast';
 
 const PartStub = defineComponent({
   props: { part: { type: Object, required: true } },
-  emits: ['add-line-part', 'remove-line-part', 'try-finish-line', 'stage-direction-style-change'],
+  emits: ['remove-line-part', 'try-finish-line', 'stage-direction-style-change'],
   render() {
     return h('div', { class: 'part-stub' }, (this.part as { _uid: string })._uid);
   },
@@ -205,7 +206,8 @@ describe('CollabScriptLineEditor', () => {
     expect(addPart).toHaveBeenCalledWith(1, 'line1', { characterId: null, characterGroupId: null });
   });
 
-  it('adds a line part seeded from the previous line at the same position', () => {
+  it('adds a line part seeded from the previous line at the same position', async () => {
+    useSystemStore().currentShow = { script_mode: 1 } as never;
     wrapper = mountEditor({
       previousLine: line({
         _uid: 'prev',
@@ -233,7 +235,8 @@ describe('CollabScriptLineEditor', () => {
         ],
       }),
     });
-    wrapper.findComponent(PartStub).vm.$emit('add-line-part');
+    const addSpeaker = wrapper.findAll('button').find((b) => b.text().startsWith('Add Speaker'))!;
+    await addSpeaker.trigger('click');
     expect(addPart).toHaveBeenCalledWith(1, 'line1', { characterId: 9, characterGroupId: null });
   });
 

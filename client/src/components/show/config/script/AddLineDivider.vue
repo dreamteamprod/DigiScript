@@ -10,24 +10,50 @@
       <template #button-content>+ Add Line Here</template>
       <BDropdownHeader>What do you want to add?</BDropdownHeader>
       <BDropdownItem @click="$emit('add', LINE_TYPES.DIALOGUE)">
-        <strong>Dialogue</strong>
-        <span class="add-line-item-desc">
-          Someone speaking. Add more speakers if they talk together.
-        </span>
+        <div class="add-line-item">
+          <span class="add-line-swatch" aria-hidden="true">
+            <b class="add-line-swatch-name">Name</b>Text
+          </span>
+          <span class="add-line-item-text">
+            <strong>Dialogue</strong>
+            <span class="add-line-item-desc">
+              Someone speaking. Add more speakers if they talk together.
+            </span>
+          </span>
+        </div>
       </BDropdownItem>
       <BDropdownItem @click="$emit('add', LINE_TYPES.STAGE_DIRECTION)">
-        <strong>Direction</strong>
-        <span class="add-line-item-desc">An action or stage direction.</span>
+        <div class="add-line-item">
+          <span class="add-line-swatch" aria-hidden="true">
+            <span class="add-line-swatch-direction-chip">Action</span>
+          </span>
+          <span class="add-line-item-text">
+            <strong>Direction</strong>
+            <span class="add-line-item-desc">An action or stage direction.</span>
+          </span>
+        </div>
       </BDropdownItem>
       <BDropdownItem @click="$emit('add', LINE_TYPES.CUE_LINE)">
-        <strong>Cue</strong>
-        <span class="add-line-item-desc"
-          >A marker where a cue sits. It has no text of its own.</span
-        >
+        <div class="add-line-item">
+          <span class="add-line-swatch" aria-hidden="true">
+            <span class="add-line-swatch-cue-rule" />
+          </span>
+          <span class="add-line-item-text">
+            <strong>Cue</strong>
+            <span class="add-line-item-desc"
+              >A marker where a cue sits. It has no text of its own.</span
+            >
+          </span>
+        </div>
       </BDropdownItem>
       <BDropdownItem @click="$emit('add', LINE_TYPES.SPACING)">
-        <strong>Gap</strong>
-        <span class="add-line-item-desc">Blank space, to leave room in the live script.</span>
+        <div class="add-line-item">
+          <span class="add-line-swatch add-line-swatch-gap" aria-hidden="true" />
+          <span class="add-line-item-text">
+            <strong>Gap</strong>
+            <span class="add-line-item-desc">Blank space, to leave room in the live script.</span>
+          </span>
+        </div>
       </BDropdownItem>
     </BDropdown>
     <span class="add-line-rule" aria-hidden="true" />
@@ -83,6 +109,54 @@ defineEmits<{
   .add-line-divider :deep(.add-line-toggle) {
     opacity: 1;
   }
+}
+.add-line-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* A stylised preview of what each line type looks like once added, mirroring the
+   design's icon column (a dashed rule for Cue, a diagonal stripe for Gap, etc.)
+   rather than the plain bold-title-only item this replaced. */
+.add-line-swatch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 28px;
+  overflow: hidden;
+  border: 1px solid var(--bs-gray-700);
+  border-radius: var(--bs-border-radius-sm);
+  background: var(--bs-dark);
+  font-size: 11px;
+}
+.add-line-swatch-name {
+  margin-right: 3px;
+  font-size: 9px;
+}
+.add-line-swatch-direction-chip {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: darkslateblue;
+  color: #fff;
+  font-size: 10px;
+  font-style: italic;
+}
+.add-line-swatch-cue-rule {
+  width: 32px;
+  border-top: 2px dashed var(--bs-gray-500);
+}
+.add-line-swatch-gap {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    rgba(255, 255, 255, 0.15) 6px 7px
+  );
+}
+.add-line-item-text {
+  display: flex;
+  flex-direction: column;
 }
 .add-line-item-desc {
   display: block;

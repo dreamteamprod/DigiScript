@@ -40,26 +40,15 @@
 
     <BCol>
       <BFormGroup label-size="sm" label="What they say">
-        <div style="display: inline-flex; width: 100%">
-          <BFormInput
-            ref="partInputRef"
-            v-model="state.line_text"
-            :state="lineTextState"
-            @update:model-value="onStateChange"
-            @keydown.enter="handleEnterPress"
-            @keydown.up="$emit('navigate-up')"
-            @keydown.down="$emit('navigate-down')"
-          />
-          <BButton
-            v-if="showAddButton && lineType === LINE_TYPES.DIALOGUE"
-            v-b-tooltip.hover.top="'Add line part'"
-            :disabled="!enableAddButton"
-            style="margin-left: 0.5em"
-            @click="$emit('add-line-part')"
-          >
-            <IMdiPlusBox />
-          </BButton>
-        </div>
+        <BFormInput
+          ref="partInputRef"
+          v-model="state.line_text"
+          :state="lineTextState"
+          @update:model-value="onStateChange"
+          @keydown.enter="handleEnterPress"
+          @keydown.up="$emit('navigate-up')"
+          @keydown.down="$emit('navigate-down')"
+        />
       </BFormGroup>
     </BCol>
 
@@ -109,8 +98,6 @@ const props = defineProps<{
   focusInput: boolean;
   characters: Character[];
   characterGroups: CharacterGroup[];
-  showAddButton: boolean;
-  enableAddButton: boolean;
   showRemoveButton: boolean;
   lineType: number;
   lineParts: ScriptLinePart[];
@@ -121,7 +108,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [part: ScriptLinePart];
-  'add-line-part': [];
   'remove-line-part': [];
   'try-finish-line': [];
   'navigate-up': [];

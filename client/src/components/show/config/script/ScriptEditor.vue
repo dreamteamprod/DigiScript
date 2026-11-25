@@ -135,18 +135,19 @@
         </template>
       </BCol>
     </BRow>
-    <BRow class="script-row pt-1">
-      <BCol cols="10" class="ms-auto">
-        <BButtonGroup v-show="canEdit && !scriptConfigStore.cutMode" style="float: right">
-          <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
-          <BDropdown variant="primary" end toggle-class="dropdown-toggle-split">
-            <BDropdownItem @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
-              >Add Stage Direction</BDropdownItem
-            >
-            <BDropdownItem @click="addNewLine(LINE_TYPES.CUE_LINE)">Add Cue Line</BDropdownItem>
-            <BDropdownItem @click="addNewLine(LINE_TYPES.SPACING)">Add Spacing</BDropdownItem>
-          </BDropdown>
-        </BButtonGroup>
+    <BRow v-if="canEdit && !scriptConfigStore.cutMode" class="script-row add-end-footer">
+      <BCol cols="12" class="d-flex align-items-center flex-wrap gap-2">
+        <span class="text-muted small me-1">Add to end of page</span>
+        <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
+        <BButton variant="outline-secondary" @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
+          >Add Direction</BButton
+        >
+        <BButton variant="outline-secondary" @click="addNewLine(LINE_TYPES.CUE_LINE)"
+          >Add Cue</BButton
+        >
+        <BButton variant="outline-secondary" @click="addNewLine(LINE_TYPES.SPACING)"
+          >Add Gap</BButton
+        >
       </BCol>
     </BRow>
 
@@ -875,5 +876,12 @@ onUnmounted(() => {
   padding: 10px 0;
   border-bottom: 1px solid #dee2e6;
   background: var(--body-background);
+}
+.add-end-footer {
+  margin-top: 18px;
+  padding: 14px 12px;
+  /* --bs-border-color resolves to Bootstrap's light default on this theme — see
+     ScriptLineEditor.vue's own note on --bs-dark for why --bs-gray-700 instead. */
+  border-top: 1px solid var(--bs-gray-700);
 }
 </style>

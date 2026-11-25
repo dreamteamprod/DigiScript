@@ -65,10 +65,8 @@ test('adds a dialogue line', async () => {
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
 });
 
-test('adds a stage direction via dropdown', async () => {
-  // Split dropdown: click the arrow toggle to open the menu
-  await page.click('button.dropdown-toggle-split');
-  await page.click('.dropdown-item:has-text("Add Stage Direction")');
+test('adds a stage direction via the add-to-end-of-page footer', async () => {
+  await page.click('button:has-text("Add Direction")');
   // At least two Done buttons are now visible (one per open editor)
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
 });
@@ -531,8 +529,7 @@ test('remove button appears when a second part is added', async () => {
     .filter({ has: page.locator('button:has-text("Done")') })
     .first();
 
-  // btn-secondary is the add-line-part (+) button — only btn-secondary in the editor row
-  await lineEditor.locator('button.btn-secondary').click();
+  await lineEditor.locator('button:has-text("Add Speaker")').click();
 
   // One remove button per part
   await expect(lineEditor.locator('button.btn-outline-danger')).toHaveCount(2, { timeout: 3_000 });

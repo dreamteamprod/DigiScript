@@ -68,8 +68,6 @@ function mountPart(props: Partial<InstanceType<typeof CollabScriptLinePart>['$pr
       focusInput: false,
       characters,
       characterGroups,
-      showAddButton: false,
-      enableAddButton: true,
       showRemoveButton: false,
       lineType: LINE_TYPES.DIALOGUE,
       lineParts: [part()],
@@ -151,17 +149,9 @@ describe('CollabScriptLinePart', () => {
 
   it('emits remove-line-part when the remove button is clicked', async () => {
     wrapper = mountPart({ showRemoveButton: true });
-    // Remove is rendered before add in the template; add isn't shown in this case.
     await wrapper.find('button').trigger('click');
 
     expect(wrapper.emitted('remove-line-part')).toBeTruthy();
-  });
-
-  it('emits add-line-part when the add button is clicked', async () => {
-    wrapper = mountPart({ showAddButton: true });
-    await wrapper.find('button').trigger('click');
-
-    expect(wrapper.emitted('add-line-part')).toBeTruthy();
   });
 
   it('emits try-finish-line on Enter in the text field', async () => {
