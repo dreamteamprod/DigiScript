@@ -130,13 +130,6 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             return f"{self.current_username} ({self.request.remote_ip})"
         return str(self.request.remote_ip)
 
-    def _log_ws_operation(self, ws_op: str, user_part: str, elapsed_ms: float) -> None:
-        """Log a WebSocket operation with timing information.
-
-        Similar to HTTP request logging format: OP username (ip) elapsed_ms
-        """
-        get_logger().debug(f"{ws_op} {user_part} {elapsed_ms:.2f}ms")
-
     def update_session(self, user_id=None) -> bool:
         """Create or refresh the Session row for this connection's uuid.
 
@@ -552,8 +545,16 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
                 f"{getattr(self, 'internal_id', '?')} ({self.request.remote_ip})"
             )
         finally:
-            elapsed_ms = (time.monotonic() - start_time) * 1000.0
-            self._log_ws_operation(ws_op, user_part, elapsed_ms)
+            elapsed_ms = 1000.0 * (time.monotonic() - start_time)
+            # With redaction on never log the payload: AUTHENTICATE /
+            # REFRESH_TOKEN carry live JWTs.
+            if self.application.digi_settings.get_sync("log_redaction"):
+                summary = f"{ws_op} ({size} bytes)"
+            else:
+                summary = raw
+            get_logger().debug(
+                f"WebSocket message from {user_part}: {summary} {elapsed_ms:.2f}ms"
+            )
 
     async def _handle_auth_op(self, ws_op: str, message: dict) -> None:
         """Handle ``AUTHENTICATE`` / ``REFRESH_TOKEN``.
