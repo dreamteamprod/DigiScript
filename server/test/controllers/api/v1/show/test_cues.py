@@ -1150,10 +1150,7 @@ class TestCueGroups(DigiScriptTestCase):
             session.add(assoc2)
 
             cue_type = CueType(
-                show_id=self.show_id,
-                prefix="LX",
-                description="Lighting",
-                colour="#ff0000",
+                show_id=show.id, prefix="LX", description="Lighting", colour="#ff0000"
             )
             session.add(cue_type)
             session.flush()
