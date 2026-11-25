@@ -99,6 +99,15 @@
 
         <template v-else-if="line.line_type === LINE_TYPES.STAGE_DIRECTION">
           <BCol :style="{ textAlign: textAlign }">
+            <BRow
+              v-if="isTaggedStageDirection && needsHeadingsAnyValue"
+              class="tagged-sd-heading"
+              style="margin-bottom: 1rem"
+            >
+              <BCol>
+                <b>{{ taggedStageDirectionHeadingName }}</b>
+              </BCol>
+            </BRow>
             <i class="viewable-line" :style="sdStylingWithCuts">
               <template v-if="sdStyle?.text_format === 'upper'">
                 {{ line.line_parts[0]?.line_text?.toUpperCase() }}
@@ -375,6 +384,24 @@ const needsHeadingsValue = computed(() =>
   needsHeadings(props.line, props.previousLine, props.cuts, scriptStore.getScriptPage)
 );
 const needsHeadingsAnyValue = computed(() => needsHeadingsValue.value.some(Boolean));
+
+// A stage direction tagged with a character (or group) names them like dialogue does,
+// and needsHeadings() counts it as having done so for the next line.
+const isTaggedStageDirection = computed(() => {
+  const part = props.line.line_parts?.[0];
+  return (
+    props.line.line_type === LINE_TYPES.STAGE_DIRECTION &&
+    (part?.character_id != null || part?.character_group_id != null)
+  );
+});
+
+const taggedStageDirectionHeadingName = computed(() => {
+  const part = props.line.line_parts?.[0];
+  if (!part) return '';
+  if (part.character_id != null)
+    return props.characters.find((c) => c.id === part.character_id)?.name ?? '';
+  return props.characterGroups.find((g) => g.id === part.character_group_id)?.name ?? '';
+});
 
 const needsActSceneLabelValue = computed(() =>
   needsActSceneLabel(props.line, props.previousLine, props.cuts, scriptStore.getScriptPage)
