@@ -262,15 +262,11 @@
       <BCol cols="12" class="d-flex align-items-center flex-wrap gap-2">
         <span class="text-muted small me-1">Add to end of page</span>
         <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
-        <BButton variant="outline-secondary" @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
           >Add Direction</BButton
         >
-        <BButton variant="outline-secondary" @click="addNewLine(LINE_TYPES.CUE_LINE)"
-          >Add Cue</BButton
-        >
-        <BButton variant="outline-secondary" @click="addNewLine(LINE_TYPES.SPACING)"
-          >Add Gap</BButton
-        >
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.CUE_LINE)">Add Cue</BButton>
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.SPACING)">Add Gap</BButton>
       </BCol>
     </BRow>
 

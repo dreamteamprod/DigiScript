@@ -11,9 +11,9 @@
       Delete {{ count }} Line{{ count === 1 ? '' : 's' }}
     </BButton>
     <span class="flex-grow-1" />
-    <BButton size="sm" variant="outline-secondary" @click="$emit('clear')">
-      Clear Selection
-    </BButton>
+    <!-- outline-light, not outline-secondary — see LineTypeSegmented.vue's comment
+         on why outline-secondary is unreadable on this theme. -->
+    <BButton size="sm" variant="outline-light" @click="$emit('clear')"> Clear Selection </BButton>
   </div>
 </template>
 

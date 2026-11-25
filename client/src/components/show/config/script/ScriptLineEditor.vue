@@ -89,7 +89,7 @@
         </BCol>
         <BCol v-if="lineType === LINE_TYPES.DIALOGUE && scriptMode === 1" cols="auto">
           <BButton
-            variant="outline-secondary"
+            variant="outline-light"
             :disabled="state.line_parts.length >= 4"
             @click="addLinePart"
           >
@@ -105,6 +105,13 @@
               Done
             </BButton>
           </BButtonGroup>
+        </BCol>
+      </BRow>
+      <BRow>
+        <BCol class="keyboard-hint">
+          <kbd>Enter</kbd> done, then add a line below &middot; <kbd>Tab</kbd> character to text
+          &middot; <kbd>&uarr;</kbd> <kbd>&darr;</kbd> move between lines. Nothing is kept until you
+          press Save.
         </BCol>
       </BRow>
     </BCol>
@@ -293,5 +300,13 @@ onMounted(() => {
   background: var(--bs-dark);
   border: 1px solid var(--bs-success);
   border-radius: var(--bs-border-radius);
+}
+.keyboard-hint {
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+}
+.keyboard-hint kbd {
+  font-size: 0.75rem;
 }
 </style>

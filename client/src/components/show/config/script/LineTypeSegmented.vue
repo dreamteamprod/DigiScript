@@ -1,10 +1,16 @@
 <template>
+  <!-- outline-light, not outline-secondary: Bootstrap's "secondary" colour resolves
+       to --bs-gray-700 (#444) for both text and border on this theme, which is close
+       to invisible against the dark page/card background — outline-light resolves to
+       --bs-gray-500, which passes contrast. Same reasoning in ScriptEditor.vue/
+       CollabScriptEditor.vue's footer, ScriptLineEditor.vue/CollabScriptLineEditor.vue's
+       Add Speaker button, and SelectionBar.vue's Clear Selection button. -->
   <BButtonGroup role="group" aria-label="Line type">
     <BButton
       v-for="option in options"
       :key="option.value"
       size="sm"
-      :variant="modelValue === option.value ? 'primary' : 'outline-secondary'"
+      :variant="modelValue === option.value ? 'primary' : 'outline-light'"
       :disabled="disabled"
       :aria-pressed="modelValue === option.value"
       @click="$emit('update:modelValue', option.value)"
