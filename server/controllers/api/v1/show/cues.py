@@ -441,6 +441,11 @@ class CueController(BaseAPIController):
                     await self.finish({"message": ERROR_CUE_NOT_FOUND})
                     return
 
+                # The caller must also be allowed to write the cue's *current* type,
+                # otherwise they could convert a cue they cannot edit into one they can.
+                current_cue_type = session.get(CueType, cue.cue_type_id)
+                self.requires_role(current_cue_type, Role.WRITE)
+
                 current_association: CueAssociation = session.get(
                     CueAssociation,
                     {"revision_id": revision.id, "line_id": line_id, "cue_id": cue_id},
@@ -944,6 +949,23 @@ class CueGroupController(BaseAPIController):
             ).all()
             existing_by_cue_id = {a.cue_id: a for a in existing_assocs}
 
+            # Members share the group's position on the line. Read it before any
+            # member is removed so that newly added members can reuse it.
+            group_line_pos = next(
+                (a.line_position for a in existing_assocs if a.line_position),
+                None,
+            )
+            if group_line_pos is None:
+                line_assocs = session.scalars(
+                    select(CueAssociation).where(
+                        CueAssociation.revision_id == revision.id,
+                        CueAssociation.line_id == line_id,
+                    )
+                ).all()
+                group_line_pos = (
+                    max((a.line_position or 0 for a in line_assocs), default=0) + 1
+                )
+
             requested_cue_ids = set()
             for cue_entry in cues_data:
                 cue_id_raw = cue_entry.get("id", None)
@@ -976,6 +998,7 @@ class CueGroupController(BaseAPIController):
                             cue_id=new_cue.id,
                             group_id=group.id,
                             sort_order=sort_order,
+                            line_position=group_line_pos,
                         )
                     )
 

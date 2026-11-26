@@ -13,7 +13,7 @@
               show-empty
             >
               <template #head(btn)>
-                <template v-if="systemStore.isCueEditor">
+                <template v-if="systemStore.isShowEditor">
                   <BButton v-b-modal.new-cue-type variant="outline-success"> New Cue Type </BButton>
                   <BButton variant="outline-info" class="ms-2" @click="openImportModal">
                     Import Cue Type
@@ -32,7 +32,7 @@
                 />
               </template>
               <template #cell(btn)="data">
-                <BButtonGroup v-if="systemStore.isCueEditor">
+                <BButtonGroup v-if="systemStore.isShowEditor">
                   <BButton
                     variant="warning"
                     :disabled="submittingNewCueType || submittingEditCueType || deletingCueType"
