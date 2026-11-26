@@ -251,11 +251,13 @@ def get_line_positions(
     query and the list is walked in memory, so the cost is one query plus one
     pass over the whole revision, however many lines are asked about.
 
-    If the list is malformed (not exactly one head), positions would be
-    unreliable, so an error is logged and an empty mapping returned; the caller
-    should treat positions as unknown. Lines that cannot be reached from the head
-    (cycles, or a ``next_line_id`` pointing outside the revision) are left out and
-    a warning is logged.
+    If the revision has no lines at all, or its list does not have exactly one
+    head, positions would be unreliable, so an error is logged and an empty
+    mapping returned; the caller must treat a missing entry as "position
+    unknown", never as the first line. Lines that cannot be reached from the head
+    (e.g. not linked into the chain) are left out and a warning is logged, as are
+    requested lines with no association in this revision. A cycle back into the
+    chain simply ends the walk.
 
     :param session: Open database session.
     :param revision_id: The revision to look the lines up in.
@@ -285,9 +287,18 @@ def get_line_positions(
     by_id = {row.line_id: row for row in rows}
     heads = [row.line_id for row in rows if row.previous_line_id is None]
 
+    if not rows:
+        get_logger().error(
+            "Revision %s has no line associations but %d line(s) have cues; "
+            "cue line positions unavailable",
+            revision_id,
+            len(wanted),
+        )
+        return {}
+
     if len(heads) != 1:
-        # Same state ScriptRevision.compile_script reports as an error. Merging
-        # several chains would give plausible but wrong indexes, so report none.
+        # Several heads (or none) means the chain is broken; merging chains would
+        # give plausible but wrong indexes, so report none.
         get_logger().error(
             "Revision %s line chain has %d heads (expected 1): %s; "
             "cue line positions unavailable",
@@ -322,6 +333,13 @@ def get_line_positions(
             revision_id,
             len(visited),
             len(rows),
+        )
+    missing = wanted - by_id.keys()
+    if missing:
+        get_logger().warning(
+            "Revision %s: lines %s have cues but no association in the revision",
+            revision_id,
+            sorted(missing),
         )
     return positions
 

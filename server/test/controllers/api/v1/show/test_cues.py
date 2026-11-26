@@ -2087,8 +2087,8 @@ class TestCueLinePositions(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-    def _add_line(self, session, page, revision_id=None):
-        """Create a dialogue line and add it to a revision (default: current)."""
+    def _add_line(self, session, page):
+        """Create a dialogue line in the current revision and flush it."""
         line = ScriptLine(
             act_id=self.act_id,
             scene_id=self.scene_id,
@@ -2098,11 +2098,21 @@ class TestCueLinePositions(DigiScriptTestCase):
         session.add(line)
         session.flush()
         session.add(
-            ScriptLineRevisionAssociation(
-                revision_id=revision_id or self.revision_id, line_id=line.id
-            )
+            ScriptLineRevisionAssociation(revision_id=self.revision_id, line_id=line.id)
         )
+        session.flush()
         return line.id
+
+    def _cue_all_lines(self):
+        for line_id in self.line_ids:
+            self._add_cue(line_id)
+
+    def _page_and_index(self, positions):
+        """(page, index) for each line in ``self.line_ids`` order."""
+        return [
+            (positions[str(i)]["page"], positions[str(i)]["index"])
+            for i in self.line_ids
+        ]
 
     def _link(self, session, ordered_line_ids, revision_id=None):
         """Set previous/next pointers so the lines form one chain in this order."""
@@ -2157,16 +2167,19 @@ class TestCueLinePositions(DigiScriptTestCase):
             {str(self.line_ids[0]), str(self.line_ids[2])}, set(positions.keys())
         )
 
+    def test_healthy_chain_logs_nothing(self):
+        self._cue_all_lines()
+
+        with self.assertNoLogs("DigiScript", level="WARNING"):
+            self._get_line_positions()
+
     def test_index_is_zero_based_within_page_across_pages(self):
-        for line_id in self.line_ids:
-            self._add_cue(line_id)
+        self._cue_all_lines()
 
         positions = self._get_line_positions()
-        got = [
-            (positions[str(i)]["page"], positions[str(i)]["index"])
-            for i in self.line_ids
-        ]
-        self.assertEqual([(1, 0), (1, 1), (2, 0), (2, 1)], got)
+        self.assertEqual(
+            [(1, 0), (1, 1), (2, 0), (2, 1)], self._page_and_index(positions)
+        )
         self.assertEqual(self.act_id, positions[str(self.line_ids[0])]["act_id"])
         self.assertEqual(self.scene_id, positions[str(self.line_ids[0])]["scene_id"])
 
@@ -2176,8 +2189,7 @@ class TestCueLinePositions(DigiScriptTestCase):
         with self._app.get_db().sessionmaker() as session:
             self._link(session, [a, c, b, d])
             session.commit()
-        for line_id in self.line_ids:
-            self._add_cue(line_id)
+        self._cue_all_lines()
 
         positions = self._get_line_positions()
         got = {
@@ -2192,7 +2204,6 @@ class TestCueLinePositions(DigiScriptTestCase):
 
         with self._app.get_db().sessionmaker() as session:
             inserted = self._add_line(session, 1)
-            session.flush()
             self._link(session, [self.line_ids[0], inserted, *self.line_ids[1:]])
             session.commit()
 
@@ -2229,15 +2240,12 @@ class TestCueLinePositions(DigiScriptTestCase):
             self._link(session, list(reversed(self.line_ids)), revision_id=other.id)
             session.commit()
 
-        for line_id in self.line_ids:
-            self._add_cue(line_id)
+        self._cue_all_lines()
 
         positions = self._get_line_positions()
-        got = [
-            (positions[str(i)]["page"], positions[str(i)]["index"])
-            for i in self.line_ids
-        ]
-        self.assertEqual([(1, 0), (1, 1), (2, 0), (2, 1)], got)
+        self.assertEqual(
+            [(1, 0), (1, 1), (2, 0), (2, 1)], self._page_and_index(positions)
+        )
 
     def test_several_cues_and_a_group_on_one_line_give_one_entry(self):
         line_id = self.line_ids[0]
@@ -2265,58 +2273,81 @@ class TestCueLinePositions(DigiScriptTestCase):
     def test_line_without_a_page_gets_its_own_bucket(self):
         """``page`` is nullable; such a line reports ``page: null`` without erroring."""
         with self._app.get_db().sessionmaker() as session:
-            session.get(ScriptLine, self.line_ids[3]).page = None
+            for line_id in self.line_ids[2:]:
+                session.get(ScriptLine, line_id).page = None
             session.commit()
-        self._add_cue(self.line_ids[3])
+        self._cue_all_lines()
 
-        entry = self._get_line_positions()[str(self.line_ids[3])]
-        self.assertIsNone(entry["page"])
-        self.assertEqual(0, entry["index"])
+        positions = self._get_line_positions()
+        self.assertEqual(
+            [(1, 0), (1, 1), (None, 0), (None, 1)], self._page_and_index(positions)
+        )
 
     def test_multiple_heads_give_no_positions(self):
         """A broken chain with two heads reports nothing rather than wrong indexes."""
-        for line_id in self.line_ids:
-            self._add_cue(line_id)
+        self._cue_all_lines()
         with self._app.get_db().sessionmaker() as session:
             self._assoc(session, self.line_ids[2]).previous_line_id = None
             session.commit()
 
-        with self.assertLogs(level="ERROR") as logs:
+        with self.assertLogs("DigiScript", level="ERROR") as logs:
             body = self._get_cues_response()
         self.assertEqual({}, body["line_positions"])
         self.assertEqual(len(self.line_ids), len(body["cues"]))
         self.assertIn("2 heads", "".join(logs.output))
 
+    def test_no_head_gives_no_positions(self):
+        """A chain closed into a loop has no head; nothing can be positioned."""
+        self._cue_all_lines()
+        with self._app.get_db().sessionmaker() as session:
+            self._assoc(session, self.line_ids[0]).previous_line_id = self.line_ids[3]
+            self._assoc(session, self.line_ids[3]).next_line_id = self.line_ids[0]
+            session.commit()
+
+        with self.assertLogs("DigiScript", level="ERROR") as logs:
+            positions = self._get_line_positions()
+        self.assertEqual({}, positions)
+        self.assertIn("0 heads", "".join(logs.output))
+
+    def test_cued_lines_but_no_associations_gives_no_positions(self):
+        with self._app.get_db().sessionmaker() as session:
+            with self.assertLogs("DigiScript", level="ERROR") as logs:
+                positions = get_line_positions(session, 999999, self.line_ids)
+        self.assertEqual({}, positions)
+        self.assertIn("no line associations", "".join(logs.output))
+
     def test_cycle_terminates(self):
         """The last line pointing back into the chain must not hang the request."""
-        for line_id in self.line_ids:
-            self._add_cue(line_id)
+        self._cue_all_lines()
         with self._app.get_db().sessionmaker() as session:
             self._assoc(session, self.line_ids[3]).next_line_id = self.line_ids[1]
             session.commit()
 
         positions = self._get_line_positions()
-        self.assertEqual({str(i) for i in self.line_ids}, set(positions.keys()))
+        self.assertEqual(
+            [(1, 0), (1, 1), (2, 0), (2, 1)], self._page_and_index(positions)
+        )
 
     def test_unreachable_line_is_omitted_and_warned_about(self):
         """A line hanging off the chain without being linked into it is skipped."""
         with self._app.get_db().sessionmaker() as session:
             orphan = self._add_line(session, 2)
-            session.flush()
             self._assoc(session, orphan).previous_line_id = self.line_ids[3]
             session.commit()
         self._add_cue(self.line_ids[0])
         self._add_cue(orphan)
 
-        with self.assertLogs(level="WARNING") as logs:
+        with self.assertLogs("DigiScript", level="WARNING") as logs:
             positions = self._get_line_positions()
         self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
         self.assertIn("4/5 lines reachable", "".join(logs.output))
 
-    def test_line_not_in_revision_is_omitted(self):
+    def test_line_not_in_revision_is_omitted_and_warned_about(self):
         with self._app.get_db().sessionmaker() as session:
-            positions = get_line_positions(
-                session, self.revision_id, [self.line_ids[0], 999999]
-            )
+            with self.assertLogs("DigiScript", level="WARNING") as logs:
+                positions = get_line_positions(
+                    session, self.revision_id, [self.line_ids[0], 999999]
+                )
             self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
+            self.assertIn("999999", "".join(logs.output))
             self.assertEqual({}, get_line_positions(session, self.revision_id, []))
