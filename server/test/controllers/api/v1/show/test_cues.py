@@ -2043,3 +2043,148 @@ class TestCuePatchPermissions(DigiScriptTestCase):
         response = self._patch(self.admin_token, self.snd_cue_id, self.lx_id)
         self.assertEqual(200, response.code)
         self.assertEqual(self.lx_id, self._cue_type_of(self.snd_cue_id))
+
+
+class TestCueLinePositions(DigiScriptTestCase):
+    """GET /api/v1/show/cues reports where each cued line sits in the script."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            seeded = seed_show_with_dialogue_line(session)
+            self.show_id = seeded.show_id
+            self.revision_id = seeded.revision_id
+            self.line_ids = [seeded.line_id]
+            first = session.get(ScriptLine, seeded.line_id)
+            self.act_id = first.act_id
+            self.scene_id = first.scene_id
+
+            # Script order: line_ids[0], [1] on page 1, then [2], [3] on page 2.
+            for page in (1, 2, 2):
+                line = ScriptLine(
+                    act_id=self.act_id,
+                    scene_id=self.scene_id,
+                    page=page,
+                    line_type=ScriptLineType.DIALOGUE,
+                )
+                session.add(line)
+                session.flush()
+                self.line_ids.append(line.id)
+                session.add(
+                    ScriptLineRevisionAssociation(
+                        revision_id=self.revision_id, line_id=line.id
+                    )
+                )
+            session.flush()
+            self._link(session, self.line_ids)
+
+            cue_type = CueType(show_id=self.show_id, prefix="LX", colour="#ff0000")
+            session.add(cue_type)
+            session.flush()
+            self.cue_type_id = cue_type.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def _link(self, session, ordered_line_ids):
+        """Set previous/next pointers so the lines form one chain in this order."""
+        assocs = {
+            a.line_id: a
+            for a in session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision_id
+                )
+            )
+        }
+        last = len(ordered_line_ids) - 1
+        for i, line_id in enumerate(ordered_line_ids):
+            assocs[line_id].previous_line_id = ordered_line_ids[i - 1] if i else None
+            assocs[line_id].next_line_id = ordered_line_ids[i + 1] if i < last else None
+
+    def _add_cue(self, line_id, ident="1"):
+        response = self.fetch(
+            "/api/v1/show/cues",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"cueType": self.cue_type_id, "ident": ident, "lineId": line_id}
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+    def _get_line_positions(self):
+        response = self.fetch("/api/v1/show/cues")
+        self.assertEqual(200, response.code)
+        return tornado.escape.json_decode(response.body)["line_positions"]
+
+    def test_no_cues_gives_empty_positions(self):
+        self.assertEqual({}, self._get_line_positions())
+
+    def test_only_cued_lines_are_returned(self):
+        self._add_cue(self.line_ids[0])
+        self._add_cue(self.line_ids[2])
+
+        positions = self._get_line_positions()
+        self.assertEqual(
+            {str(self.line_ids[0]), str(self.line_ids[2])}, set(positions.keys())
+        )
+
+    def test_index_is_zero_based_within_page_across_pages(self):
+        for line_id in self.line_ids:
+            self._add_cue(line_id)
+
+        positions = self._get_line_positions()
+        got = [
+            (positions[str(i)]["page"], positions[str(i)]["index"])
+            for i in self.line_ids
+        ]
+        self.assertEqual([(1, 0), (1, 1), (2, 0), (2, 1)], got)
+        self.assertEqual(self.act_id, positions[str(self.line_ids[0])]["act_id"])
+        self.assertEqual(self.scene_id, positions[str(self.line_ids[0])]["scene_id"])
+
+    def test_inserted_line_shifts_following_indexes(self):
+        self._add_cue(self.line_ids[1])
+        self.assertEqual(1, self._get_line_positions()[str(self.line_ids[1])]["index"])
+
+        with self._app.get_db().sessionmaker() as session:
+            inserted = ScriptLine(
+                act_id=self.act_id,
+                scene_id=self.scene_id,
+                page=1,
+                line_type=ScriptLineType.DIALOGUE,
+            )
+            session.add(inserted)
+            session.flush()
+            session.add(
+                ScriptLineRevisionAssociation(
+                    revision_id=self.revision_id, line_id=inserted.id
+                )
+            )
+            session.flush()
+            order = [self.line_ids[0], inserted.id, *self.line_ids[1:]]
+            self._link(session, order)
+            session.commit()
+
+        self.assertEqual(2, self._get_line_positions()[str(self.line_ids[1])]["index"])
+
+    def test_positions_follow_links_not_line_ids(self):
+        """Reordering the chain changes the result even though ids are unchanged."""
+        self._add_cue(self.line_ids[0])
+        self._add_cue(self.line_ids[1])
+        with self._app.get_db().sessionmaker() as session:
+            self._link(
+                session, [self.line_ids[1], self.line_ids[0], *self.line_ids[2:]]
+            )
+            session.commit()
+
+        positions = self._get_line_positions()
+        self.assertEqual(0, positions[str(self.line_ids[1])]["index"])
+        self.assertEqual(1, positions[str(self.line_ids[0])]["index"])

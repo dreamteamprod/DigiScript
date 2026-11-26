@@ -22,7 +22,13 @@ from controllers.api.constants import (
     ERROR_SHOW_NOT_FOUND,
 )
 from models.cue import Cue, CueAssociation, CueGroup, CueType
-from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
+from models.script import (
+    Script,
+    ScriptLine,
+    ScriptLineRevisionAssociation,
+    ScriptLineType,
+    ScriptRevision,
+)
 from models.show import Show
 from models.user import User
 from rbac.role import Role
@@ -231,6 +237,62 @@ class CueTypesImportController(BaseAPIController):
         self.finish({"cue_type_groups": list(shows_map.values())})
 
 
+def get_line_positions(session, revision_id: int, line_ids) -> dict:
+    """Work out where each of the given lines sits in a revision's script.
+
+    The revision's lines form a linked list (``previous_line_id`` /
+    ``next_line_id``). All of the revision's associations are loaded in a single
+    query and the list is walked in memory, so the cost does not depend on how
+    many lines are asked about.
+
+    :param session: Open database session.
+    :param revision_id: The revision to look the lines up in.
+    :param line_ids: The line IDs to report positions for.
+    :returns: Mapping of ``str(line_id)`` to ``{"page", "index", "act_id",
+        "scene_id"}``, where ``index`` is the zero-based position of the line
+        within its page, in script order. Lines not in the revision are omitted.
+    """
+    wanted = set(line_ids)
+    if not wanted:
+        return {}
+
+    rows = session.execute(
+        select(
+            ScriptLineRevisionAssociation.line_id,
+            ScriptLineRevisionAssociation.previous_line_id,
+            ScriptLineRevisionAssociation.next_line_id,
+            ScriptLine.page,
+            ScriptLine.act_id,
+            ScriptLine.scene_id,
+        )
+        .join(ScriptLine, ScriptLine.id == ScriptLineRevisionAssociation.line_id)
+        .where(ScriptLineRevisionAssociation.revision_id == revision_id)
+    ).all()
+
+    by_id = {row.line_id: row for row in rows}
+    heads = [row.line_id for row in rows if row.previous_line_id is None]
+
+    positions: dict = {}
+    page_counts: dict = collections.defaultdict(int)
+    visited: set = set()
+    for head in heads:
+        current = head
+        while current is not None and current in by_id and current not in visited:
+            visited.add(current)
+            row = by_id[current]
+            index = page_counts[row.page]
+            page_counts[row.page] += 1
+            if current in wanted:
+                positions[str(current)] = {
+                    "page": row.page,
+                    "index": index,
+                    "act_id": row.act_id,
+                    "scene_id": row.scene_id,
+                }
+            current = row.next_line_id
+    return positions
+
+
 @ApiRoute("show/cues", ApiVersion.V1)
 class CueController(BaseAPIController):
     @requires_show
@@ -276,7 +338,16 @@ class CueController(BaseAPIController):
                 cue_groups = [group_schema.dump(g) for g in groups_seen.values()]
 
                 self.set_status(200)
-                self.finish({"cues": cues, "cue_groups": cue_groups})
+                line_positions = get_line_positions(session, revision.id, cues.keys())
+
+                self.set_status(200)
+                self.finish(
+                    {
+                        "cues": cues,
+                        "cue_groups": cue_groups,
+                        "line_positions": line_positions,
+                    }
+                )
             else:
                 self.set_status(404)
                 self.finish({"message": ERROR_SHOW_NOT_FOUND})
