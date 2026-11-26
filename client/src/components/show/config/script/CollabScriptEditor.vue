@@ -148,6 +148,16 @@
           </BButtonGroup>
         </BCol>
       </BRow>
+      <!-- A disabled button's own title attribute never shows as a tooltip — Chromium
+           (and most browsers) suppress hover events, including the ones a native
+           tooltip needs, for a disabled form control entirely. The title is kept on
+           the button too (for anything that does read it, e.g. assistive tech), but
+           this is the only thing that actually puts the reason somewhere visible. -->
+      <BRow v-if="visibleDisabledReason" class="script-row">
+        <BCol cols="12" class="text-end">
+          <small class="text-muted save-disabled-reason">{{ visibleDisabledReason }}</small>
+        </BCol>
+      </BRow>
       <BRow class="script-row">
         <BCol cols="1" />
         <BCol cols="1">Act</BCol>
@@ -656,6 +666,17 @@ const saveDisabledReason = computed<string | null>(() => {
     return `Page ${firstInvalidLine.value.page}: ${firstInvalidLine.value.error}`;
   }
   return null; // nothing to save, or already saving — no specific reason to show
+});
+
+/** Whichever of the two reasons above actually applies to the button currently on
+ * screen — cutsDisabledReason and saveDisabledReason are independent computeds that
+ * could both be non-null at once (e.g. hasCutters being true for an unrelated reason
+ * while you're mid-edit), but only one of their buttons is ever actually rendered at
+ * a time (see the v-else-if chain above), so only that one's reason belongs here. */
+const visibleDisabledReason = computed<string | null>(() => {
+  if (scriptConfigStore.cutMode) return null;
+  if (!isEditor.value) return cutsDisabledReason.value;
+  return saveDisabledReason.value;
 });
 
 const otherEditorUsernames = computed(() =>

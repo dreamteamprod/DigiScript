@@ -54,6 +54,16 @@
           </BButtonGroup>
         </BCol>
       </BRow>
+      <!-- A disabled button's own title attribute never shows as a tooltip — Chromium
+           (and most browsers) suppress hover events, including the ones a native
+           tooltip needs, for a disabled form control entirely. The title is kept on
+           the button too (for anything that does read it, e.g. assistive tech), but
+           this is the only thing that actually puts the reason somewhere visible. -->
+      <BRow v-if="saveDisabledReason" class="script-row">
+        <BCol cols="12" class="text-end">
+          <small class="text-muted save-disabled-reason">{{ saveDisabledReason }}</small>
+        </BCol>
+      </BRow>
       <BRow class="script-row">
         <BCol cols="1" />
         <BCol cols="1">Act</BCol>

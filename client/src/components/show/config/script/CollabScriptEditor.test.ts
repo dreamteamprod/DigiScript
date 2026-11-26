@@ -1482,6 +1482,13 @@ describe('CollabScriptEditor', () => {
       const save = button(w, 'Save')!;
       expect(save.attributes('disabled')).toBeDefined();
       expect(save.attributes('title')).toBe('Finish editing the open line(s) before saving');
+      // A disabled <button>'s own title never shows as a tooltip — Chromium (and
+      // most browsers) suppress hover events, including the ones a tooltip needs,
+      // for a disabled form control entirely (confirmed live). The reason must
+      // also be rendered as plain visible text, not just set as an attribute.
+      expect(w.find('.save-disabled-reason').text()).toBe(
+        'Finish editing the open line(s) before saving'
+      );
     });
 
     it('Save stays disabled when the draft contains an invalid line, naming the page', async () => {
@@ -1493,6 +1500,9 @@ describe('CollabScriptEditor', () => {
       const save = button(w, 'Save')!;
       expect(save.attributes('disabled')).toBeDefined();
       expect(save.attributes('title')).toBe(
+        'Page 1: Dialogue lines must have at least one line part'
+      );
+      expect(w.find('.save-disabled-reason').text()).toBe(
         'Page 1: Dialogue lines must have at least one line part'
       );
     });
@@ -2059,6 +2069,11 @@ describe('CollabScriptEditor', () => {
 
       expect(button(w, 'Cuts')?.attributes('disabled')).toBeDefined();
       expect(button(w, 'Cuts')?.attributes('title')).toBe(
+        'Someone else is already cutting the script'
+      );
+      // See the Save-reason tests' own comment: a disabled button's title never
+      // shows as a tooltip, so the reason needs to be plain visible text too.
+      expect(w.find('.save-disabled-reason').text()).toBe(
         'Someone else is already cutting the script'
       );
     });

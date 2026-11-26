@@ -292,6 +292,43 @@ describe('ScriptEditor', () => {
     });
   });
 
+  describe("saveDisabledReason is shown somewhere visible, not just a disabled button's title", () => {
+    // Regression: a disabled <button>'s own title attribute never shows a native
+    // tooltip — Chromium (and most browsers) suppress hover events, including the
+    // ones a tooltip needs, for a disabled form control entirely. Confirmed live:
+    // hovering the disabled Save button for 2+ seconds showed nothing. The reason
+    // must be rendered as plain visible text, not just set as an attribute.
+    it('shows the open-editor reason as visible text', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      vm(w).beginEditingLine(1, 0);
+      await flushPromises();
+
+      expect(w.find('.save-disabled-reason').text()).toBe(
+        'Finish editing the open line(s) before saving'
+      );
+    });
+
+    it('shows the invalid-line reason as visible text', async () => {
+      seedSavedPage(1, []);
+      const w = await mountEditor();
+      await vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE);
+      vm(w).doneEditingLine(1, 0);
+      await flushPromises();
+
+      expect(w.find('.save-disabled-reason').exists()).toBe(true);
+      expect(w.find('.save-disabled-reason').text()).toContain('Page 1');
+    });
+
+    it('shows nothing when there is simply nothing to save yet', async () => {
+      seedSavedPage(1, [makeLine(1)]);
+      const w = await mountEditor();
+      await flushPromises();
+
+      expect(w.find('.save-disabled-reason').exists()).toBe(false);
+    });
+  });
+
   describe('firstInvalidLine / canSave skip soft-deleted and untouched legacy lines', () => {
     it('does not block Save on a tombstoned line that would otherwise be invalid', async () => {
       // A saved dialogue line with empty text (invalid on its own) ...
