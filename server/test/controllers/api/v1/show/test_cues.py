@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import tornado.escape
 from sqlalchemy import select, text
 
+from controllers.api.v1.show.cues import get_line_positions
 from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
     Script,
@@ -1686,7 +1687,8 @@ def seed_show_with_dialogue_line(session):
     """Create a show with a current script revision holding one dialogue line.
 
     :param session: An open database session (not committed by this helper).
-    :returns: A namespace with ``show_id``, ``revision_id`` and ``line_id``.
+    :returns: A namespace with ``show_id``, ``revision_id``, ``line_id``, ``act_id``
+        and ``scene_id``.
     """
     show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
     session.add(show)
@@ -1715,7 +1717,13 @@ def seed_show_with_dialogue_line(session):
     session.flush()
     session.add(ScriptLineRevisionAssociation(revision_id=revision.id, line_id=line.id))
 
-    return SimpleNamespace(show_id=show.id, revision_id=revision.id, line_id=line.id)
+    return SimpleNamespace(
+        show_id=show.id,
+        revision_id=revision.id,
+        line_id=line.id,
+        act_id=act.id,
+        scene_id=scene.id,
+    )
 
 
 class TestCueLinePositionOrdering(DigiScriptTestCase):
@@ -2054,27 +2062,12 @@ class TestCueLinePositions(DigiScriptTestCase):
             seeded = seed_show_with_dialogue_line(session)
             self.show_id = seeded.show_id
             self.revision_id = seeded.revision_id
-            self.line_ids = [seeded.line_id]
-            first = session.get(ScriptLine, seeded.line_id)
-            self.act_id = first.act_id
-            self.scene_id = first.scene_id
+            self.act_id = seeded.act_id
+            self.scene_id = seeded.scene_id
 
             # Script order: line_ids[0], [1] on page 1, then [2], [3] on page 2.
-            for page in (1, 2, 2):
-                line = ScriptLine(
-                    act_id=self.act_id,
-                    scene_id=self.scene_id,
-                    page=page,
-                    line_type=ScriptLineType.DIALOGUE,
-                )
-                session.add(line)
-                session.flush()
-                self.line_ids.append(line.id)
-                session.add(
-                    ScriptLineRevisionAssociation(
-                        revision_id=self.revision_id, line_id=line.id
-                    )
-                )
+            self.line_ids = [seeded.line_id]
+            self.line_ids += [self._add_line(session, page) for page in (1, 2, 2)]
             session.flush()
             self._link(session, self.line_ids)
 
@@ -2094,13 +2087,31 @@ class TestCueLinePositions(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-    def _link(self, session, ordered_line_ids):
+    def _add_line(self, session, page, revision_id=None):
+        """Create a dialogue line and add it to a revision (default: current)."""
+        line = ScriptLine(
+            act_id=self.act_id,
+            scene_id=self.scene_id,
+            page=page,
+            line_type=ScriptLineType.DIALOGUE,
+        )
+        session.add(line)
+        session.flush()
+        session.add(
+            ScriptLineRevisionAssociation(
+                revision_id=revision_id or self.revision_id, line_id=line.id
+            )
+        )
+        return line.id
+
+    def _link(self, session, ordered_line_ids, revision_id=None):
         """Set previous/next pointers so the lines form one chain in this order."""
+        revision_id = revision_id or self.revision_id
         assocs = {
             a.line_id: a
             for a in session.scalars(
                 select(ScriptLineRevisionAssociation).where(
-                    ScriptLineRevisionAssociation.revision_id == self.revision_id
+                    ScriptLineRevisionAssociation.revision_id == revision_id
                 )
             )
         }
@@ -2108,6 +2119,12 @@ class TestCueLinePositions(DigiScriptTestCase):
         for i, line_id in enumerate(ordered_line_ids):
             assocs[line_id].previous_line_id = ordered_line_ids[i - 1] if i else None
             assocs[line_id].next_line_id = ordered_line_ids[i + 1] if i < last else None
+
+    def _assoc(self, session, line_id):
+        return session.get(
+            ScriptLineRevisionAssociation,
+            {"revision_id": self.revision_id, "line_id": line_id},
+        )
 
     def _add_cue(self, line_id, ident="1"):
         response = self.fetch(
@@ -2120,10 +2137,13 @@ class TestCueLinePositions(DigiScriptTestCase):
         )
         self.assertEqual(200, response.code)
 
-    def _get_line_positions(self):
+    def _get_cues_response(self):
         response = self.fetch("/api/v1/show/cues")
         self.assertEqual(200, response.code)
-        return tornado.escape.json_decode(response.body)["line_positions"]
+        return tornado.escape.json_decode(response.body)
+
+    def _get_line_positions(self):
+        return self._get_cues_response()["line_positions"]
 
     def test_no_cues_gives_empty_positions(self):
         self.assertEqual({}, self._get_line_positions())
@@ -2150,27 +2170,30 @@ class TestCueLinePositions(DigiScriptTestCase):
         self.assertEqual(self.act_id, positions[str(self.line_ids[0])]["act_id"])
         self.assertEqual(self.scene_id, positions[str(self.line_ids[0])]["scene_id"])
 
+    def test_interleaved_pages_are_counted_per_page(self):
+        """Pages 1, 2, 1, 2 in script order: indexes count per page, not per run."""
+        a, b, c, d = self.line_ids  # pages 1, 1, 2, 2
+        with self._app.get_db().sessionmaker() as session:
+            self._link(session, [a, c, b, d])
+            session.commit()
+        for line_id in self.line_ids:
+            self._add_cue(line_id)
+
+        positions = self._get_line_positions()
+        got = {
+            line_id: (positions[str(line_id)]["page"], positions[str(line_id)]["index"])
+            for line_id in self.line_ids
+        }
+        self.assertEqual({a: (1, 0), c: (2, 0), b: (1, 1), d: (2, 1)}, got)
+
     def test_inserted_line_shifts_following_indexes(self):
         self._add_cue(self.line_ids[1])
         self.assertEqual(1, self._get_line_positions()[str(self.line_ids[1])]["index"])
 
         with self._app.get_db().sessionmaker() as session:
-            inserted = ScriptLine(
-                act_id=self.act_id,
-                scene_id=self.scene_id,
-                page=1,
-                line_type=ScriptLineType.DIALOGUE,
-            )
-            session.add(inserted)
+            inserted = self._add_line(session, 1)
             session.flush()
-            session.add(
-                ScriptLineRevisionAssociation(
-                    revision_id=self.revision_id, line_id=inserted.id
-                )
-            )
-            session.flush()
-            order = [self.line_ids[0], inserted.id, *self.line_ids[1:]]
-            self._link(session, order)
+            self._link(session, [self.line_ids[0], inserted, *self.line_ids[1:]])
             session.commit()
 
         self.assertEqual(2, self._get_line_positions()[str(self.line_ids[1])]["index"])
@@ -2188,3 +2211,112 @@ class TestCueLinePositions(DigiScriptTestCase):
         positions = self._get_line_positions()
         self.assertEqual(0, positions[str(self.line_ids[1])]["index"])
         self.assertEqual(1, positions[str(self.line_ids[0])]["index"])
+
+    def test_only_the_current_revision_is_used(self):
+        """Another revision holding the same lines in reverse must not interfere."""
+        with self._app.get_db().sessionmaker() as session:
+            current = session.get(ScriptRevision, self.revision_id)
+            other = ScriptRevision(
+                script_id=current.script_id, revision=2, description="Other"
+            )
+            session.add(other)
+            session.flush()
+            for line_id in self.line_ids:
+                session.add(
+                    ScriptLineRevisionAssociation(revision_id=other.id, line_id=line_id)
+                )
+            session.flush()
+            self._link(session, list(reversed(self.line_ids)), revision_id=other.id)
+            session.commit()
+
+        for line_id in self.line_ids:
+            self._add_cue(line_id)
+
+        positions = self._get_line_positions()
+        got = [
+            (positions[str(i)]["page"], positions[str(i)]["index"])
+            for i in self.line_ids
+        ]
+        self.assertEqual([(1, 0), (1, 1), (2, 0), (2, 1)], got)
+
+    def test_several_cues_and_a_group_on_one_line_give_one_entry(self):
+        line_id = self.line_ids[0]
+        self._add_cue(line_id, "1")
+        self._add_cue(line_id, "2")
+        group_response = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {
+                    "cueTypeId": self.cue_type_id,
+                    "lineId": line_id,
+                    "cues": [{"ident": "10", "sortOrder": 0}],
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, group_response.code)
+
+        body = self._get_cues_response()
+        self.assertEqual([str(line_id)], list(body["line_positions"].keys()))
+        self.assertEqual(3, len(body["cues"][str(line_id)]))
+        self.assertEqual(1, len(body["cue_groups"]))
+
+    def test_line_without_a_page_gets_its_own_bucket(self):
+        """``page`` is nullable; such a line reports ``page: null`` without erroring."""
+        with self._app.get_db().sessionmaker() as session:
+            session.get(ScriptLine, self.line_ids[3]).page = None
+            session.commit()
+        self._add_cue(self.line_ids[3])
+
+        entry = self._get_line_positions()[str(self.line_ids[3])]
+        self.assertIsNone(entry["page"])
+        self.assertEqual(0, entry["index"])
+
+    def test_multiple_heads_give_no_positions(self):
+        """A broken chain with two heads reports nothing rather than wrong indexes."""
+        for line_id in self.line_ids:
+            self._add_cue(line_id)
+        with self._app.get_db().sessionmaker() as session:
+            self._assoc(session, self.line_ids[2]).previous_line_id = None
+            session.commit()
+
+        with self.assertLogs(level="ERROR") as logs:
+            body = self._get_cues_response()
+        self.assertEqual({}, body["line_positions"])
+        self.assertEqual(len(self.line_ids), len(body["cues"]))
+        self.assertIn("2 heads", "".join(logs.output))
+
+    def test_cycle_terminates(self):
+        """The last line pointing back into the chain must not hang the request."""
+        for line_id in self.line_ids:
+            self._add_cue(line_id)
+        with self._app.get_db().sessionmaker() as session:
+            self._assoc(session, self.line_ids[3]).next_line_id = self.line_ids[1]
+            session.commit()
+
+        positions = self._get_line_positions()
+        self.assertEqual({str(i) for i in self.line_ids}, set(positions.keys()))
+
+    def test_unreachable_line_is_omitted_and_warned_about(self):
+        """A line hanging off the chain without being linked into it is skipped."""
+        with self._app.get_db().sessionmaker() as session:
+            orphan = self._add_line(session, 2)
+            session.flush()
+            self._assoc(session, orphan).previous_line_id = self.line_ids[3]
+            session.commit()
+        self._add_cue(self.line_ids[0])
+        self._add_cue(orphan)
+
+        with self.assertLogs(level="WARNING") as logs:
+            positions = self._get_line_positions()
+        self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
+        self.assertIn("4/5 lines reachable", "".join(logs.output))
+
+    def test_line_not_in_revision_is_omitted(self):
+        with self._app.get_db().sessionmaker() as session:
+            positions = get_line_positions(
+                session, self.revision_id, [self.line_ids[0], 999999]
+            )
+            self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
+            self.assertEqual({}, get_line_positions(session, self.revision_id, []))

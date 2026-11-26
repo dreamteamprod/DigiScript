@@ -1,6 +1,6 @@
 import collections
 import difflib
-from typing import List
+from typing import Iterable, List
 
 from sqlalchemy import func, select
 from tornado import escape
@@ -21,6 +21,7 @@ from controllers.api.constants import (
     ERROR_PREFIX_MISSING,
     ERROR_SHOW_NOT_FOUND,
 )
+from digi_server.logger import get_logger
 from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
     Script,
@@ -237,20 +238,32 @@ class CueTypesImportController(BaseAPIController):
         self.finish({"cue_type_groups": list(shows_map.values())})
 
 
-def get_line_positions(session, revision_id: int, line_ids) -> dict:
+def get_line_positions(
+    session, revision_id: int, line_ids: Iterable[int]
+) -> dict[str, dict]:
     """Work out where each of the given lines sits in a revision's script.
+
+    Not to be confused with ``CueAssociation.line_position``, which orders cues
+    *within* a line. This reports where a *line* sits within the script.
 
     The revision's lines form a linked list (``previous_line_id`` /
     ``next_line_id``). All of the revision's associations are loaded in a single
-    query and the list is walked in memory, so the cost does not depend on how
-    many lines are asked about.
+    query and the list is walked in memory, so the cost is one query plus one
+    pass over the whole revision, however many lines are asked about.
+
+    If the list is malformed (not exactly one head), positions would be
+    unreliable, so an error is logged and an empty mapping returned; the caller
+    should treat positions as unknown. Lines that cannot be reached from the head
+    (cycles, or a ``next_line_id`` pointing outside the revision) are left out and
+    a warning is logged.
 
     :param session: Open database session.
     :param revision_id: The revision to look the lines up in.
-    :param line_ids: The line IDs to report positions for.
+    :param line_ids: Iterable of line IDs to report positions for.
     :returns: Mapping of ``str(line_id)`` to ``{"page", "index", "act_id",
         "scene_id"}``, where ``index`` is the zero-based position of the line
-        within its page, in script order. Lines not in the revision are omitted.
+        within its page, in script order. Lines that are not in the revision, or
+        not reachable from the head of its linked list, are omitted.
     """
     wanted = set(line_ids)
     if not wanted:
@@ -272,24 +285,44 @@ def get_line_positions(session, revision_id: int, line_ids) -> dict:
     by_id = {row.line_id: row for row in rows}
     heads = [row.line_id for row in rows if row.previous_line_id is None]
 
+    if len(heads) != 1:
+        # Same state ScriptRevision.compile_script reports as an error. Merging
+        # several chains would give plausible but wrong indexes, so report none.
+        get_logger().error(
+            "Revision %s line chain has %d heads (expected 1): %s; "
+            "cue line positions unavailable",
+            revision_id,
+            len(heads),
+            heads,
+        )
+        return {}
+
     positions: dict = {}
     page_counts: dict = collections.defaultdict(int)
     visited: set = set()
-    for head in heads:
-        current = head
-        while current is not None and current in by_id and current not in visited:
-            visited.add(current)
-            row = by_id[current]
-            index = page_counts[row.page]
-            page_counts[row.page] += 1
-            if current in wanted:
-                positions[str(current)] = {
-                    "page": row.page,
-                    "index": index,
-                    "act_id": row.act_id,
-                    "scene_id": row.scene_id,
-                }
-            current = row.next_line_id
+    current = heads[0]
+    while current in by_id and current not in visited:
+        visited.add(current)
+        row = by_id[current]
+        index = page_counts[row.page]
+        page_counts[row.page] += 1
+        if current in wanted:
+            positions[str(current)] = {
+                "page": row.page,
+                "index": index,
+                "act_id": row.act_id,
+                "scene_id": row.scene_id,
+            }
+        current = row.next_line_id
+
+    if len(visited) != len(rows):
+        get_logger().warning(
+            "Revision %s line chain is inconsistent: %d/%d lines reachable "
+            "from the head",
+            revision_id,
+            len(visited),
+            len(rows),
+        )
     return positions
 
 
@@ -337,7 +370,6 @@ class CueController(BaseAPIController):
 
                 cue_groups = [group_schema.dump(g) for g in groups_seen.values()]
 
-                self.set_status(200)
                 line_positions = get_line_positions(session, revision.id, cues.keys())
 
                 self.set_status(200)
