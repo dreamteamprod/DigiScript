@@ -1,84 +1,80 @@
 <template>
-  <BCol>
-    <BRow v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
-      <template v-if="userSettings.character_combined_dropdown">
-        <BCol>
-          <BFormGroup label-size="sm" label="Character / Character Group">
-            <BFormSelect
-              v-model="combinedValue"
-              :options="combinedOptions"
-              :state="combinedState"
-              @update:model-value="onStateChange"
-            />
-          </BFormGroup>
-        </BCol>
-      </template>
-      <template v-else>
-        <BCol v-show="state.character_group_id == null">
-          <BFormGroup label-size="sm" label="Character">
-            <BFormSelect
-              v-model="state.character_id"
-              :options="characterOptions"
-              :state="characterState"
-              @update:model-value="onStateChange"
-            />
-          </BFormGroup>
-        </BCol>
-        <BCol v-show="state.character_id == null">
-          <BFormGroup label-size="sm" label="Character Group">
-            <BFormSelect
-              v-model="state.character_group_id"
-              :options="characterGroupOptions"
-              :state="characterGroupState"
-              @update:model-value="onStateChange"
-            />
-          </BFormGroup>
-        </BCol>
-      </template>
-      <BCol
-        v-if="lineType === LINE_TYPES.STAGE_DIRECTION && stageDirectionStyles.length > 0"
-        cols="3"
-      >
-        <BFormGroup label-size="sm" label="Style">
+  <!-- Character/Group and the text field sit side by side (Design E), not stacked —
+       a single BRow across the whole part, rather than the character row and the
+       text row this used to be. -->
+  <BRow class="align-items-start line-part-row">
+    <template v-if="userSettings.character_combined_dropdown">
+      <BCol cols="3">
+        <BFormGroup label-size="sm" label="Character / Character Group">
           <BFormSelect
-            :model-value="stageDirectionStyleId"
-            :options="stageDirectionStyleOptions"
-            @update:model-value="$emit('stage-direction-style-change', $event)"
+            v-model="combinedValue"
+            :options="combinedOptions"
+            :state="combinedState"
+            @update:model-value="onStateChange"
           />
         </BFormGroup>
       </BCol>
-      <BCol v-if="showRemoveButton" cols="auto" class="align-self-end mb-3">
-        <BButton
-          v-b-tooltip.hover.top="'Remove line part'"
-          variant="outline-danger"
-          size="sm"
-          @click="$emit('remove-line-part')"
-        >
-          <IMdiMinusBox />
-        </BButton>
+    </template>
+    <template v-else>
+      <BCol v-show="state.character_group_id == null" cols="3">
+        <BFormGroup label-size="sm" label="Character">
+          <BFormSelect
+            v-model="state.character_id"
+            :options="characterOptions"
+            :state="characterState"
+            @update:model-value="onStateChange"
+          />
+        </BFormGroup>
       </BCol>
-    </BRow>
-    <BRow>
-      <BCol style="display: inline-flex">
+      <BCol v-show="state.character_id == null" cols="3">
+        <BFormGroup label-size="sm" label="Character Group">
+          <BFormSelect
+            v-model="state.character_group_id"
+            :options="characterGroupOptions"
+            :state="characterGroupState"
+            @update:model-value="onStateChange"
+          />
+        </BFormGroup>
+      </BCol>
+    </template>
+
+    <BCol>
+      <BFormGroup label-size="sm" label="What they say">
         <BFormInput
           ref="partInputRef"
           v-model="state.line_text"
           :state="lineTextState"
           @update:model-value="onStateChange"
           @keydown.enter="handleEnterPress"
+          @keydown.up="$emit('navigate-up')"
+          @keydown.down="$emit('navigate-down')"
         />
-        <BButton
-          v-if="showAddButton && lineType === LINE_TYPES.DIALOGUE"
-          v-b-tooltip.hover.top="'Add line part'"
-          :disabled="!enableAddButton"
-          style="margin-left: 0.5em; float: right"
-          @click="$emit('add-line-part')"
-        >
-          <IMdiPlusBox />
-        </BButton>
-      </BCol>
-    </BRow>
-  </BCol>
+      </BFormGroup>
+    </BCol>
+
+    <BCol
+      v-if="lineType === LINE_TYPES.STAGE_DIRECTION && stageDirectionStyles.length > 0"
+      cols="2"
+    >
+      <BFormGroup label-size="sm" label="Style">
+        <BFormSelect
+          :model-value="stageDirectionStyleId"
+          :options="stageDirectionStyleOptions"
+          @update:model-value="$emit('stage-direction-style-change', $event)"
+        />
+      </BFormGroup>
+    </BCol>
+    <BCol v-if="showRemoveButton" cols="auto" class="align-self-end mb-3">
+      <BButton
+        v-b-tooltip.hover.top="'Remove line part'"
+        variant="outline-danger"
+        size="sm"
+        @click="$emit('remove-line-part')"
+      >
+        <IMdiMinusBox />
+      </BButton>
+    </BCol>
+  </BRow>
 </template>
 
 <script setup lang="ts">
@@ -102,8 +98,6 @@ const props = defineProps<{
   focusInput: boolean;
   characters: Character[];
   characterGroups: CharacterGroup[];
-  showAddButton: boolean;
-  enableAddButton: boolean;
   showRemoveButton: boolean;
   lineType: number;
   lineParts: ScriptLinePart[];
@@ -114,9 +108,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [part: ScriptLinePart];
-  'add-line-part': [];
   'remove-line-part': [];
   'try-finish-line': [];
+  'navigate-up': [];
+  'navigate-down': [];
   'stage-direction-style-change': [id: number | null];
 }>();
 
@@ -241,7 +236,10 @@ function onStateChange(): void {
   nextTick(() => partInputRef.value?.focus());
 }
 
-function handleEnterPress(): void {
+function handleEnterPress(event: KeyboardEvent): void {
+  // isComposing: an IME (e.g. Japanese/Chinese input) uses Enter to confirm its own
+  // candidate selection — that keystroke must not also finish the line.
+  if (event.isComposing) return;
   v$.value.$touch();
   emit('try-finish-line');
 }
@@ -250,7 +248,16 @@ onMounted(() => {
   v$.value.$touch();
   if (props.focusInput) {
     requestAnimationFrame(() => {
-      nextTick(() => partInputRef.value?.focus());
+      nextTick(() => {
+        partInputRef.value?.focus();
+        // Moving which line is "open" via Up/Down can land the new card
+        // partly behind the sticky header/footer — focus() alone only
+        // guarantees minimal visibility, not that the whole card clears
+        // them. document.activeElement, not the component ref: a ref on a
+        // BVN component may not itself support scrollIntoView, but whatever
+        // it focused always does.
+        document.activeElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
     });
   }
 });

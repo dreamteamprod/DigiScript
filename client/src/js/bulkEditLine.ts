@@ -1,8 +1,34 @@
 import type { ScriptLine } from '@/types/api/script';
 import type { BulkEditPayload } from '@/types/bulkEdit';
 
+/** `SetCharacterOrGroupDialog` only emits once one of the two is set (its own
+ * `canApply` gate) — this narrows that into `BulkEditPayload['assignee']`'s
+ * discriminated union shape (`null` if somehow neither is set), shared by both
+ * `ScriptEditor.vue` and `CollabScriptEditor.vue`'s own `onSetCharacterApply`. */
+export function narrowAssignee(assignee: {
+  partIndex: number;
+  characterId: number | null;
+  characterGroupId: number | null;
+}): BulkEditPayload['assignee'] {
+  if (assignee.characterId != null) {
+    return {
+      partIndex: assignee.partIndex,
+      characterId: assignee.characterId,
+      characterGroupId: null,
+    };
+  }
+  if (assignee.characterGroupId != null) {
+    return {
+      partIndex: assignee.partIndex,
+      characterId: null,
+      characterGroupId: assignee.characterGroupId,
+    };
+  }
+  return null;
+}
+
 /** Applies a `BulkEditPayload` to a single line, used by `ScriptEditor.vue`'s
- * `onBulkApply`. Pure, so it's unit-testable independently of the store/
+ * `applyToSelection`. Pure, so it's unit-testable independently of the store/
  * page-loading machinery around it. */
 export function applyBulkPayloadToLine(line: ScriptLine, payload: BulkEditPayload): ScriptLine {
   let updatedLine = line;

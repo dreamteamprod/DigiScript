@@ -5,9 +5,10 @@ import { mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import { passthrough, SelectStub } from './testStubs';
+import { act, scene } from './testFixtures';
 import { LINE_TYPES } from '@/constants/lineTypes';
+import { useSystemStore } from '@/stores/system';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
-import type { Act, Scene } from '@/types/api/show';
 
 const setLineActScene = vi.fn(() => true);
 const removePart = vi.fn(() => true);
@@ -30,7 +31,7 @@ import { toast } from '@/js/toast';
 
 const PartStub = defineComponent({
   props: { part: { type: Object, required: true } },
-  emits: ['add-line-part', 'remove-line-part', 'try-finish-line', 'stage-direction-style-change'],
+  emits: ['remove-line-part', 'try-finish-line', 'stage-direction-style-change'],
   render() {
     return h('div', { class: 'part-stub' }, (this.part as { _uid: string })._uid);
   },
@@ -57,30 +58,6 @@ const stubs = {
   CollabScriptLinePart: PartStub,
   RemoteEditorsBadge: RemoteEditorsBadgeStub,
 };
-
-function act(id: number, overrides: Partial<Act> = {}): Act {
-  return {
-    id,
-    show_id: 1,
-    name: `Act ${id}`,
-    interval_after: false,
-    first_scene: null,
-    next_act: null,
-    previous_act: null,
-    ...overrides,
-  };
-}
-function scene(id: number, actId: number, overrides: Partial<Scene> = {}): Scene {
-  return {
-    id,
-    show_id: 1,
-    act: actId,
-    name: `Scene ${id}`,
-    next_scene: null,
-    previous_scene: null,
-    ...overrides,
-  };
-}
 
 function line(overrides: Partial<DraftScriptLine> = {}): DraftScriptLine {
   return {
@@ -167,6 +144,24 @@ describe('CollabScriptLineEditor', () => {
     expect(done.attributes('disabled')).toBeDefined();
   });
 
+  it('keeps the Act/Scene selectors visible as act/scene go from null to set, instead of vanishing mid-pick', async () => {
+    // Regression: this used to read props.line.act_id/scene_id live, so
+    // picking an act (scene still null — selectors should stay) then a scene
+    // (both now non-null) unmounted the column out from under the user,
+    // jumping the layout from 10 to 12 cols with no way to fix a wrong pick.
+    wrapper = mountEditor({
+      previousLine: null,
+      line: line({ act_id: null, scene_id: null }),
+    });
+    expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
+
+    await wrapper.setProps({ line: line({ act_id: 1, scene_id: null }) });
+    expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
+
+    await wrapper.setProps({ line: line({ act_id: 1, scene_id: 1 }) });
+    expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
+  });
+
   it('emits doneEditing when Done is clicked while valid', async () => {
     wrapper = mountEditor();
     const done = wrapper.findAll('button').find((b) => b.text() === 'Done')!;
@@ -174,15 +169,17 @@ describe('CollabScriptLineEditor', () => {
     expect(wrapper.emitted('doneEditing')).toBeTruthy();
   });
 
-  it('try-finish-line from a part emits doneEditing only when the line is valid', async () => {
+  it('try-finish-line from a part emits finishAndAddLine only when the line is valid', async () => {
     wrapper = mountEditor({ line: line({ act_id: null }) });
     wrapper.findComponent(PartStub).vm.$emit('try-finish-line');
-    expect(wrapper.emitted('doneEditing')).toBeFalsy();
+    expect(wrapper.emitted('finishAndAddLine')).toBeFalsy();
 
     wrapper.unmount();
     wrapper = mountEditor();
     wrapper.findComponent(PartStub).vm.$emit('try-finish-line');
-    expect(wrapper.emitted('doneEditing')).toBeTruthy();
+    // Enter (try-finish-line) chains into a new line (Design E) — doneEditing alone
+    // never adds anything; see finishAndAddLine in CollabScriptEditor.vue.
+    expect(wrapper.emitted('finishAndAddLine')).toBeTruthy();
   });
 
   it('stage-direction-style-change from a part writes the line field', () => {
@@ -191,9 +188,9 @@ describe('CollabScriptLineEditor', () => {
     expect(setLineField).toHaveBeenCalledWith(1, 'line1', 'stage_direction_style_id', 3);
   });
 
-  it('emits deleteLine when Delete is clicked', async () => {
+  it('emits deleteLine when Delete Line is clicked', async () => {
     wrapper = mountEditor();
-    const del = wrapper.findAll('button').find((b) => b.text() === 'Delete')!;
+    const del = wrapper.findAll('button').find((b) => b.text() === 'Delete Line')!;
     await del.trigger('click');
     expect(wrapper.emitted('deleteLine')).toBeTruthy();
   });
@@ -203,7 +200,8 @@ describe('CollabScriptLineEditor', () => {
     expect(addPart).toHaveBeenCalledWith(1, 'line1', { characterId: null, characterGroupId: null });
   });
 
-  it('adds a line part seeded from the previous line at the same position', () => {
+  it('adds a line part seeded from the previous line at the same position', async () => {
+    useSystemStore().currentShow = { script_mode: 1 } as never;
     wrapper = mountEditor({
       previousLine: line({
         _uid: 'prev',
@@ -231,7 +229,8 @@ describe('CollabScriptLineEditor', () => {
         ],
       }),
     });
-    wrapper.findComponent(PartStub).vm.$emit('add-line-part');
+    const addSpeaker = wrapper.findAll('button').find((b) => b.text().startsWith('Add Speaker'))!;
+    await addSpeaker.trigger('click');
     expect(addPart).toHaveBeenCalledWith(1, 'line1', { characterId: 9, characterGroupId: null });
   });
 

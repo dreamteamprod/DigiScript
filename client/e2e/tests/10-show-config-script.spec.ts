@@ -65,10 +65,8 @@ test('adds a dialogue line', async () => {
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
 });
 
-test('adds a stage direction via dropdown', async () => {
-  // Split dropdown: click the arrow toggle to open the menu
-  await page.click('button.dropdown-toggle-split');
-  await page.click('.dropdown-item:has-text("Add Stage Direction")');
+test('adds a stage direction via the add-to-end-of-page footer', async () => {
+  await page.click('button:has-text("Add Direction")');
   // At least two Done buttons are now visible (one per open editor)
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
 });
@@ -77,7 +75,7 @@ test('stops editing without saving', async () => {
   await page.click('button:has-text("Stop Editing")');
   // Script has unsaved changes — confirm dialog appears
   await confirmDialog(page);
-  // Edit button reappears — use exact match to avoid matching "Stop Editing" / "Bulk Edit"
+  // Edit button reappears — use exact match to avoid matching "Stop Editing"
   await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
     timeout: 10_000,
   });
@@ -104,6 +102,8 @@ test('saves a dialogue line to the script', async () => {
     .locator('div.row')
     .filter({ has: page.locator('button:has-text("Done")') })
     .first();
+  // First line on the page: no previous line to inherit an act/scene from, so the
+  // card falls back to showing the selects directly (Design E).
   await lineEditor.locator('select').nth(0).selectOption({ label: 'Act 1' });
   await lineEditor.locator('select').nth(1).selectOption({ label: 'Scene 1' });
 
@@ -113,17 +113,15 @@ test('saves a dialogue line to the script', async () => {
     .selectOption({ label: 'Hamlet' });
   await page.locator('input[type="text"]:visible').last().fill('To be or not to be');
 
-  await page.locator('button:has-text("Done")').first().click();
-  // ScriptEditor auto-adds a blank dialogue editor after Done — fill it in as a second line so
-  // the bulk edit tests below can use a two-line range without needing the split dropdown.
+  // Enter chains straight into a new blank dialogue line below, inheriting the
+  // act/scene just set (Design E's keyboard flow) — Done alone no longer chains.
+  await page.locator('input[type="text"]:visible').last().press('Enter');
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
 
   const lineEditor2 = page
     .locator('div.row')
     .filter({ has: page.locator('button:has-text("Done")') })
     .first();
-  await lineEditor2.locator('select').nth(0).selectOption({ label: 'Act 1' });
-  await lineEditor2.locator('select').nth(1).selectOption({ label: 'Scene 1' });
   await lineEditor2
     .locator('select')
     .filter({ hasText: 'Hamlet' })
@@ -131,8 +129,6 @@ test('saves a dialogue line to the script', async () => {
   await page.locator('input[type="text"]:visible').last().fill('That is the question');
 
   await page.locator('button:has-text("Done")').first().click();
-  // Delete the third auto-added blank editor
-  await page.locator('button.btn-danger:has-text("Delete")').first().click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
 
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -153,49 +149,137 @@ test('saves a dialogue line to the script', async () => {
   ).toBeVisible({ timeout: 10_000 });
 });
 
-// ── Bulk edit ─────────────────────────────────────────────────────────────
+// ── Click to edit (Design E) ────────────────────────────────────────────────
 
-test('bulk edit mode is accessible and shows Start/End buttons', async () => {
+test('clicking "Click to edit" on an existing saved line reopens it in place', async () => {
   // Still in edit mode from the save test, which saved two viewable dialogue lines.
-  await page.click('button:has-text("Bulk Edit")');
-  // Two ScriptLineViewer rows → two Start/End button pairs
-  await expect(page.getByRole('button', { name: 'Start', exact: true }).first()).toBeVisible({
-    timeout: 5_000,
-  });
-  await expect(page.getByRole('button', { name: 'End', exact: true }).first()).toBeVisible({
-    timeout: 5_000,
-  });
+  const row = page.locator('.script-line-row').filter({ hasText: 'That is the question' });
+  await row.locator('.line-edit-trigger').click();
+
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  // The opened line's text lives in an <input> value, not plain text content.
+  await expect(page.locator('input[type="text"]:visible').last()).toHaveValue(
+    'That is the question'
+  );
+
+  // Esc closes it again without changing anything (same as Done, but no save needed
+  // here since nothing was edited).
+  await page.keyboard.press('Escape');
+  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
+  await expect(
+    page.locator('.viewable-line').filter({ hasText: 'That is the question' })
+  ).toBeVisible();
 });
 
-test('bulk edit opens the Bulk Edit modal when start and end span two different lines', async () => {
-  // Start on the first line, End on the last line (different indices → valid range)
-  await page.getByRole('button', { name: 'Start', exact: true }).first().click();
-  await page.getByRole('button', { name: 'End', exact: true }).last().click();
-  await waitForModal(page, 'Bulk Edit');
+// ── Selection bar (Design E) ────────────────────────────────────────────────
+
+test('ticking a line number starts a selection and shows the selection bar', async () => {
+  // Still in edit mode from the save test, which saved two viewable dialogue lines.
+  const firstLineRow = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  await firstLineRow.hover();
+  await firstLineRow.getByRole('checkbox').click();
+
+  await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
 });
 
-test('bulk edit can assign a character to part 1', async () => {
-  await page.locator('.modal.show #bulk-part-input').selectOption({ label: 'Part 1' });
-  // Select Alice — a different character from Hamlet (who is already assigned) so the apply
-  // produces a real change that scriptChanges can detect via deep equality.
-  await page.locator('.modal.show #bulk-char-input').selectOption({ label: 'Alice' });
+test('ticking the sole selected line again deselects it', async () => {
+  // Regression: re-ticking an already-selected line's own checkbox used to
+  // leave it "stuck" selected (bar still showing "1 line selected") while the
+  // checkbox itself rendered unchecked — see ScriptEditor.vue's
+  // onToggleSelect for why re-setting the range to the identical
+  // {page, lineIndex} it already held never reconciled the checkbox's native
+  // checked state back after the browser flipped it on click.
+  const row = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  const checkbox = row.getByRole('checkbox');
+  await row.hover();
+  await checkbox.click();
+
+  await expect(page.locator('text=1 line selected')).not.toBeVisible({ timeout: 5_000 });
+  await expect(checkbox).not.toBeChecked();
+
+  // Restore the selection — the next test assumes it's already active.
+  await row.hover();
+  await checkbox.click();
+  await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+});
+
+test('a second tick extends the selection to cover both lines', async () => {
+  const secondLineRow = page
+    .locator('.script-line-row')
+    .filter({ hasText: 'That is the question' });
+  await secondLineRow.hover();
+  await secondLineRow.getByRole('checkbox').click();
+
+  await expect(page.locator('text=2 lines selected')).toBeVisible({ timeout: 5_000 });
+});
+
+test('clicking the range’s own start line shrinks it, keeping the rest selected', async () => {
+  // Regression: this used to collapse the whole range down to just the
+  // clicked line, deselecting everything else — surprising for a UI where
+  // every other checkbox behaves like a normal toggle. Ticking an endpoint
+  // of a multi-line range now drops just that one line and keeps the rest
+  // selected, same as nextSelectionRange's own unit tests
+  // (scriptSelectionModel.test.ts) verify directly.
+  const firstLineRow = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  const secondLineRow = page
+    .locator('.script-line-row')
+    .filter({ hasText: 'That is the question' });
+
+  await firstLineRow.hover();
+  await firstLineRow.getByRole('checkbox').click();
+
+  await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+  await expect(firstLineRow.getByRole('checkbox')).not.toBeChecked();
+  await expect(secondLineRow.getByRole('checkbox')).toBeChecked();
+
+  // Restore the 2-line range — the next test assumes it's already selected.
+  await firstLineRow.hover();
+  await firstLineRow.getByRole('checkbox').click();
+  await expect(page.locator('text=2 lines selected')).toBeVisible({ timeout: 5_000 });
+});
+
+test('Set Character or Group changes the selected lines’ speaker', async () => {
+  const firstLineRow = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+
+  await page.click('button:has-text("Set Character or Group")');
+  await waitForModal(page, 'Set Character or Group');
+  // Alice — a different character from Hamlet (who is already assigned) so the
+  // apply produces a real change that scriptChanges can detect via deep equality.
+  await page.locator('.modal.show select').filter({ hasText: 'Alice' }).selectOption({
+    label: 'Alice',
+  });
   await confirmModal(page);
   await waitForModalClosed(page);
-  // After apply, bulk edit mode exits automatically
-  await expect(page.getByRole('button', { name: 'Bulk Edit', exact: true })).toBeVisible({
+
+  // The speaker actually changed. Only the first of the two previously-selected
+  // lines is checked here: the second one is now consecutive with the same
+  // speaker, so its own heading correctly collapses (ScriptLineViewer.vue's
+  // needsHeadings) rather than repeating "Alice" — checking its rendered text
+  // would be asserting the wrong thing, not verifying the apply itself.
+  await expect(firstLineRow).toContainText('Alice');
+
+  // Applying clears the selection automatically. A loose `text=line selected`
+  // locator would pass this vacuously for a 2+-line selection (it doesn't
+  // match "2 lines selected" either way) whether or not the selection actually
+  // cleared — the toolbar's own accessible name is unambiguous.
+  await expect(page.getByRole('toolbar', { name: 'Selected lines' })).toBeHidden({
     timeout: 5_000,
   });
 });
 
-test('bulk edit stops when Exit Bulk Edit is clicked', async () => {
-  await page.click('button:has-text("Bulk Edit")');
-  await expect(page.getByRole('button', { name: 'Start', exact: true }).first()).toBeVisible({
+test('Clear Selection removes the selection bar', async () => {
+  const row = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  await row.hover();
+  await row.getByRole('checkbox').click();
+  await expect(page.locator('button:has-text("Clear Selection")')).toBeVisible({
     timeout: 5_000,
   });
-  await page.click('button:has-text("Exit Bulk Edit")');
-  await expect(page.getByRole('button', { name: 'Start', exact: true })).not.toBeVisible({
+
+  await page.click('button:has-text("Clear Selection")');
+  await expect(page.locator('button:has-text("Clear Selection")')).not.toBeVisible({
     timeout: 3_000,
   });
+
   await page.click('button:has-text("Stop Editing")');
   await confirmDialog(page);
   await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
@@ -249,7 +333,7 @@ test('stops cut mode without blank-page flash', async () => {
     page.locator('.viewable-line').filter({ hasText: 'To be or not to be' })
   ).toBeVisible();
   // No edit controls are shown after stopping
-  await expect(page.locator('.script-edit-controls')).not.toBeVisible();
+  await expect(page.locator('.line-edit-trigger')).toHaveCount(0);
 });
 
 test('cut styling persists after re-entering cut mode', async () => {
@@ -505,8 +589,7 @@ test('remove button appears when a second part is added', async () => {
     .filter({ has: page.locator('button:has-text("Done")') })
     .first();
 
-  // btn-secondary is the add-line-part (+) button — only btn-secondary in the editor row
-  await lineEditor.locator('button.btn-secondary').click();
+  await lineEditor.locator('button:has-text("Add Speaker")').click();
 
   // One remove button per part
   await expect(lineEditor.locator('button.btn-outline-danger')).toHaveCount(2, { timeout: 3_000 });
@@ -530,17 +613,18 @@ test('dialogue line with removed part saves correctly', async () => {
     .filter({ has: page.locator('button:has-text("Done")') })
     .first();
 
-  await lineEditor.locator('select').nth(0).selectOption({ label: 'Act 1' });
-  await lineEditor.locator('select').nth(1).selectOption({ label: 'Scene 1' });
+  // This line has a previous line to inherit its act/scene from, so Design E's
+  // card doesn't show the Act/Scene selects at all here (see the first-line case
+  // in "saves a dialogue line to the script" above, which does).
   await lineEditor
     .locator('select')
     .filter({ hasText: 'Hamlet' })
     .selectOption({ label: 'Hamlet' });
   await lineEditor.locator('input[type="text"]').last().fill('Surviving part text');
 
+  // Plain Done just closes the line now — no more auto-chained blank editor to
+  // clean up (only Enter chains, and this flow never pressed it).
   await lineEditor.locator('button:has-text("Done")').click();
-  // Delete the auto-added blank editor that appears after Done
-  await page.locator('button.btn-danger:has-text("Delete")').first().click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
 
   await page.getByRole('button', { name: 'Save', exact: true }).click();

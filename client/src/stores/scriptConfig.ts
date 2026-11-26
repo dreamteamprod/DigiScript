@@ -107,6 +107,8 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     insertBlankLine(page: number, lineIndex: number, line: ScriptLine): void {
       const pageStr = String(page);
       if (this.deletedLines[pageStr]?.includes(lineIndex)) {
+        // Reuses the tombstoned slot in place (a replace, not a splice) — the
+        // array's length doesn't change, so no other index needs renumbering.
         const l = structuredClone(line);
         l.page = page;
         l.id = this.tmpScript[pageStr][lineIndex].id;
@@ -116,7 +118,15 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
         const l = structuredClone(line);
         l.page = page;
         this.tmpScript[pageStr].splice(lineIndex, 0, l);
-        if (!this.insertedLines[pageStr]) this.insertedLines[pageStr] = [];
+        // Splicing shifts every later index up by one — deletedLines/insertedLines
+        // index into the same array, so they must shift too, or a tombstone/insert
+        // recorded before this one silently starts pointing at the wrong line.
+        this.deletedLines[pageStr] = (this.deletedLines[pageStr] ?? []).map((i) =>
+          i >= lineIndex ? i + 1 : i
+        );
+        this.insertedLines[pageStr] = (this.insertedLines[pageStr] ?? []).map((i) =>
+          i >= lineIndex ? i + 1 : i
+        );
         this.insertedLines[pageStr].push(lineIndex);
       }
     },
@@ -129,12 +139,20 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       const pageStr = String(page);
       if (this.tmpScript[pageStr][lineIndex].id === null) {
         this.tmpScript[pageStr].splice(lineIndex, 1);
+        // Splicing shifts every later index down by one — see insertBlankLine's
+        // own copy of this reasoning, same bug in the opposite direction.
+        this.deletedLines[pageStr] = (this.deletedLines[pageStr] ?? []).map((i) =>
+          i > lineIndex ? i - 1 : i
+        );
+        this.insertedLines[pageStr] = (this.insertedLines[pageStr] ?? [])
+          .filter((i) => i !== lineIndex)
+          .map((i) => (i > lineIndex ? i - 1 : i));
       } else {
         this.deletedLines[pageStr] ??= [];
         this.deletedLines[pageStr].push(lineIndex);
-      }
-      if (this.insertedLines[pageStr]?.includes(lineIndex)) {
-        this.insertedLines[pageStr].splice(this.insertedLines[pageStr].indexOf(lineIndex), 1);
+        if (this.insertedLines[pageStr]?.includes(lineIndex)) {
+          this.insertedLines[pageStr].splice(this.insertedLines[pageStr].indexOf(lineIndex), 1);
+        }
       }
     },
 

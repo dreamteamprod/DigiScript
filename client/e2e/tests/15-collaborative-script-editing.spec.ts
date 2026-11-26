@@ -1,6 +1,7 @@
 /**
  * Collaborative script editing (setting on): join the shared draft, edit it, save/
- * stop/discard it, bulk edit, and cut mode (Phase 3, Steps 1-5). Runs last on purpose —
+ * stop/discard it, the selection bar's bulk actions, and cut mode (Phase 3, Steps 1-5).
+ * Runs last on purpose —
  * it flips the server-wide `collaborative_script_editing` setting, which every earlier
  * spec needs OFF, and puts it back in afterAll. A retry's own `beforeAll` restores the
  * DB and config from the spec-start snapshot (see `registerRetryHooks`), but that does
@@ -292,13 +293,12 @@ test('a non-editing viewer sees the live draft, not stale saved content (Phase 4
   await expect(firstRow(page4)).toBeVisible({ timeout: 15_000 });
   // Matches the editor's own (live, synced) content, not a stale REST render —
   // a fresh/empty join would also show *a* row, so this compares actual text.
-  // page's row is can-edit=true and renders its edit-controls menu inline as
-  // text too (Edit/Insert.../Delete); page4 is a plain viewer and never does.
-  // Diff a clone (not the live row, which later tests still click into) with
-  // that subtree stripped out before comparing.
+  // page's row is can-edit=true and renders a "Click to edit" affordance as text
+  // too; page4 is a plain viewer and never does. Diff a clone (not the live row,
+  // which later tests still click into) with that affordance stripped out first.
   const editorText = await firstRow(page).evaluate((el) => {
     const clone = el.cloneNode(true) as HTMLElement;
-    clone.querySelector('.script-edit-controls')?.remove();
+    clone.querySelector('.line-edit-trigger')?.remove();
     return clone.textContent;
   });
   await expect(firstRow(page4)).toHaveText(editorText ?? '');
@@ -496,7 +496,7 @@ test('the non-editing viewer sees the new line live, without a reload', async ()
 
 test('typed text survives a reload — it is written to the shared draft, not local state', async () => {
   const row = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
-  await row.locator('.script-edit-controls button:has-text("Edit")').click();
+  await row.locator('.line-edit-trigger').click();
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
   await page.locator('input[type="text"]:visible').last().fill('To be, or not to be, that is it');
   await page.locator('button:has-text("Done")').first().click();
@@ -509,22 +509,40 @@ test('typed text survives a reload — it is written to the shared draft, not lo
   await expect(page.locator('.script-line-row')).toContainText('To be, or not to be, that is it');
 });
 
-test('inserts a line from a row menu and deletes it again', async () => {
-  const row = page.locator('.script-line-row').filter({ hasText: 'To be, or not to be' });
+test('inserts a line from the add-line divider and deletes it again', async () => {
+  // A second line is needed so a divider actually exists between the two to insert
+  // into — Design E's "+ Add Line Here" divider only renders between a pair of lines,
+  // never after the last one (that's what the "Add to end of page" buttons are for).
+  // Both the second line and the inserted one are removed again below, so later tests
+  // in this file still find exactly the one line they expect.
+  await addDialogueLine(page, {
+    act: 'Act 1',
+    scene: 'Scene 1',
+    character: 'Hamlet',
+    text: 'A second line, so a divider exists',
+  });
   const rowCountBefore = await page.locator('.script-line-row').count();
 
-  await row.locator('.script-edit-controls button.dropdown-toggle-split').click();
-  await page.click('.dropdown-item:has-text("Insert Stage Direction")');
+  await page.click('button:has-text("+ Add Line Here")');
+  await page.click('.dropdown-item:has-text("Direction")');
 
   await fillOpenLineEditor(page, { act: 'Act 1', scene: 'Scene 1' });
 
   // Unscoped, like the classic editor's own equivalent E2E test: `div.row` nests
   // (Bootstrap grid), so the "has a Done button" filter's first match can be an
   // ancestor row that also wraps the (hidden) Stage Direction Styles tab's own Delete
-  // button, making a *scoped* lookup inside it ambiguous.
-  await page.locator('button.btn-danger:has-text("Delete")').first().click();
+  // Line button, making a *scoped* lookup inside it ambiguous.
+  await page.locator('button.btn-danger:has-text("Delete Line")').first().click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.script-line-row')).toHaveCount(rowCountBefore);
+
+  const secondRow = page
+    .locator('.script-line-row')
+    .filter({ hasText: 'A second line, so a divider exists' });
+  await secondRow.hover();
+  await secondRow.locator('.line-edit-trigger').click();
+  await page.locator('button.btn-danger:has-text("Delete Line")').first().click();
+  await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
 });
 
 test('Save commits the draft to the DB, not just the shared draft', async () => {
@@ -606,25 +624,24 @@ test('re-entering resumes the kept draft, with Save already enabled (D8)', async
   });
 });
 
-test('bulk edit applies a character across a range of lines', async () => {
-  await page.click('button:has-text("Bulk Edit")');
-  await expect(page.getByRole('button', { name: 'Start', exact: true }).first()).toBeVisible({
-    timeout: 5_000,
+test('Set Character or Group applies a character across the selected lines', async () => {
+  const row = page
+    .locator('.script-line-row')
+    .filter({ hasText: 'To be, or not to be, that is it' });
+  await row.hover();
+  await row.getByRole('checkbox').click();
+  await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+
+  await page.click('button:has-text("Set Character or Group")');
+  await waitForModal(page, 'Set Character or Group');
+  await page.locator('.modal.show select').filter({ hasText: 'Alice' }).selectOption({
+    label: 'Alice',
   });
-
-  await page.getByRole('button', { name: 'Start', exact: true }).first().click();
-  await page.getByRole('button', { name: 'End', exact: true }).last().click();
-  await waitForModal(page, 'Bulk Edit');
-
-  await page.locator('.modal.show #bulk-part-input').selectOption({ label: 'Part 1' });
-  await page.locator('.modal.show #bulk-char-input').selectOption({ label: 'Alice' });
   await confirmModal(page);
   await waitForModalClosed(page);
 
-  // After apply, bulk edit mode exits automatically.
-  await expect(page.getByRole('button', { name: 'Bulk Edit', exact: true })).toBeVisible({
-    timeout: 5_000,
-  });
+  // Applying clears the selection automatically.
+  await expect(page.locator('text=line selected')).not.toBeVisible({ timeout: 5_000 });
   await expect(
     page.locator('.script-line-row').filter({ hasText: 'To be, or not to be, that is it' })
   ).toContainText('Alice');

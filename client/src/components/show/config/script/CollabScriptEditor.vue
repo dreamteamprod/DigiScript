@@ -144,23 +144,37 @@
               >
                 Save
               </BButton>
-              <BButton
-                :variant="bulkEditMode ? 'info' : 'outline-info'"
-                @click="bulkEditMode ? exitBulkEditMode() : enterBulkEditMode()"
-              >
-                {{ bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit' }}
-              </BButton>
             </template>
           </BButtonGroup>
         </BCol>
       </BRow>
+      <!-- A disabled button's own title attribute never shows as a tooltip — Chromium
+           (and most browsers) suppress hover events, including the ones a native
+           tooltip needs, for a disabled form control entirely. The title is kept on
+           the button too (for anything that does read it, e.g. assistive tech), but
+           this is the only thing that actually puts the reason somewhere visible. -->
+      <BRow v-if="visibleDisabledReason" class="script-row">
+        <BCol cols="12" class="text-end">
+          <small class="text-muted save-disabled-reason">{{ visibleDisabledReason }}</small>
+        </BCol>
+      </BRow>
       <BRow class="script-row">
+        <BCol cols="1" />
         <BCol cols="1">Act</BCol>
         <BCol cols="1">Scene</BCol>
         <BCol>Line</BCol>
-        <BCol cols="1" />
       </BRow>
     </div>
+
+    <SelectionBar
+      v-if="selectionCount > 0"
+      :count="selectionCount"
+      :range-label="selectionRangeLabel"
+      @set-character="openSetCharacterDialog"
+      @move-to-scene="openMoveToSceneDialog"
+      @delete="onDeleteSelection"
+      @clear="clearSelection"
+    />
 
     <BAlert :model-value="joinFailed" variant="danger" class="mt-3">
       <div class="d-flex justify-content-between align-items-center">
@@ -186,7 +200,6 @@
               :class="{ 'jump-highlight': jumpTargetLineUid === line._uid }"
               :page="currentPage"
               :line="line"
-              :line-type="line.line_type"
               :acts="showStore.actList"
               :scenes="showStore.sceneList"
               :characters="showStore.characterList"
@@ -196,7 +209,11 @@
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :remote-editors="remoteEditorsByLineUid[line._uid] ?? []"
               @done-editing="doneEditingLine(line._uid)"
+              @finish-and-add-line="finishAndAddLine(index)"
               @delete-line="deleteLine(line._uid)"
+              @navigate-up="navigateUp(index)"
+              @navigate-down="navigateDown(index)"
+              @retype-line="retypeLine(line._uid, index, $event)"
             />
             <ScriptLineViewer
               v-else
@@ -215,18 +232,28 @@
               :remote-editors="remoteEditorsByLineUid[line._uid] ?? []"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
-              :bulk-edit-mode="bulkEditMode"
-              :is-bulk-start="isBulkStart(line)"
-              :is-bulk-end="isBulkEnd(line)"
+              :selected="isLineSelected(line._uid)"
+              :previewed="isLinePreviewChanging(line._uid)"
               @edit-line="beginEditingLine(line._uid)"
-              @insert-dialogue="insertLineAt(index, LINE_TYPES.DIALOGUE)"
-              @insert-stage-direction="insertLineAt(index, LINE_TYPES.STAGE_DIRECTION)"
-              @insert-cue-line="insertLineAt(index, LINE_TYPES.CUE_LINE)"
-              @insert-spacing="insertLineAt(index, LINE_TYPES.SPACING)"
-              @delete-line="deleteLine(line._uid)"
-              @set-bulk-start="onSetBulkStart(index)"
-              @set-bulk-end="onSetBulkEnd(index)"
+              @toggle-select="onToggleSelect(line._uid, index)"
+              @hover-checkbox="onHoverCheckbox(index)"
+              @unhover-checkbox="onUnhoverCheckbox(index)"
             />
+            <BRow
+              v-if="canEditDraft && index < draftLines.length - 1"
+              :class="{
+                'add-line-divider-row-selected':
+                  isLineSelected(line._uid) || isNextLineSelected(index),
+              }"
+            >
+              <BCol cols="1" />
+              <BCol cols="1" />
+              <BCol cols="1" />
+              <BCol>
+                <AddLineDivider :line-number="index + 1" @add="insertLineAt(index, $event)" />
+              </BCol>
+              <BCol cols="1" />
+            </BRow>
           </template>
         </template>
         <template v-else>
@@ -250,18 +277,15 @@
         </template>
       </BCol>
     </BRow>
-    <BRow v-if="canEditDraft" class="script-row pt-1">
-      <BCol cols="10" class="ms-auto">
-        <BButtonGroup style="float: right">
-          <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
-          <BDropdown variant="primary" end toggle-class="dropdown-toggle-split">
-            <BDropdownItem @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
-              >Add Stage Direction</BDropdownItem
-            >
-            <BDropdownItem @click="addNewLine(LINE_TYPES.CUE_LINE)">Add Cue Line</BDropdownItem>
-            <BDropdownItem @click="addNewLine(LINE_TYPES.SPACING)">Add Spacing</BDropdownItem>
-          </BDropdown>
-        </BButtonGroup>
+    <BRow v-if="canEditDraft" class="script-row add-end-footer">
+      <BCol cols="12" class="d-flex align-items-center flex-wrap gap-2">
+        <span class="text-muted small me-1">Add to end of page</span>
+        <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
+          >Add Direction</BButton
+        >
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.CUE_LINE)">Add Cue</BButton>
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.SPACING)">Add Gap</BButton>
       </BCol>
     </BRow>
 
@@ -291,15 +315,21 @@
       :error="!draftStore.isDraftSaving ? draftStore.lastCollabError : null"
     />
 
-    <BulkEditModal
-      ref="bulkModal"
+    <SetCharacterOrGroupDialog
+      ref="setCharDialog"
+      :lines="selectionPreviewLines"
+      :characters="showStore.characterList"
+      :character-groups="showStore.characterGroupList"
+      @apply="onSetCharacterApply"
+    />
+
+    <BulkActSceneModal
+      ref="moveToSceneModal"
       :previous-line-of-start="bulkPreviousLine"
       :next-line-of-end="bulkNextLine"
       :acts="showStore.actList"
       :scenes="showStore.sceneList"
-      :characters="showStore.characterList"
-      :character-groups="showStore.characterGroupList"
-      @apply="onBulkApply"
+      @apply="onMoveToSceneApply"
     />
 
     <BModal ref="stopEditingModal" title="Stop Editing" hide-footer>
@@ -338,27 +368,35 @@ import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useDraftPages } from '@/composables/useDraftPages';
 import { useDraftWriter } from '@/composables/useDraftWriter';
-import { useAutoSave } from '@/composables/useAutoSave';
+import { useAutoSave, autoSaveSettings } from '@/composables/useAutoSave';
 import { useConfirm } from '@/composables/useConfirm';
 import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
+import { lineTypeLabel } from '@/js/lineTypeLabels';
+import { nextSelectionRange } from '@/js/scriptSelectionModel';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
+import AddLineDivider from './AddLineDivider.vue';
+import SelectionBar from './SelectionBar.vue';
+import SetCharacterOrGroupDialog, {
+  type SelectedLinePreview,
+} from './SetCharacterOrGroupDialog.vue';
+import BulkActSceneModal from './BulkActSceneModal.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
-import BulkEditModal from './BulkEditModal.vue';
 import PresenceAvatar from './PresenceAvatar.vue';
 import { presenceInitials, presenceColor, SELF_AVATAR_COLOR } from '@/js/presenceUtils';
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { LineUid } from '@/js/yjs/yjsSnapshot';
 import type { BulkEditPayload } from '@/types/bulkEdit';
+import { narrowAssignee } from '@/js/bulkEditLine';
 
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
  * editor joins the shared draft, browses and edits it with line/text changes writing
  * straight through `useDraftWriter` (Phase 3 Step 3), saves/stops/discards it and
- * bulk-edits it (Step 4, see `onBulkApply`). Everyone else also joins the room, as a
+ * bulk-edits a selection of lines (Step 4, see `applyToSelection`). Everyone else also joins the room, as a
  * read-only viewer (Phase 4 Step A) — the server decides the role from `is_editor` at
  * join time, so a plain viewer sees the *live* draft, not stale saved content. Cut
  * mode (Step 5) is the one exception: it stays REST, like the classic editor's,
@@ -390,14 +428,14 @@ const pageError = ref<string | null>(null);
 const goToPageModal = ref<InstanceType<typeof BModal>>();
 const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
 const stopEditingModal = ref<InstanceType<typeof BModal>>();
-const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
+const setCharDialog = ref<InstanceType<typeof SetCharacterOrGroupDialog>>();
+const moveToSceneModal = ref<InstanceType<typeof BulkActSceneModal>>();
 // Presence popover's "Jump to": the container line rows are rendered into, so a
 // jump can find the target line's DOM node to scroll it into view, and the line
 // uid to transiently flash-highlight (see jumpToMember below).
 const linesContainer = ref<{ $el: HTMLElement } | null>(null);
 const jumpTargetLineUid = ref<string | null>(null);
 let jumpHighlightTimer: ReturnType<typeof setTimeout> | null = null;
-const bulkEditMode = ref(false);
 // Cut mode (D11): REST, exclusive with draft mode, entered via REQUEST_SCRIPT_CUTS
 // rather than REQUEST_SCRIPT_EDIT. scriptConfigStore.cutMode is a local-only flag
 // shared with the classic editor and ScriptLineViewer (which reads it directly to
@@ -408,7 +446,7 @@ const linePartCuts = ref<number[]>([]);
 const cuttingSaveInProgress = ref(false);
 // D6: a stable key, not an index — an insert/delete elsewhere in the draft (ours or
 // another editor's) must not silently shift which lines a bulk edit lands on. Resolved
-// back to a position only when the edit is actually applied (see onBulkApply).
+// back to a position only when the edit is actually applied (see applyToSelection).
 const bulkEditStart = ref<{ page: number; lineUid: LineUid } | null>(null);
 const bulkEditEnd = ref<{ page: number; lineUid: LineUid } | null>(null);
 // True from a successful `stopEditing()` send until the server confirms we are no
@@ -469,9 +507,6 @@ function clearViewerRecoveryTimer(): void {
 // position, so another editor's concurrent insert/delete elsewhere on the page can't
 // desync this set the way the classic editor's `page_N_line_I` keys would.
 const editingLines = ref(new Set<string>());
-// The most recently auto-added line (from "Add Dialogue"), so finishing it chains
-// straight into another blank one for continuous typing, matching the classic editor.
-const latestAddedLine = ref<string | null>(null);
 
 // We are an editor when the server lists us among the editors. The server commits
 // `is_editor` before it broadcasts GET_SCRIPT_CONFIG_STATUS, so this is also the moment
@@ -633,13 +668,24 @@ const saveDisabledReason = computed<string | null>(() => {
   return null; // nothing to save, or already saving — no specific reason to show
 });
 
+/** Whichever of the two reasons above actually applies to the button currently on
+ * screen — cutsDisabledReason and saveDisabledReason are independent computeds that
+ * could both be non-null at once (e.g. hasCutters being true for an unrelated reason
+ * while you're mid-edit), but only one of their buttons is ever actually rendered at
+ * a time (see the v-else-if chain above), so only that one's reason belongs here. */
+const visibleDisabledReason = computed<string | null>(() => {
+  if (scriptConfigStore.cutMode) return null;
+  if (!isEditor.value) return cutsDisabledReason.value;
+  return saveDisabledReason.value;
+});
+
 const otherEditorUsernames = computed(() =>
   scriptConfigStore.editors
     .filter((e) => e.internal_id !== wsStore.internalUUID)
     .map((e) => e.username)
 );
 
-// BulkEditModal's act/scene dropdowns use these to work out which acts/scenes are
+// BulkActSceneModal's (Move to Scene) act/scene dropdowns use these to work out which acts/scenes are
 // valid to offer without crossing into the surrounding, unselected lines — no
 // page-preload needed (the whole draft doc syncs on join, unlike the classic editor's
 // per-page REST loads), so these are plain reactive reads over the already-synced doc.
@@ -663,13 +709,112 @@ const bulkNextLine = computed<DraftScriptLine | null>(() => {
   return null;
 });
 
-function isBulkStart(line: DraftScriptLine): boolean {
-  return (
-    bulkEditStart.value?.page === currentPage.value && bulkEditStart.value?.lineUid === line._uid
-  );
+// Resolves the stored {page, lineUid} boundaries to positions on demand, never
+// cached across a render — an insert/delete elsewhere (ours or another editor's)
+// must not let this read a stale index.
+const selectionBounds = computed<{ startIndex: number; endIndex: number } | null>(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return null;
+  if (bulkEditStart.value.page !== currentPage.value) return null;
+  const startIndex = draftLines.value.findIndex((l) => l._uid === bulkEditStart.value!.lineUid);
+  const endIndex = draftLines.value.findIndex((l) => l._uid === bulkEditEnd.value!.lineUid);
+  if (startIndex === -1 || endIndex === -1) return null;
+  return { startIndex, endIndex };
+});
+
+function isLineSelected(lineUid: LineUid): boolean {
+  const bounds = selectionBounds.value;
+  if (!bounds) return false;
+  const index = draftLines.value.findIndex((l) => l._uid === lineUid);
+  return index !== -1 && index >= bounds.startIndex && index <= bounds.endIndex;
 }
-function isBulkEnd(line: DraftScriptLine): boolean {
-  return bulkEditEnd.value?.page === currentPage.value && bulkEditEnd.value?.lineUid === line._uid;
+
+/** For the add-line-divider row sitting right after `index` — whether the
+ * line below it is selected, so the divider can pick up the same highlight
+ * (see ScriptEditor.vue's add-line-divider-row-selected for why). */
+function isNextLineSelected(index: number): boolean {
+  const nextLine = draftLines.value[index + 1];
+  return nextLine != null && isLineSelected(nextLine._uid);
+}
+
+// ── Hover preview — see ScriptEditor.vue's own copy of this for the "why" ──
+
+const hoveredIndex = ref<number | null>(null);
+
+function onHoverCheckbox(index: number): void {
+  hoveredIndex.value = index;
+}
+
+function onUnhoverCheckbox(index: number): void {
+  if (hoveredIndex.value === index) hoveredIndex.value = null;
+}
+
+const previewRange = computed(() => {
+  if (hoveredIndex.value == null) return null;
+  return nextSelectionRange(selectionBounds.value, hoveredIndex.value);
+});
+
+function isLinePreviewChanging(lineUid: LineUid): boolean {
+  if (hoveredIndex.value == null) return false;
+  const index = draftLines.value.findIndex((l) => l._uid === lineUid);
+  if (index === -1) return false;
+  const range = previewRange.value;
+  const inPreview = range != null && index >= range.startIndex && index <= range.endIndex;
+  return inPreview !== isLineSelected(lineUid);
+}
+
+const selectionCount = computed(() => {
+  const bounds = selectionBounds.value;
+  return bounds ? bounds.endIndex - bounds.startIndex + 1 : 0;
+});
+
+const selectionRangeLabel = computed(() => {
+  const bounds = selectionBounds.value;
+  if (!bounds) return '';
+  const first = bounds.startIndex + 1;
+  const last = bounds.endIndex + 1;
+  return first === last ? `Line ${first}` : `Lines ${first} to ${last}`;
+});
+
+const selectionPreviewLines = computed<SelectedLinePreview[]>(() => {
+  const bounds = selectionBounds.value;
+  if (!bounds) return [];
+  const result: SelectedLinePreview[] = [];
+  for (let i = bounds.startIndex; i <= bounds.endIndex; i++) {
+    const line = draftLines.value[i];
+    if (!line) continue;
+    result.push({
+      label: `Line ${i + 1}`,
+      lineTypeLabel: lineTypeLabel(line.line_type),
+      parts: line.line_parts.map((p) => ({
+        characterId: p.character_id,
+        characterGroupId: p.character_group_id,
+      })),
+    });
+  }
+  return result;
+});
+
+function clearSelection(): void {
+  bulkEditStart.value = null;
+  bulkEditEnd.value = null;
+}
+
+/** A plain click always extends/shrinks/collapses the range to the clicked
+ * line — see nextSelectionRange's own doc comment for exactly what each case
+ * does; the range-transition logic lives there (shared with ScriptEditor.vue
+ * and both editors' own hover-preview computation). `lineUid` is kept as a
+ * parameter even though the body re-derives it from `index` via draftLines,
+ * so the two editors' onToggleSelect keep a matching call shape. */
+function onToggleSelect(lineUid: LineUid, index: number): void {
+  const next = nextSelectionRange(selectionBounds.value, index);
+  if (!next) {
+    clearSelection();
+    return;
+  }
+  const startUid = draftLines.value[next.startIndex]?._uid ?? lineUid;
+  const endUid = draftLines.value[next.endIndex]?._uid ?? lineUid;
+  bulkEditStart.value = { page: currentPage.value, lineUid: startUid };
+  bulkEditEnd.value = { page: currentPage.value, lineUid: endUid };
 }
 
 // Editor whose room is gone: a rejected join, ROOM_CLOSED, or the socket not up. Without
@@ -711,21 +856,69 @@ function broadcastOpenLines(): void {
 function beginEditingLine(lineUid: string): void {
   editingLines.value.add(lineUid);
   broadcastOpenLines();
+  // See ScriptEditor.vue's own beginEditingLine: the hovered checkbox is
+  // about to disappear, and Chrome fires neither blur nor mouseleave for a
+  // removed element, so the dashed preview would otherwise linger.
+  hoveredIndex.value = null;
 }
 
 function doneEditingLine(lineUid: string): void {
   editingLines.value.delete(lineUid);
   broadcastOpenLines();
-  if (latestAddedLine.value === lineUid) {
-    latestAddedLine.value = null;
-    addNewLine(LINE_TYPES.DIALOGUE);
-  }
+}
+
+/** Enter in the text field (Design E's keyboard flow): close this line and open a
+ * fresh blank dialogue line right after it. Distinct from plain `doneEditingLine`
+ * (Done/Esc), which never adds anything. */
+function finishAndAddLine(index: number): void {
+  const line = draftLines.value[index];
+  if (!line) return;
+  doneEditingLine(line._uid);
+  insertLineAt(index, LINE_TYPES.DIALOGUE);
+}
+
+function navigateUp(index: number): void {
+  if (index <= 0) return;
+  const line = draftLines.value[index];
+  const target = draftLines.value[index - 1];
+  if (!line || !target) return;
+  doneEditingLine(line._uid);
+  beginEditingLine(target._uid);
+}
+
+function navigateDown(index: number): void {
+  const line = draftLines.value[index];
+  const target = draftLines.value[index + 1];
+  if (!line || !target) return;
+  doneEditingLine(line._uid);
+  beginEditingLine(target._uid);
+}
+
+/** LineTypeSegmented changed type on a line that has never been saved — there is no
+ * `line_type` mutation in the draft schema (see draftWriter.ts's `LineField` union),
+ * so this deletes the line and adds a fresh blank one of the new type at the same
+ * position, carrying the open-editor bookkeeping across to the new uid. Only ever
+ * invoked for an unsaved line — CollabScriptLineEditor.vue disables the control
+ * otherwise. */
+function retypeLine(oldUid: string, index: number, newType: number): void {
+  // Resolved before the delete below, same as addNewLine/insertLineAt — at index 0
+  // of page 2+, draftLines.value[index - 1] would be undefined (it only sees the
+  // current page), but draftPages.previousLineOf looks back across pages.
+  const prev = draftPages.previousLineOf(currentPage.value, index);
+  writer.deleteLine(currentPage.value, oldUid);
+  const { lineUid } = writer.addLine(currentPage.value, {
+    lineType: newType,
+    actId: prev?.act_id ?? null,
+    sceneId: prev?.scene_id ?? null,
+    index,
+    part: seedFirstPart(newType, prev),
+  });
+  editingLines.value.delete(oldUid);
+  editingLines.value.add(lineUid);
+  broadcastOpenLines();
 }
 
 function deleteLine(lineUid: string): void {
-  // Clear this first: a delete must never chain into another auto-added line the way
-  // finishing one normally would.
-  if (latestAddedLine.value === lineUid) latestAddedLine.value = null;
   writer.deleteLine(currentPage.value, lineUid);
   editingLines.value.delete(lineUid);
   broadcastOpenLines();
@@ -759,7 +952,6 @@ function addNewLine(lineType: number): void {
   });
   editingLines.value.add(lineUid);
   broadcastOpenLines();
-  latestAddedLine.value = lineUid;
 }
 
 function insertLineAt(index: number, lineType: number): void {
@@ -783,6 +975,9 @@ async function loadViewerPage(page: number): Promise<void> {
 async function navigateTo(page: number): Promise<void> {
   if (!usesLiveRender.value) await loadViewerPage(page);
   currentPage.value = page;
+  // Selection is confined to the current page (see onToggleSelect) — a line
+  // checkbox ticked on a page you've since navigated away from can't stay ticked.
+  clearSelection();
   // Covers every way the page can change — Prev/Next, Go to Page, and jumpToMember
   // below — in one place, rather than re-announcing it from each caller.
   broadcastOpenLines();
@@ -997,59 +1192,10 @@ function autosaveTick(): void {
 const autoSave = useAutoSave(autosaveTick);
 
 function setupAutoSave(): void {
-  const settings = userStore.userSettings as {
-    enable_script_auto_save?: boolean;
-    script_auto_save_interval?: number;
-  };
-  autoSave.restart(
-    canEditDraft.value && !!settings.enable_script_auto_save,
-    settings.script_auto_save_interval ?? 5
-  );
+  const { enabled, intervalMinutes } = autoSaveSettings(userStore.userSettings);
+  autoSave.restart(canEditDraft.value && enabled, intervalMinutes);
 }
 
-function enterBulkEditMode(): void {
-  bulkEditMode.value = true;
-  bulkEditStart.value = null;
-  bulkEditEnd.value = null;
-}
-
-function exitBulkEditMode(): void {
-  bulkEditMode.value = false;
-  bulkEditStart.value = null;
-  bulkEditEnd.value = null;
-}
-
-function onSetBulkStart(index: number): void {
-  const line = draftLines.value[index];
-  if (!line) return;
-  bulkEditStart.value = { page: currentPage.value, lineUid: line._uid };
-  bulkEditEnd.value = null;
-}
-
-function onSetBulkEnd(index: number): void {
-  const line = draftLines.value[index];
-  if (!line) return;
-  if (bulkEditStart.value) {
-    const { page: startPage, lineUid: startUid } = bulkEditStart.value;
-    if (currentPage.value < startPage) {
-      toast.error('End line must come after start line');
-      return;
-    }
-    if (currentPage.value === startPage) {
-      const startIndex = draftLines.value.findIndex((l) => l._uid === startUid);
-      if (startIndex !== -1 && index <= startIndex) {
-        toast.error('End line must come after start line');
-        return;
-      }
-    }
-  }
-  bulkEditEnd.value = { page: currentPage.value, lineUid: line._uid };
-}
-
-// D6: bulk edit resolves its stored {page, lineUid} boundaries back to a position only
-// here, at apply time — an insert/delete elsewhere since the boundaries were picked
-// (ours or another editor's) shifts indices but never the line this was meant to cover.
-// If either boundary line is gone by now, abort rather than guess a new range.
 function applyBulkActScene(
   page: number,
   line: DraftScriptLine,
@@ -1075,49 +1221,21 @@ function applyBulkCharacter(
   }
 }
 
-/** What onBulkApply() applies to a single line, pulled out of its double-nested loop. */
-function applyBulkEditToLine(
-  page: number,
-  line: DraftScriptLine,
-  actScene: { actId: number; sceneId: number } | null,
-  character: {
-    targetPartIndex: number;
-    characterId: number | null;
-    characterGroupId: number | null;
-  } | null
-): void {
-  if (actScene) applyBulkActScene(page, line, actScene.actId, actScene.sceneId);
-  if (character) {
-    applyBulkCharacter(
-      page,
-      line,
-      character.targetPartIndex,
-      character.characterId,
-      character.characterGroupId
-    );
-  }
+function openSetCharacterDialog(): void {
+  setCharDialog.value?.show();
 }
 
-function onBulkApply(payload: BulkEditPayload): void {
-  if (!bulkEditStart.value || !bulkEditEnd.value) return;
-  const { page: startPage, lineUid: startUid } = bulkEditStart.value;
-  const { page: endPage, lineUid: endUid } = bulkEditEnd.value;
+function openMoveToSceneDialog(): void {
+  moveToSceneModal.value?.show();
+}
 
-  const startIndex = draftPages.linesFor(startPage).findIndex((l) => l._uid === startUid);
-  const endIndex = draftPages.linesFor(endPage).findIndex((l) => l._uid === endUid);
-  if (startIndex === -1 || endIndex === -1) {
-    toast.error('Could not apply the bulk edit — the start or end line no longer exists');
-    bulkModal.value?.hide();
-    exitBulkEditMode();
-    return;
-  }
-
-  const actScene = payload.actScene;
-
-  // transact() is reentrant: each writer call below opens its own transaction with
-  // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
-  // rather than committing separately — so the whole bulk edit reaches peers as one
-  // update.
+/** Applies a change to every line in the active selection — shared by "Set Character
+ * or Group" and "Move to Scene", each building its own half of a `BulkEditPayload`
+ * (the other half stays null). Selection is confined to the current page (see
+ * `onToggleSelect`), so this never needs to cross pages. */
+function applyToSelection(payload: BulkEditPayload): void {
+  const bounds = selectionBounds.value;
+  if (!bounds) return;
   const character = payload.assignee
     ? {
         targetPartIndex: payload.assignee.partIndex - 1,
@@ -1125,27 +1243,69 @@ function onBulkApply(payload: BulkEditPayload): void {
         characterGroupId: payload.assignee.characterGroupId,
       }
     : null;
-
+  // transact() is reentrant: each writer call below opens its own transaction with
+  // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
+  // rather than committing separately — so the whole change reaches peers as one update.
   writer.transact(() => {
-    for (let p = startPage; p <= endPage; p += 1) {
-      const pageLines = draftPages.linesFor(p);
-      const fromIndex = p === startPage ? startIndex : 0;
-      const toIndex = p === endPage ? endIndex : pageLines.length - 1;
-      for (let i = fromIndex; i <= toIndex; i += 1) {
-        const line = pageLines[i];
-        if (!line) continue; // the page shrank since linesFor() was read for the loop bounds
-        applyBulkEditToLine(p, line, actScene, character);
+    for (let i = bounds.startIndex; i <= bounds.endIndex; i += 1) {
+      const line = draftLines.value[i];
+      if (!line) continue;
+      if (payload.actScene) {
+        applyBulkActScene(
+          currentPage.value,
+          line,
+          payload.actScene.actId,
+          payload.actScene.sceneId
+        );
+      }
+      if (character) {
+        applyBulkCharacter(
+          currentPage.value,
+          line,
+          character.targetPartIndex,
+          character.characterId,
+          character.characterGroupId
+        );
       }
     }
   });
-
-  bulkModal.value?.hide();
-  exitBulkEditMode();
 }
 
-watch(bulkEditEnd, (val) => {
-  if (val != null) bulkModal.value?.show();
-});
+function onSetCharacterApply(assignee: {
+  partIndex: number;
+  characterId: number | null;
+  characterGroupId: number | null;
+}): void {
+  const narrowed = narrowAssignee(assignee);
+  if (!narrowed) return;
+  applyToSelection({ actScene: null, assignee: narrowed });
+  setCharDialog.value?.hide();
+  clearSelection();
+}
+
+function onMoveToSceneApply(payload: { actId: number; sceneId: number }): void {
+  applyToSelection({ actScene: payload, assignee: null });
+  moveToSceneModal.value?.hide();
+  clearSelection();
+}
+
+/** Deletes the whole selection in one transaction, by uid (captured up front, before
+ * any delete) — unlike the classic editor's index-based delete, uid addressing means
+ * deletion order doesn't matter here. */
+function onDeleteSelection(): void {
+  const bounds = selectionBounds.value;
+  if (!bounds) return;
+  const uids = draftLines.value.slice(bounds.startIndex, bounds.endIndex + 1).map((l) => l._uid);
+  writer.transact(() => {
+    for (const uid of uids) writer.deleteLine(currentPage.value, uid);
+  });
+  // The selection is index-based, so an open editor can fall inside it — same
+  // cleanup the single-line deleteLine() above does, so its uid doesn't linger in
+  // editingLines with nothing on screen to close it.
+  for (const uid of uids) editingLines.value.delete(uid);
+  broadcastOpenLines();
+  clearSelection();
+}
 
 // Covers every way cutMode can go true -> false, not just our own stopCutting()/
 // saveCuts(): a server-side rejection of REQUEST_SCRIPT_CUTS (requestEditFailure()
@@ -1178,7 +1338,7 @@ watch(isEditor, (now, was) => {
     stopRequested.value = false;
     editingLines.value.clear();
     broadcastOpenLines();
-    latestAddedLine.value = null;
+    clearSelection();
   }
   retryJoin();
 });
@@ -1282,6 +1442,7 @@ watch(
 
 watch(currentPage, (val) => {
   localStorage.setItem('scriptEditPage', val.toString());
+  hoveredIndex.value = null;
 });
 
 onMounted(async () => {
@@ -1334,6 +1495,22 @@ onBeforeUnmount(() => {
 .script-editor-container {
   position: relative;
 }
+.add-end-footer {
+  /* Pinned to the bottom of the viewport regardless of scroll position, like
+     .sticky-header is pinned to the top — Tim asked for this after the first
+     build only showed it once scrolled all the way to the last line. */
+  position: sticky;
+  bottom: 0;
+  z-index: 90;
+  padding: 14px 12px;
+  background: var(--body-background);
+  /* box-shadow, not border-top: see .sticky-header's own comment on why a
+     border on a sticky element paints over a popover that should sit above
+     it in Chromium. --bs-border-color (what the old border-top used) also
+     resolves to Bootstrap's light default on this theme — --bs-gray-700
+     instead, same reasoning as ScriptLineEditor.vue's --bs-dark note. */
+  box-shadow: 0 -1px 0 0 var(--bs-gray-700);
+}
 .sticky-header {
   position: sticky;
   z-index: 100;
@@ -1346,6 +1523,16 @@ onBeforeUnmount(() => {
      draws the same 1px line without that quirk. */
   box-shadow: 0 1px 0 0 #dee2e6;
   background: var(--body-background);
+}
+/* Matches .line-row-selected in ScriptLineViewer.vue exactly (that rule is
+   scoped there and can't be reused directly) — applied to the whole wrapping
+   row, not AddLineDivider's own inner element, so it's flush with the line
+   rows' own left edge instead of starting a few columns in. Without this a
+   selected range's background read as separate highlighted rows with a plain
+   gap between each, rather than one continuous block. */
+.add-line-divider-row-selected {
+  background-color: rgba(var(--bs-success-rgb), 0.08);
+  box-shadow: inset 3px 0 0 var(--bs-success);
 }
 /* The presence popover — avatar-stack toggle button + "Here now" member list. */
 .presence-stack {

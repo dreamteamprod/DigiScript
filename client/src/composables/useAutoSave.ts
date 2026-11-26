@@ -1,5 +1,25 @@
 import { onUnmounted } from 'vue';
 
+/** Reads the auto-save user setting fields, shared by both editors' own
+ * setupAutoSave (otherwise identical apart from which "is this an editor at
+ * all" flag they AND it with) — `userSettings` is typed loosely at its two call
+ * sites already (a Pinia store field typed `UserSettings | Record<string,
+ * unknown>`), so this takes the same `unknown` rather than forcing a cast on
+ * every caller. */
+export function autoSaveSettings(userSettings: unknown): {
+  enabled: boolean;
+  intervalMinutes: number;
+} {
+  const settings = userSettings as {
+    enable_script_auto_save?: boolean;
+    script_auto_save_interval?: number;
+  };
+  return {
+    enabled: !!settings.enable_script_auto_save,
+    intervalMinutes: settings.script_auto_save_interval ?? 5,
+  };
+}
+
 /**
  * The timer-scheduling half of autosave, shared by the classic and collaborative
  * script editors — only the scheduling is identical; what a tick actually *does*

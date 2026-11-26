@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { defineComponent } from 'vue';
 import { mount, type VueWrapper } from '@vue/test-utils';
-import { useAutoSave } from './useAutoSave';
+import { useAutoSave, autoSaveSettings } from './useAutoSave';
+
+describe('autoSaveSettings', () => {
+  it('is disabled with a 5-minute default interval when unset', () => {
+    expect(autoSaveSettings({})).toEqual({ enabled: false, intervalMinutes: 5 });
+  });
+
+  it('reads the enabled flag and interval from the given settings', () => {
+    expect(
+      autoSaveSettings({ enable_script_auto_save: true, script_auto_save_interval: 10 })
+    ).toEqual({ enabled: true, intervalMinutes: 10 });
+  });
+});
 
 describe('useAutoSave', () => {
   let wrapper: VueWrapper | null = null;

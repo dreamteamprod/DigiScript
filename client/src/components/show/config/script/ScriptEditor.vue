@@ -42,27 +42,46 @@
               >
                 Stop Editing
               </BButton>
-              <BButton variant="success" :disabled="!canSave && !isAutoSaving" @click="saveScript">
-                Save
-              </BButton>
               <BButton
-                v-if="canEdit && !scriptConfigStore.cutMode"
-                :variant="bulkEditMode ? 'info' : 'outline-info'"
-                @click="bulkEditMode ? exitBulkEditMode() : enterBulkEditMode()"
+                variant="success"
+                :disabled="!canSave && !isAutoSaving"
+                :title="saveDisabledReason ?? undefined"
+                @click="saveScript"
               >
-                {{ bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit' }}
+                Save
               </BButton>
             </template>
           </BButtonGroup>
         </BCol>
       </BRow>
+      <!-- A disabled button's own title attribute never shows as a tooltip — Chromium
+           (and most browsers) suppress hover events, including the ones a native
+           tooltip needs, for a disabled form control entirely. The title is kept on
+           the button too (for anything that does read it, e.g. assistive tech), but
+           this is the only thing that actually puts the reason somewhere visible. -->
+      <BRow v-if="saveDisabledReason" class="script-row">
+        <BCol cols="12" class="text-end">
+          <small class="text-muted save-disabled-reason">{{ saveDisabledReason }}</small>
+        </BCol>
+      </BRow>
       <BRow class="script-row">
+        <BCol cols="1" />
         <BCol cols="1">Act</BCol>
         <BCol cols="1">Scene</BCol>
         <BCol>Line</BCol>
-        <BCol cols="1" />
       </BRow>
     </div>
+
+    <SelectionBar
+      v-if="selectionCount > 0"
+      :count="selectionCount"
+      :range-label="selectionRangeLabel"
+      @set-character="openSetCharacterDialog"
+      @move-to-scene="openMoveToSceneDialog"
+      @delete="onDeleteSelection"
+      @clear="clearSelection"
+    />
+
     <BRow class="script-row">
       <BCol cols="12">
         <template
@@ -81,11 +100,13 @@
               :model-value="line"
               :previous-line="getPreviousLine(index)"
               :next-line="getNextLine(index)"
-              :line-type="line.line_type"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               @update:model-value="onLineChange(index, $event)"
               @done-editing="doneEditingLine(currentPage, index)"
+              @finish-and-add-line="finishAndAddLine(currentPage, index)"
               @delete-line="deleteLine(currentPage, index)"
+              @navigate-up="navigateUp(currentPage, index)"
+              @navigate-down="navigateDown(currentPage, index)"
             />
             <ScriptLineViewer
               v-else
@@ -101,35 +122,44 @@
               :line-part-cuts="linePartCuts"
               :stage-direction-styles="scriptStore.stageDirectionStyles"
               :stage-direction-style-overrides="userStore.stageDirectionStyleOverrides"
-              :bulk-edit-mode="bulkEditMode"
-              :is-bulk-start="isBulkStart(index)"
-              :is-bulk-end="isBulkEnd(index)"
+              :selected="isLineSelected(index)"
+              :previewed="isLinePreviewChanging(index)"
               @edit-line="beginEditingLine(currentPage, index)"
               @cut-line-part="cutLinePart"
-              @insert-dialogue="insertLineAt(currentPage, index, LINE_TYPES.DIALOGUE)"
-              @insert-stage-direction="insertLineAt(currentPage, index, LINE_TYPES.STAGE_DIRECTION)"
-              @insert-cue-line="insertLineAt(currentPage, index, LINE_TYPES.CUE_LINE)"
-              @insert-spacing="insertLineAt(currentPage, index, LINE_TYPES.SPACING)"
-              @delete-line="deleteLine(currentPage, index)"
-              @set-bulk-start="onSetBulkStart(index)"
-              @set-bulk-end="onSetBulkEnd(index)"
+              @toggle-select="onToggleSelect(index)"
+              @hover-checkbox="onHoverCheckbox(index)"
+              @unhover-checkbox="onUnhoverCheckbox(index)"
             />
+            <BRow
+              v-if="canEdit && !scriptConfigStore.cutMode && index < currentPageLines.length - 1"
+              :class="{
+                'add-line-divider-row-selected': isLineSelected(index) || isLineSelected(index + 1),
+              }"
+            >
+              <BCol cols="1" />
+              <BCol cols="1" />
+              <BCol cols="1" />
+              <BCol>
+                <AddLineDivider
+                  :line-number="index + 1"
+                  @add="insertLineAt(currentPage, index, $event)"
+                />
+              </BCol>
+              <BCol cols="1" />
+            </BRow>
           </template>
         </template>
       </BCol>
     </BRow>
-    <BRow class="script-row pt-1">
-      <BCol cols="10" class="ms-auto">
-        <BButtonGroup v-show="canEdit && !scriptConfigStore.cutMode" style="float: right">
-          <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
-          <BDropdown variant="primary" end toggle-class="dropdown-toggle-split">
-            <BDropdownItem @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
-              >Add Stage Direction</BDropdownItem
-            >
-            <BDropdownItem @click="addNewLine(LINE_TYPES.CUE_LINE)">Add Cue Line</BDropdownItem>
-            <BDropdownItem @click="addNewLine(LINE_TYPES.SPACING)">Add Spacing</BDropdownItem>
-          </BDropdown>
-        </BButtonGroup>
+    <BRow v-if="canEdit && !scriptConfigStore.cutMode" class="script-row add-end-footer">
+      <BCol cols="12" class="d-flex align-items-center flex-wrap gap-2">
+        <span class="text-muted small me-1">Add to end of page</span>
+        <BButton variant="primary" @click="addNewLine(LINE_TYPES.DIALOGUE)">Add Dialogue</BButton>
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.STAGE_DIRECTION)"
+          >Add Direction</BButton
+        >
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.CUE_LINE)">Add Cue</BButton>
+        <BButton variant="outline-light" @click="addNewLine(LINE_TYPES.SPACING)">Add Gap</BButton>
       </BCol>
     </BRow>
 
@@ -141,15 +171,21 @@
       :error="saveError ? 'Could not save script changes.' : null"
     />
 
-    <BulkEditModal
-      ref="bulkModal"
+    <SetCharacterOrGroupDialog
+      ref="setCharDialog"
+      :lines="selectionPreviewLines"
+      :characters="showStore.characterList"
+      :character-groups="showStore.characterGroupList"
+      @apply="onSetCharacterApply"
+    />
+
+    <BulkActSceneModal
+      ref="moveToSceneModal"
       :previous-line-of-start="previousLineOfStart"
       :next-line-of-end="nextLineOfEnd"
       :acts="showStore.actList"
       :scenes="showStore.sceneList"
-      :characters="showStore.characterList"
-      :character-groups="showStore.characterGroupList"
-      @apply="onBulkApply"
+      @apply="onMoveToSceneApply"
     />
 
     <!-- Go-to-page modal -->
@@ -191,17 +227,23 @@ import { useUserStore } from '@/stores/user';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useConfirm } from '@/composables/useConfirm';
-import { useAutoSave } from '@/composables/useAutoSave';
+import { useAutoSave, autoSaveSettings } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
+import { lineTypeLabel } from '@/js/lineTypeLabels';
+import { firstInvalidScriptLine } from '@/js/scriptDraftValidation';
+import { nextSelectionRange, type SelectionRange } from '@/js/scriptSelectionModel';
 import ScriptLineEditor from './ScriptLineEditor.vue';
 import ScriptLineViewer from './ScriptLineViewer.vue';
-import BulkEditModal from './BulkEditModal.vue';
+import AddLineDivider from './AddLineDivider.vue';
+import SelectionBar from './SelectionBar.vue';
+import SetCharacterOrGroupDialog, {
+  type SelectedLinePreview,
+} from './SetCharacterOrGroupDialog.vue';
+import BulkActSceneModal from './BulkActSceneModal.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 import type { BulkEditPayload } from '@/types/bulkEdit';
-import { applyBulkPayloadToLine } from '@/js/bulkEditLine';
-
-const MRU_LOOK_BACK = 4;
+import { applyBulkPayloadToLine, narrowAssignee } from '@/js/bulkEditLine';
 
 const showStore = useShowStore();
 const systemStore = useSystemStore();
@@ -216,7 +258,6 @@ const loaded = ref(false);
 const currentPage = ref(1);
 const navbarHeight = ref(56);
 const editingLines = ref(new Set<string>());
-const latestAddedLine = ref<string | null>(null);
 const linePartCuts = ref<number[]>([]);
 const savingInProgress = ref(false);
 const saveError = ref(false);
@@ -224,7 +265,10 @@ const curSavePage = ref(0);
 const totalSavePages = ref<number | null>(null);
 const changingPage = ref(false);
 const isAutoSaving = ref(false);
-const bulkEditMode = ref(false);
+// Selection range (Design E's "tick a line number"), confined to the current page —
+// navigating pages clears it (see decrPage/incrPage/goToPage below). Kept as the same
+// {page, lineIndex} shape the old Bulk Edit used, since Move to Scene's valid-act/
+// scene calculation still needs the line just before/after the range.
 const bulkEditStart = ref<{ page: number; lineIndex: number } | null>(null);
 const bulkEditEnd = ref<{ page: number; lineIndex: number } | null>(null);
 const previousLineOfStart = ref<ScriptLine | null>(null);
@@ -233,7 +277,8 @@ const pageInputNo = ref(1);
 
 const saveModal = ref<InstanceType<typeof SaveProgressModal>>();
 const goToPageModal = ref<InstanceType<typeof BModal>>();
-const bulkModal = ref<InstanceType<typeof BulkEditModal>>();
+const setCharDialog = ref<InstanceType<typeof SetCharacterOrGroupDialog>>();
+const moveToSceneModal = ref<InstanceType<typeof BulkActSceneModal>>();
 
 const currentPageLines = computed(() => scriptConfigStore.getTmpPage(currentPage.value));
 const deletedLines = computed(() => scriptConfigStore.getDeletedLines(currentPage.value));
@@ -264,9 +309,58 @@ const scriptChanges = computed<boolean>(() => {
   });
 });
 
+// Only the loaded pages (scriptConfigStore.tmpScript) are checked — an unloaded page
+// is untouched saved data, already valid when it was last saved.
+//
+// Within a loaded page, only lines this session actually added or changed are
+// validated — not every line on it. Two reasons: a soft-deleted line is a
+// tombstone still sitting in the array (see scriptConfig.ts's deleteLine),
+// hidden from the viewer with nothing on screen to fix it if it fails; and a
+// pre-existing line the server already accepted (e.g. a legacy null act/scene,
+// which the DB allows but this validator doesn't) must not block Save just for
+// having been on a page this session happened to load, when it was never
+// touched. computePageStatus (the same diff saveScript() itself uses to decide
+// what to send) is what already answers "added or changed" correctly, splice
+// shifts and all — reusing it here keeps this in sync with that for free.
+const isCompactMode = computed(() => systemStore.currentShow?.script_mode !== 1);
+const firstInvalidLine = computed(() => {
+  if (scriptConfigStore.cutMode) return null;
+  const toValidate: Record<string, ScriptLine[]> = {};
+  for (const pageStr of Object.keys(scriptConfigStore.tmpScript)) {
+    const tmpPage = scriptConfigStore.getTmpPage(pageStr);
+    if (tmpPage.length === 0) continue;
+    const deletedOnPage = scriptConfigStore.getDeletedLines(pageStr);
+    const status = computePageStatus(
+      scriptStore.getScriptPage(pageStr),
+      tmpPage,
+      deletedOnPage,
+      scriptConfigStore.getInsertedLines(pageStr)
+    );
+    // computePageStatus splices every inserted line into its own comparison copy
+    // at the same index before diffing, so an inserted line always equals
+    // itself and lands in neither added nor updated — status.inserted is the
+    // only place it's tracked at all, and must be included explicitly here.
+    const toCheck = new Set(
+      [...status.added, ...status.updated, ...status.inserted].filter(
+        (i) => !deletedOnPage.includes(i)
+      )
+    );
+    toValidate[pageStr] = tmpPage.filter((_, i) => toCheck.has(i));
+  }
+  return firstInvalidScriptLine(toValidate, isCompactMode.value);
+});
+
 const canSave = computed(() => {
   if (scriptConfigStore.cutMode) return scriptChanges.value;
-  return scriptChanges.value && editingLines.value.size === 0;
+  return scriptChanges.value && editingLines.value.size === 0 && firstInvalidLine.value === null;
+});
+const saveDisabledReason = computed<string | null>(() => {
+  if (canSave.value || scriptConfigStore.cutMode) return null;
+  if (editingLines.value.size > 0) return 'Finish editing the open line(s) before saving';
+  if (firstInvalidLine.value) {
+    return `Page ${firstInvalidLine.value.page}: ${firstInvalidLine.value.error}`;
+  }
+  return null;
 });
 
 // Previous/next line helpers (synchronous — adjacent pages preloaded)
@@ -319,7 +413,7 @@ async function stopEditing(): Promise<void> {
   }
   const wasCutMode = scriptConfigStore.cutMode;
   editingLines.value.clear();
-  exitBulkEditMode();
+  clearSelection();
   linePartCuts.value = [...scriptStore.cuts];
   scriptConfigStore.setCutMode(false);
   scriptConfigStore.setEditStatus({
@@ -342,6 +436,7 @@ async function loadPage(page: number): Promise<void> {
 
 async function decrPage(): Promise<void> {
   if (currentPage.value <= 1) return;
+  clearSelection();
   const targetPage = currentPage.value - 1;
   await loadPage(targetPage);
   if (currentPageLines.value.length === 0) {
@@ -355,6 +450,7 @@ async function decrPage(): Promise<void> {
 }
 
 async function incrPage(): Promise<void> {
+  clearSelection();
   currentPage.value++;
   await loadPage(currentPage.value);
   // Preload next page
@@ -362,6 +458,7 @@ async function incrPage(): Promise<void> {
 }
 
 async function goToPageInner(page: number): Promise<void> {
+  const MRU_LOOK_BACK = 4;
   const lookBackStart = Math.max(1, page - MRU_LOOK_BACK);
   for (let p = lookBackStart; p < page; p++) {
     await loadPage(p);
@@ -373,6 +470,7 @@ async function goToPageInner(page: number): Promise<void> {
 
 async function goToPage(): Promise<void> {
   if (!pageInputNo.value || pageInputNo.value < 1) return;
+  clearSelection();
   changingPage.value = true;
   await goToPageInner(pageInputNo.value);
   changingPage.value = false;
@@ -398,7 +496,6 @@ async function addNewLine(lineType: number): Promise<void> {
   const lineIndex = pageLines.length - 1;
   const lineIdent = `page_${currentPage.value}_line_${lineIndex}`;
   editingLines.value.add(lineIdent);
-  latestAddedLine.value = lineIdent;
   const prev = getPreviousLine(lineIndex);
   if (prev) {
     scriptConfigStore.setLine(currentPage.value, lineIndex, {
@@ -416,22 +513,35 @@ async function insertLineAt(pageIndex: number, lineIndex: number, lineType: numb
     return;
   }
   const newLineIndex = lineIndex + 1;
+  // insertBlankLine takes one of two paths depending on whether newLineIndex is
+  // already a tombstoned slot: a real splice (every later index shifts up), or a
+  // same-length replace into that slot (nothing shifts — see scriptConfig.ts's
+  // own comment on this). editingLines must only shift for the former, or an
+  // open editor past the reused slot ends up pointing at the wrong line.
+  const willSplice = !scriptConfigStore.getDeletedLines(pageIndex).includes(newLineIndex);
   const line = blankLine(lineType);
   scriptConfigStore.insertBlankLine(pageIndex, newLineIndex, line);
+  // The selection is raw-index-based and never remapped when lines shift (unlike
+  // editingLines just below, which is) — clearing it is simpler and safer than
+  // trying to shift it too, and inserting mid-selection is a narrow enough case
+  // that losing the selection there is an acceptable trade.
+  clearSelection();
 
-  // Shift all open edit indices that are >= newLineIndex up by 1
-  const shifted = new Set<string>();
-  editingLines.value.forEach((ident) => {
-    const parts = ident.split('_');
-    const ep = Number.parseInt(parts[1], 10);
-    const ei = Number.parseInt(parts[3], 10);
-    if (ep === pageIndex && ei >= newLineIndex) {
-      shifted.add(`page_${ep}_line_${ei + 1}`);
-    } else {
-      shifted.add(ident);
-    }
-  });
-  editingLines.value = shifted;
+  if (willSplice) {
+    // Shift all open edit indices that are >= newLineIndex up by 1
+    const shifted = new Set<string>();
+    editingLines.value.forEach((ident) => {
+      const parts = ident.split('_');
+      const ep = Number.parseInt(parts[1], 10);
+      const ei = Number.parseInt(parts[3], 10);
+      if (ep === pageIndex && ei >= newLineIndex) {
+        shifted.add(`page_${ep}_line_${ei + 1}`);
+      } else {
+        shifted.add(ident);
+      }
+    });
+    editingLines.value = shifted;
+  }
 
   const newIdent = `page_${currentPage.value}_line_${newLineIndex}`;
   editingLines.value.add(newIdent);
@@ -453,45 +563,72 @@ function onLineChange(lineIndex: number, line: ScriptLine): void {
 
 function beginEditingLine(pageIndex: number, lineIndex: number): void {
   editingLines.value.add(`page_${pageIndex}_line_${lineIndex}`);
+  // The checkbox the hover-preview is tracking is about to disappear (this
+  // row turns into an edit card) — Chrome fires neither blur nor mouseleave
+  // for a removed element, so without this the dashed preview could linger
+  // on other rows until the mouse happens to cross another checkbox.
+  hoveredIndex.value = null;
 }
 
 function doneEditingLine(pageIndex: number, lineIndex: number): void {
-  const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
-  editingLines.value.delete(lineIdent);
-  if (latestAddedLine.value === lineIdent) {
-    addNewLine(LINE_TYPES.DIALOGUE).catch((err) => {
-      log.error('Failed to add new line', err);
-      toast.error('Unable to add a new line. Please try again.');
-    });
-  }
+  editingLines.value.delete(`page_${pageIndex}_line_${lineIndex}`);
+}
+
+/** Enter in the text field (Design E's keyboard flow): close this line and open a
+ * fresh blank dialogue line right below it. Distinct from plain `doneEditingLine`
+ * (Done/Esc), which never adds anything — see ScriptLineEditor.vue's own emits. */
+function finishAndAddLine(pageIndex: number, lineIndex: number): void {
+  doneEditingLine(pageIndex, lineIndex);
+  insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE).catch((err) => {
+    log.error('Failed to add new line', err);
+    toast.error('Unable to add a new line. Please try again.');
+  });
+}
+
+function navigateUp(pageIndex: number, lineIndex: number): void {
+  const deletedOnPage = scriptConfigStore.getDeletedLines(pageIndex);
+  let target = lineIndex - 1;
+  while (target >= 0 && deletedOnPage.includes(target)) target--;
+  if (target < 0) return;
+  doneEditingLine(pageIndex, lineIndex);
+  beginEditingLine(pageIndex, target);
+}
+
+function navigateDown(pageIndex: number, lineIndex: number): void {
+  const pageLines = scriptConfigStore.getTmpPage(pageIndex);
+  const deletedOnPage = scriptConfigStore.getDeletedLines(pageIndex);
+  let target = lineIndex + 1;
+  while (target < pageLines.length && deletedOnPage.includes(target)) target++;
+  if (target >= pageLines.length) return;
+  doneEditingLine(pageIndex, lineIndex);
+  beginEditingLine(pageIndex, target);
 }
 
 function deleteLine(pageIndex: number, lineIndex: number): void {
   const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
-  if (latestAddedLine.value === lineIdent) latestAddedLine.value = null;
+  // A saved line (id != null) is tombstoned in place — nothing splices, so no
+  // other index moves. Only an unsaved line is actually spliced out. Checked
+  // before the store call below, which is what makes that same decision.
+  const willSplice = scriptConfigStore.getTmpPage(pageIndex)[lineIndex]?.id == null;
   scriptConfigStore.deleteLine(pageIndex, lineIndex);
-  doneEditingLine(pageIndex, lineIndex);
+  editingLines.value.delete(lineIdent);
+  // See insertLineAt's own comment: the selection is never remapped on a shift,
+  // so clear it rather than let it silently point at the wrong lines.
+  clearSelection();
 
-  const shifted = new Set<string>();
-  editingLines.value.forEach((ident) => {
-    const parts = ident.split('_');
-    const ep = Number.parseInt(parts[1], 10);
-    const ei = Number.parseInt(parts[3], 10);
-    if (ep === pageIndex && ei >= lineIndex) {
-      shifted.add(`page_${ep}_line_${ei - 1}`);
-    } else {
-      shifted.add(ident);
-    }
-  });
-  editingLines.value = shifted;
-
-  if (latestAddedLine.value) {
-    const parts = latestAddedLine.value.split('_');
-    const ep = Number.parseInt(parts[1], 10);
-    const ei = Number.parseInt(parts[3], 10);
-    if (ep === pageIndex && ei >= lineIndex) {
-      latestAddedLine.value = `page_${pageIndex}_line_${ei - 1}`;
-    }
+  if (willSplice) {
+    const shifted = new Set<string>();
+    editingLines.value.forEach((ident) => {
+      const parts = ident.split('_');
+      const ep = Number.parseInt(parts[1], 10);
+      const ei = Number.parseInt(parts[3], 10);
+      if (ep === pageIndex && ei >= lineIndex) {
+        shifted.add(`page_${ep}_line_${ei - 1}`);
+      } else {
+        shifted.add(ident);
+      }
+    });
+    editingLines.value = shifted;
   }
 }
 
@@ -515,6 +652,11 @@ async function saveScript(): Promise<void> {
     toast.warning('No changes to save!');
     return;
   }
+  // The Save button is disabled whenever !canSave, but autosave calls this
+  // function directly on a timer regardless — without this, it could persist a
+  // half-typed open line, or one firstInvalidLine would otherwise catch, that
+  // the button itself would never have let through.
+  if (editingLines.value.size > 0 || firstInvalidLine.value !== null) return;
 
   savingInProgress.value = true;
   saveError.value = false;
@@ -579,18 +721,16 @@ async function saveScript(): Promise<void> {
 const autoSave = useAutoSave(autosave);
 
 function setupAutoSave(): void {
-  const settings = userStore.userSettings as {
-    enable_script_auto_save?: boolean;
-    script_auto_save_interval?: number;
-  };
-  autoSave.restart(
-    isEditor.value && !!settings.enable_script_auto_save,
-    settings.script_auto_save_interval ?? 5
-  );
+  const { enabled, intervalMinutes } = autoSaveSettings(userStore.userSettings);
+  autoSave.restart(isEditor.value && enabled, intervalMinutes);
 }
 
 async function autosave(): Promise<void> {
-  if (isAutoSaving.value) return;
+  // Same gate the Save button's own :disabled already enforces — checked here,
+  // before either toast, so a tick that can't actually save anything (an open
+  // editor, an invalid line) stays silent instead of claiming success for
+  // nothing. saveScript()'s own copy of this guard stays as a backstop.
+  if (isAutoSaving.value || !canSave.value) return;
   isAutoSaving.value = true;
   toast.info('Performing autosave...');
   try {
@@ -608,55 +748,121 @@ function calculateNavbarHeight(): void {
   navbarHeight.value = navbar ? (navbar as HTMLElement).offsetHeight : 56;
 }
 
-function enterBulkEditMode(): void {
-  bulkEditMode.value = true;
-  bulkEditStart.value = null;
-  bulkEditEnd.value = null;
-}
+// ── Selection (Design E's checkboxes, replacing the old Bulk Edit mode toggle) ────
 
-function exitBulkEditMode(): void {
-  bulkEditMode.value = false;
+function clearSelection(): void {
   bulkEditStart.value = null;
   bulkEditEnd.value = null;
   previousLineOfStart.value = null;
   nextLineOfEnd.value = null;
 }
 
-function onSetBulkStart(index: number): void {
-  bulkEditStart.value = { page: currentPage.value, lineIndex: index };
-  bulkEditEnd.value = null;
-}
-
-function onSetBulkEnd(index: number): void {
-  if (bulkEditStart.value) {
-    const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
-    if (startPage === currentPage.value && index <= startIndex) {
-      toast.error('End line must come after start line');
-      return;
-    }
-    if (currentPage.value < startPage) {
-      toast.error('End line must come after start line');
-      return;
-    }
+/** A plain click always extends/shrinks/collapses the range to the clicked
+ * line — no modifier key required, so the whole flow works from the keyboard
+ * (Space on a focused checkbox). See nextSelectionRange's own doc comment for
+ * exactly what each case does; the range-transition logic itself lives there
+ * (shared with the hover preview below, and with CollabScriptEditor.vue) so
+ * there's exactly one place that decides what a tick does. */
+function onToggleSelect(index: number): void {
+  const current = bulkEditStart.value && bulkEditEnd.value ? currentSelectionRange.value : null;
+  const next = nextSelectionRange(current, index);
+  if (!next) {
+    clearSelection();
+    return;
   }
-  bulkEditEnd.value = { page: currentPage.value, lineIndex: index };
+  bulkEditStart.value = { page: currentPage.value, lineIndex: next.startIndex };
+  bulkEditEnd.value = { page: currentPage.value, lineIndex: next.endIndex };
 }
 
-function isBulkStart(index: number): boolean {
-  return (
-    bulkEditStart.value != null &&
-    bulkEditStart.value.page === currentPage.value &&
-    bulkEditStart.value.lineIndex === index
-  );
+const currentSelectionRange = computed<SelectionRange | null>(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return null;
+  if (bulkEditStart.value.page !== currentPage.value) return null;
+  return { startIndex: bulkEditStart.value.lineIndex, endIndex: bulkEditEnd.value.lineIndex };
+});
+
+function isLineSelected(index: number): boolean {
+  const range = currentSelectionRange.value;
+  return range != null && index >= range.startIndex && index <= range.endIndex;
 }
 
-function isBulkEnd(index: number): boolean {
-  return (
-    bulkEditEnd.value != null &&
-    bulkEditEnd.value.page === currentPage.value &&
-    bulkEditEnd.value.lineIndex === index
-  );
+// ── Hover preview (shows which lines would change before the user commits to
+// a click — Tim found the contiguous-range model non-obvious until he'd
+// already clicked) ─────────────────────────────────────────────────────────
+
+const hoveredIndex = ref<number | null>(null);
+
+function onHoverCheckbox(index: number): void {
+  hoveredIndex.value = index;
 }
+
+function onUnhoverCheckbox(index: number): void {
+  if (hoveredIndex.value === index) hoveredIndex.value = null;
+}
+
+const previewRange = computed<SelectionRange | null>(() => {
+  if (hoveredIndex.value == null) return null;
+  return nextSelectionRange(currentSelectionRange.value, hoveredIndex.value);
+});
+
+/** True while hovering shows this line's selected state is about to flip —
+ * whichever direction, added to the range or dropped from it. */
+function isLinePreviewChanging(index: number): boolean {
+  if (hoveredIndex.value == null) return false;
+  const inPreview = previewRange.value != null && isInRange(previewRange.value, index);
+  return inPreview !== isLineSelected(index);
+}
+
+function isInRange(range: SelectionRange, index: number): boolean {
+  return index >= range.startIndex && index <= range.endIndex;
+}
+
+/** Soft-deleted lines within [startIndex, endIndex] are tombstones still sitting
+ * in the array (see scriptConfig.ts's deleteLine) — hidden from the viewer, so
+ * they must stay out of anything the user sees as "N lines selected" or that
+ * acts on the selection, or a 3-line visible selection containing one hidden
+ * tombstone would show as "3 lines selected" with only 2 rows on screen. */
+function visibleIndicesInRange(startIndex: number, endIndex: number): number[] {
+  const deletedOnPage = scriptConfigStore.getDeletedLines(currentPage.value);
+  const indices: number[] = [];
+  for (let i = startIndex; i <= endIndex; i++) {
+    if (!deletedOnPage.includes(i)) indices.push(i);
+  }
+  return indices;
+}
+
+const selectionCount = computed(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return 0;
+  return visibleIndicesInRange(bulkEditStart.value.lineIndex, bulkEditEnd.value.lineIndex).length;
+});
+
+const selectionRangeLabel = computed(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return '';
+  const first = bulkEditStart.value.lineIndex + 1;
+  const last = bulkEditEnd.value.lineIndex + 1;
+  return first === last ? `Line ${first}` : `Lines ${first} to ${last}`;
+});
+
+const selectionPreviewLines = computed<SelectedLinePreview[]>(() => {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return [];
+  const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
+  const result: SelectedLinePreview[] = [];
+  for (const i of visibleIndicesInRange(
+    bulkEditStart.value.lineIndex,
+    bulkEditEnd.value.lineIndex
+  )) {
+    const line = pageLines[i];
+    if (!line) continue;
+    result.push({
+      label: `Line ${i + 1}`,
+      lineTypeLabel: lineTypeLabel(line.line_type),
+      parts: line.line_parts.map((p) => ({
+        characterId: p.character_id,
+        characterGroupId: p.character_group_id,
+      })),
+    });
+  }
+  return result;
+});
 
 async function loadBoundaryLines(): Promise<void> {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
@@ -665,7 +871,7 @@ async function loadBoundaryLines(): Promise<void> {
 
   if (startIndex === 0 && startPage > 1) await loadPage(startPage - 1);
   const endPageLines = scriptConfigStore.getTmpPage(endPage);
-  if (endLines_isLast(endPageLines, endIndex)) await loadPage(endPage + 1);
+  if (endIndex === endPageLines.length - 1) await loadPage(endPage + 1);
 
   const startPageLines = scriptConfigStore.getTmpPage(startPage);
   if (startIndex > 0) {
@@ -682,37 +888,62 @@ async function loadBoundaryLines(): Promise<void> {
       : (scriptConfigStore.getTmpPage(endPage + 1)[0] ?? null);
 }
 
-function endLines_isLast(lines: ScriptLine[], index: number): boolean {
-  return index === lines.length - 1;
+async function openSetCharacterDialog(): Promise<void> {
+  setCharDialog.value?.show();
 }
 
-async function onBulkApply(payload: BulkEditPayload): Promise<void> {
+async function openMoveToSceneDialog(): Promise<void> {
+  await loadBoundaryLines();
+  moveToSceneModal.value?.show();
+}
+
+/** Applies a change to every line in the active selection — shared by both the
+ * "Set Character or Group" and "Move to Scene" actions, so each only has to build
+ * its own half of a `BulkEditPayload` (the other half stays null). */
+function applyToSelection(payload: BulkEditPayload): void {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
-  const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
-  const { page: endPage, lineIndex: endIndex } = bulkEditEnd.value;
-
-  for (let p = startPage; p <= endPage; p++) {
-    await loadPage(p);
-    const pageLines = scriptConfigStore.getTmpPage(p);
-    const fromIdx = p === startPage ? startIndex : 0;
-    const toIdx = p === endPage ? endIndex : pageLines.length - 1;
-    const deletedOnPage = scriptConfigStore.getDeletedLines(p);
-    for (let i = fromIdx; i <= toIdx; i++) {
-      if (deletedOnPage.includes(i)) continue;
-      scriptConfigStore.setLine(p, i, applyBulkPayloadToLine(pageLines[i]!, payload));
-    }
+  const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
+  for (const i of visibleIndicesInRange(
+    bulkEditStart.value.lineIndex,
+    bulkEditEnd.value.lineIndex
+  )) {
+    if (!pageLines[i]) continue;
+    scriptConfigStore.setLine(currentPage.value, i, applyBulkPayloadToLine(pageLines[i]!, payload));
   }
-
-  bulkModal.value?.hide();
-  exitBulkEditMode();
 }
 
-watch(bulkEditEnd, async (val) => {
-  if (val != null) {
-    await loadBoundaryLines();
-    bulkModal.value?.show();
+function onSetCharacterApply(assignee: {
+  partIndex: number;
+  characterId: number | null;
+  characterGroupId: number | null;
+}): void {
+  const narrowed = narrowAssignee(assignee);
+  if (!narrowed) return;
+  applyToSelection({ actScene: null, assignee: narrowed });
+  setCharDialog.value?.hide();
+  clearSelection();
+}
+
+function onMoveToSceneApply(payload: { actId: number; sceneId: number }): void {
+  applyToSelection({ actScene: payload, assignee: null });
+  moveToSceneModal.value?.hide();
+  clearSelection();
+}
+
+/** Deletes the whole selection in descending index order — each `deleteLine` call
+ * only shifts indices at or above the one it removed, so working top-down means
+ * every earlier index in the loop is still the right one when its turn comes. */
+function onDeleteSelection(): void {
+  if (!bulkEditStart.value || !bulkEditEnd.value) return;
+  const visible = visibleIndicesInRange(bulkEditStart.value.lineIndex, bulkEditEnd.value.lineIndex);
+  // Descending order: each deleteLine call only shifts indices at or above the
+  // one it removed (an unsaved line splices out), so working top-down means
+  // every earlier index in this loop is still the right one when its turn comes.
+  for (let i = visible.length - 1; i >= 0; i--) {
+    deleteLine(currentPage.value, visible[i]!);
   }
-});
+  clearSelection();
+}
 
 watch(isEditor, () => setupAutoSave());
 watch(
@@ -722,6 +953,7 @@ watch(
 
 watch(currentPage, (val) => {
   localStorage.setItem('scriptEditPage', val.toString());
+  hoveredIndex.value = null;
 });
 
 onMounted(async () => {
@@ -763,5 +995,32 @@ onUnmounted(() => {
   padding: 10px 0;
   border-bottom: 1px solid #dee2e6;
   background: var(--body-background);
+}
+/* Matches .line-row-selected in ScriptLineViewer.vue exactly (that rule is
+   scoped there and can't be reused directly) — applied to the whole wrapping
+   row, not AddLineDivider's own inner element, so it's flush with the line
+   rows' own left edge instead of starting a few columns in. Without this a
+   selected range's background read as separate highlighted rows with a plain
+   gap between each, rather than one continuous block. */
+.add-line-divider-row-selected {
+  background-color: rgba(var(--bs-success-rgb), 0.08);
+  box-shadow: inset 3px 0 0 var(--bs-success);
+}
+.add-end-footer {
+  /* Pinned to the bottom of the viewport regardless of scroll position, like
+     .sticky-header is pinned to the top — Tim asked for this after the first
+     build only showed it once scrolled all the way to the last line. */
+  position: sticky;
+  bottom: 0;
+  z-index: 90;
+  padding: 14px 12px;
+  background: var(--body-background);
+  /* box-shadow, not border-top: CollabScriptEditor.vue's own .sticky-header
+     documents why a border on a sticky element paints over a popover that
+     should sit above it in Chromium — same fix applied here pre-emptively.
+     --bs-border-color (what the old border-top used) also resolves to
+     Bootstrap's light default on this theme — --bs-gray-700 instead, same
+     reasoning as ScriptLineEditor.vue's --bs-dark note. */
+  box-shadow: 0 -1px 0 0 var(--bs-gray-700);
 }
 </style>

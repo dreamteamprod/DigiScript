@@ -5,10 +5,11 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h, nextTick } from 'vue';
 import * as Y from 'yjs';
 import CollabScriptEditor from './CollabScriptEditor.vue';
+import { passthrough, SelectStub, AlertStub, ModalStub } from './testStubs';
+import { mockCommonScriptStores } from './scriptEditorTestMocks';
 import { useScriptDraftStore } from '@/stores/scriptDraft';
 import { useScriptConfigStore } from '@/stores/scriptConfig';
 import { useScriptStore } from '@/stores/script';
-import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useUserStore } from '@/stores/user';
@@ -37,8 +38,10 @@ const ViewerStub = defineComponent({
     line: { type: Object, required: true },
     lineIndex: { type: Number, default: 0 },
     remoteEditors: { type: Array, default: () => [] },
+    selected: { type: Boolean, default: false },
+    previewed: { type: Boolean, default: false },
   },
-  emits: ['edit-line', 'insert-dialogue'],
+  emits: ['edit-line', 'toggle-select', 'hover-checkbox', 'unhover-checkbox'],
   render() {
     return h('div', { class: 'row-stub' }, (this.line as { _uid?: string })._uid ?? 'rest');
   },
@@ -51,54 +54,16 @@ const LineEditorStub = defineComponent({
     line: { type: Object, required: true },
     remoteEditors: { type: Array, default: () => [] },
   },
-  emits: ['doneEditing', 'deleteLine'],
+  emits: [
+    'doneEditing',
+    'finishAndAddLine',
+    'deleteLine',
+    'navigateUp',
+    'navigateDown',
+    'retypeLine',
+  ],
   render() {
     return h('div', { class: 'editor-stub' }, (this.line as { _uid?: string })._uid);
-  },
-});
-// bootstrap-vue-next components are not registered in unit tests; only the alert needs
-// real show/hide behaviour, the rest can render as plain elements.
-const AlertStub = defineComponent({
-  props: { modelValue: { type: Boolean, default: false } },
-  render() {
-    return this.modelValue ? h('div', { class: 'alert-stub' }, this.$slots.default?.()) : null;
-  },
-});
-
-/** Plain-element stand-ins for the Bootstrap components (not registered in unit tests). */
-function passthrough(tag: string) {
-  return defineComponent({
-    inheritAttrs: true,
-    render() {
-      return h(tag, this.$slots.default?.());
-    },
-  });
-}
-// BModal's content is rendered unconditionally (there is no real show/hide here), but
-// production code calls `.show()`/`.hide()` on its template ref — a plain passthrough
-// has no such methods, and since BModal isn't exposed via `defineExpose`, the `methods`
-// option (always part of an Options API public instance) is the simplest way to give it
-// some, as harmless no-ops.
-const ModalStub = defineComponent({
-  inheritAttrs: true,
-  methods: {
-    show() {
-      // no-op: content already renders unconditionally in this stub
-    },
-    hide() {
-      // no-op: content already renders unconditionally in this stub
-    },
-  },
-  render() {
-    return h('div', this.$slots.default?.());
-  },
-});
-// BFormSelect's `options` is a component prop, not a native <select> DOM property — a
-// bare passthrough tries to assign it as one and warns on every non-trivial value.
-const SelectStub = defineComponent({
-  props: { options: { type: Array, default: () => [] }, disabled: Boolean },
-  render() {
-    return h('select');
   },
 });
 const bootstrapStubs = {
@@ -156,24 +121,12 @@ describe('CollabScriptEditor', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     localStorage.clear();
+    mockCommonScriptStores();
     const ws = useWebSocketStore();
     ws.isConnected = true;
     ws.authenticated = true;
-    ws.internalUUID = 'me';
     useSystemStore().settings = { collaborative_script_editing: true } as never;
     useSystemStore().rbacRoles = [];
-    for (const m of [
-      'getActList',
-      'getSceneList',
-      'getCharacterList',
-      'getCharacterGroupList',
-    ] as const) {
-      vi.spyOn(useShowStore(), m).mockResolvedValue();
-    }
-    vi.spyOn(useScriptStore(), 'getStageDirectionStyles').mockResolvedValue();
-    vi.spyOn(useScriptStore(), 'loadScriptPage').mockResolvedValue();
-    vi.spyOn(useScriptStore(), 'getCuts').mockResolvedValue();
-    vi.spyOn(useScriptConfigStore(), 'getScriptConfigStatus').mockResolvedValue();
   });
 
   afterEach(() => {
@@ -230,6 +183,19 @@ describe('CollabScriptEditor', () => {
 
   const editorLine = (w: VueWrapper, uid: string) =>
     w.findAllComponents(LineEditorStub).find((c) => c.props('line')._uid === uid);
+
+  /** Adds one more line to the page with no interest in its content beyond
+   * having a valid act/scene — a spacing line is the cheapest type that
+   * satisfies that, used by the great majority of tests that just need
+   * "a line exists" and don't otherwise care what's on it. */
+  function addSpacingLine(writer: ReturnType<typeof useDraftWriter>, page = 1) {
+    return writer.addLine(page, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+  }
+
+  /** Same, for a test that specifically needs a part to assign a character to. */
+  function addDialogueLine(writer: ReturnType<typeof useDraftWriter>, page = 1) {
+    return writer.addLine(page, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
+  }
 
   it('reads saved pages over REST while the viewer-join has not yet synced', async () => {
     useScriptStore().script = { '1': [restLine(1), restLine(2)] };
@@ -1143,8 +1109,9 @@ describe('CollabScriptEditor', () => {
       const w = await mountWithOneOpenLine();
       sendObj.mockClear();
 
-      // deleteLine() clears latestAddedLine first, so this does not chain into
-      // another blank line the way Done would — editingLines ends up truly empty.
+      // Deleting the only open line leaves editingLines truly empty — there is no
+      // auto-chain to another blank line any more (Enter's finishAndAddLine is the
+      // only thing that opens a new line on its own now; see doneEditingLine).
       w.findComponent(LineEditorStub).vm.$emit('deleteLine');
       await flushPromises();
 
@@ -1152,20 +1119,20 @@ describe('CollabScriptEditor', () => {
       expect(state.openLineUids).toEqual([]);
     });
 
-    it('broadcasts the newly inserted line uid when a line is opened via an Insert menu item', async () => {
+    it('broadcasts the newly inserted line uid on top of what was already open, when a line is inserted via the add-line menu', async () => {
       const w = await mountWithOneOpenLine();
-      // Closes the first line (now a ViewerStub) and chains into a second, open one.
-      w.findComponent(LineEditorStub).vm.$emit('doneEditing');
-      await flushPromises();
       sendObj.mockClear();
 
-      w.findComponent(ViewerStub).vm.$emit('insert-dialogue');
+      (w.vm as unknown as { insertLineAt: (index: number, lineType: number) => void }).insertLineAt(
+        0,
+        LINE_TYPES.DIALOGUE
+      );
       await flushPromises();
 
       const state = decodeAwareness();
-      // Two lines now open: the auto-chained one from Done, and the newly
-      // inserted one — proves insertLineAt's own broadcastOpenLines call fires,
-      // on top of (not instead of) what was already open.
+      // Two lines now open: the one from Add Dialogue, and the newly inserted one —
+      // proves insertLineAt's own broadcastOpenLines call fires, on top of (not
+      // instead of) what was already open.
       expect(state.openLineUids).toHaveLength(2);
     });
 
@@ -1318,7 +1285,50 @@ describe('CollabScriptEditor', () => {
       expect(newLine.line_parts[0]?.character_id).toBe(9);
     });
 
-    it('finishing an auto-added line chains into another blank one', async () => {
+    it("retypeLine at index 0 of page 2 inherits act/scene/character from page 1's last line", async () => {
+      // Regression: draftLines.value[index - 1] only sees the current page, so
+      // at index 0 this was always undefined, giving the replacement line a
+      // null act/scene with no selectors shown to fix it (previousLine comes
+      // from draftPages.previousLineOf, which does cross pages). Retyping to
+      // Dialogue also used to lose the inherited character, since no `part`
+      // was passed to the replacement addLine the way addNewLine/insertLineAt
+      // both do.
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 3, sceneId: 7 });
+      const page1Parts = useScriptDraftStore().getPageSnapshot(1)[0]!.parts;
+      writer.setPartCharacter(
+        1,
+        useScriptDraftStore().getPageSnapshot(1)[0]!._uid,
+        page1Parts[0]!._uid,
+        9,
+        null
+      );
+      await flushPromises();
+
+      await button(w, 'Next Page')!.trigger('click');
+      await flushPromises();
+      const { lineUid } = writer.addLine(2, {
+        lineType: LINE_TYPES.STAGE_DIRECTION,
+        actId: null,
+        sceneId: null,
+      });
+      await flushPromises();
+      (w.vm as unknown as { beginEditingLine: (lineUid: string) => void }).beginEditingLine(
+        lineUid
+      );
+      await flushPromises();
+
+      editorLine(w, lineUid)!.vm.$emit('retypeLine', LINE_TYPES.DIALOGUE);
+      await flushPromises();
+
+      const replaced = w.findAllComponents(LineEditorStub)[0]!.props('line') as DraftScriptLine;
+      expect(replaced.act_id).toBe(3);
+      expect(replaced.scene_id).toBe(7);
+      expect(replaced.line_parts[0]?.character_id).toBe(9);
+    });
+
+    it('plain Done on an auto-added line just closes it — no chaining any more', async () => {
       const w = await mountSyncedEditor();
 
       await button(w, 'Add Dialogue')!.trigger('click');
@@ -1329,8 +1339,27 @@ describe('CollabScriptEditor', () => {
       editorLine(w, firstUid)!.vm.$emit('doneEditing');
       await flushPromises();
 
-      // The finished line is no longer open; exactly one new blank line is.
+      // The finished line is no longer open, and nothing new opened in its place —
+      // chaining is now Enter's job (finishAndAddLine), not Done's (Design E).
       expect(editorLine(w, firstUid)).toBeUndefined();
+      expect(w.findAllComponents(LineEditorStub)).toHaveLength(0);
+    });
+
+    it('Enter (finishAndAddLine) on any open line chains into a new blank one right after it', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = addDialogueLine(writer);
+      await flushPromises();
+      (w.vm as unknown as { beginEditingLine: (lineUid: string) => void }).beginEditingLine(
+        lineUid
+      );
+      await flushPromises();
+
+      editorLine(w, lineUid)!.vm.$emit('finishAndAddLine');
+      await flushPromises();
+
+      // The finished line is no longer open; exactly one new blank line is.
+      expect(editorLine(w, lineUid)).toBeUndefined();
       expect(w.findAllComponents(LineEditorStub)).toHaveLength(1);
     });
 
@@ -1374,11 +1403,7 @@ describe('CollabScriptEditor', () => {
     it("insertLineAt inherits the anchor dialogue line's character too", async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.DIALOGUE,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid } = addDialogueLine(writer);
       const parts = useScriptDraftStore()
         .getPageSnapshot(1)
         .find((l) => l._uid === lineUid)!.parts;
@@ -1457,6 +1482,13 @@ describe('CollabScriptEditor', () => {
       const save = button(w, 'Save')!;
       expect(save.attributes('disabled')).toBeDefined();
       expect(save.attributes('title')).toBe('Finish editing the open line(s) before saving');
+      // A disabled <button>'s own title never shows as a tooltip — Chromium (and
+      // most browsers) suppress hover events, including the ones a tooltip needs,
+      // for a disabled form control entirely (confirmed live). The reason must
+      // also be rendered as plain visible text, not just set as an attribute.
+      expect(w.find('.save-disabled-reason').text()).toBe(
+        'Finish editing the open line(s) before saving'
+      );
     });
 
     it('Save stays disabled when the draft contains an invalid line, naming the page', async () => {
@@ -1468,6 +1500,9 @@ describe('CollabScriptEditor', () => {
       const save = button(w, 'Save')!;
       expect(save.attributes('disabled')).toBeDefined();
       expect(save.attributes('title')).toBe(
+        'Page 1: Dialogue lines must have at least one line part'
+      );
+      expect(w.find('.save-disabled-reason').text()).toBe(
         'Page 1: Dialogue lines must have at least one line part'
       );
     });
@@ -1716,7 +1751,7 @@ describe('CollabScriptEditor', () => {
     });
   });
 
-  describe('bulk edit (Step 4)', () => {
+  describe('selection and bulk actions (Step 4, Design E)', () => {
     async function mountSyncedEditor(): Promise<VueWrapper> {
       const w = await mountAsEditor();
       seedRealPage(1);
@@ -1728,77 +1763,176 @@ describe('CollabScriptEditor', () => {
 
     function vm(w: VueWrapper) {
       return w.vm as unknown as {
-        bulkEditMode: boolean;
         bulkEditStart: { page: number; lineUid: string } | null;
         bulkEditEnd: { page: number; lineUid: string } | null;
-        enterBulkEditMode: () => void;
-        exitBulkEditMode: () => void;
-        onSetBulkStart: (index: number) => void;
-        onSetBulkEnd: (index: number) => void;
-        onBulkApply: (payload: BulkEditPayload) => void;
+        selectionCount: number;
+        selectionRangeLabel: string;
+        onToggleSelect: (lineUid: string, index: number) => void;
+        clearSelection: () => void;
+        applyToSelection: (payload: BulkEditPayload) => void;
+        onSetCharacterApply: (assignee: {
+          partIndex: number;
+          characterId: number | null;
+          characterGroupId: number | null;
+        }) => void;
+        onMoveToSceneApply: (payload: { actId: number; sceneId: number }) => void;
+        onDeleteSelection: () => void;
+        navigateTo: (page: number) => Promise<void>;
       };
     }
 
-    it('enterBulkEditMode/exitBulkEditMode toggle mode and clear any selection', async () => {
+    it('a click on an untouched line selects just that one line', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid } = addSpacingLine(writer);
       await flushPromises();
 
-      vm(w).enterBulkEditMode();
-      expect(vm(w).bulkEditMode).toBe(true);
+      vm(w).onToggleSelect(lineUid, 0);
 
-      vm(w).onSetBulkStart(0);
-      expect(vm(w).bulkEditStart).not.toBeNull();
-
-      vm(w).exitBulkEditMode();
-      expect(vm(w).bulkEditMode).toBe(false);
-      expect(vm(w).bulkEditStart).toBeNull();
-      expect(vm(w).bulkEditEnd).toBeNull();
+      expect(vm(w).selectionCount).toBe(1);
     });
 
-    it('refuses an end line at or before the start line on the same page', async () => {
+    it('a second click on the sole selected line deselects it instead of re-selecting it', async () => {
+      // Regression: re-setting bulkEditStart/End to the exact {page, lineUid}
+      // they already held was a no-op Vue never saw as a change, so the
+      // checkbox's native checked state (already flipped by the browser on
+      // click) never got reconciled back — it looked unchecked while the
+      // selection bar still reported the line selected.
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid } = addSpacingLine(writer);
       await flushPromises();
-      vm(w).enterBulkEditMode();
 
-      vm(w).onSetBulkStart(1);
-      vm(w).onSetBulkEnd(0);
+      vm(w).onToggleSelect(lineUid, 0);
+      expect(vm(w).selectionCount).toBe(1);
+      vm(w).onToggleSelect(lineUid, 0);
 
-      const { toast } = await import('@/js/toast');
-      expect(toast.error).toHaveBeenCalledWith('End line must come after start line');
-      expect(vm(w).bulkEditEnd).toBeNull();
+      expect(vm(w).selectionCount).toBe(0);
     });
 
-    it('accepts an end line after the start line', async () => {
+    it('a second click extends the range to cover both lines', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addSpacingLine(writer);
       await flushPromises();
-      vm(w).enterBulkEditMode();
 
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1);
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
 
-      expect(vm(w).bulkEditEnd).not.toBeNull();
+      expect(vm(w).selectionCount).toBe(2);
+      expect(vm(w).selectionRangeLabel).toBe('Lines 1 to 2');
+    });
+
+    it("a click on the range's own start line shrinks it, keeping the rest selected", async () => {
+      // Regression: this used to collapse the whole range down to just the
+      // clicked line, deselecting everything else — Tim found this
+      // surprising when he wanted to drop just one end of a selection.
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addSpacingLine(writer);
+      await flushPromises();
+
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
+      vm(w).onToggleSelect(firstUid, 0);
+
+      expect(vm(w).selectionCount).toBe(1);
+      expect(vm(w).selectionRangeLabel).toBe('Line 2');
+    });
+
+    it('a click on a genuinely interior line still collapses the range to just that line', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      addSpacingLine(writer);
+      const { lineUid: thirdUid } = addSpacingLine(writer);
+      await flushPromises();
+
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(thirdUid, 2);
+      // Line 2 (index 1) is interior to the 0-2 range — neither boundary. The
+      // uid passed here is never actually used: onToggleSelect re-derives it
+      // from the index via draftLines.
+      vm(w).onToggleSelect('unused', 1);
+
+      expect(vm(w).selectionCount).toBe(1);
+      expect(vm(w).selectionRangeLabel).toBe('Line 2');
+    });
+
+    it('hovering a checkbox previews which lines would change, through the real template wiring', async () => {
+      // Goes through ScriptLineViewer's own hover-checkbox/unhover-checkbox
+      // events and previewed prop (via ViewerStub, which now declares both),
+      // not vm(w) directly — a typo in the template's event or prop name
+      // would still pass a vm()-only test but fail this one.
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      for (let i = 0; i < 4; i++) {
+        addSpacingLine(writer);
+      }
+      await flushPromises();
+
+      const viewers = w.findAllComponents(ViewerStub);
+      viewers[0]!.vm.$emit('toggle-select');
+      viewers[1]!.vm.$emit('toggle-select');
+      await flushPromises();
+      expect(vm(w).selectionRangeLabel).toBe('Lines 1 to 2');
+
+      // Hovering line 4 (outside the range) previews extending to cover it —
+      // lines 3 and 4 would newly join the selection, lines 1-2 are unaffected.
+      viewers[3]!.vm.$emit('hover-checkbox');
+      await flushPromises();
+      expect(viewers.map((v) => v.props('previewed'))).toEqual([false, false, true, true]);
+
+      viewers[3]!.vm.$emit('unhover-checkbox');
+      await flushPromises();
+      expect(viewers.map((v) => v.props('previewed'))).toEqual([false, false, false, false]);
+
+      // Hovering line 1 (the range's own start) previews shrinking it away —
+      // only that one line would change.
+      viewers[0]!.vm.$emit('hover-checkbox');
+      await flushPromises();
+      expect(viewers.map((v) => v.props('previewed'))).toEqual([true, false, false, false]);
+    });
+
+    it('clearSelection resets the range', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = addSpacingLine(writer);
+      await flushPromises();
+      vm(w).onToggleSelect(lineUid, 0);
+
+      vm(w).clearSelection();
+
+      expect(vm(w).selectionCount).toBe(0);
+    });
+
+    it('navigating to another page clears the active selection', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid } = addSpacingLine(writer);
+      addSpacingLine(writer, 2);
+      await flushPromises();
+      vm(w).onToggleSelect(lineUid, 0);
+      expect(vm(w).selectionCount).toBe(1);
+
+      await vm(w).navigateTo(2);
+
+      expect(vm(w).selectionCount).toBe(0);
     });
 
     it('applies act/scene to every line in the range, inclusive', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addSpacingLine(writer);
+      addSpacingLine(writer);
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1); // leaves line index 2 out of range
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1); // leaves line index 2 out of range
 
-      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
+      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
@@ -1814,100 +1948,61 @@ describe('CollabScriptEditor', () => {
     it('assigns a character to the chosen part across the range', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = addDialogueLine(writer);
+      const { lineUid: secondUid } = addDialogueLine(writer);
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1);
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
 
-      vm(w).onBulkApply({
-        actScene: null,
-        assignee: { partIndex: 1, characterId: 42, characterGroupId: null },
-      });
+      vm(w).onSetCharacterApply({ partIndex: 1, characterId: 42, characterGroupId: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
       expect(page1[0]!.parts[0]?.character_id).toBe(42);
       expect(page1[1]!.parts[0]?.character_id).toBe(42);
+      // Applying clears the selection, same as the old modal's auto-exit.
+      expect(vm(w).selectionCount).toBe(0);
     });
 
     it('skips a line that has no part at the chosen index', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
       // A spacing line has no parts at all — nothing for partIndex 1 to land on.
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addDialogueLine(writer);
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1);
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
 
       // Should not throw for the partless line, and still reach the dialogue line.
-      vm(w).onBulkApply({
-        actScene: null,
-        assignee: { partIndex: 1, characterId: 7, characterGroupId: null },
-      });
+      vm(w).onSetCharacterApply({ partIndex: 1, characterId: 7, characterGroupId: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
       expect(page1[1]!.parts[0]?.character_id).toBe(7);
     });
 
-    it('spans a page boundary, updating lines on both pages', async () => {
+    it('onMoveToSceneApply applies act/scene and clears the selection', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      writer.addLine(2, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid } = addSpacingLine(writer);
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0); // page 1
-      await button(w, 'Next Page')!.trigger('click');
-      await flushPromises();
-      vm(w).onSetBulkEnd(0); // page 2
+      vm(w).onToggleSelect(lineUid, 0);
 
-      vm(w).onBulkApply({ actScene: { actId: 5, sceneId: 6 }, assignee: null });
+      vm(w).onMoveToSceneApply({ actId: 5, sceneId: 6 });
       await flushPromises();
 
       expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(5);
-      expect(useScriptDraftStore().getPageSnapshot(2)[0]!.act_id).toBe(5);
+      expect(vm(w).selectionCount).toBe(0);
     });
 
-    it('aborts with a toast and exits bulk mode if the start line was deleted before applying', async () => {
+    it('applyToSelection is a no-op when nothing is selected', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: firstUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(1);
-
-      writer.deleteLine(1, firstUid);
-      await flushPromises();
-      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
+      addSpacingLine(writer);
       await flushPromises();
 
-      const { toast } = await import('@/js/toast');
-      expect(toast.error).toHaveBeenCalledWith(
-        'Could not apply the bulk edit — the start or end line no longer exists'
-      );
-      expect(vm(w).bulkEditMode).toBe(false);
-      // The surviving line must not have been touched by a mutant that applies anyway.
-      expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
-    });
-
-    it('onBulkApply is a no-op when nothing is selected', async () => {
-      const w = await mountSyncedEditor();
-      const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      await flushPromises();
-
-      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
+      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
       await flushPromises();
 
       expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
@@ -1916,29 +2011,16 @@ describe('CollabScriptEditor', () => {
     it('still applies to the boundary lines when a line inside the range (not a boundary) is deleted before applying', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: startUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: middleUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: endUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid: startUid } = addSpacingLine(writer);
+      const { lineUid: middleUid } = addSpacingLine(writer);
+      const { lineUid: endUid } = addSpacingLine(writer);
       await flushPromises();
-      vm(w).enterBulkEditMode();
-      vm(w).onSetBulkStart(0);
-      vm(w).onSetBulkEnd(2);
+      vm(w).onToggleSelect(startUid, 0);
+      vm(w).onToggleSelect(endUid, 2);
 
       writer.deleteLine(1, middleUid);
       await flushPromises();
-      vm(w).onBulkApply({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
+      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
@@ -1948,6 +2030,24 @@ describe('CollabScriptEditor', () => {
       expect(byUid(startUid)!.scene_id).toBe(8);
       expect(byUid(endUid)!.act_id).toBe(9);
       expect(byUid(endUid)!.scene_id).toBe(8);
+    });
+
+    it('onDeleteSelection deletes every line in the range and clears the selection', async () => {
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addSpacingLine(writer);
+      await flushPromises();
+      vm(w).onToggleSelect(firstUid, 0);
+      vm(w).onToggleSelect(secondUid, 1);
+
+      vm(w).onDeleteSelection();
+      await flushPromises();
+
+      const page1 = useScriptDraftStore().getPageSnapshot(1);
+      expect(page1.find((l) => l._uid === firstUid)).toBeUndefined();
+      expect(page1.find((l) => l._uid === secondUid)).toBeUndefined();
+      expect(vm(w).selectionCount).toBe(0);
     });
   });
 
@@ -1969,6 +2069,11 @@ describe('CollabScriptEditor', () => {
 
       expect(button(w, 'Cuts')?.attributes('disabled')).toBeDefined();
       expect(button(w, 'Cuts')?.attributes('title')).toBe(
+        'Someone else is already cutting the script'
+      );
+      // See the Save-reason tests' own comment: a disabled button's title never
+      // shows as a tooltip, so the reason needs to be plain visible text too.
+      expect(w.find('.save-disabled-reason').text()).toBe(
         'Someone else is already cutting the script'
       );
     });
