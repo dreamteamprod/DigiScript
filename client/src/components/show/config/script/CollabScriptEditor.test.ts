@@ -5,10 +5,11 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h, nextTick } from 'vue';
 import * as Y from 'yjs';
 import CollabScriptEditor from './CollabScriptEditor.vue';
+import { passthrough, SelectStub, AlertStub, ModalStub } from './testStubs';
+import { mockCommonScriptStores } from './scriptEditorTestMocks';
 import { useScriptDraftStore } from '@/stores/scriptDraft';
 import { useScriptConfigStore } from '@/stores/scriptConfig';
 import { useScriptStore } from '@/stores/script';
-import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useUserStore } from '@/stores/user';
@@ -63,51 +64,6 @@ const LineEditorStub = defineComponent({
   ],
   render() {
     return h('div', { class: 'editor-stub' }, (this.line as { _uid?: string })._uid);
-  },
-});
-// bootstrap-vue-next components are not registered in unit tests; only the alert needs
-// real show/hide behaviour, the rest can render as plain elements.
-const AlertStub = defineComponent({
-  props: { modelValue: { type: Boolean, default: false } },
-  render() {
-    return this.modelValue ? h('div', { class: 'alert-stub' }, this.$slots.default?.()) : null;
-  },
-});
-
-/** Plain-element stand-ins for the Bootstrap components (not registered in unit tests). */
-function passthrough(tag: string) {
-  return defineComponent({
-    inheritAttrs: true,
-    render() {
-      return h(tag, this.$slots.default?.());
-    },
-  });
-}
-// BModal's content is rendered unconditionally (there is no real show/hide here), but
-// production code calls `.show()`/`.hide()` on its template ref — a plain passthrough
-// has no such methods, and since BModal isn't exposed via `defineExpose`, the `methods`
-// option (always part of an Options API public instance) is the simplest way to give it
-// some, as harmless no-ops.
-const ModalStub = defineComponent({
-  inheritAttrs: true,
-  methods: {
-    show() {
-      // no-op: content already renders unconditionally in this stub
-    },
-    hide() {
-      // no-op: content already renders unconditionally in this stub
-    },
-  },
-  render() {
-    return h('div', this.$slots.default?.());
-  },
-});
-// BFormSelect's `options` is a component prop, not a native <select> DOM property — a
-// bare passthrough tries to assign it as one and warns on every non-trivial value.
-const SelectStub = defineComponent({
-  props: { options: { type: Array, default: () => [] }, disabled: Boolean },
-  render() {
-    return h('select');
   },
 });
 const bootstrapStubs = {
@@ -165,24 +121,12 @@ describe('CollabScriptEditor', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     localStorage.clear();
+    mockCommonScriptStores();
     const ws = useWebSocketStore();
     ws.isConnected = true;
     ws.authenticated = true;
-    ws.internalUUID = 'me';
     useSystemStore().settings = { collaborative_script_editing: true } as never;
     useSystemStore().rbacRoles = [];
-    for (const m of [
-      'getActList',
-      'getSceneList',
-      'getCharacterList',
-      'getCharacterGroupList',
-    ] as const) {
-      vi.spyOn(useShowStore(), m).mockResolvedValue();
-    }
-    vi.spyOn(useScriptStore(), 'getStageDirectionStyles').mockResolvedValue();
-    vi.spyOn(useScriptStore(), 'loadScriptPage').mockResolvedValue();
-    vi.spyOn(useScriptStore(), 'getCuts').mockResolvedValue();
-    vi.spyOn(useScriptConfigStore(), 'getScriptConfigStatus').mockResolvedValue();
   });
 
   afterEach(() => {
@@ -239,6 +183,19 @@ describe('CollabScriptEditor', () => {
 
   const editorLine = (w: VueWrapper, uid: string) =>
     w.findAllComponents(LineEditorStub).find((c) => c.props('line')._uid === uid);
+
+  /** Adds one more line to the page with no interest in its content beyond
+   * having a valid act/scene — a spacing line is the cheapest type that
+   * satisfies that, used by the great majority of tests that just need
+   * "a line exists" and don't otherwise care what's on it. */
+  function addSpacingLine(writer: ReturnType<typeof useDraftWriter>, page = 1) {
+    return writer.addLine(page, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+  }
+
+  /** Same, for a test that specifically needs a part to assign a character to. */
+  function addDialogueLine(writer: ReturnType<typeof useDraftWriter>, page = 1) {
+    return writer.addLine(page, { lineType: LINE_TYPES.DIALOGUE, actId: 1, sceneId: 1 });
+  }
 
   it('reads saved pages over REST while the viewer-join has not yet synced', async () => {
     useScriptStore().script = { '1': [restLine(1), restLine(2)] };
@@ -1391,11 +1348,7 @@ describe('CollabScriptEditor', () => {
     it('Enter (finishAndAddLine) on any open line chains into a new blank one right after it', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.DIALOGUE,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid } = addDialogueLine(writer);
       await flushPromises();
       (w.vm as unknown as { beginEditingLine: (lineUid: string) => void }).beginEditingLine(
         lineUid
@@ -1450,11 +1403,7 @@ describe('CollabScriptEditor', () => {
     it("insertLineAt inherits the anchor dialogue line's character too", async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.DIALOGUE,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid } = addDialogueLine(writer);
       const parts = useScriptDraftStore()
         .getPageSnapshot(1)
         .find((l) => l._uid === lineUid)!.parts;
@@ -1825,11 +1774,7 @@ describe('CollabScriptEditor', () => {
     it('a click on an untouched line selects just that one line', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid } = addSpacingLine(writer);
       await flushPromises();
 
       vm(w).onToggleSelect(lineUid, 0);
@@ -1845,11 +1790,7 @@ describe('CollabScriptEditor', () => {
       // selection bar still reported the line selected.
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid } = addSpacingLine(writer);
       await flushPromises();
 
       vm(w).onToggleSelect(lineUid, 0);
@@ -1862,16 +1803,8 @@ describe('CollabScriptEditor', () => {
     it('a second click extends the range to cover both lines', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: firstUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: secondUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addSpacingLine(writer);
       await flushPromises();
 
       vm(w).onToggleSelect(firstUid, 0);
@@ -1887,16 +1820,8 @@ describe('CollabScriptEditor', () => {
       // surprising when he wanted to drop just one end of a selection.
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: firstUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: secondUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addSpacingLine(writer);
       await flushPromises();
 
       vm(w).onToggleSelect(firstUid, 0);
@@ -1910,17 +1835,9 @@ describe('CollabScriptEditor', () => {
     it('a click on a genuinely interior line still collapses the range to just that line', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: firstUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
-      const { lineUid: thirdUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      addSpacingLine(writer);
+      const { lineUid: thirdUid } = addSpacingLine(writer);
       await flushPromises();
 
       vm(w).onToggleSelect(firstUid, 0);
@@ -1942,7 +1859,7 @@ describe('CollabScriptEditor', () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
       for (let i = 0; i < 4; i++) {
-        writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+        addSpacingLine(writer);
       }
       await flushPromises();
 
@@ -1972,11 +1889,7 @@ describe('CollabScriptEditor', () => {
     it('clearSelection resets the range', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid } = addSpacingLine(writer);
       await flushPromises();
       vm(w).onToggleSelect(lineUid, 0);
 
@@ -1988,12 +1901,8 @@ describe('CollabScriptEditor', () => {
     it('navigating to another page clears the active selection', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      writer.addLine(2, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid } = addSpacingLine(writer);
+      addSpacingLine(writer, 2);
       await flushPromises();
       vm(w).onToggleSelect(lineUid, 0);
       expect(vm(w).selectionCount).toBe(1);
@@ -2006,17 +1915,9 @@ describe('CollabScriptEditor', () => {
     it('applies act/scene to every line in the range, inclusive', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: firstUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: secondUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addSpacingLine(writer);
+      addSpacingLine(writer);
       await flushPromises();
       vm(w).onToggleSelect(firstUid, 0);
       vm(w).onToggleSelect(secondUid, 1); // leaves line index 2 out of range
@@ -2037,16 +1938,8 @@ describe('CollabScriptEditor', () => {
     it('assigns a character to the chosen part across the range', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: firstUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.DIALOGUE,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: secondUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.DIALOGUE,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid: firstUid } = addDialogueLine(writer);
+      const { lineUid: secondUid } = addDialogueLine(writer);
       await flushPromises();
       vm(w).onToggleSelect(firstUid, 0);
       vm(w).onToggleSelect(secondUid, 1);
@@ -2065,16 +1958,8 @@ describe('CollabScriptEditor', () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
       // A spacing line has no parts at all — nothing for partIndex 1 to land on.
-      const { lineUid: firstUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: secondUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.DIALOGUE,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addDialogueLine(writer);
       await flushPromises();
       vm(w).onToggleSelect(firstUid, 0);
       vm(w).onToggleSelect(secondUid, 1);
@@ -2090,11 +1975,7 @@ describe('CollabScriptEditor', () => {
     it('onMoveToSceneApply applies act/scene and clears the selection', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid } = addSpacingLine(writer);
       await flushPromises();
       vm(w).onToggleSelect(lineUid, 0);
 
@@ -2108,7 +1989,7 @@ describe('CollabScriptEditor', () => {
     it('applyToSelection is a no-op when nothing is selected', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      writer.addLine(1, { lineType: LINE_TYPES.SPACING, actId: 1, sceneId: 1 });
+      addSpacingLine(writer);
       await flushPromises();
 
       vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
@@ -2120,21 +2001,9 @@ describe('CollabScriptEditor', () => {
     it('still applies to the boundary lines when a line inside the range (not a boundary) is deleted before applying', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: startUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: middleUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: endUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid: startUid } = addSpacingLine(writer);
+      const { lineUid: middleUid } = addSpacingLine(writer);
+      const { lineUid: endUid } = addSpacingLine(writer);
       await flushPromises();
       vm(w).onToggleSelect(startUid, 0);
       vm(w).onToggleSelect(endUid, 2);
@@ -2156,16 +2025,8 @@ describe('CollabScriptEditor', () => {
     it('onDeleteSelection deletes every line in the range and clears the selection', async () => {
       const w = await mountSyncedEditor();
       const writer = useDraftWriter();
-      const { lineUid: firstUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
-      const { lineUid: secondUid } = writer.addLine(1, {
-        lineType: LINE_TYPES.SPACING,
-        actId: 1,
-        sceneId: 1,
-      });
+      const { lineUid: firstUid } = addSpacingLine(writer);
+      const { lineUid: secondUid } = addSpacingLine(writer);
       await flushPromises();
       vm(w).onToggleSelect(firstUid, 0);
       vm(w).onToggleSelect(secondUid, 1);

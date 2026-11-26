@@ -4,9 +4,9 @@ import { mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import ScriptLineEditor from './ScriptLineEditor.vue';
 import { passthrough, SelectStub } from './testStubs';
+import { act, scene } from './testFixtures';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine } from '@/types/api/script';
-import type { Act, Scene } from '@/types/api/show';
 
 const PartStub = defineComponent({
   props: { modelValue: { type: Object, required: true } },
@@ -35,30 +35,6 @@ const stubs = {
   BFormSelect: SelectStub,
   ScriptLinePart: PartStub,
 };
-
-function act(id: number, overrides: Partial<Act> = {}): Act {
-  return {
-    id,
-    show_id: 1,
-    name: `Act ${id}`,
-    interval_after: false,
-    first_scene: null,
-    next_act: null,
-    previous_act: null,
-    ...overrides,
-  };
-}
-function scene(id: number, actId: number, overrides: Partial<Scene> = {}): Scene {
-  return {
-    id,
-    show_id: 1,
-    act: actId,
-    name: `Scene ${id}`,
-    next_scene: null,
-    previous_scene: null,
-    ...overrides,
-  };
-}
 
 function makeLine(overrides: Partial<ScriptLine> = {}): ScriptLine {
   return {
@@ -130,17 +106,57 @@ describe('ScriptLineEditor', () => {
       });
       expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
     });
+
+    it('stays visible as the user picks an act then a scene, instead of vanishing mid-pick', async () => {
+      // Regression: this used to read state.act_id/scene_id live, so picking
+      // an act (still null scene — selectors should stay) then a scene (both
+      // now non-null) unmounted the column out from under the user, jumping
+      // the layout from 10 to 12 cols with no way to fix a wrong pick.
+      wrapper = mountEditor({
+        previousLine: makeLine({ act_id: null, scene_id: null }),
+        modelValue: makeLine({ act_id: null, scene_id: null }),
+      });
+      const vm = wrapper.vm as unknown as { state: ScriptLine };
+
+      vm.state.act_id = 1;
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
+
+      vm.state.scene_id = 1;
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
+    });
   });
 
   describe('modelValue re-sync (reused row after an insert/bulk-apply)', () => {
     it('does not reset local edits when modelValue echoes back its own update', async () => {
-      wrapper = mountEditor({ modelValue: makeLine({ id: 1 }) });
-      const vm = wrapper.vm as unknown as { state: ScriptLine };
+      // Goes through a real onStateChange (the act select's own update:model-value),
+      // which is what actually records lastEmittedSnapshot — directly mutating
+      // vm.state, as this test used to, never calls onStateChange at all, so
+      // lastEmittedSnapshot stays null and the echo guard is never exercised;
+      // the old assertion passed whether or not that guard did anything.
+      wrapper = mountEditor({
+        previousLine: null,
+        modelValue: makeLine({ id: 1, act_id: null, scene_id: null }),
+      });
+      await wrapper.find('[data-testid="line-act-select"]').setValue('1');
+      const emittedSnapshot = wrapper.emitted('update:modelValue')!.at(-1)![0] as ScriptLine;
 
-      vm.state.act_id = 2;
-      await wrapper.setProps({ modelValue: { ...makeLine({ id: 1 }), act_id: 2 } });
+      const vm = wrapper.vm as unknown as {
+        state: ScriptLine;
+        v$: { $dirty: boolean };
+      };
+      // A further local change this component hasn't emitted yet (e.g. a
+      // keystroke not modelled in full here) — the echo guard must tell this
+      // apart from a real external change by comparing the incoming value
+      // against what was LAST emitted, not against the current live state.
+      vm.state.scene_id = 1;
 
-      expect(vm.state.act_id).toBe(2);
+      // The parent echoing back this component's own earlier update.
+      await wrapper.setProps({ modelValue: emittedSnapshot });
+
+      expect(vm.state.scene_id).toBe(1); // untouched by the echo
+      expect(vm.v$.$dirty).toBe(true); // only a genuine re-sync calls $reset()
     });
 
     it('re-syncs from modelValue when it changes to a genuinely different line', async () => {

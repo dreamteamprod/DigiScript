@@ -125,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required } from '@vuelidate/validators';
 import { LINE_TYPES } from '@/constants/lineTypes';
@@ -183,9 +183,15 @@ const writer = useDraftWriter();
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
 const lineType = computed(() => props.line.line_type);
 
-/** See ScriptLineEditor.vue's own copy of this. */
-const showActSceneSelectors = computed(
-  () => !props.previousLine || props.line.act_id == null || props.line.scene_id == null
+/** See ScriptLineEditor.vue's own copy of this — decided once from the line's
+ * act/scene as this editor opened on it, not recomputed as `props.line`
+ * changes: picking an act then a scene would otherwise flip this false
+ * mid-edit, unmounting the column being picked in. This component is keyed by
+ * `line._uid` (see CollabScriptEditor.vue's template), so a genuinely
+ * different line always gets a fresh mount rather than reusing this instance,
+ * unlike the classic editor's index-keyed rows. */
+const showActSceneSelectors = ref(
+  !props.previousLine || props.line.act_id == null || props.line.scene_id == null
 );
 const isUnsaved = computed(() => parseDbId(props.line._id) == null);
 

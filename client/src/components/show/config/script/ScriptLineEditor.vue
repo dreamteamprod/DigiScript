@@ -184,13 +184,16 @@ const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
 // without the parent having to re-key/remount the editor.
 const lineType = computed(() => state.value.line_type);
 
-/** Shows the Act/Scene selectors whenever this line doesn't already have a real
- * act/scene of its own to fall back to — either because there's no previous
- * line to inherit from, or because the previous line's own act/scene was null
- * (inheriting a null is still a null). */
-const showActSceneSelectors = computed(
-  () => !props.previousLine || state.value.act_id == null || state.value.scene_id == null
-);
+/** Whether to show the Act/Scene selectors — decided once for the line this
+ * editor opened on (there's no previous line to inherit from, or the
+ * inherited act/scene was itself null) and NOT recomputed from `state` as the
+ * user edits it: picking an act then a scene would otherwise flip this false
+ * mid-edit, unmounting the column the user is still picking in and jumping
+ * the layout from 10 to 12 cols with no way back if the pick was wrong. */
+function computeShowActSceneSelectors(line: ScriptLine): boolean {
+  return !props.previousLine || line.act_id == null || line.scene_id == null;
+}
+const showActSceneSelectors = ref(computeShowActSceneSelectors(state.value));
 
 const blankLinePart = (): ScriptLinePartType => ({
   id: null,
@@ -256,6 +259,10 @@ watch(
     state.value = JSON.parse(JSON.stringify(newValue)); // NOSONAR
     lastEmittedSnapshot = serialized;
     v$.value.$reset();
+    // A genuinely different line now sits at this row — re-decide for it, same
+    // as a fresh mount would, rather than carrying over the previous line's
+    // layout.
+    showActSceneSelectors.value = computeShowActSceneSelectors(state.value);
   }
 );
 

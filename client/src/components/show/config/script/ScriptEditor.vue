@@ -326,8 +326,14 @@ const firstInvalidLine = computed(() => {
       deletedOnPage,
       scriptConfigStore.getInsertedLines(pageStr)
     );
+    // computePageStatus splices every inserted line into its own comparison copy
+    // at the same index before diffing, so an inserted line always equals
+    // itself and lands in neither added nor updated — status.inserted is the
+    // only place it's tracked at all, and must be included explicitly here.
     const toCheck = new Set(
-      [...status.added, ...status.updated].filter((i) => !deletedOnPage.includes(i))
+      [...status.added, ...status.updated, ...status.inserted].filter(
+        (i) => !deletedOnPage.includes(i)
+      )
     );
     toValidate[pageStr] = tmpPage.filter((_, i) => toCheck.has(i));
   }
@@ -710,7 +716,11 @@ function setupAutoSave(): void {
 }
 
 async function autosave(): Promise<void> {
-  if (isAutoSaving.value) return;
+  // Same gate the Save button's own :disabled already enforces — checked here,
+  // before either toast, so a tick that can't actually save anything (an open
+  // editor, an invalid line) stays silent instead of claiming success for
+  // nothing. saveScript()'s own copy of this guard stays as a backstop.
+  if (isAutoSaving.value || !canSave.value) return;
   isAutoSaving.value = true;
   toast.info('Performing autosave...');
   try {

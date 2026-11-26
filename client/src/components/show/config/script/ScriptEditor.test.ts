@@ -4,11 +4,11 @@ import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import ScriptEditor from './ScriptEditor.vue';
+import { passthrough, SelectStub, AlertStub, ModalStub } from './testStubs';
+import { mockCommonScriptStores } from './scriptEditorTestMocks';
 import { useScriptConfigStore } from '@/stores/scriptConfig';
 import { useScriptStore } from '@/stores/script';
-import { useShowStore } from '@/stores/show';
 import { useSystemStore } from '@/stores/system';
-import { useWebSocketStore } from '@/stores/websocket';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine } from '@/types/api/script';
 
@@ -21,6 +21,8 @@ vi.mock('@/js/toast', () => ({
 vi.mock('@/composables/useConfirm', () => ({
   useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }),
 }));
+
+import { toast } from '@/js/toast';
 
 // Same technique as CollabScriptEditor.test.ts: a bare stub that still exposes
 // enough of ScriptLineViewer's real surface (selected/previewed, toggle-select,
@@ -49,40 +51,6 @@ const LineEditorStub = defineComponent({
   ],
   render() {
     return h('div', { class: 'editor-stub' });
-  },
-});
-const AlertStub = defineComponent({
-  props: { modelValue: { type: Boolean, default: false } },
-  render() {
-    return this.modelValue ? h('div', { class: 'alert-stub' }, this.$slots.default?.()) : null;
-  },
-});
-function passthrough(tag: string) {
-  return defineComponent({
-    inheritAttrs: true,
-    render() {
-      return h(tag, this.$slots.default?.());
-    },
-  });
-}
-const ModalStub = defineComponent({
-  inheritAttrs: true,
-  methods: {
-    show() {
-      // no-op: content already renders unconditionally in this stub
-    },
-    hide() {
-      // no-op: content already renders unconditionally in this stub
-    },
-  },
-  render() {
-    return h('div', this.$slots.default?.());
-  },
-});
-const SelectStub = defineComponent({
-  props: { options: { type: Array, default: () => [] }, disabled: Boolean },
-  render() {
-    return h('select');
   },
 });
 const bootstrapStubs = {
@@ -118,23 +86,10 @@ describe('ScriptEditor', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     localStorage.clear();
-    const ws = useWebSocketStore();
-    ws.internalUUID = 'me';
+    mockCommonScriptStores();
     useScriptConfigStore().editStatus = { canRequestEdit: false, currentEditor: 'me' };
     vi.spyOn(useSystemStore(), 'isScriptEditor', 'get').mockReturnValue(true);
     useSystemStore().currentShow = { id: 1, script_mode: 1 } as never;
-    for (const m of [
-      'getActList',
-      'getSceneList',
-      'getCharacterList',
-      'getCharacterGroupList',
-    ] as const) {
-      vi.spyOn(useShowStore(), m).mockResolvedValue();
-    }
-    vi.spyOn(useScriptStore(), 'getStageDirectionStyles').mockResolvedValue();
-    vi.spyOn(useScriptStore(), 'getCuts').mockResolvedValue();
-    vi.spyOn(useScriptStore(), 'loadScriptPage').mockResolvedValue();
-    vi.spyOn(useScriptConfigStore(), 'getScriptConfigStatus').mockResolvedValue();
   });
 
   afterEach(() => {
@@ -176,6 +131,9 @@ describe('ScriptEditor', () => {
       deleteLine: (page: number, index: number) => void;
       insertLineAt: (page: number, index: number, type: number) => Promise<void>;
       beginEditingLine: (page: number, index: number) => void;
+      doneEditingLine: (page: number, index: number) => void;
+      onLineChange: (index: number, line: ScriptLine) => void;
+      autosave: () => Promise<void>;
       firstInvalidLine: { page: string; error: string } | null;
     };
   }
@@ -300,6 +258,40 @@ describe('ScriptEditor', () => {
     });
   });
 
+  describe('autosave does not misreport success when it cannot actually save', () => {
+    it('stays silent while a line is open for editing', async () => {
+      // Regression: autosave always showed "Performing autosave..." then
+      // "Autosave successful" around saveScript(), even once saveScript()
+      // itself started silently bailing on an open editor or invalid line —
+      // every tick during an editing session falsely reported success.
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      vm(w).beginEditingLine(1, 0);
+      vm(w).onToggleSelect(1); // an unrelated change, so scriptChanges alone isn't the blocker
+      await flushPromises();
+
+      await vm(w).autosave();
+
+      expect(toast.info).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it('stays silent when an invalid line would block Save, even with no editor open', async () => {
+      seedSavedPage(1, []);
+      const w = await mountEditor();
+      await vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE); // appends an invalid dialogue line
+      vm(w).doneEditingLine(1, 0); // close it, isolating the invalid-line gate from the open-editor one
+      await flushPromises();
+      expect(vm(w).editingLines.size).toBe(0); // sanity-check the isolation
+      expect(vm(w).firstInvalidLine).not.toBeNull(); // sanity-check the premise
+
+      await vm(w).autosave();
+
+      expect(toast.info).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+  });
+
   describe('firstInvalidLine / canSave skip soft-deleted and untouched legacy lines', () => {
     it('does not block Save on a tombstoned line that would otherwise be invalid', async () => {
       // A saved dialogue line with empty text (invalid on its own) ...
@@ -330,11 +322,14 @@ describe('ScriptEditor', () => {
     it('does not validate a pre-existing line nothing touched this session', async () => {
       // A legacy saved line with a null act/scene (the DB allows it, this
       // validator wouldn't) that nothing in this session edits.
-      seedSavedPage(1, [makeLine(1, { act_id: null, scene_id: null }), makeLine(2)]);
+      const line2 = makeLine(2);
+      seedSavedPage(1, [makeLine(1, { act_id: null, scene_id: null }), line2]);
       const w = await mountEditor();
-      // Editing the OTHER line (making a real, valid change) must not cause the
-      // untouched legacy line to suddenly start blocking Save.
-      vm(w).onToggleSelect(1);
+      // A real, valid change to the OTHER line (onToggleSelect alone mutates
+      // no draft content, so it wouldn't have exercised computePageStatus's
+      // diff at all) must not cause the untouched legacy line to suddenly
+      // start blocking Save.
+      vm(w).onLineChange(1, { ...line2, scene_id: 2 }); // a genuinely different value
       await flushPromises();
 
       expect(vm(w).firstInvalidLine).toBeNull();
@@ -344,6 +339,19 @@ describe('ScriptEditor', () => {
       seedSavedPage(1, []);
       const w = await mountEditor();
       await vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE); // appends to the empty page
+      await flushPromises();
+
+      expect(vm(w).firstInvalidLine).not.toBeNull();
+    });
+
+    it('does flag an invalid line inserted mid-page, not just appended', async () => {
+      // Regression: computePageStatus splices an inserted line into its own
+      // comparison copy at the same index before diffing, so it always diffs
+      // equal to itself and lands in neither added nor updated — only in
+      // status.inserted, which firstInvalidLine must also check.
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      await vm(w).insertLineAt(1, 0, LINE_TYPES.DIALOGUE); // inserts between the two saved lines
       await flushPromises();
 
       expect(vm(w).firstInvalidLine).not.toBeNull();

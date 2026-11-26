@@ -5,10 +5,10 @@ import { mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import { passthrough, SelectStub } from './testStubs';
+import { act, scene } from './testFixtures';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import { useSystemStore } from '@/stores/system';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
-import type { Act, Scene } from '@/types/api/show';
 
 const setLineActScene = vi.fn(() => true);
 const removePart = vi.fn(() => true);
@@ -58,30 +58,6 @@ const stubs = {
   CollabScriptLinePart: PartStub,
   RemoteEditorsBadge: RemoteEditorsBadgeStub,
 };
-
-function act(id: number, overrides: Partial<Act> = {}): Act {
-  return {
-    id,
-    show_id: 1,
-    name: `Act ${id}`,
-    interval_after: false,
-    first_scene: null,
-    next_act: null,
-    previous_act: null,
-    ...overrides,
-  };
-}
-function scene(id: number, actId: number, overrides: Partial<Scene> = {}): Scene {
-  return {
-    id,
-    show_id: 1,
-    act: actId,
-    name: `Scene ${id}`,
-    next_scene: null,
-    previous_scene: null,
-    ...overrides,
-  };
-}
 
 function line(overrides: Partial<DraftScriptLine> = {}): DraftScriptLine {
   return {
@@ -166,6 +142,24 @@ describe('CollabScriptLineEditor', () => {
     wrapper = mountEditor({ line: line({ act_id: null }) });
     const done = wrapper.findAll('button').find((b) => b.text() === 'Done')!;
     expect(done.attributes('disabled')).toBeDefined();
+  });
+
+  it('keeps the Act/Scene selectors visible as act/scene go from null to set, instead of vanishing mid-pick', async () => {
+    // Regression: this used to read props.line.act_id/scene_id live, so
+    // picking an act (scene still null — selectors should stay) then a scene
+    // (both now non-null) unmounted the column out from under the user,
+    // jumping the layout from 10 to 12 cols with no way to fix a wrong pick.
+    wrapper = mountEditor({
+      previousLine: null,
+      line: line({ act_id: null, scene_id: null }),
+    });
+    expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
+
+    await wrapper.setProps({ line: line({ act_id: 1, scene_id: null }) });
+    expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
+
+    await wrapper.setProps({ line: line({ act_id: 1, scene_id: 1 }) });
+    expect(wrapper.find('[data-testid="line-act-select"]').exists()).toBe(true);
   });
 
   it('emits doneEditing when Done is clicked while valid', async () => {
