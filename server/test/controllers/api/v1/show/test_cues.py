@@ -2110,8 +2110,8 @@ class TestCueLinePositions(DigiScriptTestCase):
     def _page_and_index(self, positions):
         """(page, index) for each line in ``self.line_ids`` order."""
         return [
-            (positions[str(i)]["page"], positions[str(i)]["index"])
-            for i in self.line_ids
+            (positions[str(line_id)]["page"], positions[str(line_id)]["index"])
+            for line_id in self.line_ids
         ]
 
     def _link(self, session, ordered_line_ids, revision_id=None):
@@ -2309,7 +2309,7 @@ class TestCueLinePositions(DigiScriptTestCase):
         self.assertEqual({}, positions)
         self.assertIn("0 heads", "".join(logs.output))
 
-    def test_cued_lines_but_no_associations_gives_no_positions(self):
+    def test_revision_without_associations_gives_no_positions(self):
         with self._app.get_db().sessionmaker() as session:
             with self.assertLogs("DigiScript", level="ERROR") as logs:
                 positions = get_line_positions(session, 999999, self.line_ids)
@@ -2323,7 +2323,9 @@ class TestCueLinePositions(DigiScriptTestCase):
             self._assoc(session, self.line_ids[3]).next_line_id = self.line_ids[1]
             session.commit()
 
-        positions = self._get_line_positions()
+        # A cycle back into the chain just ends the walk: nothing to warn about.
+        with self.assertNoLogs("DigiScript", level="WARNING"):
+            positions = self._get_line_positions()
         self.assertEqual(
             [(1, 0), (1, 1), (2, 0), (2, 1)], self._page_and_index(positions)
         )
@@ -2340,7 +2342,9 @@ class TestCueLinePositions(DigiScriptTestCase):
         with self.assertLogs("DigiScript", level="WARNING") as logs:
             positions = self._get_line_positions()
         self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
+        self.assertEqual(0, positions[str(self.line_ids[0])]["index"])
         self.assertIn("4/5 lines reachable", "".join(logs.output))
+        self.assertIn(str(orphan), "".join(logs.output))
 
     def test_line_not_in_revision_is_omitted_and_warned_about(self):
         with self._app.get_db().sessionmaker() as session:

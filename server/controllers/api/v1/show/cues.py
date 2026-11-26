@@ -238,6 +238,10 @@ class CueTypesImportController(BaseAPIController):
         self.finish({"cue_type_groups": list(shows_map.values())})
 
 
+# Cap on line ids written to a single log line, so corrupted data can't flood logs.
+_LOG_ID_SAMPLE = 20
+
+
 def get_line_positions(
     session, revision_id: int, line_ids: Iterable[int]
 ) -> dict[str, dict]:
@@ -289,8 +293,8 @@ def get_line_positions(
 
     if not rows:
         get_logger().error(
-            "Revision %s has no line associations but %d line(s) have cues; "
-            "cue line positions unavailable",
+            "Revision %s has no line associations but %d line(s) were requested; "
+            "line positions unavailable",
             revision_id,
             len(wanted),
         )
@@ -300,11 +304,12 @@ def get_line_positions(
         # Several heads (or none) means the chain is broken; merging chains would
         # give plausible but wrong indexes, so report none.
         get_logger().error(
-            "Revision %s line chain has %d heads (expected 1): %s; "
-            "cue line positions unavailable",
+            "Revision %s line chain has %d heads (expected 1; first %d: %s); "
+            "line positions unavailable",
             revision_id,
             len(heads),
-            heads,
+            _LOG_ID_SAMPLE,
+            heads[:_LOG_ID_SAMPLE],
         )
         return {}
 
@@ -327,19 +332,26 @@ def get_line_positions(
         current = row.next_line_id
 
     if len(visited) != len(rows):
+        unreachable = sorted(wanted & (by_id.keys() - visited))
         get_logger().warning(
             "Revision %s line chain is inconsistent: %d/%d lines reachable "
-            "from the head",
+            "from the head; %d requested line(s) unreachable (first %d: %s)",
             revision_id,
             len(visited),
             len(rows),
+            len(unreachable),
+            _LOG_ID_SAMPLE,
+            unreachable[:_LOG_ID_SAMPLE],
         )
-    missing = wanted - by_id.keys()
+    missing = sorted(wanted - by_id.keys())
     if missing:
         get_logger().warning(
-            "Revision %s: lines %s have cues but no association in the revision",
+            "Revision %s: %d requested line(s) have no association in the "
+            "revision (first %d: %s)",
             revision_id,
-            sorted(missing),
+            len(missing),
+            _LOG_ID_SAMPLE,
+            missing[:_LOG_ID_SAMPLE],
         )
     return positions
 
