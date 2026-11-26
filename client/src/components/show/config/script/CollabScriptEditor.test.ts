@@ -1328,6 +1328,49 @@ describe('CollabScriptEditor', () => {
       expect(newLine.line_parts[0]?.character_id).toBe(9);
     });
 
+    it("retypeLine at index 0 of page 2 inherits act/scene/character from page 1's last line", async () => {
+      // Regression: draftLines.value[index - 1] only sees the current page, so
+      // at index 0 this was always undefined, giving the replacement line a
+      // null act/scene with no selectors shown to fix it (previousLine comes
+      // from draftPages.previousLineOf, which does cross pages). Retyping to
+      // Dialogue also used to lose the inherited character, since no `part`
+      // was passed to the replacement addLine the way addNewLine/insertLineAt
+      // both do.
+      const w = await mountSyncedEditor();
+      const writer = useDraftWriter();
+      writer.addLine(1, { lineType: LINE_TYPES.DIALOGUE, actId: 3, sceneId: 7 });
+      const page1Parts = useScriptDraftStore().getPageSnapshot(1)[0]!.parts;
+      writer.setPartCharacter(
+        1,
+        useScriptDraftStore().getPageSnapshot(1)[0]!._uid,
+        page1Parts[0]!._uid,
+        9,
+        null
+      );
+      await flushPromises();
+
+      await button(w, 'Next Page')!.trigger('click');
+      await flushPromises();
+      const { lineUid } = writer.addLine(2, {
+        lineType: LINE_TYPES.STAGE_DIRECTION,
+        actId: null,
+        sceneId: null,
+      });
+      await flushPromises();
+      (w.vm as unknown as { beginEditingLine: (lineUid: string) => void }).beginEditingLine(
+        lineUid
+      );
+      await flushPromises();
+
+      editorLine(w, lineUid)!.vm.$emit('retypeLine', LINE_TYPES.DIALOGUE);
+      await flushPromises();
+
+      const replaced = w.findAllComponents(LineEditorStub)[0]!.props('line') as DraftScriptLine;
+      expect(replaced.act_id).toBe(3);
+      expect(replaced.scene_id).toBe(7);
+      expect(replaced.line_parts[0]?.character_id).toBe(9);
+    });
+
     it('plain Done on an auto-added line just closes it — no chaining any more', async () => {
       const w = await mountSyncedEditor();
 
