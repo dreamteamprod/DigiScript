@@ -217,7 +217,7 @@ import { useUserStore } from '@/stores/user';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useConfirm } from '@/composables/useConfirm';
-import { useAutoSave } from '@/composables/useAutoSave';
+import { useAutoSave, autoSaveSettings } from '@/composables/useAutoSave';
 import { toast } from '@/js/toast';
 import { lineTypeLabel } from '@/js/lineTypeLabels';
 import { firstInvalidScriptLine } from '@/js/scriptDraftValidation';
@@ -233,7 +233,7 @@ import BulkActSceneModal from './BulkActSceneModal.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
 import type { BulkEditPayload } from '@/types/bulkEdit';
-import { applyBulkPayloadToLine } from '@/js/bulkEditLine';
+import { applyBulkPayloadToLine, narrowAssignee } from '@/js/bulkEditLine';
 
 const showStore = useShowStore();
 const systemStore = useSystemStore();
@@ -301,12 +301,38 @@ const scriptChanges = computed<boolean>(() => {
 
 // Only the loaded pages (scriptConfigStore.tmpScript) are checked — an unloaded page
 // is untouched saved data, already valid when it was last saved.
+//
+// Within a loaded page, only lines this session actually added or changed are
+// validated — not every line on it. Two reasons: a soft-deleted line is a
+// tombstone still sitting in the array (see scriptConfig.ts's deleteLine),
+// hidden from the viewer with nothing on screen to fix it if it fails; and a
+// pre-existing line the server already accepted (e.g. a legacy null act/scene,
+// which the DB allows but this validator doesn't) must not block Save just for
+// having been on a page this session happened to load, when it was never
+// touched. computePageStatus (the same diff saveScript() itself uses to decide
+// what to send) is what already answers "added or changed" correctly, splice
+// shifts and all — reusing it here keeps this in sync with that for free.
 const isCompactMode = computed(() => systemStore.currentShow?.script_mode !== 1);
-const firstInvalidLine = computed(() =>
-  scriptConfigStore.cutMode
-    ? null
-    : firstInvalidScriptLine(scriptConfigStore.tmpScript, isCompactMode.value)
-);
+const firstInvalidLine = computed(() => {
+  if (scriptConfigStore.cutMode) return null;
+  const toValidate: Record<string, ScriptLine[]> = {};
+  for (const pageStr of Object.keys(scriptConfigStore.tmpScript)) {
+    const tmpPage = scriptConfigStore.getTmpPage(pageStr);
+    if (tmpPage.length === 0) continue;
+    const deletedOnPage = scriptConfigStore.getDeletedLines(pageStr);
+    const status = computePageStatus(
+      scriptStore.getScriptPage(pageStr),
+      tmpPage,
+      deletedOnPage,
+      scriptConfigStore.getInsertedLines(pageStr)
+    );
+    const toCheck = new Set(
+      [...status.added, ...status.updated].filter((i) => !deletedOnPage.includes(i))
+    );
+    toValidate[pageStr] = tmpPage.filter((_, i) => toCheck.has(i));
+  }
+  return firstInvalidScriptLine(toValidate, isCompactMode.value);
+});
 
 const canSave = computed(() => {
   if (scriptConfigStore.cutMode) return scriptChanges.value;
@@ -471,22 +497,35 @@ async function insertLineAt(pageIndex: number, lineIndex: number, lineType: numb
     return;
   }
   const newLineIndex = lineIndex + 1;
+  // insertBlankLine takes one of two paths depending on whether newLineIndex is
+  // already a tombstoned slot: a real splice (every later index shifts up), or a
+  // same-length replace into that slot (nothing shifts — see scriptConfig.ts's
+  // own comment on this). editingLines must only shift for the former, or an
+  // open editor past the reused slot ends up pointing at the wrong line.
+  const willSplice = !scriptConfigStore.getDeletedLines(pageIndex).includes(newLineIndex);
   const line = blankLine(lineType);
   scriptConfigStore.insertBlankLine(pageIndex, newLineIndex, line);
+  // The selection is raw-index-based and never remapped when lines shift (unlike
+  // editingLines just below, which is) — clearing it is simpler and safer than
+  // trying to shift it too, and inserting mid-selection is a narrow enough case
+  // that losing the selection there is an acceptable trade.
+  clearSelection();
 
-  // Shift all open edit indices that are >= newLineIndex up by 1
-  const shifted = new Set<string>();
-  editingLines.value.forEach((ident) => {
-    const parts = ident.split('_');
-    const ep = Number.parseInt(parts[1], 10);
-    const ei = Number.parseInt(parts[3], 10);
-    if (ep === pageIndex && ei >= newLineIndex) {
-      shifted.add(`page_${ep}_line_${ei + 1}`);
-    } else {
-      shifted.add(ident);
-    }
-  });
-  editingLines.value = shifted;
+  if (willSplice) {
+    // Shift all open edit indices that are >= newLineIndex up by 1
+    const shifted = new Set<string>();
+    editingLines.value.forEach((ident) => {
+      const parts = ident.split('_');
+      const ep = Number.parseInt(parts[1], 10);
+      const ei = Number.parseInt(parts[3], 10);
+      if (ep === pageIndex && ei >= newLineIndex) {
+        shifted.add(`page_${ep}_line_${ei + 1}`);
+      } else {
+        shifted.add(ident);
+      }
+    });
+    editingLines.value = shifted;
+  }
 
   const newIdent = `page_${currentPage.value}_line_${newLineIndex}`;
   editingLines.value.add(newIdent);
@@ -531,35 +570,50 @@ function finishAndAddLine(pageIndex: number, lineIndex: number): void {
 }
 
 function navigateUp(pageIndex: number, lineIndex: number): void {
-  if (lineIndex <= 0) return;
+  const deletedOnPage = scriptConfigStore.getDeletedLines(pageIndex);
+  let target = lineIndex - 1;
+  while (target >= 0 && deletedOnPage.includes(target)) target--;
+  if (target < 0) return;
   doneEditingLine(pageIndex, lineIndex);
-  beginEditingLine(pageIndex, lineIndex - 1);
+  beginEditingLine(pageIndex, target);
 }
 
 function navigateDown(pageIndex: number, lineIndex: number): void {
   const pageLines = scriptConfigStore.getTmpPage(pageIndex);
-  if (lineIndex >= pageLines.length - 1) return;
+  const deletedOnPage = scriptConfigStore.getDeletedLines(pageIndex);
+  let target = lineIndex + 1;
+  while (target < pageLines.length && deletedOnPage.includes(target)) target++;
+  if (target >= pageLines.length) return;
   doneEditingLine(pageIndex, lineIndex);
-  beginEditingLine(pageIndex, lineIndex + 1);
+  beginEditingLine(pageIndex, target);
 }
 
 function deleteLine(pageIndex: number, lineIndex: number): void {
   const lineIdent = `page_${pageIndex}_line_${lineIndex}`;
+  // A saved line (id != null) is tombstoned in place — nothing splices, so no
+  // other index moves. Only an unsaved line is actually spliced out. Checked
+  // before the store call below, which is what makes that same decision.
+  const willSplice = scriptConfigStore.getTmpPage(pageIndex)[lineIndex]?.id == null;
   scriptConfigStore.deleteLine(pageIndex, lineIndex);
   editingLines.value.delete(lineIdent);
+  // See insertLineAt's own comment: the selection is never remapped on a shift,
+  // so clear it rather than let it silently point at the wrong lines.
+  clearSelection();
 
-  const shifted = new Set<string>();
-  editingLines.value.forEach((ident) => {
-    const parts = ident.split('_');
-    const ep = Number.parseInt(parts[1], 10);
-    const ei = Number.parseInt(parts[3], 10);
-    if (ep === pageIndex && ei >= lineIndex) {
-      shifted.add(`page_${ep}_line_${ei - 1}`);
-    } else {
-      shifted.add(ident);
-    }
-  });
-  editingLines.value = shifted;
+  if (willSplice) {
+    const shifted = new Set<string>();
+    editingLines.value.forEach((ident) => {
+      const parts = ident.split('_');
+      const ep = Number.parseInt(parts[1], 10);
+      const ei = Number.parseInt(parts[3], 10);
+      if (ep === pageIndex && ei >= lineIndex) {
+        shifted.add(`page_${ep}_line_${ei - 1}`);
+      } else {
+        shifted.add(ident);
+      }
+    });
+    editingLines.value = shifted;
+  }
 }
 
 function cutLinePart(linePartId: number): void {
@@ -582,6 +636,11 @@ async function saveScript(): Promise<void> {
     toast.warning('No changes to save!');
     return;
   }
+  // The Save button is disabled whenever !canSave, but autosave calls this
+  // function directly on a timer regardless — without this, it could persist a
+  // half-typed open line, or one firstInvalidLine would otherwise catch, that
+  // the button itself would never have let through.
+  if (editingLines.value.size > 0 || firstInvalidLine.value !== null) return;
 
   savingInProgress.value = true;
   saveError.value = false;
@@ -646,14 +705,8 @@ async function saveScript(): Promise<void> {
 const autoSave = useAutoSave(autosave);
 
 function setupAutoSave(): void {
-  const settings = userStore.userSettings as {
-    enable_script_auto_save?: boolean;
-    script_auto_save_interval?: number;
-  };
-  autoSave.restart(
-    isEditor.value && !!settings.enable_script_auto_save,
-    settings.script_auto_save_interval ?? 5
-  );
+  const { enabled, intervalMinutes } = autoSaveSettings(userStore.userSettings);
+  autoSave.restart(isEditor.value && enabled, intervalMinutes);
 }
 
 async function autosave(): Promise<void> {
@@ -743,9 +796,23 @@ function isInRange(range: SelectionRange, index: number): boolean {
   return index >= range.startIndex && index <= range.endIndex;
 }
 
+/** Soft-deleted lines within [startIndex, endIndex] are tombstones still sitting
+ * in the array (see scriptConfig.ts's deleteLine) — hidden from the viewer, so
+ * they must stay out of anything the user sees as "N lines selected" or that
+ * acts on the selection, or a 3-line visible selection containing one hidden
+ * tombstone would show as "3 lines selected" with only 2 rows on screen. */
+function visibleIndicesInRange(startIndex: number, endIndex: number): number[] {
+  const deletedOnPage = scriptConfigStore.getDeletedLines(currentPage.value);
+  const indices: number[] = [];
+  for (let i = startIndex; i <= endIndex; i++) {
+    if (!deletedOnPage.includes(i)) indices.push(i);
+  }
+  return indices;
+}
+
 const selectionCount = computed(() => {
   if (!bulkEditStart.value || !bulkEditEnd.value) return 0;
-  return bulkEditEnd.value.lineIndex - bulkEditStart.value.lineIndex + 1;
+  return visibleIndicesInRange(bulkEditStart.value.lineIndex, bulkEditEnd.value.lineIndex).length;
 });
 
 const selectionRangeLabel = computed(() => {
@@ -757,11 +824,12 @@ const selectionRangeLabel = computed(() => {
 
 const selectionPreviewLines = computed<SelectedLinePreview[]>(() => {
   if (!bulkEditStart.value || !bulkEditEnd.value) return [];
-  const { lineIndex: startIndex } = bulkEditStart.value;
-  const { lineIndex: endIndex } = bulkEditEnd.value;
   const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
   const result: SelectedLinePreview[] = [];
-  for (let i = startIndex; i <= endIndex; i++) {
+  for (const i of visibleIndicesInRange(
+    bulkEditStart.value.lineIndex,
+    bulkEditEnd.value.lineIndex
+  )) {
     const line = pageLines[i];
     if (!line) continue;
     result.push({
@@ -814,10 +882,11 @@ async function openMoveToSceneDialog(): Promise<void> {
  * its own half of a `BulkEditPayload` (the other half stays null). */
 function applyToSelection(payload: BulkEditPayload): void {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
-  const { lineIndex: startIndex } = bulkEditStart.value;
-  const { lineIndex: endIndex } = bulkEditEnd.value;
   const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
-  for (let i = startIndex; i <= endIndex; i++) {
+  for (const i of visibleIndicesInRange(
+    bulkEditStart.value.lineIndex,
+    bulkEditEnd.value.lineIndex
+  )) {
     if (!pageLines[i]) continue;
     scriptConfigStore.setLine(currentPage.value, i, applyBulkPayloadToLine(pageLines[i]!, payload));
   }
@@ -828,19 +897,7 @@ function onSetCharacterApply(assignee: {
   characterId: number | null;
   characterGroupId: number | null;
 }): void {
-  // SetCharacterOrGroupDialog only emits once one of the two is set (its own
-  // canApply gate) — this just narrows that into BulkEditPayload['assignee']'s
-  // discriminated union shape.
-  const narrowed: BulkEditPayload['assignee'] =
-    assignee.characterId != null
-      ? { partIndex: assignee.partIndex, characterId: assignee.characterId, characterGroupId: null }
-      : assignee.characterGroupId != null
-        ? {
-            partIndex: assignee.partIndex,
-            characterId: null,
-            characterGroupId: assignee.characterGroupId,
-          }
-        : null;
+  const narrowed = narrowAssignee(assignee);
   if (!narrowed) return;
   applyToSelection({ actScene: null, assignee: narrowed });
   setCharDialog.value?.hide();
@@ -858,10 +915,12 @@ function onMoveToSceneApply(payload: { actId: number; sceneId: number }): void {
  * every earlier index in the loop is still the right one when its turn comes. */
 function onDeleteSelection(): void {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
-  const { lineIndex: startIndex } = bulkEditStart.value;
-  const { lineIndex: endIndex } = bulkEditEnd.value;
-  for (let i = endIndex; i >= startIndex; i--) {
-    deleteLine(currentPage.value, i);
+  const visible = visibleIndicesInRange(bulkEditStart.value.lineIndex, bulkEditEnd.value.lineIndex);
+  // Descending order: each deleteLine call only shifts indices at or above the
+  // one it removed (an unsaved line splices out), so working top-down means
+  // every earlier index in this loop is still the right one when its turn comes.
+  for (let i = visible.length - 1; i >= 0; i--) {
+    deleteLine(currentPage.value, visible[i]!);
   }
   clearSelection();
 }

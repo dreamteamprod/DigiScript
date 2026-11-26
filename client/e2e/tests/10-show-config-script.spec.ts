@@ -75,7 +75,7 @@ test('stops editing without saving', async () => {
   await page.click('button:has-text("Stop Editing")');
   // Script has unsaved changes — confirm dialog appears
   await confirmDialog(page);
-  // Edit button reappears — use exact match to avoid matching "Stop Editing" / "Bulk Edit"
+  // Edit button reappears — use exact match to avoid matching "Stop Editing"
   await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
     timeout: 10_000,
   });
@@ -239,6 +239,8 @@ test('clicking the range’s own start line shrinks it, keeping the rest selecte
 });
 
 test('Set Character or Group changes the selected lines’ speaker', async () => {
+  const firstLineRow = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+
   await page.click('button:has-text("Set Character or Group")');
   await waitForModal(page, 'Set Character or Group');
   // Alice — a different character from Hamlet (who is already assigned) so the
@@ -249,8 +251,20 @@ test('Set Character or Group changes the selected lines’ speaker', async () =>
   await confirmModal(page);
   await waitForModalClosed(page);
 
-  // Applying clears the selection automatically.
-  await expect(page.locator('text=line selected')).not.toBeVisible({ timeout: 5_000 });
+  // The speaker actually changed. Only the first of the two previously-selected
+  // lines is checked here: the second one is now consecutive with the same
+  // speaker, so its own heading correctly collapses (ScriptLineViewer.vue's
+  // needsHeadings) rather than repeating "Alice" — checking its rendered text
+  // would be asserting the wrong thing, not verifying the apply itself.
+  await expect(firstLineRow).toContainText('Alice');
+
+  // Applying clears the selection automatically. A loose `text=line selected`
+  // locator would pass this vacuously for a 2+-line selection (it doesn't
+  // match "2 lines selected" either way) whether or not the selection actually
+  // cleared — the toolbar's own accessible name is unambiguous.
+  await expect(page.getByRole('toolbar', { name: 'Selected lines' })).toBeHidden({
+    timeout: 5_000,
+  });
 });
 
 test('Clear Selection removes the selection bar', async () => {

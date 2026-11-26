@@ -358,14 +358,13 @@ import { useWebSocketStore } from '@/stores/websocket';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useDraftPages } from '@/composables/useDraftPages';
 import { useDraftWriter } from '@/composables/useDraftWriter';
-import { useAutoSave } from '@/composables/useAutoSave';
+import { useAutoSave, autoSaveSettings } from '@/composables/useAutoSave';
 import { useConfirm } from '@/composables/useConfirm';
 import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
 import { lineTypeLabel } from '@/js/lineTypeLabels';
 import { nextSelectionRange } from '@/js/scriptSelectionModel';
-import { parseDbId } from '@/js/yjs/yjsSnapshot';
 import ScriptLineViewer from './ScriptLineViewer.vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import AddLineDivider from './AddLineDivider.vue';
@@ -381,6 +380,7 @@ import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { LineUid } from '@/js/yjs/yjsSnapshot';
 import type { BulkEditPayload } from '@/types/bulkEdit';
+import { narrowAssignee } from '@/js/bulkEditLine';
 
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
@@ -880,12 +880,17 @@ function navigateDown(index: number): void {
  * invoked for an unsaved line — CollabScriptLineEditor.vue disables the control
  * otherwise. */
 function retypeLine(oldUid: string, index: number, newType: number): void {
+  // Resolved before the delete below, same as addNewLine/insertLineAt — at index 0
+  // of page 2+, draftLines.value[index - 1] would be undefined (it only sees the
+  // current page), but draftPages.previousLineOf looks back across pages.
+  const prev = draftPages.previousLineOf(currentPage.value, index);
   writer.deleteLine(currentPage.value, oldUid);
   const { lineUid } = writer.addLine(currentPage.value, {
     lineType: newType,
-    actId: draftLines.value[index - 1]?.act_id ?? null,
-    sceneId: draftLines.value[index - 1]?.scene_id ?? null,
+    actId: prev?.act_id ?? null,
+    sceneId: prev?.scene_id ?? null,
     index,
+    part: seedFirstPart(newType, prev),
   });
   editingLines.value.delete(oldUid);
   editingLines.value.add(lineUid);
@@ -1166,20 +1171,10 @@ function autosaveTick(): void {
 const autoSave = useAutoSave(autosaveTick);
 
 function setupAutoSave(): void {
-  const settings = userStore.userSettings as {
-    enable_script_auto_save?: boolean;
-    script_auto_save_interval?: number;
-  };
-  autoSave.restart(
-    canEditDraft.value && !!settings.enable_script_auto_save,
-    settings.script_auto_save_interval ?? 5
-  );
+  const { enabled, intervalMinutes } = autoSaveSettings(userStore.userSettings);
+  autoSave.restart(canEditDraft.value && enabled, intervalMinutes);
 }
 
-// D6: bulk edit resolves its stored {page, lineUid} boundaries back to a position only
-// here, at apply time — an insert/delete elsewhere since the boundaries were picked
-// (ours or another editor's) shifts indices but never the line this was meant to cover.
-// If either boundary line is gone by now, abort rather than guess a new range.
 function applyBulkActScene(
   page: number,
   line: DraftScriptLine,
@@ -1216,8 +1211,7 @@ function openMoveToSceneDialog(): void {
 /** Applies a change to every line in the active selection — shared by "Set Character
  * or Group" and "Move to Scene", each building its own half of a `BulkEditPayload`
  * (the other half stays null). Selection is confined to the current page (see
- * `onToggleSelect`), so this never needs to cross pages the way the old boundary-
- * resolution comment above once did. */
+ * `onToggleSelect`), so this never needs to cross pages. */
 function applyToSelection(payload: BulkEditPayload): void {
   const bounds = selectionBounds.value;
   if (!bounds) return;
@@ -1261,16 +1255,7 @@ function onSetCharacterApply(assignee: {
   characterId: number | null;
   characterGroupId: number | null;
 }): void {
-  const narrowed: BulkEditPayload['assignee'] =
-    assignee.characterId != null
-      ? { partIndex: assignee.partIndex, characterId: assignee.characterId, characterGroupId: null }
-      : assignee.characterGroupId != null
-        ? {
-            partIndex: assignee.partIndex,
-            characterId: null,
-            characterGroupId: assignee.characterGroupId,
-          }
-        : null;
+  const narrowed = narrowAssignee(assignee);
   if (!narrowed) return;
   applyToSelection({ actScene: null, assignee: narrowed });
   setCharDialog.value?.hide();
@@ -1293,6 +1278,11 @@ function onDeleteSelection(): void {
   writer.transact(() => {
     for (const uid of uids) writer.deleteLine(currentPage.value, uid);
   });
+  // The selection is index-based, so an open editor can fall inside it — same
+  // cleanup the single-line deleteLine() above does, so its uid doesn't linger in
+  // editingLines with nothing on screen to close it.
+  for (const uid of uids) editingLines.value.delete(uid);
+  broadcastOpenLines();
   clearSelection();
 }
 

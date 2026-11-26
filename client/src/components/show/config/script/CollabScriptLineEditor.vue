@@ -6,9 +6,11 @@
   >
     <RemoteEditorsBadge :names="remoteEditors ?? []" variant="editor" />
 
-    <!-- See ScriptLineEditor.vue's own comment: only the very first line of an
-         empty draft page falls back to asking for act/scene directly. -->
-    <BCol v-if="!previousLine" cols="2">
+    <!-- See ScriptLineEditor.vue's own comment: this falls back to asking for
+         act/scene directly whenever the line doesn't already have a real one of
+         its own — no previous line to inherit from, or the inherited value was
+         itself null. -->
+    <BCol v-if="showActSceneSelectors" cols="2">
       <BRow>
         <BCol cols="6">
           <BFormGroup label-size="sm" label=" ">
@@ -35,7 +37,7 @@
       </BRow>
     </BCol>
 
-    <BCol :cols="previousLine ? 12 : 10">
+    <BCol :cols="showActSceneSelectors ? 10 : 12">
       <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
         <template v-if="line.line_parts.length > 0">
           <CollabScriptLinePart
@@ -170,8 +172,8 @@ const emit = defineEmits<{
   navigateDown: [];
   /** LineTypeSegmented changed type on an as-yet-unsaved line — see `isUnsaved`
    * below and CollabScriptEditor.vue's `retypeLine()`, which is the only thing
-   * allowed to actually act on this (it owns `editingLines`/`latestAddedLine`,
-   * which a type change's delete-and-re-add must also update). */
+   * allowed to actually act on this (it owns `editingLines`, which a type
+   * change's delete-and-re-add must also update). */
   retypeLine: [newType: number];
 }>();
 
@@ -180,6 +182,11 @@ const writer = useDraftWriter();
 
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
 const lineType = computed(() => props.line.line_type);
+
+/** See ScriptLineEditor.vue's own copy of this. */
+const showActSceneSelectors = computed(
+  () => !props.previousLine || props.line.act_id == null || props.line.scene_id == null
+);
 const isUnsaved = computed(() => parseDbId(props.line._id) == null);
 
 function warnIfGone(ok: boolean): void {

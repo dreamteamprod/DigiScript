@@ -13,7 +13,7 @@
       :variant="modelValue === option.value ? 'primary' : 'outline-light'"
       :disabled="disabled"
       :aria-pressed="modelValue === option.value"
-      @click="$emit('update:modelValue', option.value)"
+      @click="option.value === modelValue ? null : $emit('update:modelValue', option.value)"
     >
       {{ option.label }}
     </BButton>

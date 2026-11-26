@@ -45,6 +45,21 @@ describe('LineTypeSegmented', () => {
     expect(dialogueButton.attributes('aria-pressed')).toBe('false');
   });
 
+  it('does not emit when the clicked option is already the active type', async () => {
+    // Regression: re-clicking the active type went straight to retypeLine in the
+    // collab editor, which deletes the line and adds a blank one — so clicking
+    // "Dialogue" on an already-Dialogue line silently discarded its text.
+    const wrapper = mount(LineTypeSegmented, {
+      props: { modelValue: LINE_TYPES.DIALOGUE },
+      global,
+    });
+
+    const dialogueButton = wrapper.findAll('button').find((b) => b.text() === 'Dialogue')!;
+    await dialogueButton.trigger('click');
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+  });
+
   it('disables every button when disabled is set (an already-saved line)', () => {
     const wrapper = mount(LineTypeSegmented, {
       props: { modelValue: LINE_TYPES.DIALOGUE, disabled: true },

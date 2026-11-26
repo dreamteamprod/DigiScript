@@ -1,11 +1,13 @@
 <template>
   <BRow class="line-editor-card" @keydown.esc="onEsc">
     <!-- No previous line to inherit an act/scene from (the very first line of an
-         empty script/page) — the only case this card still asks for them directly.
-         Every other line already inherited its act/scene from the line it was
-         added next to (see ScriptEditor.vue's addNewLine/insertLineAt); structural
-         moves happen via "Start New Scene Here" / "Move to Scene" instead. -->
-    <BCol v-if="!previousLine" cols="2">
+         empty script/page), or the inherited values were themselves null (the
+         previous line was never given one either) — the only cases this card
+         still asks for them directly. Every other line already inherited a real
+         act/scene from the line it was added next to (see ScriptEditor.vue's
+         addNewLine/insertLineAt); structural moves happen via "Start New Scene
+         Here" / "Move to Scene" instead. -->
+    <BCol v-if="showActSceneSelectors" cols="2">
       <BRow>
         <BCol cols="6">
           <BFormGroup label-size="sm" label=" ">
@@ -32,7 +34,7 @@
       </BRow>
     </BCol>
 
-    <BCol :cols="previousLine ? 12 : 10">
+    <BCol :cols="showActSceneSelectors ? 10 : 12">
       <template v-if="lineType === LINE_TYPES.DIALOGUE || lineType === LINE_TYPES.STAGE_DIRECTION">
         <template v-if="state.line_parts.length > 0">
           <ScriptLinePart
@@ -119,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required } from '@vuelidate/validators';
 import { LINE_TYPES } from '@/constants/lineTypes';
@@ -165,6 +167,14 @@ const systemStore = useSystemStore();
 
 // JSON round-trip instead of structuredClone — modelValue is a Vue reactive Proxy that structuredClone cannot handle
 const state = ref<ScriptLine>(JSON.parse(JSON.stringify(props.modelValue))); // NOSONAR
+// Rows are keyed `page_N_line_index` (see ScriptEditor.vue's template), so an
+// insert/delete/bulk-apply elsewhere on the page can reuse this exact component
+// instance for a line at the same index but a different identity — modelValue
+// then changes without this component re-mounting. lastEmittedSnapshot lets the
+// watch below tell "the prop changed because of my own update:modelValue echoing
+// back" (ignore, state is already current) apart from "something else changed
+// it" (re-sync, so the next keystroke doesn't write stale content over it).
+let lastEmittedSnapshot: string | null = null;
 
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
 // `lineType` the parent passes is a stable prop (it's what decides which branch of
@@ -173,6 +183,14 @@ const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
 // is the one actually read by this component's own template so that switch is live
 // without the parent having to re-key/remount the editor.
 const lineType = computed(() => state.value.line_type);
+
+/** Shows the Act/Scene selectors whenever this line doesn't already have a real
+ * act/scene of its own to fall back to — either because there's no previous
+ * line to inherit from, or because the previous line's own act/scene was null
+ * (inheriting a null is still a null). */
+const showActSceneSelectors = computed(
+  () => !props.previousLine || state.value.act_id == null || state.value.scene_id == null
+);
 
 const blankLinePart = (): ScriptLinePartType => ({
   id: null,
@@ -221,8 +239,25 @@ const lineValid = computed(
 
 function onStateChange(): void {
   v$.value.$touch();
-  emit('update:modelValue', { ...state.value });
+  const snapshot = { ...state.value };
+  lastEmittedSnapshot = JSON.stringify(snapshot);
+  emit('update:modelValue', snapshot);
 }
+
+// See lastEmittedSnapshot's own comment above for why this distinguishes an echo
+// of this component's own edit (ignored — state already reflects it) from an
+// external change to the line now sitting at this reused row (re-synced, so a
+// stale local copy doesn't silently overwrite whatever just changed it).
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    const serialized = JSON.stringify(newValue);
+    if (serialized === lastEmittedSnapshot) return;
+    state.value = JSON.parse(JSON.stringify(newValue)); // NOSONAR
+    lastEmittedSnapshot = serialized;
+    v$.value.$reset();
+  }
+);
 
 function onPartUpdate(index: number, part: ScriptLinePartType): void {
   state.value.line_parts[index] = part;
@@ -258,8 +293,7 @@ function addLinePart(): void {
  * type, rather than trying to carry over parts that may no longer make sense. */
 function onLineTypeChange(newType: number): void {
   state.value.line_type = newType;
-  state.value.line_parts =
-    newType === LINE_TYPES.DIALOGUE || newType === LINE_TYPES.STAGE_DIRECTION ? [] : [];
+  state.value.line_parts = [];
   onStateChange();
   if (newType === LINE_TYPES.DIALOGUE || newType === LINE_TYPES.STAGE_DIRECTION) addLinePart();
 }

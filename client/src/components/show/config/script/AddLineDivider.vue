@@ -125,6 +125,13 @@ defineEmits<{
     opacity: 1;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .add-line-divider,
+  .add-line-rule,
+  .add-line-divider :deep(.add-line-toggle) {
+    transition: none;
+  }
+}
 .add-line-item {
   display: flex;
   align-items: center;

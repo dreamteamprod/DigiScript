@@ -365,6 +365,12 @@ function cutLinePart(partIndex: number): void {
   border-radius: 4px;
   transition: background-color 0.15s ease;
 }
+@media (prefers-reduced-motion: reduce) {
+  .line-row-editable:hover,
+  .line-row-editable:focus-within:has(:focus-visible) {
+    transition: none;
+  }
+}
 .line-row-selected {
   background-color: rgba(var(--bs-success-rgb), 0.08);
   box-shadow: inset 3px 0 0 var(--bs-success);

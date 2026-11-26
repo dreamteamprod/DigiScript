@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyBulkPayloadToLine } from '@/js/bulkEditLine';
+import { applyBulkPayloadToLine, narrowAssignee } from '@/js/bulkEditLine';
 import type { ScriptLine } from '@/types/api/script';
 import type { BulkEditPayload } from '@/types/bulkEdit';
 
@@ -120,5 +120,27 @@ describe('applyBulkPayloadToLine', () => {
 
     const part = result.line_parts.find((p) => p.part_index === 1);
     expect(part?.character_id).toBe(9);
+  });
+});
+
+describe('narrowAssignee', () => {
+  it('narrows a character assignment, nulling the group field', () => {
+    const result = narrowAssignee({ partIndex: 1, characterId: 42, characterGroupId: null });
+    expect(result).toEqual({ partIndex: 1, characterId: 42, characterGroupId: null });
+  });
+
+  it('narrows a character-group assignment, nulling the character field', () => {
+    const result = narrowAssignee({ partIndex: 1, characterId: null, characterGroupId: 7 });
+    expect(result).toEqual({ partIndex: 1, characterId: null, characterGroupId: 7 });
+  });
+
+  it('prefers characterId when both are somehow set', () => {
+    const result = narrowAssignee({ partIndex: 1, characterId: 42, characterGroupId: 7 });
+    expect(result).toEqual({ partIndex: 1, characterId: 42, characterGroupId: null });
+  });
+
+  it('returns null when neither is set', () => {
+    const result = narrowAssignee({ partIndex: 1, characterId: null, characterGroupId: null });
+    expect(result).toBeNull();
   });
 });

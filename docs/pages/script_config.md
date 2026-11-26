@@ -113,7 +113,7 @@ To begin editing, click the **Begin Editing** button. This requests exclusive ed
 
 Your edit access belongs to the browser tab you started editing in: each tab has its own connection identity, so another tab does not share it. (A tab created with the browser's **Duplicate tab** command is the exception: it starts as a copy of the original tab and shares its edit access.) If a different user logs in on a tab, that tab is given a new connection identity: the previous user's edit access never passes to them, and it is released after the usual grace period. Edit access survives a page reload: if you refresh the page, or your connection drops briefly, while editing, you come back still in edit mode, as long as you are still logged in as the same user. Unsaved changes in the script editor are lost on reload, so save before refreshing. If you close the browser, or it loses its connection for good, the lock is released a few seconds later and then other users can begin editing. Logging out normally releases it straight away. If your login had already expired, the lock is instead released once that page reloads or closes and its grace period ends, because an expired login can no longer use the lock.
 
-Once you have edit access, you'll see options to **Save** the script, along with a button for **Add Dialogue** (and a dropdown for the other line types) at the end of the page, and a **+ Add Line Here** divider between every pair of existing lines for inserting one in the middle.
+Once you have edit access, you'll see options to **Save** the script, along with a row of **Add Dialogue** / **Add Direction** / **Add Cue** / **Add Gap** buttons at the end of the page, and a **+ Add Line Here** divider between every pair of existing lines for inserting one in the middle.
 
 ##### Collaborative Editing
 
@@ -121,7 +121,7 @@ Click **Edit** to join the shared draft as an editor. Unlike classic editing, se
 
 ![](../images/config_show/script_collab_editing.png)
 
-Once editing, you get the same **Add Dialogue** controls and line selection (tick line numbers to **Set Character or Group** or **Move to Scene** across several lines at once — see [Selecting Several Lines](#selecting-several-lines) below) as classic editing, plus:
+Once editing, you get the same add-line controls and line selection (tick line numbers to **Set Character or Group** or **Move to Scene** across several lines at once — see [Selecting Several Lines](#selecting-several-lines) below) as classic editing, plus:
 
 - **Save** writes the shared draft to the database, visible to everyone (including non-editors) once it completes. Save is disabled while any line is still open for editing, or while the draft has a line that fails validation (the reason is shown as a tooltip) — fix or finish that line first.
 - **Stop Editing** leaves the draft. If it has unsaved changes, a confirmation dialog asks you to choose **Keep Editing** (cancel and stay in the draft), **Keep Draft** (leave the unsaved draft in place — anyone, including you, can resume editing it later), or **Discard** (revert to the last saved content for everyone currently in the draft, not just you).
@@ -146,9 +146,7 @@ Cut mode (see below) is unavailable while a draft exists, and vice versa — edi
 
 #### Line Types
 
-DigiScript supports four types of script lines, each serving a specific purpose:
-
-![](../images/config_show/script_add_dialogue_dropdown.png)
+DigiScript supports four types of script lines, each serving a specific purpose. You add any of them from the end-of-page row of buttons, or from a **+ Add Line Here** divider between two existing lines:
 
 ##### Dialogue Lines
 
@@ -159,7 +157,7 @@ The default line type for character speech. Dialogue lines:
 ![](../images/config_show/script_dialogue_line_editing.png)
 
 To create a dialogue line:
-1. Click **Add Dialogue** (or pick it from the end-of-page dropdown, or from an **+ Add Line Here** divider between two existing lines)
+1. Click **Add Dialogue** (at the end of the page, or from an **+ Add Line Here** divider between two existing lines)
 2. Choose the **Character** or **Character Group** speaking the line
 3. Enter the line content
 4. Click **Done**, or press **Enter** to finish the line and open a new blank dialogue line right below it
@@ -176,7 +174,7 @@ Non-dialogue text for describing actions, movements, or technical directions. St
 
 ![](../images/config_show/script_stage_direction_editing.png)
 
-To create a stage direction, select **Add Stage Direction** from the dropdown menu.
+To create a stage direction, click **Add Direction**.
 
 ###### Tagged Stage Directions
 
@@ -197,7 +195,7 @@ Special lines designed for placing technical cues without associated dialogue. C
 
 ![](../images/config_show/script_cue_line_editing.png)
 
-To create a cue line, select **Add Cue Line** from the dropdown menu.
+To create a cue line, click **Add Cue**.
 
 ##### Spacing Lines
 
@@ -207,7 +205,7 @@ Blank lines that add vertical spacing in your script. Spacing lines:
 
 ![](../images/config_show/script_spacing_line_editing.png)
 
-To create a spacing line, select **Add Spacing** from the dropdown menu.
+To create a spacing line, click **Add Gap**.
 
 #### Editing a Line
 
@@ -223,12 +221,14 @@ The script cannot be saved while any line is still open for editing.
 
 #### Selecting Several Lines
 
-Hover a line's number (or tap it on a touch device) to reveal a checkbox. Ticking it selects that line; ticking another line extends the selection to cover both. The selection is always one contiguous block, so while hovering or keyboard-focusing a checkbox, any line whose selected state would flip if you clicked now is outlined to preview the change. Ticking either end of the current selection shrinks it by one from that end, keeping the rest selected; ticking a line in the middle of the selection instead collapses the whole thing down to just that line, since removing a middle line can't keep the rest in one contiguous block either way. A bar appears above the script showing how many lines are selected, with:
+While editing, every line shows a checkbox beside its number. Ticking it selects that line; ticking another line extends the selection to cover both. The selection is always one contiguous block, so while hovering or keyboard-focusing a checkbox, any line whose selected state would flip if you clicked now is outlined to preview the change. Ticking either end of the current selection shrinks it by one from that end, keeping the rest selected; ticking a line in the middle of the selection instead collapses the whole thing down to just that line, since removing a middle line can't keep the rest in one contiguous block either way. The selection is confined to the current page, and clears when you change page or complete any of the actions below. A bar appears above the script showing how many lines are selected, with:
 
-- **Set Character or Group** — reassign the speaker (or character group) across every selected line that has a part at the chosen position, with a preview of what will change before you confirm.
+- **Set Character or Group** — reassign the speaker (or character group) across every selected line that has a part at the chosen position, with a preview of what will change before you confirm. Choose which **Part** (1-4) the new assignment targets.
 - **Move to Scene** — move every selected line into a different act and scene.
 - **Delete n Lines** — remove the whole selection.
 - **Clear Selection** — deselect everything without changing anything.
+
+**Esc**, **Enter**, and **↑**/**↓** (see [Editing a Line](#editing-a-line) above) only act while the "What they say" text field has focus, and **Esc**/**Enter** only close a line that currently passes validation — an incomplete line stays open until you either finish it or click **Delete Line**.
 
 #### Multi-Part Lines
 
