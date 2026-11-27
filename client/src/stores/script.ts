@@ -314,14 +314,22 @@ export const useScriptStore = defineStore('script', {
           toast.error('Unable to save script cuts');
           return false;
         }
-        await this.getCuts();
-        toast.success('Saved script cuts!');
-        return true;
       } catch (error) {
         log.error('Unable to save script cuts', error);
         toast.error('Unable to save script cuts');
         return false;
       }
+      // The PUT alone decides success: a failed refresh below must not report a
+      // saved save as failed, which would leave callers holding stale pending cuts.
+      try {
+        await this.getCuts();
+      } catch (error) {
+        log.error('Script cuts saved, but could not be refreshed', error);
+        toast.warning('Script cuts saved, but could not be refreshed');
+        return true;
+      }
+      toast.success('Saved script cuts!');
+      return true;
     },
 
     clearScript(): void {

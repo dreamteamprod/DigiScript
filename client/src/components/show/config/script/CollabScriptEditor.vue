@@ -1293,10 +1293,10 @@ function applyToSelection(payload: BulkEditPayload): void {
       }
     }
   });
-  if (skippedLines > 0) {
+  if (character && skippedLines > 0) {
     toast.warning(
       `${skippedLines} selected ${skippedLines === 1 ? 'line has' : 'lines have'} no part ${
-        payload.assignee?.partIndex
+        character.targetPartIndex + 1
       }, so ${skippedLines === 1 ? 'it was' : 'they were'} skipped.`
     );
   }
@@ -1481,26 +1481,38 @@ onMounted(async () => {
   calculateNavbarHeight();
 
   // A rejected load must not leave the page stuck on its loading state with no
-  // feedback: report it, then carry on so the editor still renders and can join the
-  // draft room (the draft itself supplies the editor's content).
-  try {
-    await Promise.all([
-      showStore.getActList(),
-      showStore.getSceneList(),
-      showStore.getCharacterList(),
-      showStore.getCharacterGroupList(),
-      scriptStore.getStageDirectionStyles(),
-      scriptConfigStore.getScriptConfigStatus(),
-      scriptStore.getCuts(),
-    ]);
-    linePartCuts.value = [...scriptStore.cuts];
+  // feedback: report which loaders failed, then carry on so the editor still renders and
+  // can join the draft room (the draft itself supplies the editor's content). allSettled,
+  // so one failing reference load doesn't also skip the others or the page restore below.
+  const referenceLoads: [string, Promise<unknown>][] = [
+    ['acts', showStore.getActList()],
+    ['scenes', showStore.getSceneList()],
+    ['characters', showStore.getCharacterList()],
+    ['character groups', showStore.getCharacterGroupList()],
+    ['stage direction styles', scriptStore.getStageDirectionStyles()],
+    ['editor status', scriptConfigStore.getScriptConfigStatus()],
+    ['cuts', scriptStore.getCuts()],
+  ];
+  const results = await Promise.allSettled(referenceLoads.map(([, load]) => load));
+  const failedLoads: string[] = [];
+  results.forEach((result, i) => {
+    if (result.status !== 'rejected') return;
+    const name = referenceLoads[i]![0];
+    failedLoads.push(name);
+    log.error(`Failed to load ${name}`, result.reason);
+  });
+  if (failedLoads.length > 0) {
+    toast.error(`Could not load ${failedLoads.join(', ')} — try refreshing the page`);
+  }
+  linePartCuts.value = [...scriptStore.cuts];
 
-    const storedPage = Number.parseInt(localStorage.getItem('scriptEditPage') ?? '1', 10);
-    currentPage.value = Number.isInteger(storedPage) && storedPage > 0 ? storedPage : 1;
+  const storedPage = Number.parseInt(localStorage.getItem('scriptEditPage') ?? '1', 10);
+  currentPage.value = Number.isInteger(storedPage) && storedPage > 0 ? storedPage : 1;
+  try {
     await loadViewerPage(currentPage.value);
   } catch (error) {
-    log.error('Failed to load script editor data', error);
-    toast.error('Could not load all script data — try refreshing the page');
+    log.error('Failed to load the script page', error);
+    toast.error('Could not load the script page — try refreshing the page');
   }
 
   loaded.value = true;
