@@ -3986,6 +3986,63 @@ class TestWSRobustness(_ReconnectTestBase):
         sentinel, joined = await self._auth_logs(False)
         self.assertIn(sentinel, joined)
 
+    async def _logs_for_raising_op(self, redaction):
+        """Send a frame whose handler raises; return the captured log lines."""
+        self._app.digi_settings.settings["log_redaction"].set_value(redaction)
+        ws, _ = await self._connect_and_auth()
+        frame = json.dumps({"OP": "BOOM_OP", "DATA": {"secret": "SENTINEL-PAYLOAD"}})
+        with (
+            mock.patch.object(
+                WebSocketController,
+                "_handle_session_op",
+                AsyncMock(side_effect=RuntimeError("handler exploded")),
+            ),
+            self.assertLogs(get_logger(), level="DEBUG") as captured,
+        ):
+            await ws.write_message(frame)
+            # Frames are processed in order, so once this round trip completes the
+            # raising frame has been fully handled.
+            await self._still_responsive(ws, self.admin_id)
+        ws.close()
+        return captured
+
+    @gen_test
+    async def test_ws_message_logged_with_timing_when_handler_raises(self):
+        """The completion line is emitted from a ``finally`` so it survives errors."""
+        captured = await self._logs_for_raising_op(False)
+        self.assertTrue(
+            any("Unhandled error in WS op BOOM_OP" in m for m in captured.output)
+        )
+        timing = [
+            m
+            for m in captured.output
+            if "WebSocket message from" in m and "BOOM_OP (took " in m
+        ]
+        self.assertEqual(1, len(timing))
+        self.assertRegex(timing[0], r"\(took \d+\.\d{2}ms\)")
+
+    @gen_test
+    async def test_ws_message_logged_before_dispatch(self):
+        """A pre-op line carries the payload (redaction off) so a hung op leaves a
+        record of what arrived.
+        """
+        captured = await self._logs_for_raising_op(False)
+        pre_op = [m for m in captured.output if "SENTINEL-PAYLOAD" in m]
+        self.assertEqual(1, len(pre_op))
+        self.assertNotIn("(took", pre_op[0])
+        error_idx = next(
+            i for i, m in enumerate(captured.output) if "Unhandled error" in m
+        )
+        self.assertLess(captured.output.index(pre_op[0]), error_idx)
+
+    @gen_test
+    async def test_ws_message_payload_redacted_when_handler_raises(self):
+        captured = await self._logs_for_raising_op(True)
+        joined = "\n".join(captured.output)
+        self.assertNotIn("SENTINEL-PAYLOAD", joined)
+        self.assertIn("BOOM_OP (", joined)
+        self.assertIn("BOOM_OP (took ", joined)
+
     @gen_test
     async def test_update_session_survives_deleted_user(self):
         ws, uuid = await self._connect_and_auth(self.admin2_id)

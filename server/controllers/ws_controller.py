@@ -497,6 +497,23 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         return user
 
     async def on_message(self, message: Union[str, bytes]):
+        """Parse and dispatch an incoming WebSocket frame.
+
+        Malformed frames (not JSON, no ``OP`` key, or a non-string ``OP``) are
+        logged as a warning and dropped. Otherwise the op is routed to the auth,
+        script-room or session handler. An exception raised by a handler is logged
+        and swallowed so the connection stays open.
+
+        Two debug lines are logged per well-formed frame: one *before* dispatch
+        carrying the payload (so a hung op or dropped connection still leaves a
+        record), and one in a ``finally`` after it with the elapsed time, which is
+        emitted even when the handler raises. When the ``log_redaction`` setting is
+        on, the payload is replaced by ``<op> (<n> bytes)`` since
+        ``AUTHENTICATE`` / ``REFRESH_TOKEN`` frames carry live JWTs.
+
+        :param message: The raw frame as received from the client.
+        :type message: Union[str, bytes]
+        """
         user_part = (
             f"{self.current_username} ({self.request.remote_ip})"
             if self.current_username
@@ -531,6 +548,15 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
         # reads frames but still counts as a connected owner. Each op keeps its
         # own state consistent (authentication rolls itself back), so a failed
         # op is logged and the connection carries on.
+        # Logged before dispatch so a hung op or a dropped connection still leaves
+        # a record of what arrived. With redaction on never log the payload:
+        # AUTHENTICATE / REFRESH_TOKEN carry live JWTs.
+        if self.application.digi_settings.get_sync("log_redaction"):
+            summary = f"{ws_op} ({size} bytes)"
+        else:
+            summary = raw
+        get_logger().debug(f"WebSocket message from {user_part}: {summary}")
+
         start_time = time.monotonic()
         try:
             if ws_op in ("AUTHENTICATE", "REFRESH_TOKEN"):
@@ -546,14 +572,8 @@ class WebSocketController(WSMessageSizeMetricsMixin, DatabaseMixin, WebSocketHan
             )
         finally:
             elapsed_ms = 1000.0 * (time.monotonic() - start_time)
-            # With redaction on never log the payload: AUTHENTICATE /
-            # REFRESH_TOKEN carry live JWTs.
-            if self.application.digi_settings.get_sync("log_redaction"):
-                summary = f"{ws_op} ({size} bytes)"
-            else:
-                summary = raw
             get_logger().debug(
-                f"WebSocket message from {user_part}: {summary} {elapsed_ms:.2f}ms"
+                f"WebSocket message from {user_part}: {ws_op} (took {elapsed_ms:.2f}ms)"
             )
 
     async def _handle_auth_op(self, ws_op: str, message: dict) -> None:
