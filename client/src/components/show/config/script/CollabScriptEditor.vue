@@ -891,6 +891,11 @@ function finishAndAddLine(index: number): void {
   insertLineAt(index, LINE_TYPES.DIALOGUE);
 }
 
+/** Up/Down close the current line without validating it, unlike Esc/Enter. That is
+ * intentional: arrow keys are navigation, not "I'm finished with this line", and
+ * blocking them on a half-filled line would trap the keyboard user. Nothing is lost
+ * or committed invalid — the draft keeps the line as-is and `firstInvalidLine`
+ * disables Save (naming the offending line) until it's fixed. */
 function navigateUp(index: number): void {
   if (index <= 0) return;
   const line = draftLines.value[index];

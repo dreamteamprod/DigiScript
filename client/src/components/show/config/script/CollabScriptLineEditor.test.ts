@@ -1,7 +1,7 @@
 /* eslint-disable vue/one-component-per-file -- small in-file stubs */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import { passthrough, SelectStub } from './testStubs';
@@ -247,6 +247,33 @@ describe('CollabScriptLineEditor', () => {
     });
     expect(wrapper.text()).toContain('Cue Lines have no editable content.');
     expect(wrapper.findAll('.part-stub')).toHaveLength(0);
+  });
+
+  it('focuses the row itself for a cue line, so Up/Down/Esc keep working without a text input', async () => {
+    wrapper = mount(CollabScriptLineEditor, {
+      attachTo: document.body,
+      props: {
+        page: 1,
+        line: line({ line_type: LINE_TYPES.CUE_LINE, line_parts: [] }),
+        acts: [act(1)],
+        scenes: [scene(1, 1)],
+        characters: [],
+        characterGroups: [],
+        previousLine: null,
+        nextLine: null,
+        stageDirectionStyles: [],
+      },
+      global: { stubs },
+    });
+    await flushPromises();
+
+    const row = wrapper.find('.line-editor-card');
+    expect(document.activeElement).toBe(row.element);
+
+    await row.trigger('keydown.up');
+    await row.trigger('keydown.down');
+    expect(wrapper.emitted('navigateUp')).toHaveLength(1);
+    expect(wrapper.emitted('navigateDown')).toHaveLength(1);
   });
 
   describe('remote-editors badge (Phase 4 Step C)', () => {
