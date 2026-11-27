@@ -79,31 +79,16 @@ def _resolve_alias(raw, id_aliases: dict[str, str]) -> str:
     return key
 
 
-def extract_lines_from_ydoc(
-    doc: pycrdt.Doc,
-    id_aliases: dict[str, str] | None = None,
-) -> tuple[list[dict], list[int]]:
-    """Read the Y.Doc and return plain Python data.
+def _collect_deleted_line_ids(
+    deleted_arr: pycrdt.Array, id_aliases: dict[str, str] | None
+) -> list[int]:
+    """Read the ``deleted_line_ids`` array, resolving aliases and skipping UUIDs.
 
-    MUST run synchronously in the event loop (not in an executor) to ensure a
-    consistent point-in-time snapshot.
-
-    :param doc: The pycrdt Y.Doc to extract from.
-    :param id_aliases: Optional ``{old_id: new_id}`` record of ids earlier saves have
-        rewritten, used to resolve deletions recorded against a stale id.
-    :returns: ``(lines_by_page, deleted_line_ids)`` where ``lines_by_page`` is
-        a list of ``{"page": int, "lines": list[dict]}`` dicts ordered by page
-        number, and ``deleted_line_ids`` is a list of integer DB ids of lines
-        that were deleted by editors.
+    UUIDs are lines that were never saved to the DB, so there is nothing to delete.
     """
-    pages_map = doc.get("pages", type=pycrdt.Map)
-    deleted_arr = doc.get("deleted_line_ids", type=pycrdt.Array)
-
-    # Collect deleted line IDs — skip UUIDs (lines never saved to DB)
     deleted_line_ids: list[int] = []
     for i in range(len(deleted_arr)):
-        raw = deleted_arr[i]
-        raw = _resolve_alias(raw, id_aliases or {})
+        raw = _resolve_alias(deleted_arr[i], id_aliases or {})
         db_id = _parse_db_id(raw)
         if db_id is not None:
             deleted_line_ids.append(db_id)
@@ -111,11 +96,14 @@ def extract_lines_from_ydoc(
             get_logger().debug(
                 f"extract_lines_from_ydoc: skipping non-DB deleted_line_id {raw!r}"
             )
+    return deleted_line_ids
 
-    get_logger().debug(f"extract_lines_from_ydoc: deleted_line_ids={deleted_line_ids}")
 
-    # Extract pages sorted by page number
-    lines_by_page: list[dict] = []
+def _validated_page_keys(pages_map: pycrdt.Map) -> list[str]:
+    """Return the numeric page keys, sorted, after checking the draft is well formed.
+
+    :raises ValueError: If non-page keys hold content, or a page is not a Y.Array.
+    """
     page_keys = sorted(numeric_page_keys(pages_map), key=int)
     ignored = sorted(set(pages_map.keys()) - set(page_keys))
     for key in ignored:
@@ -133,62 +121,86 @@ def extract_lines_from_ydoc(
     for key in page_keys:
         if not isinstance(pages_map[key], pycrdt.Array):
             raise ValueError(f"Page {key} is not a Y.Array; the draft is malformed")
+    return page_keys
 
+
+def _extract_part(part_map, position: int) -> dict:
+    """Read one line part from its Y.Map.
+
+    ``part_index`` is the part's *position*, not the stored value: two editors
+    appending a part concurrently both write the same index, and array order is
+    the one thing Yjs converges on.
+    """
+    return {
+        "_id": part_map["_id"],
+        "part_index": position,
+        "character_id": _zero_to_none(part_map["character_id"]),
+        "character_group_id": _zero_to_none(part_map["character_group_id"]),
+        "line_text": str(part_map["line_text"]),
+    }
+
+
+def _extract_line(line_map) -> dict:
+    """Read one script line (and its parts) from its Y.Map."""
+    parts_array = line_map["parts"]
+    return {
+        "_id": line_map["_id"],
+        "act_id": _zero_to_none(line_map["act_id"]),
+        "scene_id": _zero_to_none(line_map["scene_id"]),
+        "line_type": _zero_to_none(line_map["line_type"]),
+        "stage_direction_style_id": _zero_to_none(line_map["stage_direction_style_id"]),
+        "line_parts": [
+            _extract_part(parts_array[j], j) for j in range(len(parts_array))
+        ],
+    }
+
+
+def _extract_page(page_num: int, page_array: pycrdt.Array) -> dict:
+    """Read every line on one page into ``{"page": int, "lines": [...]}``."""
+    get_logger().debug(
+        f"extract_lines_from_ydoc: page {page_num} has {len(page_array)} line(s)"
+    )
+    lines: list[dict] = []
+    for i in range(len(page_array)):
+        line = _extract_line(page_array[i])
+        lines.append(line)
+        get_logger().debug(
+            f"extract_lines_from_ydoc: page {page_num}[{i}] "
+            f"_id={line['_id']!r} parts={len(line['line_parts'])}"
+        )
+    return {"page": page_num, "lines": lines}
+
+
+def extract_lines_from_ydoc(
+    doc: pycrdt.Doc,
+    id_aliases: dict[str, str] | None = None,
+) -> tuple[list[dict], list[int]]:
+    """Read the Y.Doc and return plain Python data.
+
+    MUST run synchronously in the event loop (not in an executor) to ensure a
+    consistent point-in-time snapshot.
+
+    :param doc: The pycrdt Y.Doc to extract from.
+    :param id_aliases: Optional ``{old_id: new_id}`` record of ids earlier saves have
+        rewritten, used to resolve deletions recorded against a stale id.
+    :returns: ``(lines_by_page, deleted_line_ids)`` where ``lines_by_page`` is
+        a list of ``{"page": int, "lines": list[dict]}`` dicts ordered by page
+        number, and ``deleted_line_ids`` is a list of integer DB ids of lines
+        that were deleted by editors.
+    :raises ValueError: If the draft is malformed (see ``_validated_page_keys``).
+    """
+    pages_map = doc.get("pages", type=pycrdt.Map)
+    deleted_arr = doc.get("deleted_line_ids", type=pycrdt.Array)
+
+    deleted_line_ids = _collect_deleted_line_ids(deleted_arr, id_aliases)
+    get_logger().debug(f"extract_lines_from_ydoc: deleted_line_ids={deleted_line_ids}")
+
+    page_keys = _validated_page_keys(pages_map)
     get_logger().debug(
         f"extract_lines_from_ydoc: {len(page_keys)} page(s): {page_keys}"
     )
 
-    for page_key in page_keys:
-        page_num = int(page_key)
-        page_array = pages_map[page_key]
-        lines: list[dict] = []
-
-        get_logger().debug(
-            f"extract_lines_from_ydoc: page {page_num} has {len(page_array)} line(s)"
-        )
-
-        for i in range(len(page_array)):
-            line_map = page_array[i]
-            line_parts: list[dict] = []
-
-            parts_array = line_map["parts"]
-            for j in range(len(parts_array)):
-                part_map = parts_array[j]
-                line_parts.append(
-                    {
-                        "_id": part_map["_id"],
-                        # Position, not the stored value: two editors appending a
-                        # part concurrently both write the same index, and array
-                        # order is the one thing Yjs converges on.
-                        "part_index": j,
-                        "character_id": _zero_to_none(part_map["character_id"]),
-                        "character_group_id": _zero_to_none(
-                            part_map["character_group_id"]
-                        ),
-                        "line_text": str(part_map["line_text"]),
-                    }
-                )
-
-            raw_id = line_map["_id"]
-            lines.append(
-                {
-                    "_id": raw_id,
-                    "act_id": _zero_to_none(line_map["act_id"]),
-                    "scene_id": _zero_to_none(line_map["scene_id"]),
-                    "line_type": _zero_to_none(line_map["line_type"]),
-                    "stage_direction_style_id": _zero_to_none(
-                        line_map["stage_direction_style_id"]
-                    ),
-                    "line_parts": line_parts,
-                }
-            )
-            get_logger().debug(
-                f"extract_lines_from_ydoc: page {page_num}[{i}] "
-                f"_id={raw_id!r} parts={len(line_parts)}"
-            )
-
-        lines_by_page.append({"page": page_num, "lines": lines})
-
+    lines_by_page = [_extract_page(int(key), pages_map[key]) for key in page_keys]
     return lines_by_page, deleted_line_ids
 
 
@@ -215,35 +227,47 @@ def _has_line_changed(
     if not existing_line:
         raise ValueError(f"Script line {db_id} not found in database.")
 
-    if existing_line.page != page_number:
-        return True
-    if existing_line.act_id != ydoc_line["act_id"]:
-        return True
-    if existing_line.scene_id != ydoc_line["scene_id"]:
-        return True
-    line_type_val = existing_line.line_type.value if existing_line.line_type else None
-    if line_type_val != ydoc_line["line_type"]:
-        return True
-    if existing_line.stage_direction_style_id != ydoc_line["stage_direction_style_id"]:
+    if _line_fields_differ(existing_line, ydoc_line, page_number):
         return True
 
     existing_parts = sorted(existing_line.line_parts, key=lambda p: p.part_index or 0)
     ydoc_parts = ydoc_line["line_parts"]
-
     if len(existing_parts) != len(ydoc_parts):
         return True
+    return any(_part_differs(ep, yp) for ep, yp in zip(existing_parts, ydoc_parts))
 
-    for ep, yp in zip(existing_parts, ydoc_parts):
-        if ep.character_id != yp["character_id"]:
-            return True
-        if ep.character_group_id != yp["character_group_id"]:
-            return True
-        if (ep.line_text or "") != (yp["line_text"] or ""):
-            return True
-        if ep.part_index != yp["part_index"]:
-            return True
 
-    return False
+def _line_fields_differ(existing_line, ydoc_line: dict, page_number: int) -> bool:
+    """True if any top-level field of the DB line differs from the Y.Doc line."""
+    line_type_val = existing_line.line_type.value if existing_line.line_type else None
+    return (
+        existing_line.page,
+        existing_line.act_id,
+        existing_line.scene_id,
+        line_type_val,
+        existing_line.stage_direction_style_id,
+    ) != (
+        page_number,
+        ydoc_line["act_id"],
+        ydoc_line["scene_id"],
+        ydoc_line["line_type"],
+        ydoc_line["stage_direction_style_id"],
+    )
+
+
+def _part_differs(existing_part, ydoc_part: dict) -> bool:
+    """True if a DB line part differs from the matching Y.Doc part."""
+    return (
+        existing_part.character_id,
+        existing_part.character_group_id,
+        existing_part.line_text or "",
+        existing_part.part_index,
+    ) != (
+        ydoc_part["character_id"],
+        ydoc_part["character_group_id"],
+        ydoc_part["line_text"] or "",
+        ydoc_part["part_index"],
+    )
 
 
 # ---------------------------------------------------------------------------
