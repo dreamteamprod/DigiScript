@@ -96,15 +96,17 @@ const buttonByText = (w: ReturnType<typeof mountAdd>, text: string) =>
   w.findAll('button').find((b) => b.text().trim() === text);
 
 /** Make addNewCue behave like the real one: the cue appears on the line after the reload. */
-function fakeAddNewCue(scriptStore: ReturnType<typeof useScriptStore>) {
-  return vi.spyOn(scriptStore, 'addNewCue').mockImplementation(async (c) => {
+function fakeAddNewCue(store: ReturnType<typeof useScriptStore>) {
+  return vi.spyOn(store, 'addNewCue').mockImplementation(async (c) => {
     const key = String(c.lineId);
-    const added = cue(900 + (scriptStore.cues[key]?.length ?? 0), c.cueType, c.ident);
-    scriptStore.cues = { ...scriptStore.cues, [key]: [...(scriptStore.cues[key] ?? []), added] };
-    scriptStore.linePositions = {
-      ...scriptStore.linePositions,
-      [key]: { page: 5, index: 1, act_id: 1, scene_id: 1 },
-    };
+    const added = cue(900 + (store.cues[key]?.length ?? 0), c.cueType, c.ident);
+    store.$patch({
+      cues: { ...store.cues, [key]: [...(store.cues[key] ?? []), added] },
+      linePositions: {
+        ...store.linePositions,
+        [key]: { page: 5, index: 1, act_id: 1, scene_id: 1 },
+      },
+    });
     return true;
   });
 }
