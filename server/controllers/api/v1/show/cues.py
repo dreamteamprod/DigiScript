@@ -242,6 +242,14 @@ class CueTypesImportController(BaseAPIController):
 _LOG_ID_SAMPLE = 20
 
 
+def _sample_ids(ids: Iterable[int]) -> str:
+    """Format line ids for a log line, sorted and capped at ``_LOG_ID_SAMPLE``."""
+    ordered = sorted(ids)
+    if len(ordered) <= _LOG_ID_SAMPLE:
+        return str(ordered)
+    return f"{ordered[:_LOG_ID_SAMPLE]} (+{len(ordered) - _LOG_ID_SAMPLE} more)"
+
+
 def get_line_positions(
     session, revision_id: int, line_ids: Iterable[int]
 ) -> dict[str, dict]:
@@ -259,9 +267,10 @@ def get_line_positions(
     head, positions would be unreliable, so an error is logged and an empty
     mapping returned; the caller must treat a missing entry as "position
     unknown", never as the first line. Lines that cannot be reached from the head
-    (e.g. not linked into the chain) are left out and a warning is logged, as are
-    requested lines with no association in this revision. A cycle back into the
-    chain simply ends the walk.
+    (e.g. not linked into the chain) are left out. A warning is logged if any
+    line in the revision is unreachable, naming which of the requested lines are
+    affected, and another for requested lines with no association in this
+    revision. A cycle back into the chain simply ends the walk.
 
     :param session: Open database session.
     :param revision_id: The revision to look the lines up in.
@@ -304,12 +313,11 @@ def get_line_positions(
         # Several heads (or none) means the chain is broken; merging chains would
         # give plausible but wrong indexes, so report none.
         get_logger().error(
-            "Revision %s line chain has %d heads (expected 1; first %d: %s); "
+            "Revision %s line chain has %d heads (expected 1): %s; "
             "line positions unavailable",
             revision_id,
             len(heads),
-            _LOG_ID_SAMPLE,
-            heads[:_LOG_ID_SAMPLE],
+            _sample_ids(heads),
         )
         return {}
 
@@ -332,26 +340,23 @@ def get_line_positions(
         current = row.next_line_id
 
     if len(visited) != len(rows):
-        unreachable = sorted(wanted & (by_id.keys() - visited))
+        unreachable = wanted & (by_id.keys() - visited)
         get_logger().warning(
             "Revision %s line chain is inconsistent: %d/%d lines reachable "
-            "from the head; %d requested line(s) unreachable (first %d: %s)",
+            "from the head; %d requested line(s) unreachable: %s",
             revision_id,
             len(visited),
             len(rows),
             len(unreachable),
-            _LOG_ID_SAMPLE,
-            unreachable[:_LOG_ID_SAMPLE],
+            _sample_ids(unreachable),
         )
-    missing = sorted(wanted - by_id.keys())
+    missing = wanted - by_id.keys()
     if missing:
         get_logger().warning(
-            "Revision %s: %d requested line(s) have no association in the "
-            "revision (first %d: %s)",
+            "Revision %s: %d requested line(s) have no association in the revision: %s",
             revision_id,
             len(missing),
-            _LOG_ID_SAMPLE,
-            missing[:_LOG_ID_SAMPLE],
+            _sample_ids(missing),
         )
     return positions
 

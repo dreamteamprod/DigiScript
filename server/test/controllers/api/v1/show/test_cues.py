@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import tornado.escape
 from sqlalchemy import select, text
 
-from controllers.api.v1.show.cues import get_line_positions
+from controllers.api.v1.show.cues import _sample_ids, get_line_positions
 from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
     Script,
@@ -2323,7 +2323,8 @@ class TestCueLinePositions(DigiScriptTestCase):
             self._assoc(session, self.line_ids[3]).next_line_id = self.line_ids[1]
             session.commit()
 
-        # A cycle back into the chain just ends the walk: nothing to warn about.
+        # A cycle back into the chain just ends the walk. Every row is still
+        # reached, so there is no inconsistency to warn about.
         with self.assertNoLogs("DigiScript", level="WARNING"):
             positions = self._get_line_positions()
         self.assertEqual(
@@ -2344,7 +2345,9 @@ class TestCueLinePositions(DigiScriptTestCase):
         self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
         self.assertEqual(0, positions[str(self.line_ids[0])]["index"])
         self.assertIn("4/5 lines reachable", "".join(logs.output))
-        self.assertIn(str(orphan), "".join(logs.output))
+        self.assertIn(
+            f"1 requested line(s) unreachable: [{orphan}]", "".join(logs.output)
+        )
 
     def test_line_not_in_revision_is_omitted_and_warned_about(self):
         with self._app.get_db().sessionmaker() as session:
@@ -2353,5 +2356,15 @@ class TestCueLinePositions(DigiScriptTestCase):
                     session, self.revision_id, [self.line_ids[0], 999999]
                 )
             self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
-            self.assertIn("999999", "".join(logs.output))
+            self.assertIn(
+                "1 requested line(s) have no association in the revision: [999999]",
+                "".join(logs.output),
+            )
             self.assertEqual({}, get_line_positions(session, self.revision_id, []))
+
+    def test_logged_id_lists_are_sorted_and_capped(self):
+        self.assertEqual("[1, 2, 3]", _sample_ids({3, 1, 2}))
+        self.assertEqual(str(list(range(20))), _sample_ids(range(19, -1, -1)))
+        self.assertEqual(
+            f"{list(range(20))} (+10 more)", _sample_ids(range(29, -1, -1))
+        )
