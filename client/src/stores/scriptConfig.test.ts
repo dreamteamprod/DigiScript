@@ -280,6 +280,16 @@ describe('lineKeys stay aligned with tmpScript', () => {
     expect(store.getLineKey(1, 0)).toBe('page_1_line_0');
   });
 
+  it('never starts a key array mid-page, which would misalign it with tmpScript', () => {
+    const store = useScriptConfigStore();
+    store.tmpScript['1'] = [makeLine(1, 1), makeLine(2, 1)];
+
+    store.insertBlankLine(1, 1, makeLine(null, 1));
+
+    expect(store.lineKeys['1']).toBeUndefined();
+    expect(store.getLineKey(1, 1)).toBe('page_1_line_1');
+  });
+
   it('does not leak keys for an emptied or removed page', () => {
     const store = useScriptConfigStore();
     store.addPage(1, [makeLine(1, 1)]);

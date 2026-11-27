@@ -69,7 +69,10 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     // the lines would mark every line changed. Kept in lockstep with `tmpScript`'s own
     // splices below; used by ScriptEditor.vue as the `v-for` key, so a row's editor
     // instance follows its line when an insert/delete shifts its index, instead of being
-    // reused for whichever line now sits at that index.
+    // reused for whichever line now sits at that index. `addPage` always creates a page's
+    // array; the mutations below only touch an existing one (`?.`) and never create one,
+    // since an array started mid-page would be misaligned with `tmpScript` — a page
+    // populated without `addPage` just keeps the index-derived fallback keys.
     lineKeys: {} as Record<string, string[]>,
     editStatus: { canRequestEdit: false, currentEditor: null } as EditStatus,
     cutMode: false,
@@ -126,7 +129,7 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       const l = structuredClone(line);
       l.page = page;
       this.tmpScript[String(page)].push(l);
-      (this.lineKeys[String(page)] ??= []).push(newLineKey());
+      this.lineKeys[String(page)]?.push(newLineKey());
     },
 
     insertBlankLine(page: number, lineIndex: number, line: ScriptLine): void {
@@ -140,13 +143,13 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
         this.tmpScript[pageStr].splice(lineIndex, 1, l);
         // New content in a reused slot: a fresh key, so it doesn't look like the
         // tombstoned line it replaced.
-        (this.lineKeys[pageStr] ??= [])[lineIndex] = newLineKey();
+        this.lineKeys[pageStr]?.splice(lineIndex, 1, newLineKey());
         this.deletedLines[pageStr].splice(this.deletedLines[pageStr].indexOf(lineIndex), 1);
       } else {
         const l = structuredClone(line);
         l.page = page;
         this.tmpScript[pageStr].splice(lineIndex, 0, l);
-        (this.lineKeys[pageStr] ??= []).splice(lineIndex, 0, newLineKey());
+        this.lineKeys[pageStr]?.splice(lineIndex, 0, newLineKey());
         // Splicing shifts every later index up by one — deletedLines/insertedLines
         // index into the same array, so they must shift too, or a tombstone/insert
         // recorded before this one silently starts pointing at the wrong line.

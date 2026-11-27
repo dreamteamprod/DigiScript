@@ -659,6 +659,45 @@ async function saveCutsOnly(): Promise<void> {
   }
 }
 
+/** Saves one page of `saveScript`'s page loop. `'skipped'` when the page is empty or has
+ * nothing to send, `'ok'` once it is saved and its local copy refreshed, `'failed'` if
+ * the server rejected it (the caller reports that and stops). */
+async function savePage(pageNo: number): Promise<'skipped' | 'ok' | 'failed'> {
+  const tmpPage = scriptConfigStore.getTmpPage(pageNo);
+  if (tmpPage.length === 0) return 'skipped';
+
+  const actualPage = scriptStore.getScriptPage(pageNo);
+  let ok: boolean;
+
+  if (actualPage.length === 0) {
+    ok = await scriptStore.saveNewPage(
+      pageNo,
+      tmpPage.filter((_, i) => !scriptConfigStore.getDeletedLines(pageNo).includes(i))
+    );
+  } else {
+    const status = computePageStatus(
+      actualPage,
+      tmpPage,
+      scriptConfigStore.getDeletedLines(pageNo),
+      scriptConfigStore.getInsertedLines(pageNo)
+    );
+    const hasChanges =
+      status.added.length > 0 ||
+      status.updated.length > 0 ||
+      status.deleted.length > 0 ||
+      status.inserted.length > 0;
+    if (!hasChanges) return 'skipped';
+
+    ok = await scriptStore.saveChangedPage(pageNo, { page: tmpPage, status });
+  }
+
+  if (!ok) return 'failed';
+  await scriptStore.loadScriptPage(pageNo);
+  scriptConfigStore.addPage(pageNo, scriptStore.getScriptPage(pageNo));
+  scriptConfigStore.resetTracking(pageNo);
+  return 'ok';
+}
+
 async function saveScript(): Promise<void> {
   if (scriptConfigStore.cutMode) {
     await saveCutsOnly();
@@ -691,39 +730,7 @@ async function saveScript(): Promise<void> {
 
   for (let pageNo = 1; pageNo <= maxPage; pageNo++) {
     curSavePage.value = pageNo;
-    const tmpPage = scriptConfigStore.getTmpPage(pageNo);
-    if (tmpPage.length === 0) continue;
-
-    const actualPage = scriptStore.getScriptPage(pageNo);
-    let ok: boolean;
-
-    if (actualPage.length === 0) {
-      ok = await scriptStore.saveNewPage(
-        pageNo,
-        tmpPage.filter((_, i) => !scriptConfigStore.getDeletedLines(pageNo).includes(i))
-      );
-    } else {
-      const status = computePageStatus(
-        actualPage,
-        tmpPage,
-        scriptConfigStore.getDeletedLines(pageNo),
-        scriptConfigStore.getInsertedLines(pageNo)
-      );
-      const hasChanges =
-        status.added.length > 0 ||
-        status.updated.length > 0 ||
-        status.deleted.length > 0 ||
-        status.inserted.length > 0;
-      if (!hasChanges) continue;
-
-      ok = await scriptStore.saveChangedPage(pageNo, { page: tmpPage, status });
-    }
-
-    if (ok) {
-      await scriptStore.loadScriptPage(pageNo);
-      scriptConfigStore.addPage(pageNo, scriptStore.getScriptPage(pageNo));
-      scriptConfigStore.resetTracking(pageNo);
-    } else {
+    if ((await savePage(pageNo)) === 'failed') {
       toast.error('Unable to save script. Please try again.');
       saveError.value = true;
       break;
